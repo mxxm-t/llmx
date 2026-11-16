@@ -20,7 +20,7 @@ enum DraftRole : uint16_t { main_proj, main_norm, draft_norm, markov_embed, mark
 inline uint16_t draft_role(const Config& c, DraftRole r) { return uint16_t(role_count * (1 + size_t(c.n_nextn)) + r); }
 
 // The drafter's arena slots after slot_widths': the taps, one plane of a pass's rows each, and the Markov head's rows.
-enum : size_t { tap_slot = candidate_ids + 1, markov_slot = candidate_ids + 2 };
+enum : size_t { tap_slot = route_bias + 1, markov_slot = route_bias + 2 };
 
 // A tap (model.py:1263-1265 at e5decd76): the mean of the streams entering the layer after its lookup, plane i of the taps' slot.
 // The planes hold the pass's rows one after another, so a crossing of the pass's rows carries every plane.
@@ -181,7 +181,8 @@ inline void DeepSeek41::draft(const DraftStep& s) const {
     for (size_t st = 0; st < size_t(c.n_nextn); ++st) {
         const Weight* w = s.w + stage_role(st, 0);
         if (runs(2 * st)) attend(x, w, {st, B, true});
-        if (runs(2 * st + 1)) ffn_body(x, w, size_t(c.draft_used), c.swiglu_exp[size_t(c.n_layer) + st], c.swiglu_shexp[size_t(c.n_layer) + st]);
+        if (runs(2 * st + 1)) ffn_body(x, w, size_t(c.draft_used), c.swiglu_exp[size_t(c.n_layer) + st], c.swiglu_shexp[size_t(c.n_layer) + st],
+                                         backend::RouteRule::sqrt_softplus(w[exp_probs_b].slice(), c.expert_scale, true));
     }
     // The logits of draft j of sequence i in row j * R + i of the member's vocabulary rows, then each draft's Markov bias and pick in order.
     const Weight &out = s.w[output], &m1 = s.w[draft_role(c, markov_embed)], &m2 = s.w[draft_role(c, markov_head)];

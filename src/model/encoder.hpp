@@ -1,7 +1,9 @@
 #pragma once
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -17,19 +19,26 @@
 
 namespace infer {
 
-// How an encoder's rows are placed among a prompt's positions: Qwen's three components, the patch's row and column beside the image's start.
-enum class VisionPositions : uint8_t { grid };
+// How an encoder's rows are placed among a prompt's positions: Qwen's three components, the patch's row and column beside the image's start, or one text position a row.
+enum class VisionPositions : uint8_t { grid, text };
 
 // The texts of the tokens a chat template marks an image with, read from the text model's vocabulary.
 struct ImageTokenTexts {
     std::string start, pad, end;
 };
 
-// What an encoder declares of its weights: its roles, the ops some backends lack, the floats a patch takes in each arena slot and which hold its input and output rows.
+// A matrix role whose input axis the runner reorders once on a host copy: input d * groups + k of each row becomes k * (in / groups) + d, so a row's inputs run group by group.
+struct Regroup {
+    uint16_t role = 0;
+    size_t groups = 0;
+};
+
+// What an encoder declares of its weights: its roles, those regrouped, the ops some backends lack, the floats a patch takes in each arena slot and which hold its input and output rows.
 // It also gives its attention's heads, the width of an image token's row and the floats of each table it computes.
 struct EncoderPlan {
     size_t role_ids = 0;
     std::vector<Role> roles;
+    std::vector<Regroup> regrouped;
     std::vector<backend::Op> ops;
     std::vector<size_t> slots;
     size_t input_slot = 0, output_slot = 0;
@@ -39,10 +48,13 @@ struct EncoderPlan {
 };
 
 // What an image gives its encoder besides its patches, computed on the host from its grid: each patch's position streams and its learned position taps and weights.
+// A module that regroups patches gives the rows it gathers, the runs of those it zeroes as (first, count) pairs, the rows its output is laid out from, and the patch rows its arena must hold, if more than the patches.
 struct EncodeInputs {
     std::vector<uint32_t> positions;
     std::vector<uint32_t> taps;
     std::vector<float> weights;
+    std::vector<uint32_t> unfold, zero_runs, layout;
+    size_t arena_patches = 0;
 };
 
 // One image's call of the module's math: the backend and its arena, the weights by role id, the image's patches and grid, its inputs, its non-causal attention view and the activation dtype.
@@ -104,7 +116,10 @@ public:
             if (!t.data) throw std::runtime_error("inference: tensor " + t.name + " is not in memory");
             if (role.kind != RoleKind::norm && role.kind != RoleKind::table && !b_.supports_type(t.type))
                 throw std::runtime_error("inference: the vision encoder's device does not read the type of " + t.name);
-            w_[role.id] = Weight{t.type, b_.adopt(t.data, t.bytes), size_t(role.in), size_t(role.out)};
+            const void* data = t.data;
+            for (const Regroup& g : plan_.regrouped)
+                if (g.role == role.id) data = regroup(t, role, g.groups);
+            w_[role.id] = Weight{t.type, b_.adopt(data, t.bytes), size_t(role.in), size_t(role.out)};
         }
         tables_.resize(plan_.tables.size());
         for (size_t i = 0; i < tables_.size(); ++i) tables_[i].assign(plan_.tables[i], 0.0f);
@@ -129,9 +144,9 @@ public:
         const size_t patch_floats = plan_.slots.at(plan_.input_slot);
         if (!n || image.patches.size() != backend::size_mul(n, patch_floats)) throw std::runtime_error("inference: an image's patches do not fill its grid");
         pieces_ = next_ = 0;
-        reserve(n);
-        b_.write(*arena_, offsets_[plan_.input_slot], image.patches.data(), image.patches.size() * sizeof(float));
         inputs_ = arch_->inputs(image.grid_h, image.grid_w);
+        reserve(std::max(n, inputs_.arena_patches));
+        b_.write(*arena_, offsets_[plan_.input_slot], image.patches.data(), image.patches.size() * sizeof(float));
         blocks_.resize(backend::blocks_for(n, b_.kv_layout().block_tokens));
         for (size_t i = 0; i < blocks_.size(); ++i) blocks_[i] = int32_t(i);
         view_ = backend::KVView{kv_.get(), blocks_.data(), blocks_.size(), 0, n, n, false};
@@ -168,6 +183,21 @@ public:
     }
 
 private:
+    // A host copy of a 16- or 32-bit matrix with each row's inputs regrouped, kept for as long as the backend may read it in place.
+    const void* regroup(const TensorView& t, const Role& role, size_t groups) {
+        size_t unit = 0;
+        if (t.type == quant::GGML_TYPE_F32) unit = 4;
+        else if (t.type == quant::GGML_TYPE_F16 || t.type == quant::GGML_TYPE_BF16) unit = 2;
+        if (role.kind != RoleKind::matrix || !unit) throw std::runtime_error("inference: the vision encoder regroups only F32, F16 or BF16 matrices, not " + t.name);
+        const size_t in = size_t(role.in), out = size_t(role.out), per = groups ? in / groups : 0;
+        if (!groups || in % groups || t.bytes != backend::size_mul(backend::size_mul(in, out), unit)) throw std::runtime_error("inference: incompatible tensor layout " + t.name);
+        std::vector<uint8_t>& copy = regrouped_.emplace_back(t.bytes);
+        const uint8_t* src = static_cast<const uint8_t*>(t.data);
+        for (size_t o = 0; o < out; ++o)
+            for (size_t d = 0; d < per; ++d)
+                for (size_t k = 0; k < groups; ++k) std::memcpy(&copy[(o * in + k * per + d) * unit], &src[(o * in + d * groups + k) * unit], unit);
+        return copy.data();
+    }
     size_t row_floats() const {
         if (!pieces_ || next_ != pieces_) throw std::logic_error("inference: an encoder's rows read before its last piece");
         return backend::size_mul(arch_->tokens(grid_h_, grid_w_), plan_.out_width);
@@ -191,6 +221,7 @@ private:
     backend::Dtype dtype_;
     EncoderPlan plan_;
     std::vector<Weight> w_;
+    std::vector<std::vector<uint8_t>> regrouped_;
     std::vector<std::vector<float>> tables_;
     std::vector<backend::BufferPtr> table_buffers_;
     backend::BufferPtr arena_;

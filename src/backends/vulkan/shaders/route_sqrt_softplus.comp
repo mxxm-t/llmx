@@ -5,7 +5,7 @@
 // A workgroup of 64 lanes a row: route_experts' sqrt_softplus rule in the CPU's order: s = sqrt(softplus(x)), the k picks by s + bias, highest first, ties to lower ids, weighed s / (sum + 1e-20) if normalizing more than one, times scale.
 // Each pick is an exact argmax over (s + bias, id) by subgroup shuffles, then shared memory, and the sum runs in pick order on one lane; a row whose s + bias is not finite everywhere gives k picks of UINT32_MAX, weights 0.
 layout(local_size_x = 64) in;
-layout(push_constant) uniform P { uint rows; uint n_expert; uint k; uint has_bias; uint normalize; float scale; } p;
+layout(push_constant) uniform P { uint rows; uint n_expert; uint k; uint has_bias; uint normalize; float scale; uint bias_stride; } p;
 layout(set = 0, binding = 0) readonly buffer S { float scores[]; };
 layout(set = 0, binding = 1) readonly buffer B { float bias[]; };
 layout(set = 0, binding = 2) writeonly buffer I { uint ids[]; };
@@ -33,7 +33,7 @@ void main() {
     for (uint e = t; e < n; e += LANES) {
         float v = scores[r * n + e];
         float s = sqrt(v > 20.0 ? v : log1p_of(exp(v)));
-        precise float b = p.has_bias != 0u ? s + bias[e] : s;
+        precise float b = p.has_bias != 0u ? s + bias[r * p.bias_stride + e] : s;
         s_of[e] = s;
         b_in[e] = b;
         if (isnan(b) || isinf(b)) all_finite = 0u;

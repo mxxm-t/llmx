@@ -3238,15 +3238,27 @@ inline jj::Value arguments_value(const jmini::Value& arguments) {
     return parsed.isObject() ? template_value(parsed) : jj::Value::str(arguments.str);
 }
 
+// How a model whose template reads a message's content as text alone takes a message given as parts: its texts joined by `join`, an image as `image` (ModelPlan::parts_join).
+struct FlatParts {
+    std::string join, image;
+};
+
 // The variables a chat render reads, as the reference renderer passes them for a conversation without tools or documents, then `vars`.
+// Parts with no image are the content's text, and with `flat` every message's parts are one text.
 inline jj::Value context(const std::vector<Message>& messages, bool add_generation_prompt,
-                         const std::string& bos_token, const std::string& eos_token, const std::vector<TemplateVar>& vars = {}) {
+                         const std::string& bos_token, const std::string& eos_token, const std::vector<TemplateVar>& vars = {},
+                         const std::optional<FlatParts>& flat = std::nullopt) {
     using jj::Value;
     std::vector<Value> list;
     for (const auto& m : messages) {
         auto o = std::make_shared<jj::Object>();
         o->set("role", Value::str(m.role));
-        if (m.parts.empty()) {
+        const bool image = std::any_of(m.parts.begin(), m.parts.end(), [](const ContentPart& p) { return p.image; });
+        if (flat && !m.parts.empty()) {
+            std::string text;
+            for (size_t i = 0; i < m.parts.size(); ++i) text += (i ? flat->join : "") + (m.parts[i].image ? flat->image : m.parts[i].text);
+            o->set("content", Value::str(text));
+        } else if (!image) {
             o->set("content", Value::str(m.content));
         } else {
             // As the reference renderer passes them: {"type": "image"} and {"type": "text", "text": ...}.
@@ -3299,6 +3311,8 @@ struct ChatFormat {
     ToolFormat tool_format = ToolFormat::none;
     // Whether the template reads a variable `reasoning_effort`, as some templates choose their reasoning's length by it.
     bool reasoning_effort = false;
+    // Where the model declares it, how a message given as parts becomes one text (FlatParts).
+    std::optional<FlatParts> flat;
 
     // An assistant turn as a conversation keeps it, the same for chat's own replies and the turns a client sends back.
     // It is split by assistant_turn only where the template needs the reasoning apart, and whole elsewhere, as that template was written to take it.
@@ -3312,9 +3326,18 @@ struct ChatFormat {
         if (!program) throw Refused("the model's chat template is refused: " + refusal);
     }
     // The prompt for `messages`, with the assistant's header after them when `add_generation_prompt` and the request's own variables `vars`; a failing render raises TemplateError.
+    // Under `flat`, a text holding the image's text is refused, as an image enters a prompt only as an image part, never typed (encoding.py's check).
+    void refuse_image_text(const std::string& text) const {
+        if (flat && text.find(flat->image) != std::string::npos) throw TemplateError("the text holds " + flat->image + ", which only an image part gives");
+    }
     std::string render(const std::vector<Message>& messages, bool add_generation_prompt, const std::vector<TemplateVar>& vars = {}) const {
         require();
-        return program->render(context(messages, add_generation_prompt, bos, eos, vars));
+        for (const Message& m : messages) {
+            refuse_image_text(m.content);
+            if (m.reasoning_content) refuse_image_text(*m.reasoning_content);
+            for (const ContentPart& part : m.parts) refuse_image_text(part.text);
+        }
+        return program->render(context(messages, add_generation_prompt, bos, eos, vars, flat));
     }
 };
 

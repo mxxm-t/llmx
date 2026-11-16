@@ -252,6 +252,7 @@ placement contracts in `docs/EXECUTION.md`.
   weights)`: a mixture-of-experts layer's routing, the k experts the rule ranks highest per row, highest first and ties to the lower id.
   `RouteRule::softmax(normalize)` ranks by softmax probability and weighs by the probabilities, renormalized over the k when asked.
   `RouteRule::sqrt_softplus(bias, scale, normalize)`, DeepSeek-V4.1's, scores sqrt(softplus(x)), softplus being x above 20 as torch's threshold has it, ranks by score + bias and weighs by the unbiased scores over their sum + 1e-20 when `normalize` and k > 1, then times `scale`; a row with a score + bias that is not finite has no candidate.
+  A biased rule's `bias_stride`, 0 by default, gives each row its own bias, row r's at `bias + r * bias_stride`; DeepSeek-V4.1's image rows take `exp_probs_b_vl` this way, gathered per row, while a stride of 0 is the shared bias and its bits ([DEEPSEEK4](../DEEPSEEK4.md)).
   `RouteRule::sigmoid(bias, scale, normalize)`, MiniMax-M3.1's, scores sigmoid(x) and ranks and weighs as sqrt_softplus does, the weights over their sum alone at every k ([MINIMAX](../MINIMAX.md)).
   The CPU, Vulkan and ROCm run the first two rules and the CPU the sigmoid one; a backend given a rule it lacks, or a softmax rule given a bias or a scale, refuses it by name (`RouteRule::softmax_only`). Slot `j`
   of row `r` is entry `r*k + j`; the ids are 32-bit integers in float-sized

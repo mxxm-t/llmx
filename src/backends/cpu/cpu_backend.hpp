@@ -2777,14 +2777,15 @@ public:
         span(*scores_s.buffer, scores_s.offset * sizeof(float), size_mul(rows, n_expert) * sizeof(float));
         span(*ids_s.buffer, ids_s.offset * sizeof(float), size_mul(rows, k) * sizeof(float));
         span(*weights_s.buffer, weights_s.offset * sizeof(float), size_mul(rows, k) * sizeof(float));
-        if (rule.bias.buffer) span(*rule.bias.buffer, rule.bias.offset * sizeof(float), n_expert * sizeof(float));
+        if (rule.bias.buffer) span(*rule.bias.buffer, rule.bias.offset * sizeof(float), (size_mul(rows - 1, rule.bias_stride) + n_expert) * sizeof(float));
         const float* scores = at(scores_s);
-        const float* bias = rule.bias.buffer ? at(rule.bias) : nullptr;
+        const float* biases = rule.bias.buffer ? at(rule.bias) : nullptr;
         float* ids = at(ids_s);
         float* weights = at(weights_s);
         const bool sigmoid = rule.score == RouteRule::Score::sigmoid;
         spread(rows, [&](size_t r) {
             const float* x = scores + r * n_expert;
+            const float* bias = biases ? biases + r * rule.bias_stride : nullptr;
             std::vector<float> s(n_expert), b(n_expert);
             std::vector<char> taken(n_expert, 0);
             bool finite = true;

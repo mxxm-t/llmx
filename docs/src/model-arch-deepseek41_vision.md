@@ -1,0 +1,18 @@
+# `src/model/arch/deepseek41_vision.hpp` - the DeepSeek-V4.1 vision tower
+
+The vision tower of DeepSeek-V4.1-Flash's -vl release, read from an mmproj GGUF whose `general.architecture` is `clip` and `clip.projector_type` is `deepseek41v`, which `model/arch/registry.hpp`'s `kVisionEncoders` maps here ([VISION](../VISION.md), section 3).
+
+`read_config` reads `clip.vision.*`: the width, feed-forward, blocks, heads, patch, merge, output width, `image_min_pixels`, the RMSNorm epsilon and the normalization's mean and std.
+It refuses a mean or std other than 0.5 (the fused normalization equals the processor's two steps once rounded to BF16 only there), `clip.use_silu` false or absent, a merge other than 3, and a head width that is not a multiple of 4 or past 256, each with its text.
+What the file does not carry is fixed as the official code has it: the block's default rows (`kDefaultRows`, 1024, the processor's `vision_max_n_token`), the rope's base of 10000 and the pad's gray of 127; `--image-max-tokens` may ask 4 to `kMaxRows` (4096) rows, which also sizes the rope tables.
+
+`preprocess` gives `image::Params` under `Fit::padded`: patch and merge, `min_pixels`, the block's rows at most and the fill, so `image::prepare` sizes an image by image_processor.py's `plan_image_grid`, pads it as `ImageOps.pad` with Pillow's taps and cuts BF16-rounded patches in row order.
+`tokens` is a block's rows, h * (w + 1) + 2 for a grid of h by w tokens of 3 by 3 patches (`image::padded_rows`); `positions` is `VisionPositions::text`, so the block's rows sit at text positions, every one holding the id of the deepseek_image marker (`token_texts`).
+
+The plan's roles are the patch embedding and its bias, each block's nine (`ln1`, `attn_qkv` and its bias, `attn_out` and its bias, `ln2`, `ffn_gate`, `ffn_up`, `ffn_down`), `v.post_ln`, the aligner's `mm.1` and `mm.2` with their biases and the three marker rows `v.token_embd.img_start`, `v.token_embd.img_end` and `v.image_newline`.
+`mm.1` keeps the converter's layout, torch's unfold order d * 9 + k, and is regrouped at load (`EncoderPlan::regrouped`) into the 9 patch rows one after another.
+
+`encode` is vision.py's `ViT` and `Aligner` as backend ops: the patch embedding and its bias; in each block RMSNorm, the q, k and v rows of `attn_qkv` as three projections and their biases, the rope over the patch's row and column (`norm_rope_partial` with two streams, the first `head_dim / 4` frequencies by row, the rest by column), `kv_write` and full `attention`, the output projection and its bias before the residual add, RMSNorm and the SwiGLU feed-forward added into the residual; then the final RMSNorm, the 3 by 3 unfold of the grid zero-padded to whole tokens (`gather_rows` and copies of a zero table for the pad rows), `mm.1` and its bias, erf GELU, `mm.2` and its bias, and the block laid out as START, each token row's rows and its NEWLINE, END.
+`pieces` cuts it into the patch embedding, each block's projections, rope and K and V write, its attention in runs of query rows of at most `kPieceProducts` (2^37) multiply-adds, and the rest of the block, then the aligner.
+`inputs` gives each patch's row and column in row order, the unfold's patch rows with its pad runs, and the block's layout, a grid thinner than one merge cell (3 patches a side) padded to whole tokens as the official aligner pads it, and the patch rows the aligner's slots need (`arena_patches`), more than the patches for a thin grid.
+The suite's `vision` component holds the tower's rows to DeepSeek's float64 on the tiny deepseek41v mmproj, and `deepseek4` a prompt with an image on the tiny -vl model (docs/TESTS.md).

@@ -1,7 +1,8 @@
-// image::decode_image, smart_resize and resize_bicubic held to the bytes of the vision models' processor (tests/data/image_decode.json, from `tools/gen_baseline.py image-decode`).
+// image::decode_image, smart_resize, resize_bicubic and the padded fit held to the bytes of the vision models' processors (tests/data/image_decode.json and deepseek41_image_fit.json).
 // Unread formats are refused with their texts, and prefixes and flipped bits of every image are refused or decoded, never read past their end.
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
@@ -125,6 +126,59 @@ void smart_resizes(const jmini::Value& doc) {
                 at + ": " + std::to_string(rw) + "x" + std::to_string(rh) + " against HF's " + std::to_string(size_t(result->asArray()[1].asNumber())) + "x" +
                     std::to_string(size_t(result->asArray()[0].asNumber())));
     }
+}
+
+// DeepSeek-V4.1's padded fit held to image_processor.py's plan_image_grid and load_image (tests/data/deepseek41_image_fit.json, from `tools/deepseek4_reference.py --vision`).
+// Each case's size, padded bytes and BF16 patches are the processor's, Pillow's 22-bit taps differ from torchvision's 16-bit ones on some case, and budgets below a block of 4 rows are refused.
+void padded_fits(const std::filesystem::path& dir, const jmini::Value& doc) {
+    const jmini::Value& proc = *doc.get("processor");
+    image::Params params;
+    params.patch = uint32_t(number(proc, "vision_patch_size"));
+    params.merge = uint32_t(number(proc, "vision_downsample_ratio"));
+    params.min_pixels = number(proc, "vision_min_pixels");
+    params.fit = image::Fit::padded;
+    params.fill = uint8_t(number(doc, "fill"));
+    size_t forms_differ = 0;
+    for (const auto& c : doc.get("cases")->asArray()) {
+        const std::string& name = text(c, "file");
+        const std::vector<uint8_t> bytes = load(dir / name);
+        require(sha256(bytes.data(), bytes.size()) == text(c, "sha256"), name + ": the file is not the fixture's");
+        const image::Raster img = image::decode_image(bytes.data(), bytes.size());
+        params.max_rows = number(c, "max_rows");
+        const std::string at = name + " at " + std::to_string(params.max_rows) + " rows";
+        const auto [h, w] = image::fit_size(img.height, img.width, params);
+        const auto& best = c.get("best")->asArray();
+        require(h == size_t(best[0].asNumber()) && w == size_t(best[1].asNumber()), at + ": fitted to " + std::to_string(w) + "x" + std::to_string(h) + ", the processor " +
+                                                                                     std::to_string(size_t(best[1].asNumber())) + "x" + std::to_string(size_t(best[0].asNumber())));
+        require(image::padded_rows(h, w, params.patch, params.merge) == number(c, "rows"), at + ": the block's rows are not the processor's");
+        const image::Raster padded = image::resize_for(img, params);
+        require(sha256(padded.rgb.data(), padded.rgb.size()) == text(c, "rgb_sha256"), at + ": the padded bytes are not ImageOps.pad's");
+        const image::Prepared prep = image::patches(padded, params);
+        const auto& grid = c.get("grid")->asArray();
+        require(prep.grid_h == size_t(grid[0].asNumber()) && prep.grid_w == size_t(grid[1].asNumber()), at + ": the patch grid is not the processor's");
+        require(sha256(reinterpret_cast<const uint8_t*>(prep.patches.data()), prep.patches.size() * sizeof(float)) == text(c, "patches_sha256"),
+                at + ": the BF16 patches are not load_image's");
+        // The image's own resize inside the pad, in torchvision's form: a case where it differs shows the 22-bit taps are what matched.
+        const double ratio = double(img.width) / img.height, dest = double(w) / h;
+        const uint32_t fw = ratio < dest ? uint32_t(std::nearbyint(ratio * h)) : w, fh = ratio > dest ? uint32_t(std::nearbyint(double(img.height) / img.width * w)) : h;
+        const image::Raster pillow = image::resize_bicubic(img, fw, fh, image::Resample::pillow), tv = image::resize_bicubic(img, fw, fh, image::Resample::torchvision);
+        forms_differ += pillow.rgb != tv.rgb;
+    }
+    require(forms_differ > 0, "padded fit: torchvision's 16-bit taps give Pillow's bytes on every case, so no case tells the forms apart");
+    for (const auto& c : doc.get("refuse")->asArray()) {
+        const std::string& name = text(c, "file");
+        const std::vector<uint8_t> bytes = load(dir / name);
+        const image::Raster img = image::decode_image(bytes.data(), bytes.size());
+        params.max_rows = number(c, "max_rows");
+        std::string why;
+        try {
+            (void)image::fit_size(img.height, img.width, params);
+        } catch (const std::runtime_error& e) {
+            why = e.what();
+        }
+        require(why.find(text(c, "error")) != std::string::npos, name + " at " + std::to_string(params.max_rows) + " rows: refused with \"" + why + "\"");
+    }
+    std::cout << "image-decode: " << doc.get("cases")->asArray().size() << " padded fits, Pillow's taps told from torchvision's on " << forms_differ << "\n";
 }
 
 std::string refusal(const std::vector<uint8_t>& bytes, uint64_t max_pixels = image::kMaxDecodedPixels) {
@@ -325,6 +379,8 @@ int main(int argc, char** argv) {
         smart_resizes(doc);
         decodes(dir, doc);
         resizes(dir, doc);
+        const std::vector<uint8_t> fit = load(json.parent_path() / "deepseek41_image_fit.json");
+        padded_fits(dir, jmini::parse(std::string(fit.begin(), fit.end())));
         refusals(dir, doc);
         damage(dir, doc);
         limits();

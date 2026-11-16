@@ -150,12 +150,14 @@ struct RowRuns {
 };
 
 // How route_experts ranks a row's logits and weighs its picks (docs/src/backends-backend.md); bias and scale belong to the sqrt_softplus and sigmoid scores.
+// A biased rule's `bias_stride`, when not 0, gives each row its own bias, row r's at bias + r * bias_stride floats.
 struct RouteRule {
     enum class Score : uint8_t { softmax, sqrt_softplus, sigmoid };
     Score score;
     bool normalize;
     CSlice bias;
     float scale;
+    size_t bias_stride = 0;
     static RouteRule softmax(bool normalize) { return {Score::softmax, normalize, {}, 1.0f}; }
     static RouteRule sqrt_softplus(CSlice bias, float scale, bool normalize) { return {Score::sqrt_softplus, normalize, bias, scale}; }
     static RouteRule sigmoid(CSlice bias, float scale, bool normalize) { return {Score::sigmoid, normalize, bias, scale}; }

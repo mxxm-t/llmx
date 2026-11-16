@@ -595,6 +595,7 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
     loaded->checkpoint_kv_tokens = placed.checkpoint_kv_tokens;
     loaded->kv_kept_context = placed.kv_kept_context;
     loaded->model = std::move(placed.model);
+    if (const auto join = loaded->model->parts_join()) loaded->chat.flat = chat::FlatParts{join->first, loaded->tok->vocab.at(join->second)};
     // The model filled its tables from the sources as it was built and keeps no view of them.
     for (size_t i : source_tensors) weights.tensors[i].data = nullptr;
     sources.clear();

@@ -488,13 +488,7 @@ def map_dflash(args, state, engram):
 
 def write_dflash(path, args, state, engram):
     """Write the tiny sidecar, replacing `path` only once it is complete."""
-    metadata, tensors = map_dflash(args, state, engram)
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    staged = path.with_name(path.name + ".tmp")
-    write_gguf(staged, metadata, tensors)
-    os.replace(staged, path)
-    return path
+    return write_whole(path, *map_dflash(args, state, engram))
 
 
 def fixture_from_document(document, **overrides):
@@ -513,6 +507,137 @@ def dspark_fixture(document):
     zero_rows = {int(layer): rows for layer, rows in engram["zero_rows"].items()}
     state = make_state(dspark, [sum(row) for row in engram["primes"]], document["seed"], zero_rows, document["dspark"]["seed"])
     return args, dspark, state, engram
+
+
+# The tiny -vl model's vision arguments (model.py's ModelArgs): DeepSeek-V4.1's tower at width 32, 2 heads of 16, 2 blocks and a feed-forward of 48, its aligner onto the tiny model's width.
+# Patch and merge are the release's, min_pixels one merge cell squared.
+VISION_ARGS = {"vision_n_layers": 2, "vision_dim": 32, "vision_n_heads": 2, "vision_inter_dim": 48, "vision_patch_size": 14, "vision_rope_theta": 10000.0,
+               "vision_downsample_ratio": 3, "vision_max_n_token": 1024, "vision_min_pixels": 42 * 42, "vision_max_wh_ratio": None, "image_token_id": 127}
+# The image marker, model.py's image_token_id, which the tiny -vl vocabulary holds at id 127 (absent from the golden's prompt) with the newline at 126.
+IMAGE_MARKER = "<\uff5cdeepseek_image\uff5c>"
+VL_NEWLINE_ID = 126
+# A template that reads a message's content as text, as the release's does, with text of the fixture's vocabulary around it.
+VL_TEMPLATE = "{% for m in messages %}<{{ m.role }}>{{ m.content }}{% endfor %}{% if add_generation_prompt %}<a>{% endif %}"
+
+
+def vision_shapes(args):
+    """The vision tower's parameters, the block's three marker rows and each layer's bias_vl, in model.py's names."""
+    d, f, out, k = args["vision_dim"], args["vision_inter_dim"], args["dim"], args["vision_downsample_ratio"] ** 2
+    shapes = {"vision.patch_embed.proj.weight": (d, 3 * args["vision_patch_size"] ** 2), "vision.patch_embed.proj.bias": (d,), "vision.norm.weight": (d,),
+              "aligner.w1.weight": (out, k * d), "aligner.w1.bias": (out,), "aligner.w2.weight": (out, out), "aligner.w2.bias": (out,),
+              "image_start": (out,), "image_end": (out,), "image_newline": (out,)}
+    for block in range(args["vision_n_layers"]):
+        p = "vision.blocks.%d." % block
+        shapes.update({p + "norm1.weight": (d,), p + "attn.wqkv.weight": (3 * d, d), p + "attn.wqkv.bias": (3 * d,), p + "attn.wo.weight": (d, d),
+                       p + "attn.wo.bias": (d,), p + "norm2.weight": (d,), p + "mlp.w1.weight": (2 * f, d), p + "mlp.w2.weight": (d, f)})
+    for layer in range(args["n_layers"]):
+        shapes["layers.%d.ffn.gate.bias_vl" % layer] = (args["n_routed_experts"],)
+    return shapes
+
+
+def make_vision_state(args, seed, bias_seed):
+    """The tower's and the markers' weights from `seed` and each layer's bias_vl from `bias_seed`, drawn as make_state draws: norms near one, biases small, matrices by fan-in."""
+    state = {}
+    for name, shape in vision_shapes(args).items():
+        count = math.prod(shape)
+        if name.endswith("bias_vl"):
+            state[name] = (shape, _uniform(bias_seed, name, count, 2.0 ** -4))
+        elif name.endswith(("norm.weight", "norm1.weight", "norm2.weight")):
+            state[name] = (shape, _uniform(seed, name, count, 2.0 ** -3, 1.0))
+        elif name.endswith("bias"):
+            state[name] = (shape, _uniform(seed, name, count, 2.0 ** -4))
+        elif name.startswith("image_"):
+            state[name] = (shape, _uniform(seed, name, count, 1.0))
+        else:
+            state[name] = (shape, _uniform(seed, name, count, _linear_amp(shape[-1])))
+    return state
+
+
+def map_mmproj(args, vstate):
+    """Return `(metadata, tensors)` of the tiny deepseek41v mmproj in the converter's names; mm.1 keeps torch's unfold order, a token's inputs d * 9 + k."""
+    d, f, p = args["vision_dim"], args["vision_inter_dim"], args["vision_patch_size"]
+    meta = {
+        "general.architecture": (STRING, "clip"), "general.type": (STRING, "mmproj"), "clip.has_vision_encoder": (GGUF_BOOL, True),
+        "clip.projector_type": (STRING, "deepseek41v"), "clip.use_silu": (GGUF_BOOL, True),
+        "clip.vision.projection_dim": (GGUF_UINT32, args["dim"]), "clip.vision.patch_size": (GGUF_UINT32, p),
+        "clip.vision.embedding_length": (GGUF_UINT32, d), "clip.vision.feed_forward_length": (GGUF_UINT32, f),
+        "clip.vision.block_count": (GGUF_UINT32, args["vision_n_layers"]), "clip.vision.attention.head_count": (GGUF_UINT32, args["vision_n_heads"]),
+        "clip.vision.image_mean": (ARRAY, (GGUF_FLOAT32, [0.5, 0.5, 0.5])), "clip.vision.image_std": (ARRAY, (GGUF_FLOAT32, [0.5, 0.5, 0.5])),
+        "clip.vision.attention.layer_norm_epsilon": (GGUF_FLOAT32, 1e-6),
+        "clip.vision.projector.scale_factor": (GGUF_UINT32, args["vision_downsample_ratio"]),
+        "clip.vision.image_min_pixels": (GGUF_UINT32, args["vision_min_pixels"]),
+    }
+    tensors = [_f32_tensor("v.patch_embd.weight", (d, 3, p, p), vstate["vision.patch_embed.proj.weight"][1]),
+               _f32_tensor("v.patch_embd.bias", (d,), vstate["vision.patch_embed.proj.bias"][1]),
+               _f32_tensor("v.post_ln.weight", (d,), vstate["vision.norm.weight"][1])]
+    for block in range(args["vision_n_layers"]):
+        s, g = "vision.blocks.%d." % block, "v.blk.%d." % block
+        w1 = vstate[s + "mlp.w1.weight"][1]
+        for name, target in (("norm1.weight", "ln1.weight"), ("norm2.weight", "ln2.weight"), ("attn.wqkv.weight", "attn_qkv.weight"),
+                             ("attn.wqkv.bias", "attn_qkv.bias"), ("attn.wo.weight", "attn_out.weight"), ("attn.wo.bias", "attn_out.bias"),
+                             ("mlp.w2.weight", "ffn_down.weight")):
+            tensors.append(_f32_tensor(g + target, *vstate[s + name]))
+        tensors.append(_f32_tensor(g + "ffn_gate.weight", (f, d), w1[:f * d]))
+        tensors.append(_f32_tensor(g + "ffn_up.weight", (f, d), w1[f * d:]))
+    for name, target in (("aligner.w1.weight", "mm.1.weight"), ("aligner.w1.bias", "mm.1.bias"), ("aligner.w2.weight", "mm.2.weight"),
+                         ("aligner.w2.bias", "mm.2.bias"), ("image_start", "v.token_embd.img_start"), ("image_end", "v.token_embd.img_end"),
+                         ("image_newline", "v.image_newline")):
+        tensors.append(_f32_tensor(target, *vstate[name]))
+    return meta, tensors
+
+
+def vl_tokens(args, engram):
+    """The -vl vocabulary: the golden's tokens with the marker at image_token_id and the newline at VL_NEWLINE_ID."""
+    tokens = list(engram["tokens"])
+    tokens[args["image_token_id"]] = IMAGE_MARKER
+    tokens[VL_NEWLINE_ID] = "\u010a"
+    return tokens
+
+
+def map_deepseek41_vl(args, state, engram, vstate):
+    """The tiny -vl file: the fork layout with each layer's exp_probs_b_vl, the marker as a control token and the newline in the vocabulary, and VL_TEMPLATE."""
+    metadata, tensors = map_deepseek41(args, state, engram, "fork")
+    tokens = vl_tokens(args, engram)
+    control = set(engram["special_tokens"]) | {args["image_token_id"]}
+    metadata["tokenizer.ggml.tokens"] = (ARRAY, (STRING, tokens))
+    metadata["tokenizer.ggml.token_type"] = (ARRAY, (GGUF_INT32, [3 if i in control else 1 for i in range(len(tokens))]))
+    metadata["tokenizer.chat_template"] = (STRING, VL_TEMPLATE)
+    for layer in range(args["n_layers"]):
+        tensors.append(_f32_tensor("blk.%d.exp_probs_b_vl.bias" % layer, *vstate["layers.%d.ffn.gate.bias_vl" % layer]))
+    return metadata, tensors
+
+
+def write_whole(path, metadata, tensors):
+    """Write a GGUF, replacing `path` only once it is complete."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    staged = path.with_name(path.name + ".tmp")
+    write_gguf(staged, metadata, tensors)
+    os.replace(staged, path)
+    return path
+
+
+def vl_fixture(document):
+    """The -vl args, the trunk's state and Engram constants and the vision state a vision golden names, rebuilt from its seeds."""
+    vision = document["vision"]
+    args = dict(document["args"], **vision["args"])
+    engram = document["engram"]
+    zero_rows = {int(layer): rows for layer, rows in engram["zero_rows"].items()}
+    state = make_state(document["args"], [sum(row) for row in engram["primes"]], document["seed"], zero_rows)
+    return args, state, engram, make_vision_state(args, vision["seed"], vision["bias_seed"])
+
+
+def vl_prompt_ids(tokens, text):
+    """The ids of a rendered -vl prompt: the marker its own id, every other character the one token it is in the fixture's byte-level vocabulary."""
+    ids, rest = [], text
+    while rest:
+        if rest.startswith(IMAGE_MARKER):
+            ids.append(tokens.index(IMAGE_MARKER))
+            rest = rest[len(IMAGE_MARKER):]
+            continue
+        ids.append(tokens.index("\u010a" if rest[0] == "\n" else rest[0]))
+        rest = rest[1:]
+    return ids
 
 
 # The model formats' rounding points (docs/DEEPSEEK4.md, section 4.5): E4M3 values under a power-of-two scale per block, and E2M1 values.

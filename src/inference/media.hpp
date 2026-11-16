@@ -42,7 +42,8 @@ inline std::unique_ptr<Vision> open_vision(const std::string& path, Model& model
     if (v->encoder->plan().out_width != model.embedding_width())
         throw std::runtime_error("inference: the vision encoder's rows are " + std::to_string(v->encoder->plan().out_width) + " wide and the model's embedding " +
                                  std::to_string(model.embedding_width()));
-    if (v->weights.arch->positions() != VisionPositions::grid) throw std::runtime_error("inference: the vision encoder places its rows in a way the model does not");
+    if ((v->weights.arch->positions() == VisionPositions::text) != model.text_position_images())
+        throw std::runtime_error("inference: the vision encoder places its rows in a way the model does not");
     v->params = v->weights.arch->preprocess(max_tokens);
     const std::string pad = v->weights.arch->token_texts().pad;
     const auto it = tok.token_to_id.find(pad);
@@ -86,8 +87,11 @@ inline PreparedImage prepare_image(const Vision& v, const std::string& bytes, co
     out.grid_w = resized->width / p.patch;
     if (identity) {
         const uint64_t sizes[6] = {p.patch, p.merge, p.min_pixels, p.max_pixels, out.grid_h, out.grid_w};
+        // The padded fit's own bounds join the digest only under that fit, so a smart_resize image keeps the digest it had.
+        const uint64_t padded[3] = {p.max_rows, p.fill, uint64_t(p.fit)};
+        const size_t padded_bytes = p.fit == image::Fit::padded ? sizeof padded : 0;
         out.digest = sha256_bytes({{identity->data(), identity->size()}, {sizes, sizeof sizes}, {p.mean, sizeof p.mean}, {p.std, sizeof p.std},
-                                   {resized->rgb.data(), resized->rgb.size()}});
+                                   {padded, padded_bytes}, {resized->rgb.data(), resized->rgb.size()}});
     }
     const Clock::time_point t3 = Clock::now();
     out.tokens = v.encoder->architecture().tokens(out.grid_h, out.grid_w);
@@ -143,7 +147,7 @@ inline std::shared_ptr<const std::vector<float>> encode_rows(Vision& v, const im
 // The rows an image file's bytes take, from its decoded size and the encoder's sizing, without preparing or encoding it.
 inline size_t image_tokens(const Vision& v, const std::string& bytes) {
     const image::Raster raster = image::decode_image(reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size());
-    const auto [h, w] = image::smart_resize(raster.height, raster.width, v.params.patch * v.params.merge, v.params.min_pixels, v.params.max_pixels);
+    const auto [h, w] = image::fit_size(raster.height, raster.width, v.params);
     return v.encoder->architecture().tokens(h / v.params.patch, w / v.params.patch);
 }
 
@@ -175,8 +179,10 @@ inline ImagePrompt expand(const Vision& v, const std::vector<uint32_t>& ids, con
             MediaRun run;
             run.first = out.ids.size();
             run.rows = image.tokens;
-            run.grid_h = image.grid_h / v.params.merge;
-            run.grid_w = image.grid_w / v.params.merge;
+            // Rows at text positions are one line of the history; a grid's rows fill the merged grid.
+            const bool text = v.encoder->architecture().positions() == VisionPositions::text;
+            run.grid_h = text ? 1 : image.grid_h / v.params.merge;
+            run.grid_w = text ? uint32_t(image.tokens) : image.grid_w / v.params.merge;
             run.digest = image.digest;
             out.runs.push_back(std::move(run));
         }

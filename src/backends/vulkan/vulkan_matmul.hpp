@@ -531,10 +531,10 @@ inline void VulkanBackend::route_sqrt_softplus(CSlice scores, size_t rows, size_
     if (!std::isfinite(rule.scale)) throw std::runtime_error("vulkan: a routing scale that is not finite");
     if (!rows) return;
     if (floats_from(scores) < size_mul(rows, n_expert) || floats_from(ids) < size_mul(rows, k) || floats_from(weights) < size_mul(rows, k) ||
-        (rule.bias.buffer && floats_from(rule.bias) < n_expert))
+        (rule.bias.buffer && floats_from(rule.bias) < size_mul(rows - 1, rule.bias_stride) + n_expert))
         throw std::runtime_error("vulkan: routing operand outside its allocation");
-    const struct { uint32_t rows, n_expert, k, has_bias, normalize; float scale; }
-        pc{u32(rows), u32(n_expert), u32(k), rule.bias.buffer ? 1u : 0u, rule.normalize ? 1u : 0u, rule.scale};
+    const struct { uint32_t rows, n_expert, k, has_bias, normalize; float scale; uint32_t bias_stride; }
+        pc{u32(rows), u32(n_expert), u32(k), rule.bias.buffer ? 1u : 0u, rule.normalize ? 1u : 0u, rule.scale, u32(rule.bias_stride)};
     dispatch(K_ROUTE_SQRT_SOFTPLUS, {bind(scores), rule.bias.buffer ? bind(rule.bias) : bind(scores), bind(ids), bind(weights)}, &pc, sizeof(pc), u32(rows));
 }
 

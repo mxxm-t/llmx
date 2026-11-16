@@ -244,13 +244,13 @@ size_t check_raw_index(Pair& p, const Exact& exact) {
 // Device picks that are not the CPU's: each must differ only where the CPU's s + bias of the two experts lie within 1e-6 relative, which the device's exp and log may order apart, with no expert picked twice and each weight its pick's.
 template <class Ids>
 size_t near_ties(const std::vector<float>& scores, const float* bias, size_t rows, size_t n, size_t k, bool normalize, float scale, const Ids& ri,
-                 const std::vector<float>& w, const std::string& at) {
+                 const std::vector<float>& w, const std::string& at, size_t bias_stride = 0) {
     for (size_t r = 0; r < rows; ++r) {
         std::vector<float> s(n), v(n);
         for (size_t e = 0; e < n; ++e) {
             const float x = scores[r * n + e];
             s[e] = std::sqrt(x > 20.0f ? x : std::log1p(std::exp(x)));
-            v[e] = bias ? s[e] + bias[e] : s[e];
+            v[e] = bias ? s[e] + bias[r * bias_stride + e] : s[e];
         }
         std::vector<char> seen(n, 0);
         float total = 0.0f;
@@ -282,7 +282,7 @@ size_t near_ties(const std::vector<float>& scores, const float* bias, size_t row
     return 2 * rows * k;
 }
 
-// The sqrt_softplus router over rows 1 to 600, 1 to 1024 experts and 1 to 256 picks, with and without a bias, normalized or not, at scales 1 and 1.5.
+// The sqrt_softplus router over rows 1 to 600, 1 to 1024 experts and 1 to 256 picks, with no bias, a shared one or one a row (RouteRule::bias_stride), normalized or not, at scales 1 and 1.5.
 // Picks are the CPU's bit for bit but at near ties (near_ties), ties going to the lower id, rows with a NaN or an infinity pick none at weight 0, and weights are the CPU's within 1e-5, or its bits where the device declares them exact.
 size_t check_routing(Pair& p, const Exact& exact) {
     size_t values = 0;
@@ -300,25 +300,29 @@ size_t check_routing(Pair& p, const Exact& exact) {
                     scores[n_expert + n_expert / 3] = INFINITY;
                     scores[2 * n_expert] = -INFINITY;
                 }
-                std::vector<float> bias = uniform(n_expert, ++seed, -0.05f, 0.05f);
+                std::vector<float> bias = uniform(n_expert, ++seed, -0.05f, 0.05f), row_bias = uniform(rows * n_expert, seed + 100000, -0.05f, 0.05f);
                 for (size_t e = 0; e < n_expert; e += 2) bias[e] = 0.0f;
-                Pair::In sc = held(p, scores), bi = held(p, bias);
-                for (bool biased : {false, true})
+                Pair::In sc = held(p, scores), bi = held(p, bias), ri_bias = held(p, row_bias);
+                for (int mode : {0, 1, 2})
                     for (bool normalize : {false, true}) {
+                        // mode 0 has no bias, 1 one shared by every row, 2 one a row.
+                        const bool biased = mode != 0;
                         const float scale = normalize == biased ? 1.5f : 1.0f;
                         Pair::Out ids = p.out(rows * k), w = p.out(rows * k);
-                        const backend::RouteRule rc = backend::RouteRule::sqrt_softplus(biased ? bi.cs() : backend::CSlice{}, scale, normalize);
-                        const backend::RouteRule rv = backend::RouteRule::sqrt_softplus(biased ? bi.vs() : backend::CSlice{}, scale, normalize);
+                        backend::RouteRule rc = backend::RouteRule::sqrt_softplus(mode == 2 ? ri_bias.cs() : biased ? bi.cs() : backend::CSlice{}, scale, normalize);
+                        backend::RouteRule rv = backend::RouteRule::sqrt_softplus(mode == 2 ? ri_bias.vs() : biased ? bi.vs() : backend::CSlice{}, scale, normalize);
+                        rc.bias_stride = rv.bias_stride = mode == 2 ? n_expert : 0;
                         p.cpu.route_experts(sc.cs(), rows, n_expert, k, rc, ids.cs(), w.cs());
                         p.dev.route_experts(sc.vs(), rows, n_expert, k, rv, ids.vs(), w.vs());
-                        const std::string at = " at rows " + std::to_string(rows) + " experts " + std::to_string(n_expert) + " k " + std::to_string(k) + (biased ? " biased" : "") +
-                                               (normalize ? " normalized" : "");
+                        const std::string at = " at rows " + std::to_string(rows) + " experts " + std::to_string(n_expert) + " k " + std::to_string(k) +
+                                               (mode == 2 ? " biased by row" : biased ? " biased" : "") + (normalize ? " normalized" : "");
                         auto ri = p.results(ids), rw = p.results(w);
                         if (!std::memcmp(ri.first.data(), ri.second.data(), ri.first.size() * sizeof(float))) {
                             values += same(ri.first, ri.second, "sqrt_softplus routing picks differ from the CPU" + at);
                             values += meet(exact, "route_sqrt_softplus", rw.first, rw.second, 1e-5, "sqrt_softplus routing weights differ beyond 1e-5" + at);
                         } else {
-                            values += near_ties(scores, biased ? bias.data() : nullptr, rows, n_expert, k, normalize, scale, ri, rw.second, at);
+                            values += near_ties(scores, mode == 2 ? row_bias.data() : biased ? bias.data() : nullptr, rows, n_expert, k, normalize, scale, ri, rw.second, at,
+                                                mode == 2 ? n_expert : 0);
                         }
                         if (rows > 2)
                             for (size_t r = 0; r < 2; ++r)
@@ -785,11 +789,18 @@ size_t check_rows_alone(Pair& p) {
         std::vector<float> scores = uniform(most * n_expert, 84 + uint32_t(k), -8.0f, 24.0f);
         for (size_t r = 1; r < most; r += 2)
             for (size_t e = 0; e < n_expert; ++e) scores[r * n_expert + e] = std::round(scores[r * n_expert + e] * 4.0f) / 32.0f;
-        Pair::In sc = held(p, scores), bi = held(p, uniform(n_expert, 85, -0.05f, 0.05f));
+        Pair::In sc = held(p, scores), bi = held(p, uniform(n_expert, 85, -0.05f, 0.05f)), rb = held(p, uniform(most * n_expert, 86, -0.05f, 0.05f));
         Pair::Out ids = p.out(most * k), w = p.out(most * k);
         hold("sqrt_softplus routing over " + std::to_string(n_expert) + " experts", {&ids, &w}, {k, k}, [&](size_t n, size_t r, bool dev) {
             backend::Backend& b = dev ? p.dev : static_cast<backend::Backend&>(p.cpu);
             const backend::RouteRule rule = backend::RouteRule::sqrt_softplus(dev ? bi.vs() : bi.cs(), 1.5f, true);
+            b.route_experts(at(dev ? sc.vs() : sc.cs(), r * n_expert), n, n_expert, k, rule, at(dev ? ids.vs() : ids.cs(), r * k), at(dev ? w.vs() : w.cs(), r * k));
+        });
+        // A bias a row: a row alone takes its own bias as a shared one, so the stride gives each row of a wider call that row's bias.
+        hold("sqrt_softplus routing biased by row over " + std::to_string(n_expert) + " experts", {&ids, &w}, {k, k}, [&](size_t n, size_t r, bool dev) {
+            backend::Backend& b = dev ? p.dev : static_cast<backend::Backend&>(p.cpu);
+            backend::RouteRule rule = backend::RouteRule::sqrt_softplus(at(dev ? rb.vs() : rb.cs(), r * n_expert), 1.5f, true);
+            rule.bias_stride = n > 1 ? n_expert : 0;
             b.route_experts(at(dev ? sc.vs() : sc.cs(), r * n_expert), n, n_expert, k, rule, at(dev ? ids.vs() : ids.cs(), r * k), at(dev ? w.vs() : w.cs(), r * k));
         });
     }

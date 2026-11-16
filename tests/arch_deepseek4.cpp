@@ -599,10 +599,10 @@ void plan() {
                                     (size_t(golden["n_activated_experts"]) + 1) * size_t(golden["moe_inter_dim"]),
                                     heads * size_t(golden["engram_head_dim"]), hc * d, d, hc * d, hc * d, golden["head_dim"], golden["head_dim"],
                                     golden["head_dim"], golden["index_head_dim"], size_t(golden["head_dim"]) + size_t(golden["index_head_dim"]),
-                                    size_t(golden["index_n_heads"]) * size_t(golden["index_head_dim"]), golden["index_n_heads"], ctx, index_lengths(), golden["index_topk"], golden["candidate_topk_blocks"]};
+                                    size_t(golden["index_n_heads"]) * size_t(golden["index_head_dim"]), golden["index_n_heads"], ctx, index_lengths(), golden["index_topk"], golden["candidate_topk_blocks"], 0};
     require(p.residual == hc * d && p.embed_copies == hc && p.context_length == ctx && p.slots == slots &&
                 p.vocab == golden["vocab_size"] && p.index_width == std::max(size_t(heads), window) && !p.kv_heads && !p.head_dim,
-            "the residual of the streams, the context, the hyper-connection, window attention, FFN, Engram, compressor, indexer and candidate slots and the index scratch of the lookup and the window");
+            "the residual of the streams, the context, the hyper-connection, window attention, FFN, Engram, compressor, indexer and candidate slots, no routing bias slot without exp_probs_b_vl, and the index scratch of the lookup and the window");
     std::vector<size_t> tables(4, 0);
     tables.push_back(hc * d);
     tables.push_back(hc);
@@ -793,9 +793,9 @@ void norm_product() {
     require(std::memcmp(out.data(), again.data(), out.size() * sizeof(float)) == 0, "F32 and BF16 sources give the same products");
     infer::TensorView f16 = view("blk.1.engram_q.weight", q);
     f16.type = quant::GGML_TYPE_F16;
-    refuses("an F16 norm source", "inference: unsupported tensor type blk.1.engram_q.weight, which the Engram norm reads as BF16 or F32",
+    refuses("an F16 norm source", "inference: unsupported tensor type blk.1.engram_q.weight, which DeepSeek-V4.1 reads on the host as BF16 or F32",
             [&] { infer::deepseek4::engram_norm_weight(f16, view("k", k), again.data(), q.size()); });
-    refuses("a norm source of another size", "inference: unsupported tensor type q, which the Engram norm reads as BF16 or F32",
+    refuses("a norm source of another size", "inference: unsupported tensor type q, which DeepSeek-V4.1 reads on the host as BF16 or F32",
             [&] { infer::deepseek4::engram_norm_weight(view("q", q), view("k", k), again.data(), q.size() - 1); });
 }
 

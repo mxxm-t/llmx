@@ -316,7 +316,7 @@ inline void Model::begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, s
         if (entries[e].keep && !whole_blocks(history(*entries[e].seq) + entries[e].n))
             throw std::logic_error("inference: a checkpoint at a position of whole blocks in every storage");
     }
-    // A pass holding an image's rows gives every row the plan's three position streams; any other keeps one.
+    // A pass holding an image's rows gives every row the plan's three position streams where the plan places images on a grid; any other keeps one.
     bool image_rows = false;
     for (size_t e = 0; e < n_entries; ++e) {
         const Sequence& q = *entries[e].seq;
@@ -346,12 +346,13 @@ inline void Model::begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, s
     p.group_pos.clear();
     bool images = false;
     for (size_t e = 0; e < n_entries; ++e) images = images || !entries[e].seq->media_.empty();
-    if (images) {
+    const bool image_streams = image_rows && !plan_.image_streams.empty();
+    if (images && !plan_.image_streams.empty()) {
         for (const LayerPlan& l : plan_.layers)
             if (l.kv_pool && std::none_of(p.group_pos.begin(), p.group_pos.end(), [&](const auto& g) { return g.first == l.kv_pool; }))
                 p.group_pos.push_back({l.kv_pool, {}});
     }
-    p.pos.resize(image_rows ? backend::size_mul(rows, 3) : rows);
+    p.pos.resize(image_streams ? backend::size_mul(rows, 3) : rows);
     p.pick.resize(want);
     p.runs.resize(n_entries);
     p.head_runs.clear();
@@ -369,7 +370,7 @@ inline void Model::begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, s
         const size_t len = history(*en.seq);
         p.start[e] = len;
         for (size_t b = 0; b < en.n; ++b) p.ids[r + b] = en.ids[b];
-        positions(*en.seq, len, en.n, image_rows, p.pos.data() + r * (image_rows ? 3 : 1));
+        positions(*en.seq, len, en.n, image_streams, p.pos.data() + r * (image_streams ? 3 : 1));
         // A pooled layer's groups these rows complete turn at their first rows' positions, which may lie in the history below the pass.
         for (auto& [c, gp] : p.group_pos)
             for (size_t g = len / c; g < (len + en.n) / c; ++g) {
@@ -389,6 +390,17 @@ inline void Model::begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, s
             p.head_runs.push_back(backend::RowRun{w, 1});
         }
     }
+    // Under text-position images, the rows holding the image id, found once for every layer of the pass.
+    p.image_marks.clear();
+    p.image_runs.clear();
+    if (plan_.text_position_images)
+        for (size_t i = 0; i < rows; ++i) {
+            if (p.ids[i] != *plan_.text_position_images) continue;
+            if (p.image_marks.empty()) p.image_marks.assign(rows, 0);
+            p.image_marks[i] = 1;
+            if (!p.image_runs.empty() && p.image_runs.back().first + p.image_runs.back().second == i) ++p.image_runs.back().second;
+            else p.image_runs.push_back({i, 1});
+        }
     p.long_runs = false;
     for (size_t e = 0; e < n_entries; ++e) p.long_runs = p.long_runs || streams(p, e);
     start_lookups(ctx, p, ctx.slots ? ctx.pass_rows : rows);
@@ -1046,7 +1058,7 @@ inline void Model::draft_context(ExecContext& ctx, Pass& p, size_t s) {
             step.state_layer = drafter_state_[d];
         }
         step.pos = p.pos.data();
-        if (p.image_rows) step.streams = backend::RopeStreams{3, plan_.image_streams.data()};
+        if (p.image_rows && !plan_.image_streams.empty()) step.streams = backend::RopeStreams{3, plan_.image_streams.data()};
         arch_->draft_rows(step);
     };
     if (draft_apart_) {
@@ -1440,13 +1452,15 @@ inline Step Model::mixer_part(ExecContext& ctx, const Pass& p, size_t dev, int l
         s.state_layer = (size_t)d.state_local[(size_t)l];
     }
     s.pos = p.pos.data();
-    if (p.image_rows) s.streams = backend::RopeStreams{3, plan_.image_streams.data()};
+    if (p.image_rows && !plan_.image_streams.empty()) s.streams = backend::RopeStreams{3, plan_.image_streams.data()};
     for (const auto& [c, gp] : p.group_pos)
         if (c == layer.kv_pool) s.group_pos = backend::GroupPositions{gp.data(), {3, plan_.image_streams.data()}};
     if (layer.lookup && home_[(size_t)l][layer.lookup->role].row_source) {
         const ExecContext::Scratch& sc = scratch(ctx, p, dev);
         s.lookup = &sc.lookups[size_t(l)].view;
     }
+    s.image_runs = p.image_runs.data();
+    s.n_image_runs = p.image_runs.size();
     if (layer.token_history) {
         s.tokens = p.ids.data();
         s.previous_tokens = p.previous_tokens.data();

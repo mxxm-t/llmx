@@ -24,7 +24,8 @@ F2DEV's review of the revision (20:16) then changed 1.3, 2.2, 4.1, 4.2's Engram 
 - DSpark drafting through the one speculative system, with output identical to drafting off.
 - The same for DeepSeek-V4-Flash (the 0731 release and the April one), if the owner says yes to question 1.
 - Any hardware: the fit decides the placement from the devices' and the host's memory; the 10-MI50 machine is the test bed, not the target.
-- Out of scope here: vision (the files carry `general.tags = image-text-to-text` and separate projector files; it follows ROADMAP #10), V4-Pro, and parsing DSML tool calls (they are rendered and returned as text).
+- Image input on the `-vl` files and their `deepseek41v` mmproj came after this plan, on the image-input design ([VISION](VISION.md), section 11).
+- Out of scope here: V4-Pro, and parsing DSML tool calls (they are rendered and returned as text).
 
 ### 1.2 What it is held to
 
@@ -366,10 +367,22 @@ The ROCm backend implements the same `Backend` ops; the module, the runtime and 
    For V4 the port is cross-checked against transformers' `deepseek_v4` on the same weights, and a fork at a multiple of 128 must continue bit-identically, the carried ratio-4 halves included.
 2. **Ops:** every new op against its math reference; QDQ exhaustively against decoders written from the format description; Sinkhorn against float64; top-k at widths 1 to 2^18 with ties, NaN and -inf fillers and any tiling.
 3. **The real file, layered and file-exact:** the official code with the CPU kernel port, one layer at a time, on the GGUF's weights as `tests/spec_decode.py` decodes them, over short prompts and the perplexity excerpt; for V4 transformers' `deepseek_v4` on the UD weights.
+   On a `-vl` file its inputs include the encoder rows at the image marker's positions, from the official `vision.py` on the mmproj's weights, so an image prompt's rows are held as text rows are; until it is built, image rows' correctness on the real file is open.
 4. **The 16k rule** (AGENTS.md, Traps the gates exist for): two fresh 16,384-token inputs, raw and chat-rendered, against the layered reference, on the layer split and on tensor groups of 5x2 beside it, under the frozen empirical depth contract of 2026-10-19 (QWEN38-FLASH.md section 6), its calibration pair being the reference in F32 against the reference at the engine's precision (question 6).
 5. **Devices and splits:** the tiny suites on one MI50 under Vulkan and under ROCm, and on the Radeon VII under Vulkan; slice invariance bitwise on the device; two layer shares giving identical bytes; `llmx-split-check` over CPU stages bit-identical to one CPU; the device against the CPU path on the real file by the device-against-CPU criterion; on tensor groups (step 14), the tiny models on CPU groups of 2 and 4 and on device groups of 2, and the real file's 5x2 groups against its layer split by the same criterion, ROCm int8's layer split against Vulkan's as the calibration pair.
 6. **Serving:** server equals CLI equals each request alone with prefix splits at 1, 3, 127, 128, 129; a checkpoint fork continues bit-identically; `tools/server_mix_check.py`; two fresh servers give the same bytes; DSpark on equals off.
 7. **Everything else unchanged:** every step keeps existing models byte-identical to main, checked by what the step can break under AGENTS.md's merge gates at landing (a docs or tokenizer step needs no device qualification), with unchanged evidence carried explicitly and a focused fix rerunning only what it touches.
+8. **Images** (2026-11-16): the padded fit, a tiny `deepseek41v` tower's rows and a tiny end-to-end golden across the first MoE layer with image and text rows come from the official code (docs/ASSETS.md, The deepseek41 tiny reference) and run in hosted CI; the tiny tower's rows in CI and the release mmproj's by hand are held per image to twice the official F32 forward's error with the attention sums in llmx's order, against the official float64 rows (F2DEV's ruling of 2026-11-16: the sum order is part of what the path computes, so the reference runs at it; the official F32 error as torch orders the sums is recorded beside it as information, never a gate).
+
+   Each row's error is its largest difference from the official float64 rows over max(1, the row's largest magnitude), the worst row an image's; "llmx order" is the official F32 forward with only the attention's exp and PV sums taken over keys in sequence, as llmx's CPU attention takes them, measured on 2026-11-16 by DSVL3 and DSVL4.
+
+   | Image (release F16 mmproj) | Grid, rows | Official F32 (information) | Official F32, llmx order | Bound, 2x llmx order | llmx CPU F32 | Headroom |
+   |---|---|---:|---:|---:|---:|---|
+   | corn.jpeg 450x308 | 33x47, 189 | 3.79e-6 | 1.25e-5 | 2.50e-5 | 1.28e-5 (row 23) | 1.95x |
+   | carrots.jpeg 1024x701 | 51x74, 444 | 1.02e-4 | 1.09e-4 | 2.18e-4 | 1.21e-4 (row 334) | 1.80x |
+
+   The tiny tower in CI (tests/vision.py) holds each image the same way, llmx below the bound on all four: 5.2e-8 against 1.92e-7 at the smallest grid, 3x3, up to 1.09e-7 against 3.08e-7 at 15x22.
+   llmx's CPU attention sums exp and PV in key order, as every text model's does; a blocked or pairwise sum would be more precise at long rows (about 3.3x at 189 keys) but moves every CPU model's bits, so it is a precision candidate for its own branch under the full CPU HF gate, not part of image input.
 
 ## 6. Speed gates
 

@@ -7,7 +7,10 @@ A member a later module needs comes with that module.
 
 `VisionEncoder` is the runner.
 The GGUF registry rejects an mmproj with an associated NVFP4 `.scale` companion before constructing this encoder, because the encoder does not consume scaled weights. It plans the module over an mmproj's tensors, refuses a backend without one of the plan's ops by name, checks each role with the runtime's `role_fits` (a convolution's kernel stored `[kw, kh, c, out]` read as the matrix `[kw * kh * c, out]`), adopts the weights and fills the tables.
-`begin(prepared)` writes an image's patches into the arena's input slot, computes its inputs and its non-causal `KVView` over the image's rows, and returns its pieces; `piece(i)` runs them in order, refusing one out of order, and `rows()` returns the image's rows to the host after the last; `encode(prepared)` is the three in a row.
+`begin(prepared)` computes an image's inputs, writes its patches into the arena's input slot, computes its non-causal `KVView` over the image's rows and returns its pieces; `piece(i)` runs them in order, refusing one out of order, and `rows()` returns the image's rows to the host after the last; `encode(prepared)` is the three in a row.
 Where the caller must not wait for the device, `copy_rows()` after the last piece copies the rows into host-visible storage on the device and submits, and `copied()` reads them in place once that ticket has retired.
 One image encodes at a time, its caller's to order, so an image's rows never depend on another image, and a `begin` abandons an encode not finished.
-Its arena and its one layer of K and V grow to the largest image encoded and never shrink; the K and V are scratch of one encode, F32 always, outside the model's cache types.
+Its arena and its one layer of K and V grow to the largest image encoded, or to the inputs' `arena_patches` where a module's work after its blocks needs more rows than the patches, and never shrink; the K and V are scratch of one encode, F32 always, outside the model's cache types.
+
+`VisionPositions` is `grid` (Qwen's three components) or `text` (DeepSeek-V4.1's: one text position a row), which the loader checks against the model's `text_position_images`.
+A plan's `regrouped` roles (`Regroup`) are reordered once on a host copy, input d * groups + k of each row becoming k * (in / groups) + d, F32, F16 or BF16 only, so `deepseek41v`'s 3 by 3 unfold is a gather of patch rows; `unfold`, `zero_runs` and `layout` give the rows gathered, the pad runs copied from zeros and the rows the output is laid out from.

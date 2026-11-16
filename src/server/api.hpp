@@ -690,7 +690,7 @@ private:
     }
 
     // A message's content: a string, or the array of text and image parts the compatible chat route accepts, an image as {"type": "image_url", "image_url": {"url"}} (docs/VISION.md, section 6).
-    // An assistant message that carries tool_calls may leave its content null or out, which renders as an empty content; with an image, `parts` holds the content as parts.
+    // An assistant message that carries tool_calls may leave its content null or out, which renders as an empty content; given as an array, `parts` holds the content as parts too.
     static std::string content_of(const jmini::Value& m, std::vector<chat::ContentPart>* parts = nullptr) {
         const jmini::Value* content = m.get("content");
         if ((!content || content->t == jmini::Value::T::Null) && given(m, "tool_calls")) return {};
@@ -699,13 +699,11 @@ private:
         if (!content->isArray()) throw BadRequest(400, "message content must be a string or an array of content parts");
         std::string text;
         std::vector<chat::ContentPart> all;
-        bool image = false;
         for (const auto& part : content->asArray()) {
             const jmini::Value* type = part.get("type");
             if (type && type->isString() && type->asString() == "image_url") {
                 (void)image_url_of(part);
                 all.push_back(chat::ContentPart{true, ""});
-                image = true;
                 continue;
             }
             const jmini::Value* t = part.get("text");
@@ -714,7 +712,7 @@ private:
             text += t->asString();
             all.push_back(chat::ContentPart{false, t->asString()});
         }
-        if (image && parts) *parts = std::move(all);
+        if (parts) *parts = std::move(all);
         return text;
     }
 
@@ -1061,6 +1059,8 @@ private:
         if (route == Route::completions && p && p->isArray() && p->asArray().size() == 1) p = &p->asArray()[0];
         else if (route == Route::completions && p && p->isArray() && p->asArray().size() > 1) throw BadRequest(400, "prompt must be one string, not an array of several prompts");
         if (!p || !p->isString() || p->asString().empty()) throw BadRequest(400, "prompt must be a non-empty string");
+        try { format_.refuse_image_text(p->asString()); }
+        catch (const chat::TemplateError& e) { throw BadRequest(400, std::string("prompt: ") + e.what()); }
         return p->asString();
     }
 

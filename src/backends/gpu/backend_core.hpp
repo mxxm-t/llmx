@@ -1418,11 +1418,11 @@ public:
         int norm = rule.normalize;
         // The sqrt_softplus rule takes a wave a row in the CPU's order (kernels/f32.gpu, llmx_route_sqrt_softplus).
         if (rule.score == RouteRule::Score::sqrt_softplus) {
-            if (rule.bias.buffer) floats(rule.bias, n_expert);
+            if (rule.bias.buffer) floats(rule.bias, size_mul(rows - 1, rule.bias_stride) + n_expert);
             const float* bias = rule.bias.buffer ? f32(rule.bias) : nullptr;
-            unsigned long long nr = rows;
+            unsigned long long nr = rows, stride = rule.bias_stride;
             float scale = rule.scale;
-            const Args args(sc, bias, id, w, nr, ne, kk, norm, scale);
+            const Args args(sc, bias, id, w, nr, ne, kk, norm, scale, stride);
             return launch_writing({{id, size_mul(rows, k)}, {w, size_mul(rows, k)}}, kRouteSqrtSoftplus, u32(rows), 1, args, 1, 64);
         }
         rule.softmax_only(Api::name);
@@ -1876,7 +1876,7 @@ public:
     void moe_router(const MoeStep& m, CSlice h, size_t nin, size_t rows, RowRuns runs) override {
         const size_t ne = m.router.rows, k = m.k;
         const uint32_t t = m.router.weight.type;
-        if (rows != 1 || m.rule.score != RouteRule::Score::sqrt_softplus || dev_.caps.subgroup_size != 64 || !ne || ne > kRouteStepExperts || !k || k > ne || k > 256 ||
+        if (rows != 1 || m.rule.bias_stride || m.rule.score != RouteRule::Score::sqrt_softplus || dev_.caps.subgroup_size != 64 || !ne || ne > kRouteStepExperts || !k || k > ne || k > 256 ||
             (t != quant::GGML_TYPE_F32 && t != quant::GGML_TYPE_BF16) || !std::isfinite(m.rule.scale))
             return Backend::moe_router(m, h, nin, rows, runs);
         check_weight(m.router.weight, nin, "router matrix");

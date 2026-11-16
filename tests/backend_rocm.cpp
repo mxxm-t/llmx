@@ -1389,6 +1389,16 @@ void moe_step_bits(Backend& g) {
                     require(!rocm_take_launches(g).count("llmx_moe_step_route"), "a clamped moe_step runs the base's ops, " + at);
                     g.moe_step(scored, {hb.get(), 0}, {o[1].y.get(), 0}, nin, 1, {decode, 1}, Dtype::int8);
                     require(!rocm_take_launches(g).count("llmx_moe_step_route"), "a sqrt_softplus moe_step runs the base's ops, " + at);
+                    // A per-row bias (a -vl file's image rows) runs the base's ops, so no fused route reads one bias for every row.
+                    std::vector<float> bias(ne);
+                    for (size_t e = 0; e < ne; ++e) bias[e] = 0.01f * float(e % 7);
+                    const BufferPtr bb = g.alloc(ne * 4);
+                    g.write(*bb, 0, bias.data(), ne * 4);
+                    MoeStep strided = st[1];
+                    strided.rule = backend::RouteRule::sqrt_softplus({bb.get(), 0}, 1.0f, true);
+                    strided.rule.bias_stride = ne;
+                    g.moe_step(strided, {hb.get(), 0}, {o[1].y.get(), 0}, nin, 1, {decode, 1}, Dtype::int8);
+                    require(!rocm_take_launches(g).count("llmx_moe_step_route"), "a moe_step with a per-row bias runs the base's ops, " + at);
                 }
     }
 }

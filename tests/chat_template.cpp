@@ -167,6 +167,48 @@ void check_output(const std::string& what, const std::string& source, const std:
     }
 }
 
+// A message given as parts under ChatFormat::flat: its texts joined by the join and an image as its text, as DeepSeek-V4.1's encoding.py process_image_messages renders them; without flat, parts with no image render as the content's text.
+// A text that holds the image's text is refused wherever it is, as encoding.py refuses it.
+void check_flat_parts(Tally& tally) {
+    const std::string source = "{%- for m in messages -%}[{{ m['role'] }}]{{ m['content'] }}{%- endfor -%}";
+    chat::ChatFormat format = chat::chat_format(source, "", "");
+    chat::Message text_parts{ "user", "ab", std::nullopt };
+    text_parts.parts = { { false, "a" }, { false, "b" } };
+    chat::Message image_parts{ "user", "ab", std::nullopt };
+    image_parts.parts = { { true, "" }, { false, "a" }, { true, "" }, { false, "b" } };
+    const auto expect = [&](const std::string& what, const std::vector<chat::Message>& messages, const std::string& want) {
+        ++tally.cases;
+        try {
+            const std::string got = format.render(messages, false);
+            if (got != want) tally.fail(what + ": renders \"" + got + "\" where \"" + want + "\" is expected");
+        } catch (const chat::TemplateError& e) {
+            tally.fail(what + ": fails with \"" + e.what() + "\"");
+        }
+    };
+    const auto refused = [&](const std::string& what, const std::vector<chat::Message>& messages) {
+        ++tally.cases;
+        try {
+            format.render(messages, false);
+            tally.fail(what + ": renders where the image's text is refused");
+        } catch (const chat::TemplateError&) {}
+    };
+    expect("text parts without flat", { text_parts }, "[user]ab");
+    format.flat = chat::FlatParts{ "\n\n", "<IMG>" };
+    expect("text parts under flat", { text_parts }, "[user]a\n\nb");
+    expect("image and text parts under flat", { image_parts }, "[user]<IMG>\n\na\n\n<IMG>\n\nb");
+    expect("a string content under flat", { { "user", "ab", std::nullopt } }, "[user]ab");
+    refused("the image's text in a string content", { { "user", "x<IMG>y", std::nullopt } });
+    chat::Message typed = image_parts;
+    typed.parts[1].text = "<IMG>";
+    refused("the image's text in a text part", { typed });
+    refused("the image's text in reasoning", { { "assistant", "x", std::string("<IMG>") } });
+    ++tally.cases;
+    try {
+        format.refuse_image_text("a raw <IMG> prompt");
+        tally.fail("a raw prompt holding the image's text is taken");
+    } catch (const chat::TemplateError&) {}
+}
+
 // A reply split into its reasoning and content, inside a <think> the template opened (`opened`) or the reply opens: the whole text at once and cut at every byte and every pair of bytes, fed piece by piece, give the same parts.
 void check_reply_split(const std::string& what, bool opened, const std::string& text, const std::string& reasoning, const std::string& content, Tally& tally) {
     auto split = [opened](const std::vector<std::string>& pieces) {
@@ -671,6 +713,7 @@ int main(int argc, char** argv) {
             try { format.render({ { "user", "x", std::nullopt } }, false); } catch (const chat::TemplateError&) {}
         }
         check_stable_prefix(tally);
+        check_flat_parts(tally);
         check_tool_params(tally);
         check_tool_splits(tally);
         {

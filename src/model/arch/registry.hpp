@@ -13,6 +13,7 @@
 #include "model/arch/qwen4exp.hpp"
 #include "model/arch/deepseek4/model.hpp"
 #include "model/arch/minimax_m3.hpp"
+#include "model/arch/deepseek41_vision.hpp"
 #include "model/arch/qwen3vl_vision.hpp"
 #include "model/encoder.hpp"
 
@@ -96,6 +97,7 @@ struct VisionEntry {
 
 inline const VisionEntry kVisionEncoders[] = {
     {"clip", "qwen3vl_merger", qwen3vl_vision::open, backend::Dtype::bf16},
+    {"clip", "deepseek41v", deepseek41_vision::open, backend::Dtype::bf16},
 };
 
 // The entry an mmproj file names; another architecture or projector is refused by name.

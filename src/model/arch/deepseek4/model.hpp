@@ -25,7 +25,7 @@ enum Role : uint16_t {
     compressor_kv, compressor_gate, compressor_norm, index_q_b, index_proj, index_kv, index_norm,
     engram_embed, engram_key, engram_value, engram_q, engram_k,
     ffn_norm, hc_ffn_fn, hc_ffn_base, hc_ffn_scale,
-    ffn_gate_inp, exp_probs_b, ffn_gate_exps, ffn_up_exps, ffn_down_exps, ffn_gate_shexp, ffn_up_shexp, ffn_down_shexp,
+    ffn_gate_inp, exp_probs_b, ffn_gate_exps, ffn_up_exps, ffn_down_exps, ffn_gate_shexp, ffn_up_shexp, ffn_down_shexp, bias_source, bias_vl_source,
     role_count
 };
 
@@ -44,7 +44,7 @@ enum : size_t { rope_cos, rope_sin, compressed_cos, compressed_sin, ones, first_
 enum Slot : size_t {
     residual, pre_attn, pre_ffn, mixes, post, comb, collapsed, head_x, head_pre, q_lora, query, window_kv, attn, window_ids, group_ids, grouped, block_out,
     scores, picks, pick_weights, gates, ups, acts, engram_rows, engram_keys, engram_value_row, engram_streams, engram_gated,
-    compress_kv, compress_score, latent, index_keys, pooled, index_query, index_weights, index_scores, index_lens, index_picks, candidate_ids
+    compress_kv, compress_score, latent, index_keys, pooled, index_query, index_weights, index_scores, index_lens, index_picks, candidate_ids, route_bias
 };
 
 // The words a window row takes in the ring under native, its FP8 blocks.
@@ -71,7 +71,8 @@ inline std::vector<size_t> slot_widths(const Config& c) {
     const size_t groups = least ? size_t(c.context_length / least) : 0;
     return {HC * E, HC, HC, (2 + HC) * HC, HC, HC * HC, E, HC * E, HC, size_t(c.q_lora_rank), HD, size_t(c.head_dim), HD, size_t(c.window), G,
             G * size_t(c.out_rank), E, size_t(c.n_expert), k, k, FF, FF, FF, lookups * size_t(c.engram_head_dim), ER, engram ? E : 0, ER, ER,
-            D, D, D, ID, D + ID, IH * ID, IH, groups, index_ratios(c).size(), size_t(c.index_top_k), size_t(c.candidate_source >= 0 ? c.candidate_top_k : 0)};
+            D, D, D, ID, D + ID, IH * ID, IH, groups, index_ratios(c).size(), size_t(c.index_top_k), size_t(c.candidate_source >= 0 ? c.candidate_top_k : 0),
+            c.vision ? size_t(c.n_expert) : 0};
 }
 
 // One sublayer's coefficients from the streams x entering it: the mixes as an F32 product of hc_fn, then hc_coeffs' rsqrt over the flattened streams, sigmoids and Sinkhorn rounds (model.py:948-957 at e5decd76).
@@ -207,7 +208,13 @@ public:
             add(hc_ffn_base, Part::ffn, RoleKind::norm, "hc_ffn_base.weight", MIX, 1, 0, Stream::copy);
             add(hc_ffn_scale, Part::ffn, RoleKind::norm, "hc_ffn_scale.weight", 3, 1, 0, Stream::copy);
             add(ffn_gate_inp, Part::ffn, RoleKind::matrix, "ffn_gate_inp.weight", E, X, 0, Stream::copy);
-            add(exp_probs_b, Part::ffn, RoleKind::norm, "exp_probs_b.bias", X, 1, 0, Stream::copy);
+            // A -vl file's two biases are read on the host into the layer's [bias; bias_vl] table, which every row's rule reads, as the loader places no source's tensor.
+            if (c.vision) {
+                add(bias_source, Part::ffn, RoleKind::source, "exp_probs_b.bias", X);
+                add(bias_vl_source, Part::ffn, RoleKind::source, "exp_probs_b_vl.bias", X);
+            } else {
+                add(exp_probs_b, Part::ffn, RoleKind::norm, "exp_probs_b.bias", X, 1, 0, Stream::copy);
+            }
             add(ffn_gate_exps, Part::ffn, RoleKind::experts, "ffn_gate_exps.weight", E, F, X, Stream::window);
             add(ffn_up_exps, Part::ffn, RoleKind::experts, "ffn_up_exps.weight", E, F, X, Stream::window);
             add(ffn_down_exps, Part::ffn, RoleKind::experts, "ffn_down_exps.weight", F, E, X, Stream::window);
@@ -266,10 +273,17 @@ public:
         if (reuses) p.carried.push_back({index_picks});
         if (c.candidate_source >= 0) p.carried.push_back({candidate_ids});
         p.index_width = std::max({size_t(HC), size_t(lookups), size_t(W)});
-        p.tables.assign(engram_norms + c.engram_layers.size(), 0);
+        const size_t biases = engram_norms + c.engram_layers.size();
+        p.tables.assign(biases + (c.vision ? size_t(c.n_layer) : 0), 0);
         p.table_steps.assign(compressed_sin + 1, size_t(c.rope_dim / 2));
-        for (size_t i = ones; i < p.tables.size(); ++i) p.tables[i] = i == groups ? size_t(G) : i == first_pre ? size_t(HC) : i == zeros ? size_t(E) : size_t(R);
+        for (size_t i = ones; i < p.tables.size(); ++i)
+            p.tables[i] = i >= biases ? 2 * size_t(X) : i == groups ? size_t(G) : i == first_pre ? size_t(HC) : i == zeros ? size_t(E) : size_t(R);
         p.embed_copies = size_t(HC);
+        // encoding.py renders a message given as parts as its texts joined by a blank line, an image as its marker.
+        if (c.vision) {
+            p.text_position_images = c.image_id;
+            p.parts_join = "\n\n";
+        }
         return p;
     }
 
@@ -291,10 +305,22 @@ public:
         for (uint32_t g = 0; g < uint32_t(c.out_groups); ++g) std::memcpy(&tables[groups][g], &g, sizeof(g));
         std::fill(tables[ones].begin(), tables[ones].end(), 1.0f);
         std::fill(tables[zeros].begin(), tables[zeros].end(), 0.0f);
-        if (c.engram_layers.empty()) return;
-        if (sources.size() != 2 * c.engram_layers.size()) throw std::logic_error("inference: the Engram norm sources are not two a layer");
-        for (size_t l = 0; l < c.engram_layers.size(); ++l) {
-            engram_norm_weight(sources[2 * l], sources[2 * l + 1], tables[engram_norms + l].data(), tables[engram_norms + l].size());
+        // The sources in plan order: an Engram layer's engram_q and engram_k, then on a -vl file each layer's exp_probs_b and exp_probs_b_vl.
+        const size_t biases = engram_norms + c.engram_layers.size();
+        if (sources.size() != 2 * c.engram_layers.size() + (c.vision ? 2 * size_t(c.n_layer) : 0)) throw std::logic_error("inference: DeepSeek-V4.1's source tensors are not as planned");
+        size_t at = 0, engram = 0;
+        for (size_t l = 0; l < size_t(c.n_layer); ++l) {
+            if (layers_[l].engram) {
+                engram_norm_weight(sources[at], sources[at + 1], tables[engram_norms + engram].data(), tables[engram_norms + engram].size());
+                ++engram;
+                at += 2;
+            }
+            if (c.vision) {
+                const size_t X = size_t(c.n_expert);
+                source_floats(sources[at], tables[biases + l].data(), X);
+                source_floats(sources[at + 1], tables[biases + l].data() + X, X);
+                at += 2;
+            }
         }
     }
     // The token's row in every stream, and the first block's one-hot pre (model.py:1262-1264 at e5decd76).
@@ -351,7 +377,7 @@ public:
     // The FFN of the layer's own expert count and clamps (ffn_body).
     void ffn(const Step& s) const override {
         if (s.layer < 0 || size_t(s.layer) >= cfg_.swiglu_exp.size()) throw std::logic_error("inference: a DeepSeek-V4.1 FFN without its layer");
-        ffn_body(s, s.w, size_t(cfg_.n_expert_used), cfg_.swiglu_exp[size_t(s.layer)], cfg_.swiglu_shexp[size_t(s.layer)]);
+        ffn_body(s, s.w, size_t(cfg_.n_expert_used), cfg_.swiglu_exp[size_t(s.layer)], cfg_.swiglu_shexp[size_t(s.layer)], image_bias(s));
     }
 
     // On a group, the summed output of the sublayer just run, expanded into the streams with the post and comb that sublayer left.
@@ -407,7 +433,7 @@ private:
 
     // The FFN's coefficients, its input collapsed with the attention's pre, and its output expanded back around the MoE, its pre the next block's (model.py:794-899 and 988-993 at e5decd76).
     // The roles are read from `w`, so a drafter's stage runs the body with its own roles, `used` experts and clamps (docs/src/model-arch-deepseek4.md).
-    void ffn_body(const Step& s, const Weight* w, size_t used, float clamp_exp, float clamp_shexp) const {
+    void ffn_body(const Step& s, const Weight* w, size_t used, float clamp_exp, float clamp_shexp, backend::RouteRule rule) const {
         hc_mix(s.b, cfg_, w[hc_ffn_fn], w[hc_ffn_scale], w[hc_ffn_base], s.x, s.slot(mixes), s.slot(pre_ffn), s.slot(post), s.slot(comb), s.slot(collapsed),
                s.slot(pre_attn), w[ffn_norm], s.rows, s.runs);
         const blocks::SharedExpert shared{w[ffn_gate_shexp], w[ffn_up_shexp], w[ffn_down_shexp], nullptr, clamp_shexp};
@@ -416,10 +442,12 @@ private:
         out.x = s.width > 1 ? s.partial : s.slot(block_out);
         out.width = 1;
         blocks::moe_step(out, w[ffn_gate_inp], w[ffn_gate_exps], w[ffn_up_exps], w[ffn_down_exps], used,
-                         backend::RouteRule::sqrt_softplus(w[exp_probs_b].slice(), cfg_.expert_scale, true), s.slot(collapsed), s.slot(gates), s.slot(ups),
+                         rule, s.slot(collapsed), s.slot(gates), s.slot(ups),
                          s.slot(acts), s.slot(scores), s.slot(picks), s.slot(pick_weights), &shared, {}, s.tables[zeros].get(), clamp_exp);
         if (s.width == 1) s.b.hc_expand(s.x, s.slot(block_out), s.x, s.slot(post), s.slot(comb), s.rows, size_t(cfg_.hc_count), size_t(cfg_.n_embd));
     }
+
+    static backend::Slice at(backend::Slice s, size_t floats) { return {s.buffer, s.offset + floats}; }
 
     size_t engram_index(const Step& s) const {
         const auto at = std::find(cfg_.engram_layers.begin(), cfg_.engram_layers.end(), s.layer);
@@ -446,7 +474,27 @@ private:
         const Weight keys{0, s.tables[ones], R, 1}, streams{0, s.tables[engram_norms + i], R, 1};
         blocks::ngram_gate(s, {s.w[engram_key], s.w[engram_value], keys, streams}, s.slot(engram_rows), heads * table.nin, E, H, cfg_.rms_eps,
                            s.slot(engram_gated), {s.slot(engram_keys), s.slot(engram_value_row), s.slot(engram_streams)}, backend::ZeroSign::kept);
-        s.b.add(s.x, s.slot(engram_gated), backend::size_mul(s.rows, R));
+        // Image rows take no Engram value (model.py:1253-1266 at e5decd76), so the add runs over the text rows between them.
+        size_t from = 0;
+        for (size_t i = 0; i < s.n_image_runs; ++i) {
+            const auto [first, count] = s.image_runs[i];
+            if (first > from) s.b.add(at(s.x, from * R), at(s.slot(engram_gated), from * R), (first - from) * R);
+            from = first + count;
+        }
+        if (s.rows > from) s.b.add(at(s.x, from * R), at(s.slot(engram_gated), from * R), (s.rows - from) * R);
+    }
+
+    // A layer's routing rule: exp_probs_b's bias, on a -vl file the first row of the layer's [bias; bias_vl] table, and where the pass holds image rows each row's own, gathered by the pass's marks from that table (model.py:811-822 at e5decd76).
+    backend::RouteRule image_bias(const Step& s) const {
+        if (!cfg_.vision) return backend::RouteRule::sqrt_softplus(s.w[exp_probs_b].slice(), cfg_.expert_scale, true);
+        const backend::CSlice table{s.tables[engram_norms + cfg_.engram_layers.size() + size_t(s.layer)].get(), 0};
+        if (!s.image_marks) return backend::RouteRule::sqrt_softplus(table, cfg_.expert_scale, true);
+        const size_t X = size_t(cfg_.n_expert);
+        const backend::Slice bias = s.slot(route_bias);
+        s.b.gather_rows(bias, table, X, s.image_marks, s.rows);
+        backend::RouteRule rule = backend::RouteRule::sqrt_softplus(bias, cfg_.expert_scale, true);
+        rule.bias_stride = X;
+        return rule;
     }
 
     // The rope tables a layer's rows turn with: the compressed layers' YaRN, else the window's.

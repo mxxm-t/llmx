@@ -800,6 +800,298 @@ def generate_dspark(output_dir, checkpoint, golden):
     return out / DSPARK_NAME
 
 
+# The vision mode (--vision): the padded fit of image_processor.py, the tiny tower of vision.py and the tiny -vl model's prompt with an image, all through DeepSeek's code at the pinned revision.
+VISION_NAME = "deepseek41_vision_reference.json"
+FIT_NAME = "deepseek41_image_fit.json"
+VL_GGUF = "deepseek41-tiny-vl.gguf"
+MMPROJ_GGUF = "deepseek41v-tiny-mmproj.gguf"
+# The tower's seed and the bias_vl seed, the first from 411101 whose image rows' router cuts clear MARGIN_FLOOR.
+VISION_SEED = 411101
+BIAS_VL_SEED = 411101
+# The release's processor arguments (model.py's ModelArgs defaults and the mmproj's clip.vision.image_min_pixels).
+RELEASE_PROCESSOR = {"vision_patch_size": 14, "vision_downsample_ratio": 3, "vision_min_pixels": 544 * 544, "vision_max_n_token": 1024, "vision_max_wh_ratio": None}
+# The padded fit's cases under the release's arguments: each image at token budgets from the smallest block up, which reach the solve's three branches, the raise to min_pixels and budgets a block meets exactly.
+FIT_IMAGES = ("photo-300x200.png", "rgb-23x37.png", "420-9x4.jpg", "420-129x97.jpg", "gray1-17x9.png")
+FIT_BUDGETS = (4, 5, 6, 7, 8, 11, 14, 17, 20, 23, 26, 35, 1024)
+# Budgets below the smallest block, which llmx refuses (image::padded_size).
+FIT_REFUSED = (1, 2, 3)
+# The tiny tower's cases: one token's grid (3 by 3 patches), grids that are no multiple of 3 (the aligner's pad), the solve at a budget of 20, and a grid thinner than one token at a budget of 5.
+ENCODER_CASES = (("420-16x16.jpg", None), ("rgb-23x37.png", None), ("photo-300x200.png", 20), ("photo-300x200.jpg", None), ("photo-300x200.png", 5))
+# An image's bound is this multiple of the official float32 tower's error against float64 with the attention sums in llmx's order (llmx_order_attention), the row errors relative to max(1, the row's largest magnitude).
+ENCODER_MULTIPLE = 2.0
+# The prompt of the end-to-end case: the user's image part, then its text, rendered by fixture_deepseek4.VL_TEMPLATE with the release's join.
+VL_IMAGE = ("photo-300x200.png", 20)
+VL_TEXT = "Describe."
+VL_JOIN = "\n\n"
+# The image mechanisms the prompt must each witness by a routed expert or a top-1 token that moves without it: bias_vl (bias in its place), the Engram cut (no image row cuts an n-gram) and the Engram skip (image rows take Engram's value).
+WITNESSES = ("bias_vl", "engram_cut", "engram_skip")
+
+
+def _official_processor(values):
+    return types.SimpleNamespace(**values)
+
+
+def _padded_rgb(image, best_w, best_h):
+    from PIL import ImageOps
+    return ImageOps.pad(image, (best_w, best_h), color=(127, 127, 127))
+
+
+def _fit_labels(width, height, best_h, best_w, p, merge, min_pixels, budget):
+    """Which of plan_image_grid's branches a case took, mirroring its arithmetic, whether the image was scaled up or down, and which sides the pad fills."""
+    w, h = width, height
+    if 0 < w * h < min_pixels:
+        ratio = (min_pixels / (w * h)) ** 0.5
+        w, h = int(w * ratio), int(h * ratio)
+    bw, bh = math.ceil(w / p) * p, math.ceil(h / p) * p
+    rows = math.ceil((bh // p) / merge) * (math.ceil((bw // p) / merge) + 1) + 2
+    branch = "raised" if width * height < min_pixels else "kept"
+    if rows > budget:
+        r = h / w
+        max_w = math.sqrt((budget - 2) / r + 0.25) - 0.5
+        branch = "very_tall" if max_w < 1.0 else "very_wide" if max_w * r < 1.0 else "solved"
+    ratio, dest = width / height, best_w / best_h
+    pad = "none" if ratio == dest else "rows" if ratio > dest else "columns"
+    fitted = (best_w, round(height / width * best_w)) if ratio > dest else (round(width / height * best_h), best_h) if ratio < dest else (best_w, best_h)
+    scale = "up" if fitted[0] * fitted[1] > width * height else "down"
+    return branch, pad, scale
+
+
+def fit_cases(ip, torch, images_dir):
+    """The padded fit of every FIT_IMAGES file at every FIT_BUDGETS budget through image_processor.py, and what it does below the smallest block."""
+    import io
+    from PIL import Image
+    import numpy as np
+    cases, refused = [], []
+    p, merge = RELEASE_PROCESSOR["vision_patch_size"], RELEASE_PROCESSOR["vision_downsample_ratio"]
+    for name in FIT_IMAGES:
+        raw = (Path(images_dir) / name).read_bytes()
+        with Image.open(io.BytesIO(raw)) as source:
+            image = source.convert("RGB")
+        for budget in FIT_BUDGETS:
+            args = _official_processor(dict(RELEASE_PROCESSOR, vision_max_n_token=budget))
+            n_llm_h, n_llm_w, best_h, best_w = ip.plan_image_grid(image.width, image.height, args)
+            patches, n_vit_h, n_vit_w, _, _ = ip.load_image({"data": raw}, args)
+            rgb = np.asarray(_padded_rgb(image, best_w, best_h), dtype=np.uint8).tobytes()
+            values = patches.float().reshape(n_vit_h * n_vit_w, -1).numpy().astype("<f4").tobytes()
+            branch, pad, scale = _fit_labels(image.width, image.height, best_h, best_w, p, merge, args.vision_min_pixels, budget)
+            cases.append({"file": name, "sha256": hashlib.sha256(raw).hexdigest(), "size": [image.width, image.height], "max_rows": budget,
+                          "best": [best_h, best_w], "grid": [n_vit_h, n_vit_w], "llm_grid": [n_llm_h, n_llm_w], "rows": ip.num_image_tokens(n_llm_h, n_llm_w),
+                          "branch": branch, "pad": pad, "scale": scale,
+                          "rgb_sha256": hashlib.sha256(rgb).hexdigest(), "patches_sha256": hashlib.sha256(values).hexdigest()})
+        for budget in FIT_REFUSED:
+            args = _official_processor(dict(RELEASE_PROCESSOR, vision_max_n_token=budget))
+            try:
+                plan = ip.plan_image_grid(image.width, image.height, args)
+                ip.load_image({"data": raw}, args)
+                official = "planned %s and loaded" % (list(plan),)
+            except Exception as error:  # noqa: BLE001 - the official code's own failure is the record
+                official = "%s: %s" % (type(error).__name__, error)
+            refused.append({"file": name, "max_rows": budget, "official": official, "error": "a block of fewer than 4 rows holds no image"})
+    labels = {(c["branch"], c["pad"], c["scale"]) for c in cases}
+    for need in ("very_tall", "very_wide", "solved", "raised"):
+        if not any(label[0] == need for label in labels):
+            raise RuntimeError("the fit cases reach no %s branch" % need)
+    if not {"rows", "columns"} <= {label[1] for label in labels} or {"up", "down"} != {label[2] for label in labels}:
+        raise RuntimeError("the fit cases lack a pad side or a scale direction: %s" % sorted(labels))
+    if not any(c["rows"] == c["max_rows"] and c["branch"] != "raised" and c["branch"] != "kept" for c in cases):
+        raise RuntimeError("no solved case meets its budget exactly")
+    return cases, refused
+
+
+def _block(types_, rows, markers, ip):
+    """The block's rows in model.py's order: START, each grid row's IMAGE rows and its NEWLINE, END."""
+    it = iter(rows)
+    return [markers["start"] if t == ip.IMAGE_START else markers["end"] if t == ip.IMAGE_END else markers["newline"] if t == ip.IMAGE_NEW_LINE else next(it)
+            for t in types_]
+
+
+def _row_error(got, ref):
+    """The largest per-row error, each row's relative to max(1, its largest reference magnitude), as tests/vision.py measures it."""
+    return max(max(abs(a - b) for a, b in zip(g, r)) / max(1.0, max(abs(b) for b in r)) for g, r in zip(got, ref))
+
+
+def llmx_order_attention(torch):
+    """vision.py's scaled_dot_product_attention in float32 with the softmax's exp sum and the PV sums taken over keys in sequence, as llmx's CPU attention takes them."""
+    def attention(q, k, v):
+        scores = (q @ k.transpose(-2, -1)) * torch.tensor(1.0 / math.sqrt(q.shape[-1]), dtype=q.dtype)
+        e = torch.exp(scores - scores.amax(-1, keepdim=True))
+        total = e[..., 0]
+        for t in range(1, e.shape[-1]):
+            total = total + e[..., t]
+        p = e / total.unsqueeze(-1)
+        out = torch.zeros_like(q)
+        for t in range(k.shape[-2]):
+            out = out + p[..., t:t + 1] * v[..., t:t + 1, :]
+        return out
+    return attention
+
+
+def encoder_rows(model, ip, torch, raw, processor):
+    """An image's patches through image_processor.load_image, and its block's rows from the model's tower in float32, in float32 with llmx's attention order and in float64 (the same weights widened)."""
+    import copy
+    import types
+    vision = sys.modules["vision"]
+    patches, n_vit_h, n_vit_w, n_llm_h, n_llm_w = ip.load_image({"data": raw}, processor)
+    types_ = ip.image_token_types(n_llm_h, n_llm_w).tolist()
+    out = {}
+    for arm, dtype in (("f32", torch.float32), ("replay", torch.float32), ("f64", torch.float64)):
+        vit, aligner = copy.deepcopy(model.vision).to(dtype), copy.deepcopy(model.aligner).to(dtype)
+        functional = vision.F
+        if arm == "replay":
+            vision.F = types.SimpleNamespace(**{n: getattr(functional, n) for n in dir(functional) if not n.startswith("_")})
+            vision.F.scaled_dot_product_attention = llmx_order_attention(torch)
+        try:
+            with torch.no_grad():
+                rows = aligner(vit(patches.to(dtype), n_vit_h, n_vit_w), n_vit_h, n_vit_w).double().tolist()
+        finally:
+            vision.F = functional
+        markers = {k: getattr(model, "image_" + k).detach().double().tolist() for k in ("start", "end", "newline")}
+        out[arm] = _block(types_, rows, markers, ip)
+    return patches, (n_vit_h, n_vit_w), types_, out["f32"], out["replay"], out["f64"]
+
+
+def generate_vision(output_dir, checkpoint, golden):
+    """The vision references: the padded fit's cases, the tiny tower's rows with each image's bound, and the tiny -vl model's prompt with an image, with the -vl file and the mmproj staged and published together."""
+    import io
+    from PIL import Image
+    torch = pinned_environment()
+    torch.set_num_threads(1)
+    torch.use_deterministic_algorithms(True)
+    document = json.loads(Path(golden).read_text(encoding="utf-8"))
+    images_dir = TOOLS.parent / "tests" / "data" / "images"
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="deepseek4_vision_", dir=out) as temporary:
+        stage = Path(temporary)
+        source = stage / "source"
+        for relative in SOURCE:
+            (source / relative).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(Path(checkpoint) / relative, source / relative)
+        check_sources(source)
+        model_module, _, port = _load_deepseek(source, torch)
+        import image_processor as ip
+
+        cases, refused = fit_cases(ip, torch, images_dir)
+        fit_doc = {"_comment": "Generated by tools/deepseek4_reference.py --vision: image_processor.py's plan_image_grid and load_image at the pinned revision with Pillow %s." % _pillow(),
+                   "repo": REPO, "revision": REVISION, "pillow": _pillow(), "processor": RELEASE_PROCESSOR, "fill": 127, "cases": cases, "refuse": refused}
+        (stage / FIT_NAME).write_text(json.dumps(fit_doc, indent=1) + "\n", encoding="utf-8")
+
+        document_vision = {"args": fixture.VISION_ARGS, "seed": VISION_SEED, "bias_seed": BIAS_VL_SEED}
+        args, state, engram, vstate = fixture.vl_fixture(dict(document, vision=document_vision))
+        if fixture.state_sha256(state) != document["state_sha256"]:
+            raise RuntimeError("the golden's trunk did not rebuild from its seed")
+        model_args = _model_args(model_module, args)
+        model_args.engram_num_embeddings = tuple(engram["num_embeddings"])
+        tokenizer = _Adapter(source / "tokenizer.json")
+        full_state = dict(state, **vstate)
+        model = _build(model_module, model_args, tokenizer, full_state, torch)
+        if sorted(model.state_dict()) != sorted(full_state):
+            raise RuntimeError("the -vl fixture's parameters are not the model's")
+
+        processor = {k: getattr(model_args, k) for k in RELEASE_PROCESSOR}
+        encoder = []
+        for name, budget in ENCODER_CASES:
+            raw = (images_dir / name).read_bytes()
+            proc = _official_processor(dict(processor, vision_max_n_token=budget or processor["vision_max_n_token"]))
+            _, grid, types_, rows32, replay, rows64 = encoder_rows(model, ip, torch, raw, proc)
+            error = _row_error(replay, rows64)
+            encoder.append({"file": name, "max_tokens": budget, "grid": list(grid), "tokens": len(types_), "width": args["dim"],
+                            "rows": rows64,
+                            "official_float32_error": _row_error(rows32, rows64), "llmx_order_float32_error": error, "bound": ENCODER_MULTIPLE * error})
+
+        # The end-to-end prompt: the release's join of the user's parts, the image as its marker, rendered by the fixture's template.
+        name, budget = VL_IMAGE
+        raw = (images_dir / name).read_bytes()
+        proc = _official_processor(dict(processor, vision_max_n_token=budget))
+        patches, (n_vit_h, n_vit_w), types_, _, _, rows64 = encoder_rows(model, ip, torch, raw, proc)
+        text = "<user>" + fixture.IMAGE_MARKER + VL_JOIN + VL_TEXT + "<a>"
+        marked = fixture.vl_prompt_ids(fixture.vl_tokens(args, engram), text)
+        at = marked.index(args["image_token_id"])
+        ids = marked[:at] + [args["image_token_id"]] * len(types_) + marked[at + 1:]
+        token_types = [ip.TEXT] * at + types_ + [ip.TEXT] * (len(marked) - at - 1)
+        image = ip.ImageInput(at, patches.float(), n_vit_h, n_vit_w, torch.tensor(types_))
+
+        def forward(f64_rows=None, without=None):
+            """The prompt's logits and trace, the tower's rows float64's with `f64_rows`, and with `without` one image mechanism taken out (WITNESSES)."""
+            built = full_state
+            if without == "bias_vl":
+                built = dict(full_state, **{"layers.%d.ffn.gate.bias_vl" % n: full_state["layers.%d.ffn.gate.bias" % n] for n in range(args["n_layers"])})
+            model = _build(model_module, model_args, tokenizer, built, torch)
+            if f64_rows is not None:
+                image_rows = torch.tensor([r for r, t in zip(rows64, types_) if t == ip.IMAGE], dtype=torch.float32)
+                model.encode_image = lambda *_: image_rows
+            if without == "engram_cut":
+                hashed = model.engram_hash.forward
+                model.engram_hash.forward = lambda input_ids, start_pos, token_mask=None: hashed(input_ids, start_pos, None)
+            if without == "engram_skip":
+                for block in model.layers:
+                    if block.engram is not None:
+                        block.engram.forward = (lambda own: lambda x, hash_ids, token_mask=None: own(x, hash_ids, None))(block.engram.forward)
+            trace = _Trace(torch, model_module, port)
+            _CURRENT["trace"] = trace
+            trace.attach(model)
+            try:
+                with trace.mode:
+                    _, logits, _ = model(torch.tensor([ids]), 0, images=[[image]], token_types=torch.tensor([token_types]))
+            finally:
+                trace.close()
+            return logits[0].tolist(), trace
+
+        logits, trace = forward(None)
+        widened, _ = forward(rows64)
+        check_margins(trace.margins)
+        propagated = max(abs(a - b) for row, ref in zip(logits, widened) for a, b in zip(row, ref))
+        span = range(at, at + len(types_))
+        routers = {str(layer): _rows(trace.records, ("router", layer)) for layer in range(args["n_layers"])}
+        hashes = _rows(trace.records, ("hash",))
+        dead = [p for p in range(len(ids)) if p not in span and any(q in span for q in range(p - args["engram_max_ngram_size"] + 1, p))]
+        witnesses = {}
+        for mechanism in WITNESSES:
+            other_logits, other = forward(without=mechanism)
+            moved = [[layer, p, routers[str(layer)][p], row] for layer in range(args["n_layers"])
+                     for p, row in enumerate(_rows(other.records, ("router", layer))) if row != routers[str(layer)][p]]
+            top = [[p, _argmax(a), _argmax(b)] for p, (a, b) in enumerate(zip(logits, other_logits)) if _argmax(a) != _argmax(b)]
+            if not moved and not top:
+                raise RuntimeError("the prompt without %s routes and picks as with it, so the golden does not witness it" % mechanism)
+            witnesses[mechanism] = {"routers": moved, "top1": top}
+
+        vl_path, mm_path = stage / VL_GGUF, stage / MMPROJ_GGUF
+        fixture.write_whole(vl_path, *fixture.map_deepseek41_vl(args, state, engram, vstate))
+        fixture.write_whole(mm_path, *fixture.map_mmproj(args, vstate))
+        doc = {
+            "_comment": "Generated by tools/deepseek4_reference.py --vision: DeepSeek's vision.py and model.py at the pinned revision on the F32 kernel port, the tiny deepseek41 golden's trunk with a tiny tower and bias_vl.",
+            "repo": REPO, "revision": REVISION, "port_sha256": text_sha256(TOOLS / "deepseek4_kernel.py"), "pillow": _pillow(),
+            "seed": document["seed"], "args": document["args"], "state_sha256": document["state_sha256"], "engram": engram,
+            "vision": dict(document_vision, state_sha256=fixture.state_sha256(vstate)),
+            "files": {"vl": {"file": VL_GGUF, "sha256": hashlib.sha256(vl_path.read_bytes()).hexdigest()},
+                      "mmproj": {"file": MMPROJ_GGUF, "sha256": hashlib.sha256(mm_path.read_bytes()).hexdigest()}},
+            "encoder": {"multiple": ENCODER_MULTIPLE, "bound_reference": "official float32 with llmx's attention order (llmx_order_attention)", "cases": encoder},
+            "prompt": {"image": name, "max_tokens": budget, "text": VL_TEXT, "rendered": text, "ids": ids, "token_types": token_types, "image_at": at,
+                       "grid": [n_vit_h, n_vit_w], "rows": len(types_),
+                       "logits": [[_short(v) for v in row] for row in logits],
+                       "float64_tower_difference": propagated, "logit_bound": MARGIN_FLOOR + ENCODER_MULTIPLE * propagated,
+                       "routers": routers, "witnesses": witnesses, "margins": {kind: {"minimum": min(values), "count": len(values)} for kind, values in trace.margins.items() if values},
+                       "margin_floor": MARGIN_FLOOR, "engram": {"hash_ids": hashes, "cut_positions": dead,
+                                                                "rule": "image rows are DEAD in the n-gram cache (engram.py) and their gate is 0 (model.py:Engram)"}},
+        }
+        (stage / VISION_NAME).write_text(json.dumps(doc, separators=(",", ":")) + "\n", encoding="utf-8")
+        publish_staged(stage, out, (FIT_NAME, VISION_NAME, VL_GGUF, MMPROJ_GGUF))
+    print("wrote %s: %d fit cases, %d refusals; encoder errors %s; prompt of %d rows (%d image rows), router margin %.3g, float64 tower moves the logits %.3g; witnesses %s"
+          % (out / VISION_NAME, len(cases), len(refused), ", ".join("%s %.3g (llmx order %.3g)" % (c["file"], c["official_float32_error"], c["llmx_order_float32_error"]) for c in encoder),
+             len(ids), len(types_), min(trace.margins["router"]), propagated,
+             ", ".join("%s %d routes %d tokens" % (k, len(v["routers"]), len(v["top1"])) for k, v in witnesses.items())))
+    return out / VISION_NAME
+
+
+def _argmax(row):
+    return max(range(len(row)), key=lambda i: (row[i], -i))
+
+
+def _pillow():
+    import PIL
+    return PIL.__version__
+
+
 def _compare(kind, length, logits, whole, selections, reference, outputs, reference_outputs):
     """A path's rows held to the whole prompt's: logits and every sublayer output within EQUAL_BOUND and every selection the same."""
     largest = max(abs(a - b) for row, ref in zip(logits, whole) for a, b in zip(row, ref))
@@ -927,6 +1219,7 @@ def main(argv=None):
     parser.add_argument("--self-test", action="store_true", help="check the port's codecs against the pure decoders and its Sinkhorn against float64")
     parser.add_argument("--codecs", metavar="FILE", help="write the port's codec outputs on seeded blocks, which deepseek4-ops reads")
     parser.add_argument("--dspark", metavar="GOLDEN", help="write the tiny DSpark reference and sidecar on the trunk of this deepseek41 golden")
+    parser.add_argument("--vision", metavar="GOLDEN", help="write the padded fit's cases, the tiny tower's rows and the tiny -vl prompt's reference on the trunk of this deepseek41 golden")
     parser.add_argument("--search", nargs=2, type=int, metavar=("FIRST", "LAST"), help="with --dspark and --checkpoint, print the drafter seed of FIRST..LAST whose codings clear the floors best")
     args = parser.parse_args(argv)
     if args.codecs:
@@ -942,6 +1235,9 @@ def main(argv=None):
         parser.error("needs --output-dir and --checkpoint")
     if args.dspark:
         generate_dspark(args.output_dir, args.checkpoint, args.dspark)
+        return 0
+    if args.vision:
+        generate_vision(args.output_dir, args.checkpoint, args.vision)
         return 0
     generate(args.output_dir, args.checkpoint)
     return 0

@@ -40,7 +40,7 @@ Selected outputs are checked against Hugging Face references; [ASSETS](docs/ASSE
 
 | What | Status |
 |---|---|
-| Models | `qwen35`, `qwen35moe` and `qwen4exp` files, with the `mmproj` vision encoder file that ships beside them |
+| Models | `qwen35`, `qwen35moe` and `qwen4exp` files, and DeepSeek-V4.1-Flash's `-vl` `deepseek41` files, with the `mmproj` vision encoder file that ships beside them |
 | Commands | `generate --chat` and `chat`, with `--mmproj FILE --image A,B` and `--image-max-tokens N`; PNG and JPEG |
 | Server | `llmx serve --mmproj FILE`; `/v1/chat` and `/v1/chat/completions` read `image_url` parts as `data:` URLs |
 | Devices | The encoder runs on the CPU or a Vulkan device; `--mmproj` is refused on ROCm |

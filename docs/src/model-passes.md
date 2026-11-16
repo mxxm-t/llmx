@@ -97,3 +97,5 @@ reads saved inputs and performs no table lookup.
   each device runs the stages recorded on it in that order and a pass
   keeps its own handoff buffer, logits rows and ticket. `forward`,
   `prefill`, `step` and `score` do not use it.
+
+Under `ModelPlan::text_position_images` a pass finds the rows holding the image id once (`Pass::image_marks`, one entry a row, empty where no row holds it, and `Pass::image_runs`), and each step carries them (`Step::image_marks`, offset by the part's first row, and `Step::image_runs`), so a layer reads the image rows without finding them again.

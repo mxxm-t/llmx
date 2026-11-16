@@ -9,7 +9,9 @@ On a configured device the same gate runs; a device whose backend lacks one of t
 Its cache is kept as native, the model's packed formats and its default, or f32: the whole, decode and ubatch 3 runs under native print the f32 runs' logits, and f16 or two different sides are refused by the flag before the model is built.
 `serve` gives the CLI's ids alone, together, after a prefix split, from a kept checkpoint and through a pause (check_serve), `generate --drafter lookup` gives the ids it gives with drafts off (`common.check_drafts`), and `info` lists the fork file's keys and tensors, and llmx-arch-deepseek4-test, found beside the executable, holds the file to the one its own C++ list builds.
 On one ROCm or Vulkan device the backend's test beside the executable runs its scratch check on the served file (check_scratch): its passes grow the device by no more than the fit priced and the backend keeps.
+The vision golden's -vl file and mmproj hold a prompt with an image to DeepSeek's forward, its text-only rows to the fork file's, and the marker typed as text refused (vision).
 """
+import base64
 import hashlib
 import json
 import math
@@ -23,6 +25,9 @@ import fixture_deepseek4
 
 GOLDEN = os.path.join(common.ROOT, "tests", "data", "deepseek41_reference.json")
 DSPARK = os.path.join(common.ROOT, "tests", "data", "deepseek41_dspark.json")
+VISION = os.path.join(common.ROOT, "tests", "data", "deepseek41_vision_reference.json")
+# The refusal of the image marker typed as text (chat::ChatFormat::refuse_image_text).
+MARKER = "which only an image part gives"
 UPSTREAM = "inference: unsupported metadata deepseek41.ple.layers"
 DEVICE = "which the backend of its device does not implement"
 F32 = ["--cache-type-k", "f32", "--cache-type-v", "f32"]
@@ -272,6 +277,90 @@ def dspark_serve(model, side):
     print("deepseek4: a server with the DSpark sidecar gives the plain server's first-token log-probabilities, and its ids greedy and seeded, alone and four at once, at --draft-max 1, 3 and 5")
 
 
+def image_rows(model, mmproj, prompt, n, flags=()):
+    """The logits rows `logits --chat` prints for the vision golden's prompt with its image, every position with all 128 ids, or None where the device refuses the encoder."""
+    image = os.path.join(common.ROOT, "tests", "data", "images", prompt["image"])
+    args = ["logits", model, prompt["text"], "--chat", "--mmproj", mmproj, "--image", image, "--image-max-tokens", str(prompt["max_tokens"]),
+            "--dtype", "f32", "--last", str(n), "--top", "128"] + F32 + list(flags)
+    p = common.run_process(args, text=True)
+    if common.encoder_refusal(p.returncode, p.stderr):
+        return None
+    assert p.returncode == 0, "deepseek4 vision: logits %s gave exit %d, stderr %r" % (" ".join(flags), p.returncode, p.stderr[-400:])
+    lines = p.stdout.splitlines()
+    assert lines[0] == "tokens: %d" % n, "deepseek4 vision: llmx read %s, the reference %d tokens" % (lines[0], n)
+    return [{int(i): float(v) for i, v in zip(line.split()[1::2], line.split()[2::2])} for line in lines[1:]]
+
+
+def vision(directory, fork, document):
+    """The vision golden (tools/deepseek4_reference.py --vision) on the tiny -vl file and the tiny deepseek41v mmproj, both written torch-free from its seeds.
+    Its text-only rows are the fork file's byte for byte, its prompt with an image is DeepSeek's at the golden's bound, and the marker typed as text is refused by the CLI and the server."""
+    import server
+    with open(VISION, encoding="utf-8") as f:
+        doc = json.load(f)
+    assert (doc["seed"], doc["state_sha256"]) == (document["seed"], document["state_sha256"]), "deepseek4 vision: the golden's trunk is not the deepseek41 golden's"
+    args, state, engram, vstate = fixture_deepseek4.vl_fixture(doc)
+    files = {}
+    for key, mapped in (("vl", fixture_deepseek4.map_deepseek41_vl(args, state, engram, vstate)), ("mmproj", fixture_deepseek4.map_mmproj(args, vstate))):
+        files[key] = str(fixture_deepseek4.write_whole(os.path.join(directory, doc["files"][key]["file"]), *mapped))
+        with open(files[key], "rb") as f:
+            assert hashlib.sha256(f.read()).hexdigest() == doc["files"][key]["sha256"], "deepseek4 vision: the %s writer's file is not the golden's" % key
+    vl, mmproj = files["vl"], files["mmproj"]
+    assert rows(vl, directory, document["sequence"]) == rows(fork, directory, document["sequence"]), "deepseek4 vision: the -vl file's text-only rows differ from the fork file's"
+    print("deepseek4: the -vl file reads the golden's %d text ids to the fork file's logits, byte for byte" % len(document["sequence"]))
+    prompt = doc["prompt"]
+    n, bound = len(prompt["ids"]), prompt["logit_bound"]
+    assert min(m["minimum"] for m in prompt["margins"].values()) >= prompt["margin_floor"], "deepseek4 vision: a selection of the image prompt sits within the floor of a tie"
+    worst = 0.0
+    for flags in ([], ["--threads", "1"], ["--ubatch", "7"]):
+        got = image_rows(vl, mmproj, prompt, n, flags)
+        if got is None:
+            print("deepseek4: vision SKIP - the device refuses the encoder")
+            return
+        error = max(abs(row[i] - ref[i]) for row, ref in zip(got, prompt["logits"]) for i in range(len(ref)))
+        assert error <= bound, "deepseek4 vision: %s logits differ from the reference's by %.3g (bound %.3g)" % (" ".join(flags) or "one pass", error, bound)
+        worst = max(worst, error)
+        # Where taking out bias_vl, the Engram cut or the Engram skip moves DeepSeek's top-1 token, llmx's is DeepSeek's.
+        for mechanism, moved in prompt["witnesses"].items():
+            for position, top, _ in moved["top1"]:
+                assert max(got[position], key=lambda i: (got[position][i], -i)) == top, "deepseek4 vision: the top-1 token %s decides at %d is not DeepSeek's" % (mechanism, position)
+    print("deepseek4: a prompt of %d ids with a %d-row image, in one pass, at one thread and in passes of 7, every logit within %.3g of DeepSeek's (bound %.3g: %g and %g times the %.3g the float64 tower moves them)"
+          % (n, prompt["rows"], worst, bound, LOGIT_BOUND, doc["encoder"]["multiple"], prompt["float64_tower_difference"]))
+    print("deepseek4: without bias_vl, the Engram cut or the Engram skip DeepSeek's top-1 moves at %s positions, where llmx's is DeepSeek's"
+          % "/".join(str(len(m["top1"])) for m in prompt["witnesses"].values()))
+    typed = "a" + fixture_deepseek4.IMAGE_MARKER + "b"
+    image = os.path.join(common.ROOT, "tests", "data", "images", prompt["image"])
+    for command in (["logits", vl, typed], ["generate", vl, typed, "-n", "1"],
+                    ["logits", vl, typed, "--chat", "--mmproj", mmproj, "--image", image, "--image-max-tokens", str(prompt["max_tokens"])]):
+        p = common.run_process(command + F32, text=True)
+        assert p.returncode == 1 and MARKER in p.stderr, "deepseek4 vision: %s gave exit %d, stderr %r" % (" ".join(command[:1] + command[2:3]), p.returncode, p.stderr[-400:])
+    messages = [{"role": "user", "content": typed}]
+    with open(image, "rb") as f:
+        url = "data:image/png;base64," + base64.b64encode(f.read()).decode("ascii")
+    parts = [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": url}}, {"type": "text", "text": prompt["text"]}]}]
+    plain = server.Server(vl, "--dtype", "f32")
+    try:
+        for path, body, reason in (("/v1/generate", {"prompt": typed, "max_tokens": 1}, "prompt: the text holds"),
+                                   ("/v1/completions", {"prompt": typed, "max_tokens": 1}, "prompt: the text holds"),
+                                   ("/v1/chat", {"messages": messages, "max_tokens": 1}, MARKER),
+                                   ("/v1/chat", {"messages": parts, "max_tokens": 1}, "--mmproj")):
+            status, err = plain.post(path, body)
+            message = err["error"]["message"] if isinstance(err["error"], dict) else err["error"]
+            assert status == 400 and reason in message, (path, status, err)
+    finally:
+        plain.close()
+    srv = server.Server(vl, "--dtype", "f32", "--mmproj", mmproj, "--image-max-tokens", str(prompt["max_tokens"]))
+    try:
+        assert server.post_ok(srv, "/v1/tokenize", {"messages": parts})["tokens"] == prompt["ids"], "deepseek4 vision: the served prompt's ids are not the reference's"
+        typed_parts = [{"role": "user", "content": [parts[0]["content"][0], {"type": "text", "text": typed}]}]
+        status, err = srv.post("/v1/chat", {"messages": typed_parts, "max_tokens": 1})
+        message = err["error"]["message"] if isinstance(err["error"], dict) else err["error"]
+        assert status == 400 and MARKER in message, (status, err)
+    finally:
+        srv.close()
+    print("deepseek4: the served image prompt is the reference's ids; the marker typed in a prompt or a message is refused by logits and generate, with and without"
+          " --mmproj, and by the raw and chat routes with 400, and an image part by a server without --mmproj")
+
+
 def run(require=False):
     # The golden's two output groups split at width 2 alone; the group-legal file below holds widths 2 and 4.
     if os.environ.get("LLMX_TENSOR_WIDTH", "1") not in ("1", "2") and common.tensor_width_skip("deepseek4"):
@@ -296,6 +385,7 @@ def run(require=False):
         refused(fork, "--cache-type-v: this model keeps its cache in native or f32, not f16", ["--cache-type-k", "f32", "--cache-type-v", "f16"])
         refused(fork, "--cache-type-k and --cache-type-v: this model keeps one cache type for both sides, not f32 and native", ["--cache-type-k", "f32", "--cache-type-v", "native"])
         print("deepseek4: an f16 cache side and two different sides refused by the flags; native and the default print the f32 runs' logits")
+        vision(directory, fork, document)
         served = fixture_deepseek4.write_deepseek41(os.path.join(directory, "serve.gguf"), dict(args, max_seq_len=1024), state, engram, "fork")
         check_serve(served, "f32", True)
         check_serve(served, "native", False)

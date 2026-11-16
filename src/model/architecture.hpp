@@ -68,12 +68,13 @@ struct Role {
 };
 
 // Whether a tensor of `shape` and `type` fits `role` by its kind: a stack's exact three axes, or `in` first, F32 for a norm or a table, `out` second for the rest, or a run of rows inside `tensor_rows`, and every further axis one.
+// A norm and a source of one column are vectors, whose second axis may be absent.
 inline bool role_fits(const Role& role, const std::vector<uint64_t>& shape, uint32_t type) {
     if (role.kind == RoleKind::experts) return shape.size() == 3 && shape[0] == role.in && shape[1] == role.out && shape[2] == role.experts;
-    const bool norm = role.kind == RoleKind::norm;
+    const bool norm = role.kind == RoleKind::norm || (role.kind == RoleKind::source && role.out == 1);
     bool valid = !shape.empty() && shape[0] == role.in;
     if (norm) {
-        valid = valid && type == quant::GGML_TYPE_F32;
+        valid = valid && (role.kind == RoleKind::source || type == quant::GGML_TYPE_F32);
     } else {
         const bool run = role.tensor_rows && role.kind == RoleKind::matrix && role.first_row <= role.tensor_rows && role.out <= role.tensor_rows - role.first_row;
         valid = valid && shape.size() >= 2 && (role.tensor_rows ? run && shape[1] == role.tensor_rows : shape[1] == role.out);
@@ -182,6 +183,10 @@ struct ModelPlan {
     std::vector<size_t> table_steps;    // floats each covered position adds to each table, none past its end; a table without any is fixed
     // Per rotated pair, which of an image row's three positions turns it (backend::RopeStreams, docs/VISION.md, section 4); empty where the model takes no image rows.
     std::vector<uint8_t> image_streams;
+    // Where the model takes image rows at text positions, one position a row and no image streams, the id every row of an image holds (docs/VISION.md, section 4).
+    std::optional<uint32_t> text_position_images;
+    // Where the chat format reads a message given as parts as one text, the separator its texts are joined with, an image part being the text of that id (docs/VISION.md, section 6).
+    std::optional<std::string> parts_join;
     // How many copies of an embedding row a residual row holds, side by side, as a model of several residual streams embeds a token into each.
     size_t embed_copies = 1;
     // An embedded drafter, planned only when a caller asks for one (Architecture::plan_drafter): its roles, all Part::draft, its ops and its cache, KV or a state slot on the head's device (docs/src/model-architecture.md).
@@ -311,6 +316,10 @@ struct Step {
     uint32_t* indices = nullptr;
     size_t indices_size = 0;
     const PreparedLookup* lookup = nullptr;
+    // Under ModelPlan::text_position_images, where the pass holds an image's rows: per row 1 for an image's and 0 for text, and over the whole pass the runs of image rows as (first, count).
+    const uint32_t* image_marks = nullptr;
+    const std::pair<size_t, size_t>* image_runs = nullptr;
+    size_t n_image_runs = 0;
     // How `pos` holds a row's positions: one, or three where a pass holds an image's rows (ModelPlan::image_streams).
     backend::RopeStreams streams{};
     // Where a history holds an image, the positions the groups of a pooled layer's rows complete turn at, which may be an image's rows below the pass; else none.

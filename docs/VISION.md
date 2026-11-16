@@ -2,7 +2,7 @@
 
 This page is the plan for image input, ROADMAP item 10, as F2DEV approved it as the plan of record on 2026-10-25.
 The coordinator and F2DEV answered its open questions the same day, on the owner's delegation.
-The image decoder and Qwen vision encoder are implemented, along with `llmx-encode-image` for checking encoder rows against the reference. Image rows are wired into CLI prompts, chat templates, server requests and cache identity. The sections below describe the approved design and retain the original work order in section 8. Current qualification and performance results belong in STATUS; implementation alone does not close those gates.
+The image decoder and the Qwen and DeepSeek-V4.1 vision encoders (section 11) are implemented, along with `llmx-encode-image` for checking encoder rows against the reference. Image rows are wired into CLI prompts, chat templates, server requests and cache identity. The sections below describe the approved design and retain the original work order in section 8. Current qualification and performance results belong in STATUS; implementation alone does not close those gates.
 Audio remains planned on the same encoder contract.
 
 ## 1. The models and the weights
@@ -179,3 +179,20 @@ The cost of each step at one 1024 by 1024 image (1024 tokens, 4096 patches) on t
 | 6, routes | base64 of about 1.4 MB | about 2 ms |
 | 7, Vulkan encoder | the 5.5 TFLOP at F16 on one MI50 | under 0.4 s, under 200 launches; owns the speed gate |
 | 8, Flash-Next | encoder pieces under pacing; the first token after the image's 1024 prompt rows | the gate's three figures on production's placement |
+
+## 11. DeepSeek-V4.1 (`deepseek41v`)
+
+DeepSeek-V4.1-Flash's `-vl` text files take images through an mmproj whose `clip.projector_type` is `deepseek41v`, the second module on the contract of section 9 (`model/arch/deepseek41_vision.hpp`), with no second path in `image/`, `media.hpp`, the routes or the cache.
+Its reference is DeepSeek's own inference/image_processor.py, vision.py and model.py at the revision [DEEPSEEK4](DEEPSEEK4.md) pins, run in the deepseek41 reference environment.
+
+- **The files:** the mmproj holds a ViT of patch 14, 1024 wide, 32 blocks of 16 heads of 64, RMSNorm (eps 1e-6, weight only), qkv and output products with bias and a SwiGLU feed-forward of 2816 without bias, then `v.post_ln`, the aligner's `mm.1` (9216 to 5120) and `mm.2` (5120 to 5120) with bias, and the block's marker rows `v.token_embd.img_start`, `img_end` and `v.image_newline`.
+  A `-vl` text file is the old file with `blk.N.exp_probs_b_vl.bias` beside each MoE layer's `exp_probs_b`; without an image it renders, routes and decodes as the old file, byte for byte.
+- **Preprocessing:** the padded fit of image_processor.py (`image::Fit::padded`): an image below 544 * 544 pixels raised to it, its sides ceiled to whole patches, a block past its row bound solved down by the processor's own rule, then Pillow's `ImageOps.pad` (bicubic with Pillow's 22-bit weights, centred, gray 127), normalized as section 2 and rounded to BF16, cut in rows of patches.
+- **Tokens:** an image of h by w aligner cells takes the block [START] ([IMAGE] * w [NEWLINE]) * h [END], h * (w + 1) + 2 rows, every one with the id 129264; `--image-max-tokens N` bounds those rows (1024 by default, the processor's `vision_max_n_token`), N below 4 is refused; a grid thinner than one aligner cell (3 patches a side), which a raised image under 29 pixels a side (an aspect past about 350:1) or a small budget gives, is padded to whole tokens as the official aligner pads it.
+  Positions are plain text positions.
+- **The encoder:** the 2D rope of section 3's stream map on the whole 64-wide head, bidirectional attention within the image, then the aligner: the grid padded to multiples of 3 with zero rows, a 3 by 3 unfold read as one 9216-wide row, `mm.1`, erf GELU and `mm.2`.
+  `mm.1`'s input axis is regrouped once at load from the converter's channel-major order to patch-major, so the unfold is a gather of patch rows with zero copies over the pad, on every backend.
+- **The text model:** each pass marks the rows holding 129264 once, and every MoE layer routes them with `exp_probs_b_vl` in place of `exp_probs_b` (the weights still from the raw scores); Engram skips image rows and its n-grams stop at them, as model.py and engram.py have it.
+  DSpark's stages route their draft rows with their own `exp_probs_b`, never a `bias_vl`, as `forward_spec` does, and a draft row is a drafted text token, never an image row.
+- **Chat:** the file's template reads content as a string, so an image part renders as the marker text and a message's parts are joined with a blank line, as encoding.py joins its blocks; the marker typed in text, in a message, a raw prompt or a CLI prompt, is refused, since only an image part may place it.
+- **Gates:** the padded fit, the tiny tower's rows and a tiny end-to-end golden through model.py come from the official code (docs/ASSETS.md, The deepseek41 tiny reference); the tiny tower's and the release mmproj's rows are held per image to twice the official F32 forward's error with the attention sums in llmx's order, the error of the official F32 forward as torch orders it recorded beside it ([DEEPSEEK4](DEEPSEEK4.md), section 5); the image rows' correctness on the real text file waits for the layered reference of DEEPSEEK4 section 5.3.

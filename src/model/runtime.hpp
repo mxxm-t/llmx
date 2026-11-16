@@ -265,6 +265,8 @@ struct Pass {
     std::vector<uint32_t> ids, pos, pick;
     bool argmax = false;                               // its logits rows stay on the output device and their ids come to the host (BatchEntry::argmax)
     bool image_rows = false;                           // some row is an image's, so each row holds the plan's three position streams (ModelPlan::image_streams)
+    std::vector<uint32_t> image_marks;                 // under ModelPlan::text_position_images, per row 1 where it holds the image id, empty where no row does (Step::image_marks)
+    std::vector<std::pair<size_t, size_t>> image_runs; // the runs of those rows, (first, count)
     std::vector<std::pair<size_t, std::vector<uint32_t>>> group_pos;   // where a history holds an image, per group size of a pooled layer, the positions of the groups each entry completes
     std::vector<uint32_t> previous_tokens;             // the token-history layer's preceding IDs, a fixed-width row per entry
     std::vector<std::vector<backend::KVView>> views;   // per storage, per entry
@@ -1245,8 +1247,14 @@ public:
     void add_media(Sequence& s, MediaRun run);
     // The same for the CLI's own sequence.
     void add_media(MediaRun run) { add_media(seq_, std::move(run)); }
-    // Whether the model takes image rows: its architecture places them (ModelPlan::image_streams).
-    bool takes_images() const { return !plan_.image_streams.empty(); }
+    // Whether the model takes image rows: its architecture places them (ModelPlan::image_streams, ModelPlan::text_position_images).
+    bool takes_images() const { return !plan_.image_streams.empty() || plan_.text_position_images; }
+    bool text_position_images() const { return plan_.image_streams.empty() && plan_.text_position_images; }
+    // The join of a message's parts and the id whose text stands for an image in it, where the architecture declares them (ModelPlan::parts_join).
+    std::optional<std::pair<std::string, uint32_t>> parts_join() const {
+        if (!plan_.parts_join || !text_position_images()) return std::nullopt;
+        return std::pair<std::string, uint32_t>{*plan_.parts_join, *plan_.text_position_images};
+    }
     // The rows of a sequence's images, [first, end) in order, which a drafter does not draft from; the CLI's own sequence without one.
     std::vector<std::pair<size_t, size_t>> image_rows(const Sequence& s) const {
         std::vector<std::pair<size_t, size_t>> rows;
@@ -1900,7 +1908,9 @@ private:
     // A part in scratch set `set` (Pass::scratch), the context's where no pass runs it: a saved history's rerun and the drafters' chain.
     Step part(ExecContext& ctx, size_t dev, const Weight* w, uint8_t kind, size_t base, size_t rows, backend::RowRuns runs, int layer = -1, size_t set = 0) const;
     Step part(ExecContext& ctx, const Pass& p, size_t dev, const Weight* w, uint8_t kind, size_t base, size_t rows, backend::RowRuns runs, int layer = -1) const {
-        return part(ctx, dev, w, kind, base, rows, runs, layer, p.scratch);
+        Step s = part(ctx, dev, w, kind, base, rows, runs, layer, p.scratch);
+        if (!p.image_marks.empty()) s.image_marks = p.image_marks.data() + base;
+        return s;
     }
     Step mixer_part(ExecContext& ctx, const Pass& p, size_t dev, int l) const;
     void positions(const Sequence& s, size_t first, size_t n, bool streams, uint32_t* out) const;

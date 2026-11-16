@@ -1,6 +1,7 @@
 #pragma once
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -164,6 +165,7 @@ struct NgramHash {
     std::vector<uint32_t> token_map;
     uint32_t mapped_vocab = 0;
     bool fill_cuts = true;
+    std::optional<uint32_t> dead_id;
 };
 
 // The table rows of a token chunk by the n-gram hash: previous is the oldest-first tail immediately before current, and output is token-major, `heads_per_ngram` rows for each order past the first.
@@ -220,10 +222,14 @@ inline size_t ngram_rows(const NgramHash& h, uint32_t vocab_size,
             const size_t index = prefix_count - distance;
             return index < history_count ? previous[index] : current[index - history_count];
         };
-        uint64_t mixed = map(current[i]) * h.multipliers[0];
-        bool cut = false;
+        bool cut = h.dead_id && current[i] == *h.dead_id;
+        uint64_t mixed = map(cut ? uint32_t(h.fill_id) : current[i]) * h.multipliers[0];
         for (size_t s = 1; s < ngram; ++s) {
-            const uint32_t token = cut ? uint32_t(h.fill_id) : token_before(s);
+            uint32_t token = cut ? uint32_t(h.fill_id) : token_before(s);
+            if (h.dead_id && token == *h.dead_id) {
+                token = uint32_t(h.fill_id);
+                cut = true;
+            }
             cut = cut || (h.fill_cuts && token == uint32_t(h.fill_id));
             mixed ^= map(token) * h.multipliers[s];
             const size_t first_head = (s - 1) * per_ngram;

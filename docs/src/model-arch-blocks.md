@@ -38,7 +38,7 @@ run them.
   runs.
 - `NgramHash` and `ngram_rows(hash, vocab_size, previous, current, output)`: token-major table rows of an n-gram hash, computed without allocating; qwen4exp's PLE runs it, and DeepSeek-V4.1's Engram is to run it with one `NgramHash` a lookup layer (docs/DEEPSEEK4.md, section 4.4).
   The oldest-first history tail may hold at most `ngram_size - 1` tokens.
-  Missing predecessors are filled with `fill_id`; with `fill_cuts`, the default, so is history at or before a `fill_id` in text, while without it a `fill_id` in text is an ordinary token; a current `fill_id` token still hashes its own context.
+  Missing predecessors are filled with `fill_id`; with `fill_cuts`, the default, so is history at or before a `fill_id` in text, while without it a `fill_id` in text is an ordinary token; a current `fill_id` token still hashes its own context. A `dead_id` token (DeepSeek-V4.1's image id on a -vl file) takes no part in an n-gram: the fill stands in for it and every token before it, and a dead row hashes the fill alone.
   A nonempty `token_map`, one entry for each id of the vocabulary, maps every id, the fill's included, into `[0, mapped_vocab)` before the fold, and the hash-product bound is then taken over `mapped_vocab - 1`.
   Each order past the first folds the (mapped) token ids, each times its multiplier, by xor and gives `heads_per_ngram` rows, the fold modulo a head's vocabulary size plus its offset.
   The fill id, every token id and its mapped id, the map's size, the output capacity and the signed hash-product bound are checked before output is written.

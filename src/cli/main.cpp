@@ -852,6 +852,7 @@ int cmd_generate(const std::string& model_path, const std::string& prompt, bool 
     if (gp.seed) rng.seed(gp.seed);
 
     infer::ImagePrompt turn;
+    loaded->chat.refuse_image_text(prompt);
     if (!image_bytes.empty()) turn = image_turn(*loaded, images, image_bytes, prompt);
     else turn.ids = tok.encode(as_chat ? chat_prompt(loaded->chat, prompt) : prompt);
     const std::vector<uint32_t>& ids = turn.ids;
@@ -917,6 +918,7 @@ int cmd_logits(const std::string& model_path, const std::string& text, bool as_c
     infer::Model& model = *loaded->model;
 
     infer::ImagePrompt turn;
+    loaded->chat.refuse_image_text(text);
     if (!image_bytes.empty()) turn = image_turn(*loaded, images, image_bytes, text);
     else turn.ids = tok.encode(as_chat ? chat_prompt(loaded->chat, text) : text);
     std::vector<uint32_t>& ids = turn.ids;
@@ -965,6 +967,7 @@ int cmd_perplexity(const std::string& model_path, const std::string& text,
     if (exec.verbose)
         std::cerr << "threads: " << (per_token ? "decode " : "prefill ") << model.threads_available() << "\n";
 
+    loaded->chat.refuse_image_text(text);
     std::vector<uint32_t> ids = tok.encode(text);
     const auto result = infer::perplexity(model, ids, context_size, chunks, per_token);
     if (exec.verbose)

@@ -49,3 +49,5 @@ which variant it reads and under which prefix.
   the default for a missing name.
 
 `gguf_weights` associates NVFP4 and F8_E4M3 `.weight` tensors with their F32 `.scale` companions through [weight_scales](format-weight_scales.md), storing indices in `TensorView.scale`, and checks each stored tensor's offset by `gguf::value_alignment`. It does not apply arithmetic or treat `.input_scale` as a weight scale. Model validation owns companion compatibility; existing `TensorIndex` owns duplicate-name refusal. `vision_weights` asks the same format owner to refuse any associated scale companion before reading the vision module or exposing tensor storage, since the vision encoder does not consume scaled weights yet.
+
+`clip` with `deepseek41v` opens `model/arch/deepseek41_vision.hpp` ([deepseek41_vision](model-arch-deepseek41_vision.md)) at BF16, as `qwen3vl_merger` opens the Qwen module.

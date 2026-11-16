@@ -1,4 +1,4 @@
-"""Torch-free checks of the tiny deepseek41 reference: its tool's pins and refusals, the committed golden against the generator, both tiny files and the element decoders."""
+"""Torch-free checks of the tiny deepseek41 reference: its tool's pins and refusals, the committed goldens against the generator, the tiny files and the element decoders."""
 
 import ast
 import hashlib
@@ -163,15 +163,19 @@ class Tool(unittest.TestCase):
     def test_gen_baseline_delegates(self):
         import gen_baseline
         seen = {}
-        with patch.dict("sys.modules", deepseek4_reference=types.SimpleNamespace(generate=lambda out, src: seen.update(out=out, src=src))):
+        module = types.SimpleNamespace(OUTPUT_NAME=reference.OUTPUT_NAME, generate=lambda out, src: seen.update(out=out, src=src),
+                                       generate_vision=lambda out, src, trunk: seen.update(vision=(out, src, trunk)))
+        with patch.dict("sys.modules", deepseek4_reference=module):
             with tempfile.TemporaryDirectory(prefix="llmx_deepseek4_args_") as directory:
                 gen_baseline.main(["deepseek41-tiny", "--output-dir", directory, "--checkpoint", directory])
                 self.assertEqual(seen, {"out": os.path.abspath(directory), "src": directory})
-                for argv in (["deepseek41-tiny"], ["deepseek41-tiny", "--checkpoint", os.path.join(directory, "absent")],
-                             ["deepseek41-tiny", "--checkpoint", directory, "--threads", "2"],
-                             ["deepseek41-tiny", "--checkpoint", directory, "--revision", "c" * 40]):
-                    with self.assertRaises(SystemExit), patch("sys.stderr"):
-                        gen_baseline.parse_args(argv)
+                gen_baseline.main(["deepseek41-vision", "--output-dir", directory, "--checkpoint", directory])
+                self.assertEqual(seen["vision"], (os.path.abspath(directory), directory, os.path.join(os.path.abspath(directory), reference.OUTPUT_NAME)))
+                for kind in ("deepseek41-tiny", "deepseek41-vision"):
+                    for argv in ([kind], [kind, "--checkpoint", os.path.join(directory, "absent")], [kind, "--checkpoint", directory, "--threads", "2"],
+                                 [kind, "--checkpoint", directory, "--revision", "c" * 40]):
+                        with self.assertRaises(SystemExit), patch("sys.stderr"):
+                            gen_baseline.parse_args(argv)
 
 
 class Golden(unittest.TestCase):
@@ -312,6 +316,113 @@ class Golden(unittest.TestCase):
         else:
             self.assertFalse(any(key.startswith("deepseek41.ple.") for key in model.metadata))
         self.assertEqual(seen, set(decoded), layout)
+
+
+class VisionGolden(unittest.TestCase):
+    """The vision golden and the padded fit's cases (tools/deepseek4_reference.py --vision) against the generator's pins, seeds and cases, the -vl file and the mmproj rebuilt torch-free to their digests."""
+
+    @classmethod
+    def setUpClass(cls):
+        data = Path(__file__).resolve().parent / "data"
+        cls.doc = json.loads((data / reference.VISION_NAME).read_text(encoding="utf-8"))
+        cls.fit = json.loads((data / reference.FIT_NAME).read_text(encoding="utf-8"))
+
+    def test_golden_is_the_generators(self):
+        doc, trunk = self.doc, golden()
+        self.assertEqual((doc["repo"], doc["revision"], doc["pillow"]), (reference.REPO, reference.REVISION, reference.read_requirements()["pillow"]))
+        self.assertEqual(doc["port_sha256"], reference.text_sha256(ROOT / "tools" / "deepseek4_kernel.py"))
+        self.assertEqual((doc["seed"], doc["args"], doc["state_sha256"], doc["engram"]), (trunk["seed"], trunk["args"], trunk["state_sha256"], trunk["engram"]))
+        self.assertEqual((doc["vision"]["args"], doc["vision"]["seed"], doc["vision"]["bias_seed"]), (fixture.VISION_ARGS, reference.VISION_SEED, reference.BIAS_VL_SEED))
+        self.assertEqual(fixture.vision_shapes(dict(fixture.TINY_ARGS, **fixture.VISION_ARGS))["aligner.w1.weight"],
+                         (fixture.TINY_ARGS["dim"], fixture.VISION_ARGS["vision_dim"] * fixture.VISION_ARGS["vision_downsample_ratio"] ** 2))
+
+    def test_files_are_the_state(self):
+        doc = self.doc
+        args, state, engram, vstate = fixture.vl_fixture(doc)
+        self.assertEqual(fixture.state_sha256(state), doc["state_sha256"])
+        self.assertEqual(fixture.state_sha256(vstate), doc["vision"]["state_sha256"])
+        numpy = sd.np is not None
+        if not numpy and REQUIRE["numpy"]:
+            self.fail("numpy is required for the read-back of the tiny deepseek41 vision files")
+        bits = lambda values: struct.pack("<%df" % len(values), *values)  # noqa: E731
+        with tempfile.TemporaryDirectory(prefix="llmx_deepseek4_vision_") as directory:
+            for key, mapped in (("vl", fixture.map_deepseek41_vl(args, state, engram, vstate)), ("mmproj", fixture.map_mmproj(args, vstate))):
+                path = fixture.write_whole(Path(directory) / doc["files"][key]["file"], *mapped)
+                self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), doc["files"][key]["sha256"], key)
+            model = sd.GGUF(Path(directory) / doc["files"]["mmproj"]["file"])
+            decoded = {t.name: [float(v) for v in model.decode(t, numpy=numpy)] for t in model.tensors}
+            d, f = args["vision_dim"], args["vision_inter_dim"]
+            w1 = vstate["vision.blocks.0.mlp.w1.weight"][1]
+            self.assertEqual(bits(decoded["v.blk.0.ffn_gate.weight"] + decoded["v.blk.0.ffn_up.weight"]), bits(w1))
+            self.assertEqual(bits(decoded["mm.1.weight"]), bits(vstate["aligner.w1.weight"][1]))
+            self.assertEqual(bits(decoded["v.patch_embd.weight"]), bits(vstate["vision.patch_embed.proj.weight"][1]))
+            self.assertEqual(len(decoded), 3 + 9 * args["vision_n_layers"] + 7)
+            self.assertEqual(model.metadata["clip.projector_type"], (sd.STRING, "deepseek41v"))
+            self.assertEqual(len(w1), 2 * f * d)
+            vl = sd.GGUF(Path(directory) / doc["files"]["vl"]["file"])
+            for layer in range(args["n_layers"]):
+                tensor = next(t for t in vl.tensors if t.name == "blk.%d.exp_probs_b_vl.bias" % layer)
+                self.assertEqual(bits([float(v) for v in vl.decode(tensor, numpy=numpy)]), bits(vstate["layers.%d.ffn.gate.bias_vl" % layer][1]))
+
+    def test_encoder_bounds(self):
+        encoder = self.doc["encoder"]
+        self.assertEqual(encoder["multiple"], reference.ENCODER_MULTIPLE)
+        self.assertEqual([(c["file"], c["max_tokens"]) for c in encoder["cases"]], list(reference.ENCODER_CASES))
+        merge = fixture.VISION_ARGS["vision_downsample_ratio"]
+        for c in encoder["cases"]:
+            h, w = -(-c["grid"][0] // merge), -(-c["grid"][1] // merge)
+            self.assertEqual(c["tokens"], h * (w + 1) + 2, c["file"])
+            self.assertEqual(len(c["rows"]), c["tokens"])
+            self.assertTrue(all(len(row) == c["width"] == fixture.TINY_ARGS["dim"] for row in c["rows"]))
+            self.assertTrue(0 < c["official_float32_error"] and 0 < c["llmx_order_float32_error"], c["file"])
+            self.assertEqual(c["bound"], encoder["multiple"] * c["llmx_order_float32_error"], c["file"])
+        grids = [c["grid"] for c in encoder["cases"]]
+        self.assertIn([merge, merge], grids)
+        self.assertTrue(any(g[0] % merge or g[1] % merge for g in grids))
+
+    def test_prompt(self):
+        doc, prompt = self.doc, self.doc["prompt"]
+        args = dict(fixture.TINY_ARGS, **fixture.VISION_ARGS)
+        image = args["image_token_id"]
+        self.assertEqual((prompt["image"], prompt["max_tokens"]), reference.VL_IMAGE)
+        self.assertEqual(prompt["rendered"], "<user>" + fixture.IMAGE_MARKER + reference.VL_JOIN + reference.VL_TEXT + "<a>")
+        marked = fixture.vl_prompt_ids(fixture.vl_tokens(args, doc["engram"]), prompt["rendered"])
+        at = prompt["image_at"]
+        self.assertEqual(prompt["ids"], marked[:at] + [image] * prompt["rows"] + marked[at + 1:])
+        self.assertNotIn(image, golden()["sequence"])
+        types_ = prompt["token_types"][at:at + prompt["rows"]]
+        h = types_.count(3 - 1)
+        self.assertEqual(types_, [0] + ([1] * ((prompt["rows"] - 2 - h) // h) + [2]) * h + [3])
+        self.assertTrue(all(t == -1 for i, t in enumerate(prompt["token_types"]) if not at <= i < at + prompt["rows"]))
+        self.assertEqual(len(prompt["logits"]), len(prompt["ids"]))
+        self.assertGreaterEqual(min(m["minimum"] for m in prompt["margins"].values()), reference.MARGIN_FLOOR)
+        self.assertEqual(prompt["logit_bound"], reference.MARGIN_FLOOR + reference.ENCODER_MULTIPLE * prompt["float64_tower_difference"])
+        self.assertEqual(prompt["engram"]["cut_positions"], [p for p in range(at + prompt["rows"], at + prompt["rows"] + args["engram_max_ngram_size"] - 1)])
+        self.assertTrue(all(len(rows) == len(prompt["ids"]) for rows in prompt["routers"].values()))
+        # Each image mechanism decides a routed expert or a top-1 token, bias_vl already on the first MoE layer, whose rows hold both kinds.
+        witnesses = prompt["witnesses"]
+        self.assertEqual(sorted(witnesses), sorted(reference.WITNESSES))
+        for mechanism, moved in witnesses.items():
+            self.assertTrue(moved["routers"] or moved["top1"], mechanism)
+            for layer, position, picked, other in moved["routers"]:
+                self.assertEqual(prompt["routers"][str(layer)][position], picked)
+                self.assertNotEqual(picked, other)
+        self.assertTrue(any(layer == 0 and at <= position < at + prompt["rows"] for layer, position, _, _ in witnesses["bias_vl"]["routers"]))
+
+    def test_fit_cases(self):
+        fit = self.fit
+        self.assertEqual((fit["repo"], fit["revision"], fit["pillow"], fit["processor"], fit["fill"]),
+                         (reference.REPO, reference.REVISION, reference.read_requirements()["pillow"], reference.RELEASE_PROCESSOR, 127))
+        self.assertEqual([(c["file"], c["max_rows"]) for c in fit["cases"]], [(f, b) for f in reference.FIT_IMAGES for b in reference.FIT_BUDGETS])
+        self.assertEqual([(c["file"], c["max_rows"]) for c in fit["refuse"]], [(f, b) for f in reference.FIT_IMAGES for b in reference.FIT_REFUSED])
+        self.assertEqual({c["branch"] for c in fit["cases"]}, {"very_tall", "very_wide", "solved", "raised"})
+        self.assertEqual({c["pad"] for c in fit["cases"]}, {"none", "rows", "columns"})
+        self.assertEqual({c["scale"] for c in fit["cases"]}, {"up", "down"})
+        self.assertTrue(all(c["rows"] <= c["max_rows"] for c in fit["cases"]))
+        self.assertTrue(any(c["rows"] == c["max_rows"] and c["branch"] not in ("raised", "kept") for c in fit["cases"]))
+        for c in fit["cases"]:
+            data = (Path(__file__).resolve().parent / "data" / "images" / c["file"]).read_bytes()
+            self.assertEqual(hashlib.sha256(data).hexdigest(), c["sha256"], c["file"])
 
 
 def run(require=False):

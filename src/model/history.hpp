@@ -1637,7 +1637,7 @@ inline void Model::draft_end(Chain& c) {
 inline void Model::add_media(Sequence& s, MediaRun run) {
     if (s.owner_ != this) throw std::runtime_error("inference: sequence of another model");
     if (s.flights_) throw std::logic_error("inference: an image added to a sequence in flight");
-    if (plan_.image_streams.empty()) throw std::runtime_error("inference: the model's architecture takes no image rows");
+    if (!takes_images()) throw std::runtime_error("inference: the model's architecture takes no image rows");
     if (!run.rows || size_t(run.grid_h) * run.grid_w != run.rows) throw std::runtime_error("inference: an image's rows do not fill its grid");
     const size_t end = run.first + run.rows;
     if (run.encoded && (run.from >= run.rows || run.encoded->size() != backend::size_mul(run.rows - run.from, embedding_width())))
@@ -1664,11 +1664,15 @@ inline void Model::add_media(Sequence& s, MediaRun run) {
 }
 
 // Rows [first, first + n) of the history at the positions HF's get_rope_index gives Qwen's images (docs/src/model-history.md): a text row at its index less what the images below it saved, an image's row at (p, p + row, p + column).
-// With `streams` each row takes three entries, a text row its position thrice; without, one, and no row may be an image's.
+// With `streams` each row takes three entries, a text row its position thrice; without, one, and no row may be an image's unless the plan places images at text positions, where every row is at its index.
 inline void Model::positions(const Sequence& s, size_t first, size_t n, bool streams, uint32_t* out) const {
     const size_t k = streams ? 3 : 1;
     size_t next = 0, saved = 0;   // the first image not wholly below the row, and what the images below it saved
     for (size_t i = first; i < first + n; ++i) {
+        if (plan_.image_streams.empty()) {
+            out[(i - first) * k] = uint32_t(i);
+            continue;
+        }
         while (next < s.media_.size() && s.media_[next].run.first + s.media_[next].run.rows <= i) {
             const MediaRun& r = s.media_[next++].run;
             saved += r.rows - std::max<size_t>(r.grid_h, r.grid_w);

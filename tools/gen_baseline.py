@@ -3,7 +3,7 @@
 Run this ONCE on a machine with the HF tooling, then commit the output.
 tests/baseline.py only reads the committed JSON, so running the test suite never needs torch, transformers, or network access -- llmx stays dependency-free at runtime and the suite stays self-contained.
 
-    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|int8|mxfp4|nvfp4|q1-0|q2-0|q2-k|q3-k|q5-0|q5-1|iq4-nl|iq4-xs|iq3-s|iq2-s|iq2-xxs|iq2-xs|iq3-xxs|tokenizer-qwen35|tokenizer-deepseek41|qwen35-tiny|qwen35-mtp|qwen4exp-tiny|minimax-tiny|deepseek41-tiny|tensor-split|tensor-split-moe|image-decode|vision-tiny|image-tiny|image-qwen4exp]
+    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|int8|mxfp4|nvfp4|q1-0|q2-0|q2-k|q3-k|q5-0|q5-1|iq4-nl|iq4-xs|iq3-s|iq2-s|iq2-xxs|iq2-xs|iq3-xxs|tokenizer-qwen35|tokenizer-deepseek41|qwen35-tiny|qwen35-mtp|qwen4exp-tiny|minimax-tiny|deepseek41-tiny|deepseek41-vision|tensor-split|tensor-split-moe|image-decode|vision-tiny|image-tiny|image-qwen4exp]
     python tools/gen_baseline.py qwen35 --model Qwen3.5-0.8B|Qwen3.5-4B [--output-dir DIR]
     python tools/gen_baseline.py file-exact --weights-gguf FILE.gguf --output-dir DIR [--round int8]
     python tools/gen_baseline.py vision-file-exact --weights-gguf MMPROJ.gguf --checkpoint DIR [--output-dir DIR]
@@ -29,6 +29,7 @@ qwen35-mtp writes the draft goldens of the tiny fixture with an MTP block from a
 qwen4exp-tiny prepares a small independent Flash-Next reference with HF's own model, takes only --output-dir and is not part of all.
 minimax-tiny writes the goldens of the tiny minimax-m3 fixtures of tests/minimax.py from HF's MiniMaxM3VLForCausalLM (tools/minimax_reference.py), takes only --output-dir and is not part of all.
 deepseek41-tiny writes the tiny deepseek41 reference with DeepSeek's own inference code on the F32 kernel port (tools/deepseek4_reference.py); it takes --checkpoint, the directory of DeepSeek's pinned files, and --output-dir, and is not part of all.
+deepseek41-vision writes the deepseek41 vision references (tools/deepseek4_reference.py --vision) on the trunk of the deepseek41 golden in --output-dir; it takes the same flags and is not part of all.
 vision-tiny writes the tiny vision encoder's mmproj and rows (tools/vision_reference.py); vision-file-exact holds a released mmproj's every tensor to the checkpoint directory's model.visual.* and writes HF's rows with its weights; neither is part of all.
 image-tiny writes the goldens of tests/image.py, a prompt with images on the tiny qwen35 fixture beside a tiny tower, from HF Qwen3_5ForConditionalGeneration stepped token by token (tools/vision_reference.py), takes only --output-dir and is not part of all.
 image-qwen4exp writes tests/image.py's Flash-Next goldens, the same prompts on a tiny qwen4exp model beside a tiny tower, from HF Qwen4ExpForConditionalGeneration, and the two GGUF files; it takes only --output-dir and is not part of all.
@@ -1855,7 +1856,7 @@ FIXED_KINDS = {
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Generate independent pinned HF reference fixtures on CPU.")
-    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "int8", "mxfp4", "nvfp4", "q1-0", "q2-0", "q2-k", "q3-k", "q5-0", "q5-1", "iq4-nl", "iq4-xs", "iq3-s", "iq2-s", "iq2-xxs", "iq2-xs", "iq3-xxs", "iq1", "tq", "tokenizer-qwen35", "tokenizer-deepseek41", "qwen35-tiny", "qwen35-mtp", "qwen4exp-tiny", "minimax-tiny", "deepseek41-tiny", "tensor-split", "tensor-split-moe", "qwen35", "file-exact", "image-decode", "vision-tiny", "vision-file-exact", "image-tiny", "image-qwen4exp"))
+    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "int8", "mxfp4", "nvfp4", "q1-0", "q2-0", "q2-k", "q3-k", "q5-0", "q5-1", "iq4-nl", "iq4-xs", "iq3-s", "iq2-s", "iq2-xxs", "iq2-xs", "iq3-xxs", "iq1", "tq", "tokenizer-qwen35", "tokenizer-deepseek41", "qwen35-tiny", "qwen35-mtp", "qwen4exp-tiny", "minimax-tiny", "deepseek41-tiny", "deepseek41-vision", "tensor-split", "tensor-split-moe", "qwen35", "file-exact", "image-decode", "vision-tiny", "vision-file-exact", "image-tiny", "image-qwen4exp"))
     parser.add_argument("--repo", default=TOKENIZER_REPO, help="HF model/tokenizer repository")
     parser.add_argument("--revision", help="full 40-character HF commit SHA (required for another repository)")
     parser.add_argument("--output-dir", help="fixture directory (required for another model/revision)")
@@ -1865,15 +1866,15 @@ def parse_args(argv=None):
     parser.add_argument("--weights-gguf", help="file-exact: the qwen3, qwen3moe or pinned qwen35 GGUF whose weights the reference model takes, which labels the goldens; tokenizer-deepseek41: the GGUF shard whose header gives the token types")
     parser.add_argument("--round", choices=("int8",), help="file-exact: round every matrix product's input but the routers to this dtype, the HF-int8 control")
     parser.add_argument("--model", choices=sorted(QWEN35_MODELS), help="qwen35: the pinned checkpoint whose goldens to write")
-    parser.add_argument("--checkpoint", help="vision-file-exact: the HF checkpoint directory whose model.visual.* the mmproj must equal; deepseek41-tiny: the directory of DeepSeek's files at the pinned revision; tokenizer-deepseek41: the directory holding the pinned tokenizer.json")
+    parser.add_argument("--checkpoint", help="vision-file-exact: the HF checkpoint directory whose model.visual.* the mmproj must equal; deepseek41-tiny and deepseek41-vision: the directory of DeepSeek's files at the pinned revision; tokenizer-deepseek41: the directory holding the pinned tokenizer.json")
     args = parser.parse_args(argv)
     if args.round and args.kind != "file-exact":
         parser.error("--round applies to file-exact only")
-    if args.kind == "deepseek41-tiny":
+    if args.kind in ("deepseek41-tiny", "deepseek41-vision"):
         if not args.checkpoint or not os.path.isdir(args.checkpoint):
-            parser.error("deepseek41-tiny needs --checkpoint, the directory of DeepSeek's files at the pinned revision")
+            parser.error("%s needs --checkpoint, the directory of DeepSeek's files at the pinned revision" % args.kind)
         if args.repo != TOKENIZER_REPO or args.revision or args.gguf_repo or args.gguf_file or args.threads is not None or args.weights_gguf or args.model:
-            parser.error("deepseek41-tiny uses fixed synthetic weights and one thread; only --checkpoint and --output-dir apply")
+            parser.error("%s uses fixed synthetic weights and one thread; only --checkpoint and --output-dir apply" % args.kind)
         args.output_dir = os.path.abspath(args.output_dir or OUT_DIR)
         args.family = "deepseek41"
         args.chunked_calls = True
@@ -2041,6 +2042,10 @@ def main(argv=None):
     if args.kind == "deepseek41-tiny":
         import deepseek4_reference
         deepseek4_reference.generate(args.output_dir, args.checkpoint)
+        return
+    if args.kind == "deepseek41-vision":
+        import deepseek4_reference
+        deepseek4_reference.generate_vision(args.output_dir, args.checkpoint, os.path.join(args.output_dir, deepseek4_reference.OUTPUT_NAME))
         return
     if args.kind == "image-decode":
         import image_reference

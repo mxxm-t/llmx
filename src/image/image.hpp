@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -9,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include "core/bf16.hpp"
 #include "image/jpeg.hpp"
 #include "image/png.hpp"
 #include "image/raster.hpp"
@@ -184,12 +186,53 @@ inline std::pair<uint32_t, uint32_t> smart_resize(uint32_t height, uint32_t widt
     return {uint32_t(h_bar), uint32_t(w_bar)};
 }
 
+// The rows of a padded block (DeepSeek-V4.1's image_processor.py): an h by w grid of tokens, each `merge` by `merge` patches, takes h * (w + 1) + 2.
+inline uint64_t padded_rows(uint64_t height, uint64_t width, uint32_t patch, uint32_t merge) {
+    const uint64_t h = (height / patch + merge - 1) / merge, w = (width / patch + merge - 1) / merge;
+    return h * (w + 1) + 2;
+}
+
+// DeepSeek-V4.1's plan_image_grid with no aspect bound: an image below `min_pixels` raised to it, its sides ceiled to whole patches, and a size whose block passes `max_rows` solved down to the largest that fits.
+// Its float steps are Python's, so each size is the reference's to the bit.
+inline std::pair<uint32_t, uint32_t> padded_size(uint32_t height, uint32_t width, uint32_t patch, uint32_t merge, uint64_t min_pixels, uint64_t max_rows) {
+    if (height == 0 || width == 0 || patch == 0 || merge == 0) throw std::runtime_error("image: an empty image");
+    if (max_rows < 4) throw std::runtime_error("image: a block of fewer than 4 rows holds no image");
+    double hd = height, wd = width;
+    if (uint64_t(height) * width < min_pixels) {
+        const double ratio = std::sqrt(double(min_pixels) / (wd * hd));
+        wd = std::trunc(wd * ratio);
+        hd = std::trunc(hd * ratio);
+    }
+    uint64_t bh = uint64_t(std::ceil(hd / patch)) * patch, bw = uint64_t(std::ceil(wd / patch)) * patch;
+    if (padded_rows(bh, bw, patch, merge) > max_rows) {
+        const double r = hd / wd, max_w = std::sqrt(double(max_rows - 2) / r + 0.25) - 0.5, max_h = max_w * r;
+        const uint64_t cell = uint64_t(patch) * merge;
+        if (max_w < 1.0) {
+            bh = (max_rows - 2) / 2 * cell;
+            bw = cell;
+        } else if (max_h < 1.0) {
+            bh = cell;
+            bw = (max_rows - 3) * cell;
+        } else {
+            const double beta = std::min(std::floor(max_w) * double(cell) / wd, std::floor(max_h) * double(cell) / hd);
+            bh = uint64_t(std::floor(hd * beta / patch)) * patch;
+            bw = uint64_t(std::floor(wd * beta / patch)) * patch;
+        }
+        if (!bh || !bw || padded_rows(bh, bw, patch, merge) > max_rows) throw std::logic_error("image: a solved size past its bound");
+    }
+    if (bh > 0xffffffffu || bw > 0xffffffffu) throw std::runtime_error("image: the resized image is too large");
+    return {uint32_t(bh), uint32_t(bw)};
+}
+
+// The two fixed-point forms of the antialiased bicubic resize of 8-bit images: torchvision's, its weights in 16 bits at the most fraction bits they allow, and Pillow's, 22 fraction bits in 32.
+enum class Resample : uint8_t { torchvision, pillow };
+
 namespace image_detail {
 
-// One axis of torchvision's antialiased bicubic resize of 8-bit images: each output sample a fixed-point weighted sum of the inputs under the Keys kernel (a = -0.5) widened by the downscale factor.
+// One axis of the resize: each output sample a fixed-point weighted sum of the inputs under the Keys kernel (a = -0.5) widened by the downscale factor.
 struct Taps {
     std::vector<size_t> first, count;
-    std::vector<int16_t> weights;  // `count[i]` weights for output i, `stride` apart
+    std::vector<int32_t> weights;  // `count[i]` weights for output i, `stride` apart
     size_t stride = 0;
     int precision = 0;
 };
@@ -202,7 +245,7 @@ inline double keys_cubic(double x) {
     return 0.0;
 }
 
-inline Taps taps(size_t in, size_t out) {
+inline Taps taps(size_t in, size_t out, Resample form) {
     const double scale = double(in) / double(out);
     const double support = scale >= 1.0 ? 2.0 * scale : 2.0, inv = scale >= 1.0 ? 1.0 / scale : 1.0;
     Taps t;
@@ -230,23 +273,26 @@ inline Taps taps(size_t in, size_t out) {
         t.first[i] = size_t(lo);
         t.count[i] = cnt;
     }
-    // The most fraction bits that keep the largest weight inside 16 bits.
-    int precision = 0;
-    while (precision < 22 && int64_t(0.5 + max_w * double(int64_t(1) << (precision + 1))) < (int64_t(1) << 15)) ++precision;
+    // torchvision takes the most fraction bits that keep the largest weight inside 16 bits; both round halves away from zero.
+    int precision = 22;
+    if (form == Resample::torchvision) {
+        precision = 0;
+        while (precision < 22 && int64_t(0.5 + max_w * double(int64_t(1) << (precision + 1))) < (int64_t(1) << 15)) ++precision;
+    }
     t.precision = precision;
     t.weights.resize(w.size());
-    for (size_t k = 0; k < w.size(); ++k) t.weights[k] = int16_t(std::round(w[k] * double(int64_t(1) << precision)));
+    for (size_t k = 0; k < w.size(); ++k) t.weights[k] = int32_t(std::round(w[k] * double(int64_t(1) << precision)));
     return t;
 }
 
-inline Raster resize_axis(const Raster& in, size_t out_w, size_t out_h, bool horizontal) {
-    const Taps t = horizontal ? taps(in.width, out_w) : taps(in.height, out_h);
+inline Raster resize_axis(const Raster& in, size_t out_w, size_t out_h, bool horizontal, Resample form) {
+    const Taps t = horizontal ? taps(in.width, out_w, form) : taps(in.height, out_h, form);
     Raster out{uint32_t(out_w), uint32_t(out_h)};
     const int32_t round = t.precision ? int32_t(1) << (t.precision - 1) : 0;
     for (size_t y = 0; y < out_h; ++y)
         for (size_t x = 0; x < out_w; ++x) {
             const size_t i = horizontal ? x : y;
-            const int16_t* w = t.weights.data() + i * t.stride;
+            const int32_t* w = t.weights.data() + i * t.stride;
             for (int c = 0; c < 3; ++c) {
                 int32_t acc = round;
                 for (size_t j = 0; j < t.count[i]; ++j) {
@@ -262,21 +308,52 @@ inline Raster resize_axis(const Raster& in, size_t out_w, size_t out_h, bool hor
 
 }  // namespace image_detail
 
-// The image resized as torchvision's v2 bicubic antialiased resize of 8-bit images: width, then height, each pass rounded to 8 bits and skipped at an unchanged size.
-inline Raster resize_bicubic(const Raster& in, uint32_t out_w, uint32_t out_h) {
+// The image resized as torchvision's v2 or Pillow's bicubic antialiased resize of 8-bit images: width, then height, each pass rounded to 8 bits and skipped at an unchanged size.
+inline Raster resize_bicubic(const Raster& in, uint32_t out_w, uint32_t out_h, Resample form = Resample::torchvision) {
     if (out_w == 0 || out_h == 0) throw std::runtime_error("image: an empty resize");
     Raster cur = in;
-    if (out_w != cur.width) cur = image_detail::resize_axis(cur, out_w, cur.height, true);
-    if (out_h != cur.height) cur = image_detail::resize_axis(cur, cur.width, out_h, false);
+    if (out_w != cur.width) cur = image_detail::resize_axis(cur, out_w, cur.height, true, form);
+    if (out_h != cur.height) cur = image_detail::resize_axis(cur, cur.width, out_h, false, form);
     return cur;
 }
 
-// How a vision encoder wants its images, which its module hands to prepare (docs/VISION.md, section 9): its patch and merge sizes, the normalization, and smart_resize's pixel bounds.
+// Pillow's ImageOps.pad: the image resized to the largest size of its own aspect inside the target, its side Python-rounded, and centred on `fill` along the side it leaves short.
+inline Raster pad_to(const Raster& in, uint32_t out_w, uint32_t out_h, uint8_t fill) {
+    if (out_w == 0 || out_h == 0 || in.width == 0 || in.height == 0) throw std::runtime_error("image: an empty resize");
+    uint32_t w = out_w, h = out_h;
+    const double ratio = double(in.width) / in.height, dest = double(out_w) / out_h;
+    if (ratio > dest) h = uint32_t(std::nearbyint(double(in.height) / in.width * out_w));
+    else if (ratio < dest) w = uint32_t(std::nearbyint(double(in.width) / in.height * out_h));
+    if (!w || !h) throw std::runtime_error("image: an image too thin to resize");
+    const Raster fitted = resize_bicubic(in, w, h, Resample::pillow);
+    if (w == out_w && h == out_h) return fitted;
+    Raster out(out_w, out_h);
+    std::fill(out.rgb.begin(), out.rgb.end(), fill);
+    const size_t x0 = w != out_w ? size_t(std::nearbyint((out_w - w) * 0.5)) : 0, y0 = w != out_w ? 0 : size_t(std::nearbyint((out_h - h) * 0.5));
+    for (size_t y = 0; y < h; ++y) std::memcpy(out.at(x0, y0 + y), fitted.at(0, y), size_t(w) * 3);
+    return out;
+}
+
+// How an image is sized: HF's smart_resize under a pixel bound, resized by torchvision and cut in merge blocks, or DeepSeek-V4.1's padded plan under a bound on its block's rows, padded by Pillow and cut in rows of patches.
+enum class Fit : uint8_t { smart_resize, padded };
+
+// How a vision encoder wants its images, which its module hands to prepare (docs/VISION.md, section 9): its patch and merge sizes, the normalization and the sizing.
+// smart_resize reads the pixel bounds; padded reads min_pixels, the block's rows at most and the fill.
 struct Params {
     uint32_t patch = 16, merge = 2;
     float mean[3] = {0.5f, 0.5f, 0.5f}, std[3] = {0.5f, 0.5f, 0.5f};
     uint64_t min_pixels = 65536, max_pixels = 16777216;
+    Fit fit = Fit::smart_resize;
+    uint64_t max_rows = 0;
+    uint8_t fill = 127;
 };
+
+// The height and width an image of this size is resized or padded to.
+inline std::pair<uint32_t, uint32_t> fit_size(uint32_t height, uint32_t width, const Params& p) {
+    if (!p.patch || !p.merge) throw std::runtime_error("image: an empty patch or merge");
+    if (p.fit == Fit::padded) return padded_size(height, width, p.patch, p.merge, p.min_pixels, p.max_rows);
+    return smart_resize(height, width, p.patch * p.merge, p.min_pixels, p.max_pixels);
+}
 
 // An image ready for its encoder: its patch grid and each patch's values in (channel, row, column) order, normalized, the patches in merge-block order.
 struct Prepared {
@@ -284,16 +361,18 @@ struct Prepared {
     std::vector<float> patches;
 };
 
-// The image sized by smart_resize and resized, the pixels a server's digest of the image reads (docs/VISION.md, section 5).
+// The image sized and resized under its fit, the pixels a server's digest of the image reads (docs/VISION.md, section 5).
 inline Raster resize_for(const Raster& img, const Params& p) {
-    if (!p.patch || !p.merge) throw std::runtime_error("image: an empty patch or merge");
-    const auto [h, w] = smart_resize(img.height, img.width, p.patch * p.merge, p.min_pixels, p.max_pixels);
-    return resize_bicubic(img, w, h);
+    const auto [h, w] = fit_size(img.height, img.width, p);
+    return p.fit == Fit::padded ? pad_to(img, w, h, p.fill) : resize_bicubic(img, w, h);
 }
 
-// A resized image normalized in F32 as the processor's fused rescale and normalize, (x - 255 mean) / (255 std), and cut into patches block by block of merge by merge.
+// A resized image normalized in F32 as the processor's fused rescale and normalize, (x - 255 mean) / (255 std), cut into patches block by block of merge by merge, or under the padded fit row by row and rounded to BF16.
+// The padded fit's processor rescales and normalizes in two steps, which differ from the fused form in F32 but not once rounded to BF16, for all 256 values.
 inline Prepared patches(const Raster& r, const Params& p) {
-    if (!p.patch || !p.merge || r.height % (p.patch * p.merge) || r.width % (p.patch * p.merge)) throw std::runtime_error("image: a size of no whole merged patches");
+    const bool rows = p.fit == Fit::padded;
+    const uint32_t side = rows ? p.patch : p.patch * p.merge;
+    if (!p.patch || !p.merge || r.height % side || r.width % side) throw std::runtime_error(rows ? "image: a size of no whole patches" : "image: a size of no whole merged patches");
     Prepared out;
     out.grid_h = uint32_t(r.height / p.patch);
     out.grid_w = uint32_t(r.width / p.patch);
@@ -305,18 +384,25 @@ inline Prepared patches(const Raster& r, const Params& p) {
         m[c] = p.mean[c] * float(1.0 / (1.0 / 255.0));
         s[c] = p.std[c] * float(1.0 / (1.0 / 255.0));
     }
+    const auto cut = [&](size_t k, size_t gy, size_t gx) {
+        float* dst = out.patches.data() + k * row;
+        for (int c = 0; c < 3; ++c)
+            for (size_t y = 0; y < P; ++y)
+                for (size_t x = 0; x < P; ++x) {
+                    const float v = (float(r.at(gx * P + x, gy * P + y)[c]) - m[c]) / s[c];
+                    dst[(size_t(c) * P + y) * P + x] = rows ? bf16_to_f32(f32_to_bf16(v)) : v;
+                }
+    };
     size_t k = 0;
+    if (rows) {
+        for (size_t gy = 0; gy < out.grid_h; ++gy)
+            for (size_t gx = 0; gx < out.grid_w; ++gx) cut(k++, gy, gx);
+        return out;
+    }
     for (size_t by = 0; by < out.grid_h / M; ++by)
         for (size_t bx = 0; bx < out.grid_w / M; ++bx)
             for (size_t iy = 0; iy < M; ++iy)
-                for (size_t ix = 0; ix < M; ++ix) {
-                    const size_t y0 = (by * M + iy) * P, x0 = (bx * M + ix) * P;
-                    float* dst = out.patches.data() + k * row;
-                    for (int c = 0; c < 3; ++c)
-                        for (size_t y = 0; y < P; ++y)
-                            for (size_t x = 0; x < P; ++x) dst[(size_t(c) * P + y) * P + x] = (float(r.at(x0 + x, y0 + y)[c]) - m[c]) / s[c];
-                    ++k;
-                }
+                for (size_t ix = 0; ix < M; ++ix) cut(k++, by * M + iy, bx * M + ix);
     return out;
 }
 

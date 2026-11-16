@@ -64,8 +64,10 @@ never sees devices, placements, stages or caches beyond what a call hands it.
     an F32 `[in, out]` an op reads whole, such as a convolution's taps,
     which the fit does not count as a product, and `source` is an
     `[in, out]` of any type read on the host only to fill a table, never
-    placed on a device nor counted in a device's bytes; a norm, matrix,
-    table or source takes trailing axes of one up to rank four.
+    placed on a device nor counted in a device's bytes, its second axis
+    absent where `out` is one; a norm, matrix, table or source takes
+    trailing axes of one up to rank four.
+    The loader places no source's tensor, so no other role reads it.
   - A `Stream` says what a routed layer run beside its mixer for a long
     prompt does with a role: nothing, a copy adopted on the mixer's device
     at load, or a copy written into that device's window in each pass that

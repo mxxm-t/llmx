@@ -50,6 +50,9 @@ struct Config {
     int n_nextn = 0, draft_experts = 0, draft_used = 0, draft_block = 0;
     uint32_t noise_id = 0;
     std::vector<int> taps;
+    // A file of the -vl release carries each MoE layer's exp_probs_b_vl and takes images at text positions, every row of an image's block holding `image_id` (docs/VISION.md, section 11).
+    bool vision = false;
+    uint32_t image_id = 0;
 };
 
 // Ascending distinct block ids, each below the block count.
@@ -177,6 +180,7 @@ inline blocks::NgramHash engram_hash(const Config& c, size_t i) {
     h.head_offsets.assign(c.engram_offsets.begin() + std::ptrdiff_t(i * heads), c.engram_offsets.begin() + std::ptrdiff_t((i + 1) * heads));
     h.head_vocab_sizes.assign(c.engram_primes.begin() + std::ptrdiff_t(i * heads), c.engram_primes.begin() + std::ptrdiff_t((i + 1) * heads));
     h.token_map = c.token_map;
+    if (c.vision) h.dead_id = c.image_id;
     h.mapped_vocab = uint32_t(c.engram_compressed);
     h.fill_cuts = false;
     return h;
@@ -297,24 +301,40 @@ inline Config read_config(const gguf::GGUFModel& m, const std::string& p, uint32
         required(m, p + "nextn.target_layers");
         c.taps = metadata::counts(m, p + "nextn.target_layers");
     }
+    // The image rows' id is the vocabulary's deepseek_image marker, which model.py's image_token_id names.
+    for (const auto& t : m.tensors)
+        c.vision = c.vision || (t.name.size() > 20 && t.name.compare(t.name.size() - 20, 20, ".exp_probs_b_vl.bias") == 0);
+    if (c.vision) {
+        const auto* tokens = m.find("tokenizer.ggml.tokens");
+        const std::string marker = "<\xef\xbd\x9c" "deepseek_image\xef\xbd\x9c>";
+        bool found = false;
+        for (size_t i = 0; tokens && tokens->vtype == gguf::V_ARRAY && i < tokens->arr.size() && !found; ++i)
+            if (tokens->arr[i].s == marker) {
+                c.image_id = uint32_t(i);
+                found = true;
+            }
+        if (!found) throw std::runtime_error("inference: a file with exp_probs_b_vl has no " + marker + " in its vocabulary");
+    }
     check_config(c);
     return c;
 }
 
+// A host source tensor's n values as floats, from BF16 or F32 storage.
+inline void source_floats(const TensorView& t, float* out, size_t n) {
+    const size_t width = t.type == quant::GGML_TYPE_BF16 ? sizeof(uint16_t) : t.type == quant::GGML_TYPE_F32 ? sizeof(float) : 0;
+    if (!width || t.bytes != n * width || !t.data) throw std::runtime_error("inference: unsupported tensor type " + t.name + ", which DeepSeek-V4.1 reads on the host as BF16 or F32");
+    for (size_t i = 0; i < n; ++i) {
+        if (t.type == quant::GGML_TYPE_BF16) out[i] = bf16_to_f32(reinterpret_cast<const uint16_t*>(t.data)[i]);
+        else std::memcpy(out + i, t.data + i * sizeof(float), sizeof(float));
+    }
+}
+
 // Engram's stream norm weight, engram_q times engram_k from BF16 or BF16-valued F32 views, exact in F32 (docs/DEEPSEEK4.md, section 4.4).
 inline void engram_norm_weight(const TensorView& q, const TensorView& k, float* out, size_t n) {
-    const auto value = [](const TensorView& t, size_t i) {
-        if (t.type == quant::GGML_TYPE_BF16) return bf16_to_f32(reinterpret_cast<const uint16_t*>(t.data)[i]);
-        float v;
-        std::memcpy(&v, t.data + i * sizeof(float), sizeof(float));
-        return v;
-    };
-    for (const TensorView* t : {&q, &k}) {
-        const size_t width = t->type == quant::GGML_TYPE_BF16 ? sizeof(uint16_t) : t->type == quant::GGML_TYPE_F32 ? sizeof(float) : 0;
-        if (!width || t->bytes != n * width || !t->data)
-            throw std::runtime_error("inference: unsupported tensor type " + t->name + ", which the Engram norm reads as BF16 or F32");
-    }
-    for (size_t i = 0; i < n; ++i) out[i] = value(q, i) * value(k, i);
+    std::vector<float> kv(n);
+    source_floats(q, out, n);
+    source_floats(k, kv.data(), n);
+    for (size_t i = 0; i < n; ++i) out[i] *= kv[i];
 }
 
 // The rotary angle of each adjacent pair at position 1, in double: 1 / base^(2i / dim), and with original_context above 0 YaRN's ramp between the dims that turn beta_fast and beta_slow times over it (model.py:369-389).

@@ -328,6 +328,15 @@ The host was active: final-round total CPU ranged from 31 to 64 percent, with ed
 **Left.** The tested two-commit branch is ready for the landing coordinator. No direct main push while LAND61 holds the stack. Static browser scope requires no inference or unrelated hosted gates. The change is intended to land by fast-forward after the coordinator incorporates it; this is not a claim that it is already on main.
 
 **Gotchas.** Navigation does not cancel an admitted retry. Errors retain the existing action notification path.
+## Workspace file-open ordering (2026-11-16, in progress)
+
+**Goal.** Keep delayed file reads from overwriting later editor input or a newer file selection. The owner is `tools/chat_ui/workspace.js`; this is an independent static UI fix based on public main.
+
+**Done.** The actual-browser regression fails on public main in 40.237 s: a held file response replaces newer editor input with the requested file contents. The failing test is committed before the fix; its log is in `scratch/open/red.log`.
+
+**Left.** Reproduce the race, review and implement the smallest owner-local fix, run focused browser and source checks, then hand the qualified branch to the landing coordinator.
+
+**Gotchas.** The separate pending-save change is already READY and must be preserved when integrating. Do not change runtime or storage behavior, or block normal typing while files load.
 
 ## Companion deployment documentation refresh (2026-11-16, Done)
 

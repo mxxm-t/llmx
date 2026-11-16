@@ -1218,6 +1218,27 @@ try {
   assert.equal(await evaluate("document.querySelector('.workspace-file-list').textContent.includes('Research')"), true, 'cancelled workspace delete removed the file');
   await screenshot('studio-workspace-desktop.png');
   await click('.workspace-file[title="external.txt"]');
+  await wait("document.querySelector('#workspace-editor').value==='Concurrent change'", 'source editor before delayed open');
+  await evaluate(`(() => {
+    const fetch = window.fetch;
+    window.workspaceReadHeld = false;
+    window.fetch = async (...args) => {
+      const response = await fetch(...args);
+      if (args[0] !== '/api/workspace/file?path=Research') return response;
+      window.fetch = fetch;
+      window.workspaceReadHeld = true;
+      return new Promise(resolve => { window.releaseWorkspaceRead = () => resolve(response); });
+    };
+  })()`);
+  await click('.workspace-file[title="Research"]');
+  await wait('window.workspaceReadHeld', 'workspace file response held');
+  await fill('#workspace-editor', 'Typed while another file was loading');
+  await evaluate('window.releaseWorkspaceRead()');
+  await new Promise(resolve => setTimeout(resolve, 100));
+  assert.equal(await evaluate("document.querySelector('#workspace-editor').value"), 'Typed while another file was loading', 'delayed file read discarded newer editor input');
+  assert.equal(await evaluate("document.querySelector('.workspace-file-path').textContent"), 'external.txt', 'delayed file read replaced the edited file');
+  if (await evaluate("document.querySelector('#action-dialog').open")) await closeAction('#conversation-cancel');
+  await fill('#workspace-editor', 'Concurrent change');
   await wait("document.querySelector('#workspace-editor').value==='Concurrent change'", 'open distinct file after command');
   await click('.workspace-file[title="Research"]');
   await wait("document.querySelector('#workspace-editor').value==='first version\\n'", 'reload editor base after command');

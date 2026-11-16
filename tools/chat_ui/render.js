@@ -1,6 +1,7 @@
 /* Safe presentation helpers: untrusted model text only enters text nodes. */
 window.ChatRender = (() => {
   'use strict';
+  const blockSources = new WeakMap(), markdownSources = new WeakMap();
   function node(tag, cls, text) {
     const el = document.createElement(tag);
     if (cls) el.className = cls;
@@ -46,11 +47,36 @@ window.ChatRender = (() => {
     }
     return ' '.repeat(Math.max(0, width - count)) + line.slice(offset);
   }
+  function codeBlock(source, language) {
+    const wrap = node('div', 'code-block');
+    const label = node('span', '', language || 'code'); label.dataset.language = language;
+    const codeNode = node('code'); if (window.ChatArtifacts) codeNode.append(window.ChatArtifacts.highlight(source, language)); else codeNode.textContent = source;
+    const head = node('div', 'code-heading');
+    const copy = node('button', 'text-button', 'Copy code');
+    copy.type = 'button';
+    copy.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(codeNode.textContent); copy.textContent = 'Copied'; setTimeout(() => { copy.textContent = 'Copy code'; }, 1600); }
+      catch (_) { copy.textContent = 'Copy unavailable'; }
+    });
+    const actions = node('div', 'code-actions'); actions.append(copy);
+    if (window.ChatArtifacts) {
+      const download = node('button', 'text-button', 'Download'); download.type = 'button'; download.addEventListener('click', () => window.ChatArtifacts.download(codeNode.textContent, null, label.dataset.language));
+      const open = node('button', 'text-button', 'Open'); open.type = 'button'; open.addEventListener('click', () => window.ChatArtifacts.open({source: codeNode.textContent, language: label.dataset.language})); actions.append(download, open);
+    }
+    head.append(label, actions);
+    const pre = node('pre'); pre.append(codeNode);
+    wrap.append(head, pre); return wrap;
+  }
+  function appendBlock(target, element, start, end) {
+    blockSources.set(element, {start, end}); target.append(element);
+  }
   function markdown(text, depth = 0) {
     const out = node('div', 'markdown');
     const lines = String(text || '').replace(/\r/g, '').split('\n');
-    let i = 0;
+    markdownSources.set(out, lines);
+    let i = 0, start = 0;
     while (i < lines.length) {
+      start = i;
       const line = lines[i];
       if (/^\s*```/.test(line)) {
         const language = line.replace(/^\s*```/, '').trim();
@@ -58,22 +84,7 @@ window.ChatRender = (() => {
         i++;
         while (i < lines.length && !/^\s*```/.test(lines[i])) code.push(lines[i++]);
         if (i < lines.length) i++;
-        const wrap = node('div', 'code-block');
-        const head = node('div', 'code-heading');
-        const copy = node('button', 'text-button', 'Copy code');
-        copy.type = 'button';
-        copy.addEventListener('click', async () => {
-          try { await navigator.clipboard.writeText(code.join('\n')); copy.textContent = 'Copied'; setTimeout(() => { copy.textContent = 'Copy code'; }, 1600); }
-          catch (_) { copy.textContent = 'Copy unavailable'; }
-        });
-        const actions = node('div', 'code-actions'); actions.append(copy);
-        if (window.ChatArtifacts) {
-          const download = node('button', 'text-button', 'Download'); download.type = 'button'; download.addEventListener('click', () => window.ChatArtifacts.download(code.join('\n'), null, language));
-          const open = node('button', 'text-button', 'Open'); open.type = 'button'; open.addEventListener('click', () => window.ChatArtifacts.open({source: code.join('\n'), language})); actions.append(download, open);
-        }
-        head.append(node('span', '', language || 'code'), actions);
-        const pre = node('pre'); const codeNode = node('code'); if (window.ChatArtifacts) codeNode.append(window.ChatArtifacts.highlight(code.join('\n'), language)); else codeNode.textContent = code.join('\n'); pre.append(codeNode);
-        wrap.append(head, pre); out.append(wrap); continue;
+        const wrap = codeBlock(code.join('\n'), language); appendBlock(out, wrap, start, i); continue;
       }
       if (!line.trim()) { i++; continue; }
       if (i + 1 < lines.length && line.includes('|') && /^\s*\|?\s*:?-{3,}/.test(lines[i + 1])) {
@@ -86,13 +97,13 @@ window.ChatRender = (() => {
         while (i < lines.length && lines[i].includes('|') && lines[i].trim()) {
           const row = node('tr'); cells(lines[i++]).forEach(c => { const td = node('td'); inline(c, td); row.append(td); }); body.append(row);
         }
-        table.append(body); scroll.append(table); out.append(scroll); continue;
+        table.append(body); scroll.append(table); appendBlock(out, scroll, start, i); continue;
       }
       const heading = line.match(/^(#{1,6})\s+(.*)$/);
-      if (heading) { const h = node('h' + Math.min(heading[1].length + 1, 6)); inline(heading[2], h); out.append(h); i++; continue; }
-      if (/^\s*([-*_])(?:\s*\1){2,}\s*$/.test(line)) { out.append(node('hr')); i++; continue; }
+      if (heading) { const h = node('h' + Math.min(heading[1].length + 1, 6)); inline(heading[2], h); appendBlock(out, h, start, ++i); continue; }
+      if (/^\s*([-*_])(?:\s*\1){2,}\s*$/.test(line)) { appendBlock(out, node('hr'), start, ++i); continue; }
       if (/^\s*>/.test(line)) {
-        const b = node('blockquote'); while (i < lines.length && /^\s*>/.test(lines[i])) { inline(lines[i++].replace(/^\s*>\s?/, ''), b); b.append(node('br')); } out.append(b); continue;
+        const b = node('blockquote'); while (i < lines.length && /^\s*>/.test(lines[i])) { inline(lines[i++].replace(/^\s*>\s?/, ''), b); b.append(node('br')); } appendBlock(out, b, start, i); continue;
       }
       const firstItem = listItem(line);
       if (firstItem && depth < 8) {
@@ -122,15 +133,31 @@ window.ChatRender = (() => {
           while (rendered.firstChild) li.append(rendered.firstChild);
           list.append(li);
         }
-        out.append(list); continue;
+        appendBlock(out, list, start, i); continue;
       }
       const p = node('p'); inline(line, p); i++;
       while (i < lines.length && lines[i].trim() && !/^\s*(?:```|#|>|[-+*]\s|\d+[.)]\s)/.test(lines[i]) && !(i + 1 < lines.length && /^\s*\|?\s*:?-{3,}/.test(lines[i + 1]))) { p.append(node('br')); inline(lines[i++], p); }
-      out.append(p);
+      appendBlock(out, p, start, i);
     }
     return out;
   }
+  function reconcileMarkdown(current, replacement) {
+    const previous = Array.from(current.children), next = Array.from(replacement.children);
+    const before = markdownSources.get(current), after = markdownSources.get(replacement);
+    let keep = 0;
+    while (keep < previous.length && keep < next.length) {
+      const source = blockSources.get(previous[keep]), target = blockSources.get(next[keep]);
+      if (!source || !target || previous[keep].tagName !== next[keep].tagName || source.end - source.start !== target.end - target.start) break;
+      let equal = true;
+      for (let i = 0; i < source.end - source.start; i++) if (before[source.start + i] !== after[target.start + i]) { equal = false; break; }
+      if (!equal) break;
+      blockSources.set(previous[keep], target); keep++;
+    }
+    for (let i = previous.length - 1; i >= keep; i--) previous[i].remove();
+    for (let i = keep; i < next.length; i++) current.append(next[i]);
+    markdownSources.set(current, after);
+  }
   function number(value, suffix = '') { return typeof value === 'number' && Number.isFinite(value) ? new Intl.NumberFormat(undefined, {maximumFractionDigits: 2}).format(value) + suffix : 'Unavailable'; }
   function json(value) { return typeof value === 'string' ? value : JSON.stringify(value, null, 2); }
-  return {node, markdown, number, json};
+  return {node, markdown, reconcileMarkdown, number, json};
 })();

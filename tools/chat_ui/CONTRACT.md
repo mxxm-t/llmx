@@ -173,6 +173,12 @@ separate from live rates.
 
 ## UI behavior
 
+The Markdown owner tracks source line ranges for generated blocks against one
+current source array per root. Streaming keeps the identical leading blocks in
+place and rebuilds the changed suffix, including within reasoning. Retained
+blocks keep selection, focused code controls and copy feedback. Code controls
+read their rendered code text; they do not retain old parser buffers.
+
 Sidebar: new chat, search across loaded conversations, compact anchored grouped conversation actions, pin/archive, folders, import/export and duplicate. Rename, folder and delete actions use accessible dialogs. Center: branch-aware messages, reasoning disclosure, safe Markdown/code/tables, tool rows with Open Workspace links for workspace tools, composer with text/image attachments. Inspector: latest reply activity, collapsed earlier replies, conversation totals and effective settings. A reply statistics icon previews grouped call metrics on hover or keyboard focus; clicking pins a snapshot for text selection and copying, with timing and source-data breakdowns per call. Activity tool entries navigate by message and call identity to the existing tool details, opening and focusing the summary; narrow layouts close the inspector drawer first. Edit and retry preserve old branches. Message actions use outlined SVG icon controls with accessible names, hover and keyboard tooltips, copy confirmation and touch sizing on mobile. Reasoning disclosure nodes stay connected while SSE deltas update streamed content, preserving pointer interaction; reload resumes the same run through persisted SSE replay. Mobile uses drawers and stable controls. Errors and empty states are explicit. Use ASCII source and SVG icons, no external CDN, packages or fonts.
 
 Adjacent assistant messages on the selected branch share a visual header only

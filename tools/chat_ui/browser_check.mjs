@@ -269,6 +269,29 @@ try {
   assert.equal(await evaluate("document.querySelector('.brand-wordmark').getBoundingClientRect().height"), 30, 'sidebar wordmark height');
   assert.equal(await evaluate("(async()=>{const img=new Image();img.src='/logo.svg';await img.decode();return img.naturalWidth>0})()"), true, 'wordmark asset decoded');
   await screenshot('desktop-empty.png');
+  const stableMarkdown = await evaluate(String.raw`(() => {
+    const samples=['# Title\n\nParagraph with **bold**.\n\n- Item\n  - Nested\n\n\x60\x60\x60python\nprint(1)\n\x60\x60\x60\n\nTail', '| First | Second |\n| --- | --- |\n| A | B |\n\n> Quote\n\n<script>literal</script>'];
+    for(const source of samples){
+      const current=ChatRender.markdown('');
+      for(let i=0;i<=source.length;i++){
+        const expected=ChatRender.markdown(source.slice(0,i));
+        ChatRender.reconcileMarkdown(current,ChatRender.markdown(source.slice(0,i)));
+        if(current.innerHTML!==expected.innerHTML)return {pass:false,stage:'prefix',offset:i};
+      }
+      for(const suffix of ['\n\n'+source,source,'short','',source]){
+        ChatRender.reconcileMarkdown(current,ChatRender.markdown(suffix));
+        if(current.innerHTML!==ChatRender.markdown(suffix).innerHTML)return {pass:false,stage:'rewrite'};
+      }
+    }
+    const text='Completed paragraph\n\n\x60\x60\x60python\nprint(1)\n\x60\x60\x60\n\nChanging';
+    const current=ChatRender.markdown(text);document.body.append(current);
+    const paragraph=current.firstElementChild, button=current.querySelector('.code-heading button');button.textContent='Copied';button.focus();
+    const selection=getSelection(),range=document.createRange();range.selectNodeContents(paragraph);selection.removeAllRanges();selection.addRange(range);
+    ChatRender.reconcileMarkdown(current,ChatRender.markdown(text+' final block'));
+    const result={pass:true,paragraph:current.firstElementChild===paragraph,button:current.querySelector('.code-heading button')===button,feedback:button.textContent,focus:document.activeElement===button,selection:selection.toString()};
+    selection.removeAllRanges();current.remove();return result;
+  })()`);
+  assert.deepEqual(stableMarkdown,{pass:true,paragraph:true,button:true,feedback:'Copied',focus:true,selection:'Completed paragraph'}, 'streamed Markdown changed completed blocks, focus or selection');
   const nestedListSource = '3. First\n   - Child\n     7. Leaf\n        Wrapped line\n\n        ```js\n        const value = 1;\n        ```\n4. Second\n\nAfter\n\n- Root\n  - Nested **text**\n- Next';
   const nestedListShape = await evaluate(`(() => {
     const rendered = ChatRender.markdown(${JSON.stringify(nestedListSource)});

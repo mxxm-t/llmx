@@ -115,7 +115,9 @@ It does not lock the upstream model or control later server restarts.
   The renderer supports basic Markdown, nested lists with preserved starting
   numbers, code blocks, tables and safe links. Indented paragraphs and code stay
   inside their list item. List nesting is bounded at eight levels; deeper text
-  remains visible as literal content.
+  remains visible as literal content. Unchanged leading Markdown blocks remain
+  connected during streaming, preserving their selection and code controls.
+  The changing suffix is rebuilt, so selection inside it may be lost.
   It does not execute model HTML or JavaScript.
 - Attach up to eight UTF-8 text/code files or PNG/JPEG images. Text is included
   in full with its file name, not retrieved from an embedding index. Limits are

@@ -1,7 +1,7 @@
 /* The service owns conversation state; this file owns browser presentation. */
 (() => {
   'use strict';
-  const {node, markdown, number, json} = window.ChatRender;
+  const {node, markdown, reconcileMarkdown, number, json} = window.ChatRender;
   async function api(...args) {
     try {
       const result = await window.ChatShell.api(...args);
@@ -401,8 +401,10 @@
         replacement.querySelectorAll('details[data-disclosure]').forEach(detail => { detail.open = open.get(detail.dataset.disclosure) || false; });
         if (old) {
           const preserved = [];
+          const content = old.querySelector(':scope > .markdown'), nextContent = replacement.querySelector(':scope > .markdown');
+          if (content && nextContent) { reconcileMarkdown(content, nextContent); preserved.push([nextContent, content]); }
           const reasoning = old.querySelector('.reasoning'); const nextReasoning = replacement.querySelector('.reasoning');
-          if (reasoning && nextReasoning) { reasoning.querySelector('.markdown').replaceWith(nextReasoning.querySelector('.markdown')); preserved.push([nextReasoning, reasoning]); }
+          if (reasoning && nextReasoning) { reconcileMarkdown(reasoning.querySelector('.markdown'), nextReasoning.querySelector('.markdown')); preserved.push([nextReasoning, reasoning]); }
           const focused = document.activeElement?.matches('.tool-call details[data-disclosure^="tool:"][data-disclosure$=":0"] > summary') ? document.activeElement.parentElement : null;
           const keepDetail = focused && old.contains(focused) ? focused : null;
           if (keepDetail) {

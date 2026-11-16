@@ -259,18 +259,48 @@ A timing round on the head with the argument under a host load of 35 to 57 sprea
 
 The hosted run of the landing head and the Radeon VII check are COORD's, and the head lands by fast-forward of gitea main and GitHub main.
 ## Chat retry navigation (2026-11-16, ready for landing)
+## Chat UI stack (2026-11-16, ready for landing)
 
-**Goal.** Keep an admitted retry attached to its original conversation when the user navigates before the response arrives. The browser action owner is `tools/chat_ui/app.js`; model execution and persistence are unchanged.
+**Goal.** Land Retry navigation, workspace pending-save handling and streaming block preservation together, retaining each feature's independent history and qualification.
 
-**Done.** The real-browser regression fails on the previous code in 51.805 s: releasing the admitted retry response opens a fourth destination stream where only three should exist. Retry now checks the conversation and view generation before and after snapshot refresh. Snapshot refresh itself refuses a response from a view left and reopened.
+**Done.** Five commits combine the two bug-fix pairs and the single rendering optimization over public main `fa0e1b372`. Product changes merge without conflict. One adjacent TESTS description conflict retains both paragraphs; STATUS sections retain each feature's evidence with consistent spacing. All three product assets exactly match the local preview's qualified overlays.
 
-**Checks.** The candidate browser fixture passes in 52.304 s, including held Retry admission while another conversation is active, held snapshot response across leaving and reopening the same conversation, existing chat flows, both themes, responsive geometry and 200 percent zoom. The Linux-only Chrome launch diagnostic is skipped on Windows. JavaScript syntax checks pass. Dead-code reports 15 expected findings and 20 planted checks in 27.4 s; docs reports zero findings and 21 planted checks in 20.1 s. A bounded source review found no remaining defect. Evidence is in `scratch/retry/`.
+**Checks.** The combined browser fixture passes in 53.402 s on tested head `9da7cf912`, including all three features and the existing responsive/theme/zoom flows. The Linux-only Chrome launch diagnostic is skipped on Windows. Dead-code passes with 15 expected findings and 20 planted checks in 28.3 s; docs passes with zero findings and 21 planted checks in 20.8 s. Combined source review found no overlap issue. The final delta is this qualification record only; product and test hashes are retained in `scratch/stack/tested-inputs.json`. No runtime or numerical path changed, so unrelated inference checks are not required.
 
-**Docs review.** The Markdown inventory checks pass across the tree. README, companion CONTRACT and TESTS describe the changed action and snapshot behavior; runtime, build and model claims are unchanged. No new flag, dependency, storage path or model arithmetic is introduced.
+**Performance evidence.** Renderer measurements retain the exact tested hashes in the feature's report below. Stacking adds the already-qualified Retry guards and workspace Save behavior, without changing the renderer or its measured streaming path. The combined browser check covers their interaction.
 
-**Left.** The tested two-commit branch is ready for the landing coordinator. No direct main push while LAND61 holds the stack. Static browser scope requires no inference or unrelated hosted gates. The change is intended to land by fast-forward after the coordinator incorporates it; this is not a claim that it is already on main.
+**Docs review.** README, CONTRACT and TESTS contain all three features and their limits. The source/document inventory checks cover the combined tree. Each earlier feature record below remains historical evidence for that branch rather than a claim of separate merging.
 
-**Gotchas.** Navigation does not cancel an admitted retry. Errors retain the existing action notification path.
+**Left.** The landing coordinator owns incorporation into the held main stack. This branch is intended to land by fast-forward after incorporation and applicable checks; it is not yet merged. No direct main or Gitea push is performed by CHATUI. Final receipts are in `scratch/stack/`.
+
+
+## Chat streaming block preservation (2026-11-16, ready for landing)
+
+**Goal.** Reduce long-reply browser stalls by retaining completed Markdown blocks. `render.js` remains the sole Markdown owner; `app.js` keeps its existing message and disclosure owners.
+
+**Done.** The parser records line ranges for each generated block against one current source array. Reconciliation keeps the source-identical leading blocks and replaces the changed suffix, including inside reasoning. Code controls read their DOM text instead of retaining earlier parser buffers. No second parser, dependency, model or server change is introduced.
+
+**Measured.** An actual isolated companion HTTP/SSE fixture sent ASCII Markdown in 512-character chunks every 50 ms. Fresh headless Chrome profiles ran on the same Windows host; exact final payload hashes matched. The final paired results are in [the measurement record](benchmarks/chat-stream-blocks-20261116.json):
+
+| Reply size | Frame p95 before | Frame p95 candidate | Parse p95 before | Parse p95 candidate | Retained JS heap before | Retained JS heap candidate |
+| --- | --- | --- | --- | --- | --- | --- |
+| 32 KiB | 16.8 ms | 16.8 ms | 6.8 ms | 8.4 ms | 1.41 MiB | 1.64 MiB |
+| 128 KiB | 133.3 ms | 33.3 ms | 26.7 ms | 31.6 ms | 2.19 MiB | 3.34 MiB |
+
+The host was active: final-round total CPU ranged from 31 to 64 percent, with editor, browser, backup, security and game processes present. Timestamped CPU/disk/process monitoring ran through every paired round; all planned samples remain recorded. GPU activity was not collected; Chrome GPU use was disabled. These are browser responsiveness measurements, not inference throughput or a comparison with mx. A separate baseline trace attributed 3043 ms to layout, 1813 ms to style updates and 1406 ms to pre-paint work. The parsing and memory increases are accepted for the substantially smaller long-reply frame gaps.
+
+**Memory diagnosis.** The first candidate retained 47.1 MB after 128 KiB. Moving a local helper reduced that to 12.1 MB. Heap inspection then found 123 large strings totaling 9.14 MB, retained through sliced-string parents, code arrays and source keys. Range metadata and DOM-backed code controls reduced final retention to 3.51 MB. Both rejected implementations and their source hashes remain in the measurement record. The final design retains no historical source arrays in block metadata.
+
+**Checks.** The final browser fixture passes in 51.841 s. It covers every prefix and rewrite against fresh rendering, shifted source offsets, Copy feedback, selection and focus, reasoning, tools and existing responsive/theme/zoom flows. The Linux-only launch diagnostic is skipped on Windows. JavaScript syntax and bounded source review pass. The first browser attempt had a fixture string-escaping error and is retained separately; it is not counted as a product failure. Raw timing, heap, trace, browser and source receipts are in `scratch/ui-audit/`.
+
+**Docs review.** Companion README, CONTRACT and TESTS describe the changed preservation behavior and its limits. Runtime, CLI, build and model claims are unchanged. The Markdown inventory checks cover the tree.
+
+**Source checks.** Dead-code passes with 15 expected findings and 20 planted checks in 28.0 s. Docs passes with zero findings and 21 planted checks in 20.4 s.
+
+**Left.** Included in the combined Chat UI stack above, ready for coordinated landing. No direct main push while LAND61 holds the stack. The static browser change needs no inference or unrelated hosted gates; it is intended to land by fast-forward after incorporation, not claimed already on main.
+
+**Gotchas.** The changing suffix may still be replaced. One giant changing paragraph, list or code block does not benefit from completed-prefix retention. These measurements do not establish every message shape or device.
+
 ## Workspace pending-save edits (2026-11-16, ready for landing)
 
 **Goal.** Keep text typed while Save is pending visibly unsaved, and apply the accepted save only to its original file and revision. The single owner is `tools/chat_ui/workspace.js`.
@@ -285,6 +315,19 @@ The hosted run of the landing head and the Radeon VII check are COORD's, and the
 
 **Gotchas.** The editor remains usable during saving. An intervening file selection or another writer must not silently gain the old save's baseline or newer revision.
 
+## Chat retry navigation (2026-11-16, ready for landing)
+
+**Goal.** Keep an admitted retry attached to its original conversation when the user navigates before the response arrives. The browser action owner is `tools/chat_ui/app.js`; model execution and persistence are unchanged.
+
+**Done.** The real-browser regression fails on the previous code in 51.805 s: releasing the admitted retry response opens a fourth destination stream where only three should exist. Retry now checks the conversation and view generation before and after snapshot refresh. Snapshot refresh itself refuses a response from a view left and reopened.
+
+**Checks.** The candidate browser fixture passes in 52.304 s, including held Retry admission while another conversation is active, held snapshot response across leaving and reopening the same conversation, existing chat flows, both themes, responsive geometry and 200 percent zoom. The Linux-only Chrome launch diagnostic is skipped on Windows. JavaScript syntax checks pass. Dead-code reports 15 expected findings and 20 planted checks in 27.4 s; docs reports zero findings and 21 planted checks in 20.1 s. A bounded source review found no remaining defect. Evidence is in `scratch/retry/`.
+
+**Docs review.** The Markdown inventory checks pass across the tree. README, companion CONTRACT and TESTS describe the changed action and snapshot behavior; runtime, build and model claims are unchanged. No new flag, dependency, storage path or model arithmetic is introduced.
+
+**Left.** The tested two-commit branch is ready for the landing coordinator. No direct main push while LAND61 holds the stack. Static browser scope requires no inference or unrelated hosted gates. The change is intended to land by fast-forward after the coordinator incorporates it; this is not a claim that it is already on main.
+
+**Gotchas.** Navigation does not cancel an admitted retry. Errors retain the existing action notification path.
 
 ## Companion deployment documentation refresh (2026-11-16, Done)
 

@@ -1,0 +1,414 @@
+{
+  "scope": "Synthetic browser responsiveness, not inference throughput",
+  "date": "2026-11-16",
+  "hardware": {
+    "Name": "AMD Ryzen 7 5800X 8-Core Processor             ",
+    "NumberOfCores": 8,
+    "NumberOfLogicalProcessors": 16
+  },
+  "os": "Windows",
+  "chunk_characters": 512,
+  "chunk_period_ms": 50,
+  "source_base": "fa0e1b372eec39f02d99926edf5101844f82d21f",
+  "protocol": "Fresh Chrome profile per arm. Actual isolated companion HTTP/SSE and temporary SQLite. Identical ASCII Markdown fixtures. Exact final streamed payload SHA256 checked. No production request.",
+  "limitations": [
+    "Headless Chrome with GPU disabled. GPU utilization was not collected.",
+    "Host was active; all planned samples retained. CPU/disk and busiest processes sampled throughout each paired round.",
+    "Frame statistics in rounds 1 and 2 include the final profiler/GC interval; final round captures samples before that interval.",
+    "No mx runtime comparator applies to this browser-only change.",
+    "A changing single giant Markdown block is not accelerated by leading-block preservation."
+  ],
+  "trials": [
+    {
+      "arm": "before",
+      "source": {
+        "tools/chat_ui/app.js": "27f7cfb2721bfbb5448427fd95213d7622bab9a4e907aab8c0e5fa0fe206e3b4",
+        "tools/chat_ui/render.js": "38c329e67afed7aa3007533c0c987e58a75de03f75c071d609b941dddd15690d"
+      },
+      "started": 1794823296.5592003,
+      "finished": 1794823317.5960658,
+      "browser": {
+        "protocolVersion": "1.3",
+        "product": "Chrome/157.0.8103.52",
+        "revision": "@0985600c06a688b9c669e74afde7dacd5aaed047",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+        "jsVersion": "15.7.112.23"
+      },
+      "results": [
+        {
+          "characters": 32768,
+          "elapsed_ms": 3429,
+          "heap_before_bytes": 944876,
+          "heap_after_bytes": 1526068,
+          "sha256": "3d8820d0ecaed44e44ba99856d571f68ec45c4d40456ee19699d76efcb013dd3",
+          "status": "completed",
+          "render_calls": 36,
+          "render_total_ms": 133.6999969482422,
+          "render_p95_ms": 6.699999809265137,
+          "frame_p95_ms": 16.800000000000182,
+          "frame_max_ms": 33.40000000000009,
+          "long_tasks": 0,
+          "long_task_total_ms": 0
+        },
+        {
+          "characters": 131072,
+          "elapsed_ms": 13275,
+          "heap_before_bytes": 997200,
+          "heap_after_bytes": 2300264,
+          "sha256": "e7e868a75fb6823241397b4a87aa71da83770df3e449c587968e294f302a00a3",
+          "status": "completed",
+          "render_calls": 124,
+          "render_total_ms": 1545.4000034332275,
+          "render_p95_ms": 23.5,
+          "frame_p95_ms": 133.29999999999927,
+          "frame_max_ms": 266.7000000000007,
+          "long_tasks": 0,
+          "long_task_total_ms": 0
+        }
+      ]
+    },
+    {
+      "arm": "candidate",
+      "source": {
+        "tools/chat_ui/app.js": "e6eb6ecdc675a6a306804b28e00044248bc3f265521409dc356d750a56c5bc3f",
+        "tools/chat_ui/render.js": "b3ad327071d8055527a1a2746f39869c505380df58b2a28f3de679794bc3add9"
+      },
+      "started": 1794823317.5970664,
+      "finished": 1794823339.1100104,
+      "browser": {
+        "protocolVersion": "1.3",
+        "product": "Chrome/157.0.8103.52",
+        "revision": "@0985600c06a688b9c669e74afde7dacd5aaed047",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+        "jsVersion": "15.7.112.23"
+      },
+      "results": [
+        {
+          "characters": 32768,
+          "elapsed_ms": 3365,
+          "heap_before_bytes": 945232,
+          "heap_after_bytes": 4461956,
+          "sha256": "3d8820d0ecaed44e44ba99856d571f68ec45c4d40456ee19699d76efcb013dd3",
+          "status": "completed",
+          "render_calls": 37,
+          "render_total_ms": 173.20000171661377,
+          "render_p95_ms": 8.40000057220459,
+          "frame_p95_ms": 16.700000000000273,
+          "frame_max_ms": 50,
+          "long_tasks": 0,
+          "long_task_total_ms": 0
+        },
+        {
+          "characters": 131072,
+          "elapsed_ms": 13088,
+          "heap_before_bytes": 998144,
+          "heap_after_bytes": 47107560,
+          "sha256": "e7e868a75fb6823241397b4a87aa71da83770df3e449c587968e294f302a00a3",
+          "status": "completed",
+          "render_calls": 137,
+          "render_total_ms": 2346.600004196167,
+          "render_p95_ms": 33.69999980926514,
+          "frame_p95_ms": 33.30000000000109,
+          "frame_max_ms": 933.2000000000007,
+          "long_tasks": 0,
+          "long_task_total_ms": 0
+        }
+      ]
+    },
+    {
+      "arm": "candidate-fixed",
+      "source": {
+        "tools/chat_ui/app.js": "e6eb6ecdc675a6a306804b28e00044248bc3f265521409dc356d750a56c5bc3f",
+        "tools/chat_ui/render.js": "a65494a3a7142dbd02d3a95debc07e4396394407d0ebae0c08f7935b8890e308"
+      },
+      "started": 1794823386.8534324,
+      "finished": 1794823407.9034107,
+      "browser": {
+        "protocolVersion": "1.3",
+        "product": "Chrome/157.0.8103.52",
+        "revision": "@0985600c06a688b9c669e74afde7dacd5aaed047",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+        "jsVersion": "15.7.112.23"
+      },
+      "results": [
+        {
+          "characters": 32768,
+          "elapsed_ms": 3375,
+          "heap_before_bytes": 945384,
+          "heap_after_bytes": 2356368,
+          "sha256": "3d8820d0ecaed44e44ba99856d571f68ec45c4d40456ee19699d76efcb013dd3",
+          "status": "completed",
+          "render_calls": 37,
+          "render_total_ms": 166,
+          "render_p95_ms": 10.199999809265137,
+          "frame_p95_ms": 16.700000000000273,
+          "frame_max_ms": 16.800000000000182,
+          "long_tasks": 0,
+          "long_task_total_ms": 0
+        },
+        {
+          "characters": 131072,
+          "elapsed_ms": 13095,
+          "heap_before_bytes": 998308,
+          "heap_after_bytes": 12136440,
+          "sha256": "e7e868a75fb6823241397b4a87aa71da83770df3e449c587968e294f302a00a3",
+          "status": "completed",
+          "render_calls": 140,
+          "render_total_ms": 2038.0999965667725,
+          "render_p95_ms": 29.100000381469727,
+          "frame_p95_ms": 33.29999999999927,
+          "frame_max_ms": 100,
+          "long_tasks": 0,
+          "long_task_total_ms": 0
+        }
+      ]
+    },
+    {
+      "arm": "before-repeat",
+      "source": {
+        "tools/chat_ui/app.js": "27f7cfb2721bfbb5448427fd95213d7622bab9a4e907aab8c0e5fa0fe206e3b4",
+        "tools/chat_ui/render.js": "38c329e67afed7aa3007533c0c987e58a75de03f75c071d609b941dddd15690d"
+      },
+      "started": 1794823407.9044123,
+      "finished": 1794823429.976671,
+      "browser": {
+        "protocolVersion": "1.3",
+        "product": "Chrome/157.0.8103.52",
+        "revision": "@0985600c06a688b9c669e74afde7dacd5aaed047",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+        "jsVersion": "15.7.112.23"
+      },
+      "results": [
+        {
+          "characters": 32768,
+          "elapsed_ms": 3476,
+          "heap_before_bytes": 944876,
+          "heap_after_bytes": 1525312,
+          "sha256": "3d8820d0ecaed44e44ba99856d571f68ec45c4d40456ee19699d76efcb013dd3",
+          "status": "completed",
+          "render_calls": 37,
+          "render_total_ms": 153.09999561309814,
+          "render_p95_ms": 7,
+          "frame_p95_ms": 16.800000000000068,
+          "frame_max_ms": 33.40000000000009,
+          "long_tasks": 0,
+          "long_task_total_ms": 0
+        },
+        {
+          "characters": 131072,
+          "elapsed_ms": 13178,
+          "heap_before_bytes": 997124,
+          "heap_after_bytes": 2292560,
+          "sha256": "e7e868a75fb6823241397b4a87aa71da83770df3e449c587968e294f302a00a3",
+          "status": "completed",
+          "render_calls": 123,
+          "render_total_ms": 1565.4999990463257,
+          "render_p95_ms": 26,
+          "frame_p95_ms": 116.70000000000073,
+          "frame_max_ms": 200,
+          "long_tasks": 0,
+          "long_task_total_ms": 0
+        }
+      ]
+    },
+    {
+      "arm": "candidate-final",
+      "source": {
+        "tools/chat_ui/app.js": "e6eb6ecdc675a6a306804b28e00044248bc3f265521409dc356d750a56c5bc3f",
+        "tools/chat_ui/render.js": "154b6fc678bd16aca33064d9456d157adec27cc9831ad43ff330394a86b939d4"
+      },
+      "started": 1794823809.051133,
+      "finished": 1794823830.0769124,
+      "browser": {
+        "protocolVersion": "1.3",
+        "product": "Chrome/157.0.8103.52",
+        "revision": "@0985600c06a688b9c669e74afde7dacd5aaed047",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+        "jsVersion": "15.7.112.23"
+      },
+      "results": [
+        {
+          "characters": 32768,
+          "elapsed_ms": 3342,
+          "heap_before_bytes": 945648,
+          "heap_after_bytes": 1718212,
+          "sha256": "3d8820d0ecaed44e44ba99856d571f68ec45c4d40456ee19699d76efcb013dd3",
+          "status": "completed",
+          "render_calls": 37,
+          "render_total_ms": 169.00000095367432,
+          "render_p95_ms": 8.40000057220459,
+          "frame_p95_ms": 16.799999999999955,
+          "frame_max_ms": 16.800000000000182,
+          "long_tasks": 0,
+          "long_task_total_ms": 0
+        },
+        {
+          "characters": 131072,
+          "elapsed_ms": 13144,
+          "heap_before_bytes": 998656,
+          "heap_after_bytes": 3506412,
+          "sha256": "e7e868a75fb6823241397b4a87aa71da83770df3e449c587968e294f302a00a3",
+          "status": "completed",
+          "render_calls": 138,
+          "render_total_ms": 2158.4000005722046,
+          "render_p95_ms": 31.59999942779541,
+          "frame_p95_ms": 33.30000000000109,
+          "frame_max_ms": 66.69999999999891,
+          "long_tasks": 0,
+          "long_task_total_ms": 0
+        }
+      ]
+    },
+    {
+      "arm": "before-final",
+      "source": {
+        "tools/chat_ui/app.js": "27f7cfb2721bfbb5448427fd95213d7622bab9a4e907aab8c0e5fa0fe206e3b4",
+        "tools/chat_ui/render.js": "38c329e67afed7aa3007533c0c987e58a75de03f75c071d609b941dddd15690d"
+      },
+      "started": 1794823830.0778477,
+      "finished": 1794823851.1344402,
+      "browser": {
+        "protocolVersion": "1.3",
+        "product": "Chrome/157.0.8103.52",
+        "revision": "@0985600c06a688b9c669e74afde7dacd5aaed047",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+        "jsVersion": "15.7.112.23"
+      },
+      "results": [
+        {
+          "characters": 32768,
+          "elapsed_ms": 3439,
+          "heap_before_bytes": 944876,
+          "heap_after_bytes": 1482476,
+          "sha256": "3d8820d0ecaed44e44ba99856d571f68ec45c4d40456ee19699d76efcb013dd3",
+          "status": "completed",
+          "render_calls": 36,
+          "render_total_ms": 137.50000286102295,
+          "render_p95_ms": 6.800000190734863,
+          "frame_p95_ms": 16.800000000000182,
+          "frame_max_ms": 50.09999999999991,
+          "long_tasks": 0,
+          "long_task_total_ms": 0
+        },
+        {
+          "characters": 131072,
+          "elapsed_ms": 13255,
+          "heap_before_bytes": 997188,
+          "heap_after_bytes": 2295536,
+          "sha256": "e7e868a75fb6823241397b4a87aa71da83770df3e449c587968e294f302a00a3",
+          "status": "completed",
+          "render_calls": 122,
+          "render_total_ms": 1526.3000059127808,
+          "render_p95_ms": 26.699999809265137,
+          "frame_p95_ms": 133.3000000000011,
+          "frame_max_ms": 200.10000000000036,
+          "long_tasks": 0,
+          "long_task_total_ms": 0
+        }
+      ]
+    }
+  ],
+  "activity": [
+    {
+      "round": "1",
+      "samples": 12,
+      "cpu_min": 26,
+      "cpu_max": 55,
+      "disk_max_bytes_sec": 415969471,
+      "process_names": [
+        "Code#13",
+        "Code#14",
+        "Code#18",
+        "Code#22",
+        "MsMpEng",
+        "RuneLite#1",
+        "System",
+        "UrBackupClientBackend",
+        "WmiPrvSE#2",
+        "atieclxx",
+        "chrome",
+        "chrome#3",
+        "chrome#6",
+        "chrome#7",
+        "claude",
+        "cpptools",
+        "explorer",
+        "firefox#45",
+        "msedge#8",
+        "python#5",
+        "svchost#65"
+      ]
+    },
+    {
+      "round": "2",
+      "samples": 14,
+      "cpu_min": 30,
+      "cpu_max": 60,
+      "disk_max_bytes_sec": 196196277,
+      "process_names": [
+        "Code#18",
+        "Code#2",
+        "Code#22",
+        "Code#24",
+        "MsMpEng",
+        "RuneLite",
+        "RuneLite#1",
+        "System",
+        "UrBackupClientBackend",
+        "WmiPrvSE#2",
+        "atieclxx",
+        "chrome",
+        "chrome#6",
+        "chrome#7",
+        "claude",
+        "cpptools",
+        "explorer",
+        "firefox",
+        "msedge#8",
+        "msedge#9",
+        "python#7",
+        "python#9",
+        "sleep#15",
+        "svchost#65"
+      ]
+    },
+    {
+      "round": "3",
+      "samples": 14,
+      "cpu_min": 31,
+      "cpu_max": 64,
+      "disk_max_bytes_sec": 63899986,
+      "process_names": [
+        "Code#18",
+        "Code#19",
+        "Code#2",
+        "Code#22",
+        "Code#24",
+        "Code#4",
+        "Core Temp",
+        "GameManagerService3",
+        "MsMpEng",
+        "RuneLite#1",
+        "System",
+        "UrBackupClientBackend",
+        "WmiPrvSE#2",
+        "atieclxx",
+        "chrome",
+        "chrome#2",
+        "chrome#6",
+        "chrome#7",
+        "cpptools",
+        "csrss#1",
+        "explorer",
+        "firefox",
+        "msedge#8",
+        "svchost#65"
+      ]
+    }
+  ],
+  "rejected": [
+    "Initial local append closure retained47.1MB after128KiB versus2.3MB baseline.",
+    "Moving append helper alone retained12.1MB. Heap snapshot showed123 large strings totaling9.14MB, retained through sliced-string parents, code arrays and source keys."
+  ],
+  "final_design": "Parser-owned current source lines and per-block line ranges; code controls read their DOM text rather than retaining parser buffers."
+}

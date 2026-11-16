@@ -152,9 +152,16 @@ delegated to a `backend::Backend`.
   parts, each with a `Step` on the device that runs it: the embedding on
   the first stage, each layer's mixer and feed-forward part, and the head
   on the output device. Its stages are
-  runs of consecutive layers whose mixer sits on one device, each
-  writing that device's storage. A device's mixer layers must form one
-  run, or the placement is refused; a model on one device has one stage.
+  runs of consecutive layers whose mixer sits on one device, and a device
+  may run several (stage rounds, docs/MULTI-DEVICE.md, Placement and
+  balance): its first stage in a pass (`Stage::round` 0) reserves and
+  commits its storage, its later ones keep a count of their own and write
+  through that pass's views and state slots; a model on one device has
+  one stage.
+  Where a device runs several stages, `run_chunks` dispatches a step's
+  later stages first and each device's stages take their turns in that
+  order (`queue_turn`, `take_turn`), so the device takes its oldest chunk
+  first, the order `pipeline_rounds` prices.
   When the roles use more than one device, the model, once made, asks each
   of them to hold between submissions (`Backend::hold_between_submissions`),
   since each waits while the others run their parts, and gives the request

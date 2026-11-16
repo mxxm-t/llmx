@@ -372,7 +372,6 @@ attention on a negative device: inference: placement names a device the model do
 feed-forward on a device the model does not have: inference: placement names a device the model does not have
 the embedding on a device the model does not have: inference: placement names a device the model does not have
 the head on a negative device: inference: placement names a device the model does not have
-a device's attention layers in two runs: inference: a device's attention layers must be consecutive
 cache blocks that do not nest: inference: cache blocks of 129 and 128 tokens in one model; a split needs one size to divide the other
 place_model without a device: placement: no device
 a stream point without experts on the CPU: --moe-stream-from: only experts on the CPU are streamed; give --n-cpu-moe or --cpu-moe

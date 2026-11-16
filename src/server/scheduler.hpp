@@ -367,8 +367,8 @@ public:
         if (model_.keeps_state() && max_seqs_ > model_.state_slots())
             throw std::logic_error("server: " + std::to_string(max_seqs_) + " requests at once need as many recurrent state slots, and the model holds " +
                                    std::to_string(model_.state_slots()));
-        // One pass more than the stages, so a prompt's next chunk continues while a pass of replies and its chunk before are in flight (docs/SERVER.md, The service rule).
-        size_t p = passes ? passes : model_.pipelined() && model_.stage_count() > 1 ? model_.stage_count() + 1 : 1;
+        // One pass more than the devices the stages run on, so a prompt's next chunk continues while a pass of replies and its chunk before are in flight (docs/SERVER.md, The service rule).
+        size_t p = passes ? passes : model_.pipelined() && model_.stage_count() > 1 ? model_.stage_devices() + 1 : 1;
         if (p > 1 && !model_.pipelined())
             throw std::runtime_error("server: " + std::to_string(p) + " passes in flight need a layer split over several devices, each running its layers whole; this placement runs one at a time");
         // A pass carries at most draft_rows draft rows beside a row a decoding request and a ubatch of prompt rows, each draft row wanting its logits.

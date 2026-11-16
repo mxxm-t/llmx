@@ -74,10 +74,10 @@ def tool_path():
     return os.path.join(os.path.dirname(common.exe_path()), "llmx-split-check" + (".exe" if os.name == "nt" else ""))
 
 
-def run_tool(tool, model, text, split, steps, ubatch, cache, tokens, single="cpu", width=1):
-    """One split against one device, or at a tensor width against one group; the number of recomputes the tool ran from a fork, and of the rounds of verifies it ran."""
+def run_tool(tool, model, text, split, steps, ubatch, cache, tokens, single="cpu", width=1, rounds=0):
+    """One split against one device, or at a tensor width against one group, each device in `rounds` runs of layers where given (stage rounds); the number of recomputes the tool ran from a fork, and of the rounds of verifies it ran."""
     dtype = os.environ.get("LLMX_DTYPE", "auto")
-    args = [tool, model, text, single, split, str(steps), str(ubatch), cache, dtype, str(width)]
+    args = [tool, model, text, single, split, str(steps), str(ubatch), cache, dtype, str(width), str(rounds)]
     p = subprocess.run(args, capture_output=True, encoding="utf-8", errors="replace", timeout=120)
     forked = re.search(r"whole and (\d+) from a fork", p.stdout)
     verifies = re.search(r"verifies: (\d+) rounds", p.stdout)
@@ -89,6 +89,9 @@ def run_tool(tool, model, text, split, steps, ubatch, cache, tokens, single="cpu
         assert [int(index) for index, _ in paths] == list(range(devices)), "split: missing execution paths: " + p.stdout
         effective = record.split(" -> ", 1)[1].split()[0]
         common.hf_bounds(effective, [values.split() for _, values in paths])
+    if rounds:
+        layers = re.findall(r"^\S+: layers (\d+-\d+(?:,\d+-\d+)*)", p.stdout, re.MULTILINE)
+        assert layers and all(len(runs.split(",")) == rounds for runs in layers), "split: not %d runs of layers a device: %s" % (rounds, p.stdout)
     assert p.returncode == 0 and ": %d tokens, %s caches;" % (tokens, cache) in p.stdout and "bit-identical" in p.stdout and forked and verifies, \
         "split differs from one device: %s\n%s%s" % (" ".join(args[1:]), p.stdout, p.stderr)
     return int(forked.group(1)), int(verifies.group(1))
@@ -138,6 +141,14 @@ def run(require=False):
                 for cache in CACHE_TYPES:
                     run_tool(tool, model, text, "cpu,cpu,cpu,cpu", STEPS, ubatch, cache, len(f32.TEXTS[-1]), single="cpu,cpu", width=2)
                     runs += 1
+        # Stage rounds: eight layers on two CPUs, each taking its four in 3 and in 4 runs.
+        deep = dict(f32.CONFIG, block_count=8)
+        rounded = f32.write_model(os.path.join(directory, "deep-f32.gguf"), f32.tensors(True, config=deep), config=deep)
+        for rounds in (3, 4):
+            for ubatch in UBATCHES:
+                for cache in CACHE_TYPES:
+                    run_tool(tool, rounded, text, "cpu,cpu", STEPS, ubatch, cache, len(f32.TEXTS[-1]), rounds=rounds)
+                    runs += 1
         q8 = write_q8_model(os.path.join(directory, "tiny-q8_0.gguf"))
         for length, steps in Q8_RUNS:
             long_text = os.path.join(directory, "text-%d.txt" % length)
@@ -151,7 +162,7 @@ def run(require=False):
                     assert verifies or steps < 17, "split: no rounds of verifies after %d decode steps" % steps
                     runs += 1
     print("split: %d runs of the tiny F32 (tied, untied), MoE, MXFP4, IQ4_NL and IQ4_XS (dense tied/untied and MoE), qwen35 and Q8_0 models over 2, 3 and 4 CPU backends at ubatch %s with %s caches, "
-          "bit-identical to one, the tensor-split fixtures (dense, qwen3moe in F32 and in Q8_0 with covering blocks, qwen35 and qwen35moe) as two stages of groups of two against one group, the Q8_0 model's recompute also from a fork at a block and its verifies of drafts  [ok]" % (runs, "/".join(map(str, UBATCHES)), " and ".join(CACHE_TYPES)))
+          "bit-identical to one, the tensor-split fixtures (dense, qwen3moe in F32 and in Q8_0 with covering blocks, qwen35 and qwen35moe) as two stages of groups of two against one group, an eight-layer F32 model on 2 CPUs in 3 and 4 stage rounds, the Q8_0 model's recompute also from a fork at a block and its verifies of drafts  [ok]" % (runs, "/".join(map(str, UBATCHES)), " and ".join(CACHE_TYPES)))
     return True
 
 

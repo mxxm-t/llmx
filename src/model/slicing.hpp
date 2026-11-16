@@ -94,6 +94,31 @@ inline void pipeline_run(std::vector<double>& finish, const std::vector<double>&
     for (size_t s = first; s < finish.size(); ++s) prev = finish[s] = std::max(prev, finish[s]) + ms[s];
 }
 
+// Each stage's finish once slices of `rows[c]` rows at lines `lines[c]` run from `finish`, where stage s records on device `device[s]` and a device runs several stages in turn (stage rounds).
+// A stage takes its slices in order, each after the stage before it, and a device free takes its oldest ready slice (Model::run_chunks); with a device a stage it is pipeline_add slice by slice.
+inline void pipeline_rounds(std::vector<double>& finish, const std::vector<size_t>& device, const std::vector<const std::vector<StageLine>*>& lines, const std::vector<size_t>& rows) {
+    const size_t S = finish.size(), M = rows.size();
+    if (!S || !M) return;
+    std::vector<double> free(*std::max_element(device.begin(), device.end()) + 1, 0.0);
+    for (size_t s = 0; s < S; ++s) free[device[s]] = std::max(free[device[s]], finish[s]);
+    std::vector<size_t> next(S, 0);
+    std::vector<std::vector<double>> done(S, std::vector<double>(M, 0.0));
+    for (size_t left = M * S; left; --left) {
+        // The slice that starts first, the oldest of those starting together.
+        size_t pick = S, pc = 0;
+        double first = 0;
+        for (size_t s = 0; s < S; ++s) {
+            const size_t c = next[s];
+            if (c >= M || (s && next[s - 1] <= c)) continue;
+            const double start = std::max({finish[s], s ? done[s - 1][c] : 0.0, free[device[s]]});
+            if (pick == S || start < first || (start == first && c < pc)) pick = s, pc = c, first = start;
+        }
+        const double end = first + (*lines[pc])[pick].at(rows[pc]);
+        done[pick][pc] = finish[pick] = free[device[pick]] = end;
+        ++next[pick];
+    }
+}
+
 // The ratios between a cut's successive slices: 1 is the equal cut, below 1 slices shrink toward the drain and above 1 they grow out of the fill.
 inline constexpr double kSliceRatios[] = {0.8, 0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.2};
 // The first slices tried around the best equal cut's, a doubling apart in this many steps (docs/src/model-slicing.md).
@@ -111,18 +136,21 @@ struct SliceCut {
 // A finite `increment_ms` bounds how much later than the backlog a cut's first slice leaves the last stage, else a slice of kSliceFloor rows (docs/src/model-slicing.md).
 template <class Lines>
 SliceCut prompt_cut(size_t start, size_t rows, size_t stages, const Lines& lines, size_t cap, std::vector<double> backlog = {},
-                    double increment_ms = std::numeric_limits<double>::infinity()) {
+                    double increment_ms = std::numeric_limits<double>::infinity(), const std::vector<size_t>& device = {}) {
     cap = std::max<size_t>(1, cap);
     if (!rows) return {};
     if (stages < 2) return {std::min(rows, cap), 0};
     const auto equal = [&](size_t n) { return (rows + n - 1) / n; };
+    // Where a device runs several stages its slices interleave, so a cut is priced whole (pipeline_rounds); the stage rounds' prefill never passes a finite increment_ms.
+    const bool rounds = !device.empty();
     const size_t lo = depth_band(start);
     std::vector<std::vector<StageLine>> bands(depth_band(start + rows - 1) - lo + 1);
     for (size_t b = 0; b < bands.size(); ++b)
         if ((bands[b] = lines(lo + b)).size() != stages) bands[b].clear();
     const size_t mid = depth_band(start + rows / 2) - lo;
     // A slice starting in a band without a line of its own takes the cut without prices, not a deeper band's price; a band later in the cut without one takes the line below it.
-    if (bands[0].empty() || bands[mid].empty()) return {std::min({rows, cap, std::max(std::min(kSliceFloor, cap), equal(2 * stages))}), 0};
+    const size_t paced = rounds ? *std::max_element(device.begin(), device.end()) + 1 : stages;   // what the pipeline's depth is on, its devices where they run several stages
+    if (bands[0].empty() || bands[mid].empty()) return {std::min({rows, cap, std::max(std::min(kSliceFloor, cap), equal(2 * paced))}), 0};
     for (size_t b = 1; b < bands.size(); ++b)
         if (bands[b].empty()) bands[b] = bands[b - 1];
     backlog.resize(stages, 0.0);
@@ -145,14 +173,24 @@ SliceCut prompt_cut(size_t start, size_t rows, size_t stages, const Lines& lines
     double best = -1, best_q = 1;
     const auto price = [&](size_t r, double q) {
         std::vector<double> finish = backlog;
+        std::vector<const std::vector<StageLine>*> at_lines;
+        std::vector<size_t> sizes;
         double next = (double)r;
         for (size_t at = 0; at < rows; next *= q) {
             const size_t k = std::min({rows - at, cap, std::max<size_t>(1, (size_t)next)});
+            if (rounds) {
+                at_lines.push_back(&bands[depth_band(start + at) - lo]);
+                sizes.push_back(k);
+                at += k;
+                continue;
+            }
             pipeline_add(finish, bands[depth_band(start + at) - lo], k);
             if (!at && capped && finish.back() - backlog.back() > increment_ms) return;
             if (best >= 0 && finish.back() >= best) return;
             at += k;
         }
+        if (rounds) pipeline_rounds(finish, device, at_lines, sizes);
+        if (best >= 0 && finish.back() >= best) return;
         best = finish.back(), best_r = r, best_q = q;
     };
     // The equal cuts first, from the fewest slices up until no cut of more can end sooner; then first slices from half to twice the best one's in kSliceSteps steps a doubling, at each ratio.
@@ -201,19 +239,34 @@ public:
         bool priced = stages > 1;
         SliceCut plan;
         double size = 0;
+        std::vector<std::vector<StageLine>> held;
         for (size_t i = 0; i < rows;) {
             size_t n = plan.ratio > 0 ? plan.next(size, rows - i, std::max<size_t>(1, cap)) : 0;
-            if (!n) size = double(n = (plan = prompt_cut(start + i, rows - i, stages, at, cap, finish)).first);
+            if (!n) {
+                // Under rounds `finish` is priced whole at the end, so a later cut starts from the slices taken so far priced together, or from an empty pipeline where one had no price.
+                std::vector<double> backlog = finish;
+                if (rounds_ && held.size() == parts.size()) predict(backlog, held, parts);
+                size = double(n = (plan = prompt_cut(start + i, rows - i, stages, at, cap, std::move(backlog), std::numeric_limits<double>::infinity(), device_)).first);
+            }
             const auto l = stages > 1 ? at(depth_band(start + i)) : std::vector<StageLine>{};
             if (stages > 1 && l.empty() && parts.size() == 1) n = std::max<size_t>(1, n / 2);
             if (stop > i && stop < i + n) n = stop - i, plan.ratio = 0;
-            if (!l.empty()) pipeline_add(finish, l, n);
+            if (!l.empty() && rounds_) held.push_back(l);
+            else if (!l.empty()) pipeline_add(finish, l, n);
             priced = priced && !l.empty();
             parts.push_back({i, n});
             i += n;
         }
         if (!priced) finish.clear();
+        else if (rounds_) predict(finish, held, parts);
         return parts;
+    }
+    // The stages' devices where a device runs several stages (Model::stage_devices), so a cut's slices are priced as they interleave there (pipeline_rounds).
+    void set_devices(std::vector<size_t> device) {
+        std::vector<size_t> sorted = device;
+        std::sort(sorted.begin(), sorted.end());
+        rounds_ = std::unique(sorted.begin(), sorted.end()) != sorted.end();
+        device_ = rounds_ ? std::move(device) : std::vector<size_t>{};
     }
 
     // A prefill's slices, each stage's busy time on each (negative where unmeasured), and its wall time against `finish`, its cut's prediction, which calibrates the fixed costs the busy times leave out.
@@ -234,13 +287,15 @@ public:
         }
         if (finish.empty() || !n) return;
         std::vector<double> at(finish.size(), 0.0), more = at;
+        std::vector<std::vector<StageLine>> l(n), plus(n);
         for (size_t c = 0; c < n; ++c) {
-            auto l = lines(depth_band(slices[c].first), finish.size());
-            if (l.empty()) return;
-            pipeline_add(at, l, slices[c].second);
-            for (StageLine& x : l) x.fixed_ms += 1;
-            pipeline_add(more, l, slices[c].second);
+            l[c] = plus[c] = lines(depth_band(slices[c].first), finish.size());
+            if (l[c].empty()) return;
+            for (StageLine& x : plus[c]) x.fixed_ms += 1;
         }
+        const std::vector<std::pair<size_t, size_t>> first(slices.begin(), slices.begin() + (std::ptrdiff_t)n);
+        predict(at, l, first);
+        predict(more, plus, first);
         const double cells = more.back() - at.back();
         if (!(cells > 0)) return;
         std::sort(seen.begin(), seen.end());
@@ -269,6 +324,20 @@ public:
 
 private:
     std::map<size_t, std::vector<std::vector<LinePoint>>> points_;   // each band's points, a list a stage
+    std::vector<size_t> device_;   // each stage's device where a device runs several, else empty
+    bool rounds_ = false;
+
+    // Each stage's finish from `finish` after `parts`, slice c at lines `l[c]`.
+    void predict(std::vector<double>& finish, const std::vector<std::vector<StageLine>>& l, const std::vector<std::pair<size_t, size_t>>& parts) const {
+        if (!rounds_) {
+            for (size_t c = 0; c < parts.size(); ++c) pipeline_add(finish, l[c], parts[c].second);
+            return;
+        }
+        std::vector<const std::vector<StageLine>*> at;
+        std::vector<size_t> rows;
+        for (size_t c = 0; c < parts.size(); ++c) at.push_back(&l[c]), rows.push_back(parts[c].second);
+        pipeline_rounds(finish, device_, at, rows);
+    }
     std::map<size_t, std::pair<double, std::vector<double>>> extra_;   // a band's fixed-cost calibration: its bounded mean and its last samples
 
     std::vector<StageLine> fit(size_t band, size_t stages) const {

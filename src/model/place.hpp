@@ -259,10 +259,11 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
 inline Placement placement_for(const LayerSplit& split, size_t width = 1) {
     Placement p;
     for (size_t d = 0; d < split.stages.size(); ++d)
-        for (int i = 0; i < split.stages[d].count; ++i) {
-            p.mixer_device.push_back((int)(d * width));
-            p.ffn_device.push_back((int)(d * width));
-        }
+        for (const auto& [f, n] : split.stages[d].runs)
+            for (int l = f; l < f + n; ++l) {
+                if (p.mixer_device.size() <= (size_t)l) p.mixer_device.resize((size_t)l + 1), p.ffn_device.resize((size_t)l + 1);
+                p.mixer_device[(size_t)l] = p.ffn_device[(size_t)l] = (int)(d * width);
+            }
     p.embed_device = split.embed_device * (int)width;
     p.output_device = split.output_device * (int)width;
     for (int d : split.draft_device) p.draft_device.push_back(d * (int)width);
@@ -294,6 +295,14 @@ inline std::vector<DeviceBudget> group_budgets(const std::vector<DeviceBudget>& 
         });
         for (size_t m = g; m < g + width; ++m)
             if (devices[m].collective) b.collective_per_row = std::max(b.collective_per_row, devices[m].collective(width, summed));
+        // A group serves another where every member serves every member of it, a crossing going to each.
+        b.serves.assign(devices.size() / width, 0);
+        for (size_t h = 0; h < b.serves.size(); ++h) {
+            bool all = true;
+            for (size_t m = g; m < g + width; ++m)
+                for (size_t n = h * width; n < h * width + width; ++n) all = all && n < devices[m].serves.size() && devices[m].serves[n];
+            b.serves[h] = all;
+        }
         groups.push_back(std::move(b));
     }
     return groups;
@@ -386,6 +395,8 @@ struct PlacementRequest {
     bool drafter = false;
     // Devices each layer is split across (docs/TENSOR-SPLIT.md): consecutive backends form groups of this many, and the groups are the stages of the layer split; 1 is the layer split alone.
     size_t width = 1;
+    // The runs of layers each device takes in turn (stage rounds, docs/MULTI-DEVICE.md): 0 takes split_layers' rule, a count is the tools' and tests' override, as shares are.
+    size_t rounds = 0;
     LookupStorage lookup_storage = LookupStorage::automatic;
     // The host budget the lookup tables' hot rows share with a server's evicted prefixes (host_shares): a server's --host-cache-bytes, none to take it from the host memory available.
     std::optional<size_t> host_budget;
@@ -611,7 +622,7 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
                 Footprint fp = footprint(source, *fitting, o, request.width);
                 fp.host_state = backend::size_add(fp.host_state, host_bytes);
                 split_layers(fp, group_budgets(budgets, request.width, sum_width(plan)), rows, request.shares, core::host_memory_available(),
-                             std::max<size_t>(1, request.slots), logits, reply_rows(request));
+                             std::max<size_t>(1, request.slots), logits, reply_rows(request), request.rounds);
                 return true;
             } catch (const std::runtime_error& e) {
                 why = e.what();
@@ -938,7 +949,7 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
             try {
                 selected = split_layers(lookup_footprint(), group_budgets(budgets, request.width, sum_width(plan)), fitted_rows(request), request.shares,
                                         host_room, std::max<size_t>(1, request.slots), request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt,
-                                        reply_rows(request));
+                                        reply_rows(request), request.rounds);
                 return true;
             } catch (const std::runtime_error& e) {
                 selected.reset();
@@ -1010,7 +1021,7 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
         auto fit = [&] {
             try {
                 split = split_layers(fp, group_budgets(budgets, request.width, sum_width(plan)), rows, request.shares, core::host_memory_available(), request.slots,
-                                     request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt, reply_rows(request));
+                                     request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt, reply_rows(request), request.rounds);
                 return true;
             } catch (const std::runtime_error&) {
                 refused = std::current_exception();

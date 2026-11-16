@@ -653,7 +653,7 @@ void routed_tensor_checks() {
     }
 }
 
-// A placement names a device the model has for every role and every layer, each device's attention layers are one run, and the devices' cache blocks nest.
+// A placement names a device the model has for every role and every layer, and the devices' cache blocks nest.
 // place_model refuses what it cannot honour: no device, a stream point without experts on the CPU, experts on the CPU beside several devices or on a model without routed layers, and shares that do not fit the devices.
 void placement_checks() {
     const auto dense_file = fixture(), routed_file = routed_fixture();
@@ -681,9 +681,11 @@ void placement_checks() {
     }
     infer::Placement split;
     split.mixer_device = {0, 1, 0}; split.ffn_device = {0, 1, 0};
-    rejects("a device's attention layers in two runs", [&] {
+    // A device's attention layers in two runs are two stages of it, taken in turn (stage rounds, docs/MULTI-DEVICE.md).
+    {
         infer::Model model(infer::gguf_weights(three), {cpu(), cpu()}, split);
-    });
+        require(model.stage_count() == 3 && model.stage_devices() == 2, "a device's attention layers in two runs did not make two stages of it");
+    }
     // A backend whose cache blocks hold one token more than the CPU's, so neither size divides the other.
     struct OddBlocks : backend::CpuBackend {
         backend::KVLayout kv_layout() const override { return {backend::CpuBackend::kv_layout().block_tokens + 1}; }

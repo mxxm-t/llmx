@@ -182,10 +182,10 @@ void split_matches_single() {
     infer::Model alone(infer::gguf_weights(weights), {c, d}, all_on_one);
     require(c->hold_calls == 2 && d->hold_calls == 2, "a placement on one of its devices asked for holds");
     const auto three = tiny_qwen(3, 2 * 128, true);
-    infer::Placement apart_runs;
-    apart_runs.mixer_device = apart_runs.ffn_device = {0, 1, 0};
+    infer::Placement past;
+    past.mixer_device = past.ffn_device = {0, 1, 2};
     bool refused = false;
-    try { infer::Model broken(infer::gguf_weights(three), {c, d}, apart_runs); }
+    try { infer::Model broken(infer::gguf_weights(three), {c, d}, past); }
     catch (const std::runtime_error&) { refused = true; }
     require(refused && c->hold_calls == 2 && d->hold_calls == 2, "a model refused during construction asked for holds");
     checked += 3;
@@ -2076,6 +2076,53 @@ void member_order_followed() {
     ++checked;
 }
 
+// Stage rounds (docs/MULTI-DEVICE.md): the rule gives a pair served on the devices max(1, least layers / kRunLayers) rounds and a pair crossing through the host one, and an asked count overrides it.
+// Placed at 3 and 4 rounds on two CPUs, recording on the caller's thread and, playing devices, on the stages' own, every prompt and decode row is one device's to the bit.
+void stage_rounds() {
+    const int K = infer::kRunLayers;
+    const auto many = tiny_qwen(4 * K, 2 * 128, true);
+    const infer::ModelOptions options;
+    const infer::ModelWeights views = infer::gguf_weights(many);
+    const infer::Footprint fp = infer::footprint(views, infer::plan_model(views), options);
+    const auto pair = [](bool served) {
+        std::vector<infer::DeviceBudget> d(2);
+        d[0].name = "a", d[1].name = "b";
+        d[0].serves = {0, served}, d[1].serves = {served, 0};
+        return d;
+    };
+    const infer::LayerSplit on_devices = infer::split_layers(fp, pair(true), 2), on_host = infer::split_layers(fp, pair(false), 2);
+    const infer::LayerSplit asked = infer::split_layers(fp, pair(false), 2, {}, std::nullopt, 1, std::nullopt, 0, 3);
+    require(on_devices.rounds == 2 && on_host.rounds == 1 && asked.rounds == 3, "the stage rounds rule: a served pair of 2 * kRunLayers layers each not in two rounds, a host pair not in one, or an asked count not taken");
+    require(on_devices.stages[0].runs == std::vector<std::pair<int, int>>{{0, K}, {2 * K, K}} && on_devices.stages[1].runs == std::vector<std::pair<int, int>>{{K, K}, {3 * K, K}},
+            "two rounds of a served pair do not interleave the devices' runs");
+    // Every device sends a residual in every round, the last device's first round too, a pass's two buffers each (Model::ensure).
+    require(on_devices.host - on_host.host == (2 * 2 - 1) * infer::handoff_buffers(1, true) * 2 * fp.handoff_per_row, "two rounds do not count the handoff buffers Model::ensure makes");
+    ++checked;
+    for (size_t R : {size_t(3), size_t(4)})
+        for (bool devices : {false, true}) {
+            const auto weights = tiny_qwen(2 * (int)R, 2 * 128, true);
+            std::vector<backend::BackendPtr> two;
+            for (int i = 0; i < 2; ++i) {
+                auto b = std::make_shared<FailingCpu>();
+                b->plays_device = devices;
+                two.push_back(b);
+            }
+            infer::PlacementRequest request;
+            request.names = {"cpu", "cpu"};
+            request.shares = {1, 1};
+            request.rounds = R;
+            request.ubatch = 3;
+            infer::PlacedModel placed = infer::place_model(infer::gguf_weights(weights), std::move(two), request, options);
+            infer::Model one(infer::gguf_weights(weights), std::make_shared<backend::CpuBackend>());
+            one.set_ubatch(3);
+            const std::string at = std::to_string(R) + " rounds" + (devices ? " playing devices" : "");
+            require(placed.model->stage_count() == 2 * R && placed.model->stage_devices() == 2, (at + " on two CPUs do not make two stages a round").c_str());
+            exact(one.prefill(kPrompt), placed.model->prefill(kPrompt), (at + " on two CPUs differ from one device on a prompt").c_str());
+            exact(step_row(one, 7), step_row(*placed.model, 7), (at + " on two CPUs differ from one device on a decode step").c_str());
+            ++checked;
+        }
+}
+
 void bad_placements_refused() {
     const auto weights = fixture();
     auto a = std::make_shared<backend::CpuBackend>(), b = std::make_shared<backend::CpuBackend>();
@@ -2094,13 +2141,17 @@ void bad_placements_refused() {
     p.mixer_device = {0, 0};
     p.output_device = -1;
     rejects(p, "negative device accepted");
-    // A device whose attention layers come back after another's would own a storage two stages write.
+    // A device whose attention layers come back after another's runs them as a second stage, its storage written by both, with the bytes of one device (stage rounds).
     const auto three = tiny_qwen(3, 2 * 128, true);
     infer::Placement split;
     split.mixer_device = split.ffn_device = {0, 1, 0};
-    bool split_refused = false;
-    try { infer::Model m(infer::gguf_weights(three), {a, b}, split); } catch (const std::runtime_error&) { split_refused = true; }
-    require(split_refused, "a device's attention layers split in two accepted");
+    {
+        infer::Model m(infer::gguf_weights(three), {a, b}, split), one(infer::gguf_weights(three), a);
+        m.set_ubatch(3);
+        one.set_ubatch(3);
+        exact(one.prefill(kPrompt), m.prefill(kPrompt), "a device's attention layers in two runs differ from one device on a prompt");
+        exact(step_row(one, 7), step_row(m, 7), "a device's attention layers in two runs differ from one device on a decode step");
+    }
     ++checked;
     bool caught = false;
     try { infer::Model m(infer::gguf_weights(weights), {a, nullptr}, infer::Placement{}); }
@@ -3184,6 +3235,7 @@ int main() {
         drafter_stages_fit();
         histories_fit_the_pool();
         bad_placements_refused();
+        stage_rounds();
         for (bool devices : {false, true}) {
             pipelined_matches_single(devices);
             pipelined_failure_rolls_back(devices);

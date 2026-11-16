@@ -682,6 +682,29 @@ void cases(const gguf::GGUFModel& weights, uint32_t vocab) {
     stopped(weights, tok, vocab);
 }
 
+// Two CPUs taking their layers in two runs each (stage rounds, docs/MULTI-DEVICE.md): four stages on two devices, the paused and the held load at P = 1, 2, 3 and 4 and at the scheduler's own P, every reply its reply alone on one CPU.
+void stage_rounds(const gguf::GGUFModel& weights, uint32_t vocab) {
+    const bpe::Tokenizer tok(weights);
+    const Make one = on(weights, [] { return cpus(1); });
+    const Make two = on(weights, [] { return cpus(2); }, 8, 0, 0, 0, false, 1, {}, 2);
+    const std::vector<Req> reqs = paused_load(vocab), held = held_load(vocab);
+    const std::vector<Reply> ref = alone(one, tok, 8 * kBlock, reqs), held_ref = alone(one, tok, 9 * kBlock, held);
+    for (size_t passes : {size_t(0), size_t(1), size_t(2), size_t(3), size_t(4)}) {
+        const std::string where = "two CPUs in two rounds at P = " + (passes ? std::to_string(passes) : std::string("the scheduler's"));
+        auto model = two(8 * kBlock, kUbatch);
+        require(model->stage_count() == 4 && model->stage_devices() == 2, where + ": the stages are not two rounds of two devices");
+        server::Scheduler::Stats s;
+        const std::vector<Reply> got = serve(*model, tok, kSeqs, {reqs}, &s, passes);
+        require(s.passes == (passes ? passes : 3), where + ": the scheduler kept " + std::to_string(s.passes) + " passes in flight");
+        require(s.pauses > 0, "the paused load on " + where + ": nothing paused");
+        for (size_t i = 0; i < reqs.size(); ++i) same(ref[i], got[i], "the paused load on " + where + ", request " + std::to_string(i));
+        model = two(9 * kBlock, kUbatch);
+        const std::vector<Reply> kept = serve(*model, tok, kSeqs, {held}, &s, passes);
+        for (size_t i = 0; i < held.size(); ++i) same(held_ref[i], kept[i], "the held load on " + where + ", request " + std::to_string(i));
+        ++checks;
+    }
+}
+
 // The loads over tensor groups of two CPUs (docs/TENSOR-SPLIT.md, step 2): every reply on 1, 2 and 3 stages of width 2 at each P its reply alone on one group with one pass in flight, since a group gives its own bits, not one CPU's.
 void grouped(const gguf::GGUFModel& weights, uint32_t vocab) {
     const bpe::Tokenizer tok(weights);
@@ -1678,6 +1701,8 @@ int main() {
         boundary_continued(served_hybrid(kHybrid), (uint32_t)kHybrid.vocab);
         fitted_reservation(served(kSplit));
         cases(served(kSplit), (uint32_t)kSplit.vocab);
+        stage_rounds(served(kSplit), (uint32_t)kSplit.vocab);
+        stage_rounds(served_hybrid(kHybridEven), (uint32_t)kHybridEven.vocab);
         // A hybrid model, whose linear-attention layers keep a recurrent state, over the same cases: without checkpoint slots it keeps no donor, and a stage may hold only states.
         cases(served_hybrid(kHybrid), (uint32_t)kHybrid.vocab);
         boundary_fork_held(served_hybrid(kHybrid), (uint32_t)kHybrid.vocab);

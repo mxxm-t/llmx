@@ -177,15 +177,23 @@ inline void Model::record_stage(ExecContext& ctx, Pass& p, size_t s, size_t laye
         p.group_ms = 0;
     }
     p.before.resize(devices_.size(), 0);
-    for (size_t d : st.touches)
-        for (size_t m = d; m < d + width_; ++m) p.before[m] = devices_[m]->b->last_ticket();
     const bool direct = s > 0 && served(p.at, stages_[s].device);
     const auto start = std::chrono::steady_clock::now();
-    {
-        // Where a drafter's stages sit apart, its parts on this stage's devices record beside the stage's, one at a time (Recording); a pipelined split's stage touches its own device alone.
+    take_turn(&p, p.scratch, stages_[s].device, width_, p.turn);
+    try {
+        // Where a drafter's stages sit apart or a device runs several, what records on this stage's devices records one at a time (Recording); a pipelined split's stage touches its own device alone.
         const Recording held(*this, st.device, width_);
+        for (size_t d : st.touches)
+            for (size_t m = d; m < d + width_; ++m) p.before[m] = devices_[m]->b->last_ticket();
         if (width_ > 1) group_record(ctx, p, s, layers);
         else single_record(ctx, p, s, layers);
+    } catch (...) {
+        give_turn(&p);
+        throw;
+    }
+    if (!p.open) {
+        give_turn(&p);
+        p.turn = SIZE_MAX;
     }
     if (p.scratch && !layers) {
         // A replies' stage recorded whole: the host's own time in it, without its waits for the residual, lookup rows and sums, which pacing a chunk's stage here covers.
@@ -415,18 +423,34 @@ inline std::vector<std::chrono::steady_clock::time_point> Model::run_chunks(Exec
     std::mutex m;
     std::condition_variable cv;   // this thread's wake, as a lane ends a record
     std::vector<std::unique_ptr<Lane>> lanes(S);
-    // The completion lane's queue under `m`: each committed chunk's submissions, each with its stage and device, and how many chunks it has stamped.
+    // The completion lane's queue under `m`: each committed chunk's submissions, each with its stage and device and the device's last ticket before the stage, and how many chunks it has stamped.
     struct Submitted {
         size_t stage, device;
         backend::Backend* b;
-        backend::Ticket t;
+        backend::Ticket a, t;
     };
     using Sent = std::vector<Submitted>;
-    std::vector<backend::Ticket> before(devices_.size(), 0);   // the completion lane's: each device's submission for the chunk before
+    // Each chunk's submissions as its stages are recorded, on the recording thread, since a device that runs several stages holds the pass's last ticket only.
+    std::vector<Sent> spans(chunks);
+    const auto spanned = [&](size_t c, size_t s) {
+        const Pass& p = ctx.passes[c % S];
+        Sent u;
+        for (size_t d : stages_[s].touches)
+            for (size_t k = d; k < d + width_; ++k) u.push_back({s, k, devices_[k]->b.get(), p.before[k], p.tickets[k]});
+        return u;
+    };
     std::deque<std::pair<size_t, Sent>> sent;
     size_t stamped = 0;
     std::vector<size_t> next(S, 0), committed(S, 0);
     std::vector<char> busy(S, 0);
+    // Where a device runs several stages it takes them oldest chunk first: a step dispatches its later stages first and each device's turns follow that order (take_turn).
+    const bool oldest = stages_.size() > stage_devices_;
+    for (const auto& dev : devices_) {
+        std::lock_guard<std::mutex> lk(dev->recording);
+        dev->queued = dev->turned = 0;
+        dev->turn_holder = nullptr;
+    }
+    for (Pass& p : ctx.passes) p.turn = SIZE_MAX;
     std::exception_ptr failed;
     std::optional<StageLanes> threads;
     try {
@@ -438,13 +462,18 @@ inline std::vector<std::chrono::steady_clock::time_point> Model::run_chunks(Exec
             threads->add(s, m);
             StageLanes::Policy policy;
             policy.ready = [lane] { return lane->todo.has_value(); };
-            policy.step = [this, &ctx, &cv, lane, s, S](std::unique_lock<std::mutex>& lk) {
+            policy.step = [this, &ctx, &cv, &spans, &spanned, lane, s, S](std::unique_lock<std::mutex>& lk) {
                 const size_t c = *lane->todo;
                 lane->todo.reset();
                 lk.unlock();
                 std::exception_ptr error;
-                try { record_stage(ctx, ctx.passes[c % S], s); } catch (...) { error = std::current_exception(); }
+                Sent u;
+                try {
+                    record_stage(ctx, ctx.passes[c % S], s);
+                    u = spanned(c, s);
+                } catch (...) { error = std::current_exception(); }
                 lk.lock();
+                spans[c].insert(spans[c].end(), u.begin(), u.end());
                 if (error) lane->error = error;
                 else lane->done.push_back(c);
                 cv.notify_all();
@@ -454,7 +483,7 @@ inline std::vector<std::chrono::steady_clock::time_point> Model::run_chunks(Exec
         threads->add(S, m);
         StageLanes::Policy completion;
         completion.ready = [&sent] { return !sent.empty(); };
-        completion.step = [&sent, &stamped, &done, &stage_ms, &before, &cv, S](std::unique_lock<std::mutex>& lk) {
+        completion.step = [&sent, &stamped, &done, &stage_ms, &cv, S](std::unique_lock<std::mutex>& lk) {
             const auto [c, tickets] = std::move(sent.front());
             sent.pop_front();
             lk.unlock();
@@ -466,10 +495,9 @@ inline std::vector<std::chrono::steady_clock::time_point> Model::run_chunks(Exec
             std::vector<char> kept(S, 1);
             for (const Submitted& u : tickets) {
                 u.b->wait(u.t);
-                const double ms = before[u.device] ? u.b->busy_ms(before[u.device], u.t) : -1.0;
+                const double ms = c && u.a ? u.b->busy_ms(u.a, u.t) : -1.0;
                 if (ms < 0) kept[u.stage] = 0;
                 held[u.stage] = std::max(held[u.stage], ms);
-                before[u.device] = u.t;
             }
             lk.lock();
             for (size_t s = 0; s < S; ++s)
@@ -481,14 +509,9 @@ inline std::vector<std::chrono::steady_clock::time_point> Model::run_chunks(Exec
         threads->start(S, std::move(completion));
         // Chunk c's last stage committed: the completion lane stamps its time once the stage's devices retire its submissions, and reads every stage's time.
         const auto completed = [&](size_t c) {
-            const Pass& p = ctx.passes[c % S];
-            Sent t;
-            for (size_t s = 0; s < S; ++s)
-                for (size_t d : stages_[s].touches)
-                    for (size_t k = d; k < d + width_; ++k) t.push_back({s, k, devices_[k]->b.get(), p.tickets[k]});
             {
                 std::lock_guard<std::mutex> lk(m);
-                sent.push_back({c, std::move(t)});
+                sent.push_back({c, std::move(spans[c])});
             }
             threads->notify(S);
         };
@@ -501,10 +524,11 @@ inline std::vector<std::chrono::steady_clock::time_point> Model::run_chunks(Exec
         };
         while (committed[S - 1] < chunks) {
             bool moved = false;
-            // A round takes each stage ready at its start once, the first stage first, as a step of the software pipeline does.
+            // A round takes each stage ready at its start once, the first stage first as a step of the software pipeline does, or the last first where a device runs several.
             std::vector<char> go(S);
             for (size_t s = 0; s < S; ++s) go[s] = ready(s);
-            for (size_t s = 0; s < S; ++s) {
+            for (size_t i = 0; i < S; ++i) {
+                const size_t s = oldest ? S - 1 - i : i;
                 if (!go[s]) continue;
                 const size_t c = next[s]++;
                 Pass& p = ctx.passes[c % S];
@@ -514,6 +538,7 @@ inline std::vector<std::chrono::steady_clock::time_point> Model::run_chunks(Exec
                     p.handoff = c % 2;
                 }
                 prepare_stage(p, s);
+                queue_turn(p, stages_[s].device);
                 if (lanes[s]) {
                     {
                         std::lock_guard<std::mutex> lk(m);
@@ -523,6 +548,11 @@ inline std::vector<std::chrono::steady_clock::time_point> Model::run_chunks(Exec
                     threads->notify(s);
                 } else {
                     record_stage(ctx, p, s);
+                    {
+                        const Sent u = spanned(c, s);
+                        std::lock_guard<std::mutex> lk(m);
+                        spans[c].insert(spans[c].end(), u.begin(), u.end());
+                    }
                     stage_commit(p, s);
                     if (s + 1 == S) completed(c);
                     ++committed[s];
@@ -586,10 +616,12 @@ inline void Model::at_stage(const Pass& p, size_t s) const {
 }
 
 // What a stage of one device takes of its histories and their pool before any device work: each entry's blocks and its view, and the slots its state is read from and written to.
+// A device's later rounds take nothing: they write through the views and slots its first stage took for the pass.
 inline void Model::single_prepare(Pass& p, size_t s) {
     at_stage(p, s);
     const Stage& st = stages_[s];
     Device& home = *devices_[st.device];
+    if (st.round) return prepare_tokens(p, s);
     const int storage = home.storage_index;
     for (size_t e = 0; storage >= 0 && e < p.entries.size(); ++e) {
         KVSequence& kv = p.entries[e].seq->kv_[(size_t)storage];
@@ -738,7 +770,7 @@ inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s, size_t lay
             arch_->embed(part(ctx, p, p.cur, pass_.data(), 0, 0, p.rows, all), p.ids.data());
             if (p.image_rows) write_media(ctx, p, p.cur);
         } else if (p.at != p.cur) {
-            const auto [waited, wrote] = receive(ctx, p, p.at, p.handoff, p.sent, p.cur, 0, p.rows, st.first);
+            const auto [waited, wrote] = receive(ctx, p, p.at, handoff_buffer(p, s - 1, p.at), p.sent, p.cur, 0, p.rows, st.first);
             p.receive_ms += waited;
             p.write_ms += wrote;
         }
@@ -766,7 +798,7 @@ inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s, size_t lay
     p.open = false;
     if (s + 1 < stages_.size()) {
         // A residual already where the next stage runs stays there.
-        if (cur != stages_[s + 1].device) send(ctx, p, cur, p.handoff, 0, p.rows, stages_[s + 1].first);
+        if (cur != stages_[s + 1].device) send(ctx, p, cur, handoff_buffer(p, s, cur), 0, p.rows, stages_[s + 1].first);
         p.at = cur;
     } else {
         const size_t o = (size_t)place_.output_device;
@@ -787,6 +819,7 @@ inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s, size_t lay
 // What a group's stage takes of its histories and their pool before any device work: each entry's blocks and its views on every member, and its state's slots, the same on every member, each of which keeps the state of its own heads there.
 inline void Model::group_prepare(Pass& p, size_t s) {
     at_stage(p, s);
+    if (stages_[s].round) return prepare_tokens(p, s);
     const size_t g = stages_[s].device, W = width_;
     const int storage = devices_[g]->storage_index;
     for (size_t e = 0; devices_[g]->states && e < p.entries.size(); ++e) {
@@ -872,7 +905,7 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s, size_t laye
             if (s == 0) {
                 if (p.image_rows) write_media(ctx, p, g + m);
             } else {
-                const auto [waited, wrote] = receive(ctx, p, p.at, p.handoff, p.sent, g + m, 0, p.rows, st.first);
+                const auto [waited, wrote] = receive(ctx, p, p.at, handoff_buffer(p, s - 1, p.at), p.sent, g + m, 0, p.rows, st.first);
                 p.receive_ms += waited;
                 p.write_ms += wrote;
             }
@@ -911,7 +944,7 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s, size_t laye
     p.open = false;
     if (s + 1 == stages_.size() && plan_.drafter) draft_context(ctx, p, s);
     if (s + 1 < stages_.size()) {
-        send(ctx, p, g, p.handoff, 0, p.rows, stages_[s + 1].first);
+        send(ctx, p, g, handoff_buffer(p, s, g), 0, p.rows, stages_[s + 1].first);
         p.at = g;
     } else if (p.want) {
         // Each member's vocabulary rows of every row that wants logits, each copied by its member into its slice of the rows in host memory the members import, behind no wait; the pass's logits wait for every member's submission.
@@ -960,9 +993,9 @@ inline void Model::stage_submit(ExecContext& ctx, Pass& p, size_t s, size_t cur)
 // Each entry's history commits the stage, on the thread that owns the histories.
 inline void Model::stage_commit(Pass& p, size_t s) {
     const Stage& st = stages_[s];
-    const int storage = devices_[st.device]->storage_index;
     for (size_t e = 0; e < p.entries.size(); ++e) {
         Sequence& q = *p.entries[e].seq;
+        const int storage = q.storage_of_[s];
         if (s == token_stage_) {
             const backend::StateView& view = p.states[st.device][e];
             const size_t first = e ? p.runs[e - 1].end : 0;
@@ -1019,7 +1052,7 @@ inline void Model::draft_context(ExecContext& ctx, Pass& p, size_t s) {
     if (draft_apart_) {
         const int all_layers = (int)plan_.layers.size();
         for (size_t m = 0; m < width_; ++m) call(o, m, 0);
-        send(ctx, p, o, p.handoff, 0, p.rows, all_layers, &draft_rows_slots_);
+        send(ctx, p, o, handoff_buffer(p, stages_.size() - 1, o), 0, p.rows, all_layers, &draft_rows_slots_);
         backend::Ticket sent = 0;
         for (size_t m = 0; m < width_; ++m) {
             const backend::Ticket t = devices_[o + m]->b->submit();
@@ -1028,7 +1061,7 @@ inline void Model::draft_context(ExecContext& ctx, Pass& p, size_t s) {
         p.draft_tickets.assign(devices_.size(), 0);
         for (size_t d : draft_devices_) {
             const Recording held(*this, d, d == o ? 0 : width_);
-            for (size_t m = 0; d != o && m < width_; ++m) receive(ctx, p, o, p.handoff, sent, d + m, 0, p.rows, all_layers, &draft_rows_slots_);
+            for (size_t m = 0; d != o && m < width_; ++m) receive(ctx, p, o, handoff_buffer(p, stages_.size() - 1, o), sent, d + m, 0, p.rows, all_layers, &draft_rows_slots_);
             for (size_t st = 0; st < draft_route_size(); ++st)
                 if (draft_stage_device(st) == d)
                     for (size_t m = 0; m < width_; ++m) call(d, m, int(1 + st));
@@ -1072,6 +1105,7 @@ inline void Model::finish(ExecContext& ctx, const Pass& p) {
 // A failed pass: every device drained, every entry's histories back to where the pass found them (rewind, to the checkpoint on a model that keeps a state), and the blocks and checkpoint slots its stages took returned.
 // `ends`, per entry, is the furthest row any pass in flight of its sequence wrote to, where later passes continue it.
 inline void Model::roll_back(Pass& p, const size_t* ends) noexcept {
+    give_turn(&p);
     retire();
     for (size_t e = 0; e < p.entries.size(); ++e) {
         // The token stage's snapshot is the tail the pass found, once that stage committed and advanced it.
@@ -1177,7 +1211,7 @@ inline void Model::ensure(ExecContext& ctx, size_t rows, size_t want, size_t buf
         std::vector<std::vector<backend::BufferPtr>> handoff(devices_.size());
         const size_t bytes = mul(mul(rows, handoff_width(plan_)), sizeof(float));
         for (size_t d = 0; d < devices_.size(); ++d)
-            for (size_t i = 0; devices_[d]->sends && i < buffers; ++i)
+            for (size_t i = 0; devices_[d]->sends && i < buffers * std::max<size_t>(1, devices_[d]->rounds); ++i)
                 handoff[d].push_back(devices_[d]->b->alloc(bytes, backend::Memory::host_visible));
         // Each buffer of a sender that serves a reader on the devices gets its Handoff.
         std::vector<std::vector<std::unique_ptr<backend::Handoff>>> links(devices_.size());
@@ -1186,7 +1220,7 @@ inline void Model::ensure(ExecContext& ctx, size_t rows, size_t want, size_t buf
             if (std::find(dev.served.begin(), dev.served.end(), 1) == dev.served.end()) continue;
             std::vector<backend::Backend*> to;
             for (size_t r : dev.readers) to.push_back(devices_[r]->b.get());
-            for (size_t i = 0; i < buffers; ++i) links[d].push_back(dev.b->handoff(to));
+            for (size_t i = 0; i < buffers * std::max<size_t>(1, dev.rounds); ++i) links[d].push_back(dev.b->handoff(to));
         }
         for (size_t d = 0; d < ctx.handoff.size(); ++d)
             if (devices_[d]->used) devices_[d]->b->wait(ctx.tickets[d]);

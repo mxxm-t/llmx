@@ -1,5 +1,44 @@
 # llmx - Development Status
 
+## Stage rounds (2026-11-16, castagna step 4, branch perf/stage-rounds on d11a66418, QSTG1 then QSTG2; lands by fast-forward with the stack land-20261117)
+
+**Goal.** Interleave a layer split's stages so a prompt's pipeline fills and drains in a third of a device's layers rather than all of them (docs/MULTI-DEVICE.md, Placement and balance), toward castagna-veloce's layer-4 pp2048 2615 tok/s on four MI50s from llmx's about 2094.
+
+**Done.** A device may run several stages, round 0 owning its storage; the fit cuts each device's share into R runs (`round_runs`), holds each device to them and counts R sets of handoff buffers and R stages of passes in flight; a prefill's slices are priced as they interleave (`pipeline_rounds`, oldest ready slice first) and a device takes its oldest chunk first (`queue_turn`, `take_turn`); the server keeps a pass in flight a device and one more.
+R is a load-time rule, with no flag: R = max(1, k / `kRunLayers`) for k the fewest layers a used device runs, and 1 unless every used device serves its crossings to the others on the devices (`DeviceBudget::serves`, ROCm and CUDA today); `PlacementRequest::rounds` overrides it for tools and tests.
+CPU byte identity: `llmx-split-check` at 3 and 4 rounds on two CPUs (suite `split`), `placement` at 3 and 4 rounds, `server-passes-cpu` at 2 rounds on the Q8_0 and hybrid models, and QSTG1's earlier runs on three CPUs at 3 and 2x2 width 2 at 3.
+Host memory grows, computed from the fit's terms at a 512-row ubatch on four devices, not measured: handoff buffers go from 3 senders to 4R, Qwen3.6-27B (residual 5120 floats, 10 MiB a buffer, two a sender) from 60 MiB to 320 MiB at R = 4 and Flash-Next (residual 4 x 2560 floats and its carried slots, at least 20 MiB a buffer) from 120 MiB to 480 MiB at R = 3; Flash-Next's PLE lookup staging goes from 4 passes in flight to 12, about 2.8 MB a pass at 320-byte rows, so about 23 MB more. Device memory is unchanged.
+
+Timing cells (2026-11-17, four MI50s on ROCm, layer split 1,1,1,1, int8, the WIP f85b40f9 with a temporary `--stage-rounds 3` against main d11a66418, one run a cell, every cell contended at host load 33 to 39 with 5.6 to 28 s of run-queue wait):
+
+| cell | main | R = 3 | change |
+|---|---|---|---|
+| Qwen3.8-Flash-Next UD-Q4_K_XL bench pp2048 | 1658.30 tok/s | 1951.31 tok/s | +17.7% |
+| Qwen3.8-Flash-Next UD-Q4_K_XL bench tg128 | 52.93 tok/s | 38.96 tok/s | -26.4% |
+| Qwen3.8-Flash-Next UD-Q4_K_XL generate, 2755-token prompt, 64 tokens | 39.64 tok/s | 49.60 tok/s | +25.1% |
+| Qwen3.6-27B Q8_0 bench pp2048 | 793.39 tok/s | 968.46 tok/s | +22.1% |
+| Qwen3.6-27B Q8_0 bench tg128 | 22.21 tok/s | 22.87 tok/s | +3.0% |
+
+Flash-Next's greedy ids are equal between main and R = 3 over the 64 generated tokens.
+The two Flash-Next decode readings disagree in sign, and bench tg and generate run the same closed-loop pass (`Model::step` waits for the logits), so the pass shape does not explain it; on main alone the two read 18.9 and 25.2 ms a token, a 33% spread at that contention, larger than the bench loss of 6.8 ms a token.
+Every round crossing has a device reader (`Model::readers` walks the stages, so the last device reads into the first), qwen4exp carries no slot beside the residual, and its lookups are staged by queued writes, so no host wait a crossing is found in the code.
+
+Decode rerun (2026-11-17, Qwen3.8-Flash-Next UD-Q4_K_XL, ROCm, four MI50s, layer split 1,1,1,1, int8, bench pp512 tg128 three runs a cell, R = 3 by the rule, cells interleaved main, head, main, head, every cell contended with 336 to 2735 ms of run-queue wait):
+main is `llmx 0.1.0+gd11a66418e96 numerics 10a36147e7340dc8` (md5 89a5f4fc), the head is `llmx 0.1.0+g958f3582aec1 numerics f0f67c1e45558ba2` (md5 33e0bb41), built from a tree whose code is this commit's and whose STATUS differs.
+
+| cell | main 1 | head 1 | main 2 | head 2 | change of means |
+|---|---|---|---|---|---|
+| bench pp512 | 1194.74 tok/s | 1748.96 tok/s | 1281.33 tok/s | 1741.77 tok/s | +41% |
+| bench tg128 | 54.06 tok/s | 55.17 tok/s | 53.59 tok/s | 54.65 tok/s | +2% |
+
+R = 3 costs no decode here, so the earlier tg128 loss of the WIP cells was host contention, not the 8 added crossings.
+
+**Left.** Nothing: `kRunLayers` stays 4. The r3 cells gave the prefill direction (+18% and +22% against the 1 + 3/(4R) ideal of +40%), and the landing timing round on land68-stack 1cd17c3b, at the rule's R of 4 for Qwen3.6-27B Q8_0 int8 (16 layers a device) and 3 for Qwen3.8-Flash-Next UD-Q4_K_XL (12), measured against main 3b88cfb3a, two interleaved rounds on four MI50s under ROCm: 27B pp2048 1054.07 and 1055.04 tok/s against 821.12 and 767.86 (+28%), pp512 1125.78 and 1144.84 against 700.49 and 768.88, tg128 24.25 and 23.84 against 23.41 and 23.93 (level); Flash-Next pp512 1738.74 and 1753.88 against 1274.94 and 1281.14 (+37%); greedy and logits identical to main on both models.
+At landing: the suite's `server` component on an MI50 pair where the rule gives R > 1, byte identity against main on the CPU and a device, and the timing round.
+
+**Gotchas.** Stage items (slab frees, host copies, restores) take a device's recording lock but no scratch set's turn, since they record into none.
+Vulkan and the CPU cross through the host, so the rule keeps them at one round; a host round trip a crossing is what decode cannot pay.
+
 ## Landing stack land-20261116 (2026-11-16, Done)
 
 **What lands.** The stack on main 929f042c6: flake/stack, fix/rocm-exit, fix/kv-tokens-shared, fix/fit-prompt-scratch, server/auth with fix/tokenizer-nfc, sec/docker-user, formats/quant-awq (three commits, with the numerics-sources allow for hf_tokenizer.hpp and the GGUF tensor names carried by the qwen3 HF table), qwen27/norm-split and held-rows, rocm/q51-int8, ds4/route-fusion (with the cuda-sass allowance for llmx_route_step_ in place of llmx_hc_), dspp5/streams-land, arch/minimax-devices steps 1 to 7, CUDA steps 4, 5 and 2, perf/vulkan-row-sizes and perf/vulkan-q1-rows, docs/readme-sweep, tests/readme-check, rel/0.2.0, the README rows the stack adds, and the readme check's python-command exemption.

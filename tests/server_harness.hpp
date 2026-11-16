@@ -375,10 +375,10 @@ inline void same(const Reply& alone, const Reply& got, const std::string& what, 
 using Make = std::function<std::unique_ptr<infer::Model>(size_t pool, int ubatch)>;
 
 // A hybrid model holds `state_slots` recurrent states, bounding the requests a scheduler runs at once, and `checkpoints` states kept for prefix reuse; the others hold none.
-// With `marks` it marks that many sequences at once for verifies of up to `mark_rows` rows, with `drafter` it loads the embedded drafter, and with a `width` above 1 the backends form tensor groups (docs/TENSOR-SPLIT.md).
+// `marks` sequences at once verify up to `mark_rows` rows, `drafter` loads the embedded drafter, a `width` above 1 forms tensor groups (docs/TENSOR-SPLIT.md), and `rounds` above 0 asks for stage rounds.
 inline Make on(const gguf::GGUFModel& weights, std::function<std::vector<backend::BackendPtr>()> backends, size_t state_slots = 8, size_t checkpoints = 0,
-               size_t marks = 0, size_t mark_rows = 0, bool drafter = false, size_t width = 1, std::function<std::optional<size_t>()> host_memory = {}) {
-    return [&weights, backends, state_slots, checkpoints, marks, mark_rows, drafter, width, host_memory](size_t pool, int ubatch) {
+               size_t marks = 0, size_t mark_rows = 0, bool drafter = false, size_t width = 1, std::function<std::optional<size_t>()> host_memory = {}, size_t rounds = 0) {
+    return [&weights, backends, state_slots, checkpoints, marks, mark_rows, drafter, width, host_memory, rounds](size_t pool, int ubatch) {
         infer::ModelOptions options;
         options.kv_tokens = pool;
         options.state_slots = state_slots;
@@ -392,6 +392,7 @@ inline Make on(const gguf::GGUFModel& weights, std::function<std::vector<backend
         for (size_t i = 0; i < b.size(); ++i) request.names.push_back("device " + std::to_string(i));
         if (b.size() > width) request.shares.assign(b.size() / width, 1);
         request.width = width;
+        request.rounds = rounds;
         request.ubatch = ubatch;
         return std::move(infer::place_model(infer::gguf_weights(weights), std::move(b), request, options).model);
     };

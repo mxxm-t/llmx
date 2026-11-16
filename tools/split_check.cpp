@@ -250,8 +250,8 @@ static size_t verify(infer::Model& one, infer::Model& two, const std::vector<uin
 }
 
 int main(int argc, char** argv) {
-    if (argc < 3 || argc > 10) {
-        std::fprintf(stderr, "usage: llmx-split-check <model.gguf> <text file> [single] [split, e.g. 0,1,2] [steps] [ubatch] [f16|f32] [auto|f16|bf16|f32|int8] [tensor width]\n");
+    if (argc < 3 || argc > 11) {
+        std::fprintf(stderr, "usage: llmx-split-check <model.gguf> <text file> [single] [split, e.g. 0,1,2] [steps] [ubatch] [f16|f32] [auto|f16|bf16|f32|int8] [tensor width] [stage rounds, 0 the rule]\n");
         return 2;
     }
     try {
@@ -292,6 +292,7 @@ int main(int argc, char** argv) {
         for (const std::string& d : core::comma_list(split)) request.names.push_back(name(d));
         request.shares.assign(request.names.size() / width, 1);
         request.width = width;
+        request.rounds = argc > 10 ? (size_t)std::atoi(argv[10]) : 0;
         request.ubatch = ubatch;
         request.dtype = alone.dtype;
         const auto second = infer::load_model(argv[1], backend::make_backends(request.names), request, options);
@@ -338,9 +339,9 @@ int main(int argc, char** argv) {
         const size_t verify_differ = verify(one, two, history, ids.size(), rounds);
         std::printf("verifies: %zu rounds of 2 to 17 rows after a mark, each retracted, %zu rows differ\n", rounds, verify_differ);
         const size_t mixed_differ = mixed(one, two, ids);
-        // Passes in flight at P = S, S + 1 and 2S, on a split that takes them and a text long enough for their prompts and steps.
+        // Passes in flight at P = S, S + 1 and 2S for S the devices the stages run on, on a split that takes them and a text long enough for their prompts and steps.
         size_t flight_differ = 0;
-        const size_t S = two.stage_count();
+        const size_t S = two.stage_devices();
         if (two.pipelined() && ids.size() >= 12) {
             for (size_t P : {S, S + 1, 2 * S}) {
                 size_t split_differ = 0, one_differ = 0;

@@ -80,7 +80,12 @@ struct DeviceBudget {
     bool argmax = false;                                              // the device keeps argmax passes' logits rows (not the CPU, and it implements argmax_rows)
     std::function<size_t(const backend::PassWidths&)> priced = nullptr;   // the scratch passes of those widths take there (Backend::scratch_bytes)
     std::function<size_t(size_t)> allocated = nullptr;                    // what a buffer of so many bytes takes there (Backend::allocation_bytes)
+    std::vector<char> serves;   // per device of the list, whether this one's crossings to it are ordered on the devices (Backend::handoff), with no host round trip
 };
+
+// The layers a stage round takes at least: where every crossing is served on the devices, a device running k layers takes them in max(1, k / kRunLayers) runs (split_layers, docs/MULTI-DEVICE.md).
+// The landing timing round set it, at four rounds a device of 16 layers (docs/STATUS.md, Stage rounds).
+inline constexpr int kRunLayers = 4;
 
 // The activation arenas a device makes (Model::ensure): a pass's `rows`, the model's own context's rows and a server's replies' rows, each a buffer as `allocated` gives what it takes there.
 inline size_t arena_bytes(const Footprint& fp, size_t rows, size_t reply_rows, const std::function<size_t(size_t)>& allocated) {
@@ -116,15 +121,34 @@ inline std::vector<DeviceBudget> budgets_for(const std::vector<backend::BackendP
         budgets.back().priced = [b](const backend::PassWidths& w) { return b->scratch_bytes(w); };
         budgets.back().allocated = [b](size_t bytes) { return b->allocation_bytes(bytes); };
     }
+    // Asked once at load, as the model asks for its own readers: a handoff from each device to every other, and which of them it serves.
+    for (size_t d = 0; d < backends.size(); ++d) {
+        std::vector<backend::Backend*> to;
+        for (size_t e = 0; e < backends.size(); ++e)
+            if (e != d) to.push_back(backends[e].get());
+        const std::unique_ptr<backend::Handoff> h = to.empty() ? nullptr : backends[d]->handoff(to);
+        budgets[d].serves.assign(backends.size(), 0);
+        for (size_t e = 0, r = 0; h && e < backends.size(); ++e)
+            if (e != d) budgets[d].serves[e] = h->serves(r++);
+    }
     return budgets;
 }
 
 // Per device, in the order given, the consecutive layers it runs and what it was fitted to hold; the embedding goes with the first device that runs layers and the head with the last.
+// A device's runs of layers as text, "0-3,8-11".
+inline std::string runs_text(const std::vector<std::pair<int, int>>& runs) {
+    std::string s;
+    for (const auto& [f, n] : runs) s += (s.empty() ? "" : ",") + std::to_string(f) + "-" + std::to_string(f + n - 1);
+    return s;
+}
+
 struct LayerSplit {
     struct Stage {
-        int first = 0, count = 0;   // layers [first, first + count)
+        int count = 0;   // its share of the layers as fitted, in device order
+        std::vector<std::pair<int, int>> runs;   // the layers it runs, a (first, count) a round (round_runs)
         size_t weights = 0, cache = 0, other = 0;
     };
+    size_t rounds = 1;   // the runs of layers each device takes in turn (stage rounds, docs/MULTI-DEVICE.md)
     std::vector<Stage> stages;
     int embed_device = 0, output_device = 0;
     std::vector<int> draft_device;   // each drafter stage's device
@@ -144,14 +168,28 @@ struct LayerSplit {
             if (!st.count)
                 std::snprintf(line, sizeof line, "%s: no layers\n", devices[d].name.c_str());
             else
-                std::snprintf(line, sizeof line, "%s: layers %d-%d%s, weights %.2f GiB, cache %.2f GiB, activations and scratch %.2f GiB, %s\n",
-                              devices[d].name.c_str(), st.first, st.first + st.count - 1, drafts.c_str(), st.weights / gib, st.cache / gib, st.other / gib, free);
+                std::snprintf(line, sizeof line, "%s: layers %s%s, weights %.2f GiB, cache %.2f GiB, activations and scratch %.2f GiB, %s\n",
+                              devices[d].name.c_str(), runs_text(st.runs).c_str(), drafts.c_str(), st.weights / gib, st.cache / gib, st.other / gib, free);
             s += line;
         }
         std::snprintf(line, sizeof line, "host: logits, tables and staging %.2f GiB\n", host / gib);
         return s + line;
     }
 };
+
+// Each device's runs of layers when the `count` layers of each, in device order, are cut into `rounds` runs as equal as whole layers allow and run r of every device precedes run r + 1 of any.
+inline std::vector<std::vector<std::pair<int, int>>> round_runs(const std::vector<int>& count, size_t rounds) {
+    std::vector<std::vector<std::pair<int, int>>> runs(count.size());
+    int at = 0;
+    for (size_t r = 0; r < rounds; ++r)
+        for (size_t d = 0; d < count.size(); ++d) {
+            const size_t k = (size_t)count[d];
+            const int n = (int)(k * (r + 1) / rounds - k * r / rounds);
+            if (n) runs[d].push_back({at, n});
+            at += n;
+        }
+    return runs;
+}
 
 // The request's part of a split's refusals, which no reading of free memory changes: at most 16 devices, and shares, where given, one a device, none negative and not all zero.
 // place_model asks it before fitting the KV budget, so a malformed request is refused as such rather than as a budget that does not fit.
@@ -170,7 +208,8 @@ inline void check_split(size_t devices, const std::vector<int>& shares) {
 // Consecutive layers per device in the order given: the best plan over every set of devices that could run layers, with every device and the host within its budget (docs/src/model-layer_split.md says what each holds).
 // `shares`, when given, is each device's proportion of the layers in place of the balance, still checked against the budgets, and `logit_rows` the logits rows kept where the head runs, in place of one for each of a pass's `rows`.
 inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudget>& devices, size_t rows, const std::vector<int>& shares = {},
-                               std::optional<size_t> host_free = std::nullopt, size_t slots = 1, std::optional<size_t> logit_rows = std::nullopt, size_t reply_rows = 0) {
+                               std::optional<size_t> host_free = std::nullopt, size_t slots = 1, std::optional<size_t> logit_rows = std::nullopt, size_t reply_rows = 0,
+                               size_t rounds = 0) {
     if (devices.empty()) throw std::runtime_error("split: no devices");
     // Every arena a device keeps at once: a pass's, the model's own context's and a server's replies' (Model::reserve_passes), each with its activations, lookup rows and host indices.
     const size_t arena_rows = backend::size_add(backend::size_add(rows, fp.context_rows), reply_rows);
@@ -260,14 +299,15 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     struct Host {
         size_t need = 0, carrier = SIZE_MAX;
     };
-    auto host_for = [&](const std::vector<size_t>& used) {
+    // `R` is the stage rounds: every used device sends then, the last device's first round too, R sets of buffers each (Model::ensure).
+    auto host_for = [&](const std::vector<size_t>& used, size_t R) {
         Host h;
         // A layer split is pipelined, and every stage but the last sends its residual on; a drafter with stages may send from the head too, to stages the program puts apart from it, so its buffers are counted beside them.
-        const size_t senders = used.size() > 1 ? used.size() - (fp.drafter_stages.empty() ? 1 : 0) : 0;
+        const size_t senders = used.size() < 2 ? 0 : R > 1 ? used.size() * R : used.size() - (fp.drafter_stages.empty() ? 1 : 0);
         h.need = logit_rows.value_or(rows) * fp.logits_per_row + fp.tables + fp.host_state + handoff_buffers(slots, true) * senders * rows * fp.handoff_per_row;
         h.need = backend::size_add(h.need, backend::size_mul(used.size(), backend::size_mul(arena_rows, fp.host_scratch_per_row)));
         // A pipelined prompt keeps a pass in flight a stage, a server its slots.
-        const size_t in_flight = std::max(slots, used.size());
+        const size_t in_flight = std::max(slots, used.size() * R);
         for (size_t l = 0; l < L; ++l) h.need = backend::size_add(h.need, backend::size_add(lookup_host[l], backend::size_mul(in_flight, lookup_pass[l])));
         for (size_t d : used) {
             h.need += devices[d].host_side;
@@ -341,7 +381,8 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
             }
             const size_t J = used.size();
             if (!ok || J > L) continue;
-            const Host h = host_for(used);
+            // The search charges one round; the rounds are chosen and checked on the plan it picks.
+            const Host h = host_for(used, 1);
             if (!host_fits(h)) continue;
             // score at (j, i, t, c): the set's first j devices running layers [0, i), one at least each, and stages [0, t), c of those devices holding stages but not the head; from: the layers and stages the last of them took.
             const size_t C = S + 1, per = (L + 1) * (S + 1) * C;
@@ -414,33 +455,59 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     LayerSplit out;
     out.stages.resize(N);
     std::vector<size_t> used;
-    int at = 0;
     for (size_t d = 0; d < N; ++d) {
-        out.stages[d].first = at;
         out.stages[d].count = count[d];
         if (count[d]) used.push_back(d);
-        at += count[d];
     }
     if (used.empty()) throw std::runtime_error("split: no device runs a layer");
     out.embed_device = (int)used.front();
     out.output_device = (int)used.back();
     for (size_t d = 0, t = 0; d < N; ++d)
         for (int n = 0; n < drafts[d]; ++n, ++t) out.draft_device.push_back((int)d);
-    const Host h = host_for(used);
-    for (size_t d : used) {
-        LayerSplit::Stage& st = out.stages[d];
+    // Stage rounds (docs/MULTI-DEVICE.md, Placement and balance): R runs of layers a device, `rounds` where given and else the rule, at least a layer a run and fewer where a device or the host does not hold them.
+    // The rule takes rounds only where every crossing between the used devices is served on the devices, since a host round trip a crossing is what decode cannot pay; with one device there is nothing to take turns with.
+    int least = INT32_MAX;
+    for (size_t d : used) least = std::min(least, count[d]);
+    bool served = true;
+    for (size_t a : used)
+        for (size_t b : used)
+            served = served && (a == b || (b < devices[a].serves.size() && devices[a].serves[b]));
+    size_t R = rounds ? rounds : served ? (size_t)std::max(1, least / kRunLayers) : 1;
+    R = used.size() > 1 ? std::min(R, (size_t)least) : 1;
+    // What device d holds running `runs`, its parts written into `st`.
+    const auto hold = [&](size_t d, const std::vector<std::pair<int, int>>& runs, const Host& h, LayerSplit::Stage& st) {
         size_t before = 0;
         for (size_t e = 0; e < d; ++e) before += (size_t)drafts[e];
-        st.weights = prefix[d][(size_t)(st.first + st.count)] - prefix[d][(size_t)st.first] + end_weights(d, d == used.front(), d == used.back()) +
-                     stage_weights(d, before, (size_t)drafts[d], d == used.front(), d == used.back());
-        st.cache = cached[d][(size_t)(st.first + st.count)] - cached[d][(size_t)st.first] + replicas((size_t)st.first, (size_t)st.count) + (d == used.back() ? fp.drafter_cache : 0) +
-                   (drafts[d] ? fp.drafter_stage_cache : 0);
-        st.other = backend::size_add(overhead(d, h, d == used.back()), lookup_prefix[(size_t)(st.first + st.count)] - lookup_prefix[(size_t)st.first]);
-        const size_t held = st.weights + st.cache + st.other;
+        st.weights = end_weights(d, d == used.front(), d == used.back()) + stage_weights(d, before, (size_t)drafts[d], d == used.front(), d == used.back());
+        st.cache = (d == used.back() ? fp.drafter_cache : 0) + (drafts[d] ? fp.drafter_stage_cache : 0);
+        st.other = overhead(d, h, d == used.back());
+        for (const auto& [f, n] : runs) {
+            const size_t a = (size_t)f, b = (size_t)(f + n);
+            st.weights += prefix[d][b] - prefix[d][a];
+            st.cache += cached[d][b] - cached[d][a] + replicas(a, (size_t)n);
+            st.other = backend::size_add(st.other, lookup_prefix[b] - lookup_prefix[a]);
+        }
+        return st.weights + st.cache + st.other;
+    };
+    for (; R > 1; --R) {
+        const auto runs = round_runs(count, R);
+        const Host h = host_for(used, R);
+        bool ok = host_fits(h);
+        LayerSplit::Stage scratch;
+        for (size_t d : used) ok = ok && fits(d, hold(d, runs[d], h, scratch));
+        if (ok) break;
+    }
+    out.rounds = R;
+    const auto runs = round_runs(count, R);
+    const Host h = host_for(used, R);
+    for (size_t d : used) {
+        LayerSplit::Stage& st = out.stages[d];
+        st.runs = runs[d];
+        const size_t held = hold(d, runs[d], h, st);
         if (!fits(d, held)) {
             char msg[256];
-            std::snprintf(msg, sizeof msg, "split: %s needs %.2f GiB for layers %d-%d and has %.2f GiB free", devices[d].name.c_str(),
-                          held / 1073741824.0, st.first, st.first + st.count - 1, *devices[d].bytes / 1073741824.0);
+            std::snprintf(msg, sizeof msg, "split: %s needs %.2f GiB for layers %s and has %.2f GiB free", devices[d].name.c_str(),
+                          held / 1073741824.0, runs_text(st.runs).c_str(), *devices[d].bytes / 1073741824.0);
             throw std::runtime_error(msg);
         }
     }

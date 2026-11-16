@@ -286,6 +286,7 @@ struct Pass {
     size_t ran = 0;                                    // the stages run_pass_stage has recorded
     size_t scratch = 0;                                // the scratch set its parts run in: 0 the context's, 1 the replies' (ExecContext::replies), a replies' pass's so it records between another pass's groups
     bool open = false;                                 // a stage partly recorded, in layer groups (record_pass_stage)
+    size_t turn = SIZE_MAX;                            // a prefill chunk's place in its stage's device's order (Model::run_chunks), SIZE_MAX for none
     int layer = 0;                                     // the next layer of that stage
     size_t cur = 0;                                    // the device its residual is on inside that stage
     std::vector<std::vector<backend::Ticket>> queued;  // per group of that stage still queued ahead on its devices, the tickets of its submissions, oldest first (pace_pass_stage)
@@ -684,15 +685,22 @@ public:
             a.used = true;
             devices_[device_index(place_.ffn_device[(size_t)l])]->used = true;
         }
-        // A device's mixer layers are one run, so each storage is written by one stage, which reserves and commits it once a pass.
+        // A stage is a run of consecutive layers whose mixers sit on one device, and a device may run several (stage rounds, docs/MULTI-DEVICE.md).
+        // A device's storage is reserved and committed once a pass, by its first stage, and its later stages write through that pass's views.
         for (int l = 0; l < (int)n_layer; ++l) {
             const size_t a = (size_t)place_.mixer_device[(size_t)l];
             if (!stages_.empty() && stages_.back().device == a) { stages_.back().end = l + 1; continue; }
-            for (const Stage& st : stages_)
-                if (st.device == a) throw std::runtime_error("inference: a device's attention layers must be consecutive");
-            stages_.push_back(Stage{a, l, l + 1, {}, {}, 0});
+            Stage st{a, l, l + 1, {}, {}, 0};
+            st.round = devices_[a]->rounds++;
+            if (!st.round) ++stage_devices_;
+            stages_.push_back(std::move(st));
         }
         reply_host_ms_ = std::make_unique<std::atomic<double>[]>(stages_.size());
+        {
+            std::vector<size_t> device;
+            for (const Stage& st : stages_) device.push_back(st.device);
+            periods_.set_devices(std::move(device));
+        }
         // The drafter's cache is one more layer of the head's device's storage, KV the last stage reserves and commits with its own, or a state layer of each device holding a stage; the head sits on the last stage's device.
         if (plan_.drafter) {
             if ((size_t)place_.output_device != stages_.back().device)
@@ -991,7 +999,7 @@ public:
     // A fresh history over this model's cache: a table per KV storage, and a count for each stage without one.
     Sequence make_sequence() {
         Sequence s;
-        for (const Stage& st : stages_) s.storage_of_.push_back(devices_[st.device]->storage_index);
+        for (const Stage& st : stages_) s.storage_of_.push_back(st.round ? -1 : devices_[st.device]->storage_index);
         s.length_.assign(stages_.size(), 0);
         s.kv_.reserve(storages_.size());
         for (Device* d : storages_)
@@ -1008,6 +1016,8 @@ public:
     // Passes in flight: a caller keeps several passes of different sequences in one context and runs their stages itself, so on a pipelined split every stage works while the host samples another (docs/MULTI-DEVICE.md, passes in flight).
     // Each pass's stages run in order, and passes interleave as the caller likes: each device runs the stages recorded on it in that order, and a pass keeps its own handoff buffer, logits rows and ticket.
     size_t stage_count() const { return stages_.size(); }
+    // The devices the stages record on, fewer than the stages where a device runs several in turn.
+    size_t stage_devices() const { return stage_devices_; }
     // Whether passes may be in flight together: several stages, the embedding on the first stage's device, the head on the last's and every feed-forward block beside its mixer.
     bool pipelined() const { return pipelined_; }
     // Whether stage s runs on the host, whose backend computes as its work is recorded, so recording it holds the calling thread for the stage's whole time.
@@ -1470,7 +1480,14 @@ private:
         size_t rerun_base = 0;                   // where the rerun's rooms start in `saved`, in floats
         size_t rerun_floats = 0;                 // a row of one state layer's room (recur_floats)
         backend::BufferPtr carry, zero, saved_h; // on the head's device with an embedded drafter: its carried row a state slot, a zero row, and per mark and row the normed rows of the pass after it
-        std::mutex recording;                    // held while recording on it where a drafter's stages sit apart from the head (Model::Recording)
+        std::mutex recording;                    // held while recording on it where a drafter's stages sit apart from the head or it runs several stages (Model::Recording)
+        size_t rounds = 0;                       // the stages that record on it
+        // Where it runs several stages, the pass whose stage holds each scratch set (Pass::scratch) from its first group to its last, under `recording`, and the wake of a stage waiting for its turn.
+        std::array<const void*, 2> holder{};
+        std::condition_variable turn;
+        // A prefill's order on it, oldest chunk first (Model::run_chunks): the turns given out, those taken and given back, and the pass holding the current one.
+        size_t queued = 0, turned = 0;
+        const void* turn_holder = nullptr;
         std::vector<backend::BufferPtr> tables;  // the position tables, on a device that runs a mixer
     };
 
@@ -1482,6 +1499,7 @@ private:
         // The host's own time recording the last replies' stages here whole, which only the stage's recording thread writes and reads (reply_host_ms).
         std::array<double, 8> reply_ms{};
         size_t replies = 0;
+        size_t round = 0;   // the stages on its device before it; round 0 owns the device's storage in a pass
     };
 
     Placement place_;
@@ -1548,6 +1566,7 @@ private:
     std::vector<size_t> drafter_state_;          // per group's first device, its state layer in that device's storage, SIZE_MAX where it holds none
     std::vector<size_t> draft_devices_;          // the devices its stages run on in stage order, each once, the head's where they run with it
     bool draft_apart_ = false;                   // some stage runs on a device other than the head's
+    size_t stage_devices_ = 0;                   // the devices stages record on, fewer than the stages where a device runs several
     // The last draft's ids per member of the head's group, the last picks first, host visible, and each member's logits of its own vocabulary rows for every row of every step, on its device.
     std::vector<backend::BufferPtr> draft_ids_, draft_logits_;
     size_t draft_id_rows_ = 0, draft_rows_ = 0;   // the ids and the logits rows they hold
@@ -1595,11 +1614,44 @@ private:
     size_t draft_part_device(size_t phase) const {
         return phase < plan_.draft_sums ? draft_stage_device(phase / (plan_.draft_sums / draft_route_size())) : (size_t)place_.output_device;
     }
-    // While stages sit apart from the head, the recording locks of `n` devices from `first`, in device order: a stage's thread and a drafter's parts on another stage's devices record there one at a time.
+    // While stages sit apart from the head or a device runs several stages, the recording locks of `n` devices from `first`, in device order: the threads that record on a device take turns there.
     // Taken after context_m_ where both are, around a span that records and submits, and held across no wait for another thread.
+    bool locks_recording() const { return draft_apart_ || stages_.size() > stage_devices_; }
+    // Scratch set `set` of the `n` devices from `d` taken for `who` (a pass whose stage records in groups) until give_turn, so another stage of those devices does not record into it meanwhile.
+    // A prefill chunk's stage with a `turn` also waits for its turn on device d, so a device running several stages takes its oldest chunk first (Model::run_chunks).
+    void take_turn(const void* who, size_t set, size_t d, size_t n, size_t turn = SIZE_MAX) const {
+        for (size_t m = d; m < d + n; ++m) {
+            Device& dev = *devices_[m];
+            if (dev.rounds < 2) continue;
+            const bool ordered = m == d && turn != SIZE_MAX;
+            std::unique_lock<std::mutex> lk(dev.recording);
+            dev.turn.wait(lk, [&] { return (!dev.holder[set] || dev.holder[set] == who) && (!ordered || dev.turned == turn); });
+            dev.holder[set] = who;
+            if (ordered) dev.turn_holder = who;
+        }
+    }
+    void give_turn(const void* who) const noexcept {
+        for (const auto& dev : devices_) {
+            if (dev->rounds < 2) continue;
+            {
+                std::lock_guard<std::mutex> lk(dev->recording);
+                for (const void*& h : dev->holder)
+                    if (h == who) h = nullptr;
+                if (dev->turn_holder == who) dev->turn_holder = nullptr, ++dev->turned;
+            }
+            dev->turn.notify_all();
+        }
+    }
+    // Pass p's place in device d's order for its next stage there, oldest chunk first.
+    void queue_turn(Pass& p, size_t d) const {
+        Device& dev = *devices_[d];
+        if (dev.rounds < 2) return;
+        std::lock_guard<std::mutex> lk(dev.recording);
+        p.turn = dev.queued++;
+    }
     class Recording {
     public:
-        Recording(const Model& m, size_t first, size_t n) : m_(m), first_(first), n_(m.draft_apart_ ? n : 0) {
+        Recording(const Model& m, size_t first, size_t n) : m_(m), first_(first), n_(m.locks_recording() ? n : 0) {
             for (size_t d = first_; d < first_ + n_; ++d) m_.devices_[d]->recording.lock();
         }
         ~Recording() {
@@ -1611,9 +1663,9 @@ private:
         const Model& m_;
         size_t first_, n_;
     };
-    // A stage item that records on device `d` takes its lock there (Recording).
+    // A stage item that records on device `d` takes its lock there (Recording); it records copies and frees in no scratch set, so it takes no set's turn.
     void locked(StageItem& item, size_t d) const {
-        if (!draft_apart_) return;
+        if (!locks_recording()) return;
         item.run = [this, d, run = std::move(item.run)] {
             Recording held(*this, d, 1);
             run();
@@ -1837,6 +1889,11 @@ private:
         return receive(ctx, p.scratch, from, handoff, sent, to, base, rows, before, slots);
     }
     void cross(ExecContext& ctx, const Pass& p, size_t from, size_t to, size_t base, size_t rows, int before) { cross(ctx, p.scratch, from, to, base, rows, before); }
+    // The handoff buffer stage s's crossing out leaves device `from` through: one per pass handoff and round of the device, so a device's stages never share one.
+    size_t handoff_buffer(const Pass& p, size_t s, size_t from) const {
+        const Stage& st = stages_[s];
+        return p.handoff * std::max<size_t>(1, devices_[from]->rounds) + (from == st.device ? st.round : 0);
+    }
     std::vector<size_t> readers(size_t from) const;
     bool served(size_t from, size_t to) const;
     void ffn_split(ExecContext& ctx, const Pass& p, size_t dev, int l);

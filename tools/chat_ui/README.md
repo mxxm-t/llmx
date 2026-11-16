@@ -383,8 +383,9 @@ python tools/chat_ui/check_sandbox.py --image python:3-slim --docker-host ssh://
 ## Identity
 
 Chat and Monitor share the lowercase llmx wordmark in `tools/health_dashboard/`.
+The companion sidebar uses a compact 76 by 30 px slot for the shared lettering.
 `logo.svg` contains outlined lettering, with no font dependency or gradients.
 Both interfaces use it as a CSS mask with an accessible label, so the letters
-follow the selected theme. `favicon.svg` uses the wordmark's paired lowercase l glyphs on a flat
+follow the selected theme. `favicon.svg` uses the wordmark's x, from mxxm, on a flat
 charcoal tile for the browser tab. In-page headers use the wordmark alone. `icon-192.png` and `icon-512.png` export the standalone icon at app sizes.
 Both servers expose these fixed asset paths.

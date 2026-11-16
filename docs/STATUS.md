@@ -1,5 +1,17 @@
 # llmx - Development Status
 
+## Companion x identity and wordmark sizing (2026-11-16, Done)
+
+**Goal.** Replace the rejected paired-l icon with the x from mxxm, the naming origin of llmx, and keep the approved wordmark at a compact sidebar size.
+
+**Done.** The shared favicon and 192/512-pixel exports now use the exact x letterform from the approved wordmark, centered on a flat charcoal tile. The full wordmark asset is unchanged. The companion shell reduces its sidebar slot from 96 by 38 to 76 by 30 px; login and Monitor retain their existing size. No badge is added beside the in-page wordmark.
+
+**Checks and landing.** The focused browser check passes in 49.776 s, with one Linux-only launch diagnostic skipped on Windows. It covers desktop/mobile layouts, both themes, 200 percent zoom and the changed sidebar dimensions. Root inspected the rendered sidebar and x icon at 16/24/32/48/64 pixels in dark and light previews, verified the original wordmark and exact x path, checked PNG sizes and matched live 8183 asset bytes. The later asset-only delta does not change browser behavior. Source checks and a bounded source review cover the final landing tree; static UI changes need no inference gates. The feature lands by fast-forward. Evidence is in `scratch/wordmark/` and `scratch/icon-design/`.
+
+**Gotchas.** The full wordmark remains unchanged. The icon reuses its x letterform; no gradient, new font or runtime change.
+
+**Docs review.** Companion and dashboard identity descriptions now name the x icon; the earlier paired-l record below is historical. Other Markdown carries forward the settings landing review, with no new runtime flags or capabilities. Settings landed as `8a98964a3`; 8183 was updated after an idle check and SQLite backup. All 11 saved chats, 89 messages, 32 runs and 3034 events retained their exact record hash, including after an uncapped temporary smoke reply. The model runtime was not restarted.
+
 ## Companion reply defaults and context limits (2026-11-16, Done)
 
 **Goal.** Make reply caps explicit and optional, keep saved numeric choices, and distinguish model context from the running server's request limit.
@@ -51,7 +63,7 @@
 **Gotchas.** Do not duplicate temporary chat creation or discard logic in the header action. Keep the dashed temporary marker and preserve saved-chat selection.
 ## Compact llmx icon (2026-11-16, original landing)
 
-**Goal.** Add a small app icon alongside the approved llmx wordmark without changing its lettering or introducing gradients. The chat-reading change later restored wordmark-only in-page headers after owner feedback; standalone favicon assets remain. The record below describes the original landing.
+**Goal.** Add a small app icon alongside the approved llmx wordmark without changing its lettering or introducing gradients. The chat-reading change later restored wordmark-only in-page headers after owner feedback; the x identity change above replaces the rejected paired-l favicon assets. The record below describes the original landing.
 
 **Done.** The shared favicon uses the exact two rounded lowercase l paths from the wordmark on a flat charcoal tile. Existing 192/512-pixel PNG exports match it. Shared theme styles pair the decorative icon with the existing accessible wordmark in Chat, login and Monitor. The wordmark SVG remains byte-for-byte unchanged. Asset URLs and MIME types are unchanged, so the live companion adopts these static files without restarting.
 

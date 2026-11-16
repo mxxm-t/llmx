@@ -265,7 +265,8 @@ try {
   await wait("!document.querySelector('#login-dialog').open && document.querySelector('#model').value==='qwen3-local' && !document.querySelector('[data-action=\"new\"]').disabled", 'restored legacy dark browser setup');
   await wait("getComputedStyle(document.querySelector('.brand-wordmark')).maskImage.includes('/logo.svg')", 'shared wordmark');
   assert.equal(await evaluate("document.querySelector('link[rel=icon]').getAttribute('href')"), '/favicon.svg', 'shared favicon');
-  assert.equal(await evaluate("document.querySelector('.brand-wordmark').getBoundingClientRect().width"), 96, 'wordmark width');
+  assert.equal(await evaluate("document.querySelector('.brand-wordmark').getBoundingClientRect().width"), 76, 'sidebar wordmark width');
+  assert.equal(await evaluate("document.querySelector('.brand-wordmark').getBoundingClientRect().height"), 30, 'sidebar wordmark height');
   assert.equal(await evaluate("(async()=>{const img=new Image();img.src='/logo.svg';await img.decode();return img.naturalWidth>0})()"), true, 'wordmark asset decoded');
   await screenshot('desktop-empty.png');
   await evaluate("for (let i=0;i<12;i++) document.querySelector('[data-action=\"new\"]').click()");

@@ -1,6 +1,10 @@
 .brand {
   padding-bottom: 24px;
 }
+.brand .brand-wordmark {
+  width: 76px;
+  height: 30px;
+}
 .sidebar,
 .topbar {
   background: var(--header);

@@ -22,6 +22,10 @@ Model-selection checks replace the upstream catalogue after configuration was
 cached, refuse stale sends and retries without storing messages or runs, and
 cover an unavailable upstream, explicit valid choices and default-model calls.
 Admission also completes while unrelated configuration discovery holds its lock.
+Workspace file-open browser checks hold actual HTTP responses, then verify that
+later typing needs fresh discard approval and newer existing or unsaved files
+remain selected when an old response arrives.
+
 Browser checks preserve the prompt, attachments and settings through catalogue
 refusals and recover the connection after a successful retry.
 They also check shared visual headers and spacing for one tool-assisted reply
@@ -1482,6 +1486,3 @@ python -X utf8 tests/baseline_qwen35.py --exe build/llmx --model path/to/Qwen3.5
 It prints one skip line where llmx does not run the architecture, on a device whose backend lacks its ops, and a file without bounds is measured and fails, so the first measurement sets them.
 
 `tests/baseline_layered.py` runs the same checks on the Qwen3.5-9B, Qwen3.6-27B and Qwen3.6-35B-A3B Q4_K_M files against the layered HF reference's goldens, chosen by the file's SHA-256, and skips in one line where llmx does not run the qwen35 architecture (`docs/ASSETS.md`, The layered qwen35 reference).
-
-Workspace file-open ordering has a held-response browser regression: typing into
-the current file while another file loads must not silently discard those edits.

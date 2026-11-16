@@ -4,7 +4,7 @@
   const {node, number} = window.ChatRender;
   const {api} = window.ChatShell;
   const view = document.getElementById('view-workbench');
-  const state = {snapshot: null, path: '', original: '', revision: 0, activeJob: null, timer: null, loading: null, isNew: false, saving: false};
+  const state = {snapshot: null, path: '', original: '', revision: 0, activeJob: null, timer: null, loading: null, isNew: false, selection: 0, saving: false};
   const terminal = job => ['completed', 'failed', 'cancelled'].includes(job.status);
   function control(label, cls, listener) { const button = node('button', cls || 'secondary-button', label); button.type = 'button'; if (listener) button.addEventListener('click', () => Promise.resolve().then(listener).catch(showError)); return button; }
   const toolbar = node('div', 'view-toolbar'); const heading = node('div'); heading.append(node('h2', '', 'Managed workspace'), node('p', '', 'Files, checkpoints and isolated command execution.'));
@@ -83,18 +83,28 @@
     finally { state.loading = null; }
   }
   async function openFile(path) {
-    if (!await canReplace()) return; clearError();
-    const file = await api('/workspace/file?path=' + encodeURIComponent(path)); state.path = file.path; state.original = file.content; state.isNew = false; state.revision = file.revision; editor.value = file.content; editor.disabled = false; updateEditor(); renderFiles(); editor.focus();
+    const selection = ++state.selection;
+    if (!await canReplace() || selection !== state.selection) return;
+    clearError(); const content = editor.value;
+    let file;
+    try { file = await api('/workspace/file?path=' + encodeURIComponent(path)); }
+    catch (problem) { if (selection === state.selection) throw problem; return; }
+    if (selection !== state.selection) return;
+    if (editor.value !== content && !await canReplace()) return;
+    if (selection !== state.selection) return;
+    state.path = file.path; state.original = file.content; state.isNew = false; state.revision = file.revision; editor.value = file.content; editor.disabled = false; updateEditor(); renderFiles(); editor.focus();
   }
   async function createFile() {
-    if (!await canReplace()) return;
+    const selection = ++state.selection;
+    if (!await canReplace() || selection !== state.selection) return;
     const path = await window.ChatShell.conversationForm({title: 'New workspace file', description: 'Enter a path relative to the managed workspace.', label: 'File path', maxLength: 240, value: 'untitled.txt', submit: 'Create'});
-    if (!path?.trim()) return;
+    if (!path?.trim() || selection !== state.selection) return;
     if (state.snapshot?.files.some(file => file.path === path.trim())) return openFile(path.trim());
     state.path = path.trim(); state.original = ''; state.isNew = true; state.revision = state.snapshot?.revision || 0; editor.value = ''; editor.disabled = false; updateEditor(); renderFiles(); editor.focus();
   }
   async function saveFile() {
     if (!state.path || state.saving) return;
+    ++state.selection;
     const submitted = {path: state.path, content: editor.value, revision: state.revision};
     clearError(); state.saving = true; updateEditor();
     try {
@@ -108,8 +118,11 @@
   async function deleteFile() {
     const path = state.path, revision = state.revision;
     if (!path) return;
+    const selection = ++state.selection;
     await window.ChatShell.conversationForm({title: 'Delete workspace file?', description: 'Delete ' + path + ' from the managed workspace?', destructive: true, submit: 'Delete'}, async () => {
-      await api('/workspace/delete', 'POST', {path, revision}); state.path = ''; state.original = ''; state.isNew = false; editor.value = ''; editor.disabled = true; await load(); updateEditor();
+      await api('/workspace/delete', 'POST', {path, revision});
+      if (selection === state.selection) { state.path = ''; state.original = ''; state.isNew = false; editor.value = ''; editor.disabled = true; }
+      await load(); updateEditor();
     });
   }
   function openArtifact() { if (state.path) window.ChatArtifacts.open({name: state.path, source: editor.value, language: fileLanguage(state.path)}); }
@@ -120,9 +133,12 @@
   }
   async function viewDiff(checkpoint) { const result = await api('/workspace/diff?checkpoint=' + encodeURIComponent(checkpoint.id)); window.ChatArtifacts.open({name: checkpoint.label + '.diff', source: result.diff || 'No differences from the current saved files.\n', language: 'diff'}); }
   async function restoreCheckpoint(checkpoint) {
-    const revision = state.snapshot.revision;
+    const revision = state.snapshot.revision, selection = ++state.selection;
     await window.ChatShell.conversationForm({title: 'Restore checkpoint?', description: 'Restore "' + checkpoint.label + '"? This replaces the managed workspace files and discards unsaved editor changes.', destructive: true, submit: 'Restore'}, async () => {
-      await api('/workspace/checkpoints/' + encodeURIComponent(checkpoint.id) + '/restore', 'POST', {revision}); state.original = editor.value; state.isNew = false; await load();
+      const content = editor.value;
+      await api('/workspace/checkpoints/' + encodeURIComponent(checkpoint.id) + '/restore', 'POST', {revision});
+      await load(); if (selection !== state.selection) return;
+      state.original = content; state.isNew = false;
       if (state.snapshot.files.some(file => file.path === state.path)) await openFile(state.path); else { state.path = ''; editor.value = ''; state.original = ''; editor.disabled = true; updateEditor(); }
     });
   }
@@ -143,8 +159,9 @@
   document.addEventListener('companion:view', event => { if (event.detail === 'workbench') load().catch(showError); else { clearTimeout(state.timer); state.timer = null; } });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && document.getElementById('app').dataset.view === 'workbench') load().catch(showError); });
   document.addEventListener('companion:artifact-edit', async event => {
-    if (!await canReplace()) return; window.ChatShell.show('workbench');
-    try { await load(); const artifact = event.detail; const path = await window.ChatShell.conversationForm({title: 'Edit generated file', description: 'Choose where to save this generated file in the managed workspace.', label: 'File path', maxLength: 240, value: artifact.name, submit: 'Edit'}); if (!path?.trim()) return; state.path = path.trim(); state.original = ''; state.isNew = true; state.revision = state.snapshot.revision; editor.value = artifact.source; editor.disabled = false; updateEditor(); renderFiles(); editor.focus(); }
+    const selection = ++state.selection;
+    if (!await canReplace() || selection !== state.selection) return; window.ChatShell.show('workbench');
+    try { await load(); if (selection !== state.selection) return; const artifact = event.detail; const path = await window.ChatShell.conversationForm({title: 'Edit generated file', description: 'Choose where to save this generated file in the managed workspace.', label: 'File path', maxLength: 240, value: artifact.name, submit: 'Edit'}); if (!path?.trim() || selection !== state.selection) return; state.path = path.trim(); state.original = ''; state.isNew = true; state.revision = state.snapshot.revision; editor.value = artifact.source; editor.disabled = false; updateEditor(); renderFiles(); editor.focus(); }
     catch (problem) { showError(problem); }
   });
   window.addEventListener('beforeunload', event => { if (dirty()) { event.preventDefault(); event.returnValue = ''; } });

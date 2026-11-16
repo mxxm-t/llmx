@@ -315,6 +315,9 @@ not process snapshots or a promise to undo actions made by external MCP tools.
 Creating or deleting a file, naming or restoring a checkpoint, editing a generated
 file and discarding unsaved edits use the same accessible action dialog. Cancelling before submission
 does not write, delete or discard files; revision checks still reject stale writes.
+Delayed file reads never replace a newer selection. If you type while another
+file loads, opening it asks again before discarding those new edits. Saving or
+starting another editor transition invalidates the older pending open.
 
 Optional execution requires Docker and an existing Linux image with `/bin/sh`,
 `tar` and `sleep`, plus the languages or tools the operator needs:

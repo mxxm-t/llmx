@@ -197,6 +197,11 @@ conversations and event journal unchanged.
 
 ## Workspace snapshots
 
+File reads belong to a selection generation owned by `workspace.js`. A newer
+editor transition invalidates an older read, including its errors. Input typed
+during a read requires fresh discard confirmation before the result is applied.
+Metadata refresh alone does not replace the editor or invalidate its selection.
+
 Save captures its path, content and base revision. Only a matching editor base
 receives the submitted content and returned revision as its saved baseline.
 Later typing remains dirty, and only one save may be pending. A metadata refresh

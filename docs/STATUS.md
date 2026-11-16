@@ -259,6 +259,35 @@ A timing round on the head with the argument under a host load of 35 to 57 sprea
 
 The hosted run of the landing head and the Radeon VII check are COORD's, and the head lands by fast-forward of gitea main and GitHub main.
 ## Chat retry navigation (2026-11-16, ready for landing)
+## Chat UI stack update (2026-11-16, ready for landing)
+
+**Goal.** Land the four qualified UI fixes together: Retry navigation, pending Save edits, streamed Markdown preservation and file-open ordering.
+
+**Done.** Seven commits over public main `fa0e1b372` retain the independent test-first fixes. Adjacent browser fixtures were combined with file-open checks before Save checks. The workspace owner retains both the Save baseline and busy-state fix and the new selection generation. Documentation retains both contracts. No runtime or collector code changes.
+
+**Checks.** The combined browser run passes in 55.360 s, retaining Open and Save regressions and the existing Retry, Markdown, responsive, theme and zoom coverage. JavaScript syntax and the combined source review pass. Dead-code reports 15 expected findings and 20 planted checks in 29.3 s; docs reports zero findings and 21 planted checks in 21.0 s. The Linux-only browser launch diagnostic skips on Windows.
+
+**Left.** Send the replacement bundle to LAND61. Public main remains held for coordinated landing. The earlier three-fix stack below is a qualified historical checkpoint, not the final proposed head.
+
+**Gotchas.** No inference or unrelated hosted gates are required for these static UI changes. The source conflict resolution must preserve both workspace fixes; the combined browser checks exercise them together.
+
+## Workspace file-open ordering (2026-11-16, ready for landing)
+
+**Goal.** Keep delayed file reads from overwriting later editor input or a newer file selection. The owner is `tools/chat_ui/workspace.js`; this is an independent static UI fix based on public main.
+
+**Done.** The actual-browser regression fails on public main in 40.237 s: a held file response replaces newer editor input with the requested file contents. The failing test is committed before the fix; its log is in `scratch/open/red.log`.
+
+**Left.** Integrate with the already qualified UI stack and hand it to the landing coordinator. Public main is held by LAND61; this is ready, not merged. The intended landing is a fast-forward with no inference gates for this static UI scope.
+
+**Implementation.** One workspace-local selection generation rejects obsolete file results and errors. Text changed during a read requires fresh discard approval. Save, new-file, artifact, delete and restore transitions invalidate earlier opens. Review also caught a file loading behind a delete confirmation; invalidation now begins at the dialog intent, with a regression check. Early browser checks passed in 50.832 s, before that additional review coverage.
+
+**Checks.** Final browser checks pass in 52.863 s, including changed-text cancel and approval, competing reads, a new unsaved file, obsolete errors and Delete dialog ordering. Existing chat, workspace, responsive, theme and zoom checks also pass. The Linux-only launch diagnostic skips on Windows. JavaScript syntax and bounded source review pass. Dead-code reports 15 expected findings and 20 planted checks in 29.3 s; docs reports zero findings and 21 planted checks in 20.8 s.
+
+**Docs review.** Companion README, CONTRACT and TESTS now describe the file-open ordering. Runtime, CLI, build and model behavior are unchanged; source documentation checks cover the Markdown inventory.
+
+**Gotchas.** The separate pending-save change is already READY and must be preserved when integrating. Do not change runtime or storage behavior, or block normal typing while files load.
+
+
 ## Chat UI stack (2026-11-16, ready for landing)
 
 **Goal.** Land Retry navigation, workspace pending-save handling and streaming block preservation together, retaining each feature's independent history and qualification.
@@ -328,15 +357,6 @@ The host was active: final-round total CPU ranged from 31 to 64 percent, with ed
 **Left.** The tested two-commit branch is ready for the landing coordinator. No direct main push while LAND61 holds the stack. Static browser scope requires no inference or unrelated hosted gates. The change is intended to land by fast-forward after the coordinator incorporates it; this is not a claim that it is already on main.
 
 **Gotchas.** Navigation does not cancel an admitted retry. Errors retain the existing action notification path.
-## Workspace file-open ordering (2026-11-16, in progress)
-
-**Goal.** Keep delayed file reads from overwriting later editor input or a newer file selection. The owner is `tools/chat_ui/workspace.js`; this is an independent static UI fix based on public main.
-
-**Done.** The actual-browser regression fails on public main in 40.237 s: a held file response replaces newer editor input with the requested file contents. The failing test is committed before the fix; its log is in `scratch/open/red.log`.
-
-**Left.** Reproduce the race, review and implement the smallest owner-local fix, run focused browser and source checks, then hand the qualified branch to the landing coordinator.
-
-**Gotchas.** The separate pending-save change is already READY and must be preserved when integrating. Do not change runtime or storage behavior, or block normal typing while files load.
 
 ## Companion deployment documentation refresh (2026-11-16, Done)
 

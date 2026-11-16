@@ -1,5 +1,30 @@
 # llmx - Development Status
 
+## DeepSeek-V4.1 rotation forms a wave a head (2026-11-16, DSPP22, DSPP24 then DSPP26, branch dspp26/rope-form on main 3b88cfb3a; lands by fast-forward with the stack)
+
+**Done:** `llmx_norm_rope_form`, the query, inverse attention and index query forms of `norm_rope_partial`, runs a wave a (row, head) in place of a 256-thread block with a shared-memory reduction and a barrier.
+The norm's eight chains sit on lanes 0 to 7 and add in `cpu_squares`' order, so every output keeps its bits, and in place without a norm the values outside the pairs are not rewritten; `check_rope_forms` adds that in-place call.
+
+| One MI50, DeepSeek-V4.1-Flash shapes | main, two runs (us) | branch (us) | change | outputs differing |
+|---|---|---|---|---|
+| query, 512 rows, 64 heads of 512 | 1368.2, 1365.7 | 178.8 | 7.6x | 0 |
+| inverse attention, 512 rows | 1370.0, 1366.4 | 178.8 | 7.7x | 0 |
+| index query, 512 rows, 32 heads of 128 | 199.1, 169.7 | 29.7 | 6.2x | 0 |
+| query at 270 and 356 rows | 815.2 and 1041.5 (first runs) | 119.8 and 129.4 | 6.8x and 8.0x | 0 |
+| one-head norms (KV and index key) | 6.9 to 15.9 | 6.1 to 12.9 | level | 0 |
+
+Ten MI50s, DeepSeek-V4.1-Flash MXFP4, ROCm int8, pp16384 (`bench --p 16384 --n 16 --r 2`, ABAB twice, every cell uncontended by hostwait), main a56dcebef against this change with the ROCm Q8_0 tall tile rule beside it (whose int8 dispatch the landing form keeps), so these are the pair's figures, not this change's alone:
+
+| Split | main runs (tok/s) | branch runs (tok/s) | median change |
+|---|---|---|---|
+| layer split | 1905.8, 1904.8, 1873.4, 1627.6 | 1967.4, 1716.7, 1978.6, 1449.2 | -2.5% (best +3.8%), within the run spread |
+| 5x2 | 1667.5, 1568.9, 1464.4, 1708.2 | 1729.3, 1741.2, 1744.4, 1748.1 | +7.7% for the pair; +2.3% against main's best run, as main's runs span 1464 to 1708 |
+
+Greedy ids of 48 tokens after a 2649-token prompt are main's on the layer split and 5x2, and the top-8 logits at 512 positions of a 15032-token prompt are main's bytes on the layer split.
+
+**Gates:** `backend-rocm` PASS at b31d6da0 on one MI50; at the stack's head 01a7d382 (llmx 0.1.0+g01a7d3822a47 numerics 73fa56432d7e9684, whose tree differs from the landing head only in docs/STATUS.md) builds with rc 0, passes `dead-code` and `docs`, ROCm CTest 94 of 94 on one MI50, and the CUDA build with `gpu-port`, `gpu-core` and `cuda-sass` 3 of 3 as the MXFP4 tile staging block above gives. Rebased onto ds4-attn-rb 89db7bf67, it is gated at the new stacked head 3f17b629 as the sparse pair staging block gives.
+**Left:** the hosted run at the landing head; the ten-card cells ran with the whole stack, not with this change alone; README unchanged (kernel speed only).
+
 ## DeepSeek-V4.1 decode sparse attention on a few-row tile pair (2026-11-16, DSDEV217 to DSDEV221, branch perf/ds4-decode-attn on main 929f042c6, rebased by DSDEV229 onto land68-stack 1cd17c3b on main 3b88cfb3a; DSDEV217's proposal of 09:58 with F2DEV's review of 10:01, COORD's decision of 11:07)
 
 - **Goal:** DeepSeek-V4.1-Flash's decode sparse attention, 1 to 7 rows a call, runs on tile kernels that fill the device instead of the one-head pair, with every output main's bits; lever 1 of the decode stream toward the owner's 50 tok/s decode gate.

@@ -4160,38 +4160,52 @@ __device__ inline void route_step(const unsigned char* W, const float* X, float*
 LLMX_ROUTE_STEP(f32, ExactF32)
 LLMX_ROUTE_STEP(bf16, ExactDecoded<rq::BF16>)
 
-// A block a (row, head) of norm_rope_partial's other forms: the head's RMS norm in the CPU's order when w is given, then each pair from `offset` on rotated by the CPU's multiply-adds, turning back when inverse.
-// A thread reads its values before the barrier and writes them after it, so dst may be src over contiguous heads.
+// A wave a (row, head) of norm_rope_partial's other forms: the head's RMS norm in the CPU's order when w is given, then each pair from `offset` on rotated by the CPU's multiply-adds, turning back when inverse.
+// A lane writes only what it read, after the squares that read the whole head, so dst may be src over contiguous heads, and in place without w the values outside the pairs stay as they are.
 extern "C" __global__ void llmx_norm_rope_form(float* dst, const float* src, unsigned long long dst_stride, unsigned long long src_stride, unsigned long long src_head_stride,
                                                unsigned head_dim, unsigned half, const float* w, float eps, const float* cos, const float* sin, const unsigned* pos,
-                                               const unsigned char* of, unsigned count, unsigned adjacent, unsigned offset, unsigned inverse) {
-    __shared__ float lds[16];
-    const unsigned long long r = blockIdx.x, h = blockIdx.y;
+                                               const unsigned char* of, unsigned count, unsigned adjacent, unsigned offset, unsigned inverse, unsigned heads, unsigned long long items) {
+    const unsigned long long item = (unsigned long long)blockIdx.x * (kThreads / kWave) + threadIdx.x / kWave;
+    if (item >= items) return;
+    const unsigned lane = threadIdx.x % kWave;
+    const unsigned long long r = item / heads, h = item % heads;
     float* head = dst + r * dst_stride + h * head_dim;
     const float* from = src + r * src_stride + h * src_head_stride;
-    const float rs = w ? 1.0f / sqrtf(cpu_squares(from, head_dim, lds) / (float)head_dim + eps) : 1.0f;
-    const auto value = [&](unsigned i) { return w ? from[i] * (rs * w[i]) : from[i]; };
-    float va[8], vb[8];
-    unsigned n = 0;
-    for (unsigned j = threadIdx.x; j < half; j += kThreads, ++n) {
-        va[n] = value(offset + (adjacent ? 2u * j : j));
-        vb[n] = value(offset + (adjacent ? 2u * j + 1u : j + half));
+    float rs = 1.0f;
+    if (w) {
+        // cpu_squares' eight chains on lanes 0 to 7, their pairs added in its order by lane exchanges.
+        const unsigned whole = head_dim / 8u * 8u;
+        float a = 0.0f;
+        if (lane < 8u) {
+            unsigned i = lane;
+            for (; i + 120u < whole; i += 128u) {
+                float v[16];
+#pragma unroll
+                for (unsigned u = 0; u < 16u; ++u) v[u] = from[i + 8u * u];
+#pragma unroll
+                for (unsigned u = 0; u < 16u; ++u) a = fmaf(v[u], v[u], a);
+            }
+            for (; i < whole; i += 8u) a = fmaf(from[i], from[i], a);
+        }
+        const float p = a + shuffle_xor(a, 1);
+        const float q = p + shuffle_xor(p, 2);
+        float sum = q + shuffle_xor(q, 4);
+        for (unsigned i = whole; i < head_dim; ++i) sum = fmaf(from[i], from[i], sum);
+        sum = __uint_as_float(first_lane(__float_as_uint(sum)));
+        rs = 1.0f / sqrtf(sum / (float)head_dim + eps);
     }
-    float rest[8];
-    unsigned m = 0;
-    for (unsigned i = threadIdx.x; i < head_dim; i += kThreads)
-        if (i < offset || i >= offset + 2u * half) rest[m++] = value(i);
-    __syncthreads();
-    n = 0;
-    for (unsigned j = threadIdx.x; j < half; j += kThreads, ++n) {
+    const auto value = [&](unsigned i) { return w ? from[i] * (rs * w[i]) : from[i]; };
+    for (unsigned j = lane; j < half; j += kWave) {
+        const unsigned ia = offset + (adjacent ? 2u * j : j), ib = offset + (adjacent ? 2u * j + 1u : j + half);
+        const float va = value(ia), vb = value(ib);
         const unsigned long long t = (unsigned long long)pos[r * count + (count > 1u ? of[j] : 0u)] * half + j;
         const float c = cos[t], s = inverse ? -sin[t] : sin[t];
-        head[offset + (adjacent ? 2u * j : j)] = fmaf(-vb[n], s, va[n] * c);
-        head[offset + (adjacent ? 2u * j + 1u : j + half)] = fmaf(va[n], s, vb[n] * c);
+        head[ia] = fmaf(-vb, s, va * c);
+        head[ib] = fmaf(va, s, vb * c);
     }
-    m = 0;
-    for (unsigned i = threadIdx.x; i < head_dim; i += kThreads)
-        if (i < offset || i >= offset + 2u * half) head[i] = rest[m++];
+    if (!w && (const float*)head == from) return;
+    for (unsigned i = lane; i < head_dim; i += kWave)
+        if (i < offset || i >= offset + 2u * half) head[i] = value(i);
 }
 
 // The linear-attention decode step (backend_core.hpp delta_step), field for field with the host's DeltaStepArgs.

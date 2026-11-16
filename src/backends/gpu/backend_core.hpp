@@ -790,9 +790,11 @@ public:
         int count = (int)streams.count;
         // The adjacent, offset and inverse forms take their own kernel, which forms the norm and the pairs as the CPU does (kernels/f32.gpu, llmx_norm_rope_form).
         if (!form.plain()) {
-            unsigned hdu = (unsigned)head_dim, hfu = (unsigned)half, cu = (unsigned)count, adj = form.adjacent, off = (unsigned)form.offset, inv = form.inverse;
-            const Args args(d, s, dst_stride, ss, shs, hdu, hfu, wp, eps, c, sn, p, of, cu, adj, off, inv);
-            return launch(kNormRopeForm, (unsigned)rows, (unsigned)heads, args);
+            unsigned hdu = (unsigned)head_dim, hfu = (unsigned)half, cu = (unsigned)count, adj = form.adjacent, off = (unsigned)form.offset, inv = form.inverse, hu = (unsigned)heads;
+            unsigned long long items = size_mul(rows, heads);
+            const Args args(d, s, dst_stride, ss, shs, hdu, hfu, wp, eps, c, sn, p, of, cu, adj, off, inv, hu, items);
+            const size_t waves = kThreads / dev_.caps.subgroup_size;   // a wave a (row, head)
+            return launch(kNormRopeForm, (unsigned)((items + waves - 1) / waves), 1, args);
         }
         const Args args(d, s, dst_stride, ss, shs, hd, hf, wp, eps, c, sn, p, of, count);
         launch(kNormRopeStreams, (unsigned)rows, (unsigned)heads, args);

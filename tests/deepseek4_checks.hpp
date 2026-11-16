@@ -383,6 +383,14 @@ size_t check_rope_forms(Pair& p, const Exact& exact) {
                     auto r = p.results(d);
                     // The plain form is norm_rope_partial's own, which the exact list names apart from the other forms.
                     values += meet(exact, form.plain() ? "norm_rope_partial" : "rope_forms", r.first, r.second, 1e-5, "norm_rope_partial's form differs beyond 1e-5");
+                    // In place, as the model runs its query and attention rows, where the values outside the pairs stay as they are.
+                    Pair::Out ip = p.out(x.size());
+                    p.cpu.write(*ip.c, 0, x.data(), x.size() * 4);
+                    p.dev.write(*ip.v, 0, x.data(), x.size() * 4);
+                    p.cpu.norm_rope_partial(ip.cs(), ip.cs(), rows, heads * head_dim, head_dim, heads, head_dim, rope, norm ? wi.cs() : backend::CSlice{}, 1e-6f, ci.cs(), si.cs(), pos, form);
+                    p.dev.norm_rope_partial(ip.vs(), ip.vs(), rows, heads * head_dim, head_dim, heads, head_dim, rope, norm ? wi.vs() : backend::CSlice{}, 1e-6f, ci.vs(), si.vs(), pos, form);
+                    r = p.results(ip);
+                    values += meet(exact, form.plain() ? "norm_rope_partial" : "rope_forms", r.first, r.second, 1e-5, "norm_rope_partial's form in place differs beyond 1e-5");
                 }
     return values;
 }

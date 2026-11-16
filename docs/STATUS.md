@@ -8,9 +8,20 @@
 
 **Checks.** The focused Chrome browser fixture passes in 43.404 seconds. It verifies the label and accessible name in both modes, the existing active-run block, cancellation without deletion, confirmed exit through `newChat()`/`leaveTemporary()`, creation of a saved chat, reload recovery and re-entry. JavaScript syntax, Python compilation and `git diff --check` pass. The `docs` and `dead-code` components pass (0 findings and 15 expected findings, respectively).
 
-**Review and landing.** The header action reuses `newChat()` while temporary mode is active; no server or store behavior changes. The companion README describes the toggle and preserved discard confirmation. Root reviews the branch before fast-forward; static UI checks only, with no runtime gates required.
+**Review and landing.** The header action reuses `newChat()` while temporary mode is active; no server or store behavior changes. The companion README describes the toggle and preserved discard confirmation. Root reviewed the delegation to the existing creation/exit owners and the cancellation/run guards. The combined icon/toggle browser check passes in 41.211 seconds. Both independent commits land together by fast-forward with final docs/dead-code checks; no runtime gates apply.
 
 **Gotchas.** Do not duplicate temporary chat creation or discard logic in the header action. Keep the dashed temporary marker and preserve saved-chat selection.
+## Compact llmx icon (2026-11-16, Done)
+
+**Goal.** Add a small app icon alongside the approved llmx wordmark without changing its lettering or introducing gradients.
+
+**Done.** The shared favicon uses the exact two rounded lowercase l paths from the wordmark on a flat charcoal tile. Existing 192/512-pixel PNG exports match it. Shared theme styles pair the decorative icon with the existing accessible wordmark in Chat, login and Monitor. The wordmark SVG remains byte-for-byte unchanged. Asset URLs and MIME types are unchanged, so the live companion adopts these static files without restarting.
+
+**Checks.** Root reviewed the icon at 16, 24, 32, 48 and 64 pixels in both themes and verified both PNG dimensions and the unchanged wordmark hash. The combined browser fixture passes in 41.211 seconds on the icon plus temporary-toggle stack, covering mobile/desktop layouts, themes, zoom, streaming, branch and toggle behavior. Desktop and mobile screenshots were reviewed. Source/asset receipts and the comparison sheet are under scratch/icon-design. Final docs/dead-code checks cover the landing tree; no inference gates apply.
+
+**Review and landing.** Root checked the shared asset owner, markup and rendered result. Companion and dashboard README branding descriptions are updated; root README is unchanged because this adds no model, backend, quant, flag or runtime capability. The Markdown review carries forward for unchanged pages. The independent toggle and icon commits land together by fast-forward after their combined presentation checks.
+
+**Gotchas.** No new font, image dependency, transport or model behavior. Local8183 serves the static changes; a browser refresh picks them up.
 
 ## Chat reply flow (2026-11-16, Done)
 

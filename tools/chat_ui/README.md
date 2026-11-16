@@ -348,6 +348,6 @@ python tools/chat_ui/check_sandbox.py --image python:3-slim --docker-host ssh://
 Chat and Monitor share the lowercase llmx wordmark in `tools/health_dashboard/`.
 `logo.svg` contains outlined lettering, with no font dependency or gradients.
 Both interfaces use it as a CSS mask with an accessible label, so the letters
-follow the selected theme. `favicon.svg` places the same lettering on a flat
-charcoal tile. `icon-192.png` and `icon-512.png` export that icon at app sizes.
+follow the selected theme. `favicon.svg` uses the wordmark's paired lowercase l glyphs on a flat
+charcoal tile, giving the app a compact mark alongside the unchanged wordmark. `icon-192.png` and `icon-512.png` export that icon at app sizes.
 Both servers expose these fixed asset paths.

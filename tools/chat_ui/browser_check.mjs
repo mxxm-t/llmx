@@ -674,7 +674,6 @@ try {
     return {labelX: label.x, height: box.height, weight: getComputedStyle(button).fontWeight};
   })`);
   assert.equal(createGeometry.length, 1);
-  assert.equal(await evaluate("getComputedStyle(document.querySelector('#temporary-button')).borderTopStyle"), 'dashed', 'temporary action lost its dashed style');
   const sidebarTarget = await evaluate(`fetch('/api/chats',{method:'POST',headers:{'Content-Type':'application/json','X-Chat-Request':'1'},body:JSON.stringify({title:'Sidebar target'})}).then(r=>r.json()).then(c=>c.id)`);
   await reloadDocument();
   await wait("document.querySelector('.chat-row-menu')!==null && !document.querySelector('[data-action=\"new\"]').disabled", 'sidebar actions after reload');
@@ -1064,6 +1063,7 @@ try {
   const lastSavedChat = await evaluate("localStorage.getItem('llmx-chat')");
   await pointerClick('#temporary-button');
   await wait("!document.querySelector('#temporary-notice').hidden", 'temporary chat mode');
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('#temporary-button')).borderTopStyle"), 'solid', 'Normal chat button must use a solid border');
   assert.equal(await evaluate("document.querySelector('#temporary-button .chat-create-label').textContent"), 'Normal chat');
   assert.equal(await evaluate("document.querySelector('#temporary-button').getAttribute('aria-label')"), 'Switch to a normal chat');
   const temporaryId = await evaluate("sessionStorage.getItem('llmx-temporary-chat')");
@@ -1105,11 +1105,38 @@ try {
   await closeAction('#conversation-submit');
   await wait("document.querySelector('#temporary-notice').hidden && sessionStorage.getItem('llmx-temporary-chat')===null", 'leaving discards temporary chat');
   assert.equal(await evaluate("document.querySelector('#temporary-button .chat-create-label').textContent"), 'Temporary chat', 'normal conversation label not restored');
-  assert.equal(await evaluate("fetch('/api/chats').then(r=>r.json()).then(d=>d.chats.length)"), savedBeforeTemporary + 1, 'toggle did not create a normal saved conversation');
+  assert.equal(await evaluate("fetch('/api/chats').then(r=>r.json()).then(d=>d.chats.length)"), savedBeforeTemporary, 'temporary toggle created an empty saved conversation');
+  assert.equal(await evaluate("document.querySelector('#chat-title').textContent==='New conversation' && document.querySelector('.chat-item.active')===null"), true, 'leaving temporary mode did not return to the blank normal view');
   assert.equal(await evaluate(`fetch('/api/chats/${temporaryId}').then(r=>r.status)`), 404, 'temporary transcript retained after exit');
-  await wait("!document.querySelector('#temporary-button').disabled && document.querySelector('.chat-item.active')!==null", 'new saved chat finishes before switching again');
-  await pointerClick('#temporary-button'); await wait("!document.querySelector('#temporary-notice').hidden", 'second temporary chat');
-  assert.equal(await evaluate("document.querySelector('#temporary-button .chat-create-label').textContent"), 'Normal chat', 'temporary label did not toggle back');
+  for (const width of [1440, 320]) for (const theme of ['dark', 'light']) {
+    await cdp('Emulation.setDeviceMetricsOverride', {width, height: 1000, deviceScaleFactor: 1, mobile: width < 500});
+    await evaluate("document.documentElement.dataset.theme=" + JSON.stringify(theme));
+    const geometry = () => evaluate(`(() => {
+      const button = document.querySelector('#temporary-button');
+      const menu = document.querySelector('.topbar [data-action="chat-menu"]');
+      const box = button.getBoundingClientRect();
+      return {width: box.width, x: box.x, menuX: menu.getBoundingClientRect().x};
+    })()`);
+    const before = await geometry();
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('#temporary-button')).borderTopStyle"), 'dashed', 'Temporary chat button lost dashed border');
+    await pointerClick('#temporary-button');
+    await wait("!document.querySelector('#temporary-notice').hidden", 'empty temporary mode');
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('#temporary-button')).borderTopStyle"), 'solid', 'Normal chat button must be solid');
+    assert.deepEqual(await geometry(), before, 'mode toggle shifted header controls');
+    assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'toggle overflow');
+    await screenshot('toggle-' + width + '-' + theme + '.png');
+    await pointerClick('#temporary-button');
+    await wait("document.querySelector('#temporary-notice').hidden && sessionStorage.getItem('llmx-temporary-chat')===null", 'empty temporary mode exit');
+    assert.deepEqual(await geometry(), before, 'normal mode shifted header controls');
+    assert.equal(await evaluate("fetch('/api/chats').then(r=>r.json()).then(d=>d.chats.length)"), savedBeforeTemporary, 'mode toggle created empty saved chat');
+  }
+  await send('Normal browser persistence check');
+  await idle();
+  await wait("fetch('/api/chats').then(r=>r.json()).then(d=>d.chats.length===" + (savedBeforeTemporary + 1) + ")", 'normal message appears in saved history');
+  assert.equal(await evaluate("document.querySelector('.chat-item.active')?.dataset.chat===localStorage.getItem('llmx-chat')"), true, 'normal send did not select the persisted conversation');
+  await cdp('Emulation.setDeviceMetricsOverride', {width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false});
+  await pointerClick('#temporary-button');
+  await wait("!document.querySelector('#temporary-notice').hidden", 'temporary chat for expiry check');
   const expiredId = await evaluate("sessionStorage.getItem('llmx-temporary-chat')");
   await evaluate(`fetch('/api/chats/${expiredId}',{method:'DELETE',headers:{'X-Chat-Request':'1'}})`);
   await reloadDocument();

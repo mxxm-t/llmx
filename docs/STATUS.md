@@ -1,5 +1,15 @@
 # llmx - Development Status
 
+## Temporary chat toggle stability (2026-11-16, In progress)
+
+**Goal.** Keep the normal and temporary header toggle visually stable and avoid saving an empty conversation when leaving temporary mode.
+
+**Done.** Added browser coverage for the Normal chat button's solid border, fixed geometry in both modes at desktop/mobile widths and both themes, unchanged saved-chat count, and first-message persistence.
+
+**Left.** The regression is reproduced on main: the Normal chat button remains dashed (38.112 s, `scratch/temp-toggle-fix/red-corrected.log`). Fix the existing toggle owner, update docs and run focused checks.
+
+**Gotchas.** Reuse `leaveTemporary()` for confirmation and run guards; return to the blank normal view so `send()` remains the owner that creates a saved chat.
+
 ## Temporary chat header toggle (2026-11-16, Done)
 
 **Goal.** Let the conversation-header action switch from temporary mode back to a regular conversation.

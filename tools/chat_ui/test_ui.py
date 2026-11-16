@@ -145,7 +145,8 @@ class BrowserTests(unittest.TestCase):
                 [text_event("The other chat is active."), "WAIT", text_event("The other chat completed."), metrics],
                 [text_event("Editable seed response."), metrics],
                 [text_event("The submitted edit completed."), metrics],
-                [text_event("The second submission completed."), metrics]]
+                [text_event("The second submission completed."), metrics],
+                [text_event("The delayed retry completed."), metrics]]
             BrowserUpstream.requests = []
         BrowserUpstream.gate = StepGate()
         BrowserUpstream.stream_opened = threading.Event()

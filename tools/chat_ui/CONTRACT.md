@@ -6,7 +6,7 @@ The Python standard-library service owns persisted conversations, branches, runs
 
 - `GET /api/session`: `{authenticated, password_required}`. All other APIs require a session when a password is configured.
 - `POST /api/login` with `{password}` sets an HttpOnly session cookie. `POST /api/logout` clears it.
-- `GET /api/config`: `{models: [{id}], tools: [{name, description, inputSchema, server, approval}], upstream_available, upstream_error, tools_error}`. No credentials are returned. A tool discovery failure does not disable a reachable model.
+- `GET /api/config`: `{models: [{id, context_length?}], settings_defaults, tools: [{name, description, inputSchema, server, approval}], upstream_available, upstream_error, tools_error}`. No credentials are returned. A tool discovery failure does not disable a reachable model.
 - `GET /api/chats`: `{chats: [{id,title,pinned,archived,folder,created,updated,active_leaf,settings}]}`.
 - `POST /api/chats` with optional `{title,settings,folder,temporary}` creates and returns a chat. `temporary` defaults to false and must be a boolean.
 - `GET /api/chats/{id}`: `{chat, messages: [...], runs: [...]}`. Messages include all branches. Follow `parent_id` backward from `chat.active_leaf` for the selected path.
@@ -118,7 +118,14 @@ an invalid returned file leaves the saved project unchanged.
 
 ## Data
 
-Settings: `{model,system,temperature,top_p,top_k,max_tokens,tools:[]}`. Omitted settings use documented companion defaults. Tools are selected by the exposed tool name. A model name selects only what the configured upstream actually serves.
+Settings: `{model,system,temperature,top_p,top_k,max_tokens,tools:[]}`. Omitted settings use the companion defaults returned in `settings_defaults`. `max_tokens` defaults to null, meaning no additional client cap; the engine omits that field from the upstream request. A positive integer sets an explicit reply cap. Null is accepted only for this numeric setting, and existing numeric chat settings stay unchanged. Tools are selected by the exposed tool name. A model name selects only what the configured upstream actually serves.
+
+The optional positive integer `context_length` is forwarded from `/models`.
+The browser also reads `latest.server.request_tokens` through the existing
+monitor stream while Settings is visible, requiring a successful recent sample
+whose model matches the selection. It presents model capacity and request
+capacity separately, and does not use stale metadata to clamp saved values.
+No extra upstream health fetch is added to model admission or configuration.
 
 Attachment: `{name,type,text}` for UTF-8 text, or `{name,type,data}` for PNG/JPEG base64 data URLs. The browser accepts text up to 2 MiB, images up to 8 MiB and 10 MiB total across at most eight files. It shows each file size and the combined size before send. The service validates the same decoded byte limits and stores attachments in the message. Other formats are refused explicitly. No URL fetching or hidden retrieval occurs.
 

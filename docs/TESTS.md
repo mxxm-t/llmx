@@ -48,6 +48,7 @@ HTTPS validation before non-loopback binding, and bounded handler admission
 with recovery after connections finish or startup/handler errors. They also
 check failure-record expiry and capacity, ignored forwarded address headers,
 and maximum-length escaped Unicode passwords.
+Companion settings checks cover null reply-cap validation and upstream omission, explicit-cap persistence, config-owned defaults and validated model context metadata. Browser checks cover reply modes and reload, shared Settings/rate observation, actual request capacity, stale or mismatched metadata, and responsive layout.
 Temporary-chat HTTP checks exercise real generation and replay in memory, absence
 from durable history, database files and backups, tool refusal, capacity, expiry,
 cancellation and restart cleanup. Browser checks cover anchored grouped

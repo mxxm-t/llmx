@@ -119,7 +119,19 @@ async function reasoningClickDuringDelta(text, expectedOpen) {
 }
 async function fill(selector, text) { await evaluate(`{const e=document.querySelector(${JSON.stringify(selector)});e.value=${JSON.stringify(text)};e.dispatchEvent(new Event('input',{bubbles:true}));}`); }
 async function send(text) { await fill('#draft', text); await evaluate("document.querySelector('#composer').requestSubmit()"); }
-async function idle() { await wait("document.querySelector('#stop').hidden && document.querySelectorAll('.message.assistant').length>0", 'completed response'); }
+async function holdHistoryRefresh() {
+  await evaluate(`(() => {
+    const original = window.fetch;
+    window.releaseChatHistory = null;
+    window.fetch = async (...args) => {
+      const response = await original(...args);
+      if (args[0] !== '/api/chats' || (args[1]?.method || 'GET') !== 'GET') return response;
+      window.fetch = original;
+      return new Promise(resolve => { window.releaseChatHistory = () => resolve(response); });
+    };
+  })()`);
+}
+async function idle() { await wait("document.querySelector('#stop').hidden && !document.querySelector('#send').disabled && document.querySelectorAll('.message.assistant').length>0", 'completed response'); }
 async function upload(selector, filename) { const root = await cdp('DOM.getDocument'); const target = await cdp('DOM.querySelector', {nodeId: root.root.nodeId, selector}); await cdp('DOM.setFileInputFiles', {nodeId: target.nodeId, files: [filename]}); }
 async function uploadMany(selector, files) { const root = await cdp('DOM.getDocument'); const target = await cdp('DOM.querySelector', {nodeId: root.root.nodeId, selector}); await cdp('DOM.setFileInputFiles', {nodeId: target.nodeId, files}); }
 async function screenshot(name) { await delay(240); const result = await cdp('Page.captureScreenshot', {format: 'png', captureBeyondViewport: false}); await writeFile(path.join(artifacts, name), Buffer.from(result.data, 'base64')); }
@@ -260,6 +272,35 @@ try {
   await wait("document.querySelector('.chat-item.active')!==null", 'new empty conversation');
   await evaluate("new Promise(resolve => setTimeout(resolve, 200))");
   assert.equal(await evaluate("fetch('/api/chats').then(r=>r.json()).then(d=>d.chats.length)"), 1, 'rapid New clicks created duplicate drafts');
+  await click('[data-action="settings"]');
+  assert.equal(await evaluate("document.querySelector('#setting-reply-limit').value==='none' && document.querySelector('#reply-token-limit').hidden"), true, 'new chat forces a numeric reply cap');
+  await wait("document.querySelector('#request-context-limit').textContent==='8,192 tokens'", 'existing collector exposes request capacity');
+  assert.equal(await evaluate("document.querySelector('#model-context-limit').textContent"), '40,960 tokens', 'model and request context were conflated');
+  await evaluate("document.querySelector('#setting-reply-limit').value='custom';document.querySelector('#setting-reply-limit').dispatchEvent(new Event('change'))");
+  await click('[data-action="save-settings"]');
+  await wait("document.querySelector('#toast').textContent.includes('positive whole number')", 'empty custom reply cap refused');
+  await fill('#setting-max_tokens', '123');
+  await click('[data-action="save-settings"]');
+  await wait("document.querySelector('#toast').textContent==='Settings saved for the next response.'", 'explicit reply cap saved');
+  await reloadDocument();
+  await wait("document.querySelector('#setting-max_tokens').value==='123'", 'saved explicit cap restored');
+  assert.equal(await evaluate("document.querySelector('#setting-reply-limit').value"), 'custom');
+  await click('[data-action="settings"]');
+  for (const width of [1440, 390]) for (const theme of ['dark', 'light']) {
+    await cdp('Emulation.setDeviceMetricsOverride', {width, height:1000,deviceScaleFactor:1,mobile:width<500});
+    await evaluate("document.documentElement.dataset.theme="+JSON.stringify(theme));
+    assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth"), true, 'settings overflow');
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('#setting-reply-limit')).backgroundColor===getComputedStyle(document.querySelector('#setting-temperature')).backgroundColor && getComputedStyle(document.querySelector('#setting-reply-limit')).paddingTop==='10px'"), true, 'reply select does not use shared field styling');
+    await screenshot('reply-settings-'+width+'-'+theme+'.png');
+  }
+  await cdp('Emulation.setDeviceMetricsOverride', {width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+  await evaluate("document.documentElement.dataset.theme='dark';document.querySelector('#setting-reply-limit').value='none';document.querySelector('#setting-reply-limit').dispatchEvent(new Event('change'))");
+  await click('[data-action="save-settings"]');
+  await wait("fetch('/api/chats/'+localStorage.getItem('llmx-chat')).then(r=>r.json()).then(d=>d.chat.settings.max_tokens===null)", 'no additional cap saved');
+  await reloadDocument();
+  await wait("document.querySelector('.chat-item.active')!==null && !document.querySelector('[data-action=new]').disabled", 'restore uncapped empty chat');
+  assert.equal(await evaluate("document.querySelector('#setting-reply-limit').value==='none' && document.querySelector('#setting-max_tokens').disabled"), true, 'null cap became a number after reload');
+  await click('[data-action="close-drawers"]');
   await fill('#draft', 'Keep my unsent draft');
   await click('[data-action="new"]');
   await evaluate("new Promise(resolve => setTimeout(resolve, 200))");
@@ -347,6 +388,16 @@ try {
   await send('Make a practical plan.');
   await wait("document.querySelector('.reasoning')!==null", 'streamed reasoning');
   await wait('healthStreams.length===1', 'one shared collector subscription');
+  await click('[data-action="settings"]');
+  assert.equal(await evaluate('healthStreams.length'), 1, 'Settings added a second monitor subscription during generation');
+  await evaluate(`window.capacitySample=(model,limit,age=0,ok=true)=>healthStreams.at(-1).dispatchEvent(new MessageEvent('history',{data:JSON.stringify({collector_id:'browser-collector',ok,interval_s:2,last_success:Date.now()/1000-age,samples:[],latest:{server:{model,request_tokens:limit}}})}))`);
+  await evaluate("capacitySample('qwen3-local',8192)");
+  assert.equal(await evaluate("document.querySelector('#request-context-limit').textContent"), '8,192 tokens');
+  for (const value of ["capacitySample('another-model',8192)", "capacitySample('qwen3-local',true)", "capacitySample('qwen3-local',8192,60)", "capacitySample('qwen3-local',8192,0,false)"]) {
+    await evaluate(value);
+    assert.equal(await evaluate("document.querySelector('#request-context-limit').textContent"), 'Unavailable', 'stale, invalid or mismatched context shown as current');
+  }
+  await click('[data-tab="activity"]');
   await evaluate("healthSample(1000,'prefill',0,0)");
   assert.equal(await evaluate("document.querySelector('.live-phase').textContent"), 'Processing prompt');
   assert(!(await evaluate("document.querySelector('.live-metrics').textContent")).includes('tok/s'), 'one sample invented a rate');
@@ -1117,7 +1168,7 @@ try {
   const savedBeforeTemporary = await evaluate("fetch('/api/chats').then(r=>r.json()).then(d=>d.chats.length)");
   const lastSavedChat = await evaluate("localStorage.getItem('llmx-chat')");
   await pointerClick('#temporary-button');
-  await wait("!document.querySelector('#temporary-notice').hidden", 'temporary chat mode');
+  await wait("!document.querySelector('#temporary-notice').hidden && !document.querySelector('#temporary-button').disabled", 'temporary chat mode');
   assert.equal(await evaluate("getComputedStyle(document.querySelector('#temporary-button')).borderTopStyle"), 'solid', 'Normal chat button must use a solid border');
   assert.equal(await evaluate("document.querySelector('#temporary-button .chat-create-label').textContent"), 'Normal chat');
   assert.equal(await evaluate("document.querySelector('#temporary-button').getAttribute('aria-label')"), 'Switch to a normal chat');
@@ -1125,8 +1176,14 @@ try {
   assert(temporaryId?.startsWith('tmp_'), 'temporary ID not in tab session');
   assert.equal(await evaluate("localStorage.getItem('llmx-chat')"), lastSavedChat, 'temporary chat replaced saved-chat preference');
   assert.equal(await evaluate("document.querySelector('#tool-settings input')===null"), true, 'temporary tools still selectable');
+  await holdHistoryRefresh();
   await send('Temporary browser privacy check');
-  await wait("!document.querySelector('#stop').hidden && document.querySelector('#messages').innerText.includes('Temporary response.')", 'active temporary response');
+  await wait("typeof releaseChatHistory==='function' && !document.querySelector('#stop').hidden && document.querySelector('#messages').innerText.includes('Temporary response.')", 'streaming before send admission finishes');
+  assert.equal(await evaluate("document.querySelector('#send').disabled"), true, 'delayed history did not hold the send busy state');
+  await pointerClick('#temporary-button');
+  assert.equal(await evaluate("sessionStorage.getItem('llmx-temporary-chat')"), temporaryId, 'busy send lost temporary chat');
+  await evaluate('releaseChatHistory()');
+  await wait("!document.querySelector('#send').disabled && !document.querySelector('#stop').hidden", 'send settled while generation stays active');
   await pointerClick('#temporary-button');
   await wait("document.querySelector('#toast').textContent.includes('Stop the response before ending this temporary chat.')", 'temporary exit blocked during generation');
   assert.equal(await evaluate("!document.querySelector('#temporary-notice').hidden && sessionStorage.getItem('llmx-temporary-chat')==="+JSON.stringify(temporaryId)), true, 'active-generation guard ended the temporary chat');
@@ -1158,7 +1215,7 @@ try {
   assert.equal(await evaluate("document.querySelector('#temporary-button .chat-create-label').textContent"), 'Normal chat', 'cancelled exit changed the toggle label');
   await pointerClick('#temporary-button'); await wait("document.querySelector('#action-dialog').open", 'temporary toggle exit confirmation');
   await closeAction('#conversation-submit');
-  await wait("document.querySelector('#temporary-notice').hidden && sessionStorage.getItem('llmx-temporary-chat')===null", 'leaving discards temporary chat');
+  await wait("document.querySelector('#temporary-notice').hidden && sessionStorage.getItem('llmx-temporary-chat')===null && !document.querySelector('#temporary-button').disabled", 'leaving discards temporary chat');
   assert.equal(await evaluate("document.querySelector('#temporary-button .chat-create-label').textContent"), 'Temporary chat', 'normal conversation label not restored');
   assert.equal(await evaluate("fetch('/api/chats').then(r=>r.json()).then(d=>d.chats.length)"), savedBeforeTemporary, 'temporary toggle created an empty saved conversation');
   assert.equal(await evaluate("document.querySelector('#chat-title').textContent==='New conversation' && document.querySelector('.chat-item.active')===null"), true, 'leaving temporary mode did not return to the blank normal view');
@@ -1175,13 +1232,17 @@ try {
     const before = await geometry();
     assert.equal(await evaluate("getComputedStyle(document.querySelector('#temporary-button')).borderTopStyle"), 'dashed', 'Temporary chat button lost dashed border');
     await pointerClick('#temporary-button');
-    await wait("!document.querySelector('#temporary-notice').hidden", 'empty temporary mode');
+    await wait("!document.querySelector('#temporary-notice').hidden && !document.querySelector('#temporary-button').disabled", 'empty temporary mode');
     assert.equal(await evaluate("getComputedStyle(document.querySelector('#temporary-button')).borderTopStyle"), 'solid', 'Normal chat button must be solid');
     assert.deepEqual(await geometry(), before, 'mode toggle shifted header controls');
     assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'toggle overflow');
     await screenshot('toggle-' + width + '-' + theme + '.png');
+    await holdHistoryRefresh();
     await pointerClick('#temporary-button');
-    await wait("document.querySelector('#temporary-notice').hidden && sessionStorage.getItem('llmx-temporary-chat')===null", 'empty temporary mode exit');
+    await wait("typeof releaseChatHistory==='function' && document.querySelector('#temporary-notice').hidden && sessionStorage.getItem('llmx-temporary-chat')===null", 'normal view before history refresh completes');
+    assert.equal(await evaluate("document.querySelector('#temporary-button').disabled"), true, 'pending history did not retain the toggle guard');
+    await evaluate('releaseChatHistory()');
+    await wait("!document.querySelector('#temporary-button').disabled", 'empty temporary exit fully settled');
     assert.deepEqual(await geometry(), before, 'normal mode shifted header controls');
     assert.equal(await evaluate("fetch('/api/chats').then(r=>r.json()).then(d=>d.chats.length)"), savedBeforeTemporary, 'mode toggle created empty saved chat');
   }
@@ -1191,7 +1252,7 @@ try {
   assert.equal(await evaluate("document.querySelector('.chat-item.active')?.dataset.chat===localStorage.getItem('llmx-chat')"), true, 'normal send did not select the persisted conversation');
   await cdp('Emulation.setDeviceMetricsOverride', {width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false});
   await pointerClick('#temporary-button');
-  await wait("!document.querySelector('#temporary-notice').hidden", 'temporary chat for expiry check');
+  await wait("!document.querySelector('#temporary-notice').hidden && !document.querySelector('#temporary-button').disabled", 'temporary chat for expiry check');
   const expiredId = await evaluate("sessionStorage.getItem('llmx-temporary-chat')");
   await evaluate(`fetch('/api/chats/${expiredId}',{method:'DELETE',headers:{'X-Chat-Request':'1'}})`);
   await reloadDocument();

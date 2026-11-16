@@ -26,6 +26,7 @@
   const S = {chats: [], chat: null, messages: [], runs: [], config: {models: [], tools: []}, attachments: [], edit: null, stream: null, cursor: 0, archive: false, tab: 'activity', scheduled: false, fingerprint: new Map(), searchText: new Map(), inspectorKey: '', generation: 0, busy: false};
   let toastTimer, creatingChat = false, menuId = null, composerRevision = 0;
   const liveMetrics = {id: null, stream: null, history: [], row: null, received: 0, collector: null};
+  let runtimeLimits = null;
   const objectIds = new WeakMap(); let nextObjectId = 0;
   function identity(value) { if (!value || typeof value !== 'object') return value; if (!objectIds.has(value)) objectIds.set(value, ++nextObjectId); return objectIds.get(value); }
   function messageKey(m, text = false) { return [m.id, m.role, m.status, text ? m.content : undefined, text ? m.reasoning : undefined, identity(m.usage), identity(m.timings), identity(m.context), (m.tool_calls || []).map(identity), (m.attachments || []).map(identity)]; }
@@ -59,11 +60,14 @@
   function settings() {
     const value = {model: $('model').value, system: $('setting-system').value};
     if (!(S.config.models || []).some(model => model.id === value.model)) throw new Error('This model is not available on the connected server. Choose another model before sending.');
-    for (const key of ['temperature', 'top_p', 'top_k', 'max_tokens']) {
+    for (const key of ['temperature', 'top_p', 'top_k']) {
       const input = $('setting-' + key);
       if (!input.checkValidity() || input.value.trim() === '') throw new Error('Check the ' + key.replaceAll('_', ' ') + ' setting.');
       value[key] = Number(input.value);
     }
+    const cap = $('setting-max_tokens');
+    if ($('setting-reply-limit').value === 'custom' && (!cap.checkValidity() || cap.value.trim() === '')) throw new Error('Enter a positive whole number for the reply limit.');
+    value.max_tokens = $('setting-reply-limit').value === 'none' ? null : Number(cap.value);
     value.tools = S.chat?.temporary ? [] : Array.from($('tool-settings').querySelectorAll('input:checked')).map(el => el.value);
     return value;
   }
@@ -84,11 +88,29 @@
     scheduleRender();
   }
   function loadSettings() {
-    const value = S.chat?.settings || {};
+    const defaults = S.config.settings_defaults; if (!defaults) return;
+    const value = {...defaults, ...S.chat?.settings};
     modelChoices(value.model);
-    const defaults = {system: '', temperature: 0.7, top_p: 0.95, top_k: 40, max_tokens: 4096};
-    Object.keys(defaults).forEach(key => { $('setting-' + key).value = value[key] ?? defaults[key]; });
-    renderToolSelections(value.tools || []);
+    for (const key of ['system', 'temperature', 'top_p', 'top_k']) $('setting-' + key).value = value[key];
+    $('setting-reply-limit').value = value.max_tokens === null ? 'none' : 'custom';
+    $('setting-max_tokens').value = value.max_tokens === null ? '' : value.max_tokens;
+    renderReplyLimit(); renderContextLimits(); renderToolSelections(value.tools || []);
+  }
+  function renderReplyLimit() {
+    const custom = $('setting-reply-limit').value === 'custom';
+    $('reply-token-limit').hidden = !custom;
+    $('setting-max_tokens').disabled = !custom; $('setting-max_tokens').required = custom;
+  }
+  function renderContextLimits() {
+    const model = (S.config.models || []).find(m => m.id === $('model').value);
+    const valid = value => Number.isSafeInteger(value) && value > 0;
+    const age = runtimeLimits ? Date.now() / 1000 - runtimeLimits.observed : Infinity;
+    const server = runtimeLimits?.server;
+    const fresh = S.config.upstream_available && age >= -5 && age < runtimeLimits?.maxAge && server?.model === model?.id;
+    const modelText = model && valid(model.context_length) ? number(model.context_length) + ' tokens' : 'Unavailable';
+    const requestText = fresh && valid(server.request_tokens) ? number(server.request_tokens) + ' tokens' : 'Unavailable';
+    if ($('model-context-limit').textContent !== modelText) $('model-context-limit').textContent = modelText;
+    if ($('request-context-limit').textContent !== requestText) $('request-context-limit').textContent = requestText;
   }
   function renderToolSelections(selected = []) {
     const out = $('tool-settings'); out.replaceChildren();
@@ -431,21 +453,27 @@
       const control = container.querySelector('[data-message="' + CSS.escape(m.id) + '"] [data-action=reply-stats]');
       if (control) { control.dataset.reply = group.id; control.hidden = index !== group.calls.length - 1; control.setAttribute('aria-expanded', String(replyStats?.id === group.id)); }
     }));
-    positionReplyStats(); syncLiveMetrics(); renderInspector(); tick(); if (nearBottom) requestAnimationFrame(bottom);
+    positionReplyStats(); syncLiveMetrics(); renderInspector(); renderContextLimits(); tick(); if (nearBottom) requestAnimationFrame(bottom);
   }
   function syncLiveMetrics() {
     const run = currentRun();
     const message = run?.status === 'running' ? path().findLast(m => m.role === 'assistant' && m.status === 'running' && m.run_id === run.id) : null;
-    const id = $('app').dataset.view === 'chat' && !document.hidden ? message?.request?.id || null : null;
-    if (id === liveMetrics.id) return;
+    const visible = $('app').dataset.view === 'chat' && !document.hidden;
+    const id = visible ? message?.request?.id || null : null;
+    const needed = Boolean(id || visible && S.tab === 'settings' && !$('app').classList.contains('inspector-closed'));
+    if (id === liveMetrics.id && Boolean(liveMetrics.stream) === needed) return;
     liveMetrics.stream?.close();
     Object.assign(liveMetrics, {id, stream: null, history: [], row: null, received: 0, collector: null});
-    if (!id) return;
+    runtimeLimits = null; renderContextLimits();
+    if (!needed) return;
     const stream = new EventSource('/api/monitor/stream'); liveMetrics.stream = stream;
     stream.addEventListener('history', event => {
       if (liveMetrics.stream !== stream) return;
       try {
         const data = JSON.parse(event.data), live = data.latest?.requests?.live;
+        const interval = Number.isFinite(data.interval_s) && data.interval_s > 0 ? data.interval_s : 2;
+        runtimeLimits = data.ok && Number.isFinite(data.last_success) ? {server: data.latest?.server, observed: data.last_success, maxAge: Math.max(5, interval * 3)} : null;
+        renderContextLimits();
         if (data.collector_id !== liveMetrics.collector || data.samples?.some(sample => sample.reset)) liveMetrics.history = [];
         liveMetrics.collector = data.collector_id;
         if (!data.ok || !Number.isFinite(live?.sample_elapsed_ms) || !Array.isArray(live.items)) {
@@ -457,14 +485,13 @@
         if (previous && live.sample_elapsed_ms < previous.timestamp) liveMetrics.history = [];
         const sample = {timestamp: live.sample_elapsed_ms, observedAt: performance.now() / 1000, items: new Map([[id, item]])};
         liveMetrics.history.push(sample); liveMetrics.history = liveMetrics.history.slice(-64);
-        const interval = Number.isFinite(data.interval_s) && data.interval_s > 0 ? data.interval_s : 2;
         const rate = key => previous?.timestamp === sample.timestamp ? null : window.LLMXRates.requestWindowRate(liveMetrics.history, id, key, interval);
         liveMetrics.row = {...item, pp: rate('prefilled_tokens'), tg: rate('published_tokens')};
         liveMetrics.received = performance.now();
         renderLiveMetrics();
-      } catch (_) { liveMetrics.history = []; liveMetrics.row = null; renderLiveMetrics(); }
+      } catch (_) { runtimeLimits = null; renderContextLimits(); liveMetrics.history = []; liveMetrics.row = null; renderLiveMetrics(); }
     });
-    stream.onerror = () => { if (liveMetrics.stream === stream) { liveMetrics.history = []; liveMetrics.row = null; renderLiveMetrics(); } };
+    stream.onerror = () => { if (liveMetrics.stream === stream) { runtimeLimits = null; renderContextLimits(); liveMetrics.history = []; liveMetrics.row = null; renderLiveMetrics(); } };
   }
   function renderLiveMetrics() {
     const phase = document.querySelector('.live-phase'), metrics = document.querySelector('.live-metrics');
@@ -663,7 +690,7 @@
   }
   async function syncSnapshot(chatId) { const data = await api('/chats/' + encodeURIComponent(chatId)); if (S.chat?.id !== chatId) return; S.chat = data.chat; S.messages = data.messages || []; S.runs = data.runs || []; snapshotBanner(); scheduleRender(); }
   function tick() {
-    renderLiveMetrics();
+    renderLiveMetrics(); renderContextLimits();
     const run = currentRun(); if (!run) { $('run-caption').textContent = 'Enter to send / Shift + Enter for a new line'; return; }
     const seconds = Math.max(0, Math.floor((Date.now() - timestamp(run.created).getTime()) / 1000));
     const elapsed = Number.isFinite(seconds) ? (seconds >= 60 ? Math.floor(seconds / 60) + 'm ' : '') + seconds % 60 + 's elapsed' : 'In progress';
@@ -781,8 +808,8 @@
   }
   function bottom() { const region = $('scroll-region'); region.scrollTop = region.scrollHeight; $('jump-bottom').hidden = true; }
   function resizeDraft() { const el = $('draft'); el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 220) + 'px'; }
-  function showTab(name) { S.tab = name; document.querySelectorAll('[data-tab]').forEach(el => { el.setAttribute('aria-selected', String(el.dataset.tab === name)); el.tabIndex = el.dataset.tab === name ? 0 : -1; }); for (const tab of ['activity', 'stats', 'settings']) $('panel-' + tab).hidden = tab !== name; }
-  function updateShade() { const compact = document.documentElement.dataset.compact === 'true'; $('drawer-shade').hidden = !(compact && $('app').classList.contains('sidebar-open') || (compact || window.innerWidth <= 1200) && $('app').dataset.view === 'chat' && !$('app').classList.contains('inspector-closed')); }
+  function showTab(name) { S.tab = name; document.querySelectorAll('[data-tab]').forEach(el => { el.setAttribute('aria-selected', String(el.dataset.tab === name)); el.tabIndex = el.dataset.tab === name ? 0 : -1; }); for (const tab of ['activity', 'stats', 'settings']) $('panel-' + tab).hidden = tab !== name; syncLiveMetrics(); renderContextLimits(); }
+  function updateShade() { const compact = document.documentElement.dataset.compact === 'true'; $('drawer-shade').hidden = !(compact && $('app').classList.contains('sidebar-open') || (compact || window.innerWidth <= 1200) && $('app').dataset.view === 'chat' && !$('app').classList.contains('inspector-closed')); syncLiveMetrics(); renderContextLimits(); }
   function closeDrawers() { $('app').classList.remove('sidebar-open'); if (document.documentElement.dataset.compact === 'true' || window.innerWidth <= 1200) $('app').classList.add('inspector-closed'); updateShade(); }
   function showToolCall(messageId, callId) {
     const message = path().find(item => item.id === messageId && item.role === 'assistant');
@@ -883,6 +910,7 @@
   $('composer').addEventListener('submit', event => { event.preventDefault(); send().catch(error => banner(error.message)); });
   $('draft').addEventListener('input', () => { composerRevision++; resizeDraft(); });
   $('model').addEventListener('change', () => { snapshotBanner(); render(); });
+  $('setting-reply-limit').addEventListener('change', () => { renderReplyLimit(); if (!$('setting-max_tokens').disabled) $('setting-max_tokens').focus(); });
   $('draft').addEventListener('keydown', event => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); send().catch(error => banner(error.message)); } });
   $('draft').addEventListener('paste', event => { const files = Array.from(event.clipboardData?.files || []); if (files.length) { event.preventDefault(); attach(files).catch(error => toast(error.message)); } });
   $('file-input').addEventListener('change', event => { attach(Array.from(event.target.files)).catch(error => toast(error.message)); event.target.value = ''; });

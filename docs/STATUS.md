@@ -1,5 +1,19 @@
 # llmx - Development Status
 
+## Companion reply defaults and context limits (2026-11-16, Done)
+
+**Goal.** Make reply caps explicit and optional, keep saved numeric choices, and distinguish model context from the running server's request limit.
+
+**Done.** Python owns the defaults returned in `/api/config`; new settings use null for no additional reply cap, which the existing engine omits upstream. Explicit numeric caps remain unchanged. The browser offers a named mode and an optional positive integer field, and uses shared form styling. Validated model context comes from `/models`; request capacity comes from the existing shared monitor stream while Settings is visible, without a new admission/config health fetch. Stale, invalid or mismatched runtime metadata is unavailable rather than replaced by model capacity. Work is isolated from 8183 in `chat-settings-20261116`; preview 8186 has separate data.
+
+**Checks.** Tests-only commit precedes the fix. Three server regressions fail on the previous implementation; the engine omission control already passed. The server/engine modules pass 46 tests in 19.744 s; the final server module passes 28 tests in 18.593 s after simplifying metadata normalization. Final focused browser check passes in 48.267 s: explicit-cap persistence, null restore, shared subscription, stale/mismatched capacities, shared select styling and responsive layouts. Docs passes with 0 findings and 21 planted checks (19.6 s); dead-code passes with 15 expected findings and 20 planted checks (26.7 s). Root reviewed source and screenshots; bounded read-only review found no concrete issue.
+
+**Review and landing.** Hosted Chat workspace run 43829683038 is green on Linux and Windows at `7ed26b1845cd2ba480d5c5f6da40cffe4bb889f7`, with 102 companion tests and 24 dashboard tests on each platform. The final delta is this Markdown evidence and commit metadata only; code, tests, fixtures and workflow inputs are unchanged. The change lands by fast-forward, with its temporary CI branch deleted afterward. Local preview 8186 completed an actual Qwen3-0.6B uncapped reply, preserving null and deleting its own temporary chat. Deployment to 8183 uses an idle check and saved-data backup, without restarting the model runtime.
+
+**Browser synchronization.** The first two Linux runs exposed test ordering races: streamed output precedes send completion, and the normal view precedes history refresh releasing the temporary-toggle guard. Controlled delayed-history checks now exercise both orderings and wait for the relevant enabled control; the active-run warning and no-discard assertions remain unchanged. The corrected fixture passed locally in 47.770 s and on both hosted platforms. Original failures and all run logs remain in `scratch/settings/`.
+
+**Gotchas.** Null means EOS or remaining request capacity, not unlimited context. Metadata is descriptive, not an exact remaining-token count. Existing numeric chat settings are never silently clamped. Root README requires no update because inference capabilities and runtime flags are unchanged; companion README, CONTRACT and TESTS own the changed behavior. Evidence is in `scratch/settings/`.
+
 ## Chat reading hierarchy and on-demand statistics (2026-11-16, Done)
 
 **Goal.** Separate conversation content from controls, expose reply statistics on hover or pinned selection, and make Activity useful on long conversations without repeating the Stats tab.

@@ -256,11 +256,17 @@
           <p class="panel-intro">Fine-tune this conversation. Changes apply to the next response.</p>
           <label class="field">System instructions<textarea id="setting-system" rows="5" placeholder="How should the model respond?"></textarea></label>
           <div class="field-grid">
-            <label class="field">Temperature<input id="setting-temperature" type="number" min="0" max="2" step="0.05" value="0.7"></label>
-            <label class="field">Top P<input id="setting-top_p" type="number" min="0" max="1" step="0.05" value="0.95"></label>
-            <label class="field">Top K<input id="setting-top_k" type="number" min="0" step="1" value="40"></label>
-            <label class="field">Max output<input id="setting-max_tokens" type="number" min="1" max="1000000" step="1" value="4096"></label>
+            <label class="field">Temperature<input id="setting-temperature" type="number" min="0" max="5" step="0.05"></label>
+            <label class="field">Top P<input id="setting-top_p" type="number" min="0" max="1" step="0.05"></label>
+            <label class="field">Top K<input id="setting-top_k" type="number" min="0" max="100000" step="1"></label>
           </div>
+          <label class="field">Reply limit<select id="setting-reply-limit" aria-describedby="reply-limit-help"><option value="none">No additional cap</option><option value="custom">Custom token limit</option></select></label>
+          <label class="field" id="reply-token-limit" hidden>Maximum output tokens<input id="setting-max_tokens" type="number" min="1" max="1000000" step="1" placeholder="Enter a token count" disabled aria-describedby="reply-limit-help"></label>
+          <p class="muted fine-print" id="reply-limit-help">Without an additional cap, the reply can continue until the model stops or the request limit is reached. Reasoning counts toward output.</p>
+          <h3 class="section-label">CONTEXT CAPACITY</h3>
+          <div class="stat-row"><span>Server request limit</span><strong id="request-context-limit">Unavailable</strong></div>
+          <div class="stat-row"><span>Model context</span><strong id="model-context-limit">Unavailable</strong></div>
+          <p class="muted fine-print">Latest reported limits. Your conversation, tool results and reply share the request limit. These are capacities, not remaining tokens.</p>
           <h3 class="section-label">TOOLS FOR THIS CONVERSATION</h3>
           <div id="tool-settings"></div>
           <button class="secondary-button full" data-action="save-settings">Save settings</button>

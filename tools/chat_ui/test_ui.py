@@ -53,9 +53,9 @@ class BrowserUpstream(FakeUpstream):
             self.send_response(204)
             self.end_headers()
             return
-        health = {"status": "ok", "server": {"uptime_s": 30, "model": "qwen3-local", "version": "browser-fixture", "devices": ["cpu"]},
+        health = {"status": "ok", "server": {"uptime_s": 30, "model": "qwen3-local", "version": "browser-fixture", "devices": ["cpu"], "context_tokens": 40960, "request_tokens": 8192},
                   "requests": {"now": {"active": 1, "queued": 0}, "since_start": {"finished": 4}}}
-        data = json.dumps(health if self.path.endswith('/health') else {"data": [{"id": "qwen3-local"}]}).encode()
+        data = json.dumps(health if self.path.endswith('/health') else {"data": [{"id": "qwen3-local", "context_length": 40960}]}).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))

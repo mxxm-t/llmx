@@ -32,7 +32,7 @@ MAX_LOGIN_BODY = 16 * 1024
 MAX_BACKUP = 256 * 1024 * 1024
 MAX_CONNECTIONS = 64
 MAX_LOGIN_CLIENTS = 1024
-DEFAULTS = dict(model="", system="", temperature=0.7, top_p=0.95, top_k=40, max_tokens=4096, tools=[])
+DEFAULTS = dict(model="", system="", temperature=0.7, top_p=0.95, top_k=40, max_tokens=None, tools=[])
 
 
 def settings_of(value):
@@ -44,6 +44,8 @@ def settings_of(value):
             raise ValueError(f"Invalid {name}")
     for name, lo, hi in (("temperature", 0, 5), ("top_p", 0, 1), ("top_k", 0, 100000), ("max_tokens", 1, 1000000)):
         number = settings[name]
+        if name == "max_tokens" and number is None:
+            continue
         if isinstance(number, bool) or not isinstance(number, (int, float)) or not math.isfinite(number) or not lo <= number <= hi:
             raise ValueError(f"Invalid {name}")
         if name in ("top_k", "max_tokens") and not isinstance(number, int):
@@ -186,8 +188,14 @@ class Application:
         result = dict(models=[], upstream_available=False, upstream_error=None)
         try:
             models = Connection(self.upstream, timeout=8, key=self.api_key).json("/models")
-            result["models"] = [{"id": model["id"]} for model in models.get("data", [])
-                                if isinstance(model, dict) and isinstance(model.get("id"), str)]
+            for model in models.get("data", []):
+                if not isinstance(model, dict) or not isinstance(model.get("id"), str):
+                    continue
+                item = {"id": model["id"]}
+                context_length = model.get("context_length")
+                if type(context_length) is int and context_length > 0:
+                    item["context_length"] = context_length
+                result["models"].append(item)
             result["upstream_available"] = True
         except Exception as exc:
             result["upstream_error"] = f"Unable to reach llmx: {type(exc).__name__}"
@@ -208,6 +216,7 @@ class Application:
                 self.cached_config, self.config_time = result, time.monotonic()
             result = dict(self.cached_config)
         result.update(self.model_state())
+        result["settings_defaults"] = dict(DEFAULTS)
         return result
 
 

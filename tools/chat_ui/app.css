@@ -623,7 +623,7 @@ kbd {
   font-size:10px;
   color:var(--muted)
 }
-.field input,.field textarea {
+.field input,.field textarea,.field select {
   width:100%;
   padding:10px;
   background:var(--surface);

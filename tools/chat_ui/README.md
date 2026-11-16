@@ -119,6 +119,25 @@ It does not lock the upstream model or control later server restarts.
 - A companion process restart marks unfinished runs interrupted. It never
   retries a tool automatically after losing its outcome.
 
+## Reply limits and context
+
+New conversations use No additional cap for replies. The companion omits
+`max_tokens`, letting the model stop normally or reach the server's remaining
+request capacity. Choose Custom token limit to set a positive output-token cap.
+Reasoning tokens count toward output. Existing saved numeric caps remain in
+place until changed. Changing reply mode does not resize the server's context.
+
+The settings panel distinguishes the model's advertised context from the
+running server's request limit. Conversation history, tool results and the reply
+share the request limit; these capacities are not a count of remaining tokens.
+Request limits come from the same shared monitor stream used for live rates,
+while Settings is visible. Stale, unavailable or differently named runtime data
+shows Unavailable instead of falling back to the model's larger capacity.
+
+Python owns the defaults returned as `settings_defaults` in `/api/config`.
+The browser uses those values for new chats, preserving saved settings.
+Other sampling defaults stay temperature 0.7, top P 0.95 and top K 40.
+
 ## Reply statistics and activity
 
 Hover over a reply's statistics icon to preview reported token counts and timings.

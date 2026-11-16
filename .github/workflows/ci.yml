@@ -19,7 +19,7 @@ jobs:
   cpu:
     name: CPU (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: ${{ matrix.os == 'macos-15-intel' && 90 || matrix.os == 'windows-2022' && 120 || 45 }}
+    timeout-minutes: ${{ matrix.os == 'macos-15-intel' && 120 || matrix.os == 'windows-2022' && 120 || 45 }}
     strategy:
       fail-fast: false
       matrix:
@@ -205,7 +205,7 @@ jobs:
     name: HF reference (CPU)
     runs-on: ubuntu-24.04
     # See docs/CI.md for observed durations and job-budget rationale.
-    timeout-minutes: 75
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

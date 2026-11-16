@@ -130,6 +130,26 @@ int main() {
                                    "\"post_processor\":null"}, {"\"chat_template\":\"{{ messages }}\",", ""}));
             require(!m.find("tokenizer.chat_template"), "no template");
         }
+        {
+            // gptqmodel writes a pad text naming no token, which gives no padding id as HF's tokenizer has none, beside two keys of no effect on encoding.
+            ++cases;
+            gguf::GGUFModel m;
+            m.kv = read(directory({}, {"\"pad_token\":{\"content\":\"<|endoftext|>\"}", "\"pad_token\":\"<unk>\",\"extra_special_tokens\":{},\"_commit_hash\":null"}));
+            require(!m.find("tokenizer.ggml.padding_token_id") && key(m, "tokenizer.ggml.eos_token_id").u == 13, "pad naming no token");
+        }
+        {
+            // extra_special_tokens naming added tokens, as a map or a list, changes no encoding.
+            ++cases;
+            gguf::GGUFModel m;
+            m.kv = read(directory({}, {"", "\"extra_special_tokens\":{\"think\":\"<think>\"}"}));
+            require(key(m, "tokenizer.ggml.eos_token_id").u == 13, "extra_special_tokens map");
+            ++cases;
+            m.kv = read(directory({}, {"", "\"extra_special_tokens\":[\"<think>\",\"<|im_end|>\"]"}));
+            require(key(m, "tokenizer.ggml.eos_token_id").u == 13, "extra_special_tokens list");
+        }
+        refused({}, {"", "\"extra_special_tokens\":{\"x\":\"<nope>\"}"}, "extra_special_tokens <nope> is not an added token");
+        refused({}, {"", "\"extra_special_tokens\":[\"<think>\",\"<nope>\"]"}, "extra_special_tokens <nope> is not an added token");
+        refused({}, {"", "\"extra_special_tokens\":\"<think>\""}, "extra_special_tokens is not a map or a list");
         refused({"\"normalizer\":{\"type\":\"NFC\"}", "\"normalizer\":null"}, {}, "normalizer is not an object");
         refused({"\"normalizer\":{\"type\":\"NFC\"}", "\"normalizer\":{\"type\":\"NFKC\"}"}, {}, "normalizer type");
         refused({"\\\\s+(?!\\\\S)|", ""}, {}, "not the qwen2 pattern");

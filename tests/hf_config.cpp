@@ -121,6 +121,13 @@ int main() {
             read_config(config("\"torch_dtype\":\"bfloat16\"", "\"dtype\":\"float16\""), m);
             require(m.tensors.size() == 24, "tied, no head stored");
         }
+        {
+            // Newer configs list each layer's attention; a Qwen3 runs only full attention.
+            ++cases;
+            gguf::GGUFModel m = tensors();
+            read_config(config("", "\"layer_types\":[\"full_attention\",\"full_attention\"]"), m);
+            require(m.kv.size() == 11, "layer_types not stored");
+        }
         ++cases;
         try {
             const std::string made_up = "made_up_model";
@@ -138,6 +145,8 @@ int main() {
         refused(config("\"hidden_act\":\"silu\"", "\"hidden_act\":\"gelu\""), tensors(), "hidden_act");
         refused(config("\"rope_scaling\":null", "\"rope_scaling\":{\"type\":\"yarn\"}"), tensors(), "rope_scaling");
         refused(config("\"use_sliding_window\":false", "\"use_sliding_window\":true"), tensors(), "use_sliding_window");
+        refused(config("", "\"layer_types\":[\"full_attention\",\"sliding_attention\"]"), tensors(), "layer_types = \"sliding_attention\"");
+        refused(config("", "\"layer_types\":\"full_attention\""), tensors(), "layer_types is not an array");
         refused(config("\"torch_dtype\":\"bfloat16\"", "\"torch_dtype\":\"float8_e4m3fn\""), tensors(), "torch_dtype");
         refused(config("\"tie_word_embeddings\":true", "\"tie_word_embeddings\":1"), tensors(), "tie_word_embeddings");
         refused(config("\"num_hidden_layers\":2", "\"num_hidden_layers\":2.5"), tensors(), "positive 32-bit integer");

@@ -541,10 +541,6 @@ kbd {
   gap:10px;
   margin-bottom:8px
 }
-.activity-card small {
-  color:var(--faint);
-  font-size:10px
-}
 .activity-tool-link {
   width:100%;
   text-align:left;
@@ -739,9 +735,9 @@ kbd {
   display:none
 }
 .message.user>.markdown {
-  border:1px solid var(--border);
-  background:var(--surface);
-  border-radius:14px 14px 3px 14px;
+  border:0;
+  background:color-mix(in srgb,var(--surface) 58%,var(--bg));
+  border-radius:16px;
   padding:13px 18px;
   max-width:100%;
   font-size:13px
@@ -1365,7 +1361,7 @@ body {
 .composer-area,.inspector-heading,.tabs,.inspector-bottom,.sidebar-footer {
   flex-shrink:0
 }
-.text-button,.chat-item,.panel-intro,.stat-row,.fine-print,.activity-card,.activity-card small,.field,.tool-setting small,.tool-call summary,.tool-body,.reasoning summary,.reasoning .markdown,.message-actions,.message-actions button,.message-time,.metric-card span,.tabs button,.inspector-heading,.composer-left select,.composer-caption,.empty-history {
+.text-button,.chat-item,.panel-intro,.stat-row,.fine-print,.activity-card,.field,.tool-setting small,.tool-call summary,.tool-body,.reasoning summary,.reasoning .markdown,.message-actions,.message-actions button,.message-time,.metric-card span,.tabs button,.inspector-heading,.composer-left select,.composer-caption,.empty-history {
   font-size:12px
 }
 .message-actions {
@@ -1384,12 +1380,6 @@ body {
     min-height:40px
   }
 }
-.message-metrics {
-  margin-left:auto;
-  color:var(--faint);
-  font-size:11px;
-  font-variant-numeric:tabular-nums
-}
 .tool-body details>summary {
   cursor:pointer;
   color:var(--muted);
@@ -1404,18 +1394,10 @@ body {
 .section-label {
   font-size:10px
 }
-.activity-card small {
-  line-height:1.6
-}
 .metric-card strong {
   font-size:22px
 }
 @media(max-width:720px) {
-  .message-metrics {
-    margin-left:0;
-    width:100%;
-    font-size:11px
-  }
   .composer-caption {
     font-size:9px
   }
@@ -1430,4 +1412,83 @@ body {
   .title-button {
     max-width:200px
   }
+}
+
+.reply-statistics {
+  position:fixed;
+  inset:auto;
+  margin:0;
+  width:min(360px,calc(100vw - 24px));
+  max-height:min(560px,calc(100dvh - 24px));
+  overflow:auto;
+  padding:18px;
+  border:1px solid var(--border);
+  border-radius:14px;
+  background:var(--surface);
+  color:var(--text);
+  box-shadow:0 12px 40px #0003;
+  font-size:12px;
+  line-height:1.5;
+  user-select:text
+}
+.reply-statistics-heading,.reply-statistics-footer {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px
+}
+.reply-statistics-heading h3 {
+  margin:0;
+  font-size:14px
+}
+.reply-statistics-heading {
+  margin-bottom:14px
+}
+.reply-statistics-footer {
+  margin-top:14px;
+  border-top:1px solid var(--border);
+  padding-top:12px
+}
+.reply-statistics-footer button {
+  flex-shrink:0
+}
+.reply-statistics .stat-row {
+  gap:12px;
+  padding:5px 0;
+  border:0
+}
+.reply-statistics .stat-row strong {
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap
+}
+.reply-statistics pre,.activity-error pre {
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+  font-size:11px
+}
+.reply-call-metrics,.conversation-totals,.activity-history {
+  border-top:1px solid var(--border);
+  margin-top:14px;
+  padding-top:12px
+}
+.reply-call-metrics summary,.conversation-totals summary,.activity-history>summary {
+  cursor:pointer;
+  color:var(--muted);
+  padding:4px 0
+}
+.activity-card>.text-button {
+  margin:8px 0
+}
+.activity-history .activity-card {
+  padding:10px 0;
+  border:0;
+  border-bottom:1px solid var(--border);
+  background:transparent
+}
+.activity-history .activity-title {
+  cursor:pointer
+}
+.activity-title>span:first-child {
+  min-width:0;
+  overflow-wrap:anywhere
 }

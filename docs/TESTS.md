@@ -52,7 +52,7 @@ Temporary-chat HTTP checks exercise real generation and replay in memory, absenc
 from durable history, database files and backups, tool refusal, capacity, expiry,
 cancellation and restart cleanup. Browser checks cover anchored grouped
 conversation actions on unselected rows, rename/folder/delete dialogs, duplicate
-and Open Workspace tool links; reasoning disclosure pointer clicks during
+and Open Workspace tool links; grouped reply statistics with hover preview, pinned selection during streaming, keyboard dismissal, copying and responsive placement; collapsed Activity history with navigation and distinct conversation totals; reasoning disclosure pointer clicks during
 streamed updates and reload replay of the same run; temporary reply reload,
 explicit discard and a missing temporary ID. Mode toggles preserve button geometry in both themes on desktop and mobile, use solid/dashed destination styles and leave saved history unchanged until a normal message is sent. The browser check also covers shared
 dialogs for workspace files, checkpoints, generated-file editing, unsaved edits,

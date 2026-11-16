@@ -1,5 +1,17 @@
 # llmx - Development Status
 
+## Chat reading hierarchy and on-demand statistics (2026-11-16, Done)
+
+**Goal.** Separate conversation content from controls, expose reply statistics on hover or pinned selection, and make Activity useful on long conversations without repeating the Stats tab.
+
+**Done.** User messages have a soft, borderless reading surface. A single reply statistics icon groups contiguous assistant calls with the same run identity. It previews on hover/focus, pins on click/tap for selection and copying, and keeps a labelled snapshot through streaming updates. Token totals preserve unknowns and rates remain per-call. Extra measurements and raw reported values are expandable. Activity shows the latest reply, tool progress and errors with earlier replies in collapsed history; tool and reply navigation remain available. Stats holds selected-branch totals and an optional other-branches breakdown. In-page headers restore the approved wordmark alone; standalone icon assets remain unchanged.
+
+**Checks.** Final focused Chrome browser check passes in 45.700 s: hover-to-panel, actual touch pinning, keyboard pinning and dismissal, outside dismissal, copying, unknown usage, pinned text selection during streaming, grouped call totals, user/control visual distinction, original error preservation, and desktop/mobile layouts in both themes. Root source/visual review and a bounded read-only review found no open issue. JavaScript syntax and diff whitespace checks pass. Dead-code passes with 15 expected findings and 20 planted checks (26.0 s); docs passes with 0 findings and 21 planted checks. Evidence is in `scratch/chat-clarity/`.
+
+**Review and landing.** Fast-forward to GitHub main after scoped checks, with the static assets live on local port 8183. No service restart or saved-data mutation. Settings/default request behavior is a separate follow-up: the current runtime advertises model context 40960 and request limit 8192, while the companion still uses its explicit 4096 reply default. That behavior is unchanged in this landing.
+
+**Gotchas.** One browser owner groups replies and computes totals. No API, inference, server configuration or numerical behavior changes. Snapshot values do not claim to update live while selected. Markdown review covers the README, CONTRACT, tests and historical status records; root README needs no change because runtime capabilities and commands are unchanged. Static checks apply, with no unrelated inference gates.
+
 ## Temporary chat toggle stability (2026-11-16, Done)
 
 **Goal.** Keep the normal and temporary header toggle visually stable and avoid saving an empty conversation when leaving temporary mode.
@@ -23,9 +35,9 @@
 **Review and landing.** The header action reuses `newChat()` while temporary mode is active; no server or store behavior changes. The companion README describes the toggle and preserved discard confirmation. Root reviewed the delegation to the existing creation/exit owners and the cancellation/run guards. The combined icon/toggle browser check passes in 41.211 seconds. Both independent commits land together by fast-forward with final docs/dead-code checks; no runtime gates apply.
 
 **Gotchas.** Do not duplicate temporary chat creation or discard logic in the header action. Keep the dashed temporary marker and preserve saved-chat selection.
-## Compact llmx icon (2026-11-16, Done)
+## Compact llmx icon (2026-11-16, original landing)
 
-**Goal.** Add a small app icon alongside the approved llmx wordmark without changing its lettering or introducing gradients.
+**Goal.** Add a small app icon alongside the approved llmx wordmark without changing its lettering or introducing gradients. The chat-reading change later restored wordmark-only in-page headers after owner feedback; standalone favicon assets remain. The record below describes the original landing.
 
 **Done.** The shared favicon uses the exact two rounded lowercase l paths from the wordmark on a flat charcoal tile. Existing 192/512-pixel PNG exports match it. Shared theme styles pair the decorative icon with the existing accessible wordmark in Chat, login and Monitor. The wordmark SVG remains byte-for-byte unchanged. Asset URLs and MIME types are unchanged, so the live companion adopts these static files without restarting.
 

@@ -380,7 +380,16 @@ try {
   await evaluate("document.documentElement.dataset.theme='dark'");
   await cdp('Emulation.setDeviceMetricsOverride', {width:1440,height:1000,deviceScaleFactor:1,mobile:false});
   await evaluate("window.dispatchEvent(new Event('resize'))");
-  await reasoningClickDuringDelta('Compare the options.', true);
+  await pointerClick('[data-action="reply-stats"]');
+  await wait("document.querySelector('#reply-statistics .stats-hint')?.textContent.startsWith('Pinned')", 'pin statistics during generation');
+  assert.equal(await evaluate("document.querySelector('#reply-statistics .stat-row strong').textContent"), 'Unavailable', 'unreported live usage invented a zero');
+  await evaluate("window.__pinnedStats=document.querySelector('#reply-statistics');const range=document.createRange();range.selectNodeContents(__pinnedStats.querySelector('.stat-row'));getSelection().removeAllRanges();getSelection().addRange(range)");
+  assert.equal((await fetch(upstreamFixture + '/browser-step')).status, 204);
+  await wait("document.querySelector('.reasoning .markdown').textContent.includes('Compare the options.')", 'statistics survives streamed reasoning');
+  assert.equal(await evaluate("document.querySelector('#reply-statistics')===__pinnedStats && getSelection().toString().includes('Input tokens')"), true, 'streaming replaced pinned statistics or selection');
+  await pointerClick('[data-action="close-stats"]');
+  await pointerClick('.reasoning > summary');
+  assert.equal(await evaluate("document.querySelector('.reasoning').open"), true, 'reasoning did not open after statistics');
   await reasoningClickDuringDelta('Choose a clear plan.', false);
   await pointerClick('.reasoning > summary');
   assert.equal(await evaluate("document.querySelector('.reasoning').open"), true, 'reasoning did not reopen while streaming');
@@ -417,9 +426,45 @@ try {
   assert.equal(await evaluate("document.querySelectorAll('.message.assistant table').length"), 1);
   await click('[data-tab="stats"]');
   assert.equal(await evaluate("document.querySelector('.topbar').getBoundingClientRect().top>=0 && document.querySelector('.composer').getBoundingClientRect().bottom<=innerHeight"), true, 'header or composer clipped');
-  assert((await evaluate("document.querySelector('#panel-stats').innerText")).includes('240 tok/s'));
+  assert(!(await evaluate("document.querySelector('#panel-stats').innerText")).includes('tok/s'), 'conversation totals repeat per-call rates');
   assert((await evaluate("document.querySelector('#panel-stats').innerText")).includes('32'));
-  assert((await evaluate("document.querySelector('#panel-stats').innerText")).includes('510 ms'));
+  assert.equal(await evaluate("document.querySelector('.message-metrics')"), null, 'inline statistics still clutter replies');
+  for (const width of [1440, 390]) for (const theme of ['dark', 'light']) {
+    await cdp('Emulation.setDeviceMetricsOverride', {width, height: 1000, deviceScaleFactor: 1, mobile: width < 500});
+    await evaluate("document.documentElement.dataset.theme="+JSON.stringify(theme)+";document.querySelector('[data-action=close-drawers]').click()");
+    const point = await actionHoverPoint('[data-action=reply-stats]');
+    await cdp('Input.dispatchMouseEvent', {type: 'mouseMoved', x: point.x, y: point.y});
+    await wait("document.querySelector('#reply-statistics')?.matches(':popover-open')", 'hover preview statistics');
+    const text = await evaluate("document.querySelector('#reply-statistics').innerText");
+    assert(text.includes('240 tok/s') && text.includes('510 ms') && text.includes('25 tok/s'), 'reply measurements or units missing');
+    assert.equal(await evaluate("{const r=document.querySelector('#reply-statistics').getBoundingClientRect();r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight}"), true, 'statistics panel clipped');
+    const panelPoint = await evaluate("{const r=document.querySelector('#reply-statistics').getBoundingClientRect();({x:r.x+20,y:r.y+20})}");
+    await cdp('Input.dispatchMouseEvent', {type: 'mouseMoved', ...panelPoint}); await delay(200);
+    assert.equal(await evaluate("document.querySelector('#reply-statistics')?.matches(':popover-open')"), true, 'hover panel vanished while entering it');
+    if (width < 500) {
+      const point = await evaluate("{const r=document.querySelector('[data-action=reply-stats]').getBoundingClientRect();({x:r.x+r.width/2,y:r.y+r.height/2})}");
+      await cdp('Emulation.setTouchEmulationEnabled', {enabled:true,maxTouchPoints:1});
+      await cdp('Input.dispatchTouchEvent', {type:'touchStart',touchPoints:[point]});
+      await cdp('Input.dispatchTouchEvent', {type:'touchEnd',touchPoints:[]});
+      await cdp('Emulation.setTouchEmulationEnabled', {enabled:false});
+    } else await pointerClick('[data-action=reply-stats]');
+    await wait("document.querySelector('.stats-hint').textContent.startsWith('Pinned')", 'click or touch pins statistics');
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('.message.user>.markdown')).borderTopWidth==='0px' && getComputedStyle(document.querySelector('.message.user>.markdown')).backgroundColor!==getComputedStyle(document.querySelector('.message.user button')).backgroundColor"), true, 'user message still styled as a control');
+    await screenshot('reply-statistics-'+width+'-'+theme+'.png');
+    await click('[data-action=copy-stats]');
+    await wait("document.querySelector('#toast').textContent==='Statistics copied.'", 'statistics copy confirmation');
+    await cdp('Input.dispatchKeyEvent', {type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+    await cdp('Input.dispatchKeyEvent', {type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+    assert.equal(await evaluate("!document.querySelector('#reply-statistics') && document.activeElement?.dataset.action==='reply-stats'"), true, 'Escape did not close statistics and restore focus');
+    await evaluate("document.activeElement.blur();document.querySelector('[data-action=reply-stats]').focus()");
+    await cdp('Input.dispatchKeyEvent', {type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,text:'\r'});
+    await cdp('Input.dispatchKeyEvent', {type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
+    await wait("document.querySelector('.stats-hint').textContent.startsWith('Pinned')", 'keyboard pins statistics');
+    await pointerClick('#draft');
+    assert.equal(await evaluate("document.querySelector('#reply-statistics')"), null, 'outside click did not dismiss statistics');
+  }
+  await cdp('Emulation.setDeviceMetricsOverride', {width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+  await evaluate("document.documentElement.dataset.theme='dark'");
   await click('.code-actions button:last-child');
   await wait("document.querySelector('#artifact-dialog').open", 'code artifact viewer');
   assert((await evaluate("document.querySelector('.artifact-source').textContent")).includes("print('hello')"));
@@ -492,6 +537,10 @@ try {
   await evaluate("document.querySelector('.approval [data-action=approve]').click()");
   await wait("document.querySelector('#stop').hidden && document.querySelector('#messages').innerText.includes('The tool returned hello.')", 'tool continuation');
   assert.equal(await evaluate("document.activeElement?.closest('.tool-call')?.dataset.toolCall==="+JSON.stringify(approvedCall)+" && document.activeElement.closest('.tool-call details').open && document.activeElement.closest('.tool-call').querySelector('summary .badge').textContent==='completed' && document.activeElement.closest('.tool-call').innerText.includes('hello')"), true, 'streamed tool update lost summary focus, open state, or current status/result');
+  assert.equal(await evaluate("document.querySelectorAll('#messages > .message:nth-last-child(-n+2) [data-action=reply-stats]:not([hidden])').length"), 1, 'tool-assisted reply has duplicate statistics buttons');
+  await pointerClick('#messages > .message:last-of-type [data-action=reply-stats]');
+  assert.equal(await evaluate("{const p=document.querySelector('#reply-statistics');p.querySelector('.stat-row strong').textContent==='240' && p.querySelectorAll('.reply-call-metrics').length===2}"), true, 'tool-assisted reply totals or per-call breakdown incorrect');
+  await click('[data-action=close-stats]');
   const replyFlow = await evaluate(`(() => {
     const messages = [...document.querySelectorAll('#messages > .message')];
     const [tool, answer] = messages.slice(-2);
@@ -570,10 +619,11 @@ try {
   await send('Read the attachment.');
   await wait("document.querySelector('#stop').hidden && document.querySelector('#messages').innerText.includes('The attached file is readable.')", 'attachment response');
   await click('[data-tab="stats"]');
+  await click('#panel-stats .conversation-totals > summary');
   assert((await evaluate("document.querySelector('#panel-stats').innerText")).includes('960'), 'all-branch totals omitted retries');
   assert.equal(await evaluate("document.querySelectorAll('.attachment-image').length"), 1, 'image attachment missing');
   assert.equal(await evaluate("{const b=document.querySelector('.message.assistant [data-action=retry]'),s=getComputedStyle(b),r=b.getBoundingClientRect(); b.getAttribute('aria-label')==='Retry response' && b.querySelector('svg[aria-hidden=true]') && !b.textContent.trim() && s.backgroundColor!=='rgba(0, 0, 0, 0)' && s.borderTopWidth==='1px' && r.width>=32 && r.height>=30}"), true, 'message actions lack an accessible icon, visible surface or minimum target size');
-  await evaluate("{const b=document.querySelector('.message.assistant [data-action=retry]');b.blur();b.focus({preventScroll:true})}");
+  await evaluate("{const b=document.querySelector('.message.assistant [data-action=copy]');b.blur();b.focus({preventScroll:true})}");
   await cdp('Input.dispatchKeyEvent', {type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9});
   await cdp('Input.dispatchKeyEvent', {type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9});
   await wait("document.activeElement?.getAttribute('aria-describedby')?.startsWith('message-action-tooltip-')", 'keyboard focus tooltip');
@@ -631,6 +681,7 @@ try {
   await click('.chat-item.active');
   await wait("document.querySelector('#banner').textContent.includes('Edit the message')", 'legacy image failure explanation');
   assert.equal(await evaluate("document.querySelector('#banner').textContent.includes('concatenate')"), false, 'legacy template error leaked into banner');
+  assert.equal(await evaluate("document.querySelector('.activity-error details pre')?.textContent.includes('concatenate')"), true, 'Activity lost original error details');
   await reloadDocument();
   await wait("document.querySelector('#banner').textContent.includes('disconnected')", 'unrelated failure stays specific');
 
@@ -654,7 +705,7 @@ try {
   assert.equal(await evaluate('document.documentElement.dataset.theme'), 'light');
   assert.equal(await evaluate("getComputedStyle(document.querySelector('.brand-wordmark')).maskImage.includes('/logo.svg')"), true, 'light theme wordmark');
   await screenshot('mobile-light.png');
-  assert.equal(await evaluate("{const b=document.querySelector('.message.assistant [data-action=retry]'),r=b?.getBoundingClientRect(),m=document.querySelector('.message.assistant .message-metrics')?.getBoundingClientRect(),a=document.querySelector('.message.assistant .message-actions')?.getBoundingClientRect();Boolean(b?.querySelector('svg[aria-hidden=true]') && b.getAttribute('aria-label')==='Retry response' && r && r.width>=40 && r.height>=40 && r.right<=innerWidth && m && a && m.top>=r.bottom && m.right<=a.right+1)}"), true, 'mobile message action sizing or metric wrapping is wrong');
+  assert.equal(await evaluate("{const b=document.querySelector('.message.assistant [data-action=retry]'),r=b?.getBoundingClientRect(),m=document.querySelector('.message.assistant [data-action=reply-stats]:not([hidden])')?.getBoundingClientRect();Boolean(b?.querySelector('svg[aria-hidden=true]') && r && r.width>=40 && r.height>=40 && r.right<=innerWidth && m && m.width>=40 && m.right<=innerWidth)}"), true, 'mobile message action sizing or statistics control is wrong');
   await screenshot('mobile-actions-light.png');
   await click('.topbar [data-action="chat-menu"]'); await click('[data-action="archive"]');
   await wait("!document.querySelector('.chat-item.active')", 'archived conversation leaves active library');
@@ -786,10 +837,14 @@ try {
   await click(`[data-chat="${navigationChat}"]`);
   await wait("document.querySelectorAll('.activity-tool-link').length===3", 'Activity lists all tool calls on the selected branch');
   assert.equal(await evaluate("document.querySelectorAll('.message.continuation').length"), 0, 'imported messages without run identities must not be grouped');
-  await click('.activity-tool-link[data-call="nav-call-one"]');
+  assert.equal(await evaluate("document.querySelector('.activity-history').open"), false, 'old activity expanded by default');
+  assert(!(await evaluate("document.querySelector('#panel-activity').innerText")).includes('input /'), 'Activity repeats token statistics');
+  await click('.activity-history > summary');
+  await click('.activity-history .activity-card > summary');
+  await click('.activity-history .activity-tool-link[data-call="nav-call-one"]');
   await wait("document.activeElement?.closest('.tool-call')?.dataset.toolCall==='nav-call-one'", 'first Activity entry reveals matching tool details');
   assert.equal(await evaluate("document.activeElement.closest('.tool-call').innerText.includes('first argument') && document.activeElement.closest('.tool-call').innerText.includes('first result')"), true, 'first call navigation showed the wrong arguments or result');
-  const repeatedCallMessage = await evaluate("Array.from(document.querySelectorAll('.activity-tool-link[data-call=nav-call-one]')).at(-1).dataset.message");
+  const repeatedCallMessage = await evaluate("document.querySelector('#panel-activity > .activity-card .activity-tool-link[data-call=nav-call-one]').dataset.message");
   await click(`.activity-tool-link[data-message="${repeatedCallMessage}"][data-call="nav-call-one"]`);
   await wait("document.activeElement?.closest('.message')?.dataset.message==="+JSON.stringify(repeatedCallMessage), 'reused provider call ID resolves to the requested assistant message');
   assert.equal(await evaluate("document.activeElement.closest('.tool-call').innerText.includes('follow-up argument') && document.activeElement.closest('.tool-call').innerText.includes('follow-up result')"), true, 'message and call identity did not select the correct repeated call ID');
@@ -803,7 +858,7 @@ try {
   await cdp('Emulation.setDeviceMetricsOverride', {width:390,height:844,deviceScaleFactor:1,mobile:true});
   await evaluate("if(document.querySelector('#app').classList.contains('inspector-closed')) document.querySelector('.topbar [data-action=inspector]').click()");
   await wait("!document.querySelector('#app').classList.contains('inspector-closed')", 'open mobile inspector');
-  await click('.activity-tool-link[data-call="nav-call-one"]');
+  await click('.activity-history .activity-tool-link[data-call="nav-call-one"]');
   await wait("document.querySelector('#app').classList.contains('inspector-closed') && document.activeElement?.closest('.tool-call')?.dataset.toolCall==='nav-call-one'", 'mobile navigation closes inspector and focuses matching details');
   await screenshot('activity-tool-navigation-mobile.png');
   await cdp('Emulation.setDeviceMetricsOverride', {width:1440,height:1000,deviceScaleFactor:1,mobile:false});

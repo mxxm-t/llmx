@@ -153,6 +153,7 @@
   }
   async function openChat(id, snapshot = null) {
     if (S.chat?.temporary && S.chat.id !== id && !await leaveTemporary()) return;
+    hideReplyStats();
     const generation = ++S.generation; closeStream(); banner(configurationWarning());
     const data = snapshot || await api('/chats/' + encodeURIComponent(id)); if (generation !== S.generation) return;
     S.chat = data.chat; S.messages = data.messages || []; S.runs = data.runs || []; S.edit = null; S.fingerprint.clear(); S.inspectorKey = '';
@@ -182,6 +183,7 @@
     } finally { chatCreating(false); }
   }
   function clearChat() {
+    hideReplyStats();
     const old = S.chat; closeStream(); ++S.generation;
     if (old?.temporary) sessionStorage.removeItem('llmx-temporary-chat'); else localStorage.removeItem('llmx-chat');
     if (old) S.searchText.delete(old.id);
@@ -236,6 +238,24 @@
     while (id && map.has(id) && !seen.has(id)) { seen.add(id); const message = map.get(id); selected.unshift(message); id = message.parent_id; }
     return selected;
   }
+  function replyGroups() {
+    const groups = []; let prompt = '', previous = null;
+    for (const message of path()) {
+      if (message.role === 'tool') continue;
+      if (message.role === 'user') { prompt = message.content || 'Attachment'; previous = null; continue; }
+      if (message.role !== 'assistant') { previous = null; continue; }
+      if (!previous || !message.run_id || previous.run_id !== message.run_id)
+        groups.push({id: message.id, prompt, calls: []});
+      groups.at(-1).calls.push(message); previous = message;
+    }
+    return groups;
+  }
+  function tokenTotals(calls) {
+    return Object.fromEntries(['input', 'output', 'cached', 'total'].map(key => {
+      const values = calls.map(m => usage(m)[key]);
+      return [key, values.length && values.every(v => v !== undefined) ? values.reduce((a, b) => a + b, 0) : undefined];
+    }));
+  }
   function button(text, action, id, cls = 'text-button') { const el = node('button', cls, text); el.type = 'button'; el.dataset.action = action; if (id) el.dataset.id = id; return el; }
   let actionTooltip = null, tooltipTarget = null, tooltipSequence = 0;
   function hideActionTooltip(target, force = false) {
@@ -258,11 +278,12 @@
     const el = button('', action, id, cls); el.setAttribute('aria-label', label);
     const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); icon.setAttribute('viewBox', '0 0 24 24'); icon.setAttribute('fill', 'none'); icon.setAttribute('stroke', 'currentColor'); icon.setAttribute('stroke-width', '1.8'); icon.setAttribute('stroke-linecap', 'round'); icon.setAttribute('stroke-linejoin', 'round'); icon.setAttribute('aria-hidden', 'true');
     const shape = document.createElementNS('http://www.w3.org/2000/svg', 'path'); shape.setAttribute('d', path); icon.append(shape); el.append(icon);
+    if (action === 'reply-stats') return el;
     el.addEventListener('pointerenter', () => showActionTooltip(el)); el.addEventListener('pointerleave', () => hideActionTooltip(el));
     el.addEventListener('blur', () => hideActionTooltip(el)); el.addEventListener('click', () => hideActionTooltip(el, true));
     return el;
   }
-  document.addEventListener('focusin', event => { if (event.target.matches('.message-icon-action,.branch-action')) showActionTooltip(event.target); }, true);
+  document.addEventListener('focusin', event => { if (event.target.matches('.message-icon-action:not([data-action=reply-stats]),.branch-action')) showActionTooltip(event.target); }, true);
   document.addEventListener('keydown', event => { if (event.key === 'Escape') hideActionTooltip(); }, true);
   document.addEventListener('scroll', () => { if (tooltipTarget && tooltipTarget === document.activeElement) showActionTooltip(tooltipTarget); else hideActionTooltip(); }, true);
   window.addEventListener('resize', () => hideActionTooltip());
@@ -326,13 +347,9 @@
     }
     if (message.status && ['failed', 'cancelled', 'interrupted'].includes(message.status)) actions.append(node('span', 'error-text', message.status));
     if (message.role === 'assistant') {
-      const u = usage(message); const parts = [];
-      if (u.input !== undefined) parts.push(number(u.input) + ' in');
-      if (u.output !== undefined) parts.push(number(u.output) + ' out');
-      const rate = valueAt(message.timings || {}, ['predicted_per_second', 'decode_tps', 'generation_tps']);
-      if (rate !== undefined) parts.push(number(rate) + ' tok/s');
-      if (message.timings?.predicted_ms !== undefined) parts.push(number(message.timings.predicted_ms / 1000) + ' s generation');
-      if (parts.length) actions.append(node('span', 'message-metrics', parts.join(' / ')));
+      const stats = actionIcon('Reply statistics', 'reply-stats', message.id, 'M5 20V10 M12 20V4 M19 20v-7');
+      stats.setAttribute('aria-haspopup', 'dialog'); stats.setAttribute('aria-controls', 'reply-statistics'); stats.setAttribute('aria-expanded', 'false');
+      actions.append(stats);
     }
     el.append(actions); return el;
   }
@@ -409,7 +426,12 @@
     $('send').hidden = Boolean(run); $('stop').hidden = !run; $('send').disabled = S.busy || modelUnavailable;
     if (!run && modelUnavailable && S.config.upstream_available) banner('This model is not available on the connected server. Choose another model before sending.');
     if ($('app').dataset.view === 'chat') document.title = (S.chat?.title ? S.chat.title + ' / ' : '') + 'llmx Chat';
-    syncLiveMetrics(); renderInspector(); tick(); if (nearBottom) requestAnimationFrame(bottom);
+    const groups = replyGroups();
+    groups.forEach(group => group.calls.forEach((m, index) => {
+      const control = container.querySelector('[data-message="' + CSS.escape(m.id) + '"] [data-action=reply-stats]');
+      if (control) { control.dataset.reply = group.id; control.hidden = index !== group.calls.length - 1; control.setAttribute('aria-expanded', String(replyStats?.id === group.id)); }
+    }));
+    positionReplyStats(); syncLiveMetrics(); renderInspector(); tick(); if (nearBottom) requestAnimationFrame(bottom);
   }
   function syncLiveMetrics() {
     const run = currentRun();
@@ -465,56 +487,150 @@
   function valueAt(object, keys) { for (const key of keys) { const value = key.split('.').reduce((o, k) => o?.[k], object); if (typeof value === 'number' && Number.isFinite(value)) return value; } return undefined; }
   function usage(message) { const u = message.usage || {}; return {input: valueAt(u, ['prompt_tokens', 'input_tokens']), output: valueAt(u, ['completion_tokens', 'output_tokens']), cached: valueAt(u, ['prompt_tokens_details.cached_tokens', 'input_tokens_details.cached_tokens', 'cached_tokens']), total: valueAt(u, ['total_tokens'])}; }
   function statRow(target, label, value) { const row = node('div', 'stat-row'); row.append(node('span', '', label), node('strong', '', value)); target.append(row); }
+  let replyStats = null, statsTimer = null, closingStats = false;
+  function statsAnchor() {
+    return replyStats && $('messages').querySelector('[data-action=reply-stats][data-reply="' + CSS.escape(replyStats.id) + '"]:not([hidden])');
+  }
+  function hideReplyStats(restoreFocus = false) {
+    clearTimeout(statsTimer);
+    if (!replyStats) return;
+    const anchor = statsAnchor();
+    replyStats.panel.remove(); replyStats = null;
+    anchor?.setAttribute('aria-expanded', 'false');
+    if (restoreFocus && anchor) { closingStats = true; anchor.focus({preventScroll: true}); closingStats = false; }
+  }
+  function positionReplyStats() {
+    if (!replyStats) return;
+    const anchor = statsAnchor();
+    if (!anchor || $('app').dataset.view !== 'chat') { hideReplyStats(); return; }
+    const box = anchor.getBoundingClientRect(), panel = replyStats.panel, size = panel.getBoundingClientRect(), pad = 12;
+    panel.style.left = Math.max(pad, Math.min(box.left, innerWidth - size.width - pad)) + 'px';
+    panel.style.top = Math.max(pad, Math.min(box.bottom + 8 + size.height <= innerHeight ? box.bottom + 8 : box.top - size.height - 8, innerHeight - size.height - pad)) + 'px';
+  }
+  function scheduleStatsClose() {
+    clearTimeout(statsTimer);
+    statsTimer = setTimeout(() => {
+      if (!replyStats || replyStats.pinned) return;
+      const anchor = statsAnchor(), panel = replyStats.panel;
+      if (anchor?.matches(':hover') || panel.matches(':hover') || anchor === document.activeElement || panel.contains(document.activeElement)) return;
+      hideReplyStats();
+    }, 160);
+  }
+  function showReplyStats(anchor, pin = false) {
+    if (closingStats) return;
+    clearTimeout(statsTimer);
+    const id = anchor.dataset.reply;
+    if (replyStats?.pinned && !pin) return;
+    if (replyStats?.id === id) {
+      if (pin && replyStats.pinned) { hideReplyStats(true); return; }
+    } else {
+      hideReplyStats();
+      const group = replyGroups().find(g => g.id === id); if (!group) return;
+      const panel = node('section', 'reply-statistics'); panel.id = 'reply-statistics'; panel.setAttribute('popover', 'manual');
+      panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-label', 'Reply statistics'); panel.tabIndex = -1;
+      const head = node('div', 'reply-statistics-heading'); head.append(node('h3', '', 'Reply statistics'), button('Close', 'close-stats', '', 'text-button')); panel.append(head);
+      const totals = tokenTotals(group.calls);
+      [['Input tokens', 'input'], ['Output tokens', 'output'], ['Cached input', 'cached'], ['Total tokens', 'total']].forEach(([label, key]) => statRow(panel, label, number(totals[key])));
+      panel.append(node('p', 'fine-print muted', 'Cached input is part of input. Totals include ' + group.calls.length + (group.calls.length === 1 ? ' model call.' : ' model calls.')));
+      group.calls.forEach((m, index) => {
+        const detail = node('details', 'reply-call-metrics'); detail.open = group.calls.length === 1;
+        detail.append(node('summary', '', 'Call ' + (index + 1) + ' / ' + (m.status || 'recorded')));
+        const t = m.timings || {}, u = usage(m), body = node('div');
+        if (group.calls.length > 1) {
+          statRow(body, 'Input tokens', number(u.input)); statRow(body, 'Output tokens', number(u.output));
+        }
+        statRow(body, 'Prompt processing', number(valueAt(t, ['prompt_per_second', 'prompt_tps', 'prefill_tps']), ' tok/s'));
+        statRow(body, 'Generation', number(valueAt(t, ['predicted_per_second', 'decode_tps', 'generation_tps']), ' tok/s'));
+        const parts = [t.prepared_ms, t.queued_ms, t.prompt_ms];
+        const ttft = parts.every(v => typeof v === 'number' && Number.isFinite(v)) ? parts.reduce((a, b) => a + b, 0) : valueAt(t, ['ttft_ms', 'time_to_first_token_ms']);
+        statRow(body, 'Server time to first token', number(ttft, ' ms'));
+        const extra = node('details', 'reply-extra-metrics'); extra.append(node('summary', '', 'More measurements'));
+        [['Prompt time', 'prompt_ms'], ['Generation time', 'predicted_ms'], ['Queued time', 'queued_ms']].forEach(([label, key]) => statRow(extra, label, number(valueAt(t, [key]), ' ms')));
+        statRow(extra, 'Context tokens', number(valueAt(m.context || {}, ['tokens']))); statRow(extra, 'Context limit', number(valueAt(m.context || {}, ['limit'])));
+        const raw = node('details'); raw.append(node('summary', '', 'Reported data'), node('pre', '', json({usage: m.usage, timings: m.timings, context: m.context}))); extra.append(raw); body.append(extra);
+        detail.append(body); panel.append(detail);
+      });
+      panel.append(node('p', 'fine-print muted', 'Snapshot when opened. Reopen to refresh. Unavailable values were not reported by the server.'));
+      const footer = node('div', 'reply-statistics-footer'); footer.append(node('span', 'fine-print stats-hint', 'Click the statistics button to keep this open.'), button('Copy values', 'copy-stats', '', 'secondary-button')); panel.append(footer);
+      panel.dataset.copy = json({totals, calls: group.calls.map(m => ({usage: m.usage, timings: m.timings, context: m.context}))});
+      panel.addEventListener('pointerenter', () => clearTimeout(statsTimer)); panel.addEventListener('pointerleave', scheduleStatsClose);
+      panel.addEventListener('focusout', scheduleStatsClose);
+      document.body.append(panel); replyStats = {id, panel, pinned: false}; panel.showPopover();
+    }
+    if (pin) { replyStats.pinned = true; replyStats.panel.querySelector('.stats-hint').textContent = 'Pinned. Select text or copy the values.'; replyStats.panel.focus({preventScroll: true}); }
+    anchor.setAttribute('aria-expanded', 'true'); positionReplyStats();
+  }
+  document.addEventListener('pointerover', event => {
+    const anchor = event.target.closest('[data-action=reply-stats]');
+    if (anchor && event.pointerType !== 'touch' && !anchor.contains(event.relatedTarget)) showReplyStats(anchor);
+  });
+  document.addEventListener('pointerout', event => { if (event.target.closest('[data-action=reply-stats]')) scheduleStatsClose(); });
+  document.addEventListener('focusin', event => { if (event.target.matches('[data-action=reply-stats]')) showReplyStats(event.target); });
+  document.addEventListener('focusout', event => { if (event.target.matches('[data-action=reply-stats]')) scheduleStatsClose(); });
+  document.addEventListener('pointerdown', event => { if (replyStats && !replyStats.panel.contains(event.target) && !event.target.closest('[data-action=reply-stats]')) hideReplyStats(); });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && replyStats) { event.preventDefault(); event.stopPropagation(); hideReplyStats(true); } }, true);
+  document.addEventListener('scroll', event => { if (replyStats && !replyStats.panel.contains(event.target)) positionReplyStats(); }, true);
+  window.addEventListener('resize', positionReplyStats);
+  document.addEventListener('companion:view', () => hideReplyStats());
   function renderInspector() {
-    const selected = path(); const calls = selected.filter(m => m.role === 'assistant');
+    const selected = path(), calls = selected.filter(m => m.role === 'assistant'), groups = replyGroups();
     const inspectorKey = JSON.stringify([S.chat?.id, S.messages.map(m => messageKey(m)), selected.map(m => m.id), S.runs.map(r => [r.id, r.status, r.error])]);
     if (inspectorKey === S.inspectorKey) return; S.inspectorKey = inspectorKey;
-    const openMetrics = Array.from($('panel-stats').querySelectorAll('details')).map(d => d.open);
-    const activity = $('panel-activity'); activity.replaceChildren(node('p', 'panel-intro', 'A clear view of what happens along the way. Model calls and tool activity appear here.'));
+    const activity = $('panel-activity'), stats = $('panel-stats');
+    const openActivity = new Set(Array.from(activity.querySelectorAll('details[open]'), el => el.dataset.activity));
+    const focused = activity.contains(document.activeElement) ? document.activeElement.dataset.activityKey : null;
+    const allOpen = Boolean(stats.querySelector('details')?.open);
+    activity.replaceChildren();
     const run = currentRun();
-    const state = node('div', 'stat-row'); state.append(node('span', '', 'STATUS'), node('strong', '', run ? run.status === 'approval' ? 'Needs approval' : 'Generating' : 'Ready')); activity.append(state);
-    activity.append(node('h3', 'section-label', 'THIS BRANCH'));
-    const entries = selected.filter(m => m.role === 'assistant');
-    if (!entries.length) { const empty = node('div', 'activity-empty'); empty.append(node('p', '', 'No activity yet'), node('span', '', 'Model calls and tool results appear after you send a message.')); activity.append(empty); }
-    entries.forEach((m, i) => {
-      const card = node('div', 'activity-card'); const title = node('div', 'activity-title'); title.append(node('span', '', 'Model call ' + (i + 1)), node('span', 'badge', m.status || 'completed')); card.append(title);
-      const u = usage(m); card.append(node('small', '', number(u.input) + ' input / ' + number(u.output) + ' output'));
-      (m.tool_calls || []).forEach(call => {
+    const state = node('div', 'stat-row'); state.append(node('span', '', 'Now'), node('strong', '', run ? run.status === 'approval' ? 'Needs approval' : 'Generating' : 'Ready')); activity.append(state);
+    function activityError(recordedRun) {
+      const issue = node('div', 'activity-error'), message = runError(recordedRun);
+      issue.append(node('p', 'error-text', message));
+      if (recordedRun.error && recordedRun.error !== message) {
+        const detail = node('details'); detail.append(node('summary', '', 'Reported error'), node('pre', '', recordedRun.error)); issue.append(detail);
+      }
+      return issue;
+    }
+    function activityCard(group, older = false) {
+      const last = group.calls.at(-1), recordedRun = S.runs.find(r => r.id === last.run_id);
+      const card = node(older ? 'details' : 'section', 'activity-card');
+      const title = node(older ? 'summary' : 'div', 'activity-title');
+      title.append(node('span', '', group.prompt ? group.prompt.slice(0, 90) : 'Assistant reply'), node('span', 'badge', recordedRun?.status || last.status || 'recorded'));
+      if (older) { card.dataset.activity = group.id; card.open = openActivity.has(group.id); title.dataset.activityKey = group.id; }
+      card.append(title);
+      const jump = button('View reply', 'reply-detail', last.id, 'text-button'); card.append(jump);
+      group.calls.forEach(m => (m.tool_calls || []).forEach(call => {
         const row = node('button', 'stat-row activity-tool-link'); row.type = 'button'; row.dataset.action = 'tool-detail'; row.dataset.message = m.id; row.dataset.call = call.id || '';
+        row.dataset.activityKey = m.id + ':' + (call.id || '');
         row.setAttribute('aria-label', 'Show ' + (call.name || 'tool call') + ' arguments and result in conversation');
         row.append(node('span', '', call.name || 'Tool call'), node('strong', '', call.status || 'pending')); card.append(row);
-      }); activity.append(card);
-    });
-    S.runs.filter(r => r.error).forEach(r => activity.append(node('p', 'error-text', r.error)));
-    S.runs.forEach(r => { const duration = ((terminal(r.status) ? timestamp(r.updated).getTime() : Date.now()) - timestamp(r.created).getTime()) / 1000; if (Number.isFinite(duration)) statRow(activity, r.status + ' run', number(Math.max(0, duration), ' s')); });
-    const stats = $('panel-stats'); stats.replaceChildren(node('p', 'panel-intro', 'Recorded usage on the selected branch. Cached tokens are included in input, never added twice.'));
-    const sums = {};
-    for (const key of ['input', 'output', 'cached', 'total']) { const values = calls.map(m => usage(m)[key]); sums[key] = values.length && values.every(v => v !== undefined) ? values.reduce((a, b) => a + b, 0) : undefined; }
-    const grid = node('div', 'metric-grid');
+      }));
+      if (recordedRun?.error) card.append(activityError(recordedRun));
+      return card;
+    }
+    if (groups.length) {
+      activity.append(node('h3', 'section-label', 'LATEST REPLY'), activityCard(groups.at(-1)));
+      if (groups.length > 1) {
+        const history = node('details', 'activity-history'); history.dataset.activity = 'history'; history.open = openActivity.has('history');
+        const summary = node('summary', '', 'Earlier replies (' + (groups.length - 1) + ')'); summary.dataset.activityKey = 'history'; history.append(summary);
+        groups.slice(0, -1).reverse().forEach(group => history.append(activityCard(group, true))); activity.append(history);
+      }
+    } else activity.append(node('p', 'activity-empty', run ? 'Waiting for the first response.' : 'No reply yet. Progress and tool activity will appear here.'));
+    const lastRun = S.runs.filter(r => selected.some(m => m.id === r.message_id)).at(-1);
+    if (lastRun?.error && !groups.some(g => g.calls.some(m => m.run_id === lastRun.id))) activity.append(activityError(lastRun));
+    stats.replaceChildren(node('h3', 'section-label', 'THIS BRANCH'), node('p', 'panel-intro', 'Totals across model calls on the selected conversation branch. Cached input is included in input.'));
+    const sums = tokenTotals(calls), grid = node('div', 'metric-grid');
     [['Input tokens', 'input'], ['Output tokens', 'output'], ['Cached input', 'cached'], ['Total tokens', 'total']].forEach(([label, key]) => { const card = node('div', 'metric-card'); card.append(node('span', '', label), node('strong', sums[key] === undefined ? 'unknown' : '', number(sums[key]))); grid.append(card); }); stats.append(grid);
-    stats.append(node('h3', 'section-label', 'ENTIRE CONVERSATION / ALL BRANCHES'));
+    statRow(stats, 'Replies', String(groups.length)); statRow(stats, 'Model calls', String(calls.length));
     const allCalls = S.messages.filter(m => m.role === 'assistant');
-    for (const [label, key] of [['Input tokens', 'input'], ['Output tokens', 'output'], ['Cached input (subset)', 'cached'], ['Total tokens', 'total']]) { const values = allCalls.map(m => usage(m)[key]); const total = values.length && values.every(v => v !== undefined) ? values.reduce((a, b) => a + b, 0) : undefined; statRow(stats, label, number(total)); }
-    statRow(stats, 'Model calls across all branches', String(allCalls.length));
-    statRow(stats, 'Model calls', String(calls.length));
-    statRow(stats, 'Messages on this branch', String(selected.filter(m => m.role !== 'tool').length));
-    const last = calls.at(-1); stats.append(node('h3', 'section-label', 'LATEST MODEL CALL'));
-    if (last) {
-      const t = last.timings || {};
-      statRow(stats, 'Prompt processing', number(valueAt(t, ['prompt_per_second', 'prompt_tps', 'prefill_tps']), ' tok/s'));
-      statRow(stats, 'Generation', number(valueAt(t, ['predicted_per_second', 'decode_tps', 'generation_tps']), ' tok/s'));
-      const ttftParts = [t.prepared_ms, t.queued_ms, t.prompt_ms];
-      const ttft = ttftParts.every(v => typeof v === 'number' && Number.isFinite(v)) ? ttftParts.reduce((a, b) => a + b, 0) : valueAt(t, ['ttft_ms', 'time_to_first_token_ms']);
-      statRow(stats, 'Server time to first token', number(ttft, ' ms'));
-      statRow(stats, 'Prompt time', number(valueAt(t, ['prompt_ms']), ' ms'));
-      statRow(stats, 'Generation time', number(valueAt(t, ['predicted_ms']), ' ms'));
-      statRow(stats, 'Queued time', number(valueAt(t, ['queued_ms']), ' ms'));
-      statRow(stats, 'Context tokens', number(last.context?.tokens));
-      statRow(stats, 'Context limit', number(last.context?.limit));
-      calls.forEach((m, i) => { const details = node('details'); details.append(node('summary', '', 'Call ' + (i + 1) + ' / recorded metrics'), node('pre', '', json({usage: m.usage, timings: m.timings, context: m.context}))); stats.append(details); });
-    } else stats.append(node('p', 'muted fine-print', 'No recorded metrics yet. Live text chunks are not token counts.'));
-    stats.append(node('p', 'muted fine-print', 'Unavailable means the server did not report a value. Rates are measured by the upstream server; elapsed time is a wall clock.'));
-    stats.querySelectorAll('details').forEach((d, i) => { d.open = openMetrics[i] || false; });
+    if (allCalls.length !== calls.length) {
+      const all = node('details', 'conversation-totals'); all.open = allOpen; all.append(node('summary', '', 'Including other branches'));
+      const totals = tokenTotals(allCalls);
+      for (const [label, key] of [['Input tokens', 'input'], ['Output tokens', 'output'], ['Cached input (subset)', 'cached'], ['Total tokens', 'total']]) statRow(all, label, number(totals[key]));
+      statRow(all, 'Model calls', String(allCalls.length)); stats.append(all);
+    }
+    stats.append(node('p', 'muted fine-print', 'Open the statistics icon beside a reply for its timings and model-call details. Unavailable means a call did not report that value.'));
+    if (focused) activity.querySelector('[data-activity-key="' + CSS.escape(focused) + '"]')?.focus({preventScroll: true});
   }
   function subscribe(run) {
     closeStream(); S.cursor = Number(run.last_seq || 0); const chatId = S.chat?.id;
@@ -682,9 +798,13 @@
   }
   async function action(name, el) {
     if (name !== 'chat-menu') window.ChatShell.closeMenu();
+    if (name === 'reply-stats') return showReplyStats(el, true);
+    if (name === 'close-stats') return hideReplyStats(true);
+    if (name === 'copy-stats') { if (replyStats) { await navigator.clipboard.writeText(replyStats.panel.dataset.copy); toast('Statistics copied.'); } return; }
     if (name === 'new') return newChat();
     if (name === 'temporary') return temporaryChat();
     if (name === 'end-temporary') return leaveTemporary();
+    if (name === 'reply-detail') { const target = $('messages').querySelector('[data-message="' + CSS.escape(el.dataset.id) + '"]'); if (target) { closeDrawers(); target.tabIndex = -1; target.focus({preventScroll: true}); target.scrollIntoView({block: 'center', behavior: 'smooth'}); } return; }
     if (name === 'tool-detail') return showToolCall(el.dataset.message, el.dataset.call);
     if (name === 'sidebar') { $('app').classList.toggle('sidebar-open'); updateShade(); return; }
     if (name === 'close-drawers') return closeDrawers();

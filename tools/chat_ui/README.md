@@ -99,7 +99,7 @@ It does not lock the upstream model or control later server restarts.
 - Settings are per conversation. System instructions and generation settings
   apply to subsequent calls, including subsequent calls after a tool result.
 - Consecutive model calls in one tool-assisted reply share a visual header and
-  closer spacing. Each call keeps its own actions, details and statistics.
+  closer spacing. Each call keeps its own actions and details. One statistics icon covers the reply, including its tool-related model calls.
 - Reasoning is displayed only when the upstream supplies `reasoning_content`.
   You can open or close it while the reply is being generated. Reloading
   reconnects to the same reply without cancelling or restarting generation.
@@ -118,6 +118,24 @@ It does not lock the upstream model or control later server restarts.
   LaTeX, executable artifacts and knowledge-base retrieval are not implemented.
 - A companion process restart marks unfinished runs interrupted. It never
   retries a tool automatically after losing its outcome.
+
+## Reply statistics and activity
+
+Hover over a reply's statistics icon to preview reported token counts and timings.
+Click the icon, or use Enter or Space, to keep the panel open for text selection
+and Copy values. Touch users tap the icon. Close, Escape or a click outside the
+panel dismisses it. Values are a snapshot when opened, so streamed updates do
+not disturb selection; reopen to refresh.
+
+A reply that uses tools includes all its model calls in the token totals and
+shows timing details for each call. Rates are not averaged. Missing metrics stay
+unavailable, and cached input remains part of input. Reported source data is
+available inside each call's details.
+
+Activity shows the latest reply and its tool progress or errors. Earlier replies
+are grouped in collapsed history. View reply and tool entries navigate to the
+matching conversation content. The Stats tab holds conversation totals for the
+selected branch, with other branches available separately when present.
 
 ## Temporary chats
 
@@ -349,5 +367,5 @@ Chat and Monitor share the lowercase llmx wordmark in `tools/health_dashboard/`.
 `logo.svg` contains outlined lettering, with no font dependency or gradients.
 Both interfaces use it as a CSS mask with an accessible label, so the letters
 follow the selected theme. `favicon.svg` uses the wordmark's paired lowercase l glyphs on a flat
-charcoal tile, giving the app a compact mark alongside the unchanged wordmark. `icon-192.png` and `icon-512.png` export that icon at app sizes.
+charcoal tile for the browser tab. In-page headers use the wordmark alone. `icon-192.png` and `icon-512.png` export the standalone icon at app sizes.
 Both servers expose these fixed asset paths.

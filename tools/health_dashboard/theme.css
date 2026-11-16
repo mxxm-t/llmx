@@ -77,15 +77,4 @@
   mask: url("/logo.svg") center / contain no-repeat;
 }
 
-.brand-lockup {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  flex: 0 0 auto;
-}
-.brand-icon {
-  display: block;
-  width: 32px;
-  height: 32px;
-  flex: 0 0 auto;
-}
+\r\n

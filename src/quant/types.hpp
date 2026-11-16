@@ -33,6 +33,7 @@ constexpr uint32_t GGML_TYPE_IQ2_S = 22;
 constexpr uint32_t GGML_TYPE_IQ4_XS = 23;
 constexpr uint32_t GGML_TYPE_IQ1_M = 29;
 constexpr uint32_t GGML_TYPE_BF16 = 30;
+constexpr uint32_t GGML_TYPE_I8 = 24;
 constexpr uint32_t GGML_TYPE_I32 = 26;
 constexpr uint32_t GGML_TYPE_I64 = 27;
 constexpr uint32_t GGML_TYPE_TQ1_0 = 34;

@@ -204,6 +204,7 @@ What each part of a forward pass computes in, on every backend; `--dtype` by bac
 | Routers of mixture-of-experts models | F32 under every `--dtype` |
 | SiLU, quick_gelu and router sigmoids | F32, each backend with its own `exp` (the C library's on the CPU, GLSL's on Vulkan, `expf` on ROCm and CUDA); Vulkan is held to the CPU within 1e-6 for SiLU and within 1e-6 for quick_gelu, a budget of twice the device's SiLU deviation at quick_gelu's arguments (2.816e-07 measured) rounded up, with SiLU's floor; ROCm and CUDA hold both to the device tests' F32 bound, 1e-4 * (1 + |CPU|) |
 | `F16` and `BF16` weights | Widened exactly to F32 in the product |
+| Activation schemes of quantized checkpoints | Read and not applied: a compressed-tensors file's `input_activations` (int8 by token in W8A8 files) is listed by `llmx info` as `quantization.input_activations`, and its activations follow `--dtype` as any file's do, so its numerics are llmx's at that dtype, not those of a runtime that applies the scheme |
 | `MXFP4` and the other quantized weight types | Decoded exactly; `MXFP4` has no 8-bit form, so `int8` runs it as `f16`; on Vulkan it needs a device with double-precision support |
 
 ## 6. Approved delivery order (2026-09-30)

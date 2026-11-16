@@ -202,6 +202,11 @@ def twin_checks(directory, label, fixture, quantization, type_name):
     rc, out = cli(["info", model])
     listed = [line for line in out.splitlines() if any(".%s.weight " % name in line for name in LINEARS)]
     assert rc == 0 and len(listed) == 14 and all(type_name in line for line in listed), "info on the %s directory: %s" % (label, out)
+    # An activation scheme is listed and not applied: activations follow --dtype.
+    scheme = (quantization.get("config_groups") or {}).get("group_0", {}).get("input_activations")
+    shown = [line.strip() for line in out.splitlines() if "quantization.input_activations" in line]
+    want = ['quantization.input_activations = "8-bit int by token, dynamic, symmetric; not applied, activations follow --dtype"'] if scheme else []
+    assert shown == want, "info on the %s directory lists the activation scheme as %r" % (label, shown)
     text = f32.TEXTS[-1]
     for args in (["tokenize", "{}", text], ["logits", "{}", text, "--top", str(f32.VOCAB)],
                  ["generate", "{}", text[:4], "-n", "8", "--temp", "0", "--ignore-eos"]):

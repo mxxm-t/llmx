@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <iterator>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -105,7 +106,7 @@ inline bool match(const std::string& pattern, const std::string& name, uint64_t&
 
 } // namespace detail
 
-// `m`, the tensors of a directory under their HF names, given the metadata and names `table` makes of `config` for the architecture `arch`, whose keys go under "arch.".
+// `m`, the tensors of a directory under their HF names, given the metadata and names `table` makes of `config` for the architecture `arch`, with the table's keys under its prefix ahead of those `m` already holds, such as hf_quant's.
 // A tied head stored beside the embedding is dropped, as the HF model ignores it, so the head reads the embedding as the GGUF file of the same checkpoint has it.
 inline void apply(const Table& table, const std::string& arch, const jmini::Value& config, gguf::GGUFModel& m) {
     if (!config.isObject()) throw std::runtime_error("config.json is not an object");
@@ -185,6 +186,7 @@ inline void apply(const Table& table, const std::string& arch, const jmini::Valu
     const jmini::Value* vocab = config.get("vocab_size");
     if (!embedding || embedding->ne.size() != 2 || !vocab || !vocab->isNumber() || vocab->num != double(embedding->ne[1]))
         throw std::runtime_error("config.json vocab_size does not give the embedding's rows");
+    kv.insert(kv.end(), std::make_move_iterator(m.kv.begin()), std::make_move_iterator(m.kv.end()));
     m.kv = std::move(kv);
 }
 

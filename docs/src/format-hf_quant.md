@@ -3,10 +3,10 @@
 `hf_quant` reads a directory's `config.json` `quantization_config` and makes each quantized linear's companion tensors one tensor of a type llmx already runs, whose values are the checkpoint's exactly (vLLM formats, quant step 1, `docs/STATUS.md`).
 It owns the key: `infer::read_directory` ([directory](inference-directory.md)) hands it `quantization_config` and erases it before the architecture's table reads the rest of `config.json`, so the table never sees it.
 
-- `apply(qc, m)`: `qc` is the key's value or null. A null `qc` reads nothing; otherwise `quant_method` must name a method llmx reads, `awq` or `gptq`, and every key of the object is read, checked or refused by name.
-  Afterwards any tensor still I32 or I64, which only a quantization rule consumes, is refused by name ("holds integers that no quantization rule of the directory reads").
+- `apply(qc, m)`: `qc` is the key's value or null. A null `qc` reads nothing; otherwise `quant_method` must name a method llmx reads, `awq`, `gptq` or `compressed-tensors`, and every key of the object is read, checked or refused by name.
+  Afterwards any tensor still I8, I32 or I64, which only a quantization rule consumes, is refused by name ("holds integers that no quantization rule of the directory reads").
 - `repack(c, t, parts, out)`: writes composite `c`'s bytes for tensor `t` at `out` from its parts' bytes, read whole, in the order of `c.parts`; the loader calls it ([load](inference-load.md)).
-- `linears(m, companions, required, make)`: the one table edit of both methods: each `X.qweight` with its companions `X.<suffix>` becomes one composite `X.weight` at `qweight`'s place, a companion without its `qweight` or a `qweight` without a required companion is refused, and `make` checks the parts and sets the kind, type and shape.
+- `linears(m, main, companions, required, make)`: the one table edit of every method: each `X.<main>` holding integers (`qweight`, `weight_packed`, or int-quantized's `weight`) with its companions `X.<suffix>` becomes one composite `X.weight` at the main's place, a companion without its main or a main without a required companion is refused, and `make` checks the parts and sets the kind, type and shape.
 - `kRepackVersion`: what the repacks write, carried in the disk tier's identity (`server::disk_identity`, [server](server.md)) as `repack: N`, so cached histories of a directory change with any change to a repack's bytes; it moves with every such change.
 
 ## AWQ
@@ -19,6 +19,7 @@ The GEMM packing of 4-bit AWQ with zero points (`version` `gemm`).
 - Any other key, or another value of a checked one, is refused with the key named.
 
 A linear `X` is `X.qweight` I32 [in, out / 8], `X.qzeros` I32 [in / group, out / 8] and `X.scales` F16 or BF16 [in / group, out] (Hugging Face order, slowest first).
+A companion beside a tensor that is not the integer main, such as a `weight_scale` beside a 16-bit `weight`, is refused by name.
 Word j of a row holds output 8j + order[s] in nibble s, order = {0, 2, 4, 6, 1, 3, 5, 7}, for codes and zero points alike, and the weight at output n and input k is (q - z) * s.
 `apply` replaces the three by one tensor `X.weight` of type Q5_0 and shape [in, out] at `qweight`'s place in the table, a `gguf::GGUFModel::Composite` of kind `awq_q5_0` ([gguf](format-gguf.md)), and refuses a companion without its `qweight`, a `qweight` without both companions, other storage types, and shapes that do not agree with the group.
 
@@ -47,3 +48,24 @@ A symmetric linear whose zero point is not the middle code, 8 or 128, is refused
 Q4_0 holds 18 bytes for 32 values where GPTQ holds 16 plus its share of zero points and scales, and Q8_0 34 where 8-bit GPTQ holds 32, so the repacked tensors are about 8 and 4 percent larger than their sources.
 
 `tests/spec_decode.py` decodes GPTQ linears and their repacks from the packing description, `raw-blocks` holds both to it, and `load-progress` loads synthetic GPTQ directories of each kind to their twins' logits ([TESTS](../TESTS.md)).
+
+## compressed-tensors
+
+Integer weights of the `pack-quantized` and `int-quantized` formats, as llm-compressor writes them; `float-quantized` (FP8) is a later step of the plan.
+`quantization_config` keys:
+- `quant_method` `compressed-tensors`; `format` `pack-quantized` or `int-quantized`, required; `quantization_status` `compressed`; `kv_cache_scheme` null; `sparsity_config` null or empty; `ignore` null or naming only `lm_head`, which no rule here quantizes; `global_compression_ratio` and `version` taken as they are; the keys taken are those llm-compressor's files carry.
+- `config_groups`: each group's `weights` is one scheme, and every group must give the same one; `targets` must include `Linear`, so no linear is left unquantized by a narrower target, `input_activations` is taken and not applied (the run's `--dtype` decides activations, `docs/PRECISION.md`) and, when not null, written in words as `quantization.input_activations` for `llmx info`, `output_activations` must be null.
+- A weights scheme: `num_bits` 4 or 8; `type` `int`; `symmetric` true or false; `strategy` `group`, with `group_size` a multiple of 32 from 32 to 65536, or `channel`, one scale a row; `dynamic` false; `block_structure` null; `actorder`, `observer` and `observer_kwargs` taken as they are, `actorder` because `weight_g_idx` itself shows whether a linear's groups follow its inputs.
+- 8-bit asymmetric schemes, and asymmetric `int-quantized` ones, are refused: no existing code holds their values.
+- The strategy and group rules hold the weights only: an activation scheme of strategy `token`, as int8 `int-quantized` files carry, is taken.
+- Any other key, or another value of a checked one, is refused with the key and its group named.
+
+A linear `X` is `X.weight_packed` I32 [out, in * bits / 32] with `X.weight_shape` I64 [2] holding [out, in] (`pack-quantized`), or `X.weight` I8 [out, in] (`int-quantized`); `X.weight_scale` F16 or BF16 [out, in / group] (one column under `channel`); under an asymmetric scheme `X.weight_zero_point` I32 [out * bits / 32, in / group]; and, when present, `X.weight_g_idx` I32 [in] (Hugging Face order, slowest first).
+Codes and zero points are signed, -2^(bits - 1) to 2^(bits - 1) - 1; `pack-quantized` stores each plus 2^(bits - 1), 32 / bits a word from its low bits up, codes along the inputs and zero points along the outputs, and the weight at output n and input k is (q - z) * s of group k / group, z being 0 when symmetric.
+`apply` replaces them by one tensor `X.weight` [in, out]: `ct_q4_0` and Q4_0 for 4-bit symmetric codes, `ct_q5_0` and Q5_0 for 4-bit asymmetric ones, and `ct_q8_0` and Q8_0 for 8-bit ones.
+
+`repack` writes d = s in F16 and the code q + 8 (Q4_0, whose value is q), q - z + 16 (Q5_0, 1 to 31) or q (Q8_0), so each value is the checkpoint's exactly; scales are taken as AWQ's are, and the channel scale is each block's d.
+A `weight_shape` other than the tensor's, a `weight_g_idx` entry other than k / group and an int8 code outside a 4-bit scheme's range are refused naming the tensor.
+Q4_0 holds 18 bytes for 32 values where 4-bit codes take 16 plus their share of scales, Q5_0 22 where an asymmetric group of 64 takes 16 plus a zero point and a scale per 64, and Q8_0 34 where 8-bit codes take 32, so the repacked tensors are about 6 to 29 percent larger than their sources.
+
+`tests/spec_decode.py` decodes compressed-tensors linears and their repacks from the packing description, `raw-blocks` holds both to it, and `load-progress` and the suite's `safetensors` component load synthetic directories of each kind to their twins' logits ([TESTS](../TESTS.md)).

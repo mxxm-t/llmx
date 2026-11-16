@@ -52,6 +52,7 @@ inline uint32_t storage_type(const std::string& dtype, const std::string& name) 
     if (dtype == "F32") return quant::GGML_TYPE_F32;
     if (dtype == "F16") return quant::GGML_TYPE_F16;
     if (dtype == "BF16") return quant::GGML_TYPE_BF16;
+    if (dtype == "I8") return quant::GGML_TYPE_I8;
     if (dtype == "I32") return quant::GGML_TYPE_I32;
     if (dtype == "I64") return quant::GGML_TYPE_I64;
     throw std::runtime_error("safetensors tensor " + name + " has dtype " + dtype + ", which llmx does not read");

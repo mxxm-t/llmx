@@ -114,7 +114,7 @@ inline KeyValues read_keys(const std::string& dir, const jmini::Value& config, u
     const jmini::Value tj = detail::read_json(root / "tokenizer.json");
     const jmini::Value tc = detail::read_json(root / "tokenizer_config.json");
 
-    check(&tj, "tokenizer.json", {{"version", nullptr}, {"truncation", "null"}, {"padding", "null"}, {"added_tokens", nullptr},
+    check(&tj, "tokenizer.json", {{"version", nullptr}, {"truncation", nullptr}, {"padding", nullptr}, {"added_tokens", nullptr},
         {"normalizer", nullptr}, {"pre_tokenizer", nullptr}, {"post_processor", nullptr}, {"decoder", nullptr}, {"model", nullptr}},
         {"added_tokens", "normalizer", "pre_tokenizer", "model"});
     check(tj.get("normalizer"), "tokenizer.json normalizer", {{"type", "\"NFC\""}}, {"type"});
@@ -208,7 +208,8 @@ inline KeyValues read_keys(const std::string& dir, const jmini::Value& config, u
         {"added_tokens_decoder", nullptr}, {"additional_special_tokens", nullptr}, {"bos_token", nullptr}, {"chat_template", nullptr},
         {"clean_up_tokenization_spaces", "false"}, {"eos_token", nullptr}, {"errors", "\"replace\""}, {"model_max_length", nullptr},
         {"pad_token", nullptr}, {"split_special_tokens", "false"}, {"tokenizer_class", nullptr}, {"unk_token", nullptr},
-        {"extra_special_tokens", nullptr}, {"_commit_hash", nullptr}});
+        {"extra_special_tokens", nullptr}, {"_commit_hash", nullptr}, {"max_length", nullptr}, {"stride", nullptr}, {"truncation_side", nullptr},
+        {"truncation_strategy", nullptr}, {"padding_side", nullptr}});
     // Special ids: tokenizer_config.json's text first, then config.json's id, each kept only below n_vocab, as the converter takes them.
     // A pad text naming no token gives no id from the text, as HF's tokenizer gives none; the other texts must name an added token.
     struct Special { const char* hf; const char* gguf; bool must_name; };

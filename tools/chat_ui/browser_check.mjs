@@ -485,6 +485,46 @@ try {
   await evaluate("document.querySelector('.approval [data-action=approve]').click()");
   await wait("document.querySelector('#stop').hidden && document.querySelector('#messages').innerText.includes('The tool returned hello.')", 'tool continuation');
   assert.equal(await evaluate("document.activeElement?.closest('.tool-call')?.dataset.toolCall==="+JSON.stringify(approvedCall)+" && document.activeElement.closest('.tool-call details').open && document.activeElement.closest('.tool-call').querySelector('summary .badge').textContent==='completed' && document.activeElement.closest('.tool-call').innerText.includes('hello')"), true, 'streamed tool update lost summary focus, open state, or current status/result');
+  const replyFlow = await evaluate(`(() => {
+    const messages = [...document.querySelectorAll('#messages > .message')];
+    const [tool, answer] = messages.slice(-2);
+    return {tool: Boolean(tool.querySelector('.tool-call')), answer: answer.innerText,
+      continuation: answer.classList.contains('continuation'),
+      continued: [...document.querySelectorAll('.message.continuation')].length,
+      firstHeader: getComputedStyle(tool.querySelector('.message-header')).display,
+      nextHeader: getComputedStyle(answer.querySelector('.message-header')).display,
+      label: answer.getAttribute('aria-label')};
+  })()`);
+  assert.equal(replyFlow.tool, true);
+  assert(replyFlow.answer.includes('The tool returned hello.'));
+  assert.equal(replyFlow.continuation, true, 'tool follow-up must read as the same assistant reply');
+  assert.equal(replyFlow.continued, 1, 'separate replies must keep their own header');
+  assert.notEqual(replyFlow.firstHeader, 'none');
+  assert.equal(replyFlow.nextHeader, 'none');
+  assert.equal(replyFlow.label, 'Assistant continuation');
+  const replyTheme = await evaluate('document.documentElement.dataset.theme');
+  const replyInspectorClosed = await evaluate("document.querySelector('#app').classList.contains('inspector-closed')");
+  await evaluate("document.querySelector('#app').classList.add('inspector-closed')");
+  for (const width of [1440, 390]) {
+    await cdp('Emulation.setDeviceMetricsOverride', {width,height:width===390?844:1000,deviceScaleFactor:1,mobile:width===390});
+    for (const theme of ['dark', 'light']) {
+      await evaluate(`document.documentElement.dataset.theme=${JSON.stringify(theme)};document.querySelector('#scroll-region').scrollTop=document.querySelector('#scroll-region').scrollHeight`);
+      const geometry = await evaluate(`(() => {
+        const answer=document.querySelector('.message.continuation'),tool=answer.previousElementSibling;
+        const details=tool.querySelector('.tool-call details'),actions=answer.querySelector('.message-actions');
+        return {gap:parseFloat(getComputedStyle(tool).paddingBottom)+parseFloat(getComputedStyle(answer).paddingTop),
+          details:details.open,actions:actions.getBoundingClientRect().height,
+          overflow:document.documentElement.scrollWidth>innerWidth};
+      })()`);
+      assert(geometry.gap<=16, 'one reply still has full inter-message spacing');
+      assert.equal(geometry.details, true, 'grouping collapsed the open tool details');
+      assert(geometry.actions>=32, 'grouping hid the reply actions');
+      assert.equal(geometry.overflow, false);
+      await screenshot('reply-flow-'+width+'-'+theme+'.png');
+    }
+  }
+  await cdp('Emulation.setDeviceMetricsOverride', {width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+  await evaluate(`document.documentElement.dataset.theme=${JSON.stringify(replyTheme)};document.querySelector('#app').classList.toggle('inspector-closed',${replyInspectorClosed})`);
   const chatBeforeSlowAttachment = await evaluate("localStorage.getItem('llmx-chat')");
   await evaluate("window.__originalArrayBuffer=Blob.prototype.arrayBuffer; Blob.prototype.arrayBuffer=function(){return new Promise(resolve=>{window.__releaseFileRead=()=>resolve(window.__originalArrayBuffer.call(this));});}");
   await upload('#file-input', fixture);
@@ -738,6 +778,7 @@ try {
   await reloadDocument(); await wait(`document.querySelector('[data-chat="${navigationChat}"]')!==null`, 'imported tool navigation fixture');
   await click(`[data-chat="${navigationChat}"]`);
   await wait("document.querySelectorAll('.activity-tool-link').length===3", 'Activity lists all tool calls on the selected branch');
+  assert.equal(await evaluate("document.querySelectorAll('.message.continuation').length"), 0, 'imported messages without run identities must not be grouped');
   await click('.activity-tool-link[data-call="nav-call-one"]');
   await wait("document.activeElement?.closest('.tool-call')?.dataset.toolCall==='nav-call-one'", 'first Activity entry reveals matching tool details');
   assert.equal(await evaluate("document.activeElement.closest('.tool-call').innerText.includes('first argument') && document.activeElement.closest('.tool-call').innerText.includes('first result')"), true, 'first call navigation showed the wrong arguments or result');

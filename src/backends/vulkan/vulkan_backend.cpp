@@ -520,6 +520,7 @@ public:
             std::string name = std::string(kKernelNames[id]) + "_" + std::to_string(build_cols((KernelId)id, variant)) + "col";
             if (low_bits_dot_row((KernelId)id) && variant == kLowBitsRows) name += id == K_MATMUL_ROW_Q2_0_DOT ? "_4row" : "_2row";
             if (id == K_MATMUL_ROW_Q2_0_DOT && variant == kQ2TreeRows) name += "_4row_tree";
+            if (id == K_MATMUL_ROW_Q1_0_DOT && variant == kRowOneColumnFourRows) name += "_4row_tree";
             if (grouped_build((KernelId)id, variant)) name += "_grouped";
             return name;
         }

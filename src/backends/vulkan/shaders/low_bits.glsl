@@ -56,13 +56,27 @@ uint lookup_q2_byte(uint group, uint word) {
     return lookup_q2_half(group, word) >> ((word & 1u) * 8u);
 }
 #endif
-uvec2 lookup_pairs(uint group, uint word) {
 #ifdef LLMX_Q1_0
-    uint raw = LOW_BITS_HALF((group / 4u) * Q1_0_BYTES + 2u + (group & 3u) * 4u + (word / 4u) * 2u);
-    raw >>= (word & 3u) * 4u;
+// Four sign bits as the twin's pairs: values 0 and 2 in one pair of 16-bit halves, 1 and 3 in the other, a set bit +1 and a clear one -1.
+uvec2 q1_sign_pairs(uint raw) {
     uvec2 bits = uvec2(raw, raw >> 1u);
     uvec2 mask = (bits & uvec2(1u)) | ((bits & uvec2(4u)) << 14u);
     return ~(mask * uvec2(0x0000fffeu));
+}
+// The 0/1 masks of four sign bits as the twin's pairs: the nibble times 0x4001 copies bits 2 and 3 to bits 16 and 17.
+uvec2 q1_mask_pairs(uint nibble) {
+    uint m = nibble * 0x4001u;
+    return uvec2(m, m >> 1u) & uvec2(0x00010001u);
+}
+// A group's 32 sign bits, value j at bit j.
+uint q1_group_signs(uint group) {
+    uint o = (group / 4u) * Q1_0_BYTES + 2u + (group & 3u) * 4u;
+    return LOW_BITS_HALF(o) | (LOW_BITS_HALF(o + 2u) << 16u);
+}
+#endif
+uvec2 lookup_pairs(uint group, uint word) {
+#ifdef LLMX_Q1_0
+    return q1_sign_pairs(q1_group_signs(group) >> (4u * word));
 #else
     return lookup_q2_pairs(lookup_q2_byte(group, word));
 #endif

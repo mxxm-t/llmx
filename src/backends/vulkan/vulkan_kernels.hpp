@@ -1735,7 +1735,7 @@ const RowBuild kRowBuilds[] = {{kRowColsWide, 1}, {kRowColsOne, 1}, {kRowColsWid
                                {kRowColsOne, 2}, {4, 2, true}, {8, 2, true}, {16, 4, true}, {kRowColsOne, 4}};
 // The two-row builds, narrowest first; the 16-column build takes four rows, which pay for themselves once the transposed reduction makes a reduction's cost follow its values (docs/VULKAN.md).
 const int kRowByWidth[] = {3, 4, 5, 6};
-// The one-column two-row build (one_column_variant); low-bit rows take it as two rows for Q1_0 and four for Q2_0.
+// The one-column two-row build (one_column_variant); low-bit rows take it as two rows for Q1_0 and four for Q2_0, and Q1_0's four-row build is the one-column four-row build.
 const int kRowOneColumnTwoRows = 7, kLowBitsRows = kRowOneColumnTwoRows;
 // The one-column four-row build (one_column_variant).
 const int kRowOneColumnFourRows = 11;
@@ -1751,6 +1751,7 @@ inline ClusterRows cluster_rows(KernelId id) {
     case K_MATMUL_ROW_K4_I8: case K_MATMUL_ROW_K5_I8: return {2, 2};
     case K_MATMUL_ROW_Q50_DOT: case K_MATMUL_ROW_Q50_I8: case K_MATMUL_ROW_Q5_I8: return {4, 4};
     case K_MATMUL_ROW_MXFP4_DOT: return {2, 0};
+    case K_MATMUL_ROW_Q1_0_DOT: return {4, 1};
     default: return {1, 0};
     }
 }

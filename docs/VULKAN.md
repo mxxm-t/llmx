@@ -246,6 +246,11 @@ Their reference inputs use the same rounding; independent HF gates measure the r
   timing evidence are recorded in [STATUS](STATUS.md) and the
   [Q1 two-row screen](benchmarks/q1-two-row-matched-20261028.json).
 
+  Where the call's rows fill the device (`cluster_rows` gives Q1_0 cap 4 at class 1, 8 waves a CU on an MI50) and the transposed reduction holds its 32-lane cluster, a Q1_0 one-column call takes the four-row build instead, `_1col_4row_tree`.
+  Its rows hold each group's 32 sign bits and decode them at the dot as 0/1 masks, the nibble times 0x4001 giving both 16-bit pairs, so the sum is twice the set values' sum less the group's, which the cluster shares across its rows; the integer is the same, so every row keeps its bits.
+  On the MI50 the row's time follows its instructions, not its bytes: a call of 64 rows and one of 2048 both take about 10 us, and above that each row adds the same time, the head 151936x2048 at 138 GB/s.
+  On one MI50 at Boole-1.7B's shapes by device timestamps, main to this build: 4096x2048 15.2 to 11.9 us, 12288x2048 31.2 to 21.1, the head 318 to 184, and 2048x6144, still two rows, 22.1 to 20.7; 2048x2048 keeps two rows at 10.6 to 10.8.
+
   **Integer activations.** On a device whose profile does not prefer the integer dot, every quantized row meets the activations as
   signed 16-bit values in blocks of 32, each block scaled so its largest
   magnitude is 32767, with the block's scale `d` and `d` times its sum

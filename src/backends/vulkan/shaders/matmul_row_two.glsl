@@ -53,6 +53,33 @@
             uint nblocks = p.nin / 32u;
             uint wbr[ROWS];
             [[unroll]] for (uint r = 0u; r < ROWS; ++r) wbr[r] = w0 + min(r, rlast);
+#ifdef LLMX_Q1_0
+            // A row holds its group's 32 sign bits and decodes them at each dot, so more rows a cluster cost two registers each.
+            for (uint b = l; b < nblocks; b += p.cluster) {
+                float dwr[ROWS];
+                uint signs[ROWS];
+                [[unroll]] for (uint r = 0u; r < ROWS; ++r) signs[r] = q1_group_signs(lookup_group(wbr[r], p.nin, b, dwr[r]));
+                [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) {
+                    if (GROUPED && c >= ncols) break;
+                    uint col = XCOL(min(c, ncols - 1u)), a2 = xa_col(col) / 2u + b * 8u;
+                    uvec2 activations[8];
+                    [[unroll]] for (uint j = 0u; j < 8u; ++j) activations[j] = xq2[a2 + j];
+                    float dx = xq_block(col, b).x;
+                    // Signs s = 2m - 1 give the sum as twice the set values' sum less the group's, both exact in int32.
+                    int center = 0;
+                    [[unroll]] for (uint j = 0u; j < 8u; ++j) center = dot_pairs(uvec2(0x00010001u), activations[j], center);
+                    [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
+                        int set = 0;
+                        for (uint j = 0u; j < 8u; ++j) set = dot_pairs(q1_mask_pairs(bitfieldExtract(signs[r], int(4u * j), 4)), activations[j], set);
+                        int sum = 2 * set - center;
+                        float scale = dwr[r] * dx;
+                        if (lookup_unsafe_scale(dwr[r], dx, scale)) repair[r][c] = 1u;
+                        accr[r][c] = fma(scale, float(sum), accr[r][c]);
+                    }
+                }
+            }
+#else
+            // This body is now the Q2_0, IQ and TQ rows' alone: Q1_0 takes the mask body above.
             for (uint b = l; b < nblocks; b += p.cluster) {
                 float dwr[ROWS];
                 uvec2 wr[ROWS][8];
@@ -79,6 +106,7 @@
                     }
                 }
             }
+#endif
         }
 #endif
 #ifdef LLMX_K23

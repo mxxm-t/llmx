@@ -4,7 +4,7 @@ The collective makes one timeline semaphore per source, exports it once to each 
 
 The backend caches the greatest ticket confirmed by a successful Vulkan timeline wait. Waiting for or querying that ticket or an older one returns through an atomic completion value, including when another host thread waited; a timeout or Vulkan error does not advance it. Unconfirmed tickets retain the existing Vulkan wait and failure behavior.
 
-Q1_0 uses the shared float tile and embedding families and a compile-time float row variant. `shaders/low_bits.glsl` owns its contiguous sign fields, signed-zero-preserving reconstruction and packed signed16 pairs. Four 32-value integer groups share a block's scale. One halfword supplies four packed pairs, staying inside its block; tiles use the existing four-byte buffer padding for their masked word accesses.
+Q1_0 uses the shared float tile and embedding families and a compile-time float row variant. `shaders/low_bits.glsl` owns its contiguous sign fields, signed-zero-preserving reconstruction and packed signed16 pairs. Four 32-value integer groups share a block's scale. One halfword supplies four packed pairs, staying inside its block; the multi-row builds read a group's 32 sign bits as two halfwords and decode each nibble as 0/1 mask pairs (`q1_group_signs`, `q1_mask_pairs`); tiles use the existing four-byte buffer padding for their masked word accesses.
 
 Q2_0 shares uncached format decoding and signed-pair centering in `shaders/low_bits.glsl`. Its integer row and tile consumers share the 256-entry table in `shaders/low_bits_cache.glsl`, initialized before any early return. Integer rows cache unsigned code pairs; integer tiles cache signed pairs. Embedding, conversion and float tiles use only the uncached decoder. The Q2_0 integer row build uses a 64-invocation workgroup. `matmul_row.glsl` sets `LLMX_ROW_THREADS`, `matmul_row.comp` uses it in both row-index mappings, and `VulkanBackend::row_dispatch` uses the same width for workgroup counts. Keep these sites paired; other row builds retain their selected width. Qualification and performance evidence are tracked in [STATUS](../STATUS.md).
 
@@ -426,7 +426,7 @@ The two-row kernels use constants 0 and 9 for columns per lane
 and rows per cluster. Their first three variants are the one-row wide,
 one-column and grouped builds, followed by the two-row builds: two rows with
 2, 4 and 8 columns and four rows with 16 (`kRowBuilds`). Variant 7 is the
-two-row one-column build, which Q1_0's and MXFP4's one-column calls take and the other one-column calls where `cluster_rows` gives two (named `_1col_2row`), variant 11 the four-row one-column build (named `_1col_4row`), and variants 8, 9 and 10 (`kRowGroupedByWidth`) the
+two-row one-column build, which Q1_0's and MXFP4's one-column calls take and the other one-column calls where `cluster_rows` gives two (named `_1col_2row`), variant 11 the four-row one-column build (named `_1col_4row`, and `_1col_4row_tree` for Q1_0, which takes it where `cluster_rows` and the transposed reduction allow), and variants 8, 9 and 10 (`kRowGroupedByWidth`) the
 grouped two-row builds, the plain builds of 4, 8 and 16 columns reading their
 columns through a grouped routed call's runs. Constant 8 marks grouped
 execution (`grouped_build`). `grouped_variant` gives a grouped call the

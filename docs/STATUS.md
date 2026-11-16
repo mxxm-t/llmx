@@ -1078,6 +1078,36 @@ Gotchas: a kernel without `__launch_bounds__` is compiled for 1024 lanes and cap
 - The block-score slot is an index head's over the context's blocks a row (32768 floats at 1M positions), as deepseek41's index slot is a context's groups.
 - F2DEV's 4e note 1 (a shape at groups 2 over 4 KV heads) is not taken: MiniMax has as many index heads as KV heads, so only the ends of that mapping run.
 - The file's index keys are F32 per position (0.5 KiB a layer); a 16-bit form is a contract change of its own, measured first.
+## Vulkan Q1_0 one-column rows: four rows a cluster and mask decode (2026-11-16, VKDEV9, branch perf/vulkan-q1-rows on perf/vulkan-row-sizes 2510f5789; VKDEV5's step 3 proposal with F2DEV's review of 2026-11-15 05:21, items 8 to 12; lands by fast-forward after steps 1 and 2)
+
+**Goal.** Q1_0 decode on Vulkan above the reference's on the same file and card (Boole-1.7B Q1_0, one MI50), with every row's bits unchanged.
+
+**Done.**
+- The multi-row Q1_0 body (`matmul_row_two.glsl`) holds a group's 32 sign bits a row and decodes them at the dot as 0/1 mask pairs (`q1_mask_pairs`), the sum being twice the set values' sum less the group's (shared by the cluster's rows); the integer and every row's bits are main's.
+- `cluster_rows` gives Q1_0 cap 4 at class 1, and its one-column calls take the four-row build (`_1col_4row_tree`, variant 11) where `rows_a_cluster` gives four and the transposed reduction holds the cluster; below that they keep the two-row build.
+- `check_q1_four_rows` in `low-bits-vulkan` holds the edge pair at 1152 values with the build named, each row equal to a two-column call's first column.
+- Microbench (`/opt/claude-work/vkdev9/m5`, one MI50, device timestamps, best of 5 over 300 calls, three ABAB reps, f16 and int8 run the same kernel, output hashes equal to main's in every cell), us a call step-2 head 2510f5789 / candidate: 4096x2048 15.2 / 11.9, 2048x2048 10.6 / 10.8, 12288x2048 31.2 / 21.1, 2048x6144 22.1 / 20.7, 151936x2048 318 / 184.
+- Not taken: F2DEV's 3a lane order, a lane per block pair as nine aligned words (`research/vulkan-q1-pair-lanes` 46849d405, `/opt/claude-work/vkdev9/m1`), was slower at the 2048-wide shapes (4096x2048 15.3 to 17.6 us, 2048x2048 10.6 to 11.5) and level at 12288x2048: no gain on the MI50, untested elsewhere.
+  Each lane then decodes eight groups in turn where the MI50's time follows instructions a row; on a device with cheaper issue a lane's longer chain is the cost to measure.
+- tg256 and pp512 on one MI50 (`/opt/claude-work/vkdev9/t2`, renderD130, six rotated rounds of `--r 5`, reference at `-fa 1` in its default load mode, no fault line), tok/s:
+
+| Boole-1.7B Q1_0, auto | step-2 head 2510f5789 | candidate | reference Vulkan |
+|---|---|---|---|
+| tg256, uncontended cells | 249.7, 244.5 | 283.4, 290.3 | 249.8, 251.0, 252.3 |
+| tg256, contended cells | 204.7, 203.1, 206.4, 236.2 | 229.9, 243.6, 230.8, 231.2 | 205.0, 207.4, 207.5 |
+| pp512 | 2775 to 2828 | 2863 to 2888 | 1577 to 1633 |
+
+- README unchanged: Q1_0 Vulkan already Supported, and a speed change moves no table.
+- Greedy ids, 256 tokens of a chat prompt: candidate equals the step-2 head (`/opt/claude-work/vkdev9/t2/sum.txt`).
+
+**Left.**
+- F2DEV's review; then `backend-vulkan`, `docs`, `dead-code` and the Radeon VII check at the head that lands, and the hosted run.
+- Q2_0's multi-row body keeps its byte table; the same mask decode for its two-bit codes is a separate measured step, which also folds Q2_0's tree variant (`kQ2TreeRows`) onto variant 11, since the two ids now name one shape.
+- The rms_norm fold into the next row kernel's input read (step 3b) stays its own proposal.
+
+**Gotchas.**
+- The four-row build engages only where `row_decode_tree` holds the 32-lane cluster, so the Radeon VII and RTX 3060 profiles keep two rows; the mask decode reaches them through the two-row build.
+
 ## Vulkan one-column rows a cluster by the call's rows (2026-11-15, VKDEV5 to VKDEV8, branch perf/vulkan-row-sizes on perf/vulkan-q4-row-decode 77fd4c6b5; F2DEV's approval of 2026-11-15 05:21; lands by fast-forward)
 
 **Goal.** Every Vulkan row kernel whose one-column calls gain from sharing a block's activation loads over more rows a cluster takes them where a call has the rows to fill the device, by one rule shared with ROCm, with every row's bits unchanged.

@@ -832,6 +832,44 @@ void check_embeddings(backend::Backend& device, const Format& f) {
 }
 
 #if LLMX_HAS_BACKEND_VULKAN
+// Q1_0 one-column calls take four rows a cluster from the edge rows_a_cluster gives its class, one row either side, where the transposed reduction holds the 32-lane cluster.
+// Each row must equal column 0 of a two-column call, and the call with a partial last cluster writes no row past its end.
+void check_q1_four_rows(backend::Backend& device, const Format& f) {
+    if (!f.one_bit) return;
+    const auto profile = backend::vulkan_device_profile(device);
+    const auto caps = backend::vulkan_device_caps(device);
+    if (!profile.prefer_integer_dot || !profile.row_decode_tree || caps.subgroup_size < 32) return;
+    const size_t width = 9 * f.block, lanes = 32;
+    const size_t need = size_t(profile.row_four_waves_per_cu) * caps.compute_units * caps.subgroup_size;
+    const size_t edge = 4 * ((need + lanes - 1) / lanes);
+    std::vector<uint8_t> raw(edge * (width / f.block) * f.bytes);
+    make_weights(f, raw, edge, width);
+    auto weights = device.adopt(raw.data(), raw.size());
+    std::vector<float> input(2 * width);
+    for (size_t i = 0; i < input.size(); ++i) input[i] = float(int((7 * i) % 13) - 6) * .0731f;
+    auto x = device.adopt(input.data(), input.size() * sizeof(float));
+    const backend::RowRun one{1, 1}, two{2, 1};
+    for (size_t rows : {edge - 1, edge}) {
+        std::vector<float> single(rows + 2, guard), pair(2 * rows + 2, guard);
+        auto y1 = device.adopt(single.data(), single.size() * sizeof(float));
+        auto y2 = device.adopt(pair.data(), pair.size() * sizeof(float));
+        (void)backend::vulkan_kernel_times(device);
+        device.matmul({f.type, {weights.get(), 0}}, {x.get(), 0}, {y1.get(), 1}, width, rows, 1, {&one, 1}, backend::Dtype::f16);
+        const auto times = backend::vulkan_kernel_times(device);
+        if (backend::vulkan_timed_dispatches(device)) {
+            const std::string want = rows == edge ? "matmul_row_q1_0_dot_1col_4row_tree" : "matmul_row_q1_0_dot_1col_2row";
+            require(std::any_of(times.begin(), times.end(), [&](const auto& entry) { return entry.first == want; }),
+                    ("Q1 one-column call at " + std::to_string(rows) + " rows missed " + want).c_str());
+        }
+        device.matmul({f.type, {weights.get(), 0}}, {x.get(), 0}, {y2.get(), 1}, width, rows, 2, {&two, 1}, backend::Dtype::f16);
+        device.read(*y1, 0, single.data(), single.size() * sizeof(float));
+        device.read(*y2, 0, pair.data(), pair.size() * sizeof(float));
+        require(single.front() == guard && single.back() == guard, "Q1 four-row call crossed output guards");
+        require(std::memcmp(single.data() + 1, pair.data() + 1, rows * sizeof(float)) == 0,
+                "Q1 one-column rows differ from a two-column call's first column");
+    }
+}
+
 void check_integer_range(backend::Backend& device, const Format& f, size_t extent,
                          backend::Dtype dtype, size_t rows = 1, size_t block_count = 0) {
     const size_t blocks = block_count ? block_count : rows == 4 ? 16 : 3;
@@ -1018,6 +1056,7 @@ int main(int argc, char** argv) {
                 check_scale_after_range(*device, f);
                 check_row_classes(*device, f);
                 check_vulkan_paths(*device, f);
+                check_q1_four_rows(*device, f);
             }
             std::cout << "low-bits Vulkan: Q1_0/Q2_0 embeddings, dense/logits/additive operators, dtype policies and row/tile witnesses [ok]\n";
             return 0;

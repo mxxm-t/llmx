@@ -286,6 +286,13 @@ inline void VulkanBackend::matmul_group_impl(const Projection* projections, size
         if (plan.kernel == K_MATMUL_ROW_Q2_0_DOT) {
             const uint32_t tree = row_tree_cluster(plan.kernel, kQ2TreeRows, dev_->profile, dev_->caps.subgroup_size);
             if (tree && tree == plan.cluster) variant = kQ2TreeRows;
+        } else {
+            // Q1_0 takes four rows a cluster where the transposed reduction holds its cluster and the call's rows fill the device (cluster_rows, rows_a_cluster).
+            const uint32_t tree = row_tree_cluster(plan.kernel, kRowOneColumnFourRows, dev_->profile, dev_->caps.subgroup_size);
+            const ClusterRows cr = cluster_rows(plan.kernel);
+            if (tree && tree == plan.cluster &&
+                rows_a_cluster(dev_->caps, rows, plan.cluster, cr.cap, dev_->profile.row_four_waves_per_cu * cr.waves) == 4)
+                variant = kRowOneColumnFourRows;
         }
         row_dispatch(plan, live, X, xqi, nin, 1, 0, 1, accumulate, variant);
         return;

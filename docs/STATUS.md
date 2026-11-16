@@ -11,6 +11,17 @@
 **Review and landing.** Root inspected the desktop and mobile screenshots. A bounded second-agent review confirmed grouping is recomputed outside the content fingerprint check, so branch changes cannot retain stale continuation classes. Companion README, contract and test descriptions are updated; root README is unchanged because this alters no advertised model, backend, quant, flag or companion capability. Remaining Markdown claims were checked against the presentation-only scope. Docs and dead-code checks cover the final tree. The change lands by fast-forward after the test commit, with no runtime or inference gates required.
 
 **Gotchas.** Local8183 serves the static updates without restarting Python or changing stored conversations. The independently discovered stale tool-approval panel is a separate fix.
+## Focused tool approval reconciliation (2026-11-16, Done)
+
+**Goal.** Keep the focused tool detail connected while approval state changes, and remove stale approval controls when a tool finishes.
+
+**Done.** The renderer now reconciles siblings around the existing focused details node, removing stale approval controls and inserting controls required by the current tool state without detaching the summary.
+
+**Checks.** The focused browser regression fails on the baseline in 14.356 seconds with `completed tool retained its obsolete approval panel`; it passes on the rebased candidate in 41.184 seconds, including preserved summary focus/open state, completed status/result, reply continuity at desktop/mobile and responsive states. Node syntax checks and `git diff --check` pass. Docs and dead-code components pass with 0 findings/21 planted checks and 15 expected findings/20 planted checks.
+
+**Review and landing.** Root reviewed the shared child reconciliation and mobile rendering. The same helper updates message articles and focused tool wrappers, removing obsolete siblings before inserting fresh ones around retained nodes. The focused browser passed on `47711adc9`; only this status record and commit metadata differ at landing. Contract and test documentation match the change; README is unchanged because the fix restores the existing tool-approval behavior without adding a capability. The Markdown review is carried forward for unchanged pages, and final docs/dead-code checks cover this record. The change lands by fast-forward after its failing-test commit. No inference, runtime or unrelated hosted gates apply.
+
+**Gotchas.** Keep one renderer owner in `tools/chat_ui/app.js`. Approval state, tool details and their focused summary update independently; don't replace the connected details node.
 
 ## Chat model catalogue freshness (2026-11-16, Done)
 

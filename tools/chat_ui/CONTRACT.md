@@ -124,6 +124,10 @@ Attachment: `{name,type,text}` for UTF-8 text, or `{name,type,data}` for PNG/JPE
 
 Message: `{id,chat_id,parent_id,role,content,reasoning,attachments,tool_calls,tool_call_id,run_id,status,created,usage,timings,context,request}`. Optional fields may be absent. Tool call records have `{id,name,arguments,status,result,duration_ms,error}`. Status can be `pending`, `approval`, `running`, `completed`, `denied`, `failed`, `cancelled` or `interrupted`. Tool outputs remain independent messages for model history.
 
+When a streamed tool update changes a focused call, the renderer keeps its
+details and summary connected while reconciling approval controls to the new
+state. Completed calls do not retain stale Allow or Deny controls.
+
 Run: `{id,chat_id,status,message_id,created,updated,error,last_seq}`. Run statuses are `running`, `approval`, `completed`, `cancelled`, `failed` and `interrupted`.
 
 Events:

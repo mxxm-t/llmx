@@ -331,6 +331,19 @@
     }
     el.append(actions); return el;
   }
+  function reconcileChildren(current, replacement, preserved) {
+    const keep = new Set(preserved.map(([, stable]) => stable));
+    const stableFor = new Map(preserved);
+    Array.from(current.children).forEach(child => { if (!keep.has(child)) child.remove(); });
+    let cursor = current.firstChild;
+    Array.from(replacement.children).forEach(child => {
+      const stable = stableFor.get(child);
+      if (stable) {
+        if (stable !== cursor) current.insertBefore(stable, cursor);
+        cursor = stable.nextSibling;
+      } else current.insertBefore(child, cursor);
+    });
+  }
   function render() {
     const region = $('scroll-region'); const nearBottom = region.scrollHeight - region.scrollTop - region.clientHeight < 120;
     const selected = path().filter(m => m.role !== 'tool'); const container = $('messages'); const wanted = new Set(selected.map(m => m.id));
@@ -358,21 +371,13 @@
               summary.children[1].textContent = nextSummary.children[1].textContent;
               summary.children[2].textContent = nextSummary.children[2].textContent;
               summary.children[2].classList.toggle('error', nextSummary.children[2].classList.contains('error'));
-              preserved.push([nextWrap, keepDetail.closest('.tool-call')]);
+              const stableWrap = keepDetail.closest('.tool-call');
+              reconcileChildren(stableWrap, nextWrap, [[next, keepDetail]]);
+              preserved.push([nextWrap, stableWrap]);
             }
           }
-          if (preserved.length) {
-            const keep = new Set(preserved.map(([, stable]) => stable)); const stableFor = new Map(preserved);
-            Array.from(old.children).forEach(child => { if (!keep.has(child)) child.remove(); });
-            let cursor = old.firstChild;
-            Array.from(replacement.children).forEach(child => {
-              const stable = stableFor.get(child);
-              if (stable) {
-                if (stable !== cursor) old.insertBefore(stable, cursor);
-                cursor = stable.nextSibling;
-              } else old.insertBefore(child, cursor);
-            });
-          } else old.replaceChildren(...replacement.childNodes);
+          if (preserved.length) reconcileChildren(old, replacement, preserved);
+          else old.replaceChildren(...replacement.childNodes);
         } else { container.append(replacement); old = replacement; }
         S.fingerprint.set(message.id, fingerprint);
       }

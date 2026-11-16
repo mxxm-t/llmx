@@ -15,6 +15,8 @@ The standalone [chat companion](../tools/chat_ui/README.md) is checked with
 `python -X utf8 -m unittest discover -s tools/chat_ui -v`. Temporary local HTTP
 fixtures exercise stream accumulation and usage, approval and denial, tool
 execution, replay, conversation branches, cancellation and restart recovery.
+The browser keeps a focused tool summary connected across approval completion
+and removes the obsolete approval controls.
 HTTP checks cover authentication, origin checks, attachments and import/export.
 Model-selection checks replace the upstream catalogue after configuration was
 cached, refuse stale sends and retries without storing messages or runs, and

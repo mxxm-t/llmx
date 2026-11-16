@@ -1,7 +1,7 @@
 # CUDA backend: design and qualification
 
 The CUDA backend is the second vendor backend over the shared GPU core in `src/backends/gpu/` ([backends-gpu](src/backends-gpu.md)), after ROCm ([ROCM](ROCM.md)).
-This page is its design and plan; steps 1 and 2 of the order of work below are built, and the suite's synthetic dense qwen3 models ran on an RTX 3060 at `--dtype f32` within the HF bounds, while no released model, other dtype or qwen35 model has run on CUDA yet.
+This page is its design and plan; steps 1 to 5 of the order of work below are built: dense qwen3 and qwen35 models ran on an RTX 3060 and an RTX 3090 at `--dtype f32`, `f16` and `int8`, while no MoE, other architecture or multi-device mode has run on CUDA yet.
 The design was reviewed and approved on 2026-11-13.
 [STATUS](STATUS.md) records each step as it lands, and a result on a card nobody has run stays marked untested ([ROADMAP](ROADMAP.md), 4b).
 
@@ -117,7 +117,7 @@ Steps 1 to 5 may share a branch; steps 6 and 8 are branches of their own.
 | 5 | qwen35 operations for Qwen3.5-27B Q4_K_M; Qwen3.5-0.8B HF | the qwen35 baseline on 0.8B, 27B at 16k depth, drafts on and off | 24 GB or more |
 | 6 | Layer split and tensor groups: the three transports, handoffs, member order | split check, tensor-split suite components, group identity across forms and widths | a pair; NVLink in a later session |
 | 7 | First landing's final gates on one card | below | the card each model needs |
-| 8 | MXFP4 and the deepseek4 operations, the NCCL option, Q5_0, Q5_1 and IQ4_NL, graphs if measured | per-family witnesses, the DeepSeek fixture | per item |
+| 8 | MXFP4 and the deepseek4 operations, the NCCL option, Q4_0, Q4_1, Q5_0, Q5_1 and IQ4_NL, graphs if measured | per-family witnesses, the DeepSeek fixture | per item |
 
 In step 8 `backend-cuda` runs `ds4::check_ops({"mix_rows"})`: `mix_rows`, which the DeepSeek-V4.1 DSpark drafter takes, is claimed on CUDA through the shared core and untested there until then.
 

@@ -1760,6 +1760,28 @@ The Windows zip and the workflow itself are not run yet.
 
 **Gotchas:** the workflow runs only on a tag, so its Windows SDK install, image pushes and signing steps are first exercised by the release itself; a tag pushed to a fork or a test repository exercises it without a release, and gives the Linux job's hosted time, which its 180-minute limit only estimates.
 
+## The fit prices each buffer as the device takes it (2026-11-17, MOEOFF45 to MOEOFF49, branch fix/fit-buffers-as-taken-r1 on main 3b88cfb3a; F2DEV's reviews of 13:21 and 18:52)
+
+**Goal.** A fit to a device's room leaves every buffer a built model and its first pass take room on the device, and `generate` backs the KV its prompt and reply take rather than the model's context.
+
+**Done.**
+- Main's `DeviceBudget::allocated` (`Backend::allocation_bytes`) already prices each layer's cache buffers and each arena; the split now prices through it as well each layer's lookup staging in each arena, each position table a device copies (`Footprint::table_buffers`), the head's logits slice and argmax rows and ids, and a group's collective as one buffer an arena, and `arena_bytes` counts the 64 bytes each arena slot starts on (`Model::alloc_arena`).
+- `generate` without an image budgets its prompt's tokens and `-n` more in whole blocks, not the model's context: `load_model`'s `history` reads the tokenizer before the fit and gives it one history (`PlacementRequest::histories`), a smaller `--kv-tokens` grows to hold it as `bench --model`'s sequences do, and `fitted_kv` refuses a fit below what the request's histories take with both counts (`history_need`).
+- `build_fitted` refuses a cut that leaves fewer tokens than the request's histories take in whole blocks, with both counts, rather than building a smaller budget silently.
+- Tests on main 3b88cfb3a with the tests commit alone: placement fails `rounded_buffers_fit` (a prompt's pass finds no room on a 22794240-byte device) and `kv_refused`, and the suite's `cli` fails; with the fix, placement passes its 1223 checks.
+- Gates at the branch head (CPU build, MI50 machine, /opt/claude-work/moeoff49/w.log): CTest 90/90, and the suite's `dead-code`, `docs`, `cli` and `drafters` pass.
+- Results on main 3b88cfb3a against the fix (MI50 machine, /opt/claude-work/moeoff47/k.log), each generate a 584-token prompt with greedy replies:
+  - Qwen3-0.6B Q8_0, `-n 64`: ids identical on the CPU and on one MI50 under ROCm; KV 4697620480 -> 88080384 bytes on the CPU and 4697620480 -> 80740352 on ROCm.
+  - Qwen3-0.6B Q8_0 `bench --p 512 --n 128` on one MI50, MFMFMF: tg128 394.4/392.7/390.1 main against 390.4/392.1/392.2 fix tok/s.
+  - Qwen3.6-27B Q4_K_M, `-n 64`, on one and on two MI50s: main and the fix both run, ids identical; KV 15904800768 -> 46137344 bytes on one and 17179869184 -> 46137344 on two.
+  - Qwen3.8-Flash-Next UD-Q4_K_XL on two MI50s with `--n-cpu-moe 16`, `-n 32`: ids identical, KV 7757955072 -> 20643840 bytes.
+- README is unchanged, since it carries no KV-budget or `--kv-tokens` text; [USAGE](USAGE.md) owns that text.
+- Before the rebase, on main 929f042c6 (/opt/claude-work/moeoff46/k.log), serve's pool on that Flash-Next placement went 146496 -> 145408 KV tokens.
+
+**Left.** F2DEV's review of the rebased branch and its landing. The arena shortfall with `--expert-cache 6gb` needs the device expert cache, which only the ring branch's WIP has, so it is checked there.
+
+**Gotchas.** A device keeps every state layer's mark rows in one buffer; the footprint gives each layer's share as a buffer, which prices it at least as taken.
+
 ## A metadata-only first shard ends at its header (2026-11-15, GGUF1, branch fix/gguf-metadata-shard on main 929f042c6, rebased onto main a274cfd62; F2DEV's review of 06:41; lands by fast-forward as two commits, the failing test and then the fix)
 
 - **Goal:** `llmx` reads the split MiniMax-M3.1-Flash UD-Q8_K_XL set, whose first shard holds metadata alone and ends 2 bytes short of its 32-byte boundary.

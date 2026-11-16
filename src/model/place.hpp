@@ -227,9 +227,12 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
             bytes = backend::size_add(bytes, state);
             buffers.push_back(state);
         }
+        // A device keeps every state layer's saved and rerun rows in one buffer; a buffer of each layer's share prices it at least as the device takes it.
         if (layer.cache == Cache::state) {
-            bytes = backend::size_add(bytes, backend::size_mul(backend::size_mul(options.mark_slots, options.mark_rows), backend::size_mul(saved_max, sizeof(float))));
-            if (options.mark_slots) bytes = backend::size_add(bytes, backend::size_mul(options.mark_rows, backend::size_mul(rerun_max, sizeof(float))));
+            size_t marks = backend::size_mul(backend::size_mul(options.mark_slots, options.mark_rows), backend::size_mul(saved_max, sizeof(float)));
+            if (options.mark_slots) marks = backend::size_add(marks, backend::size_mul(options.mark_rows, backend::size_mul(rerun_max, sizeof(float))));
+            bytes = backend::size_add(bytes, marks);
+            buffers.push_back(marks);
         }
         fp.cache.push_back(bytes);
         fp.cache_buffers.push_back(std::move(buffers));
@@ -241,7 +244,10 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
     }
     // The tables and the position slots cover the positions the budget reaches, so a smaller budget leaves room for more rows.
     const size_t positions = covered_positions(plan, kv_tokens(plan, options));
-    for (size_t t = 0; t < plan.tables.size(); ++t) fp.tables = backend::size_add(fp.tables, backend::size_mul(table_floats(plan, t, positions), sizeof(float)));
+    for (size_t t = 0; t < plan.tables.size(); ++t) {
+        fp.table_buffers.push_back(backend::size_mul(table_floats(plan, t, positions), sizeof(float)));
+        fp.tables = backend::size_add(fp.tables, fp.table_buffers.back());
+    }
     fp.handoff_per_row = backend::size_mul(handoff_width(plan), sizeof(float));
     fp.widths = plan.widths;
     fp.widths.heads = (fp.widths.heads + width - 1) / width;
@@ -249,6 +255,7 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
     fp.widths.vocab = width > 1 ? fp.output.rows : plan.vocab;
     fp.host_scratch_per_row = backend::size_mul(backend::size_mul(plan.index_width, sizeof(uint32_t)), width);
     for (size_t s = 0; s < plan.slots.size(); ++s) fp.activations_per_row += slot_floats(plan, s, positions) * sizeof(float);
+    fp.activation_slots = plan.slots.size();
     // A member of a group that runs routed experts keeps a zero row to clear its partial rows from.
     if (width > 1 && (std::any_of(plan.layers.begin(), plan.layers.end(), has_experts) || (plan.drafter && has_experts(*plan.drafter)))) fp.activations_per_row += sum_width(plan) * sizeof(float);
     return fp;
@@ -382,8 +389,8 @@ struct PlacementRequest {
     size_t draft_rows = 0;            // draft rows a pass may carry beside a prompt's and the generated tokens': a server's verifies
     size_t slots = 0;                 // passes the caller keeps in flight (Model::reserve_passes), each with a handoff buffer on every stage but the last, two at least, which a split's fit counts
     size_t logit_rows = 0;            // rows of logits the caller keeps (Model::reserve_passes), which a split's fit counts; 0 for one per row of a pass
-    // Histories the caller holds at once and the tokens each reaches, when it knows them, as bench does its sequences; zero leaves the options' budget as it is.
-    // Each history takes whole blocks, up to the model's context, so the budget grows to hold them all where it would not.
+    // Histories the caller holds at once and the tokens each reaches, when it knows them, as bench does its sequences and generate its prompt and reply; zero leaves the options' budget as it is.
+    // Each history takes whole blocks, up to the model's context, so the budget grows to hold them all where it would not, and a fit that holds fewer is refused (history_need).
     size_t histories = 0, history_tokens = 0;
     // Every placement fits the KV budget to what the devices hold beside everything else, at most the options' budget, and backs it whole at load (fitted_kv).
     // With kv_auto the budget is every whole block the devices' free memory holds, the drafter and its first mark in the fit, rather than the options' (a server without --kv-tokens).
@@ -402,6 +409,12 @@ struct PlacementRequest {
     // The host budget the lookup tables' hot rows share with a server's evicted prefixes (host_shares): a server's --host-cache-bytes, none to take it from the host memory available.
     std::optional<size_t> host_budget;
 };
+
+// The KV tokens the request's histories take, each in whole blocks of `block` up to the model's `context`; none without histories.
+inline size_t history_need(const PlacementRequest& request, size_t context, size_t block) {
+    if (!request.histories) return 0;
+    return backend::size_mul(backend::size_mul(request.histories, backend::blocks_for(std::min(request.history_tokens, context), block)), block);
+}
 
 // The run's activation policy and each device's implementation, resolved once before model construction.
 struct DtypePlan {
@@ -773,6 +786,11 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
         throw std::runtime_error("placement: no room for one KV block of " + std::to_string(block) +
                                  " tokens beside the weights, the activations and the recurrent states (" + why + ")");
     }
+    // A budget below what the request's histories take is refused with both counts rather than cut silently.
+    const size_t need = history_need(request, plan.context_length, block);
+    if (tokens < need)
+        throw std::runtime_error("placement: the devices hold " + std::to_string(tokens) + " KV tokens beside the model, fewer than the " + std::to_string(need) +
+                                 " the request needs (" + why + ")");
     options.kv_tokens = tokens;
     options.kv_backed = true;
     options.checkpoint_slots = kept;
@@ -1169,8 +1187,12 @@ inline PlacedModel build_fitted(const ModelWeights& weights, PlannedModel planne
         }
         const size_t tokens = kv_tokens(planned.architecture, planned.options) / block;
         if (!cut && failed) std::rethrow_exception(failed);
-        if (!cut || cut >= tokens)
-            throw std::runtime_error("inference: the KV budget of " + std::to_string(tokens * block) + " tokens ran a device short once built, and no smaller budget fits");
+        // The request's histories take whole blocks each (place_model), and no cut leaves fewer.
+        const size_t asked = request.histories ? history_need(request, planned.architecture.context_length, block) / block : 1;
+        if (!cut || cut >= tokens || tokens - cut < asked)
+            throw std::runtime_error("inference: the KV budget of " + std::to_string(tokens * block) + " tokens ran a device short once built, and the " +
+                                     std::to_string(cut < tokens ? (tokens - cut) * block : 0) + " tokens that fit are fewer than " +
+                                     (request.histories ? "the " + std::to_string(asked * block) + " the request needs" : "one block of " + std::to_string(block)));
         planned.options.kv_tokens = (tokens - cut) * block;
     }
 }

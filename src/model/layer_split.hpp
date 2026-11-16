@@ -44,7 +44,9 @@ struct Footprint {
     std::vector<int> reads;
     std::vector<size_t> pooled;
     size_t tables = 0;                         // position tables: the host keeps them while the model lives, and every device that copies weights holds its own
+    std::vector<size_t> table_buffers;         // each position table, a buffer of its own on such a device; one buffer of tables where empty
     size_t activations_per_row = 0;            // one row of a pass's activations on each device
+    size_t activation_slots = 0;               // the slots of a pass's arena, each aligned to 64 bytes (Model::alloc_arena)
     size_t logits_per_row = 0;                 // one row of logits where the head runs
     size_t head_slice_per_row = 0;             // on a tensor group, a member's slice of a logits row, which each member of the head's group keeps beside its layers
     size_t argmax_per_row = 0, argmax_rows = 0;   // off a tensor group, a logits row and its id kept on the head's device for argmax passes, and how many (Model::argmax_buffers)
@@ -91,8 +93,10 @@ inline constexpr int kRunLayers = 4;
 inline size_t arena_bytes(const Footprint& fp, size_t rows, size_t reply_rows, const std::function<size_t(size_t)>& allocated) {
     size_t n = 0;
     for (size_t r : {rows, fp.context_rows, reply_rows}) {
-        const size_t b = backend::size_mul(r, fp.activations_per_row);
-        if (b) n = backend::size_add(n, allocated ? allocated(b) : b);
+        if (!r) continue;
+        // Each of an arena's slots starts on 64 bytes (Model::alloc_arena).
+        const size_t b = backend::size_add(backend::size_mul(r, fp.activations_per_row), backend::size_mul(fp.activation_slots, 64));
+        n = backend::size_add(n, allocated ? allocated(b) : b);
     }
     return n;
 }
@@ -223,12 +227,20 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
         const size_t page = core::page_size();
         return backend::size_mul(backend::size_add(bytes, page - 1) / page, page);
     };
+    // What device d takes for a buffer of `bytes` (DeviceBudget::allocated).
+    auto taken = [&](size_t d, size_t bytes) -> size_t { return bytes && devices[d].allocated ? devices[d].allocated(bytes) : bytes; };
+    // Beside each arena a device keeps (arena_bytes), each layer's lookup staging and a group member's sum rows are a buffer of their own (Model::ensure).
+    auto arenas = [&](size_t d, size_t per_row) {
+        size_t n = 0;
+        for (size_t r : {rows, fp.context_rows, reply_rows}) n = backend::size_add(n, taken(d, backend::size_mul(r, per_row)));
+        return n;
+    };
     std::vector<size_t> lookup_device(L, 0), lookup_host(L, 0), lookup_pass(L, 0);
     for (size_t l = 0; l < L && !fp.lookups.empty(); ++l) {
         const LookupMemory& lookup = fp.lookups[l];
         if (!lookup.rows_per_token) continue;
         const size_t rows_per_pass = backend::size_mul(lookup.rows_per_token, lookup.row_bytes);
-        lookup_device[l] = backend::size_mul(arena_rows, rows_per_pass);
+        lookup_device[l] = rows_per_pass;
         auto host_capacity = [&](size_t nrows) {
             if (!nrows) return size_t(0);
             const size_t count = backend::size_mul(nrows, lookup.rows_per_token);
@@ -268,8 +280,10 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     };
     // prefix[d][i]: the resident bytes of layers [0, i) on device d.
     std::vector<std::vector<size_t>> prefix(N, std::vector<size_t>(L + 1, 0));
-    std::vector<size_t> lookup_prefix(L + 1, 0);
-    for (size_t l = 0; l < L; ++l) lookup_prefix[l + 1] = backend::size_add(lookup_prefix[l], lookup_device[l]);
+    // lookup_prefix[d][i]: the lookup staging of layers [0, i) on device d, a buffer a layer in each arena.
+    std::vector<std::vector<size_t>> lookup_prefix(N, std::vector<size_t>(L + 1, 0));
+    for (size_t d = 0; d < N; ++d)
+        for (size_t l = 0; l < L; ++l) lookup_prefix[d][l + 1] = backend::size_add(lookup_prefix[d][l], arenas(d, lookup_device[l]));
     for (size_t d = 0; d < N; ++d)
         for (size_t l = 0; l < L; ++l) {
             size_t b = 0;
@@ -322,14 +336,26 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
 
     // Besides weights and caches: a pass's activations, the scratch at the pass's widths, what the device keeps free and, where weights are copied, its tables; the carrier also holds the host's needs, its budget being the host's.
     auto overhead = [&](size_t d, const Host& h, bool last) {
-        const size_t copies = devices[d].host ? 0 : fp.tables;
+        size_t copies = 0;
+        if (!devices[d].host) {
+            if (fp.table_buffers.empty()) copies = taken(d, fp.tables);
+            for (size_t t : fp.table_buffers) copies = backend::size_add(copies, taken(d, t));
+        }
         const size_t priced = devices[d].priced ? devices[d].priced(pass_widths(fp, rows, logit_rows.value_or(rows), last)) : 0;
-        return arena_bytes(fp, rows, reply_rows, devices[d].allocated) + arena_rows * devices[d].collective_per_row + copies + devices[d].scratch + priced + (d == h.carrier ? h.need : 0);
+        return backend::size_add(arena_bytes(fp, rows, reply_rows, devices[d].allocated), arenas(d, devices[d].collective_per_row)) + copies + devices[d].scratch + priced +
+               (d == h.carrier ? h.need : 0);
+    };
+    // On the head's device: a group member's slice of the logits rows, and the argmax passes' logits rows and their ids, each a buffer of its own (Model::ensure, Model::argmax_buffers).
+    auto head_rows = [&](size_t d) {
+        const size_t logits = logit_rows.value_or(rows), kept = devices[d].argmax && fp.argmax_per_row ? std::min(logits, fp.argmax_rows) : 0;
+        const size_t ids = backend::size_mul(kept, sizeof(float));
+        return backend::size_add(taken(d, backend::size_mul(logits, fp.head_slice_per_row)),
+                                 backend::size_add(taken(d, backend::size_mul(kept, fp.argmax_per_row) - ids), taken(d, ids)));
     };
     // What device d holds running layers [i, i + k), given whether it is the first and the last device that runs layers.
     auto need = [&](size_t d, size_t i, size_t k, bool first, bool last, const Host& h) {
-        return backend::size_add(backend::size_add(backend::size_add(prefix[d][i + k] - prefix[d][i], lookup_prefix[i + k] - lookup_prefix[i]), cached[d][i + k] - cached[d][i] + replicas(i, k) + (last ? fp.drafter_cache : 0)),
-                                 backend::size_add(backend::size_add(end_weights(d, first, last), last ? logit_rows.value_or(rows) * fp.head_slice_per_row + (devices[d].argmax ? std::min(logit_rows.value_or(rows), fp.argmax_rows) * fp.argmax_per_row : 0) : 0), overhead(d, h, last)));
+        return backend::size_add(backend::size_add(backend::size_add(prefix[d][i + k] - prefix[d][i], lookup_prefix[d][i + k] - lookup_prefix[d][i]), cached[d][i + k] - cached[d][i] + replicas(i, k) + (last ? fp.drafter_cache : 0)),
+                                 backend::size_add(backend::size_add(end_weights(d, first, last), last ? head_rows(d) : 0), overhead(d, h, last)));
     };
     auto fits = [&](size_t d, size_t bytes) { return !devices[d].bytes || bytes <= *devices[d].bytes; };
 
@@ -485,7 +511,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
             const size_t a = (size_t)f, b = (size_t)(f + n);
             st.weights += prefix[d][b] - prefix[d][a];
             st.cache += cached[d][b] - cached[d][a] + replicas(a, (size_t)n);
-            st.other = backend::size_add(st.other, lookup_prefix[b] - lookup_prefix[a]);
+            st.other = backend::size_add(st.other, lookup_prefix[d][b] - lookup_prefix[d][a]);
         }
         return st.weights + st.cache + st.other;
     };

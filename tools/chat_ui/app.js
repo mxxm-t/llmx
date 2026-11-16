@@ -201,9 +201,9 @@
     await end(); return true;
   }
   async function temporaryChat() {
+    if (S.chat?.temporary) return newChat();
     if (creatingChat || S.busy) return;
     if (!S.config.temporary?.enabled) throw new Error('Temporary chats are unavailable on this server.');
-    if (S.chat?.temporary) { closeDrawers(); $('draft').focus(); return; }
     chatCreating(true);
     try {
       const values = settings(); values.tools = [];
@@ -393,8 +393,11 @@
     if (run) { const live = node('div', 'live-state'); live.append(node('span', 'status-dot'), node('span', 'live-phase', run.status === 'approval' ? 'Waiting for your approval' : 'Working'), node('span', 'live-metrics'), node('span', 'run-elapsed')); container.append(live); }
     $('welcome').hidden = selected.length > 0; $('messages').hidden = selected.length === 0 && !run;
     $('chat-title').textContent = S.chat?.title || 'New conversation';
-    $('temporary-notice').hidden = !S.chat?.temporary;
-    $('app').dataset.temporary = String(Boolean(S.chat?.temporary));
+    const temporaryMode = Boolean(S.chat?.temporary);
+    $('temporary-notice').hidden = !temporaryMode;
+    $('temporary-button').querySelector('.chat-create-label').textContent = temporaryMode ? 'Normal chat' : 'Temporary chat';
+    $('temporary-button').setAttribute('aria-label', temporaryMode ? 'Switch to a normal chat' : 'Start a temporary chat');
+    $('app').dataset.temporary = String(temporaryMode);
     const lifetime = S.config.temporary?.ttl_seconds;
     $('temporary-description').textContent = 'Not saved to history or backups. Tools are off.' + (Number.isFinite(lifetime) ? ' Expires after ' + number(lifetime / 60) + ' minutes of inactivity.' : '') + ' The model server may retain logs or caches.';
     const modelUnavailable = !(S.config.models || []).some(model => model.id === $('model').value);

@@ -1,5 +1,17 @@
 # llmx - Development Status
 
+## Temporary chat header toggle (2026-11-16, Done)
+
+**Goal.** Let the conversation-header action switch from temporary mode back to a regular conversation.
+
+**Done.** Existing `newChat()` and `leaveTemporary()` own normal chat creation, temporary exit confirmation, and current-run protection.
+
+**Checks.** The focused Chrome browser fixture passes in 43.404 seconds. It verifies the label and accessible name in both modes, the existing active-run block, cancellation without deletion, confirmed exit through `newChat()`/`leaveTemporary()`, creation of a saved chat, reload recovery and re-entry. JavaScript syntax, Python compilation and `git diff --check` pass. The `docs` and `dead-code` components pass (0 findings and 15 expected findings, respectively).
+
+**Review and landing.** The header action reuses `newChat()` while temporary mode is active; no server or store behavior changes. The companion README describes the toggle and preserved discard confirmation. Root reviews the branch before fast-forward; static UI checks only, with no runtime gates required.
+
+**Gotchas.** Do not duplicate temporary chat creation or discard logic in the header action. Keep the dashed temporary marker and preserve saved-chat selection.
+
 ## Chat reply flow (2026-11-16, Done)
 
 **Goal.** Make a tool-assisted reply read as one response, with less repeated chrome and clearer spacing between user turns.

@@ -121,13 +121,13 @@ It does not lock the upstream model or control later server restarts.
 
 ## Temporary chats
 
-Temporary chat in the conversation header opens a conversation held only in companion memory.
+Temporary chat in the conversation header opens a conversation held only in companion memory. In temporary mode, the same button is labeled Normal chat and starts a regular saved conversation.
 It is absent from saved history and SQLite backups. Messages, attachments, settings
 and replay events share the normal conversation engine in a separate in-memory
 store. Reloading the page recovers the current temporary chat through an identifier
 in the tab's session storage; no transcript is saved in browser local storage.
 
-End chat, New conversation or selecting another conversation discards the temporary
+Normal chat, End chat, New conversation or selecting another conversation discards the temporary
 chat after confirmation if it has messages or an unsent draft. Stop an active reply
 first. Switching to Monitor, Workspace or Settings leaves the chat open. Closing
 the tab does not guarantee immediate deletion: abandoned idle chats expire after

@@ -1,5 +1,53 @@
 # llmx - Development Status
 
+## A prefill sheds a stale prefill's slice points (2026-11-16, DSPP20, branch fix/slice-stale-points on main 929f042c6, rebased onto main a274cfd62 and then onto land/20261118 57a932e49; F2DEV's review of 07:56)
+
+**Goal.** `SlicePeriods` prices a pipelined prompt's cut from the second prefill's points on, however cold the first prefill after a load ran, on any split and device.
+
+**Done.**
+- A point keeps the prefill that measured it; `observe` sheds the oldest prefills' points in the bands a prefill read while they keep a band from a fit or their own lines miss its points, a stage missing when its mean time a slice is off by more than `kCalibrationShare` of the band's least fixed cost, and shedding restarts those bands' calibration (docs/src/model-slicing.md).
+  The `fit_line` guard (a positive fixed cost and cost a row) and the 2S cut's sizes are unchanged.
+- Cause (DSPP19's finding, F2DEV's diagnosis): the warm-up prefill of a bench runs cold, its cost a row growing with its rows (DeepSeek-V4.1-Flash stage 0: 198 and 545 ms at 256 and 512 rows against 106 and 193 clean), so its 8 band-0 points gave stages 0 and 2 of the layer split negative fixed costs; `fit_line` refused them, and the cut stayed unpriced (60 slices) until those points aged out after 32 prefills, with biased lines after.
+- Chosen by simulation over the dumped runs and a closed loop (`/opt/claude-work/dspp20/{replay.cpp,cl.cpp,sweep.sh}`): 12 prefills at DSPP19's refit lines of both splits, a cold first prefill, 1.3x warm second on 5x2, noise at each stage's measured rms, 8 seeds, fixed costs 1x and 0.25x, cost a row 1x and 0.25x.
+  First priced prefill (0-based, mean of 8 seeds) and mean excess of prefills 2 to 11 over the best cut at the true lines:
+
+  | split, fixed x row | main | shed | recency weights 0.5 a prefill |
+  |---|---|---|---|
+  | layer, 1 x 1 | never, 4.16% | 2.0, 0.08% | 4.9, 1.68% |
+  | layer, 0.25 x 1 | never, 7.51% | 6.1 (7 of 8), 3.94% | 7.8 (4 of 8), 6.30% |
+  | layer, 1 x 0.25 | 4.1, 1.00% | 2.0, 0.00% | 3.0, 0.65% |
+  | 5x2, 1 x 1 | never, 2.24% | 2.0, 0.13% | 5.2, 0.90% |
+  | 5x2, 0.25 x 1 | never, 2.06% | 3.8, 0.88% | 8.1, 1.70% |
+  | 5x2, 1 x 0.25 | 6.5, 5.49% | 2.0, 2.63% | 3.0, 2.71% |
+
+  A first cut of the rule shed on the wall residual as well; it missed a uniform excess, since the bound followed the biased lines' own fixed costs, and a stalled wall time would have wiped the history, so the busy points decide.
+- `server-passes`: a cold or uniformly slower first prefill, then clean ones, on 2, 5 and 10 stages at fixed costs of 1 and 0.25 times, each stage's line within 20% of the clean one from the first clean prefill on; fails on main (failing-test commit first).
+
+**Results** (main 929f042c6 `0.1.0+g929f042c6b2a` against the branch `0.1.0+gcaed01730cac`, both built the same way from worktrees, ROCm int8, ubatch 512, hostwait flagged no timing cell contended; records in `/opt/claude-work/dspp20/{j,k}/progress`).
+  Greedy ids (16 tokens of a 2126-token prompt) are identical to main on DeepSeek-V4.1-Flash MXFP4 for the layer split (8e73d5d1 both) and 5x2 (25573bbc both), and on Qwen3.8-27B Q8_0 over four MI50s on ROCm and Vulkan (294d7ab2 in all four), with no NaN.
+
+  | model, quant, cards, split | pp16384 round 1 main / branch | round 2 main / branch | slices of the first run main / branch |
+  |---|---|---|---|
+  | DeepSeek-V4.1-Flash MXFP4, 10 MI50, layer (3 runs) | 1699.75 / 1895.40 tok/s (+11.5%) | 1883.72 / 1876.10 (-0.4%) | 60 / 46 |
+  | DeepSeek-V4.1-Flash MXFP4, 10 MI50, 5x2 (3 runs) | 1573.71 / 1634.46 (+3.9%) | 1598.57 / 1608.33 (+0.6%) | 51 / 33 |
+  | Qwen3.8-27B Q8_0, 4 MI50, layer (4 runs) | 432.32 / 427.24 (-1.2%) | 426.80 / 426.34 (-0.1%) | 33 / 33 |
+
+  The gain is a cold-start gain, not a steady-state one: it is the first prefills after a load on the DeepSeek splits, and once main's fit has learned its cut the two are level (round 2 within each arm's spread).
+  Qwen3.8-27B never refused a fit on main, its slice counts match from the first run, and it reads level within its 1.2% round-1 spread.
+  The Vulkan identity ran Qwen3.8-27B Q8_0 on four Vulkan cards (a one-card small-model run waited on a full rig and was withdrawn, and one card runs no slicing), and `server-passes` and `server-passes-cpu` pass on the branch.
+
+**Carry (COORD 06:53).** The rule is hardware-free: the simulation's fixed 0.25x and row 0.25x rows stand for a faster GPU, whose row cost shrinks so the cold excess pushes the intercept further negative, and there main priced the cut at 4.1 prefills or never while the shed rule prices it at 2.0.
+A CPU split's first prefill runs cold too (page faults), so the rule applies there as on a device.
+
+**Gates after the rebase onto land/20261118 57a932e49** (BACKLOG1 and BACKLOG2, 2026-11-19, rig; logs /opt/claude-work/backlog1/out/cj4b and /opt/claude-work/backlog2/out/cpu2).
+`src/model/slicing.hpp` is the same at a274cfd62 and at land/20261118, so DSPP20's results above carry; CTest CPU 90/90 on the branch, `server-passes` included.
+Qwen3-0.6B Q8_0, a 9k-token wikitext prompt, 64 greedy tokens over `rocm:0,rocm:1` at ubatch 128 on two MI50s (renderD128-129): land and the branch give one text.
+
+**Left.** The landing stack's hosted run.
+
+**Gotchas.** A prefill whose own band-0 points refuse a fit (a priced cut's narrow spread under noise) sheds nothing and keeps the older lines; with fixed costs near the noise (0.25x on the layer split) pricing still waits for a fit, 6 prefills on average in the simulation.
+A prefill whose busy times are uniformly inflated (a contending job, a clock drop) sheds the clean history and is priced from its own line for one prefill, and the next clean prefill restores it; a wall-only stall sheds nothing.
+
 ## The suite at --tensor-width 2 on four devices (2026-11-19, BACKLOG1, branch fix/suite-tw2 on land/20261118 57a932e49)
 
 - **Why:** on four MI50s at `--tensor-width 2` (CRASH5, 2026-11-19, /opt/claude-work/crash5/ds2) two components failed on main for reasons of their own, not of the runtime.

@@ -19,14 +19,16 @@ The tables summarize current model, weight-format and backend support. **Support
 | Architecture | Models tested | CPU | Vulkan | ROCm | `llmx serve` |
 |---|---|---|---|---|---|
 | `qwen3` (dense) | Qwen3-0.6B, 8B, 14B, 32B | Supported | Supported | Supported | Supported |
-| `qwen3moe` (mixture of experts) | Qwen3-30B-A3B, Qwen3-235B-A22B | Supported | Supported | In development | Supported |
+| `qwen3moe` (mixture of experts) | Qwen3-30B-A3B, Qwen3-235B-A22B | Supported | Supported | Supported | Supported |
 | `qwen35` (hybrid linear and full attention) | Qwen3.5-0.8B, 4B, 9B, Qwen3.6-27B, Qwen3.8-27B | Supported | Supported | Supported | Supported, prefix reuse for follow-up turns |
-| `qwen35moe` (Qwen 3.5 mixture of experts) | Qwen3.6-35B-A3B | Supported | Supported | In development | Supported, prefix reuse for follow-up turns |
+| `qwen35moe` (Qwen 3.5 mixture of experts) | Qwen3.6-35B-A3B | Supported | Supported | Supported | Supported, prefix reuse for follow-up turns |
 | `qwen4exp` (hybrid with per-layer n-gram embeddings, [details](docs/QWEN38-FLASH.md)) | Qwen3.8-Flash-Next Q8_0 (released-file HF) and UD-Q4_K_XL (bounded serving smoke with Q8_0 MTP sidecar) | Released-file CPU qualification pending | Supported | Supported | Supported, prefix reuse for follow-up turns |
 | `deepseek41` (hybrid compressed sparse attention, mixture of experts, lookup-table memory, [details](docs/DEEPSEEK4.md)) | DeepSeek-V4.1-Flash-1017 MXFP4 | Supported | Supported | Supported | Supported |
 | Llama, Mistral, Gemma, Phi, DeepSeek-V4-Flash | | Planned | Planned | Planned | Planned |
 
-On ROCm, `qwen3` is checked with Qwen3-0.6B and 8B Q8_0, `qwen35` with Qwen3.5-0.8B Q4_K_M and `qwen4exp` with Qwen3.8-Flash-Next UD-Q4_K_XL; `deepseek41` with DeepSeek-V4.1-Flash-1017 MXFP4 over ten devices; `qwen3moe` and `qwen35moe`: their tiny HF fixtures pass on rocm:0 and no real model of theirs has been checked there.
+On ROCm, `qwen3` is checked with Qwen3-0.6B and 8B Q8_0, `qwen35` with Qwen3.5-0.8B Q4_K_M, `qwen4exp` with Qwen3.8-Flash-Next UD-Q4_K_XL and `deepseek41` with DeepSeek-V4.1-Flash-1017 MXFP4 over ten devices.
+`qwen3moe` and `qwen35moe` pass their tiny Hugging Face fixtures on ROCm and run Qwen3-30B-A3B and Qwen3.6-35B-A3B Q4_K_M there, though those two files are not yet checked against Hugging Face on ROCm.
+A mixture-of-experts file whose expert gate and up weights differ in type is refused on ROCm.
 On CUDA, which is in development, only dense `qwen3` models run, checked on an RTX 3060: Qwen3-0.6B Q8_0 passes the Hugging Face checks at `--dtype f16`, including 16k-token sequences, and the synthetic dense models pass at `--dtype f32`.
 No other architecture, no `int8` activations and no multi-device mode has run on CUDA yet; see [CUDA](docs/CUDA.md).
 A model runs on ROCm only when every weight format it holds is one the ROCm backend reads (below), and image input (`--mmproj`) is not available there.
@@ -83,14 +85,14 @@ A device that lacks the requested dtype runs the nearest wider form the table gi
 |---|---|---|---|---|
 | `auto` | `f16` | `f16` | `f16` | `f16` |
 | `f32` | Native | Native | Native | Runs on dense `qwen3` |
-| `f16` | Native: 16-bit integer blocks where a kernel has them, F32 products elsewhere | Native: 16-bit integer blocks on most types, F32 products for the `Q1_0`, `Q2_0`, `Q2_K` and `Q3_K` rows of devices without the integer dot and for some `IQ` and `TQ` types | Native: 16-bit integer blocks for `Q8_0`, `Q4_K`, `Q5_K`, `Q6_K`, `Q5_0`, `Q5_1` and `IQ4_NL`, F32 products for `F32`, `BF16` and `MXFP4` weights | Runs on dense `qwen3` |
+| `f16` | Native: 16-bit integer blocks where a kernel has them, F32 products elsewhere | Native: 16-bit integer blocks on most types, F32 products for the `Q1_0`, `Q2_0`, `Q2_K` and `Q3_K` rows of devices without the integer dot and for some `IQ` and `TQ` types | Native: 16-bit integer blocks for `Q8_0`, `Q4_0`, `Q4_1`, `Q4_K`, `Q5_K`, `Q6_K`, `Q5_0`, `Q5_1`, `IQ4_NL` and `MXFP4`, binary16 inputs for `F16` weights' prompt tiles, F32 products for `F32` and `BF16` weights and `F16` weights' generated rows | Runs on dense `qwen3` |
 | `bf16` | Emulated: inputs rounded to BF16, F32 arithmetic | Emulated on devices that keep F32 denormals, signed zeros, infinities and NaNs; others run `f32` with a warning | Runs `f32` with a warning | Not run yet |
-| `int8` | Runs `f16` with a warning | Native on devices that prefer the integer dot product, today the MI50 under Mesa; others run `f16` with a warning | Native: 8-bit integer blocks for the types with a 16-bit form above, F32 products for the rest | Not run yet |
+| `int8` | Runs `f16` with a warning | Native on devices that prefer the integer dot product, today the MI50 under Mesa; others run `f16` with a warning | Native: 8-bit integer blocks for the types with 16-bit integer blocks above, `F16` weights as under `f16`, F32 products for `F32` and `BF16` weights | Not run yet |
 
 Not every weight type has every form, and `--dtype` prints the forms each device uses; see [USAGE](docs/USAGE.md#precision).
 
 Matrix products take 16-bit integer inputs under the default and 8-bit under `int8`, and every sum is F32.
-Attention, norms, RoPE, residuals and routers stay F32, and the KV cache is `f16` unless `--cache-type-k` and `--cache-type-v` say `f32`.
+Attention, norms, RoPE, residuals and routers stay F32, and the KV cache is `f16` unless `--cache-type-k` and `--cache-type-v` say `f32`, or `native` on a model that declares its own cache format, where that is the default.
 The full table of what each part computes in is in [PRECISION](docs/PRECISION.md#what-each-part-computes-in).
 
 ## File formats
@@ -173,7 +175,7 @@ Finished conversations are kept for prefix reuse in device memory, then host mem
 |---|---|
 | `--drafter lookup\|embedded\|PATH`, `--draft-max N` | Speculative decoding in `generate`, `chat` and `serve`: drafts from the prompt and reply (`lookup`), from the MTP block a `qwen35` file carries (`embedded`), from a DeepSeek-V4.1 DSpark sidecar file or from a drafter file, sources tried in the order listed (`lookup,embedded`), a file of its MTP blocks or in `generate` and `chat` a draft model; the text is identical with it on or off ([SPECULATIVE](docs/SPECULATIVE.md)) |
 | `--dtype auto\|f16\|bf16\|f32\|int8` | Activation precision, independent of weight storage; see Quantization types above |
-| `--cache-type-k`, `--cache-type-v` | KV cache storage, `f16` (default) or `f32` |
+| `--cache-type-k`, `--cache-type-v` | KV cache storage, `f16` (default) or `f32`, or `native` where the model declares a cache format (the default there) |
 | `--load-mode auto\|mapped\|direct` | How the weights are read from disk |
 
 ## Documentation

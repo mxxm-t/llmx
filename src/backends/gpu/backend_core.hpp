@@ -3145,7 +3145,7 @@ private:
             gx64 += (proj[pi].nout + kTileOut - 1) / kTileOut;
         }
         const size_t tall_from = int8 ? dev_.profile.qtile_tall_from_8bit : dev_.profile.qtile_tall_from;
-        const bool tall = tk.tall[int8] != kKernels && tile_rows_for(dev_.caps, dev_.profile, kTileOut, kTileOut, kTileOutTall, outputs, tiles, nin, tall_from) == kTileOutTall;
+        const bool tall = tk.tall[int8] != kKernels && tile_rows_for(dev_.caps, dev_.profile, kTileOut, kTileOut, kTileOutTall, outputs, tiles, nin, tall_from, int8) == kTileOutTall;
         const size_t per = tall ? kTileOutTall : kTileOut;
         // The tile addresses a workgroup's weights and twin by 32-bit offsets off its first output and row, a Q8_0 block's 34 bytes bounding every twin type's bytes for 32 values.
         if ((nin / 32) * per * 34 + 64 > 0xffffffffull || (size_t(kTileRows) * xrow + (nin / 32) * xblock) * 32 * (int8 ? 1 : 2) > 0xffffffffull)

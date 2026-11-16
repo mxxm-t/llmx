@@ -4063,10 +4063,10 @@ int main(int argc, char** argv) {
         mxfp4_decode_bits(*g);
         attention(*g, *c);
         classes(*g);
-        twin_checks::twin_products(*g, rocm_device(0).caps, Dtype::f16, require);
+        twin_checks::twin_products(*g, rocm_device(0).caps, Dtype::f16, rocm_take_launches, require);
         producer_twins(*g, Dtype::f16);
         stream_twins(*g, Dtype::f16);
-        twin_checks::twin_products(*g, rocm_device(0).caps, Dtype::int8, require);
+        twin_checks::twin_products(*g, rocm_device(0).caps, Dtype::int8, rocm_take_launches, require);
         producer_twins(*g, Dtype::int8);
         stream_twins(*g, Dtype::int8);
         hyper_mix_bits(*g);

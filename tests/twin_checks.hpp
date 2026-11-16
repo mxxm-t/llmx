@@ -345,7 +345,7 @@ inline void twin_types(Backend& g, Backend& c, const std::vector<uint32_t>& kind
 
 // A class's Q8_0 products, f16 on the block-int16 twin and int8 on the block-int8 one, against the twin's rule and a double oracle on the twin.
 // Every decode column must be the column alone, and a prompt row the same bits in any call.
-inline void twin_products(Backend& g, const DeviceCaps& caps, Dtype dt, const Require& require) {
+inline void twin_products(Backend& g, const DeviceCaps& caps, Dtype dt, const Launches& launches, const Require& require) {
     const float L = dt == Dtype::int8 ? 127.0f : 32767.0f;
     const std::string form = dt == Dtype::int8 ? "8-bit" : "16-bit";
     // Twin: blocks of ordinary, tiny, huge, tied and zero values, read through one-hot rows on both kernels.
@@ -636,10 +636,10 @@ inline void twin_products(Backend& g, const DeviceCaps& caps, Dtype dt, const Re
     const auto tiles_of = [](size_t rows) { return (std::min<size_t>(rows, 512) + 63) / 64; };
     const auto kper_of = [&](size_t n, size_t tw, size_t tr) { return backend::split_blocks(prof, caps, (n + 63) / 64 * tiles_of(tr), tw / 32); };
     const auto tall_of = [&](size_t n, size_t tw, size_t tr) {
-        return backend::tile_rows_for(caps, prof, 64, 64, 128, n, tiles_of(tr), tw, dt == Dtype::int8 ? prof.qtile_tall_from_8bit : prof.qtile_tall_from) == 128;
+        return backend::tile_rows_for(caps, prof, 64, 64, 128, n, tiles_of(tr), tw, dt == Dtype::int8 ? prof.qtile_tall_from_8bit : prof.qtile_tall_from, dt == Dtype::int8) == 128;
     };
     const auto meets = [&](const std::array<size_t, 4>& s) { return kper_of(s[2], s[0], s[1]) == kper_of(s[3], s[0], s[1]) && tall_of(s[2], s[0], s[1]) != tall_of(s[3], s[0], s[1]); };
-    std::vector<std::array<size_t, 4>> shapes = {{512, 70, 3940, 100}, {512, 70, 3000, 100}, {4096, 520, 5860, 3840}, {4128, 520, 5860, 3840}};
+    std::vector<std::array<size_t, 4>> shapes = {{512, 70, 3940, 100}, {512, 70, 3000, 100}, {4096, 520, 5860, 3840}, {4128, 520, 5860, 3840}, {4096, 70, 3776, 3072}};
     // The fixed shapes meet that only on some numbers of compute units, so where none does, each width adds the first slice and whole, both ending inside a tile, that meet it on this device.
     for (const std::array<size_t, 2> base : {std::array<size_t, 2>{512, 70}, {4096, 520}}) {
         if (std::any_of(shapes.begin(), shapes.end(), meets)) break;
@@ -659,7 +659,11 @@ inline void twin_products(Backend& g, const DeviceCaps& caps, Dtype dt, const Re
         const size_t row_bytes = tw / 32 * 34;
         auto mtb = g.adopt(mt.data(), mt.size()), xtb = g.adopt(xt.data(), xt.size() * 4), yt = g.alloc(tn * tr * 4), ys = g.alloc(slice * tr * 4);
         const RowRun run[1] = {{tr, tr}};
+        launches(g);
         g.matmul({quant::GGML_TYPE_Q8_0, {mtb.get(), 0}}, {xtb.get(), 0}, {yt.get(), 0}, tw, tn, tr, {run, 1}, dt);
+        // The profile's rule, not the kernel table, says which build runs, so a class that should take the tall build fails here without it.
+        const std::string tall_build = dt == Dtype::int8 ? "llmx_q8_0_tile8_tall" : "llmx_q8_0_tile16_tall";
+        require((launches(g).count(tall_build) > 0) == tall_of(tn, tw, tr), form + ": a " + std::to_string(tn) + "-output matrix " + std::to_string(tw) + " wide takes " + tall_build + " exactly where the profile's rule sets it");
         const std::vector<float> whole = read(g, *yt, tn * tr);
         bool same = true;
         for (size_t first : {size_t(0), tn - slice}) {

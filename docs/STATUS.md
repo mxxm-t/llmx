@@ -25,6 +25,37 @@ Greedy ids of 48 tokens after a 2649-token prompt are main's on the layer split 
 **Gates:** `backend-rocm` PASS at b31d6da0 on one MI50; at the stack's head 01a7d382 (llmx 0.1.0+g01a7d3822a47 numerics 73fa56432d7e9684, whose tree differs from the landing head only in docs/STATUS.md) builds with rc 0, passes `dead-code` and `docs`, ROCm CTest 94 of 94 on one MI50, and the CUDA build with `gpu-port`, `gpu-core` and `cuda-sass` 3 of 3 as the MXFP4 tile staging block above gives. Rebased onto ds4-attn-rb 89db7bf67, it is gated at the new stacked head 3f17b629 as the sparse pair staging block gives.
 **Left:** the hosted run at the landing head; the ten-card cells ran with the whole stack, not with this change alone; README unchanged (kernel speed only).
 
+## ROCm Q8_0 tall tile (2026-11-16, DSPP22, DSPP24 then DSPP26, branch dspp26/q8-tall on main 3b88cfb3a; lands by fast-forward with the stack)
+
+**Done:** `tile_tall_per_cu_8bit`, the integer-dot tile's `tile_tall_per_cu` over 8-bit activations on rows at least `tile_narrow_nin` wide: 1 by default and on the MI50 HIP row, 4 on the MI50 RADV row as its `tile_tall_per_cu`, so Vulkan dispatch is unchanged.
+The MI50 HIP row keeps main's 16-bit rule (six workgroups a compute unit, rows from 4096 wide), so over 8-bit activations its tall build is taken at any fill from 4096 wide and over 16-bit ones as on main.
+A device with more compute units fills fewer workgroups a unit at the same shape, so it takes the tall build less often and the gain follows out_rows / 128 against its unit count; such a device sets its own pair, as the two MI50 rows do.
+`twin_products` gains a shape 4096 wide whose whole and slice split alike on 60 units, so the 8-bit class meets the tall build at one split, and at every shape requires the tall build's launch exactly where the profile's rule (`tile_rows_for`) sets it, so a class missing the build fails rather than passing on the 64-output build's equal bits.
+
+One MI50, block-major twins, tall against the 64-output build (`mbq8wm`, `mbq8w16m`; /opt/claude-work/dspp24/mb-m8.txt and mb-m16.txt): over 8-bit activations 1.00x to 1.10x at rows from 4096 wide at any fill (DeepSeek-V4.1-Flash, Qwen3-8B and 14B shapes), 0.86x to 0.95x on Qwen3-0.6B's narrower rows; over 16-bit ones 0.82x to 0.98x at low fill except Qwen3-14B gate, up and down (+3%).
+A 128 by 128 build over 8-bit activations ran 0.72x to 0.94x (184 VGPRs, one wave a SIMD) and is not built.
+
+One MI50 each on two cards, ROCm, main a56dcebef against this change (llmx 0.1.0+g28d37ec84fc4), `bench --p 512|2048 --n 16 --r 3`, default clocks, AB then BA, median of the six runs an arm in tok/s, hostwait flags no cell contended (/opt/claude-work/dspp27/q5 on the rig):
+
+| Model, dtype, prompt | card 1 main | card 1 branch | change | card 2 main | card 2 branch | change |
+|---|---|---|---|---|---|---|
+| Qwen3-14B Q8_0, int8, pp512 | 770.60 | 774.31 | +0.48% | 755.39 | 762.82 | +0.98% |
+| Qwen3-14B Q8_0, int8, pp2048 | 680.98 | 686.40 | +0.80% | 671.37 | 676.05 | +0.70% |
+| Qwen3-14B Q8_0, f16, pp512 | 495.16 | 494.84 | -0.06% | 486.75 | 486.87 | +0.02% |
+| Qwen3-14B Q8_0, f16, pp2048 | 456.73 | 456.87 | +0.03% | 449.60 | 445.42 | -0.93% |
+| Qwen3.6-27B Q8_0, int8, pp512 | 393.21 | 395.03 | +0.46% | 386.72 | 388.25 | +0.40% |
+| Qwen3.6-27B Q8_0, int8, pp2048 | 337.52 | 338.97 | +0.43% | 332.32 | 333.82 | +0.45% |
+| Qwen3.6-27B Q8_0, f16, pp512 | 258.15 | 258.11 | -0.02% | 253.86 | 253.91 | +0.02% |
+| Qwen3.6-27B Q8_0, f16, pp2048 | 232.66 | 232.78 | +0.05% | 229.05 | 228.56 | -0.21% |
+
+The 16-bit dispatch is main's, so the F16 cells are a control: they sit within 0.1% but one, whose best runs are 449.44 and 450.19.
+The two cards differ by about 1.5% from each other, so arms are compared on one card only; a first round that ran the arms concurrently on two cards read that difference as a loss and is not used.
+Identity on one MI50: Qwen3-0.6B and Qwen3-14B Q8_0 give main's 32 greedy ids after a 16k-token prompt at int8 and f16 (6c9d83c3 and 7d9d426f); Qwen3.6-27B does not fit one MI50 under `generate` on either arm (the placement fit finding, MOEOFF44's), also at `--ubatch 128`.
+Ten MI50s, DeepSeek-V4.1-Flash MXFP4, ROCm int8: the 8-bit dispatch is the one measured beside the branch dspp26/rope-form, whose pair gave main's 48 greedy ids on the layer split and 5x2 and +7.7% on 5x2 pp16384; the ten-card cells ran with the whole stack, not with this change alone.
+
+**Gates:** `backend-rocm` PASS on one MI50 at 28d37ec8; ROCm, Vulkan and CUDA builds rc 0; at the stack's head 01a7d382 (llmx 0.1.0+g01a7d3822a47 numerics 73fa56432d7e9684, whose tree differs from the landing head only in docs/STATUS.md) builds with rc 0, passes `dead-code` and `docs`, ROCm CTest 94 of 94 on one MI50, and the CUDA build with `gpu-port`, `gpu-core` and `cuda-sass` 3 of 3 as the MXFP4 tile staging block above gives. Rebased onto ds4-attn-rb 89db7bf67, it is gated at the new stacked head 3f17b629 as the sparse pair staging block gives.
+**Left:** the hosted run at the landing head; the ten-card cells ran with the whole stack, not with this change alone; README unchanged (kernel speed only).
+
 ## DeepSeek-V4.1 decode sparse attention on a few-row tile pair (2026-11-16, DSDEV217 to DSDEV221, branch perf/ds4-decode-attn on main 929f042c6, rebased by DSDEV229 onto land68-stack 1cd17c3b on main 3b88cfb3a; DSDEV217's proposal of 09:58 with F2DEV's review of 10:01, COORD's decision of 11:07)
 
 - **Goal:** DeepSeek-V4.1-Flash's decode sparse attention, 1 to 7 rows a call, runs on tile kernels that fill the device instead of the one-head pair, with every output main's bits; lever 1 of the decode stream toward the owner's 50 tok/s decode gate.

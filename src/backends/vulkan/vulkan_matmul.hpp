@@ -224,7 +224,7 @@ inline void VulkanBackend::matmul_group_impl(const Projection* projections, size
             // The split is the one the rows' whole prompt would take (matmul_runs).
             const size_t st = split_tiles ? split_tiles : gy;
             const uint32_t hs = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, t.rows, st, nin,
-                                              i8 ? dev_->profile.qtile_tall_from_8bit : dev_->profile.qtile_tall_from);
+                                              i8 ? dev_->profile.qtile_tall_from_8bit : dev_->profile.qtile_tall_from, i8);
             size_t gxs = 0;
             for (const Projection* pr : group) gxs += groups(pr->rows, hs);
             const size_t kper = split_blocks(dev_->profile, dev_->caps, gxs * st, nblk);
@@ -713,7 +713,7 @@ inline VulkanBackend::QTile VulkanBackend::qtile(const std::vector<const Project
     QTile t;
     for (const Projection* pr : ps) t.rows += pr->rows;
     t.height = narrow ? kTileRowsTall : tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, t.rows, column_groups, nin,
-                                                      i8 ? dev_->profile.qtile_tall_from_8bit : dev_->profile.qtile_tall_from);
+                                                      i8 ? dev_->profile.qtile_tall_from_8bit : dev_->profile.qtile_tall_from, i8);
     const WeightKernels& format = *weight_kernels(ps[0]->weight.type);
     const KernelId tile = i8 ? format.int8_tile : format.integer_tile, tall = i8 ? format.int8_tall_tile : format.integer_tall_tile;
     // Types with one integer module keep the short height to bound live half sums.

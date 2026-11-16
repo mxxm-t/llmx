@@ -3483,30 +3483,54 @@ extern "C" __global__ void llmx_pool_write(float* aux, const float* src, const u
 constexpr unsigned kSparseTileHeads = 64u, kSparseTileWide = 128u, kSparseStep = 32u;   // the tile pair's 64 heads by 128 kept rows or columns a block, staged 32 deep
 // Eight consecutive stored values of a row from a multiple of 8, read into registers ahead of their use and decoded later as stored_value gives them; format 4 reads as zeros.
 struct Raw8 {
-    unsigned w[3];   // the block's scale byte then the 8 code bytes packed from byte 0
-    unsigned format, hi;
+    unsigned w[3];   // the block's scale byte then the 8 code bytes packed from byte 0, then the format in bits 8-10 and the half flag in bit 11 of w[2]
 };
+__device__ inline unsigned raw8_format(const Raw8& x) { return x.w[2] >> 8 & 7u; }
 __device__ inline unsigned raw8_byte(const Raw8& x, unsigned j) { return (x.w[j >> 2] >> (8u * (j & 3u))) & 255u; }
 template <unsigned F> __device__ inline void raw8_read(Raw8& x, const float* row, unsigned d) {
     constexpr unsigned VB = format_values(F), BB = format_bytes(F);
     const unsigned char* b = (const unsigned char*)row + d / VB * BB;
     const unsigned i0 = d % VB, o = F == 0u ? i0 : i0 % (VB / 2u);
-    x.hi = i0 >= VB / 2u;
-    x.w[0] = b[0] | (unsigned)b[1u + o] << 8 | (unsigned)b[2u + o] << 16 | (unsigned)b[3u + o] << 24;
-    x.w[1] = b[4u + o] | (unsigned)b[5u + o] << 8 | (unsigned)b[6u + o] << 16 | (unsigned)b[7u + o] << 24;
-    x.w[2] = b[8u + o];
+    // The 8 code bytes from the aligned words that hold them; the last word read holds the last code byte, so no read passes the row's last word.
+    const unsigned char* a = b + 1u + o;
+    const unsigned mis = (unsigned)((unsigned long long)a & 3u);
+    const unsigned* wp = (const unsigned*)(a - mis);
+    const unsigned u0 = wp[0], u1 = wp[1], u2 = wp[mis ? 2u : 1u];
+    const unsigned c0 = bit_align(u1, u0, 8u * mis), c1 = bit_align(u2, u1, 8u * mis);
+    x.w[0] = b[0] | c0 << 8;
+    x.w[1] = c0 >> 24 | c1 << 8;
+    x.w[2] = c1 >> 24 | F << 8 | (i0 >= VB / 2u ? 1u : 0u) << 11;
 }
-// Value i of x, or for format 3 (f32 rows and a row's last values) read from row at d now; format 4 reads zeros.
-__device__ inline float raw8_value(const Raw8& x, unsigned i, const float* lut, const float* row, unsigned d, unsigned dim, unsigned format) {
-    if (x.format >= 3u) return x.format == 3u && d + i < dim ? stored_value(row, d + i, format) : 0.0f;
-    const unsigned s = raw8_byte(x, 0u), b = raw8_byte(x, 1u + i);
-    if (x.format == 0u) return lut[b] * __uint_as_float(s << 23);
-    return lut[256u + (x.hi ? b >> 4 : b & 15u)] * (x.format == 1u ? __uint_as_float(s << 23) : lut[s]);
+// The 8 values of x, and for format 3 (f32 rows and a row's last values) the row's values read from d now; format 4 reads zeros.
+__device__ inline void raw8_values(const Raw8& x, const float* lut, const float* row, unsigned d, unsigned dim, unsigned format, float v[8]) {
+    const unsigned xf = raw8_format(x);
+    if (xf >= 3u) {
+#pragma unroll
+        for (unsigned i = 0; i < 8u; ++i) v[i] = xf == 3u && d + i < dim ? stored_value(row, d + i, format) : 0.0f;
+        return;
+    }
+    const unsigned s = raw8_byte(x, 0u);
+    if (xf == 0u) {
+        const float sc = __uint_as_float(s << 23);
+#pragma unroll
+        for (unsigned i = 0; i < 8u; ++i) v[i] = lut[raw8_byte(x, 1u + i)] * sc;
+        return;
+    }
+    const float sc = xf == 1u ? __uint_as_float(s << 23) : lut[s];
+    const bool hi = x.w[2] >> 11 & 1u;
+#pragma unroll
+    for (unsigned i = 0; i < 8u; ++i) {
+        const unsigned b = raw8_byte(x, 1u + i);
+        v[i] = lut[256u + (hi ? b >> 4 : b & 15u)] * sc;
+    }
 }
 // The row's 8 values from d into x ahead of their use, any dim.
 __device__ inline void raw8_read_row(Raw8& x, const float* row, unsigned d, unsigned dim, unsigned format) {
-    x.format = !row ? 4u : format == 3u || d + 8u > dim ? 3u : format;
-    if (x.format >= 3u) return;
+    const unsigned f = !row ? 4u : format == 3u || d + 8u > dim ? 3u : format;
+    if (f >= 3u) {
+        x.w[2] = f << 8;
+        return;
+    }
     switch (format) {
         case 0u: return raw8_read<0u>(x, row, d);
         case 1u: return raw8_read<1u>(x, row, d);
@@ -3614,9 +3638,12 @@ __device__ inline void sparse_scores_few(float* pt, float* tmax, const float** k
             qs[(i / S) * QS + i % S] = qn[j];
         }
 #pragma unroll
-        for (unsigned j = 0; j < KR; ++j)
+        for (unsigned j = 0; j < KR; ++j) {
+            float v[8];
+            raw8_values(kn[j], lut, krow, d0 + kd + 8u * j, dim, cf, v);
 #pragma unroll
-            for (unsigned i = 0; i < 8u; ++i) ks[(kd + 8u * j + i) * PW + ke] = raw8_value(kn[j], i, lut, krow, d0 + kd + 8u * j, dim, cf);
+            for (unsigned i = 0; i < 8u; ++i) ks[(kd + 8u * j + i) * PW + ke] = v[i];
+        }
         __syncthreads();
         if (d0 + S < dim) read(d0 + S);
         const unsigned steps = dim - d0 < S ? dim - d0 : S;
@@ -3724,10 +3751,12 @@ __device__ inline void sparse_values_few(float* out, const float* pt, const floa
         for (unsigned e = 0; e < RPT; ++e) {
             const unsigned l = cr + e * RS, c = c0 + l;
 #pragma unroll
-            for (unsigned j = 0; j < VR; ++j)
+            for (unsigned j = 0; j < VR; ++j) {
+                float v[8];
+                raw8_values(vn[e][j], lut, vp[e], d0 + pc + 8u * j, dim, c < kk ? kv_format : entry_format, v);
 #pragma unroll
-                for (unsigned i = 0; i < 8u; ++i)
-                    vs[l * PW + pc + 8u * j + i] = raw8_value(vn[e][j], i, lut, vp[e], d0 + pc + 8u * j, dim, c < kk ? kv_format : entry_format);
+                for (unsigned i = 0; i < 8u; ++i) vs[l * PW + pc + 8u * j + i] = v[i];
+            }
         }
         __syncthreads();
         if (c0 + S < total) read(c0 + S);
@@ -3776,7 +3805,7 @@ __device__ inline void sparse_values_few(float* out, const float* pt, const floa
 }
 // The tile pair: llmx_sparse_scores_tile writes scale * q.k a kept row and head and each 128-row tile's maximum a head, llmx_sparse_values_tile turns them into the softmax and the values.
 // A block of the scores kernel 128 kept rows of one row, a thread 4 heads by 8 kept rows, each dot one multiply-add chain in d order as the few-row pair's, so every output keeps its bits.
-extern "C" __global__ void __launch_bounds__(kThreads) llmx_sparse_scores_tile(float* pt, float* tmax, const float** kept, unsigned* counts, const float* q, const float* kv,
+extern "C" __global__ void __launch_bounds__(kThreads, 2) llmx_sparse_scores_tile(float* pt, float* tmax, const float** kept, unsigned* counts, const float* q, const float* kv,
                                                                             const unsigned* ids, const float* aux, const unsigned* rows, const unsigned* entries, unsigned heads,
                                                                             unsigned dim, unsigned k, unsigned entry_k, float scale, unsigned kv_rows, unsigned tokens, unsigned bt,
                                                                             unsigned long long block_floats, unsigned rows_floats, unsigned width, unsigned kv_format,
@@ -3825,6 +3854,7 @@ extern "C" __global__ void __launch_bounds__(kThreads) llmx_sparse_scores_tile(f
     // Staging: a thread 8 dims of one head's query, and 16 dims of one kept row as two reads of 8.
     const unsigned qe = tid / 4u, qd = tid % 4u * 8u, ke = tid / 2u, kd = tid % 2u * 16u, c = c0 + ke, cf = c < kk ? kv_format : entry_format;
     const float* krow = c < total ? at[ke] : nullptr;
+    const bool q4 = dim % 4u == 0u && ((unsigned long long)q & 15u) == 0u;   // every query row starts 16-byte aligned, so 8 values read as two float4
     for (unsigned h0 = 0; h0 < heads; h0 += TH) {
         float dot[4][8];
 #pragma unroll
@@ -3836,8 +3866,11 @@ extern "C" __global__ void __launch_bounds__(kThreads) llmx_sparse_scores_tile(f
         float qn[8];
         Raw8 kn[2];
         const auto read = [&](unsigned d0) {
-#pragma unroll
-            for (unsigned i = 0; i < 8u; ++i) qn[i] = h < heads && d0 + qd + i < dim ? qrow[d0 + qd + i] : 0.0f;
+            if (q4 && h < heads && d0 + qd + 8u <= dim) {
+                const float4 a = *(const float4*)(qrow + d0 + qd), b = *(const float4*)(qrow + d0 + qd + 4u);
+                qn[0] = a.x, qn[1] = a.y, qn[2] = a.z, qn[3] = a.w, qn[4] = b.x, qn[5] = b.y, qn[6] = b.z, qn[7] = b.w;
+            } else
+                for (unsigned i = 0; i < 8u; ++i) qn[i] = h < heads && d0 + qd + i < dim ? qrow[d0 + qd + i] : 0.0f;
 #pragma unroll
             for (unsigned j = 0; j < 2u; ++j) raw8_read_row(kn[j], krow, d0 + kd + 8u * j, dim, cf);
         };
@@ -3845,11 +3878,14 @@ extern "C" __global__ void __launch_bounds__(kThreads) llmx_sparse_scores_tile(f
             read(0);
             for (unsigned d0 = 0; d0 < dim; d0 += S) {
                 __syncthreads();
+                float kv8[2][8];
+#pragma unroll
+                for (unsigned j = 0; j < 2u; ++j) raw8_values(kn[j], lut, krow, d0 + kd + 8u * j, dim, cf, kv8[j]);
 #pragma unroll
                 for (unsigned i = 0; i < 8u; ++i) {
                     qs[(qd + i) * PH + qe] = qn[i];
 #pragma unroll
-                    for (unsigned j = 0; j < 2u; ++j) ks[(kd + 8u * j + i) * PW + ke] = raw8_value(kn[j], i, lut, krow, d0 + kd + 8u * j, dim, cf);
+                    for (unsigned j = 0; j < 2u; ++j) ks[(kd + 8u * j + i) * PW + ke] = kv8[j][i];
                 }
                 __syncthreads();
                 if (d0 + S < dim) read(d0 + S);
@@ -3897,6 +3933,7 @@ extern "C" __global__ void __launch_bounds__(kThreads, 2) llmx_sparse_values_til
     for (unsigned c = tid; c < 272u; c += kThreads) lut[c] = c < 256u ? e4m3_value(c) : e2m1_value(c - 256u);
     // Staging: a thread 8 heads' scores and 16 columns' values, as two reads of 8, of one kept row.
     const unsigned cr = tid / 8u, ph = tid % 8u * 8u, pc = tid % 8u * 16u;
+    const bool p4 = heads % 4u == 0u && ((unsigned long long)pt & 15u) == 0u;   // every kept row's scores start 16-byte aligned
     for (unsigned h0 = 0; h0 < heads; h0 += TH) {
         __syncthreads();
         if (tid < TH) {
@@ -3916,19 +3953,28 @@ extern "C" __global__ void __launch_bounds__(kThreads, 2) llmx_sparse_values_til
         float pn[8];
         Raw8 vn[2];
         const auto read = [&](unsigned c) {
-#pragma unroll
-            for (unsigned i = 0; i < 8u; ++i) pn[i] = c < total && h0 + ph + i < heads ? pr[(unsigned long long)c * heads + h0 + ph + i] : 0.0f;
+            if (p4 && c < total && h0 + ph + 8u <= heads) {
+                const float* pp = pr + (unsigned long long)c * heads + h0 + ph;
+                const float4 a = *(const float4*)pp, b = *(const float4*)(pp + 4u);
+                pn[0] = a.x, pn[1] = a.y, pn[2] = a.z, pn[3] = a.w, pn[4] = b.x, pn[5] = b.y, pn[6] = b.z, pn[7] = b.w;
+            } else
+                for (unsigned i = 0; i < 8u; ++i) pn[i] = c < total && h0 + ph + i < heads ? pr[(unsigned long long)c * heads + h0 + ph + i] : 0.0f;
 #pragma unroll
             for (unsigned j = 0; j < 2u; ++j) raw8_read_row(vn[j], c < total ? kr[c] : nullptr, d0 + pc + 8u * j, dim, c < kk ? kv_format : entry_format);
         };
         if (total) read(cr);
         for (unsigned c0 = 0; c0 < total; c0 += S) {
             __syncthreads();
+            float vv8[2][8];
+            const float* vrow = c0 + cr < total ? kr[c0 + cr] : nullptr;
+            const unsigned vf = c0 + cr < kk ? kv_format : entry_format;
+#pragma unroll
+            for (unsigned j = 0; j < 2u; ++j) raw8_values(vn[j], lut, vrow, d0 + pc + 8u * j, dim, vf, vv8[j]);
 #pragma unroll
             for (unsigned i = 0; i < 8u; ++i) {
                 ps[cr * PH + ph + i] = c0 + cr < total && h0 + ph + i < heads ? expf(pn[i] - peak[ph + i]) : 0.0f;
 #pragma unroll
-                for (unsigned j = 0; j < 2u; ++j) vs[cr * PW + pc + 8u * j + i] = raw8_value(vn[j], i, lut, c0 + cr < total ? kr[c0 + cr] : nullptr, d0 + pc + 8u * j, dim, c0 + cr < kk ? kv_format : entry_format);
+                for (unsigned j = 0; j < 2u; ++j) vs[cr * PW + pc + 8u * j + i] = vv8[j][i];
             }
             __syncthreads();
             if (c0 + S < total) read(c0 + S + cr);

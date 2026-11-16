@@ -3803,14 +3803,14 @@ void sixteen_ranks() {
 }
 
 // The sparse pairs: a 16-row call takes the tile pair and a 3-row call the few-row pair at the heads a block sparse_few_heads gives this device, and every row of either is that row called alone, bit for bit.
-// The widths cover one step, a part step past a tile of 128 columns, and 70 heads, past one tile of 64 heads, with 150 kept rows past one tile of 128; f32 rows 44 wide end in a part step and a part read of 8.
+// The widths cover one step, a part step past 128 columns, 70 heads past one tile of 64 and 150 kept rows past one tile of 128, and docs/TESTS.md gives the f32 and FP4 rows.
 void sparse_tile_pair(Backend& g) {
     const size_t kv_rows = 160;
     const DeviceCaps& caps = rocm_device(0).caps;
     std::set<std::string> seen;
     for (const auto& [dim, heads, k, fmt] : {std::tuple<size_t, size_t, size_t, ModelFormat>{32, 2, 24, ModelFormat::fp8_power}, {160, 3, 150, ModelFormat::fp8_power},
                                             {64, 70, 40, ModelFormat::fp8_power}, {44, 3, 50, ModelFormat::f32}, {44, 20, 50, ModelFormat::f32}, {64, 16, 40, ModelFormat::fp8_power},
-                                            {32, 20, 150, ModelFormat::fp8_power}}) {
+                                            {32, 20, 150, ModelFormat::fp8_power}, {64, 16, 40, ModelFormat::fp4_e4m3}, {96, 20, 150, ModelFormat::fp4_power}}) {
         for (const size_t rows : {size_t(16), size_t(3)}) {
             const size_t words = format_words(fmt, dim);
             const std::vector<float> x = row_classes::values(kv_rows * dim, 71, 2.0f), q = row_classes::values(rows * heads * dim, 72), sink = row_classes::values(heads, 73);

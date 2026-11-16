@@ -233,6 +233,7 @@ ctest --test-dir build --output-on-failure
 
 The container runs as the user `llmx` with the ids the build arguments give (1000 without them; a group the base image already has under that id is used as it is), not as root, so the build directory it writes into the mounted tree belongs to you on the host, and `llmx pull` keeps its cache under that user's home.
 The image carries no ROCm SDK or runtime, so it does not build the ROCm backend.
+The released binaries and the images that run them are built by `docker/release/` instead ([RELEASE](RELEASE.md)).
 
 ## macOS
 

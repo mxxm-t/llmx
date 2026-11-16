@@ -1252,6 +1252,22 @@ Gotchas: a kernel without `__launch_bounds__` is compiled for 1024 lanes and cap
 **Left.** Nothing; the README redesign keeps the literal `## Documentation` heading or the check reports it.
 
 **Gotchas.** A `--flag` of another tool in README prose fails the check, so such flags go in a code fence (docs/TESTS.md, Suite components).
+## Release tooling for 0.2.0 (2026-11-16, REL1, branch rel/0.2.0 on main 929f042c6; the owner's release plan of 2026-11-13)
+
+**Goal:** a tag vX.Y.Z on a gated main commit builds a draft release: a Linux x86_64 tarball with the CPU, Vulkan and ROCm backends in one binary, a Windows x64 zip with the CPU and Vulkan backends, the `vulkan` and `rocm7` images, and a signed `SHA256SUMS` ([RELEASE](RELEASE.md)).
+
+**Done:** `.github/workflows/release.yml`, `docker/release/build-linux.sh`, `docker/release/Dockerfile` and [RELEASE](RELEASE.md).
+llmx is MIT licensed (`LICENSE`), and `THIRD_PARTY_NOTICES.md` reproduces ggml's `LICENSE` at the commit the IQ codebook tables and the IQ4 values were copied from, which each copied table names.
+Checked on the Linux MI50 machine (2026-11-16), the script run in an `ubuntu:22.04` container capped at 12 GB and 4 CPUs on this branch's first commit, whose script is the one that lands:
+- the binary, `llmx 0.1.0+g8fe669273684`, 36.3 MB stripped, needs only `libc.so.6`, `libm.so.6` and `ld-linux-x86-64.so.2`, its newest symbol version `GLIBC_2.35`;
+- in plain `ubuntu:24.04` and `ubuntu:22.04` containers with neither a Vulkan loader nor a HIP runtime, `--version` runs, and `generate` on Qwen3-0.6B Q8_0 with `--device cpu` writes " Paris. The capital of France is also the capital of the Republic of France.", while `--device vulkan:0` and `--device rocm:0` stop with `libvulkan.so.1 is not installed` and `no HIP runtime (libamdhip64.so) could be opened`;
+- both images build from `docker/release/Dockerfile` (`vulkan` 131 MB, `rocm7` 314 MB), and on one MI50 each runs the same 16 greedy tokens as the CPU, `vulkan` with `--device vulkan:0` and `rocm7` with `--device rocm:0`;
+- the suite's `docs` and `dead-code` components pass.
+The Windows zip and the workflow itself are not run yet.
+
+**Left:** the owner's signing keys (the four signing secrets and the two public-key variables of [RELEASE](RELEASE.md)) and registry choice; the version bump and tag; the first hosted run of the workflow, which no branch push starts, and the smoke runs of [RELEASE](RELEASE.md) on its draft.
+
+**Gotchas:** the workflow runs only on a tag, so its Windows SDK install, image pushes and signing steps are first exercised by the release itself; a tag pushed to a fork or a test repository exercises it without a release, and gives the Linux job's hosted time, which its 180-minute limit only estimates.
 
 ## ROCm F16, Q4_0 and Q4_1 weights (2026-11-14, ROCMGAP1 to ROCMGAP7, branch rocmgap/types, rebased onto main 9724cd436)
 

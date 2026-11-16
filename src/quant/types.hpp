@@ -84,7 +84,7 @@ constexpr size_t   IQ2_S_TYPESIZE = 82; // f16 + 32 indices + 32 signs + 8 high-
 constexpr size_t   IQ4_NL_TYPESIZE = 18; // f16 scale + 32 nonuniform lookup indices
 constexpr size_t   IQ4_XS_BLOCK = 256;
 constexpr size_t   IQ4_XS_TYPESIZE = 136; // f16 scale + eight 6-bit scales + 256 lookup indices
-// The signed nonuniform values both IQ4 formats' indices name.
+// The signed nonuniform values both IQ4 formats' indices name, ggml's kvalues_iq4nl (THIRD_PARTY_NOTICES.md).
 inline constexpr int8_t IQ4_NL_VALUES[16] = {-127, -104, -83, -65, -49, -35, -22, -10, 1, 13, 25, 38, 53, 69, 89, 113};
 constexpr size_t   BF16_BLOCK = 1;
 constexpr size_t   BF16_TYPESIZE = 2;    // the high half of an f32

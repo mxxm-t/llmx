@@ -1,0 +1,263 @@
+name: Release
+
+# A tag vX.Y.Z on a gated main commit builds the release as a draft; the owner publishes it after the device smoke runs (docs/RELEASE.md).
+# Publishing it adds the floating image tags and the Docker Hub mirror.
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  COSIGN_VERSION: v2.6.5
+  COSIGN_SHA256: c3b4f5410e608af03a5eb0aaac84a4313d8da131248e08ff1759ac70c79d1644
+
+jobs:
+  version:
+    name: Tag matches the release version
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      # CMake's project version and the fallback config of build.bat move together (AGENTS.md, Checkpoints), and the tag names that version.
+      # A tag on a commit main does not hold builds no draft.
+      - id: v
+        run: |
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "::error::$GITHUB_SHA is not on main"; exit 1; }
+          tag="${GITHUB_REF_NAME#v}"
+          cmake_version=$(sed -n 's/^project(llmx VERSION \([0-9.]*\) .*/\1/p' CMakeLists.txt)
+          config_version=$(sed -n 's/^#define LLMX_RELEASE_VERSION "\(.*\)"/\1/p' src/config.hpp)
+          echo "tag $tag, CMakeLists.txt $cmake_version, src/config.hpp $config_version"
+          [ "$tag" = "$cmake_version" ] && [ "$tag" = "$config_version" ]
+          echo "version=$tag" >> "$GITHUB_OUTPUT"
+
+  linux:
+    name: Linux x86_64 tarball
+    needs: version
+    runs-on: ubuntu-24.04
+    # Not yet timed on a hosted runner (docs/RELEASE.md); twice the estimate until the first tag run gives a figure.
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The build script checks that the binary needs only the C library and opens the Vulkan loader and the HIP runtime itself.
+      - name: Build in Ubuntu 22.04
+        run: docker run --rm -v "$PWD:/src" -w /src ubuntu:22.04 bash docker/release/build-linux.sh
+      # A machine with neither a Vulkan loader nor ROCm still runs the binary on the CPU.
+      - name: Run in a plain container
+        run: |
+          docker run --rm -v "$PWD/dist:/dist:ro" ubuntu:24.04 bash -c \
+            'tar -xzf /dist/llmx-${{ needs.version.outputs.version }}-linux-x86_64.tar.gz -C /tmp && /tmp/llmx-*/llmx --version'
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linux
+          path: dist/llmx-${{ needs.version.outputs.version }}-linux-x86_64.tar.gz
+          if-no-files-found: error
+
+  windows:
+    name: Windows x64 zip
+    needs: version
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      VULKAN_SDK_VERSION: 1.4.335.0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The SDK supplies the headers and glslc at build time only; at run time llmx opens the vulkan-1.dll the GPU driver installs.
+      - name: Vulkan SDK
+        shell: pwsh
+        run: |
+          $installer = "$env:RUNNER_TEMP\vulkan-sdk.exe"
+          Invoke-WebRequest "https://sdk.lunarg.com/sdk/download/$env:VULKAN_SDK_VERSION/windows/vulkansdk-windows-X64-$env:VULKAN_SDK_VERSION.exe" -OutFile $installer
+          $root = "C:\VulkanSDK\$env:VULKAN_SDK_VERSION"
+          & $installer --root $root --accept-licenses --default-answer --confirm-command install | Out-Null
+          if (-not (Test-Path "$root\Bin\glslc.exe")) { throw "glslc.exe missing under $root" }
+          "VULKAN_SDK=$root" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Configure
+        run: cmake -S . -B build -DBUILD_TESTING=OFF -DLLMX_HAS_BACKEND_VULKAN=ON
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+      - name: Package
+        shell: pwsh
+        run: |
+          $version = "${{ needs.version.outputs.version }}"
+          $out = (& build\Release\llmx.exe --version)
+          $out
+          if ($out -notmatch "^llmx $([regex]::Escape($version))\+g[0-9a-f]{12,} ") { throw "the build identifier lacks the release or the commit, or the tree is dirty" }
+          $name = "llmx-$version-windows-x64"
+          New-Item -ItemType Directory -Path "dist\$name" | Out-Null
+          Copy-Item build\Release\llmx.exe, README.md "dist\$name\"
+          Copy-Item LICENSE, THIRD_PARTY_NOTICES.md "dist\$name\"
+          Compress-Archive -Path "dist\$name" -DestinationPath "dist\$name.zip"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows
+          path: dist/llmx-${{ needs.version.outputs.version }}-windows-x64.zip
+          if-no-files-found: error
+
+  images:
+    name: Docker images
+    needs: [version, linux]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digests: ${{ steps.push.outputs.digests }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: linux
+          path: dist
+      - name: Log in to GHCR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      # Only the versioned tags while the release is a draft; the floating tags follow when it is published.
+      - id: push
+        run: |
+          version="${{ needs.version.outputs.version }}"
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          mkdir context
+          tar -xzf "dist/llmx-$version-linux-x86_64.tar.gz" -C context --strip-components=1 "llmx-$version-linux-x86_64/llmx"
+          digests=""
+          for target in vulkan rocm7; do
+            docker buildx build --target "$target" -f docker/release/Dockerfile \
+              --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+              --label "org.opencontainers.image.version=$version" \
+              --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+              -t "$image:$version-$target" --push context
+            digest=$(docker buildx imagetools inspect "$image:$version-$target" --format '{{json .Manifest.Digest}}' | tr -d '"')
+            echo "$image:$version-$target $digest"
+            digests="$digests $image@$digest"
+          done
+          echo "digests=${digests# }" >> "$GITHUB_OUTPUT"
+      # Signing runs only once the owner has set the key; without it the images ship unsigned and the step says so.
+      - name: Sign the images
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          if [ -z "$COSIGN_PRIVATE_KEY" ]; then echo "::warning::COSIGN_PRIVATE_KEY is not set, the images are not signed"; exit 0; fi
+          curl -fsSL -o cosign "https://github.com/sigstore/cosign/releases/download/$COSIGN_VERSION/cosign-linux-amd64"
+          echo "$COSIGN_SHA256  cosign" | sha256sum -c -
+          chmod +x cosign
+          for ref in ${{ steps.push.outputs.digests }}; do ./cosign sign --yes --key env://COSIGN_PRIVATE_KEY "$ref"; done
+
+  draft:
+    name: Draft release
+    needs: [version, linux, windows, images]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        working-directory: dist
+        run: |
+          sha256sum llmx-* > SHA256SUMS
+          cat SHA256SUMS
+      - name: Sign the checksums
+        working-directory: dist
+        env:
+          MINISIGN_SECRET_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
+          MINISIGN_PASSWORD: ${{ secrets.MINISIGN_PASSWORD }}
+        run: |
+          if [ -z "$MINISIGN_SECRET_KEY" ]; then echo "::warning::MINISIGN_SECRET_KEY is not set, SHA256SUMS is not signed"; exit 0; fi
+          sudo apt-get install -y --no-install-recommends minisign
+          umask 077
+          printf '%s\n' "$MINISIGN_SECRET_KEY" > "$RUNNER_TEMP/minisign.key"
+          printf '%s\n' "$MINISIGN_PASSWORD" | minisign -S -s "$RUNNER_TEMP/minisign.key" -m SHA256SUMS -t "llmx ${{ needs.version.outputs.version }}"
+          rm -f "$RUNNER_TEMP/minisign.key"
+      # The public halves of the owner's keys are repository variables, attached so a user verifies with the files of the release itself.
+      - name: Public keys
+        working-directory: dist
+        env:
+          MINISIGN_PUBLIC_KEY: ${{ vars.MINISIGN_PUBLIC_KEY }}
+          COSIGN_PUBLIC_KEY: ${{ vars.COSIGN_PUBLIC_KEY }}
+        run: |
+          if [ -n "$MINISIGN_PUBLIC_KEY" ]; then printf '%s\n' "$MINISIGN_PUBLIC_KEY" > llmx.pub; else echo "::warning::MINISIGN_PUBLIC_KEY is not set, llmx.pub is not attached"; fi
+          if [ -n "$COSIGN_PUBLIC_KEY" ]; then printf '%s\n' "$COSIGN_PUBLIC_KEY" > cosign.pub; else echo "::warning::COSIGN_PUBLIC_KEY is not set, cosign.pub is not attached"; fi
+      - name: Create the draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${{ needs.version.outputs.version }}"
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          {
+            echo "Downloads: the Linux x86_64 tarball (CPU, Vulkan and ROCm in one binary), the Windows x64 zip (CPU and Vulkan), SHA256SUMS."
+            echo
+            echo "Images: \`$image:$version-vulkan\` and \`$image:$version-rocm7\`."
+            echo
+            echo "Pinned digests: ${{ needs.images.outputs.digests }}"
+          } > notes.md
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --verify-tag \
+            --title "llmx $version" --notes-file notes.md dist/*
+
+  publish:
+    name: Floating tags and mirror
+    if: github.event_name == 'release'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Log in
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          if [ -n "$DOCKERHUB_TOKEN" ]; then echo "$DOCKERHUB_TOKEN" | docker login docker.io -u "$DOCKERHUB_USERNAME" --password-stdin; fi
+      # The published release's versioned images gain the floating tags, and Docker Hub mirrors both, copied by digest so every name holds the same bytes.
+      - name: Tag and mirror
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          if [ -n "$COSIGN_PRIVATE_KEY" ]; then
+            curl -fsSL -o cosign "https://github.com/sigstore/cosign/releases/download/$COSIGN_VERSION/cosign-linux-amd64"
+            echo "$COSIGN_SHA256  cosign" | sha256sum -c -
+            chmod +x cosign
+          fi
+          for target in vulkan rocm7; do
+            docker buildx imagetools create -t "$image:$target" "$image:$version-$target"
+            if [ -n "$DOCKERHUB_TOKEN" ]; then
+              hub="docker.io/$DOCKERHUB_USERNAME/llmx"
+              docker buildx imagetools create -t "$hub:$version-$target" -t "$hub:$target" "$image:$version-$target"
+              if [ -n "$COSIGN_PRIVATE_KEY" ]; then
+                digest=$(docker buildx imagetools inspect "$hub:$version-$target" --format '{{json .Manifest.Digest}}' | tr -d '"')
+                ./cosign sign --yes --key env://COSIGN_PRIVATE_KEY "$hub@$digest"
+              fi
+            fi
+          done
+          if [ -z "$DOCKERHUB_TOKEN" ]; then echo "::warning::DOCKERHUB_TOKEN is not set, Docker Hub is not mirrored"; fi

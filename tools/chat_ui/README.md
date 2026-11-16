@@ -303,7 +303,11 @@ Workspace tool results include an Open Workspace button to reach the saved files
 Workspace owns managed UTF-8 project files, a source editor, unified diffs,
 command output and file checkpoints. It never opens arbitrary host paths.
 Each file is limited to 1 MiB, the project to 8 MiB and 256 files. Revision checks
-refuse stale edits. Up to 20 checkpoints and 20 command records are retained.
+refuse stale edits. You can keep typing while Save is pending; later edits stay
+marked Unsaved. One save runs at a time. Switching files does not let an older
+save mark the new editor content as saved. A successful write retains its
+accepted revision even if refreshing the file list fails.
+Up to 20 checkpoints and 20 command records are retained.
 Restoring a checkpoint first saves the current files. These are file snapshots,
 not process snapshots or a promise to undo actions made by external MCP tools.
 Creating or deleting a file, naming or restoring a checkpoint, editing a generated

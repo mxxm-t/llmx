@@ -191,6 +191,12 @@ conversations and event journal unchanged.
 
 ## Workspace snapshots
 
+Save captures its path, content and base revision. Only a matching editor base
+receives the submitted content and returned revision as its saved baseline.
+Later typing remains dirty, and only one save may be pending. A metadata refresh
+does not advance the editor revision past the accepted write or erase its
+success if that refresh fails.
+
 Workspace refresh callers wait for an older refresh to finish before starting
 their own. A completed mutation therefore receives a subsequent snapshot rather
 than silently reusing a response requested before that mutation. Failure of the

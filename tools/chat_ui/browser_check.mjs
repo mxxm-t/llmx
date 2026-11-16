@@ -1198,6 +1198,7 @@ try {
   await wait("document.querySelector('#workspace-editor').value==='Concurrent change'", 'open distinct file after command');
   await click('.workspace-file[title="Research"]');
   await wait("document.querySelector('#workspace-editor').value==='first version\\n'", 'reload editor base after command');
+  async function holdWorkspaceSave() {
   await evaluate(`(() => {
     const original = window.fetch;
     window.releaseWorkspaceSave = null;
@@ -1209,10 +1210,13 @@ try {
       return new Promise(resolve => { window.releaseWorkspaceSave = () => resolve(response); });
     };
   })()`);
+  }
+  await holdWorkspaceSave();
   await fill('#workspace-editor', 'Submitted workspace text');
   await click('#workspace-save');
   await wait("typeof window.releaseWorkspaceSave==='function'", 'actual workspace save response held');
   await fill('#workspace-editor', 'Newer unsaved workspace text');
+  assert.equal(await evaluate("document.querySelector('#workspace-save').disabled && document.querySelector('#workspace-save').getAttribute('aria-busy')==='true'"), true, 'typing re-enabled a pending save');
   await evaluate('window.releaseWorkspaceSave()');
   await wait("document.querySelector('.workspace-revision').textContent==='Revision '+window.workspaceSaveResult.revision", 'save metadata refresh');
   assert.equal(await evaluate("document.querySelector('#workspace-editor').value"), 'Newer unsaved workspace text');
@@ -1221,6 +1225,37 @@ try {
   await click('#workspace-save');
   await wait("document.querySelector('.unsaved-indicator').hidden", 'save newer workspace text');
   assert.equal(await evaluate("fetch('/api/workspace/file?path=Research').then(r=>r.json()).then(f=>f.content)"), 'Newer unsaved workspace text');
+  await holdWorkspaceSave();
+  await fill('#workspace-editor', 'Saved before switching files'); await click('#workspace-save');
+  await wait("typeof window.releaseWorkspaceSave==='function'", 'hold save before file selection');
+  await click('.workspace-file[title="external.txt"]');
+  await wait("document.querySelector('#action-dialog').open", 'confirm leaving submitted editor');
+  await closeAction('#conversation-submit');
+  await wait("document.querySelector('#workspace-editor').value==='Concurrent change'", 'destination file opened');
+  await fill('#workspace-editor', 'Destination unsaved text');
+  await evaluate('window.releaseWorkspaceSave()');
+  await wait("document.querySelector('#workspace-save').getAttribute('aria-busy')==='false'", 'original file save settled');
+  assert.equal(await evaluate("document.querySelector('.workspace-file-path').textContent"), 'external.txt');
+  assert.equal(await evaluate("document.querySelector('#workspace-editor').value"), 'Destination unsaved text');
+  assert.equal(await evaluate("document.querySelector('.unsaved-indicator').hidden"), false, 'old file save marked destination edits clean');
+  await click('#workspace-save');
+  await wait("document.querySelector('.unsaved-indicator').hidden", 'save destination edits');
+  assert.equal(await evaluate("fetch('/api/workspace/file?path=Research').then(r=>r.json()).then(f=>f.content)"), 'Saved before switching files');
+  assert.equal(await evaluate("fetch('/api/workspace/file?path=external.txt').then(r=>r.json()).then(f=>f.content)"), 'Destination unsaved text');
+  await evaluate(`(() => {
+    const original = window.fetch;
+    window.fetch = async (...args) => {
+      if (args[0] !== '/api/workspace' || (args[1]?.method || 'GET') !== 'GET') return original(...args);
+      window.fetch = original;
+      return new Response(JSON.stringify({error:'Post-save refresh failed'}),{status:503,headers:{'Content-Type':'application/json'}});
+    };
+  })()`);
+  await fill('#workspace-editor', 'Saved despite failed refresh'); await click('#workspace-save');
+  await wait("document.querySelector('.workspace-error').textContent==='Post-save refresh failed'", 'metadata failure reported after accepted write');
+  assert.equal(await evaluate("document.querySelector('.unsaved-indicator').hidden"), true, 'accepted save lost its clean baseline on refresh failure');
+  await fill('#workspace-editor', 'Follow-up after refresh failure'); await click('#workspace-save');
+  await wait("document.querySelector('.unsaved-indicator').hidden && document.querySelector('.workspace-error').hidden", 'follow-up uses accepted write revision');
+  assert.equal(await evaluate("fetch('/api/workspace/file?path=external.txt').then(r=>r.json()).then(f=>f.content)"), 'Follow-up after refresh failure');
   const previewSource = '<!doctype html><html><body><h1>Isolated preview</h1><script>console.log("preview-ready");try{parent.document.body.dataset.previewTouched="yes"}catch(e){console.log("parent-blocked")}fetch("/api/session").then(()=>console.error("network-allowed")).catch(()=>console.log("network-blocked"));setTimeout(()=>{throw new Error("preview-error")},20)</script></body></html>';
   await evaluate(`window.ChatArtifacts.open({name:'preview.html',language:'html',source:${JSON.stringify(previewSource)}})`);
   await click('#artifact-preview-tab');

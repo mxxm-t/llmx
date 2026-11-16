@@ -4,7 +4,7 @@
   const {node, number} = window.ChatRender;
   const {api} = window.ChatShell;
   const view = document.getElementById('view-workbench');
-  const state = {snapshot: null, path: '', original: '', revision: 0, activeJob: null, timer: null, loading: null, isNew: false};
+  const state = {snapshot: null, path: '', original: '', revision: 0, activeJob: null, timer: null, loading: null, isNew: false, saving: false};
   const terminal = job => ['completed', 'failed', 'cancelled'].includes(job.status);
   function control(label, cls, listener) { const button = node('button', cls || 'secondary-button', label); button.type = 'button'; if (listener) button.addEventListener('click', () => Promise.resolve().then(listener).catch(showError)); return button; }
   const toolbar = node('div', 'view-toolbar'); const heading = node('div'); heading.append(node('h2', '', 'Managed workspace'), node('p', '', 'Files, checkpoints and isolated command execution.'));
@@ -36,7 +36,7 @@
   async function canReplace() { return !dirty() || Boolean(await window.ChatShell.conversationForm({title: 'Discard unsaved changes?', description: 'Discard the unsaved changes in ' + state.path + '?', destructive: true, submit: 'Discard'})); }
   function fileLanguage(path) { const ext = path.split('.').pop().toLowerCase(); return ({htm: 'html', py: 'python', js: 'javascript', ts: 'typescript', sh: 'bash', rs: 'rust', md: 'markdown', patch: 'diff'})[ext] || ext; }
   function updateEditor() {
-    dirtyLabel.hidden = !dirty(); const enabled = Boolean(state.path); for (const button of [preview, download, save, remove]) button.disabled = !enabled; save.disabled = !enabled || !dirty();
+    dirtyLabel.hidden = !dirty(); const enabled = Boolean(state.path); for (const button of [preview, download, save, remove]) button.disabled = !enabled; save.disabled = !enabled || !dirty() || state.saving; save.setAttribute('aria-busy', String(state.saving));
     fileLabel.textContent = state.path || 'Select a file';
     const before = editor.value.slice(0, editor.selectionStart); const rows = before.split('\n'); editorPosition.textContent = enabled ? fileLanguage(state.path).toUpperCase() + ' / Ln ' + rows.length + ', Col ' + (rows.at(-1).length + 1) + ' / UTF-8' : 'UTF-8';
   }
@@ -94,9 +94,16 @@
     state.path = path.trim(); state.original = ''; state.isNew = true; state.revision = state.snapshot?.revision || 0; editor.value = ''; editor.disabled = false; updateEditor(); renderFiles(); editor.focus();
   }
   async function saveFile() {
-    if (!state.path) return; clearError(); save.disabled = true;
-    try { await api('/workspace/file', 'POST', {path: state.path, content: editor.value, revision: state.revision}); state.original = editor.value; state.isNew = false; await load(); state.revision = state.snapshot.revision; updateEditor(); }
-    catch (problem) { updateEditor(); throw problem; }
+    if (!state.path || state.saving) return;
+    const submitted = {path: state.path, content: editor.value, revision: state.revision};
+    clearError(); state.saving = true; updateEditor();
+    try {
+      const result = await api('/workspace/file', 'POST', submitted);
+      if (state.path === submitted.path && state.revision === submitted.revision) {
+        state.original = submitted.content; state.isNew = false; state.revision = result.revision;
+      }
+      await load();
+    } finally { state.saving = false; updateEditor(); }
   }
   async function deleteFile() {
     const path = state.path, revision = state.revision;

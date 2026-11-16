@@ -271,6 +271,19 @@ The hosted run of the landing head and the Radeon VII check are COORD's, and the
 **Left.** The tested two-commit branch is ready for the landing coordinator. No direct main push while LAND61 holds the stack. Static browser scope requires no inference or unrelated hosted gates. The change is intended to land by fast-forward after the coordinator incorporates it; this is not a claim that it is already on main.
 
 **Gotchas.** Navigation does not cancel an admitted retry. Errors retain the existing action notification path.
+## Workspace pending-save edits (2026-11-16, ready for landing)
+
+**Goal.** Keep text typed while Save is pending visibly unsaved, and apply the accepted save only to its original file and revision. The single owner is `tools/chat_ui/workspace.js`.
+
+**Done.** The browser regression fails on the old code in 39.147 s: accepted Save(A) marks later editor text B clean. Save now captures its submitted content and base revision, applies the returned revision only to that editor base, and permits typing while preventing a second pending save. File selection keeps its own baseline. A failed metadata refresh cannot erase an accepted write or advance the editor past an unseen write. The first test attempt raced its fixture file read; the corrected test waits for a distinct file before reopening the source. Both logs remain in `scratch/save/`.
+
+**Checks.** The candidate browser fixture passes in 51.843 s: typed-after-submit content stays dirty, the pending Save control remains disabled, switching files preserves destination edits, and a successful write followed by a failed metadata refresh still permits a correct subsequent save. Existing chat, workspace, conflict, checkpoint, responsive, theme and zoom checks pass. The Linux-only Chrome launch diagnostic is skipped on Windows. JavaScript syntax passes; dead-code reports 15 expected findings and 20 planted checks in 30.0 s; docs reports zero findings and 21 planted checks in 20.5 s. A bounded source review found no remaining defect.
+
+**Docs review.** The Markdown inventory checks cover the tree. The companion README, CONTRACT and TESTS now describe pending-save content and revision ownership. Runtime, model, CLI and build claims do not change. No dependency or second persistence owner is added.
+
+**Left.** The two-commit branch is ready for the landing coordinator, with the original failing test before the fix. It is intended to land by fast-forward after incorporation into the coordinated stack; it is not yet on main. Static browser scope needs no inference or unrelated hosted gates.
+
+**Gotchas.** The editor remains usable during saving. An intervening file selection or another writer must not silently gain the old save's baseline or newer revision.
 
 
 ## Companion deployment documentation refresh (2026-11-16, Done)

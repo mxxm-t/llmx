@@ -29,7 +29,24 @@ window.ChatRender = (() => {
     }
     target.append(document.createTextNode(text.slice(pos)));
   }
-  function markdown(text) {
+  function columns(text) {
+    let width = 0;
+    for (const char of text) width += char === '\t' ? 4 - width % 4 : 1;
+    return width;
+  }
+  function listItem(line) {
+    const match = line?.match(/^([ \t]*)([-+*]|\d{1,9}[.)])([ \t]+)(.*)$/);
+    return match && {indent: columns(match[1]), contentIndent: columns(match[1] + match[2] + match[3]),
+      ordered: /^\d/.test(match[2]), start: parseInt(match[2], 10), text: match[4]};
+  }
+  function removeIndent(line, count) {
+    let width = 0, offset = 0;
+    while (offset < line.length && width < count && /[ \t]/.test(line[offset])) {
+      width += line[offset++] === '\t' ? 4 - width % 4 : 1;
+    }
+    return ' '.repeat(Math.max(0, width - count)) + line.slice(offset);
+  }
+  function markdown(text, depth = 0) {
     const out = node('div', 'markdown');
     const lines = String(text || '').replace(/\r/g, '').split('\n');
     let i = 0;
@@ -77,15 +94,38 @@ window.ChatRender = (() => {
       if (/^\s*>/.test(line)) {
         const b = node('blockquote'); while (i < lines.length && /^\s*>/.test(lines[i])) { inline(lines[i++].replace(/^\s*>\s?/, ''), b); b.append(node('br')); } out.append(b); continue;
       }
-      if (/^\s*(?:[-+*]|\d+\.)\s+/.test(line)) {
-        const ordered = /^\s*\d+\./.test(line); const list = node(ordered ? 'ol' : 'ul');
-        while (i < lines.length && (ordered ? /^\s*\d+\.\s+/ : /^\s*[-+*]\s+/).test(lines[i])) {
-          const li = node('li'); inline(lines[i++].replace(/^\s*(?:[-+*]|\d+\.)\s+/, ''), li); list.append(li);
+      const firstItem = listItem(line);
+      if (firstItem && depth < 8) {
+        const list = node(firstItem.ordered ? 'ol' : 'ul');
+        if (firstItem.ordered) list.start = firstItem.start;
+        let item;
+        while ((item = listItem(lines[i])) && item.indent === firstItem.indent && item.ordered === firstItem.ordered) {
+          const body = [item.text]; i++;
+          let blank = false;
+          while (i < lines.length) {
+            const next = lines[i];
+            if (!next.trim()) { body.push(''); blank = true; i++; continue; }
+            if (columns(next.match(/^[ \t]*/)[0]) >= item.contentIndent) {
+              body.push(removeIndent(next, item.contentIndent)); blank = false; i++; continue;
+            }
+            if (!blank && !listItem(next) && !/^\s*(?:```|#|>|([-*_])(?:\s*\1){2,}\s*$)/.test(next)) {
+              body.push(next.trimStart()); i++; continue;
+            }
+            break;
+          }
+          const li = node('li'); const rendered = markdown(body.join('\n'), depth + 1);
+          if (rendered.firstElementChild?.tagName === 'P') {
+            const paragraph = rendered.firstElementChild;
+            while (paragraph.firstChild) li.append(paragraph.firstChild);
+            paragraph.remove();
+          }
+          while (rendered.firstChild) li.append(rendered.firstChild);
+          list.append(li);
         }
         out.append(list); continue;
       }
       const p = node('p'); inline(line, p); i++;
-      while (i < lines.length && lines[i].trim() && !/^\s*(?:```|#|>|[-+*]\s|\d+\.\s)/.test(lines[i]) && !(i + 1 < lines.length && /^\s*\|?\s*:?-{3,}/.test(lines[i + 1]))) { p.append(node('br')); inline(lines[i++], p); }
+      while (i < lines.length && lines[i].trim() && !/^\s*(?:```|#|>|[-+*]\s|\d+[.)]\s)/.test(lines[i]) && !(i + 1 < lines.length && /^\s*\|?\s*:?-{3,}/.test(lines[i + 1]))) { p.append(node('br')); inline(lines[i++], p); }
       out.append(p);
     }
     return out;

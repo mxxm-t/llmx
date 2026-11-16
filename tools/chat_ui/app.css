@@ -791,6 +791,8 @@ kbd {
 }
 .code-heading {
   display:flex;
+  flex-wrap:wrap;
+  gap:8px;
   justify-content:space-between;
   align-items:center;
   border-bottom:1px solid var(--border);

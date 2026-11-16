@@ -109,7 +109,10 @@ It does not lock the upstream model or control later server restarts.
 - Reasoning is displayed only when the upstream supplies `reasoning_content`.
   You can open or close it while the reply is being generated. Reloading
   reconnects to the same reply without cancelling or restarting generation.
-  The renderer supports basic Markdown, code blocks, tables and safe links.
+  The renderer supports basic Markdown, nested lists with preserved starting
+  numbers, code blocks, tables and safe links. Indented paragraphs and code stay
+  inside their list item. List nesting is bounded at eight levels; deeper text
+  remains visible as literal content.
   It does not execute model HTML or JavaScript.
 - Attach up to eight UTF-8 text/code files or PNG/JPEG images. Text is included
   in full with its file name, not retrieved from an embedding index. Limits are

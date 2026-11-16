@@ -284,7 +284,12 @@
 .unavailable-tool { opacity: .75; }
 .code-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 15px;
+  row-gap: 6px;
+}
+.code-actions button {
+  white-space: nowrap;
 }
 /* Syntax colors use the same palette as the dashboard charts. */
 .syntax-comment {

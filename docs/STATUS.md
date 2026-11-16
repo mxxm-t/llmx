@@ -11,13 +11,16 @@
 **Checks and landing.** Docs passes with zero findings and 21 planted checks; dead-code passes with 15 expected findings and 20 planted checks. Root checked the bounded worker's diff against the deployed companion and preserved the historical qualification records. The docs-only change lands as one fast-forward commit; unrelated hosted inference jobs do not apply. Final Markdown evidence is checked again before landing.
 
 **Gotchas.** The local runtime on port 8091 was not restarted for this documentation review. No claim is made that it provides request correlation or measured correlated TPS; deployment state must be checked when needed.
-## Chat list structure (2026-11-16)
+
+## Chat list structure (2026-11-16, Done)
 
 **Goal.** Preserve nested Markdown lists and their starting numbers so model replies keep their intended reading hierarchy.
 
-**Done.** Source inspection finds that the renderer discards indentation and creates each ordered list at one. The shared `render.js` owner will handle list structure for messages, reasoning and previews without a second renderer or dependency.
+**Done.** The shared `render.js` owner preserves list indentation, mixed ordered/bullet children, explicit starting numbers and indented wrapped text/code. It counts tab stops and caps nesting at eight levels with literal text retained below that bound. Narrow code headers wrap whole action buttons instead of splitting labels. No second renderer, dependency or runtime path was added.
 
-**Left.** Add the failing browser cases, retain nested items and indented content, then check responsive presentation and source gates before landing the static change.
+**Checks.** The test-first regression fails on the prior flattened structure and numbering in 6.248 s. Mobile visual inspection found split code-action labels; a second focused red check reproduces that in 6.713 s. The final browser fixture passes in 52.598 s, covering nested structure, tabs, starting numbers, wrapped/code content, all streamed prefixes, deep-list fallback, HTML treated as text and responsive geometry in both themes. Root inspected desktop and mobile screenshots. The bounded source review found no open issue; its requested tab/depth/stream coverage is included.
+
+**Review and landing.** The conflict-free rebase over the separate deployment-doc correction changes no browser, renderer or stylesheet inputs, so the browser evidence carries forward. Final docs and dead-code checks run on the landing tree, with receipts in `scratch/lists/`. The static-only change lands as a test-first commit and a fix by fast-forward, without inference or unrelated hosted gates. Companion README and TESTS describe the changed behavior; root README and runtime docs retain their preceding review because runtime capabilities and flags are unchanged. The local companion can adopt these static files without a Python restart or saved-data change.
 
 **Gotchas.** This remains a bounded basic Markdown renderer. Model text must remain text nodes, and partial streamed lists must not lose content or become executable markup.
 

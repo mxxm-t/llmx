@@ -203,6 +203,29 @@ This test-only correction lands by fast-forward with the companion workflow.
 - **Checks:** The independent Chrome regression failed in 59.797 seconds before the fix and passed in 54.855 seconds after it. The combined browser fixture over public main `2ea30d410` passed in 66.845 seconds, including both themes at 1440, 390 and 320 pixels and 200 percent CSS zoom. Desktop preference, transient Settings access, mobile drawer state and toggle geometry passed. JavaScript syntax, whitespace and independent integration review passed. Dead-code passed with 17 expected findings and 20 planted faults in 34.8 seconds; docs passed with zero findings and 29 planted faults in 31.8 seconds and runs once more after this record.
 - **Landing:** Fast-forward from `2ea30d410` after final documentation validation and a fresh main check. This is static presentation only, with no server, runtime, API or numerical changes. The existing docs CLI remains applicable because native source and build inputs are unchanged. Full Markdown review checks references to details, temporary labels and layout; the companion README and TESTS own the updated behavior. Receipts are in `scratch/reading-landing/`, with independent matched screenshots in the main workspace's `scratch/chat-reading-layout/`.
 - **Gotchas:** Composer Settings and the narrow drawer are transient. Only explicit docked Details actions save the preference. Long titles can still truncate. Chrome emulation does not establish physical phone or Safari coverage. Settings semantics and history search remain separate audit work.
+## Drafting set (2026-11-17, Done)
+
+**Goal.** One set of three prompts, hard, medium and easy, on which every drafter is measured on every model, and one rule for drafting and prefill, at the owner's word of 2026-11-17.
+
+**Done.** `tests/data/drafting` holds the three prompts, `tools/drafting_set.py` runs a model on them with and without a drafter and prints one table a prompt, and docs/SPECULATIVE.md (section 10) gives the set, the driver and the rule; ROADMAP points there and ASSETS gives wikitext-2's license and attribution.
+
+**Hand check.** The suite's `drafters` component runs the driver's mechanics hosted on a tiny qwen35 model: its parsing of generate's lines, the ids witness, the SHA-256 refusal and the exit status.
+Only the rates need a real model, which no hosted runner has, so they are taken by hand, on the rig at 3b88cfb3a with the branch's files (`llmx 0.1.0+g3b88cfb3aee2`), greedy ids equal with and without drafts in every cell:
+
+| Model, drafter, place | hard: acceptance, tokens/pass, decode off/on tok/s | medium | easy |
+|---|---|---|---|
+| Qwen3.6-27B-MTP Q4_1, `embedded`, one MI50 on Vulkan, `--repeats 2` | 0.478, 2.43, 32.36/23.88 | 0.679, 3.02, 32.43/30.06 | 0.910, 3.73, 32.63/37.22 |
+| the same, `lookup,embedded` | 0.478, 2.50, 32.27/23.87 | 0.679, 3.02, 32.91/30.09 | 0.860, 3.79, 32.81/36.22 |
+| Qwen3-0.6B Q8_0, `lookup`, CPU (4 of a loaded host's cores) | 0.261, 1.12, 12.04/7.52 | 0.134, 1.05, 14.43/12.70 | 0.253, 1.14, 19.13/16.29 |
+| Qwen3-4B-Instruct-2507 Q4_0, draft model Qwen3-0.6B Q8_0 (`--drafter PATH`), CPU as above | 0.380, 2.00, 4.38/1.62 | 0.414, 1.94, 4.34/1.51 | 0.987, 3.96, 2.94/2.04 |
+The 27B's prefill moved by -0.5 to +4.4 percent with drafts, within the rule; the CPU cells ran once beside other work on a host at load 21 to 25, so their rates are a smoke only, and the draft model's decode there includes its own reading of the prompt on the same four cores.
+On the 27B the hard prompt drafts 2.43 tokens a pass and still decodes 26 percent slower than without drafts, so on one MI50 a round, the MTP chain and the verify of 4 rows, costs about 3.3 steps (about 100 ms against 31) on every prompt; that is for the drafting work to take up, not this branch.
+Qwen3.5-0.8B-NVFP4-MTP-GGUF is refused by `--drafter embedded` (the file carries no MTP block llmx reads), so no small MTP file runs on the CPU.
+The prompts render raw and through the qwen3, qwen35, qwen4exp, deepseek4 and minimax templates from the GGUF files, 1366 to 1581 tokens for the hard prompt with Qwen3's tokenizer.
+
+**Gates.** Tests, tools and docs only: the suite's drafters, docs and dead-code components pass on the landing tree with a CPU build (`llmx 0.1.0+g175bd73d2010.dirty` with the review changes, `--require-tools`, docs 0 findings, dead-code 16 findings against the list, in a container on the rig), and the branch lands by fast-forward.
+The drafting set's check fails, `no pp, tg or ids line`, when the driver's reading of generate's `pp:` and `tg:` lines no longer matches them.
+
 ## Qwen3.5-architecture linear layers through the fused delta step, with Q8_0 alpha and beta (2026-11-16 to 2026-11-17, QWEN44 to QWEN51, branch feat/qwen27-delta-q8 on main 3b88cfb3a; F2DEV's reviews of 06:37, 07:34 and 10:09; lands by fast-forward)
 
 **Goal.** Qwen3.8-27B's linear-attention decode step runs as `llmx_delta_step` on ROCm with every output's bits unchanged, toward the 75 tok/s plain decode target at 1x4.

@@ -3,10 +3,15 @@
 The tiny qwen35 model's MTP block split into a file of its own by llmx-drafter-pack drafts from beside the model as it drafts embedded, bit for bit, and embedded back gives the file it came from; with it, generate, chat, bench and serve give what they give without drafts, and generate does at a one-block --kv-tokens.
 Draft models, a qwen35 and a qwen3 model sharing the target's tokenizer, give generate's and chat's output without drafts too, and the server and bench refuse them.
 Every pairing check (infer::spec::pair) refuses its case by name, as it does a DFlash drafter, whose architecture llmx does not run, and a file cut short.
+The drafting set's driver, tools/drafting_set.py, reads generate's lines on the easy prompt, and refuses a changed prompt and differing ids.
 """
+import contextlib
+import io
+import json
 import os
 import re
 import subprocess
+import sys
 import tempfile
 
 import common
@@ -169,6 +174,48 @@ def check_draft_models(directory):
     assert rc != 0 and "is a draft model, which drafts in generate and chat" in out, "serve took a draft model: " + out
 
 
+def check_drafting_set(directory):
+    """The driver of docs/SPECULATIVE.md, section 10, on the easy prompt raw, which the fixture's byte tokens fit with its 512 generated tokens."""
+    sys.path.insert(0, os.path.join(common.ROOT, "tools"))
+    import drafting_set
+    spec = next(f for f in qwen35.FIXTURES if f["mtp"])
+    model = qwen35.write_model(os.path.join(directory, "set-mtp.gguf"), qwen35.gguf_tensors(spec, qwen35.raw_weights(spec)), eos_id=qwen35.EOS,
+                               config=dict(qwen35.gguf_config(spec), context_length=4608), arch="qwen35")
+    out = os.path.join(directory, "set.json")
+    flags = common.device_args(["generate", "--ignore-eos"], cache="f32")[1:]
+    argv = ["--exe", common.exe_path(), "--model", model, "--drafter", "lookup", "--prompts", "easy", "--path", "raw", "--json", out]
+    p = subprocess.run([sys.executable, drafting_set.__file__] + argv + ["--"] + flags, capture_output=True, encoding="utf-8", errors="replace")
+    assert p.returncode == 0, "the drafting set failed on the tiny model: " + p.stdout[-2000:] + p.stderr[-2000:]
+    with open(out, encoding="utf-8") as f:
+        easy = json.load(f)["prompts"]["easy"]
+    size = os.path.getsize(drafting_set.fixture("easy"))
+    off, on = easy["off"], easy["drafter"]
+    assert easy["ids_equal"] and "| yes |" in p.stdout, "the drafting set's ids witness: " + p.stdout
+    assert off["prompt_tokens"] == size and off["generated"] == drafting_set.MAX_TOKENS and on["fed"] > 0 and on["pp"] > 0 and on["tg"] > 0, "the drafting set read other figures from generate's lines than it ran: %r" % easy
+    # Differing ids and a changed prompt each end the driver with its reason, from the runs just read.
+    runs = easy["runs"]
+    stub = lambda args, prompt, path, drafter: dict(runs["drafter" if drafter else "off"][0], ids="0" if drafter else runs["off"][0]["ids"])
+    changed = os.path.join(directory, "drafting")
+    os.mkdir(changed)
+    with open(os.path.join(changed, "easy.txt"), "wb") as f:
+        f.write(b" ")
+    for patch, reason in (({"run": stub}, "greedy ids differ"), ({"DATA": changed}, "SHA-256")):
+        saved, argv0 = {k: getattr(drafting_set, k) for k in patch}, sys.argv
+        sys.argv = [drafting_set.__file__] + argv
+        try:
+            for k, v in patch.items():
+                setattr(drafting_set, k, v)
+            with contextlib.redirect_stdout(io.StringIO()):
+                drafting_set.main()
+            raise AssertionError("the drafting set did not stop on " + reason)
+        except SystemExit as e:
+            assert reason in str(e.code), "the drafting set stopped with %r, not %r" % (e.code, reason)
+        finally:
+            sys.argv = argv0
+            for k, v in saved.items():
+                setattr(drafting_set, k, v)
+
+
 def run(require=False):
     if common.f32_cache_skip("drafters") or common.tensor_width_skip("drafters"):
         return common.SKIPPED
@@ -186,8 +233,9 @@ def run(require=False):
         check_served(directory)
         check_refusals(directory, embedded, split, side)
         check_draft_models(directory)
+        check_drafting_set(directory)
     print("drafters: the MTP block split beside its model drafts as embedded and embedded back, bit for bit, and gives generate, chat, bench and serve "
-          "their output without drafts; qwen35 and qwen3 draft models give generate's and chat's; every pairing check, a DFlash drafter and a file cut short refused by name  [ok]")
+          "their output without drafts; qwen35 and qwen3 draft models give generate's and chat's; every pairing check, a DFlash drafter and a file cut short refused by name; the drafting set's driver reads generate's lines  [ok]")
     return True
 
 

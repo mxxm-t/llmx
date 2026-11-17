@@ -422,3 +422,30 @@ It drafts through the round of section 3 and the embedded proposer (`spec::Embed
   A context call runs its first part on the head's devices, whose rows (`ModelPlan::draft_rows_x`) cross once to each other device holding stages, then each stage's part there; a draft call runs its parts in spans of one device each, the step's rows (the residual and `ModelPlan::draft_carried`) crossing where the device changes, and each step's last picks crossing from the head as the next step's input ids (`ModelPlan::draft_ids`) on stage 0's device, the first step's written there.
   Every crossing is the pass's own, a copy into the sender's handoff buffer and a take behind a device-side wait where the backend serves it, otherwise the host's wait for an already submitted sender and its write, as a CPU device takes it; nothing waits on the host that one device would not.
   While stages sit apart, each device's recording takes a lock of its own (`Model::Recording`), after the context lock where both are, around each span that records and submits and never across a wait for another thread: a stage's thread, the chain on the head stage's thread and the stage items on that device record there one at a time, which needs a pipelined split.
+
+## 10. The drafting set
+
+Every drafter is measured on the same three prompts, whatever it is: an MTP head, a DSpark block, a DFlash drafter, a draft model or the history's lookup, on every model it drafts for.
+The prompts are fixture files in `tests/data/drafting`, kept byte for byte (their `.gitattributes` turns off line-ending conversion), and `tools/drafting_set.py` holds the SHA-256 of each and refuses a file that differs:
+
+| Prompt | File | The request | Qwen3 tokens | SHA-256 |
+|---|---|---|---:|---|
+| hard | `hard.txt` | write the next section of an encyclopedia article, given its opening: lines 15 to 28 of `tests/data/wiki.test.raw`, the start of the Du Fu article of the wikitext-2 raw test split; the reply is new text, hard to predict | 1366 | `1e7ae9363da5c59f9fe43a4372f9804b60fe6fe27d46071eac6e934683d6c78c` |
+| medium | `medium.txt` | explain, in steps, how a bike-share system rebalances its stations, from operations notes in the prompt; the reply is new prose that partly restates the notes | 1081 | `6ff3b2e04b925c523bfe205fb035ca1fbd60cc6cb7eca9c7ef4f6c087a4f70b6` |
+| easy | `easy.txt` | rename one variable throughout a 110-line Python file and reply with the whole file; most of the reply repeats the prompt | 989 | `8c17d07b675dfbb60ae4c3534f08fda800a63022921b96e93c4e998576e57173` |
+
+Each prompt is one user message through the model's chat template, as a user sends it; the token counts are Qwen3's tokenizer and template, Qwen3.6's give 1363, 1095 and 1065, and other families give other counts of the same bytes.
+Each renders through the chat template of every family llmx runs, `qwen3`, `qwen35`, `qwen4exp`, `deepseek4` and `minimax`, and raw, checked on 2026-11-17 with each family's template from its GGUF file; the raw path (`--path raw`) is for a model without a template, and results name the path they used.
+A template that reasons first, as Qwen3's and Qwen3.8's do by default, puts its reasoning in the reply, as it does for a user, so the results are the model's as it runs.
+Every run decodes greedily up to 512 tokens and stops at the end of text, so a reply is the text a user gets; both arms generate the same tokens, which the driver checks.
+Raw, the article's opening was a poor hard prompt: Qwen3-0.6B continued it greedily into a loop of one repeated sentence after about 200 tokens, which a lookup drafter predicts perfectly, so the hard prompt asks for new text instead.
+
+The hard prompt's article text is wikitext-2 (Merity, Xiong, Bradbury and Socher, "Pointer Sentinel Mixture Models", 2016), drawn from Wikipedia and licensed CC BY-SA 3.0 as the whole corpus in `tests/data/wiki.test.raw` is; the slice keeps that license and this attribution, apart from the MIT license of llmx's own code.
+The requests, the medium prompt's notes and the easy prompt's file were written for llmx and are under its license.
+
+**The driver.** `python tools/drafting_set.py --exe build/llmx --model M.gguf --drafter lookup,embedded --draft-max 3 --repeats 2 --json out.json` runs each prompt with drafts off and with the drafter given, as fresh greedy `llmx generate` runs alternating off, on, on, off; `generate` flags given after a `--`, such as the device and the dtype, go to both arms.
+For each prompt it prints one table: prefill and decode tok/s of each arm, medians over the repeats; the drafts fed and kept and the acceptance, kept over fed, from the `drafts kept:` and `own drafts kept:` lines of `--verbose`; the tokens a decode pass gives, the tokens after the first over the passes that gave them, which is 1 without drafts; and whether every run's greedy ids equal the first run's without drafts, the correctness witness, a difference failing the run.
+Development runs may take one prompt (`--prompts easy`); final and gate results report all three.
+
+**The rule.** A drafter must not lower prefill: the drafting arm's prefill tok/s stays level with drafts off, beyond the spread of repeated arms, on all three prompts.
+A prefill change must not lower drafting decode: a change to the prompt path is measured with the drafter on as well, and its decode tok/s on the three prompts stays level with main's.

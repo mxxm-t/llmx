@@ -56,6 +56,7 @@ Generalize to an architecture registry keyed by `general.architecture` (done: `m
 - In progress: Qwen 3.5, 3.6 and 3.8, which are `qwen35` and its mixture-of-experts form `qwen35moe`, designed in `docs/QWEN35.md` and planned in `docs/STATUS-2026-09.md`; `qwen35` and `qwen35moe` run on the CPU and on a Vulkan device against HF and are served with prefix reuse through state checkpoints. MTP drafting is implemented through `docs/SPECULATIVE.md`; a chunked formulation of the recurrent prompt computation remains planned.
   Three layers in four are gated delta-net linear attention, with a fixed-size recurrent state per sequence, and every fourth layer is gated full attention at head width 256 with partial rotary.
   The MoE form adds a shared expert with its own gate, and some files carry a multi-token-prediction block, which becomes one proposer of a single speculative decoding system for every kind of drafter.
+  Every drafter of that system is measured on one set of three prompts, hard, medium and easy, under one rule: drafting does not lower prefill, and a prefill change does not lower drafting decode ([SPECULATIVE](SPECULATIVE.md), section 10).
   A recurrent state exists only at the end of what it has read, so reuse and pause work from checkpoints of it, and every reused state is one the CLI would have computed the same way.
   The gate is HF: tiny random-weight fixtures, the small released models, and HF's own layers run one at a time for the larger ones.
 - Llama (GQA + RoPE, close to Qwen3)

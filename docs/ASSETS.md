@@ -2418,6 +2418,8 @@ This is the wikitext-2-raw test split (~1.28 MB). It is a plain
 text dump - the `@-@` split tokens are present, matching the wikitext corpus
 format expected by the path-controlled perplexity gate in `docs/ROADMAP.md`.
 
+Wikitext-2 (Merity, Xiong, Bradbury and Socher, "Pointer Sentinel Mixture Models", 2016) is drawn from Wikipedia and licensed CC BY-SA 3.0; the file and the slice of it in `tests/data/drafting/hard.txt` keep that license and this attribution.
+
 `llmx.exe perplexity <model.gguf> --file tests/data/wiki.test.raw --ctx-size 512`
 reads UTF-8 text and scores disjoint 512-token windows. Add `--chunks 4` to
 evaluate only the first four windows. See `docs/USAGE.md` for target selection;

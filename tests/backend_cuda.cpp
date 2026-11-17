@@ -7,6 +7,7 @@
 #include "qwen35_checks.hpp"
 #include "row_classes.hpp"
 #include "twin_checks.hpp"
+#include "vision_checks.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -283,6 +284,21 @@ void qwen35(const CudaDevice& d, Backend& g) {
     guarded("delta_step", [&] { twin_checks::delta_step_bits(g, d.caps, cuda_take_launches, require); });
 }
 
+// The vision encoder's ops by the checks backend-rocm and backend-vulkan share, against the CPU within their bounds, each kernel the core adds for them reached.
+void vision_ops(Backend& g) {
+    guarded("vision ops", [&] {
+        q35::Pair p(g);
+        (void)cuda_take_launches(g);
+        const size_t values = vision::check_ops(p);
+        const auto ran = cuda_take_launches(g);
+        for (const char* k : {"llmx_layer_norm_rows", "llmx_gelu", "llmx_add_bias", "llmx_mix_rows", "llmx_norm_rope_streams", "llmx_attention_chunk"})
+            require(ran.count(k), std::string("the vision checks take ") + k);
+        // The per-row body writes a block-major twin once a product has read one (twin_build), so either build counts.
+        require(ran.count("llmx_attention_vec") || ran.count("llmx_attention_vec_major"), "the vision checks take llmx_attention_vec");
+        require(values > 0, "vision ops: " + std::to_string(values) + " values against the CPU");
+    });
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -311,8 +327,13 @@ int main(int argc, char** argv) {
         qwen35(d, *g);
         return failures ? 1 : 0;
     }
+    if (mode == "vision") {
+        vision_ops(*g);
+        return failures ? 1 : 0;
+    }
     if (!only_types) basics(d, *g, *cpu);
     types(d, *g, *cpu);
     if (!only_types) qwen35(d, *g);
+    if (!only_types) vision_ops(*g);
     return failures ? 1 : 0;
 }

@@ -808,6 +808,35 @@ extern "C" __global__ void llmx_mix_rows(float* dst, const float* table, const u
     dst[i * width + j] += acc;
 }
 
+// A block a row: LayerNorm of n floats at row * stride, the mean, then the biased variance about it, each thread's chain folded by block_sum's tree, then (x - mean) / sqrt(var + eps) * w + b; dst may be src.
+extern "C" __global__ void llmx_layer_norm_rows(float* dst, const float* src, const float* w, const float* b, int n, unsigned long long stride, float eps) {
+    __shared__ float lds[kThreads];
+    const float* x = src + blockIdx.x * stride;
+    float* y = dst + blockIdx.x * stride;
+    float s = 0.0f;
+    for (int i = threadIdx.x; i < n; i += kThreads) s += x[i];
+    const float mean = block_sum(s, lds) / (float)n;
+    float v = 0.0f;
+    for (int i = threadIdx.x; i < n; i += kThreads) v = fmaf(x[i] - mean, x[i] - mean, v);
+    const float inv = 1.0f / sqrtf(block_sum(v, lds) / (float)n + eps);
+    for (int i = threadIdx.x; i < n; i += kThreads) y[i] = fmaf((x[i] - mean) * inv, w[i], b[i]);
+}
+
+// dst[i] = gelu(src[i]) in F32: with `erf_form` x times the normal CDF through erf, else its tanh approximation; dst may be src.
+extern "C" __global__ void llmx_gelu(float* dst, const float* src, unsigned long long n, int erf_form) {
+    const unsigned long long i = (unsigned long long)blockIdx.x * kThreads + threadIdx.x;
+    if (i >= n) return;
+    const float x = src[i];
+    const float c = erf_form ? erff(x * 0.70710678f) : tanhf(0.79788456f * fmaf(0.044715f * x, x * x, x));
+    dst[i] = 0.5f * x * (1.0f + c);
+}
+
+// A block a row of `width` floats: dst[row * width + j] += bias[j].
+extern "C" __global__ void llmx_add_bias(float* dst, const float* bias, unsigned width) {
+    float* y = dst + (unsigned long long)blockIdx.x * width;
+    for (unsigned j = threadIdx.x; j < width; j += kThreads) y[j] += bias[j];
+}
+
 // A block a (row, head) of K and V rows into their KV blocks: row r lands in block blocks[r] at token slot slots[r], [kv_head][token][head_dim] in the side's type (1 for f16).
 extern "C" __global__ void llmx_kv_write(void* kc, void* vc, const float* k, const float* v, const int* blocks, const int* slots,
                                          int heads, int dim, int bt, int k_half, int v_half) {

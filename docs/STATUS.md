@@ -472,6 +472,24 @@ Every logits and chat check kept the top-5 overlap at 5 of 5 against a bound of 
 
 The head differs from 82c9e768b by one comment line and the original-past-context rule in `src/model/rope.hpp`, its `rope` CTest case and this record; the rope CTest and the suite's cli, docs and dead-code components ran at the head.
 README gains the rope-scaling line (models that declare YaRN and `--yarn F`), which the readme check passes.
+## Idle host growth a step at a time (2026-11-17, REUSE1, branch fix/host-growth-step on land/20261118 57a932e49)
+
+- **Goal:** a request arriving while the host tier's slabs are being made waits for one step of them, never for the whole tier queued ahead of its passes.
+- **Why:** REL4's smoke of the README's Flash-Next serve example on four MI50s (ROCm, tensor width 2, int8, lookup and MTP drafting, `--host-cache-bytes 12g`) answered its first 62-token chat after 183 s.
+  The first prompt waited on the stages' threads behind every slab of the host tier: with a `Defer`, `Model::alloc_host` counts a deferred slab in `host_allocated_` at once, so each idle round's `grow_host` reported growth and the sleepless loop queued all of about 154 slabs of 64 MiB within milliseconds of the start.
+  On that host each pinned slab took 1 to 2 s in direct compaction (62 GB, 97% of compactions failing), so the first token came after 74 to 111 s without any disk tier; user stacks sampled once a second put 71 of 84 samples in `GpuBackend<HipApi>::alloc` under `Model::copy_out` in a stage item.
+- **Done:** `Cache::grow_ahead` takes a step only once the last step's probes have landed (`growing_` empty), and `next_disk_bound` looks again a millisecond on while one is in flight, so idle growth still takes the whole tier.
+- **Test:** `server-resume`'s idle growth a step at a time holds the cache's device work in place of the stages' threads, so the order is the test's: on 57a932e49 three idle rounds behind an unmade step queue the rest of a tier of eight slabs, and with the fix they queue nothing until the step is made.
+  An earlier test raced a request against slow slabs through the scheduler and was dropped: on two CPUs that say they are devices it passed on the unfixed code (4 of 16 slabs by the first token), and on plain CPUs, which grow inline under the scheduler's lock, it failed on the fix under load (12 to 16 of 16).
+- **Not this change:** the 0-token reuse of REL4's follow-up is expected: on a GPU a prompt row's class changes up to 512 rows (`row_class`), so a next turn under that gets no re-prefill job and a 62-token turn's rows are not a 90-token turn's.
+- **Left:** on one device without stage threads the step runs inline in the round, and a slow one still holds the round and, through the mmap lock its compaction takes, the server's other threads (Qwen3.5-0.8B on one MI50, a tier of 2 GiB: 13 s queued, none without a tier); a follow-up branch takes it.
+- **Gates:** the stack head a1baaf417 (this branch, fix/wrap-host-view-drop and docs/server-short-followup) builds to the numerics hash 43ccdccc747dac65 of 620b7fc46, which the four-MI50 runs used and from which it differs by this test, a comment and these records.
+  The growth test fails on 57a932e49 (8 slabs queued by idle rounds behind an unmade step of 4) and passed 3 of 3 runs on the fix.
+  First tokens of REL4's three chats (62, 91 and 62 tokens) on four MI50s with the README's Flash-Next flags and `--host-cache-bytes 12g`: base 2755, 252 and 1026 ms, then 8468, 1422 and 1801 ms; fix 2077, 233 and 676 ms, 171, 248 and 123 ms, and 180, 238 and 123 ms.
+  Two more fix arms, each started right after a base server, failed to load with hipErrorOutOfMemory and are not counted; the host was not compacting its memory, so the base arms did not reach the 74 to 183 s above.
+  CTest on the CPU 91 of 91 and on ROCm over four MI50s 95 of 95 (placement, which failed once before a rig reset, passed twice on 57a932e49 and once on the fix); Qwen3-0.6B greedy output identical between base and fix on the CPU, one MI50 and tensor width 2 over four.
+  The CPU suite passes but for dead-code and docs, which could not read the worktree's git directory in their container and pass on their own run at the head; the server component passes on one MI50 under ROCm and Vulkan; TSan's http, server-passes-cpu and server-spec pass.
+  The branch lands by fast-forward.
 
 ## Landing stack land-20261117 (2026-11-17, LAND68 then LAND69, Done)
 

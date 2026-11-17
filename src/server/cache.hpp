@@ -369,9 +369,10 @@ public:
             idled_ = false;
         }
     }
-    // With nothing to do the host tier's slabs are taken ahead, a step a round with no sleep between, so a copy made later allocates none (grow_host); whether a step was taken.
+    // With nothing to do the host tier's slabs are taken ahead, so a copy made later allocates none (grow_host); whether a step was taken.
+    // A step waits for the last one's slabs to land on the stages' threads (growing_), so a request arriving meets one step there, not the whole tier, and the loop looks again a millisecond on (next_disk_bound).
     bool grow_ahead() {
-        if (!host_growing_ || !jobs_.empty() || !follows_.empty()) return false;
+        if (!host_growing_ || !jobs_.empty() || !follows_.empty() || !growing_.empty()) return false;
         host_growing_ = grow_host();
         return true;
     }
@@ -2710,8 +2711,8 @@ inline bool Cache::ready(const std::deque<std::shared_ptr<Request>>& q) {
 // When the loop must wake for the disk tier: the earliest bound of a request waiting for a read, the next check of the entries' age, and the start of an idle server's writes.
 inline std::optional<std::chrono::steady_clock::time_point> Cache::next_disk_bound(const Lines& lines) {
     std::optional<std::chrono::steady_clock::time_point> t;
-    // A streamed read's copies retire with no event, so the loop looks again a millisecond on while one runs (stream_round), and so it does for a promotion waiting for its copy to retire (enter).
-    if (!streams_.empty() || promotion_waits_ || copy_waits_) t = std::chrono::steady_clock::now() + std::chrono::milliseconds(1);
+    // A streamed read's copies retire with no event, so the loop looks again a millisecond on while one runs (stream_round), for a promotion waiting for its copy to retire (enter) and for the idle growth's step in flight (grow_ahead).
+    if (!streams_.empty() || promotion_waits_ || copy_waits_ || (host_growing_ && !growing_.empty())) t = std::chrono::steady_clock::now() + std::chrono::milliseconds(1);
     promotion_waits_ = copy_waits_ = false;
     if (disk_ && disk_->max_age() && disk_now_.files && (!t || next_expiry_ < *t)) t = next_expiry_;
     for (const auto* q : {&lines.queue, &lines.paused, &jobs_})

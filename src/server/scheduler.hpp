@@ -683,7 +683,7 @@ public:
                 // Under --disk-cache-keep a server with nothing to do for kDiskIdle writes ahead (disk_round), and the loop wakes for it.
                 cache_.idle_moment(!active.empty() || flying() || !queue_.empty() || !paused_.empty());
                 const auto bound = soonest(cache_.next_disk_bound(lines()), cache_.encode_bound());
-                // With nothing to do the host tier's slabs are taken ahead, a step a round with no sleep between, so a copy made later allocates none (grow_host).
+                // With nothing to do the host tier's slabs are taken ahead, a step at a time, so a copy made later allocates none (grow_host).
                 const bool ahead = !stopping_ && active.empty() && !flying() && queue_.empty() && paused_.empty() && cache_.grow_ahead();
                 if (!ahead && bound) cv_.wait_until(lk, *bound, due);
                 else if (!ahead) cv_.wait(lk, due);

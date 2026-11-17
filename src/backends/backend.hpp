@@ -202,12 +202,15 @@ struct MoeStep {
     GluForm form = GluForm::silu;
 };
 
-// A linear-attention layer's step up to its output product (Backend::delta_step): the qkv, gate, alpha and beta products of the mixed rows, the conv into `conv`, the delta rule into `out`, then out's sigmoid-gated norm by `norm`.
+enum class NormGate : uint8_t { silu, sigmoid };
+
+// A linear-attention layer's step up to its output product (Backend::delta_step): the products, the conv into `conv`, the delta rule into `out`, then out's norm by `norm` gated by `norm_gate`.
 struct DeltaStep {
     Projection qkv, gate, alpha, beta;
     CSlice conv_w, a, dt_bias, norm;
     Slice conv, out;
     float eps;
+    NormGate norm_gate;
 };
 
 // Calls `each(first, count, key)` over the stretches of adjacent runs whose `key(run)` is equal, once the runs are known to be in row order and to end at row `n`.
@@ -417,7 +420,6 @@ inline size_t check_state_views(const StateView* views, size_t n_views, size_t l
     return rows;
 }
 
-enum class NormGate : uint8_t { silu, sigmoid };
 // The sign signed_sqrt_gate gives a dot of zero: none, the three-way sign (0 at +0 and -0, a gate of 0.5), or kept, the zero's own sign bit as copysign takes it.
 enum class ZeroSign : uint8_t { none, kept };
 // The ops some backends lack, which a model's plan names for each part that issues one, so a backend without one refuses the model at load rather than in a pass (Backend::implements).
@@ -1024,7 +1026,7 @@ public:
         causal_conv_silu(d.conv, d.qkv.out, d.conv_w, layer, views, n_views);
         gated_delta_rule(d.out, d.conv, d.alpha.out, d.beta.out, d.a, d.dt_bias, layer, views, n_views);
         const size_t heads = d.alpha.rows;
-        gated_rms_norm(d.out, d.out, d.gate.out, d.norm, rows, heads, heads ? d.gate.rows / heads : 0, d.eps, runs, NormGate::sigmoid);
+        gated_rms_norm(d.out, d.out, d.gate.out, d.norm, rows, heads, heads ? d.gate.rows / heads : 0, d.eps, runs, d.norm_gate);
     }
 
     // dst[r][h][d] = x[r][h][d] * sigmoid(gate[r * gate_stride + h * gate_head_stride + d]), x and dst being `rows` rows of heads * dim floats.

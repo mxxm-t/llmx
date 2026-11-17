@@ -2,6 +2,7 @@
 // A block reduction folds lane partials in one tree whatever the wave width, so a row gives the same bits in any call.
 #include "backends/gpu/kernels/port.h"
 #include "backends/gpu/kernels/quant.h"
+#include "backends/gpu/kernels/rows.h"
 
 namespace {
 
@@ -4260,7 +4261,7 @@ struct DeltaStepArgs {
     const float* x;           // the qkv product's rows, the conv's input, rows x C
     const float* cw;          // the conv's weights, C x 4
     const float* mixed;       // the products' input rows, rows x E
-    const unsigned char* wa;  // the F32 alpha and beta matrices, v_heads x E each
+    const unsigned char* wa;  // the alpha and beta matrices, v_heads x E each, of the type `form` reads
     const unsigned char* wb;
     float* ao;                // the alpha and beta products' rows, rows x v_heads each
     float* bo;
@@ -4279,10 +4280,14 @@ struct DeltaStepArgs {
     int tlevel, major;
     TwinMap tm;
     unsigned kd, vd;          // the K and V head widths, multiples of 4 up to 128
+    const signed char* xq;    // the int8 twin of mixed, a row's blocks after the row before (form 2)
+    const float* xd;
+    unsigned form;            // alpha and beta's order: 0 exact_sum of F32 rows, 1 exact_sum of Q8_0 rows, 2 the int8 class's half-block rows (kernels/rows.h)
+    unsigned sig;             // the norm's gate as llmx_gated_rms_norm's `sig`: 1 the sigmoid of z, 0 SiLU
 };
 
 // A block a (view, V head j), each of its 32 lane groups four adjacent V columns and each of a group's eight lanes 16 K rows, so a block holds the whole head at kd, vd <= 128.
-// It runs exact_sum's alpha and beta products, llmx_causal_conv_silu's conv, the delta rule as llmx_gated_delta_rule_short takes it and llmx_gated_rms_norm's sigmoid gate, each output their bits, for at most 8 rows a view.
+// It runs alpha and beta in the base product's order (DeltaStepArgs form), then the conv, delta rule and gated norm of the three chain ops, each output their bits, for at most 8 rows a view.
 extern "C" __global__ void __launch_bounds__(kThreads, 1) llmx_delta_step(DeltaStepArgs A) {
     constexpr unsigned kTb = 4, kRows = 16, kMaxQ = 8, P = 4, W = 128;
     const unsigned kd = A.kd, vd = A.vd;
@@ -4312,7 +4317,11 @@ extern "C" __global__ void __launch_bounds__(kThreads, 1) llmx_delta_step(DeltaS
     // Alpha and beta of head j for every row of the view, a wave a product.
     for (unsigned p = lid / kWave; p < 2u * nq; p += kThreads / kWave) {
         const unsigned long long r = row0 + p / 2u;
-        const float sum = exact_sum<ExactF32>((p & 1u) ? A.wb : A.wa, A.mixed + r * A.E, A.E, j);
+        const unsigned char* w = (p & 1u) ? A.wb : A.wa;
+        const unsigned blocks = A.E / 32u;
+        const float sum = A.form == 2u   ? q8_half_row(w + (unsigned long long)j * blocks * kQ8, A.xq + r * A.E, A.xd + r * blocks, blocks)
+                          : A.form == 1u ? exact_sum<ExactQ8>(w, A.mixed + r * A.E, A.E, j)
+                                         : exact_sum<ExactF32>(w, A.mixed + r * A.E, A.E, j);
         if (lid % kWave == 0) {
             ab[p] = sum;
             ((p & 1u) ? A.bo : A.ao)[r * v_heads + j] = sum;
@@ -4437,14 +4446,14 @@ extern "C" __global__ void __launch_bounds__(kThreads, 1) llmx_delta_step(DeltaS
 #pragma unroll
         for (unsigned k = 0; k < P; ++k)
             if (col && part + 8u * ii < kd) st[dst + k + (unsigned long long)(part + 8u * ii) * vd] = s[k][ii];
-    // The gated norm of head j's rows from shared memory, as llmx_gated_rms_norm with its sigmoid gate, and their twin.
+    // The gated norm of head j's rows from shared memory, as llmx_gated_rms_norm with its gate, and their twin.
     for (unsigned b = 0; b < nq; ++b) {
         const unsigned long long o = ((unsigned long long)(row0 + b) * v_heads + j) * vd;
         const float xv = lid < vd ? osh[b][lid] : 0.0f;
         const float sq = lid < vd ? fmaf(xv, xv, 0.0f) : 0.0f;
         const float rr = 1.0f / sqrtf(block_sum(sq, red) / (float)vd + A.neps);
         if (lid < vd) {
-            const float zz = A.z[o + lid], gg = 1.0f / (1.0f + expf(-zz));
+            const float zz = A.z[o + lid], gg = A.sig ? 1.0f / (1.0f + expf(-zz)) : zz / (1.0f + expf(-zz));
             const float val = xv * (rr * A.nw[lid]) * gg;
             A.o[o + lid] = val;
             twin_at(val, o + lid, A.tq, A.td, A.tlevel, A.tm, A.major);

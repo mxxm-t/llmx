@@ -122,6 +122,9 @@ With a the normed row of the token at position t:
 
 The order is HF's: the decay first, then m from the decayed state.
 
+Steps 1 to 6 up to `ssm_out` are one `Backend::delta_step` with the SiLU gate (`src/backends/backend.hpp`), which a GPU device runs as one fused launch beside its qkv and z products where it gives the base's bits ([backends-gpu](src/backends-gpu.md)).
+The step leaves the raw rows and alpha and beta in their slots, so a retracted draft's state is rerun from them by `recur` (steps 2 to 5).
+
 **The chunked form.**
 Over a chunk of rows, the same recurrence can be written with matrix products.
 Per V head, let G_i be the sum of g over the chunk's rows up to row i, which is never positive.

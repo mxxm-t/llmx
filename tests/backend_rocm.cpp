@@ -1407,6 +1407,82 @@ void moe_step_bits(Backend& g) {
 }
 
 
+// delta_step's times, printed, never asserted: the base's ops against the fused step at Qwen3.8-27B's linear layer shards, Q8_0 throughout, one view a generated row as streams decoding together give them, from weights outside the L2 cache.
+// Each arm prints its median us a step, its launches and whether every slot it writes matches the base's bits.
+void delta_rates(Backend& g) {
+    struct Shape { const char* name; size_t hk, hv; };
+    const Shape shapes[] = {{"1x4", 4, 12}, {"2x2", 8, 24}, {"1x1", 16, 48}};
+    const size_t E = 5120, slots = 8;
+    for (const Shape& sp : shapes) {
+        const StateShape sh{sp.hk, sp.hv, 128, 128};
+        const size_t C = sh.channels(), V = sp.hv * 128;
+        struct Set { BufferPtr qkv, gate, wa, wb; };
+        std::vector<Set> sets;
+        for (uint32_t k = 0; k < 2; ++k) {
+            const auto mk = [&](size_t rows, uint32_t seed) { const std::vector<uint8_t> m = q8_matrix(E, rows, seed + 10 * k); return g.adopt(m.data(), m.size()); };
+            sets.push_back({mk(C, 401), mk(V, 402), mk(sp.hv, 403), mk(sp.hv, 404)});
+        }
+        std::vector<float> a = row_classes::values(sp.hv, 406, 1.0f), dt = row_classes::values(sp.hv, 407, 0.5f), nw = row_classes::values(128, 408, 1.0f),
+                           cw = row_classes::values(C * kConvTaps, 409, 0.5f), state = row_classes::values(slots * sh.slot_floats(), 410, 0.1f);
+        for (float& v : a) v = -std::fabs(v) - 0.05f;
+        auto ap = g.adopt(a.data(), a.size() * 4), db = g.adopt(dt.data(), dt.size() * 4), nb = g.adopt(nw.data(), nw.size() * 4), cb = g.adopt(cw.data(), cw.size() * 4);
+        // Rows 1 and 4 as one-row views of streams decoding together, and rows 4 as one view, a verify of three drafts.
+        for (int lay = 0; lay < 3; ++lay)
+            for (Dtype dt_ : {Dtype::int8, Dtype::f16}) {
+                const size_t rows = lay ? 4 : 1;
+                const bool one_view = lay == 2;
+                const std::vector<float> mixed = row_classes::values(rows * E, 411 + (uint32_t)rows, 1.0f);
+                auto mb = g.adopt(mixed.data(), mixed.size() * 4);
+                std::vector<RowRun> runs;
+                for (size_t r = 0; r < rows; ++r) runs.push_back(RowRun{r + 1, 1});
+                struct Arm { std::unique_ptr<StateStorage> st; BufferPtr raw, conv, gate, ab, out; };
+                Arm arm[2];
+                std::vector<float> got[2];
+                std::string ran[2];
+                double us[2], spread[2];
+                for (int k = 0; k < 2; ++k) {
+                    arm[k] = Arm{g.state_alloc(1, slots, sh), g.alloc(rows * C * 4), g.alloc(rows * C * 4), g.alloc(rows * V * 4), g.alloc(2 * rows * sp.hv * 4), g.alloc(rows * V * 4)};
+                    g.write(arm[k].st->layer(0), 0, state.data(), state.size() * 4);
+                    std::vector<StateView> views;
+                    if (one_view) views.push_back(StateView{arm[k].st.get(), 0, 1, 100, rows});
+                    else
+                        for (size_t r = 0; r < rows; ++r) views.push_back(StateView{arm[k].st.get(), 2 * r, 2 * r + 1, 100, 1});
+                    const auto step = [&](const Set& w) {
+                        return DeltaStep{Projection{{quant::GGML_TYPE_Q8_0, {w.qkv.get(), 0}}, {arm[k].raw.get(), 0}, C}, Projection{{quant::GGML_TYPE_Q8_0, {w.gate.get(), 0}}, {arm[k].gate.get(), 0}, V},
+                                         Projection{{quant::GGML_TYPE_Q8_0, {w.wa.get(), 0}}, {arm[k].ab.get(), 0}, sp.hv},
+                                         Projection{{quant::GGML_TYPE_Q8_0, {w.wb.get(), 0}}, {arm[k].ab.get(), rows * sp.hv}, sp.hv},
+                                         {cb.get(), 0}, {ap.get(), 0}, {db.get(), 0}, {nb.get(), 0}, {arm[k].conv.get(), 0}, {arm[k].out.get(), 0}, 1e-6f, NormGate::silu};
+                    };
+                    const RowRuns rr{runs.data(), runs.size()};
+                    size_t turn = 0;
+                    const auto call = [&] {
+                        const DeltaStep d = step(sets[turn++ % sets.size()]);
+                        if (k == 0) g.Backend::delta_step(d, {mb.get(), 0}, E, rows, 0, views.data(), views.size(), rr, dt_);
+                        else g.delta_step(d, {mb.get(), 0}, E, rows, 0, views.data(), views.size(), rr, dt_);
+                    };
+                    rocm_take_launches(g);
+                    call();
+                    g.sync();
+                    for (const auto& [kn, n] : rocm_take_launches(g)) ran[k] += (ran[k].empty() ? "" : "+") + kn + (n > 1 ? "x" + std::to_string(n) : "");
+                    for (const BufferPtr* b : {&arm[k].raw, &arm[k].gate, &arm[k].out}) {
+                        const std::vector<float> v = read(g, **b, (*b == arm[k].raw ? C : V) * rows);
+                        got[k].insert(got[k].end(), v.begin(), v.end());
+                    }
+                    const std::vector<float> abv = read(g, *arm[k].ab, 2 * rows * sp.hv), stv = read(g, arm[k].st->layer(0), state.size());
+                    got[k].insert(got[k].end(), abv.begin(), abv.end());
+                    got[k].insert(got[k].end(), stv.begin(), stv.end());
+                    const auto timed = median_us(g, call);
+                    us[k] = timed.first, spread[k] = timed.second;
+                    rocm_take_launches(g);
+                }
+                size_t differ = 0;
+                for (size_t i = 0; i < got[0].size(); ++i) differ += std::memcmp(&got[0][i], &got[1][i], 4) != 0;
+                std::printf("backend-rocm: delta rate Qwen3.8-27B %s Q8_0 %s rows %zu%s: base %.1f us (spread %.1f) [%s], fused %.1f us (spread %.1f) [%s], %zu of %zu floats differ\n", sp.name,
+                            dtype_name(dt_), rows, one_view ? " one view" : "", us[0], spread[0], ran[0].c_str(), us[1], spread[1], ran[1].c_str(), differ, got[0].size());
+            }
+    }
+}
+
 // moe_step of several generated rows in the int8 class against the base's ops (Backend::moe_step) bit for bit, with the launches that show which ran.
 // The fused step takes the rows while the base's routed products would not group their entries, rows * k below the gate type's int8 break-even of 1.25 entries an expert (backend_core.hpp, kQ4KTwins and kQ5KTwins).
 void moe_rows_bits(Backend& g) {
@@ -3950,7 +4026,7 @@ int main(int argc, char** argv) {
             return failures ? 1 : 0;
         }
         // `rates` prints the twin types' product times at Flash-Next's shapes, the exact products' times, attention's times and the routed products' times and break-evens, and checks nothing.
-        // `rates attention`, `rates argmax`, `rates routed`, `rates tile`, `rates exact` or `rates decode` prints one part.
+        // `rates attention`, `rates argmax`, `rates routed`, `rates tile`, `rates exact` or `rates decode` prints one part, and `rates delta`, which the whole run leaves out, the fused linear-attention step against the base's calls.
         if (argc > 1 && std::string(argv[1]) == "rates") {
             const std::string part = argc > 2 ? argv[2] : "";
             if (part.empty()) rates(*g);
@@ -3960,6 +4036,7 @@ int main(int argc, char** argv) {
             if (part.empty() || part == "tile") routed_tile_rates(*g);
             if (part.empty() || part == "exact") exact_rates(*g);
             if (part.empty() || part == "decode") decode_rates(*g);
+            if (part == "delta") delta_rates(*g);
             return 0;
         }
         // `handoffs` runs only the device-side crossings over every visible device, and the busy times across them.
@@ -4035,7 +4112,7 @@ int main(int argc, char** argv) {
         }
         // `delta` runs only the fused linear-attention step against the base's calls.
         if (argc > 1 && std::string(argv[1]) == "delta") {
-            twin_checks::delta_step_bits(*g, rocm_take_launches, require);
+            twin_checks::delta_step_bits(*g, rocm_device(0).caps, rocm_take_launches, require);
             std::cout << (failures ? "backend-rocm delta: FAIL\n" : "backend-rocm delta: PASS\n");
             return failures ? 1 : 0;
         }
@@ -4073,7 +4150,7 @@ int main(int argc, char** argv) {
         hyper_mix_bits(*g);
         if (rocm_devices(2).size() == 2) hyper_mix_bits(*make_rocm_backend(1), g.get());
         moe_step_bits(*g);
-        twin_checks::delta_step_bits(*g, rocm_take_launches, require);
+        twin_checks::delta_step_bits(*g, rocm_device(0).caps, rocm_take_launches, require);
         moe_rows_bits(*g);
         fused_norm_rope_kv(*g);
         attention_twins(*g, Dtype::f16);

@@ -3,47 +3,11 @@
 #include "backends/gpu/kernels/port.h"
 #include "backends/gpu/kernels/quant.h"
 #include "backends/gpu/kernels/shapes.h"
+#include "backends/gpu/kernels/rows.h"
 
 namespace {
 
 constexpr int kThreads = 256;
-constexpr unsigned kQ8 = rq::Q8_0::bytes;   // a Q8_0 block's bytes, whose layout the word loads below take: the f16 scale, then 32 int8 values
-static_assert(kQ8 == 34 && rq::Q8_0::values == 32, "the Q8_0 word loads assume 34-byte blocks of 32 values");
-
-// The dot of two packed words, two 16-bit values each or four 8-bit values each, added to s.
-__device__ inline int word_dot(int a, int b, int s, short) {
-#ifdef LLMX_DOT16
-    return dot2_i16(a, b, s);
-#else
-    return s + (int)(short)(a & 0xffff) * (int)(short)(b & 0xffff) + (a >> 16) * (b >> 16);
-#endif
-}
-__device__ inline int word_dot(int a, int b, int s, signed char) {
-#if defined(LLMX_DOT16) || GPU_IMMA8
-    return dot4_i8(a, b, s);
-#else
-    for (int i = 0; i < 4; ++i) s += (int)(signed char)((a >> (8 * i)) & 0xff) * (int)(signed char)((b >> (8 * i)) & 0xff);
-    return s;
-#endif
-}
-
-
-// v of lane (this lane xor m) across the whole wave, m a power of two: DPP for 1 and 2 and swizzles up to 16, which wait on no LDS queue as a permute does; the same partner, so a sum over them keeps its bits.
-__device__ inline int lane_xor(int v, int m) {
-    if (m == 1) return lane_xor_quad<1>(v);
-    if (m == 2) return lane_xor_quad<2>(v);
-    if (m == 4) return lane_xor_swizzle<4>(v);
-    if (m == 8) return lane_xor_swizzle<8>(v);
-    if (m == 16) return lane_xor_swizzle<16>(v);
-    return shuffle_xor(v, m, warpSize);
-}
-__device__ inline float lane_xor(float v, int m) { return __int_as_float(lane_xor(__float_as_int(v), m)); }
-// The sum of v over the wave by the xor tree, m from `from` down to 1, each level a lane's own value plus its partner's.
-__device__ inline float wave_sum(float v, int from = warpSize / 2) {
-#pragma unroll
-    for (int m = from; m > 0; m /= 2) v += lane_xor(v, m);
-    return v;
-}
 constexpr bool kWave64 = GPU_WAVE == 64;
 // The wave sums of a lane's NV values by the same xor tree, transposed: each level halves the values a lane holds, keeping the half its bit m selects plus its partner's copy, as wave_sum adds.
 // Every sum so has wave_sum's bits; once one value is left the levels below are wave_sum's, and lane l holds sum k = l / (warpSize / NV).
@@ -342,64 +306,12 @@ __device__ void q8_0_rows_half(const RowCall& rc, const signed char* q, const fl
     }
 }
 
-// The one-column build of the half-block kernel: NS steps of a lane's loads for each of R rows issued before any of their products, then each step's products in block order, as the other builds sum.
-// The scheduling barrier keeps the loads together (docs/STATUS.md, ROCm decode rows); TAIL skips a step past the row in its loads and its products alike, so a lane's blocks keep their order.
-constexpr int kSteps = 4;
-// The steps of the builds for a row under two spans of blocks (64 on a 64-lane wave): such a row cannot fill a second step a load, and each step held costs registers, 71 against 39 at one row (docs/STATUS.md, ROCm decode steps).
-constexpr int kNarrowSteps = 1;
-template <int NS, int R, bool TAIL = false>
-__device__ inline void half_steps(const unsigned* const (&w)[R], const signed char* q, const float* dx, unsigned& b, unsigned blocks, unsigned hl, float (&acc)[R]) {
-    const unsigned span = warpSize / 2;
-    unsigned t[NS][R][5];
-    int4 xq[NS];
-    float xd[NS];
-#pragma unroll
-    for (int d = 0; d < NS; ++d) {
-        const unsigned bd = b + d * span, start = bd * kQ8 + 18 * hl, sh = start & 2, wi = start >> 2;
-        if (TAIL && bd >= blocks) continue;
-        xq[d] = *(const int4*)(q + (unsigned long long)bd * 32 + 16 * hl);
-        xd[d] = dx[bd];
-#pragma unroll
-        for (int j = 0; j < R; ++j) {
-            t[d][j][0] = w[j][wi];
-            t[d][j][1] = w[j][wi + 1];
-            t[d][j][2] = w[j][wi + 2];
-            t[d][j][3] = w[j][wi + 3];
-            t[d][j][4] = w[j][wi + 3 + (hl == 0 || sh ? 1 : 0)];
-        }
-    }
-    schedule_barrier();
-#pragma unroll
-    for (int d = 0; d < NS; ++d) {
-        const unsigned bd = b + d * span, start = bd * kQ8 + 18 * hl, sh = start & 2, s0 = sh + 2 * (1 - hl);
-        // Both lanes of a block take or skip a step together, so the scale's exchange reads an active partner.
-        if (TAIL && bd >= blocks) continue;
-        const bool next = s0 == 4;
-#pragma unroll
-        for (int j = 0; j < R; ++j) {
-            const unsigned t0 = t[d][j][0], t1 = t[d][j][1], t2 = t[d][j][2], t3 = t[d][j][3], t4 = t[d][j][4];
-            const unsigned u0 = next ? t1 : t0, u1 = next ? t2 : t1, u2 = next ? t3 : t2, u3 = next ? t4 : t3, n = s0 & 3;
-            const unsigned wq[4] = {byte_align(u1, u0, n), byte_align(u2, u1, n), byte_align(u3, u2, n),
-                                    byte_align(t4, u3, n)};
-            int s = word_dot((int)wq[0], xq[d].x, 0, (signed char)0);
-            s = word_dot((int)wq[1], xq[d].y, s, (signed char)0);
-            s = word_dot((int)wq[2], xq[d].z, s, (signed char)0);
-            s = word_dot((int)wq[3], xq[d].w, s, (signed char)0);
-            const int own = (int)(t0 >> (8 * sh)) & 0xffff;
-            const int partner = pair_lane(own);
-            const float dw = __half2float(__ushort_as_half((unsigned short)(hl ? partner : own)));
-            acc[j] = fmaf(dw * xd[d], (float)s, acc[j]);
-        }
-    }
-    b += NS * span;
-}
 // R rows a wave, each twin load serving every row, NS steps a round: a row keeps its lanes, its block order and its tree, so every build gives the one-row build's bits.
 template <int R, int NS>
 __device__ void q8_0_half_one(const RowCall& rc, const signed char* q, const float* dx, unsigned long long nin, int add) {
     const int lanes = warpSize, lane = threadIdx.x % lanes;
     const unsigned blocks = (unsigned)(nin / 32);
     const unsigned long long waves = (unsigned long long)gridDim.x * (kThreads / lanes), step = R * waves;
-    const unsigned hl = lane & 1, span = lanes / 2;
     for (unsigned long long base = R * ((unsigned long long)blockIdx.x * (kThreads / lanes) + threadIdx.x / lanes); base < rc.total; base += step) {
         Row r[R];
         const unsigned* w[R];
@@ -409,11 +321,7 @@ __device__ void q8_0_half_one(const RowCall& rc, const signed char* q, const flo
             w[j] = (const unsigned*)r[j].w;
         }
         float acc[R];
-#pragma unroll
-        for (int j = 0; j < R; ++j) acc[j] = 0.0f;
-        unsigned b = lane >> 1;
-        while (b + (NS - 1) * span < blocks) half_steps<NS, R>(w, q, dx, b, blocks, hl, acc);
-        if (b < blocks) half_steps<NS, R, true>(w, q, dx, b, blocks, hl, acc);
+        half_rows<R, NS>(w, q, dx, blocks, acc);
 #pragma unroll
         for (int j = 0; j < R; ++j) {
             const float v = wave_sum(acc[j]);

@@ -3,7 +3,7 @@
 // Build configuration: the single place build-time knobs live; CMake regenerates it into the build directory, and the checked-in default serves the plain build.bat path.
 // Only backends are compile-time, since GPU backends pull in heavy SDKs; architectures and split mode are chosen at run time.
 
-#define LLMX_RELEASE_VERSION "0.1.0"
+#define LLMX_RELEASE_VERSION "0.2.0"
 #if __has_include("llmx-build-info.hpp")
 #include "llmx-build-info.hpp"
 #endif

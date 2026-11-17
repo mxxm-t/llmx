@@ -21,7 +21,7 @@ The [README](../README.md#build) keeps a short quick start.
   CMake's Visual Studio generators need a newer one: 3.21 or later for Visual Studio 2022, and 4.2 or later for Visual Studio 2026.
   `ctest --test-dir`, used under [Tests](#after-building-the-tests), needs CTest 3.20 or later.
 - **git**, for the build identifier that `llmx --version` prints, and for the tests' `dead-code` and `docs` components, which in a git checkout read the files git tracks and the new ones it does not ignore.
-  Without git, or in a tree that is not a git checkout, the build still works and reports `0.1.0+unknown`, and in a tree that is not a git checkout those two components read the files at the root and under `src`, `tests`, `tools`, `docs`, `cmake`, `docker` and `.github`.
+  Without git, or in a tree that is not a git checkout, the build still works and reports `0.2.0+unknown`, and in a tree that is not a git checkout those two components read the files at the root and under `src`, `tests`, `tools`, `docs`, `cmake`, `docker` and `.github`.
 - **Python 3**, only to run the tests. The suite runs with its standard library,
   but full raw-block decoder coverage also needs NumPy; without it those checks
   skip, or fail with `--require-tools`. CI runs Python 3.12 and installs NumPy.
@@ -336,9 +336,9 @@ CTest runs the native tests in every configuration, and the Vulkan and ROCm buil
 
 ### The build identifier
 
-`llmx --version` prints the release and the commit the binary was built from, for example `llmx 0.1.0+g0123456789ab`.
+`llmx --version` prints the release and the commit the binary was built from, for example `llmx 0.2.0+g0123456789ab`.
 
-- `0.1.0` is the release: `project(llmx VERSION ...)` in `CMakeLists.txt`, and `LLMX_RELEASE_VERSION` in `src/config.hpp` for `build.bat`.
+- `0.2.0` is the release: `project(llmx VERSION ...)` in `CMakeLists.txt`, and `LLMX_RELEASE_VERSION` in `src/config.hpp` for `build.bat`.
 - `g` and at least 12 hex digits name the commit.
 - `.dirty` follows when tracked files differ from that commit; untracked files do not count.
 - `unknown` replaces the commit when git is missing or the source directory is not the top of a git checkout, as in a source archive.

@@ -1,4 +1,4 @@
-"""Bounded file-exact Qwen4Exp weights around the pinned HF model's own forward."""
+"""Bounded file-exact Qwen4Exp weights around the pinned HF model's own forward, with an image through HF's own vision tower on an mmproj's own weights when one is given."""
 
 import argparse
 from contextlib import contextmanager
@@ -14,6 +14,7 @@ import tempfile
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
 import spec_decode
 import qwen4exp_reference as reference
+import vision_reference
 from gen_layered_reference import loaded_modules, peak_gib
 
 
@@ -144,7 +145,7 @@ class ExpertWeight:
 class FileReference:
     """Original HF forward with module-resident ordinary weights, row-selected PLE and one expert per indexing operation."""
 
-    def __init__(self, paths, config, max_tokens=128, max_decoded_bytes=3 << 30, attention="eager"):
+    def __init__(self, paths, config, max_tokens=128, max_decoded_bytes=3 << 30, attention="eager", mmproj=None):
         if attention not in ("eager", "sdpa"):
             raise ValueError("reference attention must be eager or sdpa")
         self.torch, _ = environment()
@@ -216,10 +217,27 @@ class FileReference:
                 raise ValueError("HF image token disagrees with GGUF PLE metadata")
         self.head_order = sorted(range(c.linear_num_value_heads),
                                  key=lambda index: (index % c.linear_num_key_heads) * (c.linear_num_value_heads // c.linear_num_key_heads) + index // c.linear_num_key_heads)
-        with self.torch.device("meta"):
-            self.model = Qwen4ExpForCausalLM(c)
+        self.vision = None
+        if mmproj is None:
+            with self.torch.device("meta"):
+                self.model = Qwen4ExpForCausalLM(c)
+            text = self.model.model
+        else:
+            # The image path: HF's ForConditionalGeneration, whose own forward places the tower's rows and the image positions, its text model the one above.
+            from transformers.models.qwen4_exp.configuration_qwen4_exp import Qwen4ExpConfig
+            from transformers.models.qwen4_exp.modeling_qwen4_exp import Qwen4ExpForConditionalGeneration
+            full = Qwen4ExpConfig(**config)
+            full.text_config = c
+            full._attn_implementation = full.vision_config._attn_implementation = attention
+            with self.torch.device("meta"):
+                self.model = Qwen4ExpForConditionalGeneration(full)
+            text = self.model.model.language_model
+            visual = self.model.model.visual
+            visual.rotary_pos_emb = type(visual.rotary_pos_emb)(visual.rotary_pos_emb.dim, visual.rotary_pos_emb.theta)
+            self.vision = spec_decode.GGUF(str(mmproj))
+            self.image_token_id = full.image_token_id
+            self.merge = full.vision_config.spatial_merge_size
         self.model.eval().requires_grad_(False)
-        text = self.model.model
         text.rotary_emb = type(text.rotary_emb)(config=c)
         self.modules = [("model.embed_tokens", text.embed_tokens)]
         self.modules += [("model.layers.%d" % i, layer) for i, layer in enumerate(text.layers)]
@@ -253,6 +271,9 @@ class FileReference:
         # Check every ordinary parameter and each omitted storage's shape without reading its payload.
         for name, shape in self.expected.items():
             self._parts(name, shape, validate=True)
+        if self.vision is not None:
+            self.vision_state(decode=False)
+            self.modules.insert(0, ("visual", self.model.model.visual))
         for i in range(c.num_hidden_layers):
             for name, shape in (("ffn_gate_exps.weight", (c.hidden_size, c.moe_intermediate_size, c.num_experts)),
                                 ("ffn_up_exps.weight", (c.hidden_size, c.moe_intermediate_size, c.num_experts)),
@@ -376,7 +397,38 @@ class FileReference:
             values = values.reshape(shape[0], c.linear_num_value_heads, c.linear_value_head_dim)[:, order].reshape(shape)
         return np.ascontiguousarray(values.reshape(shape))
 
+    def vision_state(self, decode=True):
+        """The tower's parameters from the mmproj, each tensor decoded by tests/spec_decode.py and laid out as tools/vision_reference.py maps it, every HF parameter covered once.
+        Without `decode`, only the shapes are checked and no payload is read."""
+        import numpy as np
+        params = {name: tuple(value.shape) for name, value in self.model.model.visual.state_dict().items()}
+        state = {}
+        for t in self.vision.tensors:
+            hf, frame = vision_reference.hf_name(t.name)
+            if hf not in params:
+                raise ValueError("mmproj tensor without an HF parameter: " + t.name)
+            shape = tuple(reversed(t.shape))
+            values = np.asarray(self.vision.decode(t), dtype=np.float32).reshape(shape) if decode else np.empty(shape, dtype=np.float32)
+            if frame is None:
+                if values.shape != params[hf]:
+                    raise ValueError("unexpected mmproj tensor shape: " + t.name)
+                state[hf] = values
+            else:
+                kernel = state.setdefault(hf, np.zeros(params[hf], dtype=np.float32))
+                if kernel[:, :, frame].shape != values.shape:
+                    raise ValueError("unexpected mmproj tensor shape: " + t.name)
+                kernel[:, :, frame] = values
+        missing = set(params) - set(state)
+        if missing:
+            raise ValueError("mmproj lacks " + ", ".join(sorted(missing)))
+        return state
+
     def load(self, module, prefix):
+        if prefix == "visual.":
+            state = {name: self.torch.from_numpy(values) for name, values in self.vision_state().items()}
+            module.load_state_dict(state, strict=True, assign=True)
+            module.rotary_pos_emb = type(module.rotary_pos_emb)(module.rotary_pos_emb.dim, module.rotary_pos_emb.theta)
+            return
         state = {name: self.torch.from_numpy(self._parts(prefix + name, tuple(value.shape)))
                  for name, value in module.state_dict().items()}
         module.load_state_dict(state, strict=True, assign=True)
@@ -417,12 +469,21 @@ class FileReference:
             for embedding in self.ple_embeddings:
                 embedding.weight = torch.empty(0, embedding.embedding_dim)
 
-    def forward(self, input_ids, past_key_values=None, use_cache=False, on_load=None, logits_to_keep=0):
+    def forward(self, input_ids, past_key_values=None, use_cache=False, on_load=None, logits_to_keep=0, pixel_values=None, image_grid_thw=None):
         previous = past_key_values.get_seq_length() if past_key_values is not None else 0
         self._validate_input_ids(input_ids, previous)
+        if (pixel_values is None) != (self.vision is None) or (pixel_values is None) != (image_grid_thw is None):
+            raise ValueError("an image needs the reference made with its mmproj, and the reference made with one needs an image")
+        image = {}
+        if pixel_values is not None:
+            rows = int(image_grid_thw.prod(dim=-1).sum()) // (self.merge * self.merge)
+            if int((input_ids == self.image_token_id).sum()) != rows:
+                raise ValueError("the image token count is not the image's merged rows")
+            image = {"pixel_values": pixel_values, "image_grid_thw": image_grid_thw,
+                     "mm_token_type_ids": (input_ids == self.image_token_id).to(self.torch.long)}
         with self._forward_scope(on_load):
             return self.model(input_ids=input_ids, past_key_values=past_key_values, use_cache=use_cache,
-                              logits_to_keep=logits_to_keep, return_dict=True)
+                              logits_to_keep=logits_to_keep, return_dict=True, **image)
 
     def sequence_nll(self, input_ids, rows=256, on_load=None):
         """Score every next-token target with bounded rows from the original HF head."""
@@ -508,7 +569,12 @@ def main(argv=None):
     parser.add_argument("--attention", choices=("eager", "sdpa"), default="eager")
     parser.add_argument("--last", type=int, default=0, help="native HF tail logit rows; 0 keeps all positions")
     parser.add_argument("--top", type=int, default=0, help="compact top candidates per output row; 0 keeps all logits")
+    parser.add_argument("--mmproj", type=Path, help="the vision encoder file whose own weights HF's tower runs on, with --image")
+    parser.add_argument("--image", type=Path, help="the image whose rows the ids' image tokens hold, read by HF's processor")
+    parser.add_argument("--image-max-pixels", type=int, default=vision_reference.MAX_PIXELS, help="the processor's pixel bound")
     args = parser.parse_args(argv)
+    if (args.mmproj is None) != (args.image is None):
+        parser.error("--mmproj and --image go together")
     if args.output.exists():
         parser.error("output already exists: " + str(args.output))
     if not args.output.parent.is_dir():
@@ -531,13 +597,18 @@ def main(argv=None):
         parser.error("input token ID outside configured vocabulary")
     if args.top > vocab:
         parser.error("--top exceeds configured vocabulary")
-    runner = FileReference(args.gguf, config, args.max_tokens, args.max_decoded_mib << 20, attention=args.attention)
+    runner = FileReference(args.gguf, config, args.max_tokens, args.max_decoded_mib << 20, attention=args.attention, mmproj=args.mmproj)
     torch = runner.torch
     torch.set_num_threads(args.threads)
     ids = torch.tensor([ids], dtype=torch.long)
+    image = {}
+    if args.image is not None:
+        from transformers.image_utils import load_image
+        feat = vision_reference.processor(vision_reference.MIN_PIXELS, args.image_max_pixels)(images=[load_image(str(args.image))], return_tensors="pt")
+        image = {"pixel_values": feat["pixel_values"].to(torch.float32), "image_grid_thw": feat["image_grid_thw"]}
     def progress(name, module):
         print("HF loaded " + name, file=sys.stderr, flush=True)
-    result = runner.forward(ids, on_load=progress, logits_to_keep=args.last).logits[0]
+    result = runner.forward(ids, on_load=progress, logits_to_keep=args.last, **image).logits[0]
     values = output_values(torch, result, ids[0], args.top)
     document = {"weights": runner.source.labels(), "config_sha256": reference._sha256_file(args.config),
                 "model_revision": reference.MODEL_REVISION, "transformers_release_commit": reference.TRANSFORMERS_COMMIT,
@@ -551,6 +622,9 @@ def main(argv=None):
                 "mapping_limits": "A_log uses float64 log then float32 rounding; HF exp and norm offset restoration may round",
                 "mapping_roundtrip": runner.mapping_roundtrip,
                 "threads": args.threads, "input_ids": ids[0].tolist(), "last": args.last, "top": args.top, **values,
+                "image": None if args.image is None else {"file": args.image.name, "sha256": reference._sha256_file(args.image),
+                                                          "mmproj_sha256": reference._sha256_file(args.mmproj), "max_pixels": args.image_max_pixels,
+                                                          "grid_thw": image["image_grid_thw"][0].tolist()},
                 "max_tokens": args.max_tokens, "max_decoded_bytes": args.max_decoded_mib << 20, "peak_rss_gib": peak_gib()}
     staged = None
     try:

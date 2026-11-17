@@ -614,8 +614,10 @@ The output records each shard's size and SHA-256, the decoded types and coverage
 `--attention eager|sdpa` selects HF attention, eager by default; SDPA first checks the pinned `transformers.integrations.sdpa_attention` source by SHA-256.
 `--last N` passes `N` to HF's `logits_to_keep`, zero keeping every row, and the NLL is computed in float64 as log-sum-exp minus the next token's logit over the transitions the returned rows cover.
 `--top K` writes only each row's top `K` ids and logits, ties by id, with the target ids and logits the NLL needs; a top-only record does not measure the omitted logits.
+`--mmproj FILE --image FILE` (and `--image-max-pixels N`, by default the processor's 16777216) runs HF's `Qwen4ExpForConditionalGeneration` instead: HF's own vision tower and merger on the mmproj's own weights, each tensor decoded by `tests/spec_decode.py` and laid out as `tools/vision_reference.py` maps it, the image read by the processor `tools/vision_reference.py` pins, and HF's own forward placing the rows at the ids' image tokens with its own positions; the ids must hold as many image tokens as the image has merged rows.
 
 `python -X utf8 tests/reference_qwen4exp_file.py` checks the shard spans, the HF adaptation and the recovery after a failure: the adapted and the ordinary eager HF logits must be identical on the tiny model, the router ids must match the grouped control, and the non-self-inverse value-head permutation must hold with nonzero hyper-connection norms.
+Its image case runs the tiny image model's GGUF and mmproj (`tests/data/vision`) through the image path and holds every logit row of `tests/data/baseline_image_qwen4exp.json`, HF's full forward, within 2e-5; it needs the image references' Pillow and torchvision beside the pinned environment.
 
 #### The deepseek41 tiny reference
 

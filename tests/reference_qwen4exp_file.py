@@ -79,6 +79,31 @@ class ShardStorage(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "duplicate"):
                 file_reference.Shards([first, second], 16)
 
+    def test_production_file_types_read_through_the_spec_decoders(self):
+        # The served Flash-Next file stores experts as Q4_K, Q5_K and Q5_1 and its per-layer table as IQ4_NL; each is read through the spec decoders, which hold every type the reader opens.
+        import random
+        rng = random.Random(7)
+        kinds = (spec_decode.Q8_0, spec_decode.Q4_K, spec_decode.Q5_K, spec_decode.Q5_1, spec_decode.IQ4_NL)
+        with tempfile.TemporaryDirectory(prefix="qwen4exp_file_types_") as directory:
+            path = Path(directory) / "types.gguf"
+            tensors, payloads = [], {}
+            for kind in kinds:
+                _, values, size = spec_decode.TYPES[kind]
+                data = bytearray(rng.randrange(256) for _ in range(512 // values * size))
+                for start in range(0, len(data), size):
+                    # Each block's leading f16 scale, and min where the type has one, kept finite.
+                    data[start + 1] &= 0x3B
+                    data[start + 3] &= 0x3B
+                payloads["t%d" % kind] = bytes(data)
+                tensors.append(("t%d" % kind, [512], kind, bytes(data)))
+            spec_decode.write_gguf(path, {"general.architecture": (spec_decode.STRING, "qwen4exp")}, tensors)
+            runner = file_reference.FileReference.__new__(file_reference.FileReference)
+            runner.source = file_reference.Shards([path], 1 << 20)
+            for kind in kinds:
+                runner._shape("t%d" % kind, [512])
+                if spec_decode.np is not None:
+                    self.assertEqual(runner.source.read("t%d" % kind, 256, 256).tolist(), spec_decode.decode(kind, payloads["t%d" % kind], 512)[256:])
+
 
 class PinnedHFAdapters(unittest.TestCase):
     @classmethod
@@ -205,6 +230,34 @@ class PinnedHFAdapters(unittest.TestCase):
         self.assertEqual(file_reference.score_nll(torch, logits[:1], ids[:1]).numel(), 0)
         print("Wide-vocabulary NLL: float64 analytic error %.9g; former F32 cross-entropy error %.9g"
               % (max(abs(value - expected) for value in got.tolist()), error))
+
+    def test_image_rows_through_hf_tower_on_mmproj_weights(self):
+        # The image path against tests/data/baseline_image_qwen4exp.json: HF's full forward of the tiny image model, rows and positions its own, every logit row of each case.
+        import image
+        import vision_reference
+        from transformers.image_utils import load_image
+        torch = self.torch
+        data = Path(__file__).resolve().parent / "data"
+        golden = json.loads((data / "baseline_image_qwen4exp.json").read_text(encoding="utf-8"))
+        config = {"text_config": golden["text"], "vision_config": golden["vision"], "image_token_id": image.IMAGE_PAD,
+                  "vision_start_token_id": image.VISION_START, "vision_end_token_id": image.VISION_END, "tie_word_embeddings": False}
+        adapted = file_reference.FileReference([data / "vision" / "tiny-qwen4exp-image.gguf"], config, max_tokens=256, max_decoded_bytes=1 << 20,
+                                               mmproj=data / "vision" / "tiny-mmproj-qwen4exp.gguf")
+        with self.assertRaisesRegex(ValueError, "needs an image"):
+            adapted.forward(torch.tensor([golden["cases"][0]["ids"]], dtype=torch.long))
+        maximum = 0.0
+        for case in golden["cases"]:
+            images = [load_image(str(data / "images" / name)) for name in case["images"]]
+            feat = vision_reference.processor(vision_reference.MIN_PIXELS, case["max_pixels"] or vision_reference.MAX_PIXELS)(images=images, return_tensors="pt")
+            ids = torch.tensor([case["ids"]], dtype=torch.long)
+            with torch.inference_mode():
+                got = adapted.forward(ids, pixel_values=feat["pixel_values"].to(torch.float32), image_grid_thw=feat["image_grid_thw"]).logits[0]
+            maximum = max(maximum, (got - torch.tensor(case["logits"], dtype=torch.float32)).abs().max().item())
+            with self.assertRaisesRegex(ValueError, "image token count"):
+                adapted.forward(ids[:, :-1], pixel_values=feat["pixel_values"].to(torch.float32), image_grid_thw=feat["image_grid_thw"][:1] * 2)
+        self.assertLessEqual(maximum, 2e-5)
+        self.assertTrue(all(parameter.is_meta for parameter in adapted.model.parameters()))
+        print("Qwen4Exp image path: %d cases through HF's tower on the mmproj's weights, max logit error %g against HF's full forward" % (len(golden["cases"]), maximum))
 
     def test_original_hf_full_cached_and_failure_recovery(self):
         from transformers.models.qwen4_exp.configuration_qwen4_exp import Qwen4ExpTextConfig

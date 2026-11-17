@@ -16,6 +16,7 @@
 #include "row_classes.hpp"
 #include "scratch_growth.hpp"
 #include "twin_checks.hpp"
+#include "vision_checks.hpp"
 
 #include <algorithm>
 #include <array>
@@ -327,11 +328,13 @@ void refusals(Backend& g) {
     require(throws([&] { g.matmul({quant::GGML_TYPE_Q2_K, {w.get(), 0}}, {x.get(), 0}, {y.get(), 0}, 256, 4, 1); }), "a Q2_K matmul is refused");
     require(throws([&] { g.matmul({quant::GGML_TYPE_Q4_K, {w.get(), 0}}, {x.get(), 0}, {y.get(), 0}, 128, 4, 1); }), "a Q4_K row ending inside a block is refused");
     require(throws([&] { g.matmul({quant::GGML_TYPE_Q8_0, {w.get(), 0}}, {x.get(), 0}, {y.get(), 0}, 48, 4, 1); }), "a Q8_0 row ending inside a block is refused");
-    // The ops ROCm implements are its `implements`, which the kernel checks below reach one by one; the vision tower's layer norm is one it lacks.
-    require(!g.implements(Op::layer_norm), "the backend does not report the layer norm it lacks");
-    for (Op op : {Op::sqrt_softplus_routing, Op::silu_mul_clamp, Op::rope_forms, Op::hc_coeffs, Op::pool_write, Op::model_format_qdq, Op::glu_quick_gelu})
-        require(g.implements(op), std::string("the backend reports the ") + backend::op_name(op) + " it implements");
-    require(throws([&] { g.layer_norm_rows({y.get(), 0}, {x.get(), 0}, {x.get(), 0}, {x.get(), 0}, 1, 4, 4, 1e-6f); }), "an op the backend lacks throws");
+    // The ops ROCm implements are its `implements`, which the kernel checks below reach one by one: every op but the two it lacks.
+    // The loop ends at Op's last enumerator (backend.hpp), so an Op appended there moves this end with it.
+    for (int i = 0; i <= int(Op::sparse_attention_blocks); ++i) {
+        const Op op = Op(i);
+        const bool lacked = op == Op::mixed_experts || op == Op::sigmoid_routing;
+        require(g.implements(op) != lacked, std::string("the backend reports ") + backend::op_name(op) + (lacked ? ", which it lacks" : " as it lacks it"));
+    }
 }
 
 // A product into pinned host memory, as the logits are, gives the bits of the same product into device memory, both written and added, for a generated row and a prompt's rows.
@@ -3695,6 +3698,19 @@ void deepseek4(Backend& g) {
     std::cout << "backend-rocm: deepseek4 ops: " << values << " values against the CPU, the formats, selections, routing picks, collapse, expansion, index scores, rope forms and taps bit for bit\n";
 }
 
+// The vision encoder's ops against the CPU (vision_checks.hpp), each kernel the core adds for it reached.
+void vision_ops(Backend& g) {
+    q35::Pair p(g);
+    rocm_take_launches(g);
+    const size_t values = vision::check_ops(p);
+    const std::map<std::string, size_t> ran = rocm_take_launches(g);
+    for (const char* k : {"llmx_layer_norm_rows", "llmx_gelu", "llmx_add_bias", "llmx_mix_rows", "llmx_norm_rope_streams", "llmx_attention_chunk"})
+        require(ran.count(k), std::string("the vision checks take ") + k);
+    // The per-row body writes a block-major twin once a product has read one (twin_build), so either build counts.
+    require(ran.count("llmx_attention_vec") || ran.count("llmx_attention_vec_major"), "the vision checks take llmx_attention_vec");
+    std::cout << "backend-rocm: vision encoder ops: " << values << " values against the CPU, bias exact, row mix, norm, gelu, rope over streams and non-causal attention within their bounds\n";
+}
+
 // The dense F32 kernels the backend links in (cmake/embed_modules.cmake).
 extern "C" const unsigned char llmx_rocm_f32_module[];
 constexpr const unsigned char* kF32Module = llmx_rocm_f32_module;
@@ -4059,6 +4075,12 @@ int main(int argc, char** argv) {
             std::cout << (failures ? "backend-rocm qwen35: FAIL\n" : "backend-rocm qwen35: PASS\n");
             return failures ? 1 : 0;
         }
+        // `vision` runs only the vision encoder's ops against the CPU (vision_checks.hpp).
+        if (argc > 1 && std::string(argv[1]) == "vision") {
+            vision_ops(*g);
+            std::cout << (failures ? "backend-rocm vision: FAIL\n" : "backend-rocm vision: PASS\n");
+            return failures ? 1 : 0;
+        }
         // `deepseek4` runs only DeepSeek-V4.1's ops against the CPU.
         if (argc > 1 && std::string(argv[1]) == "deepseek4") {
             deepseek4(*g);
@@ -4168,6 +4190,7 @@ int main(int argc, char** argv) {
         handoffs();
         busy_times();
         qwen35(*g);
+        vision_ops(*g);
         deepseek4(*g);
         sparse_tile_pair(*g);
         ds4_router(*g);

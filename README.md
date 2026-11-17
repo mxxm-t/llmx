@@ -32,7 +32,7 @@ A mixture-of-experts file whose expert gate and up weights differ in type is ref
 On CUDA, which is in development, dense `qwen3` and hybrid `qwen35` models run, checked on an RTX 3060 and an RTX 3090: Qwen3-0.6B Q8_0 passes the Hugging Face checks at `--dtype f16`, including 16k-token sequences, Qwen3.5-0.8B Q8_0 passes the `qwen35` Hugging Face checks at `--dtype f16`, Qwen3.6-27B Q4_K_M runs with drafts on and off, and the synthetic dense models pass at `--dtype f32`.
 `int8` runs and holds the frozen int8 budget on the synthetic models, while the Qwen3-0.6B and Qwen3.5-0.8B Q8_0 baselines each miss one top-5 tie at `int8`.
 No other architecture and no multi-device mode has run on CUDA yet; see [CUDA](docs/CUDA.md).
-A model runs on ROCm only when every weight format it holds is one the ROCm backend reads (below), and image input (`--mmproj`) is not available there.
+A model runs on ROCm only when every weight format it holds is one the ROCm backend reads (below); image input (`--mmproj`) runs there as on Vulkan.
 
 Selected outputs are checked against Hugging Face references; [ASSETS](docs/ASSETS.md) lists the models and checks covered.
 
@@ -43,7 +43,7 @@ Selected outputs are checked against Hugging Face references; [ASSETS](docs/ASSE
 | Models | `qwen35`, `qwen35moe` and `qwen4exp` files, and DeepSeek-V4.1-Flash's `-vl` `deepseek41` files, with the `mmproj` vision encoder file that ships beside them |
 | Commands | `generate --chat` and `chat`, with `--mmproj FILE --image A,B` and `--image-max-tokens N`; PNG and JPEG |
 | Server | `llmx serve --mmproj FILE`; `/v1/chat` and `/v1/chat/completions` read `image_url` parts as `data:` URLs |
-| Devices | The encoder runs on the CPU or a Vulkan device; `--mmproj` is refused on ROCm |
+| Devices | The encoder runs on the CPU, a Vulkan device or a ROCm device, the one that holds the embedding |
 
 See [VISION](docs/VISION.md) and [USAGE](docs/USAGE.md).
 

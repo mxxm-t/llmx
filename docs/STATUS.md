@@ -1,5 +1,18 @@
 # llmx - Development Status
 
+## ROCm image input (2026-11-17, ROCVIS1 then ROCVIS2, branch feat/rocm-vision on main a274cfd62; F2DEV reviews)
+- **Goal:** `--mmproj` on ROCm (and CUDA, from the same GPU core) for Qwen3.8-Flash-Next's and DeepSeek-V4.1-Flash's encoders, held as the CPU and Vulkan paths are; it was refused at load on `layer_norm`.
+- **Op list:** of the ops the two encoders declare (`EncoderPlan::ops`), the GPU core lacked kernels for `layer_norm`, `gelu` and `add_bias`, and implemented but did not declare `rope_streams` (`norm_rope_partial`'s stream build) and `attention_full` (the attention kernels' non-causal views); every other call the encoders make (products on F32, F16 and BF16, `rms_norm_rows`, `silu_mul`, `add`, `kv_write`, `gather_rows`, `copy`, `mix_rows`) it already ran.
+- **Done:** `llmx_layer_norm_rows`, `llmx_gelu` and `llmx_add_bias` in `kernels/f32.gpu` with their calls in `backend_core.hpp`, F32 as Vulkan's shaders; the five ops in `implements`; Vulkan's device-agnostic vision op checks moved to `tests/vision_checks.hpp`, run by `backend-vulkan`, `backend-rocm` (`vision`) and `backend-cuda` (`vision`).
+- **Left:** the hosted run builds `llmx-backend-rocm-test` with no device (`.github/workflows/ci.yml`), so the gate is these hand checks: `backend-rocm vision` on one MI50; the suite's `--only vision,image --device rocm:0`, which forces `--dtype f32` (HF), with the 0.8B mmproj-BF16 file-exact cell on disk; the CUDA build of `llmx-backend-cuda-test`; and Vulkan's `backend-vulkan` still passing.
+  Corn and carrots on Qwen3.8-Flash-Next (four MI50s) and DeepSeek-V4.1-Flash (ten) are a smoke check, not HF: the encoder takes the model's dtype (`media.hpp`), so at the device default its products run the 16-bit twins that docs/PRECISION.md budgets.
+  A record, not a gate (docs/VISION.md, section 10): the encode time of an image on ROCm beside Vulkan's and the CPU's on the same MI50, for both encoders.
+  README's four-MI50 example on rel/0.2.0 gets `--mmproj` and `--image-max-tokens 4k` back once this lands.
+- **Gates (2026-11-18, ROCVIS2, tree ca1dfb593, `llmx 0.1.0+gca1dfb593503`, one MI50 of the Linux rig):** `backend-rocm vision` PASS, 5756256 values against the CPU with the seven kernels launched.
+  The suite's `--only vision,image --device rocm:0` PASS: the tiny tower's worst row error 1.78e-06 of the row scale against 1e-05; the deepseek41v tower 2.67e-08 to 7.63e-08 against bounds of 1.52e-07 to 3.08e-07; the 0.8B mmproj-BF16 file-exact cells 2.66e-05, 3.94e-06 and 5.47e-06 against 1.18e-04 (HF float32 5.91e-05, 6.16e-06, 1.69e-05); `image` max logit error 1.50e-06 (qwen35) and 4.55e-06 (qwen4exp).
+  `llmx-backend-vulkan-test` passes on one MI50 from the same tree with its vision line; the CUDA build compiles `llmx` and `llmx-backend-cuda-test`; `docs` and `dead-code` pass; the later delta is the CUDA test's witness alone.
+- **Gotchas:** with this change the core implements every op that has a refusing method, so `backend-rocm` checks `implements` against the two capability ops it lacks (`mixed_experts`, `sigmoid_routing`) rather than calling one.
+
 ## Drafting set (2026-11-17, Done)
 
 **Goal.** One set of three prompts, hard, medium and easy, on which every drafter is measured on every model, and one rule for drafting and prefill, at the owner's word of 2026-11-17.

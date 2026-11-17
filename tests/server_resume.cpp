@@ -5547,6 +5547,42 @@ void host_growth(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint
     std::cout << "server-resume: " << what << ": six slabs taken by an idle scheduler, none allocated over four turns that evict and promote\n";
 }
 
+// The idle growth takes a step at a time (Cache::grow_ahead), so a request arriving while a step's slabs are being made on the stages' threads waits for that step alone, never for every slab of the tier queued ahead of its passes.
+// The cache's device work is held by the test in place of the stages' threads, so the order is the test's: rounds while a step is unmade take nothing more, and each step once made lets the next go until the tier is whole.
+void host_growth_one_step(const gguf::GGUFModel& weights) {
+    const std::string what = "the idle growth a step at a time";
+    const Make make = on(weights, [] { return cpus(1); }, 3);
+    auto model = make(512, 0);
+    const size_t slab = infer::Model::host_slab_bytes(), tier = 8;
+    std::mutex m;
+    server::Cache cache(*model, m, server::Scheduler::pools_of(*model), 3, tier * slab, server::Scheduler::request_limit(*model, 0), std::chrono::seconds(10), std::nullopt,
+                        std::nullopt, server::Cache::Clock::now());
+    std::vector<infer::Model::StageItem> held;
+    cache.on_defer([&](infer::Model::StageItem it) { held.push_back(std::move(it)); });
+    size_t steps = 0;
+    for (bool took = true; took;) {
+        size_t step = 0, after = 0;
+        {
+            std::lock_guard<std::mutex> lk(m);
+            took = cache.grow_ahead();
+            step = model->host_allocated();
+            for (int round = 0; round < 3; ++round) cache.grow_ahead();
+            after = model->host_allocated();
+        }
+        require(after == step, what + ": " + std::to_string(after / slab) + " slabs queued by idle rounds while a step of " + std::to_string(step / slab) +
+                                   " was still to be made, against that step alone");
+        steps += took ? 1 : 0;
+        require(steps <= tier, what + ": more steps than the tier's slabs");
+        std::vector<infer::Model::StageItem> run = std::move(held);
+        held.clear();
+        for (infer::Model::StageItem& it : run) it.run();
+        cache.copies_retired();
+    }
+    require(model->host_allocated() == tier * slab,
+            what + ": " + std::to_string(model->host_allocated() / slab) + " slabs taken once each step was made, against the tier's " + std::to_string(tier));
+    std::cout << "server-resume: " << what << ": " << tier << " slabs in " << steps << " steps, none queued behind a step still to be made\n";
+}
+
 // The host pool under memory pressure, through the scheduler, the host's free memory given by the test as a base less the pool's own slabs (docs/src/server.md).
 // The idle growth stops where a step would leave less than twice the reserve, a host below the reserve gets an idle slab back once and nothing is taken again, and the histories held in host memory still serve.
 void host_pool_pressure(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
@@ -6184,6 +6220,7 @@ int main(int argc, char** argv) {
             disk_age_restart(one, tok, vocab);
             disk_idle_past(one, tok, vocab);
             host_growth(weights, tok, vocab);
+            host_growth_one_step(weights);
             host_pool_pressure(weights, tok, vocab);
             host_pool_shortest_copy();
             for (const Behind arm : {Behind::read, Behind::no_memory, Behind::at_once}) boundary_is_not_a_history(mixed, arm);

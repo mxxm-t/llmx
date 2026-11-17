@@ -185,7 +185,9 @@ cmake --build build --config Release --parallel
 ```
 
 Without the headers or the compiler, configuring stops with `LLMX_HAS_BACKEND_ROCM needs hip/hip_runtime_api.h and the ROCm clang++: install the ROCm SDK, or set ROCM_PATH`, and on another system with `LLMX_HAS_BACKEND_ROCM is Linux only`.
-The HIP kernels are compiled at build time to code objects for gfx906 and gfx1151 and embedded in the binary, with a second build of the 16-bit integer products for gfx906; only gfx906 (AMD MI50) has run them.
+The HIP kernels are compiled at build time to code objects for gfx906, gfx942 and gfx1151 and embedded in the binary, with a second build of the 16-bit integer products for gfx906 alone; only gfx906 (AMD MI50) has run them.
+gfx942 (AMD MI300X) is built so a ROCm build and the release's binaries load on it, but no llmx run on an MI300X is recorded and it is not checked against Hugging Face there ([ROCM](ROCM.md)).
+The ROCm 10 SDK seen in the cloud image keeps its clang++ under `lib/llvm/bin`, and the configure finds it there too.
 Nothing links against the HIP runtime: llmx opens `libamdhip64.so` when a ROCm device is first asked for, so a ROCm build still runs on the CPU or a Vulkan device on a machine without ROCm, and `--device rocm:N` there fails with a message.
 The device checks recorded in [STATUS](STATUS.md) ran under ROCm 7.2.1.
 gfx906 is deprecated in ROCm, in maintenance mode since 5.7, so an MI50 or Radeon VII may need a community or self-built ROCm ([ROADMAP](ROADMAP.md)).

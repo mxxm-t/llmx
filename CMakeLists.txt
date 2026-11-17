@@ -386,11 +386,11 @@ if(LLMX_HAS_BACKEND_ROCM)
         message(FATAL_ERROR "LLMX_HAS_BACKEND_ROCM is Linux only")
     endif()
     find_path(LLMX_HIP_INCLUDE_DIR hip/hip_runtime_api.h HINTS $ENV{ROCM_PATH}/include /opt/rocm/include)
-    find_program(LLMX_HIP_CLANG clang++ HINTS $ENV{ROCM_PATH}/llvm/bin /opt/rocm/llvm/bin NO_DEFAULT_PATH)
+    find_program(LLMX_HIP_CLANG clang++ HINTS $ENV{ROCM_PATH}/llvm/bin $ENV{ROCM_PATH}/lib/llvm/bin /opt/rocm/llvm/bin NO_DEFAULT_PATH)
     if(NOT LLMX_HIP_INCLUDE_DIR OR NOT LLMX_HIP_CLANG)
         message(FATAL_ERROR "LLMX_HAS_BACKEND_ROCM needs hip/hip_runtime_api.h and the ROCm clang++: install the ROCm SDK, or set ROCM_PATH")
     endif()
-    # Kernels are HIP in the tree, compiled to a code object for each target and linked in as bytes (llmx_embed_modules); gfx1151 is compile coverage until hardware qualifies it.
+    # Kernels are HIP in the tree, compiled to a code object for each target and linked in as bytes (llmx_embed_modules); gfx942 (MI300X) and gfx1151 are not gated on hardware (docs/ROCM.md).
     # The compiler reads the SDK it was found with, never another HIP installed beside it.
     get_filename_component(LLMX_ROCM_ROOT ${LLMX_HIP_INCLUDE_DIR} DIRECTORY)
     set(LLMX_ROCM_KERNELS f32 int16)
@@ -401,7 +401,7 @@ if(LLMX_HAS_BACKEND_ROCM)
         set(bundle ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm/${kernel}.hipfb)
         add_custom_command(OUTPUT ${bundle}
             COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm
-            COMMAND ${LLMX_HIP_CLANG} ${LLMX_HIP_FLAGS} --offload-arch=gfx906 --offload-arch=gfx1151
+            COMMAND ${LLMX_HIP_CLANG} ${LLMX_HIP_FLAGS} --offload-arch=gfx906 --offload-arch=gfx942 --offload-arch=gfx1151
                     -I${CMAKE_CURRENT_SOURCE_DIR}/src -c ${LLMX_GPU_KERNEL_DIR}/${kernel}.gpu -o ${bundle}
             DEPENDS ${LLMX_GPU_KERNEL_DIR}/${kernel}.gpu ${LLMX_GPU_KERNEL_DIR}/quant.h ${LLMX_GPU_KERNEL_DIR}/port.h ${LLMX_GPU_KERNEL_DIR}/shapes.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp
             COMMENT "hip ${kernel}"

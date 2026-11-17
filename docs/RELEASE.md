@@ -22,7 +22,7 @@ Both archives hold `LICENSE` and `THIRD_PARTY_NOTICES.md`.
 `docker/release/build-linux.sh` builds it in an Ubuntu 22.04 container with libstdc++ and libgcc linked in, so the oldest C library it accepts is that release's.
 The Vulkan loader (`libvulkan.so.1`) and the HIP runtime (`libamdhip64.so`) are opened when a device of their kind is first asked for, as every build does ([BUILD](BUILD.md)), so the binary runs on the CPU on a machine with neither, and `--device vulkan:N` or `--device rocm:N` there fails with a message.
 The script refuses a binary that names any other shared library, or that does not name those two for opening at run time, and prints the newest glibc symbol version it uses.
-The ROCm kernels are embedded for gfx906 and gfx1151 ([BUILD](BUILD.md), The ROCm backend on Linux), and the Vulkan shaders for every device.
+The ROCm kernels are embedded for gfx906, gfx942 and gfx1151 ([BUILD](BUILD.md), The ROCm backend on Linux), and the Vulkan shaders for every device.
 
 **The Windows binary** is the CMake Vulkan build of [BUILD](BUILD.md) with the Vulkan SDK the workflow pins; it opens the `vulkan-1.dll` the GPU driver installs.
 

@@ -13,6 +13,18 @@
 - **Left:** the hosted run at the head that lands. Next on the cache-and-context plan, not this branch: keep the kept rows' KV across the cut instead of reading them again, the 162.7 s stall above.
 - **Gotchas:** a random tiny model whose head is tied to its embedding repeats one character, so the check uses untied weights of seed 1, whose replies vary with the history.
 
+## gfx942 default ROCm target (2026-11-17, MI300, branch feat/gfx942-default-target on main a274cfd62)
+
+- **Goal:** ROCm builds, the release's Linux tarball and its rocm7 image carry gfx942 code objects, so they run on an AMD MI300X (owner's decision of 2026-11-17).
+- **Done:** CMake, the one owner of the target list, builds the f32 and int16 modules for gfx906, gfx942 and gfx1151; the 16-bit integer dot module stays gfx906 alone, so gfx942 runs the plain int16 module (`DeviceCaps::integer_dot` false), as no MI300X has run the dot module.
+  The release scripts and Dockerfiles build through CMake and name no target, so they follow.
+  The ROCm 10 clang++ path (`lib/llvm/bin`) is searched too, from cloud1/mi300x-dev; that branch's ROCm 10 image stage is not carried, since the release images and the rig build on 7.2.1.
+  Wave width, compute units and shared memory are read from the device (`rocm_device.hpp`), so gfx942 needs no device numbers; `tuned_devices` has no MI300X row and it takes the defaults.
+  README, BUILD, RELEASE, ROCM and `docs/src/backends-gpu.md` name gfx942 as built and not run.
+- **Not run on an MI300X:** no llmx run on an MI300X is recorded; the one approved droplet create of 2026-11-13 left no results under the cloud tooling's results directory and no delete, and the devlog holds no MI300X session result. gfx942 is not checked against HF.
+- **Gates:** ROCm 7.2.1 image, cold builds of main a274cfd62 and the branch at once, 4 CPUs and 12 GiB each, host load 34 to 42 on 16 CPUs: HIP kernels 748 s to 1080 s (+44%), whole build 3029 s to 3521 s (+16%), `llmx` 25052784 to 32204400 bytes (+28.5%), f32.hipfb 2.72 to 4.03 MB, int16.hipfb 12.22 to 18.06 MB, int16dot.hipfb 4.55 MB in both. Code objects compiled from both trees at one path and unbundled a target each: with a fixed `-cuid` the gfx906 and gfx1151 f32 and int16 objects are byte identical, without it they differ only in the cuid name (0 disassembly lines of 2.45 M differ), and int16dot gfx906 is byte identical. CTest 94/94 on one MI50; suite docs and dead-code PASS.
+- **Left:** a smoke on an MI300X (rocm-runtime naming gfx942, `bench --device rocm:0`, CTest, the 0.6B HF baseline) when COORD runs one; the dot module on gfx942 and an MI300X profile row after it.
+
 ## Landing stack land-20261117 (2026-11-17, LAND68 then LAND69, Done)
 
 **What lands.** The stack on main 3b88cfb3a, in this order: formats/quant-gptq (tests, then the change), formats/quant-compressed (tests, then the change), formats/quant-fp8 step 1 (tests, then the change) and its Vulkan step, perf/stage-rounds, feat/deepseek41-vision's image input, perf/ds4-decode-attn (DSDEV229's rebase), and the DeepSeek-V4.1-Flash prompt stack: dspp26/rope-form, dspp26/q8-tall, perf/sparse-pair-staging and perf/mxfp4-tile-staging.

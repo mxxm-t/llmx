@@ -136,13 +136,13 @@ model=$(./build/llmx pull Qwen/Qwen3-0.6B-GGUF:Q8_0)
 |---|---|---|---|
 | CPU | x86-64 with AVX2, FMA and F16C | Windows, Linux, Intel macOS | Supported |
 | Vulkan | Vulkan 1.2 GPUs; tested on AMD Radeon VII, AMD MI50 and NVIDIA GeForce RTX 3060 | Windows, Linux | Supported |
-| ROCm (HIP) | AMD GPUs; tested on AMD MI50 (gfx906) | Linux | Supported |
+| ROCm (HIP) | AMD GPUs; tested on AMD MI50 (gfx906), built also for AMD MI300X (gfx942) | Linux | Supported |
 | CUDA | NVIDIA GPUs; tested on NVIDIA GeForce RTX 3060 and RTX 3090 | Linux | In development: dense `qwen3` and `qwen35` with `F32`, `F16` and `int8` activations, one device; see [CUDA](docs/CUDA.md) |
 | SYCL | Intel GPUs | | Planned |
 
 ARM CPUs, Apple Silicon included, are not supported.
 The Vulkan kernels are tuned for AMD GPUs' 64-wide subgroups; they run on NVIDIA GPUs, tested on the one card named above, and other GPUs are untested.
-The ROCm kernels are built for gfx906 and gfx1151 (Strix Halo), and only gfx906 has run them.
+The ROCm kernels are built for gfx906, gfx942 (MI300X) and gfx1151 (Strix Halo), and only gfx906 has run them: MI300X and Strix Halo are untested and not checked against Hugging Face.
 Pick a device with `--device cpu` (the default), `--device vulkan:N`, `--device rocm:N` or, in a CUDA build, `--device cuda:N`; see [USAGE](docs/USAGE.md#device-selection---device).
 
 ## Multi-device modes

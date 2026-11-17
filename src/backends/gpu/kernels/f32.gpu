@@ -3480,115 +3480,6 @@ extern "C" __global__ void llmx_pool_write(float* aux, const float* src, const u
     aux[at[g] + (i - g * width)] = src[i];
 }
 
-// Sparse attention with a sink runs as two kernels over a scratch row a call row from first_row: p by kept row then head, the denominators, the kept rows and their counts.
-// A block a (row, head): the kept rows, each kept row's dot on its own thread, the softmax over them and exp(sink - max) in the denominator; head 0 writes the kept rows.
-extern "C" __global__ void __launch_bounds__(kThreads) llmx_sparse_softmax(float* pt, float* den, const float** kept, unsigned* counts, const float* q, const float* kv, const unsigned* ids, const float* sink,
-                                               const float* aux, const unsigned* rows, const unsigned* entries, unsigned heads, unsigned dim, unsigned k, unsigned entry_k,
-                                               float scale, unsigned kv_rows, unsigned tokens, unsigned bt, unsigned long long block_floats, unsigned rows_floats, unsigned width,
-                                               unsigned kv_format, unsigned entry_format, unsigned kv_words, unsigned first_row) {
-    __shared__ float pr[1024], red[kThreads], lut[272];
-    __shared__ const float* at[1024];
-    __shared__ unsigned cnt[kThreads], kept_kv;
-    const unsigned rh = blockIdx.x, s_r = rh / heads, h = rh - s_r * heads, r = first_row + s_r, named = k + entry_k, tid = threadIdx.x;
-    const unsigned visible = rows ? rows[2u * r + 1u] / tokens : 0u;
-    const float* qr = q + ((unsigned long long)r * heads + h) * dim;
-    for (unsigned c = tid; c < 272u; c += kThreads) lut[c] = c < 256u ? e4m3_value(c) : e2m1_value(c - 256u);
-    if (tid == 0) kept_kv = 0;
-    // A thread a run of consecutive named rows, so a scan of the counts keeps their order.
-    constexpr unsigned kPer = 1024u / kThreads;
-    const unsigned per = (named + kThreads - 1) / kThreads, t0 = tid * per;
-    const float* mine[kPer];
-    unsigned n = 0, nk = 0;
-    for (unsigned i = 0; i < per; ++i) {
-        const unsigned t = t0 + i;
-        const float* row = nullptr;
-        if (t < named) {
-            const unsigned j = t < k ? ids[(unsigned long long)r * k + t] : entries[(unsigned long long)r * entry_k + t - k];
-            if (t < k && j < kv_rows) row = kv + (unsigned long long)j * kv_words;
-            else if (t >= k && j < visible) row = aux + pooled_at(rows, r, j, tokens, bt, block_floats, rows_floats, width);
-        }
-        if (row) mine[n++] = row, nk += t < k;
-    }
-    cnt[tid] = n;
-    __syncthreads();
-    if (nk) atomicAdd(&kept_kv, nk);
-    for (unsigned s = 1; s < kThreads; s <<= 1) {
-        const unsigned v = tid >= s ? cnt[tid - s] : 0u;
-        __syncthreads();
-        cnt[tid] += v;
-        __syncthreads();
-    }
-    const unsigned first = cnt[tid] - n, total = cnt[kThreads - 1];
-    for (unsigned i = 0; i < n; ++i) at[first + i] = mine[i];
-    __syncthreads();
-    const unsigned kk = kept_kv;
-    if (h == 0) {
-        for (unsigned i = 0; i < n; ++i) kept[(unsigned long long)s_r * named + first + i] = mine[i];
-        if (tid == 0) counts[2u * s_r] = total, counts[2u * s_r + 1u] = kk;
-    }
-    float peak = -1e30f;
-    for (unsigned c = tid; c < total; c += kThreads) {
-        pr[c] = lut_dot_any(qr, at[c], dim, c < kk ? kv_format : entry_format, lut) * scale;
-        peak = fmaxf(peak, pr[c]);
-    }
-    red[tid] = peak;
-    __syncthreads();
-    for (unsigned s = kThreads / 2; s > 0; s >>= 1) {
-        if (tid < s) red[tid] = fmaxf(red[tid], red[tid + s]);
-        __syncthreads();
-    }
-    peak = red[0];
-    for (unsigned c = tid; c < total; c += kThreads) {
-        pr[c] = expf(pr[c] - peak);
-        pt[((unsigned long long)s_r * named + c) * heads + h] = pr[c];
-    }
-    __syncthreads();
-    if (tid == 0) {
-        float sum = 0.0f;
-#pragma unroll 8
-        for (unsigned c = 0; c < total; ++c) sum += pr[c];
-        den[rh] = sum + expf(sink[h] - peak);
-    }
-}
-// A block kSparseColumns columns of one row for every head: the kept rows' values of those columns decoded once into shared memory, then a lane a head and two columns.
-// Each output is p times value over the kept rows in their order, divided by its head's denominator, as the CPU sums it.
-constexpr unsigned kSparseColumns = 2u * kThreads / 64u, kSparseNamed = 1024u;
-extern "C" __global__ void llmx_sparse_columns(float* out, const float* pt, const float* den, const float* const* kept, const unsigned* counts, unsigned heads, unsigned dim,
-                                               unsigned named, unsigned kv_format, unsigned entry_format, unsigned first_row) {
-    __shared__ float vals[kSparseNamed * kSparseColumns];
-    const unsigned r = blockIdx.y, d0 = blockIdx.x * kSparseColumns, tid = threadIdx.x, total = counts[2u * r], kk = counts[2u * r + 1u];
-    const float* const* kr = kept + (unsigned long long)r * named;
-    for (unsigned i = tid; i < total * kSparseColumns; i += kThreads) {
-        const unsigned c = i / kSparseColumns, j = i - c * kSparseColumns, d = d0 + j;
-        vals[i] = d < dim ? stored_value(kr[c], d, c < kk ? kv_format : entry_format) : 0.0f;
-    }
-    __syncthreads();
-    const unsigned lane = tid % 64u, col = tid / 64u * 2u;
-    const float* pr = pt + (unsigned long long)r * named * heads;
-    for (unsigned h = lane; h < heads; h += 64u) {
-        float o0 = 0.0f, o1 = 0.0f;
-        unsigned c = 0;
-        for (; c + 8u <= total; c += 8u) {
-            float pv[8];
-#pragma unroll
-            for (unsigned u = 0; u < 8u; ++u) pv[u] = pr[(unsigned long long)(c + u) * heads + h];
-#pragma unroll
-            for (unsigned u = 0; u < 8u; ++u) {
-                o0 = fmaf(pv[u], vals[(c + u) * kSparseColumns + col], o0);
-                o1 = fmaf(pv[u], vals[(c + u) * kSparseColumns + col + 1u], o1);
-            }
-        }
-        for (; c < total; ++c) {
-            const float p = pr[(unsigned long long)c * heads + h];
-            o0 = fmaf(p, vals[c * kSparseColumns + col], o0);
-            o1 = fmaf(p, vals[c * kSparseColumns + col + 1u], o1);
-        }
-        const float dn = den[(unsigned long long)r * heads + h];
-        float* o = out + ((unsigned long long)(first_row + r) * heads + h) * dim + d0 + col;
-        if (d0 + col < dim) o[0] = o0 / dn;
-        if (d0 + col + 1u < dim) o[1] = o1 / dn;
-    }
-}
 constexpr unsigned kSparseTileHeads = 64u, kSparseTileWide = 128u, kSparseStep = 32u;   // the tile pair's 64 heads by 128 kept rows or columns a block, staged 32 deep
 // Eight consecutive stored values of a row from a multiple of 8, read into registers ahead of their use and decoded later as stored_value gives them; format 4 reads as zeros.
 struct Raw8 {
@@ -3622,8 +3513,269 @@ __device__ inline void raw8_read_row(Raw8& x, const float* row, unsigned d, unsi
         default: return raw8_read<2u>(x, row, d);
     }
 }
+// Below kSparseWideRows rows a chunk takes the few-row pair, TH heads by TW kept rows (scores) or columns (values) a block and A heads by B of them a lane, the build chosen from the device's units.
+// Its split cuts kept rows only in the scores kernel and heads and columns only in the values kernel, so each score stays one chain in d order and each (head, column) one chain in kept-row order on one thread.
+template <unsigned B>
+__device__ inline void few_load(float (&v)[B], const float* p) {
+    if constexpr (B == 2u) {
+        const float2 t = *(const float2*)p;
+        v[0] = t.x, v[1] = t.y;
+    } else
+        v[0] = p[0];
+}
+__device__ inline float lane4(const float4& v, unsigned u) { return u == 0u ? v.x : u == 1u ? v.y : u == 2u ? v.z : v.w; }
+template <unsigned TH, unsigned TW, unsigned A, unsigned B, unsigned S>
+__device__ inline void sparse_scores_few(float* pt, float* tmax, const float** kept, unsigned* counts, const float* q, const float* kv, const unsigned* ids, const float* aux,
+                                         const unsigned* rows, const unsigned* entries, unsigned heads, unsigned dim, unsigned k, unsigned entry_k, float scale, unsigned kv_rows,
+                                         unsigned tokens, unsigned bt, unsigned long long block_floats, unsigned rows_floats, unsigned width, unsigned kv_format,
+                                         unsigned entry_format, unsigned kv_words, unsigned first_row) {
+    constexpr unsigned LW = TW / B, NT = (TH / A) * LW, PW = TW + 4u, QS = S + 4u, kPer = 1024u / NT, QN = TH * S / NT, KE = S * TW / NT, KT = S / KE, KR = KE / 8u;
+    static_assert(TH % A == 0u && TW % B == 0u && QN * NT == TH * S && KE * NT == S * TW && KT * KE == S && KR * 8u == KE && KR >= 1u && S % 4u == 0u, "few-row scores shape");
+    __shared__ __attribute__((aligned(16))) float ks[S * PW], qs[TH * QS];
+    __shared__ float lut[272];
+    __shared__ const float* at[TW];
+    __shared__ unsigned cnt[NT], kept_kv;
+    const unsigned s_r = blockIdx.y, r = first_row + s_r, named = k + entry_k, tid = threadIdx.x, c0 = blockIdx.x * TW, ntiles = (named + TW - 1u) / TW, hg = blockIdx.z * TH;
+    const unsigned visible = rows ? rows[2u * r + 1u] / tokens : 0u;
+    for (unsigned c = tid; c < 272u; c += NT) lut[c] = c < 256u ? e4m3_value(c) : e2m1_value(c - 256u);
+    if (tid == 0) kept_kv = 0;
+    // A thread a run of consecutive named rows, their ids then their rows read as one round each, so a scan of the counts keeps their order.
+    const unsigned per = (named + NT - 1) / NT, t0 = tid * per;
+    unsigned jj[kPer];
+#pragma unroll
+    for (unsigned i = 0; i < kPer; ++i) {
+        const unsigned t = t0 + i;
+        jj[i] = i < per && t < named ? (t < k ? ids[(unsigned long long)r * k + t] : entries[(unsigned long long)r * entry_k + t - k]) : ~0u;
+    }
+    const float* mine[kPer];
+    unsigned n = 0, nk = 0;
+#pragma unroll
+    for (unsigned i = 0; i < kPer; ++i) {
+        const unsigned t = t0 + i, j = jj[i];
+        mine[i] = nullptr;
+        if (i < per && t < k && j < kv_rows) mine[i] = kv + (unsigned long long)j * kv_words;
+        else if (i < per && t >= k && t < named && j < visible) mine[i] = aux + pooled_at(rows, r, j, tokens, bt, block_floats, rows_floats, width);
+        n += mine[i] != nullptr, nk += mine[i] != nullptr && t < k;
+    }
+    cnt[tid] = n;
+    __syncthreads();
+    if (nk) atomicAdd(&kept_kv, nk);
+    for (unsigned s = 1; s < NT; s <<= 1) {
+        const unsigned v = tid >= s ? cnt[tid - s] : 0u;
+        __syncthreads();
+        cnt[tid] += v;
+        __syncthreads();
+    }
+    const unsigned total = cnt[NT - 1];
+    const bool lead = blockIdx.x == 0 && blockIdx.z == 0;
+    unsigned m = cnt[tid] - n;
+#pragma unroll
+    for (unsigned i = 0; i < kPer; ++i)
+        if (mine[i]) {
+            if (m - c0 < TW) at[m - c0] = mine[i];
+            if (lead) kept[(unsigned long long)s_r * named + m] = mine[i];
+            ++m;
+        }
+    __syncthreads();
+    const unsigned kk = kept_kv;
+    if (lead && tid == 0) counts[2u * s_r] = total, counts[2u * s_r + 1u] = kk;
+    if (c0 >= total) {
+        // A tile past the kept rows writes only its maxima.
+        for (unsigned t = tid; t < TH; t += NT)
+            if (hg + t < heads) tmax[((unsigned long long)s_r * ntiles + blockIdx.x) * heads + hg + t] = -1e30f;
+        return;
+    }
+    // Staging: the block's queries S dims at a time in thread order, and KE dims of one kept row a thread as reads of 8.
+    const unsigned th = tid / LW, tc = tid % LW, ke = tid / KT, kd = tid % KT * KE, c = c0 + ke, cf = c < kk ? kv_format : entry_format;
+    const float* krow = c < total ? at[ke] : nullptr;
+    const float* qb = q + (unsigned long long)r * heads * dim;
+    float qn[QN];
+    Raw8 kn[KR];
+    const auto read = [&](unsigned d0) {
+#pragma unroll
+        for (unsigned j = 0; j < QN; ++j) {
+            const unsigned i = tid + j * NT, hh = hg + i / S, d = d0 + i % S;
+            qn[j] = hh < heads && d < dim ? qb[(unsigned long long)hh * dim + d] : 0.0f;
+        }
+#pragma unroll
+        for (unsigned j = 0; j < KR; ++j) raw8_read_row(kn[j], krow, d0 + kd + 8u * j, dim, cf);
+    };
+    read(0);
+    float acc[A][B];
+#pragma unroll
+    for (unsigned a = 0; a < A; ++a)
+#pragma unroll
+        for (unsigned b = 0; b < B; ++b) acc[a][b] = 0.0f;
+    for (unsigned d0 = 0; d0 < dim; d0 += S) {
+        __syncthreads();
+#pragma unroll
+        for (unsigned j = 0; j < QN; ++j) {
+            const unsigned i = tid + j * NT;
+            qs[(i / S) * QS + i % S] = qn[j];
+        }
+#pragma unroll
+        for (unsigned j = 0; j < KR; ++j)
+#pragma unroll
+            for (unsigned i = 0; i < 8u; ++i) ks[(kd + 8u * j + i) * PW + ke] = raw8_value(kn[j], i, lut, krow, d0 + kd + 8u * j, dim, cf);
+        __syncthreads();
+        if (d0 + S < dim) read(d0 + S);
+        const unsigned steps = dim - d0 < S ? dim - d0 : S;
+        const float *qp = qs + th * A * QS, *kp = ks + tc * B;
+        // A head's query is one address across its lanes, read four steps at a time.
+        if (steps == S) {
+#pragma unroll 2
+            for (unsigned i = 0; i < S; i += 4u) {
+                float4 qv[A];
+#pragma unroll
+                for (unsigned a = 0; a < A; ++a) qv[a] = *(const float4*)(qp + a * QS + i);
+#pragma unroll
+                for (unsigned u = 0; u < 4u; ++u) {
+                    float kx[B];
+                    few_load<B>(kx, kp + (i + u) * PW);
+#pragma unroll
+                    for (unsigned a = 0; a < A; ++a)
+#pragma unroll
+                        for (unsigned b = 0; b < B; ++b) acc[a][b] = fmaf(lane4(qv[a], u), kx[b], acc[a][b]);
+                }
+            }
+        } else
+            for (unsigned i = 0; i < steps; ++i)
+#pragma unroll
+                for (unsigned a = 0; a < A; ++a)
+#pragma unroll
+                    for (unsigned b = 0; b < B; ++b) acc[a][b] = fmaf(qp[a * QS + i], kp[i * PW + b], acc[a][b]);
+    }
+#pragma unroll
+    for (unsigned a = 0; a < A; ++a) {
+        const unsigned h = hg + th * A + a;
+        float peak = -1e30f;
+#pragma unroll
+        for (unsigned b = 0; b < B; ++b) {
+            const unsigned cb = c0 + tc * B + b;
+            const float pv = acc[a][b] * scale;
+            if (cb < total && h < heads) pt[((unsigned long long)s_r * named + cb) * heads + h] = pv, peak = fmaxf(peak, pv);
+        }
+        // The LW lanes of a head are consecutive lanes of one wave.
+        for (unsigned o = LW / 2u; o > 0; o >>= 1) peak = fmaxf(peak, shuffle_xor(peak, o, LW));
+        if (tc == 0 && h < heads) tmax[((unsigned long long)s_r * ntiles + blockIdx.x) * heads + h] = peak;
+    }
+}
+// Each output is p times value over the kept rows in their order over the sum of p in order plus exp(sink - max), as the CPU sums it; the head's maximum over the scores kernel's tiles, `tile` kept rows each, is exact in any order.
+template <unsigned TH, unsigned TW, unsigned A, unsigned B, unsigned S>
+__device__ inline void sparse_values_few(float* out, const float* pt, const float* tmax, const float* const* kept, const unsigned* counts, const float* sink, unsigned heads,
+                                         unsigned dim, unsigned named, unsigned tile, unsigned kv_format, unsigned entry_format, unsigned first_row) {
+    constexpr unsigned LW = TW / B, NT = (TH / A) * LW, PW = TW + 4u, QS = S + 4u, PN = TH * S / NT, G = NT / TH;
+    constexpr unsigned TPR = NT >= S ? NT / S : 1u, RPT = S >= NT ? S / NT : 1u, VE = TW / TPR, VR = VE / 8u, RS = NT / TPR;
+    static_assert(TH % A == 0u && TW % B == 0u && PN * NT == TH * S && G * TH == NT && G <= 32u && TPR * RS == NT && RS * RPT == S && VE * TPR == TW && VR * 8u == VE && VR >= 1u &&
+                      S % 4u == 0u,
+                  "few-row values shape");
+    __shared__ __attribute__((aligned(16))) float vs[S * PW], ps[TH * QS];
+    __shared__ float lut[272], pk[TH];
+    const unsigned r = blockIdx.y, d0 = blockIdx.x * TW, hg = blockIdx.z * TH, tid = threadIdx.x, total = counts[2u * r], kk = counts[2u * r + 1u];
+    const unsigned ntiles = (named + tile - 1u) / tile, used = (total + tile - 1u) / tile, th = tid / LW, tc = tid % LW;
+    const float* const* kr = kept + (unsigned long long)r * named;
+    const float* pr = pt + (unsigned long long)r * named * heads;
+    for (unsigned c = tid; c < 272u; c += NT) lut[c] = c < 256u ? e4m3_value(c) : e2m1_value(c - 256u);
+    // Each head's maximum by G consecutive lanes.
+    {
+        const unsigned hl = tid / G, sub = tid % G, h = hg + hl;
+        float peak = -1e30f;
+        if (h < heads)
+            for (unsigned t = sub; t < used; t += G) peak = fmaxf(peak, tmax[((unsigned long long)r * ntiles + t) * heads + h]);
+        for (unsigned o = G / 2u; o > 0; o >>= 1) peak = fmaxf(peak, shuffle_xor(peak, o, G));
+        if (sub == 0) pk[hl] = peak;
+    }
+    __syncthreads();
+    // Staging: the block's scores S kept rows at a time in thread order, and VE columns' values of RPT kept rows a thread as reads of 8.
+    const unsigned cr = tid / TPR, pc = tid % TPR * VE;
+    float pn[PN];
+    Raw8 vn[RPT][VR];
+    const float* vp[RPT];
+    const auto read = [&](unsigned c0) {
+#pragma unroll
+        for (unsigned j = 0; j < PN; ++j) {
+            const unsigned i = tid + j * NT, hh = hg + i % TH, c = c0 + i / TH;
+            pn[j] = c < total && hh < heads ? pr[(unsigned long long)c * heads + hh] : 0.0f;
+        }
+#pragma unroll
+        for (unsigned e = 0; e < RPT; ++e) {
+            const unsigned c = c0 + cr + e * RS;
+            vp[e] = c < total ? kr[c] : nullptr;
+#pragma unroll
+            for (unsigned j = 0; j < VR; ++j) raw8_read_row(vn[e][j], vp[e], d0 + pc + 8u * j, dim, c < kk ? kv_format : entry_format);
+        }
+    };
+    if (total) read(0);
+    float o[A][B], sum[A];
+#pragma unroll
+    for (unsigned a = 0; a < A; ++a) {
+        sum[a] = 0.0f;
+#pragma unroll
+        for (unsigned b = 0; b < B; ++b) o[a][b] = 0.0f;
+    }
+    for (unsigned c0 = 0; c0 < total; c0 += S) {
+        __syncthreads();
+#pragma unroll
+        for (unsigned j = 0; j < PN; ++j) {
+            const unsigned i = tid + j * NT, hl = i % TH, l = i / TH;
+            ps[hl * QS + l] = c0 + l < total && hg + hl < heads ? expf(pn[j] - pk[hl]) : 0.0f;
+        }
+#pragma unroll
+        for (unsigned e = 0; e < RPT; ++e) {
+            const unsigned l = cr + e * RS, c = c0 + l;
+#pragma unroll
+            for (unsigned j = 0; j < VR; ++j)
+#pragma unroll
+                for (unsigned i = 0; i < 8u; ++i)
+                    vs[l * PW + pc + 8u * j + i] = raw8_value(vn[e][j], i, lut, vp[e], d0 + pc + 8u * j, dim, c < kk ? kv_format : entry_format);
+        }
+        __syncthreads();
+        if (c0 + S < total) read(c0 + S);
+        const unsigned n = total - c0 < S ? total - c0 : S;
+        const float *pp = ps + th * A * QS, *vq = vs + tc * B;
+        if (n == S) {
+#pragma unroll 2
+            for (unsigned i = 0; i < S; i += 4u) {
+                float4 p4[A];
+#pragma unroll
+                for (unsigned a = 0; a < A; ++a) p4[a] = *(const float4*)(pp + a * QS + i);
+#pragma unroll
+                for (unsigned u = 0; u < 4u; ++u) {
+                    float vx[B];
+                    few_load<B>(vx, vq + (i + u) * PW);
+#pragma unroll
+                    for (unsigned a = 0; a < A; ++a) {
+                        const float p = lane4(p4[a], u);
+                        sum[a] += p;
+#pragma unroll
+                        for (unsigned b = 0; b < B; ++b) o[a][b] = fmaf(p, vx[b], o[a][b]);
+                    }
+                }
+            }
+        } else
+            for (unsigned i = 0; i < n; ++i)
+#pragma unroll
+                for (unsigned a = 0; a < A; ++a) {
+                    const float p = pp[a * QS + i];
+                    sum[a] += p;
+#pragma unroll
+                    for (unsigned b = 0; b < B; ++b) o[a][b] = fmaf(p, vq[i * PW + b], o[a][b]);
+                }
+    }
+#pragma unroll
+    for (unsigned a = 0; a < A; ++a) {
+        const unsigned hl = th * A + a, h = hg + hl;
+        if (h >= heads) continue;
+        const float dn = sum[a] + expf(sink[h] - pk[hl]);
+#pragma unroll
+        for (unsigned b = 0; b < B; ++b) {
+            const unsigned col = d0 + tc * B + b;
+            if (col < dim) out[((unsigned long long)(first_row + r) * heads + h) * dim + col] = o[a][b] / dn;
+        }
+    }
+}
 // The tile pair: llmx_sparse_scores_tile writes scale * q.k a kept row and head and each 128-row tile's maximum a head, llmx_sparse_values_tile turns them into the softmax and the values.
-// A block of the scores kernel 128 kept rows of one row, a thread 4 heads by 8 kept rows, each dot one multiply-add chain in d order as llmx_sparse_softmax's, so every output keeps its bits.
+// A block of the scores kernel 128 kept rows of one row, a thread 4 heads by 8 kept rows, each dot one multiply-add chain in d order as the few-row pair's, so every output keeps its bits.
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_sparse_scores_tile(float* pt, float* tmax, const float** kept, unsigned* counts, const float* q, const float* kv,
                                                                             const unsigned* ids, const float* aux, const unsigned* rows, const unsigned* entries, unsigned heads,
                                                                             unsigned dim, unsigned k, unsigned entry_k, float scale, unsigned kv_rows, unsigned tokens, unsigned bt,
@@ -3807,6 +3959,40 @@ extern "C" __global__ void __launch_bounds__(kThreads, 2) llmx_sparse_values_til
         }
     }
 }
+
+// The few-row pair's builds; the host picks one from the device's units (backend_core.hpp, sparse_attention_sink, sparse_few_heads and sparse_few_two).
+#define LLMX_SPARSE_SCORES_ARGS                                                                                                                                                 \
+    float *pt, float *tmax, const float **kept, unsigned *counts, const float *q, const float *kv, const unsigned *ids, const float *aux, const unsigned *rows,                 \
+        const unsigned *entries, unsigned heads, unsigned dim, unsigned k, unsigned entry_k, float scale, unsigned kv_rows, unsigned tokens, unsigned bt,                     \
+        unsigned long long block_floats, unsigned rows_floats, unsigned width, unsigned kv_format, unsigned entry_format, unsigned kv_words, unsigned first_row
+#define LLMX_SPARSE_SCORES_PASS                                                                                                                                                 \
+    pt, tmax, kept, counts, q, kv, ids, aux, rows, entries, heads, dim, k, entry_k, scale, kv_rows, tokens, bt, block_floats, rows_floats, width, kv_format, entry_format,    \
+        kv_words, first_row
+#define LLMX_SPARSE_VALUES_ARGS                                                                                                                                                 \
+    float *out, const float *pt, const float *tmax, const float *const *kept, const unsigned *counts, const float *sink, unsigned heads, unsigned dim, unsigned named,         \
+        unsigned tile, unsigned kv_format, unsigned entry_format, unsigned first_row
+#define LLMX_SPARSE_VALUES_PASS out, pt, tmax, kept, counts, sink, heads, dim, named, tile, kv_format, entry_format, first_row
+// TH heads of 16 kept rows or columns a block, a lane one of them, staged 128 deep.
+#define LLMX_SPARSE_FEW(TH)                                                                                                                                                     \
+    extern "C" __global__ void __launch_bounds__(TH * 16u) llmx_sparse_scores_few##TH(LLMX_SPARSE_SCORES_ARGS) {                                                              \
+        sparse_scores_few<TH, 16u, 1u, 1u, 128u>(LLMX_SPARSE_SCORES_PASS);                                                                                                    \
+    }                                                                                                                                                                         \
+    extern "C" __global__ void __launch_bounds__(TH * 16u) llmx_sparse_values_few##TH(LLMX_SPARSE_VALUES_ARGS) {                                                              \
+        sparse_values_few<TH, 16u, 1u, 1u, 128u>(LLMX_SPARSE_VALUES_PASS);                                                                                                    \
+    }
+LLMX_SPARSE_FEW(16)
+LLMX_SPARSE_FEW(8)
+LLMX_SPARSE_FEW(4)
+LLMX_SPARSE_FEW(2)
+#undef LLMX_SPARSE_FEW
+// 32 heads by 32 kept rows a block, 2 by 2 a lane, staged 64 deep: half the shared reads a multiply-add, which a call takes once these blocks fill the device.
+extern "C" __global__ void __launch_bounds__(256) llmx_sparse_scores_few32(LLMX_SPARSE_SCORES_ARGS) { sparse_scores_few<32u, 32u, 2u, 2u, 64u>(LLMX_SPARSE_SCORES_PASS); }
+// 16 heads by 32 columns a block, two columns a lane, staged 64 deep, which a call takes once its one-column blocks fill the device.
+extern "C" __global__ void __launch_bounds__(256) llmx_sparse_values_few16x2(LLMX_SPARSE_VALUES_ARGS) { sparse_values_few<16u, 32u, 1u, 2u, 64u>(LLMX_SPARSE_VALUES_PASS); }
+#undef LLMX_SPARSE_SCORES_ARGS
+#undef LLMX_SPARSE_SCORES_PASS
+#undef LLMX_SPARSE_VALUES_ARGS
+#undef LLMX_SPARSE_VALUES_PASS
 
 // A wave a row: route_experts' sqrt_softplus rule in the CPU's order, s = sqrt(softplus(x)), the k picks by s + bias, highest first and ties to the lower id, weighed s / (sum + 1e-20) when normalizing more than one, then times scale.
 // Each pick is an exact argmax over (s + bias, id) by shuffles, the same in any order, and the sum runs in pick order on one lane; a row whose s + bias is not finite everywhere gives k picks of kNoExpert with weights 0.

@@ -29,4 +29,7 @@ std::unique_ptr<Collective> rocm_collective(const std::vector<Backend*>& members
 // The profile a ROCm backend shapes its kernels by, which kv-selection reads for the crossovers it checks and changes to run each selection form at one size.
 DeviceProfile& rocm_profile(Backend& backend);
 
+// The capabilities a ROCm backend's rules read at each call, which sparse_tile_pair changes to take each few-row build at another unit count.
+DeviceCaps& rocm_caps(Backend& backend);
+
 } // namespace backend

@@ -25,7 +25,7 @@ SPILL_ALLOWED = {
     "llmx_mxfp4_": "step 8, MXFP4",
     "llmx_route_step_": "step 8, the deepseek4 one-launch router, its eight sorted keys a lane on one wave: a few dozen bytes on sm_90 and sm_120",
     "llmx_indexer_": "step 8, the deepseek4 operations",
-    "llmx_sparse_": "main's llmx_sparse_scores_tile, 12 bytes on sm_120, which no card has run",
+    "llmx_sparse_": "step 8, the deepseek4 sparse attention: llmx_sparse_scores_tile on sm_120 and the few-row builds on sm_90, which no card has run",
     "llmx_moe_": "step 8, the routed MoE operations",
     "llmx_q4_0_": "step 8, Q4_0",
     "llmx_q4_1_": "step 8, Q4_1",

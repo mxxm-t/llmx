@@ -1,5 +1,6 @@
 // backend-rocm: the ROCm backend's buffers, tickets, refusals and dense F32 ops against the CPU backend, and each op's batch invariance; exits 77 without a runtime or a device.
 #include "backends/cpu/cpu_backend.hpp"
+#include "backends/gpu/backend_core.hpp"
 #include "backends/kv_storage.hpp"
 #include "backends/rocm/rocm_backend.hpp"
 #include "backends/rocm/rocm_device.hpp"
@@ -29,6 +30,7 @@
 #include <functional>
 #include <iostream>
 #include <map>
+#include <set>
 #include <string>
 #include <thread>
 #include <vector>
@@ -3800,31 +3802,70 @@ void sixteen_ranks() {
     std::cout << "backend-rocm: " << W << " ranks of the fast sum on one device in each form, into and in place, each the oracle's bits\n";
 }
 
-// The sparse tile pair: a 16-row call takes it at any head width, staged 32 values at a time, and gives every row the bits of the same row called alone, which the one-head pair runs.
-// The widths cover one step, a part step past a tile of 128 columns, and 70 heads, past one tile of 64 heads, with 150 kept rows past one tile of 128.
+// The sparse pairs: a 16-row call takes the tile pair and a 3-row call the few-row pair at the heads a block sparse_few_heads gives this device, and every row of either is that row called alone, bit for bit.
+// The widths cover one step, a part step past a tile of 128 columns, and 70 heads, past one tile of 64 heads, with 150 kept rows past one tile of 128; f32 rows 44 wide end in a part step and a part read of 8.
 void sparse_tile_pair(Backend& g) {
-    const size_t rows = 16, kv_rows = 160;
-    // The f32 rows 44 wide end in a partial 32-value step and a read of 4 values past the last whole 8.
+    const size_t kv_rows = 160;
+    const DeviceCaps& caps = rocm_device(0).caps;
+    std::set<std::string> seen;
     for (const auto& [dim, heads, k, fmt] : {std::tuple<size_t, size_t, size_t, ModelFormat>{32, 2, 24, ModelFormat::fp8_power}, {160, 3, 150, ModelFormat::fp8_power},
-                                            {64, 70, 40, ModelFormat::fp8_power}, {44, 3, 50, ModelFormat::f32}}) {
-        const size_t words = format_words(fmt, dim);
-        const std::vector<float> x = row_classes::values(kv_rows * dim, 71, 2.0f), q = row_classes::values(rows * heads * dim, 72), sink = row_classes::values(heads, 73);
-        std::vector<uint32_t> ids(rows * k);
-        for (size_t i = 0; i < ids.size(); ++i) ids[i] = uint32_t((i * 37 + i / k) % kv_rows);
-        auto xb = g.adopt(x.data(), x.size() * 4), qb = g.adopt(q.data(), q.size() * 4), sb = g.adopt(sink.data(), sink.size() * 4), ib = g.adopt(ids.data(), ids.size() * 4);
-        auto kv = g.alloc(kv_rows * words * 4), all = g.alloc(rows * heads * dim * 4), one = g.alloc(rows * heads * dim * 4);
-        if (fmt != ModelFormat::f32) g.model_format_pack({kv.get(), 0}, words, {xb.get(), 0}, kv_rows, dim, fmt);
-        const auto* kvb = fmt == ModelFormat::f32 ? xb.get() : kv.get();
-        const float scale = 1.0f / std::sqrt(float(dim));
-        rocm_take_launches(g);
-        g.sparse_attention_sink({all.get(), 0}, {qb.get(), 0}, {kvb, 0}, {ib.get(), 0}, {sb.get(), 0}, rows, heads, dim, kv_rows, k, scale, 0, nullptr, 0, {}, 0, fmt, fmt);
-        require(rocm_take_launches(g).count("llmx_sparse_scores_tile") == 1, std::to_string(rows) + " rows of heads " + std::to_string(dim) + " wide take the sparse tile pair");
-        for (size_t r = 0; r < rows; ++r)
-            g.sparse_attention_sink({one.get(), r * heads * dim}, {qb.get(), r * heads * dim}, {kvb, 0}, {ib.get(), r * k}, {sb.get(), 0}, 1, heads, dim, kv_rows, k, scale, 0, nullptr, 0, {},
-                                    0, fmt, fmt);
-        require(same(read(g, *all, rows * heads * dim), read(g, *one, rows * heads * dim)), "every row of a 16-row sparse attention call of heads " + std::to_string(dim) +
-                                                                                             " wide is the row called alone, bit for bit");
+                                            {64, 70, 40, ModelFormat::fp8_power}, {44, 3, 50, ModelFormat::f32}, {44, 20, 50, ModelFormat::f32}, {64, 16, 40, ModelFormat::fp8_power},
+                                            {32, 20, 150, ModelFormat::fp8_power}}) {
+        for (const size_t rows : {size_t(16), size_t(3)}) {
+            const size_t words = format_words(fmt, dim);
+            const std::vector<float> x = row_classes::values(kv_rows * dim, 71, 2.0f), q = row_classes::values(rows * heads * dim, 72), sink = row_classes::values(heads, 73);
+            std::vector<uint32_t> ids(rows * k);
+            for (size_t i = 0; i < ids.size(); ++i) ids[i] = uint32_t((i * 37 + i / k) % kv_rows);
+            auto xb = g.adopt(x.data(), x.size() * 4), qb = g.adopt(q.data(), q.size() * 4), sb = g.adopt(sink.data(), sink.size() * 4), ib = g.adopt(ids.data(), ids.size() * 4);
+            auto kv = g.alloc(kv_rows * words * 4), all = g.alloc(rows * heads * dim * 4), one = g.alloc(rows * heads * dim * 4);
+            if (fmt != ModelFormat::f32) g.model_format_pack({kv.get(), 0}, words, {xb.get(), 0}, kv_rows, dim, fmt);
+            const auto* kvb = fmt == ModelFormat::f32 ? xb.get() : kv.get();
+            const float scale = 1.0f / std::sqrt(float(dim));
+            const std::string at = std::to_string(rows) + " rows of " + std::to_string(heads) + " heads " + std::to_string(dim) + " wide";
+            const std::string few = "llmx_sparse_scores_few" + std::to_string(sparse_few_heads(caps, rows, heads, k, dim, 16, 16, 2));
+            rocm_take_launches(g);
+            g.sparse_attention_sink({all.get(), 0}, {qb.get(), 0}, {kvb, 0}, {ib.get(), 0}, {sb.get(), 0}, rows, heads, dim, kv_rows, k, scale, 0, nullptr, 0, {}, 0, fmt, fmt);
+            require(rocm_take_launches(g).count(rows >= 8 ? "llmx_sparse_scores_tile" : few) == 1, at + " take the " + (rows >= 8 ? "tile pair" : few));
+            for (size_t r = 0; r < rows; ++r)
+                g.sparse_attention_sink({one.get(), r * heads * dim}, {qb.get(), r * heads * dim}, {kvb, 0}, {ib.get(), r * k}, {sb.get(), 0}, 1, heads, dim, kv_rows, k, scale, 0,
+                                        nullptr, 0, {}, 0, fmt, fmt);
+            require(same(read(g, *all, rows * heads * dim), read(g, *one, rows * heads * dim)), "every row of " + at + " is the row called alone, bit for bit");
+            if (rows >= 8) continue;
+            // The same call with the backend's units set to 1, 8 and 304, which take the 32-head scores and the two-column values, the 32-head scores beside one-column values, and fewer heads a block.
+            DeviceCaps& dc = rocm_caps(g);
+            const uint32_t units = dc.compute_units;
+            for (const uint32_t u : {1u, 8u, 304u}) {
+                dc.compute_units = u;
+                const size_t th = sparse_few_heads(dc, rows, heads, k, dim, 16, 16, 2), tv = std::min<size_t>(th, 16);
+                const std::string values = sparse_few_two(dc, rows, heads, dim, 16, tv, 16, 3) ? "llmx_sparse_values_few16x2" : "llmx_sparse_values_few" + std::to_string(tv);
+                rocm_take_launches(g);
+                g.sparse_attention_sink({one.get(), 0}, {qb.get(), 0}, {kvb, 0}, {ib.get(), 0}, {sb.get(), 0}, rows, heads, dim, kv_rows, k, scale, 0, nullptr, 0, {}, 0, fmt, fmt);
+                const auto launched = rocm_take_launches(g);
+                dc.compute_units = units;
+                require(launched.count("llmx_sparse_scores_few" + std::to_string(th)) == 1 && launched.count(values) == 1,
+                        at + " at " + std::to_string(u) + " units take llmx_sparse_scores_few" + std::to_string(th) + " and " + values);
+                seen.insert("llmx_sparse_scores_few" + std::to_string(th) + " " + values);
+                require(same(read(g, *all, rows * heads * dim), read(g, *one, rows * heads * dim)), at + " at " + std::to_string(u) + " units gives the device's bits");
+            }
+        }
     }
+    require(seen.count("llmx_sparse_scores_few32 llmx_sparse_values_few16x2") && seen.count("llmx_sparse_scores_few32 llmx_sparse_values_few16") &&
+                seen.count("llmx_sparse_scores_few16 llmx_sparse_values_few16x2") && seen.count("llmx_sparse_scores_few2 llmx_sparse_values_few2"),
+            "the few-row pair's checks reach the 32-head scores beside either values kernel, the two-column values beside 16 heads, and 2 heads");
+    // The launch shape follows the units: DeepSeek-V4.1-Flash's decode row at 32 heads takes 16 heads a block on 60 units and 2 on 304, and 3 heads take 2.
+    // On 60 units its 32 heads take two columns a lane from 3 rows, 64 heads from 2, and on 304 units neither at 7 rows.
+    DeviceCaps c60, c304;
+    c60.compute_units = 60, c304.compute_units = 304;
+    require(sparse_few_heads(c60, 1, 32, 640, 512, 16, 16, 2) == 16 && sparse_few_heads(c304, 1, 32, 640, 512, 16, 16, 2) == 2 &&
+                sparse_few_heads(c304, 7, 64, 640, 512, 16, 16, 2) == 16 && sparse_few_heads(c60, 1, 3, 640, 512, 16, 16, 2) == 2,
+            "the few-row sparse pair's heads a block follow the compute units");
+    require(sparse_few_heads(c60, 3, 32, 640, 512, 16, 16, 2) == 32 && sparse_few_heads(c60, 2, 32, 640, 512, 16, 16, 2) == 16 &&
+                sparse_few_heads(c60, 2, 64, 640, 512, 16, 16, 2) == 32 && sparse_few_heads(c60, 1, 64, 640, 512, 16, 16, 2) == 16 &&
+                sparse_few_heads(c60, 7, 16, 640, 512, 16, 16, 2) == 16,
+            "the few-row scores take 32 heads a block once those blocks fill the compute units");
+    require(!sparse_few_two(c60, 2, 32, 512, 16, 16, 16, 3) && sparse_few_two(c60, 3, 32, 512, 16, 16, 16, 3) && !sparse_few_two(c60, 1, 64, 512, 16, 16, 16, 3) &&
+                sparse_few_two(c60, 2, 64, 512, 16, 16, 16, 3) && !sparse_few_two(c304, 7, 64, 512, 16, 16, 16, 3),
+            "the few-row values kernel takes two columns a lane once its one-column blocks give each unit three");
 }
 
 // The one-launch sqrt_softplus router (backend_core.hpp moe_router) against the base's matmul and route_experts on the same device, scores, picks and weights bit for bit.

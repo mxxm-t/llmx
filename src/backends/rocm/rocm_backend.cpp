@@ -96,6 +96,7 @@ std::map<std::string, size_t> rocm_take_launches(Backend& backend) { return dyna
 void rocm_route_only(Backend& backend, std::string build) { dynamic_cast<RocmBackend&>(backend).route_only(std::move(build)); }
 
 DeviceProfile& rocm_profile(Backend& backend) { return dynamic_cast<RocmBackend&>(backend).profile(); }
+DeviceCaps& rocm_caps(Backend& backend) { return dynamic_cast<RocmBackend&>(backend).caps(); }
 
 std::unique_ptr<Collective> rocm_collective(const std::vector<Backend*>& members, size_t rows, size_t width, GpuSumForm form) {
     std::vector<RocmBackend*> group;

@@ -37,7 +37,10 @@ constexpr size_t kBlockTokens = 64;        // tokens a KV block holds
 constexpr size_t kRawIndexRows = 16, kRawIndexThreads = 256;   // llmx_raw_index_scores' rows a block and its threads (kernels/f32.gpu)
 constexpr size_t kIndexTileRows = 16, kIndexTilePositions = 32, kIndexTileThreads = 128, kIndexTileFixed = 16 * 32 * 4;   // llmx_indexer_scores_tile's tile and its static shared bytes (kernels/f32.gpu)
 constexpr size_t kIndexIntRows = 32, kIndexIntPositions = 128, kIndexIntDim = 128;   // llmx_indexer_scores_int's tile and the one dim it reads (kernels/f32.gpu)
-constexpr size_t kSparseColumnsNarrow = 8, kSparseWideRows = 8, kSparseTileWide = 128;   // columns of the narrow column block (kSparseColumns), the rows from which the tile pair runs, and its tile width (kSparseTileWide)
+constexpr size_t kSparseWideRows = 8, kSparseTileWide = 128;   // the rows from which the sparse tile pair runs, and its tile width (kernels/f32.gpu, kSparseTileWide)
+// The few-row sparse pair's tile width and its heads a block, 16 at most and 2 at least: 2 heads of 16 lanes keep a block a wave of the narrowest devices (kernels/f32.gpu, LLMX_SPARSE_FEW).
+constexpr size_t kSparseFewWide = 16, kSparseFewMost = 16, kSparseFewLeast = 2;
+constexpr size_t kSparseFewTwoPerUnit = 3;   // one-column blocks a compute unit from which the few-row values kernel takes two columns a lane (sparse_few_two)
 constexpr size_t kEvents = 1024;           // tickets in flight before a submission waits for the oldest
 constexpr size_t kRingSlots = 4;           // a host ring's slots, each reused once the submission that last read it retires
 constexpr size_t kArgBytes = size_t(1) << 20, kStageBytes = size_t(16) << 20;
@@ -53,6 +56,22 @@ inline unsigned host_load(unsigned* p) { return __atomic_load_n(p, __ATOMIC_ACQU
 inline unsigned host_exchange(unsigned* p, unsigned v) { return __atomic_exchange_n(p, v, __ATOMIC_ACQ_REL); }
 inline void host_store(unsigned* p, unsigned v) { __atomic_store_n(p, v, __ATOMIC_RELEASE); }
 #endif
+
+// Heads a block of the few-row sparse attention pair: from most, halved while the call's blocks of wide kept rows or columns leave a compute unit idle or half the heads would fill a block, down to least.
+// Twice most, the scores kernel's register-tiled build over kept rows twice as wide, once more than most heads give its blocks every compute unit.
+inline size_t sparse_few_heads(const DeviceCaps& caps, size_t rows, size_t heads, size_t named, size_t dim, size_t wide, size_t most, size_t least) {
+    const size_t units = std::max(1u, caps.compute_units);
+    if (heads > most && (named + 2 * wide - 1) / (2 * wide) * rows * ((heads + 2 * most - 1) / (2 * most)) >= units) return 2 * most;
+    const size_t tiles = std::max<size_t>(1, std::min((named + wide - 1) / wide, (dim + wide - 1) / wide)) * rows;
+    size_t th = most;
+    while (th > least && (th / 2 >= heads || tiles * ((heads + th - 1) / th) < units)) th /= 2;
+    return th;
+}
+
+// Whether the few-row values kernel takes two columns a lane: at `most` heads, once one-column blocks give each unit `per_unit`, half as many still fill the units.
+inline bool sparse_few_two(const DeviceCaps& caps, size_t rows, size_t heads, size_t dim, size_t wide, size_t th, size_t most, size_t per_unit) {
+    return th == most && (dim + wide - 1) / wide * rows * ((heads + th - 1) / th) >= per_unit * size_t(std::max(1u, caps.compute_units));
+}
 
 // What a tensor group's first member keeps of the group's probe: empty for fast sums, else why sums are conservative, and each fast sum's form by its size, timed up to `timed` floats.
 struct GroupPath {
@@ -1264,7 +1283,7 @@ public:
         unsigned h = u32(heads), d = u32(dim), kk = u32(k), ek = u32(entry_k), kr = u32(kv_rows), tokens = t.tokens, bt = (unsigned)kBlockTokens, rf = t.rows_floats, width = t.width;
         unsigned long long bf = t.block_floats;
         unsigned kf = unsigned(kv_format), ef = unsigned(entry_format), kws = u32(kw);
-        // The scratch holds a chunk of rows of at most 32 MiB: p by kept row and head, the denominators, the kept rows and their two counts (kernels/f32.gpu, llmx_sparse_softmax).
+        // The scratch holds a chunk of rows of at most 32 MiB: the scores by kept row and head, each tile's maxima, the kept rows and their two counts (kernels/f32.gpu).
         const size_t named = size_add(k, entry_k);
         const SinkLayout sl = sink_layout(rows, named, heads);
         const size_t chunk = sl.chunk, den_at = sl.den_at, kept_at = sl.kept_at, counts_at = sl.counts_at, need = sl.need;
@@ -1277,7 +1296,7 @@ public:
         for (size_t first = 0; first < rows; first += chunk) {
             const size_t n = std::min(chunk, rows - first);
             const unsigned fr = u32(first);
-            // From kSparseWideRows rows the tile pair runs, its scores kernel writing each kept-row tile's maxima where the denominators go; below them the one-head pair.
+            // From kSparseWideRows rows the tile pair runs; below them the few-row pair, its heads a block from the device's units, so that its blocks fill them.
             if (n >= kSparseWideRows) {
                 launch(kSparseScoresTile, u32((named + kSparseTileWide - 1) / kSparseTileWide), u32(n),
                        Args(pt, den, kept, counts, qp, kp, ip, aux, tab, ep, h, d, kk, ek, scale, kr, tokens, bt, bf, rf, width, kf, ef, kws, fr));
@@ -1285,9 +1304,18 @@ public:
                        Args(o, (const float*)pt, (const float*)den, (const float* const*)kept, (const unsigned*)counts, sk, h, d, nm, kf, ef, fr));
                 continue;
             }
-            launch(kSparseSoftmax, u32(size_mul(n, heads)), 1, Args(pt, den, kept, counts, qp, kp, ip, sk, aux, tab, ep, h, d, kk, ek, scale, kr, tokens, bt, bf, rf, width, kf, ef, kws, fr));
-            launch(kSparseColumns, u32((dim + kSparseColumnsNarrow - 1) / kSparseColumnsNarrow), u32(n),
-                   Args(o, (const float*)pt, (const float*)den, (const float* const*)kept, (const unsigned*)counts, h, d, nm, kf, ef, fr));
+            // Scores at twice kSparseFewMost heads take the register-tiled build, tiles twice as wide; the values kernel reads its tiles' maxima at that width.
+            const size_t th = sparse_few_heads(dev_.caps, n, heads, named, dim, kSparseFewWide, kSparseFewMost, kSparseFewLeast), tv = std::min(th, kSparseFewMost);
+            static constexpr Kernel few[5][2] = {{kSparseScoresFew32, kSparseValuesFew16}, {kSparseScoresFew16, kSparseValuesFew16}, {kSparseScoresFew8, kSparseValuesFew8},
+                                                 {kSparseScoresFew4, kSparseValuesFew4}, {kSparseScoresFew2, kSparseValuesFew2}};
+            const size_t f = th == 32 ? 0 : th == 16 ? 1 : th == 8 ? 2 : th == 4 ? 3 : 4, sw = th == 32 ? 2 * kSparseFewWide : kSparseFewWide;
+            const bool two = sparse_few_two(dev_.caps, n, heads, dim, kSparseFewWide, tv, kSparseFewMost, kSparseFewTwoPerUnit);
+            const unsigned tile = u32(sw), vw = u32((two ? 2 : 1) * kSparseFewWide);
+            launch(few[f][0], u32((named + sw - 1) / sw), u32(n), Args(pt, den, kept, counts, qp, kp, ip, aux, tab, ep, h, d, kk, ek, scale, kr, tokens, bt, bf, rf, width, kf, ef, kws, fr),
+                   u32((heads + th - 1) / th), u32(th == 32 ? 256 : th * kSparseFewWide));
+            launch(two ? kSparseValuesFew16x2 : few[f][1], u32((dim + vw - 1) / vw), u32(n),
+                   Args(o, (const float*)pt, (const float*)den, (const float* const*)kept, (const unsigned*)counts, sk, h, d, nm, tile, kf, ef, fr), u32((heads + tv - 1) / tv),
+                   u32(tv * kSparseFewWide));
         }
     }
     void indexer_scores(Slice out, CSlice q, size_t layer, const KVView* views, size_t n_views, CSlice w, float w_scale, size_t heads, size_t dim, ModelFormat key_format,
@@ -1785,6 +1813,7 @@ public:
     }
 
     DeviceProfile& profile() { return dev_.profile; }
+    DeviceCaps& caps() { return dev_.caps; }
 
     // The gate+up build for a grid: the wide shared build, two rows a wave and four steps a load, where the grid is resident at that build's occupancy, else the lean one.
     auto step_up_kernel(bool q5, size_t grid) {
@@ -1947,7 +1976,7 @@ private:
                   kAttentionVec256, kAttentionVec256Major, kAttentionVecMerge256, kAttentionVecMerge256Major, kArgmaxSlices, kArgmaxMerge, kArgmaxPart, kArgmaxPick,
                   kMoeRoute, kMoeCombine, kMoeGroup, kRoutedExactF32, kRoutedExactQ8, kRoutedExactQ4K, kRoutedExactQ5K, kRoutedExactQ6K, kRoutedExactQ50, kRoutedExactQ40, kRoutedExactQ41, kRoutedExactQ51, kRoutedExactBF16, kRoutedExactF16, kRoutedExactIQ4NL, kRoutedExactMXFP4,
                   kRowsExactF32, kRowsExactQ8, kRowsExactQ4K, kRowsExactQ5K, kRowsExactQ6K, kRowsExactQ50, kRowsExactQ40, kRowsExactQ41, kRowsExactQ51, kRowsExactBF16, kRowsExactF16, kRowsExactIQ4NL, kRowsExactMXFP4, kSparseVecG4, kSparseVec256G4, kColsF32x2, kColsF32x4, kMoeStepRoute,
-                  kHcCoeffsCollapse, kHcExpand, kModelFormatQdq, kTopkRows, kCompressPool, kIndexerScores, kIndexerScoresTile, kIndexerScoresInt, kRawIndexScores, kPoolWrite, kSparseSoftmax, kSparseScoresTile, kSparseColumns, kSparseValuesTile, kRouteSqrtSoftplus, kRouteStepF32, kRouteStepBF16,
+                  kHcCoeffsCollapse, kHcExpand, kModelFormatQdq, kTopkRows, kCompressPool, kIndexerScores, kIndexerScoresTile, kIndexerScoresInt, kRawIndexScores, kPoolWrite, kSparseScoresFew16, kSparseValuesFew16, kSparseScoresFew8, kSparseValuesFew8, kSparseScoresFew4, kSparseValuesFew4, kSparseScoresFew2, kSparseValuesFew2, kSparseScoresFew32, kSparseValuesFew16x2, kSparseScoresTile, kSparseValuesTile, kRouteSqrtSoftplus, kRouteStepF32, kRouteStepBF16,
 
                   kNormRopeForm, kDeltaStep, kMixRows,
                   kRows16x1, kRows16x2, kRows16x2r4, kRows16x4, kRows16x4r4, kRows16x8, kRows16x8r4, kRows16x16, kTile16,
@@ -1973,7 +2002,7 @@ private:
                                                            "llmx_twin16", "llmx_twin8", "llmx_silu_mul_twin16_major", "llmx_silu_mul_twin8_major",
                                                            "llmx_rms_norm_16_twin16_major", "llmx_rms_norm_16_twin8_major", "llmx_rms_norm_32_twin16_major",
                                                            "llmx_rms_norm_32_twin8_major", "llmx_attention_vec_major", "llmx_attention_vec_merge_major",
-                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_group_two_shots", "llmx_group_chain", "llmx_group_arm", "llmx_group_add_check", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_argmax_part", "llmx_argmax_pick", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q4_0", "llmx_routed_q4_1", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_f16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q4_0", "llmx_matmul_rows_q4_1", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_f16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols2_f32", "llmx_matmul_cols4_f32", "llmx_moe_step_route", "llmx_hc_coeffs_collapse", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_indexer_scores_tile", "llmx_indexer_scores_int", "llmx_raw_index_scores", "llmx_pool_write", "llmx_sparse_softmax", "llmx_sparse_scores_tile", "llmx_sparse_columns", "llmx_sparse_values_tile", "llmx_route_sqrt_softplus", "llmx_route_step_f32", "llmx_route_step_bf16", "llmx_norm_rope_form", "llmx_delta_step", "llmx_mix_rows", "llmx_q8_0_rows16_1",
+                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_group_two_shots", "llmx_group_chain", "llmx_group_arm", "llmx_group_add_check", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_argmax_part", "llmx_argmax_pick", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q4_0", "llmx_routed_q4_1", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_f16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q4_0", "llmx_matmul_rows_q4_1", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_f16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols2_f32", "llmx_matmul_cols4_f32", "llmx_moe_step_route", "llmx_hc_coeffs_collapse", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_indexer_scores_tile", "llmx_indexer_scores_int", "llmx_raw_index_scores", "llmx_pool_write", "llmx_sparse_scores_few16", "llmx_sparse_values_few16", "llmx_sparse_scores_few8", "llmx_sparse_values_few8", "llmx_sparse_scores_few4", "llmx_sparse_values_few4", "llmx_sparse_scores_few2", "llmx_sparse_values_few2", "llmx_sparse_scores_few32", "llmx_sparse_values_few16x2", "llmx_sparse_scores_tile", "llmx_sparse_values_tile", "llmx_route_sqrt_softplus", "llmx_route_step_f32", "llmx_route_step_bf16", "llmx_norm_rope_form", "llmx_delta_step", "llmx_mix_rows", "llmx_q8_0_rows16_1",
 
                                                            "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_2_r4", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_4_r4",
                                                            "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_8_r4", "llmx_q8_0_rows16_16", "llmx_q8_0_tile16", "llmx_q8_0_rows8_1",
@@ -2310,13 +2339,13 @@ private:
         while ((slots + ids_per - 1) / ids_per > kThreads) ids_per *= 2;
         return ids_per;
     }
-    // The sink's scratch for a chunk of rows of at most 32 MiB: p by kept row and head, the denominators, the kept rows and their two counts (kernels/f32.gpu, llmx_sparse_softmax).
+    // The sink's scratch for a chunk of rows of at most 32 MiB: the scores by kept row and head, each tile's maxima, the kept rows and their two counts (kernels/f32.gpu).
     struct SinkLayout {
         size_t chunk, den_at, kept_at, counts_at, need;
     };
     static SinkLayout sink_layout(size_t rows, size_t named, size_t heads) {
-        // A row's denominators, or the tile pair's maxima of each tile of kSparseTileWide kept rows.
-        const size_t dens = size_mul(heads, std::max<size_t>(1, (named + kSparseTileWide - 1) / kSparseTileWide));
+        // A row's maxima a head of each tile of kSparseFewWide kept rows, the narrower pair's tile, since a call's last chunk may take that pair.
+        const size_t dens = size_mul(heads, std::max<size_t>(1, (named + kSparseFewWide - 1) / kSparseFewWide));
         const size_t row_bytes = size_add(size_mul(size_add(size_mul(named, heads), dens), 4), size_mul(size_add(named, 1), 8));
         const size_t chunk = std::min(rows, std::max<size_t>(1, ((size_t)32 << 20) / row_bytes));
         const size_t pt_bytes = size_mul(size_mul(chunk, named), heads * 4), den_bytes = size_mul(chunk, dens * 4), kept_bytes = size_mul(size_mul(chunk, named), 8);

@@ -45,6 +45,14 @@ hardware, as do numerical, performance and support qualification. Newer CDNA and
 the same qualification procedure. Linux is the implemented platform; Windows ROCm
 support would be a separate scope change even if a vendor SDK supports a device.
 
+MI300X/gfx942 is a default build target since 2026-11-17, so ROCm builds and the
+release's ROCm binaries load on it. It is wave64 like gfx906, and the backend
+reads wave width, compute units and shared memory from the device. It runs the
+plain int16 module, since the dot module is built for gfx906 alone, and takes the
+profile's defaults, which were measured on MI50 and Radeon VII. No llmx run on an
+MI300X is recorded, and gfx942 is not checked against HF; it follows the same
+qualification procedure as any newer device.
+
 GPU SDK/runtime dependencies are the existing backend exception. HIP is the
 foundation. Evaluate RCCL early as an optional ROCm-backend dependency for large
 collectives, pipeline transfers and fallback; excluding it in advance would
@@ -608,8 +616,8 @@ Full release also needs the applicable complete suites, docs/dead-code and
 architecture checks, hosted CI at the exact head, Linux HIP build coverage and
 CPU/Vulkan nonregression. Hosted no-GPU jobs cannot establish device gates.
 Shared changes retain the Windows Radeon VII checks; ROCm itself is not claimed
-to execute on that Windows machine. Builds for gfx1151 without hardware are
-labeled compile-only.
+to execute on that Windows machine. Builds for gfx942 and gfx1151 without
+hardware are labeled compile-only.
 
 ## Open decisions and checkpoint reporting
 

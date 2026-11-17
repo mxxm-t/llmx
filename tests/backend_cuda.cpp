@@ -280,7 +280,7 @@ void qwen35(const CudaDevice& d, Backend& g) {
         values += q35::check_drafter_ops(p, d.profile.argmax_slice, twin_checks::typed_matrix);
         require(values > 0, "qwen35 ops: " + std::to_string(values) + " values against the CPU, " + std::to_string(runs) + " device runs bit for bit across views, orders and passes");
     });
-    guarded("delta_step", [&] { twin_checks::delta_step_bits(g, cuda_take_launches, require); });
+    guarded("delta_step", [&] { twin_checks::delta_step_bits(g, d.caps, cuda_take_launches, require); });
 }
 
 } // namespace

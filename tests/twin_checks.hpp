@@ -736,8 +736,8 @@ inline void twin_products(Backend& g, const DeviceCaps& caps, Dtype dt, const La
 
 
 // delta_step of a linear-attention layer against the base calls (Backend::delta_step), bit for bit in every slot both write but the conv, both state slots and the output product.
-// It covers the tensor-width shard shapes and other head widths, 1 to 8 rows a view over histories of 0, 1, 2 and 100, one view and three, f16 and int8, and which launches ran.
-inline void delta_step_bits(Backend& g, const Launches& launches, const Require& require) {
+// It covers the tensor-width shard shapes and other head widths, 1 to 8 rows a view over histories of 0, 1, 2 and 100, one view and three, f16 and int8, F32 and Q8_0 alpha and beta, generated rows, and which launches ran.
+inline void delta_step_bits(Backend& g, const DeviceCaps& caps, const Launches& launches, const Require& require) {
     using namespace backend;
     const auto same = [](const std::vector<float>& a, const std::vector<float>& b) { return a.size() == b.size() && std::memcmp(a.data(), b.data(), a.size() * sizeof(float)) == 0; };
     const auto throws = [](const std::function<void()>& f) {
@@ -765,20 +765,24 @@ inline void delta_step_bits(Backend& g, const Launches& launches, const Require&
         const bool base_runs = sp.kd <= 128;
         const std::vector<uint8_t> wqkv = q8_matrix(E, C, 301), wgate = q8_matrix(E, V, 302), wout = q8_matrix(V % 32 ? 32 : V, 64, 303);
         const std::vector<float> wa = row_classes::values(sp.hv * E, 304, 0.02f), wb = row_classes::values(sp.hv * E, 305, 0.02f);
+        const std::vector<uint8_t> wa8 = q8_matrix(E, sp.hv, 312), wb8 = q8_matrix(E, sp.hv, 313);
         std::vector<float> a = row_classes::values(sp.hv, 306, 1.0f), dt = row_classes::values(sp.hv, 307, 0.5f), nw = row_classes::values(sp.vd, 308, 1.0f),
                            cw = row_classes::values(C * kConvTaps, 309, 0.5f), state = row_classes::values(slots * sh.slot_floats(), 310, 0.1f);
         for (float& v : a) v = -std::fabs(v) - 0.05f;
         auto qb = g.adopt(wqkv.data(), wqkv.size()), gb = g.adopt(wgate.data(), wgate.size()), ob = g.adopt(wout.data(), wout.size());
-        auto ab = g.adopt(wa.data(), wa.size() * 4), bb = g.adopt(wb.data(), wb.size() * 4), ap = g.adopt(a.data(), a.size() * 4), db = g.adopt(dt.data(), dt.size() * 4),
+        auto ab = g.adopt(wa.data(), wa.size() * 4), bb = g.adopt(wb.data(), wb.size() * 4), ab8 = g.adopt(wa8.data(), wa8.size()), bb8 = g.adopt(wb8.data(), wb8.size()), ap = g.adopt(a.data(), a.size() * 4), db = g.adopt(dt.data(), dt.size() * 4),
              nb = g.adopt(nw.data(), nw.size() * 4), cb = g.adopt(cw.data(), cw.size() * 4);
         const std::string shape = std::to_string(sp.hv) + "/" + std::to_string(sp.hk) + " heads " + std::to_string(sp.kd) + "x" + std::to_string(sp.vd) + ", " + std::to_string(E) + " wide";
         for (const auto& views_at : cases)
-            for (Dtype dt_ : {Dtype::f16, Dtype::int8}) {
+            for (const NormGate ng : {NormGate::sigmoid, NormGate::silu})
+            for (Dtype dt_ : {Dtype::f32, Dtype::f16, Dtype::int8})
+                for (int form = 0; form < 3; ++form) {
+                const bool q8 = form > 0, gen = form == 2;
                 size_t rows = 0;
                 for (const auto& [nq, len] : views_at) rows += nq;
                 std::string at = shape + ", rows";
                 for (const auto& [nq, len] : views_at) at += " " + std::to_string(nq) + "@" + std::to_string(len);
-                at += std::string(", ") + dtype_name(dt_);
+                at += std::string(", ") + dtype_name(dt_) + (q8 ? gen ? ", Q8_0 alpha as generated rows" : ", Q8_0 alpha" : "") + (ng == NormGate::silu ? ", SiLU gate" : ", sigmoid gate");
                 const std::vector<float> mixed = row_classes::values(rows * E, 311 + (uint32_t)rows, 1.0f);
                 auto mb = g.adopt(mixed.data(), mixed.size() * 4);
                 struct Arm {
@@ -801,13 +805,17 @@ inline void delta_step_bits(Backend& g, const Launches& launches, const Require&
                     const Slice alpha{arm[k].ab.get(), 0}, beta{arm[k].ab.get(), rows * sp.hv};
                     step[k] = DeltaStep{Projection{{quant::GGML_TYPE_Q8_0, {qb.get(), 0}}, {arm[k].raw.get(), 0}, C},
                                         Projection{{quant::GGML_TYPE_Q8_0, {gb.get(), 0}}, {arm[k].gate.get(), 0}, V},
-                                        Projection{{quant::GGML_TYPE_F32, {ab.get(), 0}}, alpha, sp.hv},
-                                        Projection{{quant::GGML_TYPE_F32, {bb.get(), 0}}, beta, sp.hv},
-                                        {cb.get(), 0}, {ap.get(), 0}, {db.get(), 0}, {nb.get(), 0}, {arm[k].conv.get(), 0}, {arm[k].out.get(), 0}, 1e-6f};
+                                        Projection{{q8 ? quant::GGML_TYPE_Q8_0 : quant::GGML_TYPE_F32, {q8 ? ab8.get() : ab.get(), 0}}, alpha, sp.hv},
+                                        Projection{{q8 ? quant::GGML_TYPE_Q8_0 : quant::GGML_TYPE_F32, {q8 ? bb8.get() : bb.get(), 0}}, beta, sp.hv},
+                                        {cb.get(), 0}, {ap.get(), 0}, {db.get(), 0}, {nb.get(), 0}, {arm[k].conv.get(), 0}, {arm[k].out.get(), 0}, 1e-6f, ng};
                 }
                 // A run a view, its extent the view's history and rows, as a decode step or a verify gives them.
                 std::vector<RowRun> runs;
                 for (const auto& [nq, len] : views_at) runs.push_back(RowRun{(runs.empty() ? 0 : runs.back().end) + nq, len + nq});
+                if (gen) {
+                    runs.clear();
+                    for (size_t r = 0; r < rows; ++r) runs.push_back(RowRun{r + 1, 1});
+                }
                 const RowRuns rr{runs.data(), runs.size()};
                 const auto call = [&](int k) {
                     if (k == 0) g.Backend::delta_step(step[0], {mb.get(), 0}, E, rows, 0, views[0].data(), views[0].size(), rr, dt_);
@@ -826,6 +834,12 @@ inline void delta_step_bits(Backend& g, const Launches& launches, const Require&
                 const auto fused = launches(g);
                 bool holds = width && views_at.size() <= 64;
                 for (const auto& [nq, len] : views_at) holds = holds && nq <= 8;
+                // Q8_0 alpha and beta are summed in the fused step in the F32 class's exact order, or in the int8 class's row order where every run is one generated row, as one-row views at history 0 are too.
+                bool one_row_runs = true;
+                for (const RowRun& r : runs) one_row_runs = one_row_runs && r.extent == 1;
+                if (q8) holds = holds && (dt_ == Dtype::f32 || (dt_ == Dtype::int8 && E / 32 % 2 == 0 && one_row_runs));
+                // Views of several rows take the fused step only where its blocks, one a (view, V head), fill half the compute units.
+                if (rows > views_at.size() && 2 * views_at.size() * sp.hv < caps.compute_units) holds = false;
                 require(!base.count("llmx_delta_step"), "the base's delta_step launches no fused kernel, " + at);
                 require(fused.count("llmx_delta_step") == (holds ? 1u : 0u), std::string(holds ? "delta_step is one fused launch, " : "a step outside the limits runs the base's ops, ") + at);
                 if (holds) require(!fused.count("llmx_gated_delta_rule_short") && !fused.count("llmx_causal_conv_silu") && !fused.count("llmx_gated_rms_norm"), "the fused step runs no chain op, " + at);
@@ -854,7 +868,7 @@ inline void delta_step_bits(Backend& g, const Launches& launches, const Require&
             const DeltaStep d{Projection{{quant::GGML_TYPE_Q8_0, {qb.get(), 0}}, {raw.get(), 0}, C}, Projection{{quant::GGML_TYPE_Q8_0, {gb.get(), 0}}, {gate.get(), 0}, V},
                               Projection{{f16 ? quant::GGML_TYPE_BF16 : quant::GGML_TYPE_F32, {f16 ? ab16.get() : ab.get(), 0}}, {abo.get(), 0}, sp.hv},
                               Projection{{quant::GGML_TYPE_F32, {bb.get(), 0}}, {abo.get(), n * sp.hv}, sp.hv},
-                              {cb.get(), 0}, {ap.get(), 0}, {db.get(), 0}, {nb.get(), 0}, {conv.get(), 0}, {out.get(), 0}, 1e-6f};
+                              {cb.get(), 0}, {ap.get(), 0}, {db.get(), 0}, {nb.get(), 0}, {conv.get(), 0}, {out.get(), 0}, 1e-6f, NormGate::silu};
             launches(g);
             g.delta_step(d, {mb.get(), 0}, E, n, 0, many.data(), n, RowRuns{each.data(), n}, Dtype::int8);
             require(!launches(g).count("llmx_delta_step"), std::string(f16 ? "a step of BF16 alpha runs the base's ops, " : "a step of 65 views runs the base's ops, ") + shape);

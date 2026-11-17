@@ -203,6 +203,43 @@ This test-only correction lands by fast-forward with the companion workflow.
 - **Checks:** The independent Chrome regression failed in 59.797 seconds before the fix and passed in 54.855 seconds after it. The combined browser fixture over public main `2ea30d410` passed in 66.845 seconds, including both themes at 1440, 390 and 320 pixels and 200 percent CSS zoom. Desktop preference, transient Settings access, mobile drawer state and toggle geometry passed. JavaScript syntax, whitespace and independent integration review passed. Dead-code passed with 17 expected findings and 20 planted faults in 34.8 seconds; docs passed with zero findings and 29 planted faults in 31.8 seconds and runs once more after this record.
 - **Landing:** Fast-forward from `2ea30d410` after final documentation validation and a fresh main check. This is static presentation only, with no server, runtime, API or numerical changes. The existing docs CLI remains applicable because native source and build inputs are unchanged. Full Markdown review checks references to details, temporary labels and layout; the companion README and TESTS own the updated behavior. Receipts are in `scratch/reading-landing/`, with independent matched screenshots in the main workspace's `scratch/chat-reading-layout/`.
 - **Gotchas:** Composer Settings and the narrow drawer are transient. Only explicit docked Details actions save the preference. Long titles can still truncate. Chrome emulation does not establish physical phone or Safari coverage. Settings semantics and history search remain separate audit work.
+## Qwen3.5-architecture linear layers through the fused delta step, with Q8_0 alpha and beta (2026-11-16 to 2026-11-17, QWEN44 to QWEN51, branch feat/qwen27-delta-q8 on main 3b88cfb3a; F2DEV's reviews of 06:37, 07:34 and 10:09; lands by fast-forward)
+
+**Goal.** Qwen3.8-27B's linear-attention decode step runs as `llmx_delta_step` on ROCm with every output's bits unchanged, toward the 75 tok/s plain decode target at 1x4.
+
+**Done.**
+- `delta_form` gives the order llmx_delta_step sums alpha and beta in: F32 rows at every dtype and Q8_0 at f32 take exact sums, and Q8_0 at int8 on generated rows of an even block count takes the row kernel's half-block order (`kernels/rows.h`, shared with `int16.gpu`) on the call's int8 twin.
+- `DeltaStep` carries its `NormGate`: qwen4exp's sigmoid, qwen35's SiLU; the base passes it to `gated_rms_norm`, so the CPU and Vulkan run what they ran, and `llmx_delta_step` takes `sig` with `llmx_gated_rms_norm`'s expression and order.
+- qwen35's `linear_attention` is one `delta_step` and its join, in place of its own copy of the base's sequence; `recur` stays the retract path, over slots 2 and 5, which the step leaves as the base does.
+- A step whose views hold more than one row takes the fused launch only where views times V heads reach half the compute units (`delta_holds`), from `rates delta`'s new one-view case: a four-row verify on one MI50 took 86.3 us fused against 79.4 us base on the 1x4 shard's 12 heads, level on 2x2's 24 and faster fused on 1x1's 48.
+- `twin_checks::delta_step_bits` (`tests/twin_checks.hpp`, which the ROCm and CUDA tests share) runs every case with the sigmoid and the SiLU gate, F32 and Q8_0 alpha and beta, f32, f16 and int8, and checks which launches ran; it takes the device's caps for the multi-row rule.
+- Before this change the 27B never launched `llmx_delta_step` (rocprofv3, 0 launches in both arms); on the branch, 27B Q8_0 1x4 int8 -n 8 launches it 1536 times, with the chain ops only on the prompt.
+
+**Results** (2026-11-17, four MI50s renderD128-131 at default clocks; branch `llmx 0.1.0+g3983c4e9c296`, main `llmx 0.1.0+g3b88cfb3aee2`, both from build-branch.sh; every cell contended=yes on hostwait, kept; host run-queue wait per cell 0.2 to 7.2 s, load 8 to 42 on 16 CPUs):
+
+| Qwen3.8-27B Q8_0, ROCm int8, 1x4, tg256 | main 3b88cfb3a | branch | delta |
+|---|---|---|---|
+| plain decode tok/s, ABAB x6 | 62.08 (65.04, 62.75, 62.49, 62.36, 60.72, 59.09) | 60.66 (65.04, 63.33, 48.78, 60.81, 65.13, 60.89) | -2.3% mean; median 62.43 against 62.11, -0.5% |
+| MTP draft-max 3 tok/s, ABAB x3 | 110.29 (106.85, 110.59, 113.43) | 110.30 (108.03, 108.84, 114.04) | +0.0% mean; median 110.59 against 108.84, -1.6% |
+
+| `rates delta`, 27B Q8_0 int8 shard on one MI50, base against fused us, mean of two runs | 1x4 | 2x2 | 1x1 |
+|---|---|---|---|
+| one view of one row | 65.5 to 56.9 | 98.9 to 87.3 | 167.6 to 146.6 |
+| four one-row views | 92.6 to 67.6 | 144.3 to 119.7 | 236.5 to 223.6 |
+
+- The fused step takes 3 launches where the base takes 5 or 6, and 0 floats differ in every cell.
+At 1x4 it saves about 8.6 us a linear layer, about 0.4 ms of a 17 ms token over the 48 linear layers, 2 to 3 percent and inside the host band of the model cells above; the multi-row loss, 86.3 against 79.4 us on a four-row verify, is the case `delta_holds` sends to the base.
+- The plain branch cell of round 3 ran at 48.78 tok/s under a 3.9 s host wait, kept; rounds 4 to 6 ran branch first.
+No cell is dropped; plain decode and MTP are level within the host noise, whose cells spread 59.09 to 65.13 tok/s outside that one.
+- On main 929f042c6 the same cells gave plain 59.25 against 60.52 tok/s (+2.1%) and MTP 112.55 against 111.80; main 3b88cfb3a decodes faster in both arms.
+- Greedy ids identical to main 3b88cfb3a (md5 79cbe999, 95041d25, c1df24b4, 330ce26a), 42 cells, all rc 0 with ids: ROCm 27B Q8_0 at 1x4 and 2x2, int8 and f16, plain and MTP draft-max 3, and the timing cells (95041d25 at -n 64, 79cbe999 at -n 256); Flash-Next UD-Q4_K_XL 2x2 int8 (c1df24b4); Vulkan 27B 1x4 and 2x2 int8 and 1x4 MTP (95041d25); CPU 27B int8, f16 and int8 MTP (330ce26a).
+- HF: `tests/baseline_qwen35.py` on Qwen3.5-0.8B Q8_0 on the CPU at int8 and f16, PASS, 128 checks each.
+The largest observed error is the perplexity gap to HF, 0.000503 nats against a bound of 0.02 (headroom 97.5 percent), the same at int8 and f16, whose logits and perplexities came out equal on the CPU.
+Every logits and chat check kept the top-5 overlap at 5 of 5 against a bound of 5.
+- `llmx-backend-rocm-test delta` PASS; CTest 90 of 90 CPU and 94 of 94 ROCm on four MI50s; the tree builds for CUDA 12.9.1 with 0 errors, a build check only, since no CUDA device has run the path; dead-code and docs PASS.
+- Other hardware (COORD 06:53): the fusion saves three launches and two HBM round trips a linear layer, a larger share where products are faster (MI300X, Ampere and later); the multi-row rule is in compute units, so a wider device sends more verify shapes to the base, and the CPU and iGPU run the base unchanged.
+- **Left:** the hosted run at the head that lands; `backend-cuda` `delta_step_bits` (qwen35) on a CUDA device, on a rental once the CUDA chain lands, because `q8_half_row` under GPU_IMMA8 and a 32-lane wave's step pick (`kernels/rows.h`) have run on no device; a multi-row form of the kernel that spreads a V head over blocks would let a verify fuse on narrow shards.
+
 ## A reply that reaches the context goes on under shift (2026-10-30, MDEV, picked up 2026-11-17 by STALE2, branch fix/shift-while-generating rebased onto main a274cfd62, the owner's production report through the coordinator, reviewed by F2DEV, lands by fast-forward as two commits, the failing test and then the fix)
 - **Goal:** under `--context-overflow shift` a reply ends only at the end of text, a stop text, its `max_tokens` or a cancel, never at the context (docs/SERVER.md, A reply that reaches the context).
 - **Seen on production:** a reply on a 262144-token context ended with `length` exactly at the limit, 225320 prompt tokens and 36824 generated: the shift cut only a prompt as it arrived.

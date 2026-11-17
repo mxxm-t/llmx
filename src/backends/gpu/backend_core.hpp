@@ -906,7 +906,7 @@ public:
     // Where delta_holds, the qkv and gate products and then one launch of llmx_delta_step (docs/src/backends-gpu.md, delta_step), every slot but conv the base's bits.
     void delta_step(const DeltaStep& d, CSlice mixed, size_t nin, size_t rows, size_t layer, const StateView* views, size_t n_views, RowRuns runs = {},
                     Dtype dtype = Dtype::f16) override {
-        if (!delta_holds(d, nin, rows, layer, views, n_views)) return Backend::delta_step(d, mixed, nin, rows, layer, views, n_views, runs, dtype);
+        if (!delta_holds(d, nin, rows, layer, views, n_views, runs, dtype)) return Backend::delta_step(d, mixed, nin, rows, layer, views, n_views, runs, dtype);
         check_runs(rows, runs);
         const StateStorage& ss = *views[0].storage;
         const StateShape& sh = ss.shape();
@@ -921,10 +921,8 @@ public:
         for (const CSlice& g : {d.a, d.dt_bias}) span(*g.buffer, g.offset * sizeof(float), size_mul(Hv, sizeof(float)));
         span(*d.norm.buffer, d.norm.offset * sizeof(float), size_mul(sh.v_dim, sizeof(float)));
         // Generated rows give the same bits in any group, so they take qkv and gate as one; a prompt's tile splits by the group's outputs, so its rows take the base's two products.
-        bool generated = runs.n ? true : rows == 1;
-        for (size_t r = 0; r < runs.n; ++r) generated = generated && runs.runs[r].extent == 1;
         unordered(true);
-        if (generated) matmul_group({d.qkv, d.gate}, mixed, nin, rows, runs, dtype);
+        if (generated_rows(rows, runs)) matmul_group({d.qkv, d.gate}, mixed, nin, rows, runs, dtype);
         else {
             matmul(d.qkv.weight, mixed, d.qkv.out, nin, d.qkv.rows, rows, runs, dtype);
             matmul(d.gate.weight, mixed, d.gate.out, nin, d.gate.rows, rows, runs, dtype);
@@ -936,20 +934,45 @@ public:
             hold_fill(as_gpu<Api>(*delta_counter_).data(), kDeltaCounters * sizeof(unsigned));
         }
         const std::vector<unsigned> tab = state_table(views, n_views);
+        // The half-block form reads the int8 twin of the rows the products just took, the kept twin, generated rows lying row after row.
+        const int form = delta_form(d, nin, rows, runs, dtype);
+        const uint8_t* xq = nullptr;
+        const float* xd = nullptr;
+        if (form == 2) {
+            const RowRun whole[1] = {{rows, 1}};
+            const auto twin = twin_of(mixed, rows, nin, true, twin_map(runs.n ? runs : RowRuns{whole, 1}, rows, nin), true);
+            xq = twin.first, xd = twin.second;
+        }
         StreamTwin t = stream_twin(d.out, rows, V, runs, sh.v_dim % 32 == 0);
         const DeltaStepArgs A{f32(d.out), f32(d.qkv.out), f32(d.conv_w), f32(mixed), bytes(d.alpha.weight.data), bytes(d.beta.weight.data), f32(d.alpha.out),
                               f32(d.beta.out), f32(d.a), f32(d.dt_bias), f32(Slice{&ss.layer(layer), 0}), (const unsigned*)arg(tab.data(), tab.size() * sizeof(unsigned)),
                               f32(d.gate.out), f32(d.norm), (unsigned*)as_gpu<Api>(*delta_counter_).data(), (unsigned)C, (unsigned)sh.k_heads, (unsigned)Hv, (unsigned)nin,
                               ss.slot_floats(layer), size_mul(Hv, sh.matrix_floats()), (float)(1.0 / std::sqrt((double)sh.k_dim)), kL2NormEps, d.eps, t.q, t.d, t.level,
-                              t.major, t.map, (unsigned)sh.k_dim, (unsigned)sh.v_dim};
+                              t.major, t.map, (unsigned)sh.k_dim, (unsigned)sh.v_dim, (const int8_t*)xq, xd, (unsigned)form, d.norm_gate == NormGate::sigmoid ? 1u : 0u};
         launch_writing({{A.o, n}, {A.ao, size_mul(rows, Hv)}, {A.bo, size_mul(rows, Hv)}}, kDeltaStep, (unsigned)size_mul(n_views, Hv), 1, Args(A));
         keep(t.t, A.o, n);
     }
     // llmx_delta_step's limits: K and V heads up to kDeltaHead wide in multiples of 4, rows a view, views a launch and its (view, K head) counters.
     static constexpr size_t kDeltaHead = 128, kDeltaRows = 8, kDeltaViews = 64, kDeltaCounters = 4096;
     static_assert(kConvTaps == 4, "llmx_delta_step's conv takes four taps");
-    // Whether a step has the shape llmx_delta_step holds (docs/src/backends-gpu.md, delta_step), with F32 alpha and beta matrices and state rows on four-float boundaries.
-    bool delta_holds(const DeltaStep& d, size_t nin, size_t rows, size_t layer, const StateView* views, size_t n_views) const {
+    // Whether every run is a generated row, as a call without runs is when it holds one row.
+    static bool generated_rows(size_t rows, RowRuns runs) {
+        bool generated = runs.n ? true : rows == 1;
+        for (size_t r = 0; r < runs.n; ++r) generated = generated && runs.runs[r].extent == 1;
+        return generated;
+    }
+    // The order llmx_delta_step sums alpha and beta in, the one the base's products take (kernels/f32.gpu, DeltaStepArgs form), or -1 where it has none.
+    // F32 rows and the F32 class's Q8_0 rows take exact_sum, and the int8 class's generated Q8_0 rows of an even block count the row kernel's half-block order, whatever build the call would choose.
+    static int delta_form(const DeltaStep& d, size_t nin, size_t rows, RowRuns runs, Dtype dtype) {
+        const uint32_t t = d.alpha.weight.type;
+        if (d.beta.weight.type != t) return -1;
+        if (t == quant::GGML_TYPE_F32) return 0;
+        if (t != quant::GGML_TYPE_Q8_0) return -1;
+        if (dtype == Dtype::f32) return 1;
+        return dtype == Dtype::int8 && nin / 32 % 2 == 0 && generated_rows(rows, runs) ? 2 : -1;
+    }
+    // Whether a step has the shape llmx_delta_step holds (docs/src/backends-gpu.md, delta_step), with alpha and beta in a form it sums and state rows on four-float boundaries.
+    bool delta_holds(const DeltaStep& d, size_t nin, size_t rows, size_t layer, const StateView* views, size_t n_views, RowRuns runs, Dtype dtype) const {
         if (!nin || nin > UINT32_MAX || !n_views || n_views > kDeltaViews || !views[0].storage) return false;
         const StateStorage& ss = *views[0].storage;
         const StateShape& sh = ss.shape();
@@ -961,7 +984,9 @@ public:
             total += views[i].nq;
         }
         if (total != rows || layer >= ss.layers() || ss.slot_floats(layer) % 4 || size_mul(sh.v_heads, sh.matrix_floats()) % 4) return false;
-        if (d.alpha.weight.type != quant::GGML_TYPE_F32 || d.beta.weight.type != quant::GGML_TYPE_F32) return false;
+        // A block runs a view's rows in turn over a whole V head, where the base's rule spreads a head over Dv / 32 blocks, so views of several rows need blocks for half the compute units.
+        if (total > n_views && 2 * size_mul(n_views, sh.v_heads) < dev_.caps.compute_units) return false;
+        if (delta_form(d, nin, rows, runs, dtype) < 0) return false;
         return d.alpha.rows == sh.v_heads && d.beta.rows == sh.v_heads && d.gate.rows == size_mul(sh.v_heads, sh.v_dim) && d.qkv.rows == sh.channels();
     }
     // The Flash-Next stream ops (kernels/f32.gpu), plain F32 outputs whose products make their own twins; every refusal comes before any launch.
@@ -2785,9 +2810,12 @@ private:
         int tlevel, major;
         TwinMap tm;
         unsigned kd, vd;
+        const int8_t* xq;
+        const float* xd;
+        unsigned form, sig;
     };
     static_assert(offsetof(DeltaStepArgs, slot) == 136 && offsetof(DeltaStepArgs, tq) == 168 && offsetof(DeltaStepArgs, tm) == 192 && offsetof(DeltaStepArgs, kd) == 312 &&
-                      sizeof(DeltaStepArgs) == 320,
+                      offsetof(DeltaStepArgs, xq) == 320 && offsetof(DeltaStepArgs, form) == 336 && offsetof(DeltaStepArgs, sig) == 340 && sizeof(DeltaStepArgs) == 344,
                   "DeltaStepArgs is the kernel's layout");
     struct StepRoute {
         const uint8_t* w;

@@ -103,11 +103,12 @@ conversation's prefix through state checkpoints ([server](server.md)).
       `attention`; `sigmoid_mul` gating the output in place by each head's
       gate read where `attn_q` left it; `attn_output` added into the
       residual.
-    - linear attention: the raw qkv rows through their own `matmul`, then
-      z, alpha and beta in one `matmul_group`; the state's update
-      (`recur`); `gated_rms_norm` by z in place; `ssm_out` added into the
-      residual.
-  - `recur`: a linear-attention layer's state update from its slots:
+    - linear attention: one `Backend::delta_step` with the SiLU gate,
+      the qkv, z, alpha and beta products, the conv, the delta rule and
+      the gated norm by z in place, a device fusing it where it gives the
+      base's bits; `ssm_out` added into the residual.
+  - `recur`: a linear-attention layer's state update from its slots, run
+    by a retract's rerun:
     `causal_conv_silu` from the raw rows and the state's carried ones into
     the conv's output, and `gated_delta_rule` from the sequence's slot over
     it with alpha and beta into the recurrence's output, V head `j` reading

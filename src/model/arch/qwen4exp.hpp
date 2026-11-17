@@ -950,7 +950,7 @@ private:
         // PLE has already updated its separate tail, so the step runs only the GDN's conv and not that one twice in a forward.
         const backend::DeltaStep d{blocks::projection(w[attn_qkv], s.slot(raw)), blocks::projection(w[attn_gate], s.slot(value_gate)), blocks::projection(w[ssm_alpha], alpha),
                                    blocks::projection(w[ssm_beta], beta), w[ssm_conv1d].slice(), w[ssm_a].slice(), w[ssm_dt].slice(), w[ssm_norm].slice(), s.slot(conv),
-                                   s.slot(recurrent), cfg_.rms_eps};
+                                   s.slot(recurrent), cfg_.rms_eps, backend::NormGate::sigmoid};
         s.b.delta_step(d, s.slot(mixed), E, s.rows, s.state_layer, s.states, s.n_views, s.runs, s.dtype);
         s.b.matmul(w[ssm_out].operand(), s.slot(recurrent), s.x, w[ssm_out].nin, E, s.rows, s.runs, s.dtype);
     }

@@ -463,19 +463,17 @@ private:
         blocks::join(s, w[attn_output], o);
     }
 
-    // The gated delta net (docs/QWEN35.md, Linear attention): the raw q, k and v rows, z, alpha and beta; the state's update (recur), then the gated norm by z and the output projection joining the residual.
+    // The gated delta net (docs/QWEN35.md, Linear attention): one delta_step over slots 2 (qkv), 4 (z), 5 (alpha, beta), 3 (conv) and 6 (out), then the output projection.
+    // The step leaves slots 2 and 5 as recur's phases read them, so a retract's rerun is recur over them.
     void linear_attention(const Step& s, backend::Slice h) const {
-        backend::Backend& b = s.b;
         const Weight* w = s.w;
         // On a tensor group each member runs its K heads and the V heads that read them, over its own state.
         const size_t E = (size_t)cfg_.n_embd, Hv = (size_t)cfg_.v_heads / s.width;
-        const backend::Slice raw = s.slot(2), z = s.slot(4), alpha = s.slot(5), o = s.slot(6);
-        const backend::Slice beta{alpha.buffer, alpha.offset + s.rows * Hv};
-        b.matmul(w[attn_qkv].operand(), h, raw, E, w[attn_qkv].nout, s.rows, s.runs, s.dtype);
-        b.matmul_group({blocks::projection(w[attn_gate], z), blocks::projection(w[ssm_alpha], alpha), blocks::projection(w[ssm_beta], beta)},
-                       h, E, s.rows, s.runs, s.dtype);
-        recur(s);
-        b.gated_rms_norm(o, o, z, w[ssm_norm].slice(), s.rows, Hv, (size_t)cfg_.v_dim, cfg_.rms_eps, s.runs);
+        const backend::Slice alpha = s.slot(5), beta{alpha.buffer, alpha.offset + s.rows * Hv}, o = s.slot(6);
+        const backend::DeltaStep d{blocks::projection(w[attn_qkv], s.slot(2)), blocks::projection(w[attn_gate], s.slot(4)), blocks::projection(w[ssm_alpha], alpha),
+                                   blocks::projection(w[ssm_beta], beta), w[ssm_conv1d].slice(), w[ssm_a].slice(), w[ssm_dt].slice(), w[ssm_norm].slice(), s.slot(3),
+                                   o, cfg_.rms_eps, backend::NormGate::silu};
+        s.b.delta_step(d, h, E, s.rows, s.state_layer, s.states, s.n_views, s.runs, s.dtype);
         blocks::join(s, w[ssm_out], o);
     }
 };

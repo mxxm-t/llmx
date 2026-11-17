@@ -403,7 +403,7 @@ if(LLMX_HAS_BACKEND_ROCM)
             COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm
             COMMAND ${LLMX_HIP_CLANG} ${LLMX_HIP_FLAGS} --offload-arch=gfx906 --offload-arch=gfx942 --offload-arch=gfx1151
                     -I${CMAKE_CURRENT_SOURCE_DIR}/src -c ${LLMX_GPU_KERNEL_DIR}/${kernel}.gpu -o ${bundle}
-            DEPENDS ${LLMX_GPU_KERNEL_DIR}/${kernel}.gpu ${LLMX_GPU_KERNEL_DIR}/quant.h ${LLMX_GPU_KERNEL_DIR}/port.h ${LLMX_GPU_KERNEL_DIR}/shapes.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp
+            DEPENDS ${LLMX_GPU_KERNEL_DIR}/${kernel}.gpu ${LLMX_GPU_KERNEL_DIR}/quant.h ${LLMX_GPU_KERNEL_DIR}/port.h ${LLMX_GPU_KERNEL_DIR}/shapes.h ${LLMX_GPU_KERNEL_DIR}/rows.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp
             COMMENT "hip ${kernel}"
             VERBATIM)
         list(APPEND LLMX_ROCM_OBJECTS ${bundle})
@@ -414,7 +414,7 @@ if(LLMX_HAS_BACKEND_ROCM)
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm
         COMMAND ${LLMX_HIP_CLANG} ${LLMX_HIP_FLAGS} --offload-arch=gfx906 -DLLMX_DOT16
                 -I${CMAKE_CURRENT_SOURCE_DIR}/src -c ${LLMX_GPU_KERNEL_DIR}/int16.gpu -o ${bundle}
-        DEPENDS ${LLMX_GPU_KERNEL_DIR}/int16.gpu ${LLMX_GPU_KERNEL_DIR}/quant.h ${LLMX_GPU_KERNEL_DIR}/port.h ${LLMX_GPU_KERNEL_DIR}/shapes.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp
+        DEPENDS ${LLMX_GPU_KERNEL_DIR}/int16.gpu ${LLMX_GPU_KERNEL_DIR}/quant.h ${LLMX_GPU_KERNEL_DIR}/port.h ${LLMX_GPU_KERNEL_DIR}/shapes.h ${LLMX_GPU_KERNEL_DIR}/rows.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp
         COMMENT "hip int16dot"
         VERBATIM)
     list(APPEND LLMX_ROCM_OBJECTS ${bundle})
@@ -452,7 +452,7 @@ if(LLMX_HAS_BACKEND_CUDA)
             COMMAND ${CMAKE_COMMAND} -DNVCC=${LLMX_NVCC} -DSRC=${LLMX_GPU_KERNEL_DIR}/${kernel}.gpu -DOUT=${fatbin}
                     -DREPORT=${CMAKE_CURRENT_BINARY_DIR}/generated/cuda/${kernel}.ptxas -DINCLUDE=${CMAKE_CURRENT_SOURCE_DIR}/src
                     "-DARCHS=${LLMX_CUDA_ARCHS}" -DPTX=80 -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/nvcc.cmake
-            DEPENDS ${LLMX_GPU_KERNEL_DIR}/${kernel}.gpu ${LLMX_GPU_KERNEL_DIR}/quant.h ${LLMX_GPU_KERNEL_DIR}/port.h ${LLMX_GPU_KERNEL_DIR}/shapes.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp
+            DEPENDS ${LLMX_GPU_KERNEL_DIR}/${kernel}.gpu ${LLMX_GPU_KERNEL_DIR}/quant.h ${LLMX_GPU_KERNEL_DIR}/port.h ${LLMX_GPU_KERNEL_DIR}/shapes.h ${LLMX_GPU_KERNEL_DIR}/rows.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp
                     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/nvcc.cmake
             COMMENT "nvcc ${kernel}"
             VERBATIM)

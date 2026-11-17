@@ -1,0 +1,114 @@
+Here is a Python module that keeps a small warehouse inventory. In this file, rename the variable `qty` to `quantity` everywhere it appears, including function parameters, local variables and the f-strings. Change nothing else. Reply with the complete updated file in one Python code block.
+
+```python
+"""A small warehouse inventory: items, stock levels, orders and a report."""
+
+from dataclasses import dataclass, field
+
+
+@dataclass
+class Item:
+    sku: str
+    name: str
+    price: float
+    qty: int = 0
+    reorder_level: int = 5
+
+
+@dataclass
+class Order:
+    order_id: int
+    lines: list = field(default_factory=list)
+
+    def add_line(self, sku, qty):
+        if qty <= 0:
+            raise ValueError(f"order {self.order_id}: bad qty {qty} for {sku}")
+        self.lines.append((sku, qty))
+
+    def total_units(self):
+        return sum(qty for _, qty in self.lines)
+
+
+class Inventory:
+    def __init__(self):
+        self.items = {}
+        self.history = []
+
+    def add_item(self, sku, name, price, qty=0, reorder_level=5):
+        if sku in self.items:
+            raise KeyError(f"duplicate sku {sku}")
+        self.items[sku] = Item(sku, name, price, qty, reorder_level)
+        self.history.append(("add", sku, qty))
+
+    def receive(self, sku, qty):
+        item = self.items[sku]
+        item.qty += qty
+        self.history.append(("receive", sku, qty))
+        return item.qty
+
+    def can_fill(self, order):
+        for sku, qty in order.lines:
+            item = self.items.get(sku)
+            if item is None or item.qty < qty:
+                return False
+        return True
+
+    def fill(self, order):
+        if not self.can_fill(order):
+            raise RuntimeError(f"order {order.order_id} cannot be filled")
+        for sku, qty in order.lines:
+            self.items[sku].qty -= qty
+            self.history.append(("ship", sku, qty))
+
+    def to_reorder(self):
+        result = []
+        for item in self.items.values():
+            if item.qty <= item.reorder_level:
+                qty = item.reorder_level * 3 - item.qty
+                result.append((item.sku, qty))
+        return result
+
+    def stock_value(self):
+        return sum(item.price * item.qty for item in self.items.values())
+
+    def report(self):
+        lines = []
+        for sku in sorted(self.items):
+            item = self.items[sku]
+            flag = " (reorder)" if item.qty <= item.reorder_level else ""
+            lines.append(f"{sku:<8} {item.name:<20} qty={item.qty:>5} value={item.price * item.qty:>10.2f}{flag}")
+        lines.append(f"total value: {self.stock_value():.2f}")
+        return "\n".join(lines)
+
+
+def load_csv(path):
+    inventory = Inventory()
+    with open(path, encoding="utf-8") as f:
+        header = f.readline().strip().split(",")
+        if header != ["sku", "name", "price", "qty", "reorder_level"]:
+            raise ValueError(f"unexpected header {header}")
+        for line in f:
+            sku, name, price, qty, reorder_level = line.strip().split(",")
+            inventory.add_item(sku, name, float(price), int(qty), int(reorder_level))
+    return inventory
+
+
+def main():
+    inventory = Inventory()
+    inventory.add_item("A100", "steel bolt M8", 0.12, qty=400, reorder_level=100)
+    inventory.add_item("A200", "steel nut M8", 0.05, qty=90, reorder_level=100)
+    inventory.add_item("B310", "hinge, brass", 2.40, qty=12, reorder_level=10)
+    inventory.add_item("C020", "drawer runner 450", 7.95, qty=3, reorder_level=4)
+    order = Order(1)
+    order.add_line("A100", 120)
+    order.add_line("A200", 60)
+    inventory.fill(order)
+    inventory.receive("C020", 8)
+    for sku, qty in inventory.to_reorder():
+        print(f"reorder {sku}: {qty}")
+    print(inventory.report())
+
+
+if __name__ == "__main__":
+    main()
+```

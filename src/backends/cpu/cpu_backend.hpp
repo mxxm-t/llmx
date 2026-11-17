@@ -24,6 +24,7 @@
 #include "core/cpus.hpp"
 #include "core/fp16.hpp"
 #include "core/host_memory.hpp"
+#include "format/weight_scales.hpp"
 #include "quant/model_formats.hpp"
 #include "quant/quant.hpp"
 
@@ -3039,8 +3040,8 @@ private:
     // An F8_E4M3 weight's grid, checked to hold one scale per 128 inputs of every 2^shift rows of `experts` matrices of `nout` rows of `nin` inputs.
     static const float* fp8_scales(WeightView weight, size_t nin, size_t nout, size_t experts = 1) {
         const float* grid = weight_scales(weight, experts);
-        if (!nin || nin % quant::F8_E4M3_SCALE_INPUTS || !nout ||
-            weight.scale_count != size_mul(experts, size_mul(((nout - 1) >> weight.scale_shift) + 1, nin / quant::F8_E4M3_SCALE_INPUTS)))
+        const size_t count = gguf::fp8_grid_count(nin, nout, weight.scale_shift, experts);
+        if (!count || weight.scale_count != count)
             throw std::runtime_error("backend: F8_E4M3 scale grid does not match its matrices");
         return grid;
     }

@@ -17,6 +17,8 @@ const uint Q1_0_BYTES = 18u;
 const uint TYPE_Q2_0 = 42u;
 const uint Q2_0_BLOCK = 64u;
 const uint Q2_0_BYTES = 18u;
+// One E4M3 code a byte, its scales in a grid beside it (backend.hpp WeightView).
+const uint TYPE_F8_E4M3 = 43u;
 
 const uint TYPE_TQ1_0 = 34u;
 const uint TYPE_TQ2_0 = 35u;

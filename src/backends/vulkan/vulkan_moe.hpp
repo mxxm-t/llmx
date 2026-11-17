@@ -78,26 +78,26 @@ inline void VulkanBackend::moe_step(const MoeStep& m, CSlice h, Slice y, size_t 
     const bool i8 = dtype == Dtype::int8;
     // The operands as the unfused calls check them.
     check_matrix(m.router.weight.type, m.router.weight.data, nin, n_expert);
-    check_weight_scales(m.router.weight);
+    check_weight_scales(m.router.weight, nin, n_expert);
     check_matrix(m.gate.weight.type, m.gate.weight.data, nin, size_mul(n_expert, ff));
-    check_weight_scales(m.gate.weight, n_expert);
+    check_weight_scales(m.gate.weight, nin, ff, n_expert);
     check_matrix(m.up.weight.type, m.up.weight.data, nin, size_mul(n_expert, ff));
-    check_weight_scales(m.up.weight, n_expert);
+    check_weight_scales(m.up.weight, nin, ff, n_expert);
     check_matrix(m.down.type, m.down.data, ff, size_mul(n_expert, E));
-    check_weight_scales(m.down, n_expert);
+    check_weight_scales(m.down, ff, E, n_expert);
     const size_t act_n = size_mul(rows, k * ff + (s ? ff : 0));
     if (floats_from(h) < rows * E || floats_from(y) < rows * E || floats_from(m.router.out) < rows * n_expert || floats_from(m.ids) < entries ||
         floats_from(m.weights) < entries || floats_from(m.gate.out) < act_n || floats_from(m.up.out) < act_n || floats_from(m.act) < act_n)
         throw std::runtime_error("vulkan: routed step operand outside its allocation");
     if (s) {
         check_matrix(s->gate.weight.type, s->gate.weight.data, nin, ff);
-        check_weight_scales(s->gate.weight);
+        check_weight_scales(s->gate.weight, nin, ff);
         check_matrix(s->up.weight.type, s->up.weight.data, nin, ff);
-        check_weight_scales(s->up.weight);
+        check_weight_scales(s->up.weight, nin, ff);
         check_matrix(s->down.type, s->down.data, ff, E);
-        check_weight_scales(s->down);
+        check_weight_scales(s->down, ff, E);
         check_matrix(s->row_gate.weight.type, s->row_gate.weight.data, nin, 1);
-        check_weight_scales(s->row_gate.weight);
+        check_weight_scales(s->row_gate.weight, nin, 1);
         // The shared rows sit right after the routed ones, which the fused kernels read as one run of entries.
         if (s->gate.out.buffer != m.gate.out.buffer || s->gate.out.offset != m.gate.out.offset + entries * ff || s->up.out.buffer != m.up.out.buffer ||
             s->up.out.offset != m.up.out.offset + entries * ff || s->act.buffer != m.act.buffer || s->act.offset != m.act.offset + entries * ff ||

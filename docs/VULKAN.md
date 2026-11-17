@@ -20,6 +20,13 @@ The backend retains these read-only weights in their file storage and widens the
 
 The `llmx-moe-kernel-bench` tool retains its decode cases and adds dense prompt and routed cases through 128 rows, crossing the ordinary and routed quantized tile thresholds. Its buffers hold those extents; matched screens record the exact benchmark source and binary alongside each kernel arm.
 
+## F8_E4M3 weights
+
+FP8 checkpoints' E4M3 codes stay one byte a weight on the device, beside their F32 scale grid ([weight_scales](src/format-weight_scales.md)), and run through the existing embedding, row and tile owners with one row module and one tile source added (`matmul_row_fp8`, `matmul_tile` with `LLMX_FP8`).
+The embedding sets each product's sign from the code's and the scale's bits, since its module does not ask a driver to keep the sign of zero, and the Radeon VII's Windows driver gave -0 for -0 times a negative scale.
+Codes decode exactly, the inputs are rounded to binary16 under `f16` and `int8` where the device has the half conversion controls, products are summed in F32, and each partial is scaled by its grid entry with an FMA ([PRECISION](PRECISION.md), [the backend page](src/backends-vulkan.md)).
+A tensor group or a run of rows carries the grid with each shard (`shard::grid`). The measurements and their open gates are in [STATUS](STATUS.md).
+
 ## MXFP4 and activation precision
 
 The Vulkan backend reads MXFP4 through exact embedding, row and tile decoders. F32 uses original activations; BF16 tiles round inputs explicitly. F16 calls use block-int16 rows and, on integer-tile profiles, dense prompts with an exact float-scale copy. Routed prompts and projections beyond the bounded 256 MiB copy scratch take the wider F32 tile, routed calls of 16 or fewer entries an expert its narrow build, a thread a row over every column of a run of 16 entries, with the 64-column build's bits. Unsafe sums are recomputed in double from exact weights and the selected path's inputs; split partials stay double until reduction. Optional float preservation and double properties gate the type without raising other types' requirements. The backend advertises native F16 and resolves auto to it on the qualified MI50 and Radeon VII paths.

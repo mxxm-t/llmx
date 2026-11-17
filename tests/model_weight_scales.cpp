@@ -324,6 +324,75 @@ void check_experts(const std::string& path) {
     }
     for (size_t i = 1; i < paths.size(); ++i) std::filesystem::remove(std::filesystem::u8path(paths[i]));
 }
+// Every matrix F8_E4M3 under a scale grid at row shift `shift` (codes 0, 1, 2, -1 and -2 under signed powers of two), or its exact F32 values.
+gguf::GGUFModel fp8_fixture(bool decoded, unsigned shift) {
+    const auto base = infer::synthetic_model({2, 256, 512, 8, 4, 32, 16, 593});
+    gguf::GGUFModel out;
+    out.kv = base.kv;
+    constexpr uint8_t codes[] = {0x00, 0x38, 0x40, 0xB8, 0xC0};
+    constexpr float values[] = {0, 1, 2, -1, -2};
+    for (size_t t = 0; t < base.tensors.size(); ++t) {
+        auto info = base.tensors[t];
+        if (info.type == quant::GGML_TYPE_F32) {
+            out.tensors.push_back(info);
+            out.add_tensor_data(std::vector<uint8_t>(base.tensor_data(t), base.tensor_data(t) + base.tensor_bytes(t)));
+            continue;
+        }
+        const size_t nin = size_t(info.ne[0]), rows = size_t(info.ne[1]), cols = nin / 128, grid_rows = ((rows - 1) >> shift) + 1;
+        std::vector<float> grid(grid_rows * cols);
+        for (size_t g = 0; g < grid.size(); ++g) grid[g] = std::ldexp((g + t) % 3 ? 1.0f : -1.0f, -int(3 + (g * 5 + t) % 4));
+        info.type = decoded ? quant::GGML_TYPE_F32 : quant::GGML_TYPE_F8_E4M3;
+        std::vector<uint8_t> data(rows * nin * (decoded ? sizeof(float) : 1));
+        for (size_t r = 0; r < rows; ++r)
+            for (size_t k = 0; k < nin; ++k) {
+                const size_t i = r * nin + k, pick = (i * 13 + i / 128 + t * 7) % 5;
+                const float value = values[pick] * grid[(r >> shift) * cols + k / 128];
+                if (decoded) std::memcpy(data.data() + i * sizeof(float), &value, sizeof(value));
+                else data[i] = codes[pick];
+            }
+        out.tensors.push_back(info);
+        out.add_tensor_data(data);
+        if (!decoded) {
+            out.tensors.push_back({info.name.substr(0, info.name.size() - 7) + ".scale", {cols, grid_rows}, quant::GGML_TYPE_F32, 0});
+            std::vector<uint8_t> bytes(grid.size() * sizeof(float));
+            std::memcpy(bytes.data(), grid.data(), bytes.size());
+            out.add_tensor_data(bytes);
+        }
+    }
+    return out;
+}
+
+// F8_E4M3 grids against exact F32 weights on one CPU and a layer split, and at shift 0 on a tensor group, whose row and column shards each take their part of the grid (shard::grid).
+// At shift 7 a shard of 64 key rows ends inside a 128-row block, which the group refuses by the tensor's name.
+void check_fp8() {
+    infer::ModelOptions options;
+    options.dtype = backend::Dtype::f32;
+    options.kv_k = options.kv_v = backend::KVType::f32;
+    const std::vector<uint32_t> ids = {1, 4, 2, 7, 3};
+    for (unsigned shift : {0u, 7u}) {
+        const auto file = fp8_fixture(false, shift), oracle = fp8_fixture(true, shift);
+        const auto weights = infer::gguf_weights(file);
+        infer::Model reference(infer::gguf_weights(oracle), cpu(), options);
+        const auto expected = reference.prefill(ids);
+        for (size_t width : {size_t(1), size_t(2)}) {
+            infer::Placement placement;
+            placement.width = width;
+            placement.mixer_device = width == 1 ? std::vector<int>{0, 1} : std::vector<int>{0, 0};
+            placement.ffn_device = placement.mixer_device;
+            placement.output_device = width == 1 ? 1 : 0;
+            if (width == 2 && shift == 7) {
+                std::string error;
+                try { infer::Model model(weights, {cpu(), cpu()}, placement, options); }
+                catch (const std::runtime_error& e) { error = e.what(); }
+                require(error.find("inference: F8_E4M3 tensor ") == 0 && error.find(" is split off its scale grid's blocks") != std::string::npos,
+                        "a shard inside a 128-row grid block was not refused by name");
+                continue;
+            }
+            infer::Model model(weights, {cpu(), cpu()}, placement, options);
+            compare(model.prefill(ids), expected);
+        }
+    }
+}
 } // namespace
 
 int main(int argc, char** argv) {
@@ -332,8 +401,9 @@ int main(int argc, char** argv) {
         check(argv[1], false);
         check(argv[1], true);
         check_experts(argv[1]);
+        check_fp8();
         std::filesystem::remove(std::filesystem::u8path(argv[1]));
-        std::cout << "model weight scales: independent F32, tied head, layer/tensor split and load modes pass\n";
+        std::cout << "model weight scales: independent F32, tied head, layer/tensor split and load modes pass; F8_E4M3 grids on one CPU, a layer split and a tensor group\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';

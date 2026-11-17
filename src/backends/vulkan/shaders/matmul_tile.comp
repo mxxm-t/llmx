@@ -39,7 +39,8 @@ layout(constant_id = 15) const uint WEIGHT_TYPE = 0xffffffffu;
 #define TILE_COLS 64u
 #define CPT 4u
 // `wstride` is an F32 row's stride in floats: nin, or more for the padded copy the backend keeps of a matrix whose rows are a power of two wide.
-layout(push_constant) uniform P { uint nin; uint nout; uint nbatch; uint type; uint accum; uint per; uint order0; uint kper; uint ctiles; uint wstride; } p;
+// `shift` is an F8_E4M3 weight's grid row shift (backend.hpp WeightView).
+layout(push_constant) uniform P { uint nin; uint nout; uint nbatch; uint type; uint accum; uint per; uint order0; uint kper; uint ctiles; uint wstride; uint shift; } p;
 #ifdef LLMX_MXFP4
 // Split calls store double partials as two words; unsplit calls store f32 bits.
 layout(set = 0, binding = 0) buffer Y { uint ybits[]; };
@@ -148,6 +149,13 @@ double mxfp4_wide(uint row, uint col, uint begin, uint end) {
 }
 #endif
 
+#ifdef LLMX_FP8
+// Row `row` of expert `expert`'s grid scale for the 128 inputs holding `k`.
+float fp8_scale(uint expert, uint row, uint k) {
+    return wf[(expert * (((p.nout - 1u) >> p.shift) + 1u) + (row >> p.shift)) * (p.nin / 128u) + k / 128u];
+}
+#endif
+
 int lo8(uint w) { return (int(w << 24u)) >> 24; }
 int hi8(uint w) { return (int(w << 16u)) >> 24; }
 
@@ -205,6 +213,18 @@ void main() {
     float acc[MROWS][CPT];
 #endif
     for (uint i = 0u; i < MROWS; ++i) for (uint j = 0u; j < CPT; ++j) acc[i][j] = 0.0;
+#ifdef LLMX_FP8
+    // A 128-input block's sums of exact codes times inputs, scaled into acc by FMA at the block's end, as the CPU scales its partials.
+#ifdef LLMX_PRESERVE_F32
+    precise float block_sum[MROWS][CPT];
+#else
+    float block_sum[MROWS][CPT];
+#endif
+    for (uint i = 0u; i < MROWS; ++i) for (uint j = 0u; j < CPT; ++j) block_sum[i][j] = 0.0;
+#define TILE_SUM block_sum
+#else
+#define TILE_SUM acc
+#endif
     uint nblocks = p.nin / 32u;   // the small-block types have 32-value blocks
 #ifdef LLMX_MXFP4
     // A thread's own record over every stage, merged once after the last stage: its row's wide-scale flag and least and greatest other scale, and its inputs' least and greatest exponent.
@@ -249,7 +269,11 @@ void main() {
             xv[i] = matrix_input(px[i]);
 #else
             uint k = k0 + xseg * (STAGE_K / XPR) + i;
+#if defined(LLMX_FP8) && defined(LLMX_INPUT_F16)
+            xv[i] = float(float16_t(x[xin && k < p.nin ? xc * p.nin + k : 0u]));
+#else
             xv[i] = matrix_input(x[xin && k < p.nin ? xc * p.nin + k : 0u]);
+#endif
 #endif
         }
 #endif
@@ -275,6 +299,12 @@ void main() {
             for (uint i = 0u; i < WVALS / 2u; ++i)
                 ws_pairs[wrow][wseg * (WVALS / 2u) + i] = vec2(0.0);
         }
+#elif defined(LLMX_FP8)
+        // A loader's run of codes lies in whole words, since rows hold whole 128-input blocks.
+        vec4 wq[WVALS / 4u];
+        for (uint i = 0u; i < WVALS / 4u; ++i)
+            wq[i] = e4m3_four(w32[((row < p.nout ? wr : 0u) * p.nin + k0 + wseg * WVALS) / 4u + i]);
+        for (uint i = 0u; i < WVALS; ++i) ws[wseg * WVALS + i][wrow] = row < p.nout ? wq[i / 4u][i & 3u] : 0.0;
 #elif defined(LLMX_MXFP4)
         uint o = ((row < p.nout ? wr : 0u) * nblocks + k0 / MXFP4_BLOCK) * MXFP4_BYTES;
         uint e = (pe >> (8u * (o & 3u))) & 255u;
@@ -577,11 +607,22 @@ void main() {
                     float a = ws[k][tr * MROWS + i];
                     for (uint j = 0u; j < CPT; ++j) {
 #ifdef LLMX_PRESERVE_F32
-                        acc[i][j] = fma(a, bv[j], acc[i][j]);
+                        TILE_SUM[i][j] = fma(a, bv[j], TILE_SUM[i][j]);
 #else
-                        acc[i][j] += a * bv[j];
+                        TILE_SUM[i][j] += a * bv[j];
 #endif
                     }
+                }
+            }
+        }
+#endif
+#ifdef LLMX_FP8
+        if ((k0 + STAGE_K) % 128u == 0u || k0 + STAGE_K >= kend) {
+            for (uint i = 0u; i < MROWS; ++i) {
+                float scale = fp8_scale(expert, min(row_base + tr * MROWS + i, p.nout - 1u), k0);
+                for (uint j = 0u; j < CPT; ++j) {
+                    acc[i][j] = fma(block_sum[i][j], scale, acc[i][j]);
+                    block_sum[i][j] = 0.0;
                 }
             }
         }

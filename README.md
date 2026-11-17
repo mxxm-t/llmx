@@ -68,7 +68,7 @@ This is the current model-weight support matrix. The [storage metadata page](doc
 | `IQ3_XXS`, `IQ3_S` | Supported | Supported | Planned | No |
 | `IQ4_NL`, `IQ4_XS` | Supported | Supported | `IQ4_NL` supported, `IQ4_XS` planned | No |
 | `TQ1_0`, `TQ2_0` | Supported | Supported | Planned | No |
-| `F8_E4M3` | Supported | Planned | Planned | No |
+| `F8_E4M3` | Supported | Supported | Planned | No |
 
 The current Vulkan `MXFP4` kernels require support for preserving small and special floating-point values and for double-precision intermediate calculations. A tensor assigned to a device that cannot process its format, such as a format the ROCm column does not list, is rejected; llmx does not move it to the CPU automatically.
 
@@ -104,7 +104,7 @@ The full table of what each part computes in is in [PRECISION](docs/PRECISION.md
 | GGUF v3, one file or a shard set | Supported: read by every model command, written by `quantize` |
 | Hugging Face download | Supported: `llmx pull <owner/repo>:<quant>` for GGUF, `llmx pull <owner/repo>` for a safetensors directory |
 | Raw F32 tensors (`.json` + `.bin`) | Supported: input of `quantize`, output of `dequantize` |
-| safetensors, with `config.json` and `tokenizer.json` | Supported: dense `qwen3` directories in `F32`, `F16` or `BF16`, AWQ 4-bit directories read as exact `Q5_0`, and GPTQ directories read as exact `Q4_0` (4-bit symmetric), `Q5_0` (4-bit) or `Q8_0` (8-bit symmetric), compressed-tensors int directories read as exact `Q4_0` (4-bit symmetric), `Q5_0` (4-bit asymmetric) or `Q8_0` (8-bit symmetric), and FP8 directories (`quant_method` fp8 or compressed-tensors `float-quantized`, by tensor, channel or 128 x 128 block) read as `F8_E4M3` on the CPU; quantize, dequantize, drafter and mmproj files stay GGUF |
+| safetensors, with `config.json` and `tokenizer.json` | Supported: dense `qwen3` directories in `F32`, `F16` or `BF16`; AWQ 4-bit directories read as exact `Q5_0`; GPTQ and compressed-tensors int directories read as exact `Q4_0` (4-bit symmetric), `Q5_0` (other 4-bit) or `Q8_0` (8-bit symmetric); FP8 directories (`quant_method` fp8 or compressed-tensors `float-quantized`, by tensor, channel or 128 x 128 block) read as `F8_E4M3`, which runs on the CPU and Vulkan; quantize, dequantize, drafter and mmproj files stay GGUF |
 
 ## Build
 

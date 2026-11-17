@@ -30,6 +30,12 @@ float nvfp4_at(uint o, uint j) {
     uint packed = QBYTE(o + 4u + group * 8u + (j & 7u));
     return nvfp4_value(nvfp4_scale(QBYTE(o + group)), (j & 8u) == 0u ? packed & 15u : packed >> 4u);
 }
+// A word's four E4M3 codes, exactly: each code's bits placed in a binary16 of 1/256 its value, the two NaN codes given an all-ones exponent, then widened and scaled by 256.
+vec4 e4m3_four(uint w) {
+    uvec4 c = (uvec4(w) >> uvec4(0u, 8u, 16u, 24u)) & 255u;
+    uvec4 h = ((c & 0x80u) << 8u) | ((c & 0x7Fu) << 7u) | ((((c & 0x7Fu) + 1u) & 0x80u) * 0xF8u);
+    return vec4(unpackHalf2x16(h.x | (h.y << 16u)), unpackHalf2x16(h.z | (h.w << 16u))) * 256.0;
+}
 float mxfp4_scale(uint e) {
     return uintBitsToFloat(e <= 1u ? 0x00200000u << e : (e - 1u) << 23u);
 }

@@ -194,6 +194,21 @@ const uint32_t kSpvMatmulTileNvfp4Bf16[] = {
 const uint32_t kSpvMatmulTileNvfp4Bf16Preserve[] = {
 #include "vulkan/matmul_tile_nvfp4_bf16_preserve.inc"
 };
+const uint32_t kSpvMatmulTileFp8[] = {
+#include "vulkan/matmul_tile_fp8.inc"
+};
+const uint32_t kSpvMatmulTileFp8Preserve[] = {
+#include "vulkan/matmul_tile_fp8_preserve.inc"
+};
+const uint32_t kSpvMatmulTileFp8F16[] = {
+#include "vulkan/matmul_tile_fp8_f16.inc"
+};
+const uint32_t kSpvMatmulTileFp8Bf16[] = {
+#include "vulkan/matmul_tile_fp8_bf16.inc"
+};
+const uint32_t kSpvMatmulTileFp8Bf16Preserve[] = {
+#include "vulkan/matmul_tile_fp8_bf16_preserve.inc"
+};
 const uint32_t kSpvQuantizeXW[] = {
 #include "vulkan/quantize_xw.inc"
 };
@@ -502,6 +517,15 @@ const uint32_t kSpvMatmulRowNvfp4[] = {
 };
 const uint32_t kSpvMatmulRowNvfp4Preserve[] = {
 #include "vulkan/matmul_row_nvfp4_preserve.inc"
+};
+const uint32_t kSpvMatmulRowFp8[] = {
+#include "vulkan/matmul_row_fp8.inc"
+};
+const uint32_t kSpvMatmulRowFp8Preserve[] = {
+#include "vulkan/matmul_row_fp8_preserve.inc"
+};
+const uint32_t kSpvMatmulRowFp8F16[] = {
+#include "vulkan/matmul_row_fp8_f16.inc"
 };
 const uint32_t kSpvMatmulRowQ1_0[] = {
 #include "vulkan/matmul_row_q1_0.inc"
@@ -1137,7 +1161,7 @@ const uint32_t kSpvHold[] = {
     X(K_MATMUL_TILE_NVFP4_F16, "matmul_tile_nvfp4_f16", kSpvMatmulTileNvfp4F16, sizeof(kSpvMatmulTileNvfp4F16), 6, nullptr, nullptr, 0, kF16InputControls, 0) \
     X(K_MATMUL_TILE_NVFP4_F16_TALL, "matmul_tile_nvfp4_f16_tall", kSpvMatmulTileNvfp4F16, sizeof(kSpvMatmulTileNvfp4F16), 6, nullptr, nullptr, 0, kF16InputControls, 0) \
     X(K_MATMUL_TILE_NVFP4_BF16, "matmul_tile_nvfp4_bf16", kSpvMatmulTileNvfp4Bf16, sizeof(kSpvMatmulTileNvfp4Bf16), 6, nullptr, kSpvMatmulTileNvfp4Bf16Preserve, sizeof(kSpvMatmulTileNvfp4Bf16Preserve), 0, kPreserve32) \
-    X(K_MATMUL_TILE_NVFP4_BF16_TALL, "matmul_tile_nvfp4_bf16_tall", kSpvMatmulTileNvfp4Bf16, sizeof(kSpvMatmulTileNvfp4Bf16), 6, nullptr, kSpvMatmulTileNvfp4Bf16Preserve, sizeof(kSpvMatmulTileNvfp4Bf16Preserve), 0, kPreserve32) \
+    X(K_MATMUL_TILE_NVFP4_BF16_TALL, "matmul_tile_nvfp4_bf16_tall", kSpvMatmulTileNvfp4Bf16, sizeof(kSpvMatmulTileNvfp4Bf16), 6, nullptr, kSpvMatmulTileNvfp4Bf16Preserve, sizeof(kSpvMatmulTileNvfp4Bf16Preserve), 0, kPreserve32)     X(K_MATMUL_TILE_FP8, "matmul_tile_fp8", kSpvMatmulTileFp8, sizeof(kSpvMatmulTileFp8), 6, nullptr, kSpvMatmulTileFp8Preserve, sizeof(kSpvMatmulTileFp8Preserve), 0, kPreserve32)     X(K_MATMUL_TILE_FP8_TALL, "matmul_tile_fp8_tall", kSpvMatmulTileFp8, sizeof(kSpvMatmulTileFp8), 6, nullptr, kSpvMatmulTileFp8Preserve, sizeof(kSpvMatmulTileFp8Preserve), 0, kPreserve32)     X(K_MATMUL_TILE_FP8_F16, "matmul_tile_fp8_f16", kSpvMatmulTileFp8F16, sizeof(kSpvMatmulTileFp8F16), 6, nullptr, nullptr, 0, kF16InputControls, 0)     X(K_MATMUL_TILE_FP8_F16_TALL, "matmul_tile_fp8_f16_tall", kSpvMatmulTileFp8F16, sizeof(kSpvMatmulTileFp8F16), 6, nullptr, nullptr, 0, kF16InputControls, 0)     X(K_MATMUL_TILE_FP8_BF16, "matmul_tile_fp8_bf16", kSpvMatmulTileFp8Bf16, sizeof(kSpvMatmulTileFp8Bf16), 6, nullptr, kSpvMatmulTileFp8Bf16Preserve, sizeof(kSpvMatmulTileFp8Bf16Preserve), 0, kPreserve32)     X(K_MATMUL_TILE_FP8_BF16_TALL, "matmul_tile_fp8_bf16_tall", kSpvMatmulTileFp8Bf16, sizeof(kSpvMatmulTileFp8Bf16), 6, nullptr, kSpvMatmulTileFp8Bf16Preserve, sizeof(kSpvMatmulTileFp8Bf16Preserve), 0, kPreserve32) \
     X(K_MATMUL_ROW_K4, "matmul_row_k4", kSpvMatmulRowK4, sizeof(kSpvMatmulRowK4), 12, kMatmulRowCounts) \
     X(K_MATMUL_ROW_K5, "matmul_row_k5", kSpvMatmulRowK5, sizeof(kSpvMatmulRowK5), 12, kMatmulRowCounts, kSpvMatmulRowK5Preserve, sizeof(kSpvMatmulRowK5Preserve), 0, kPreserve32) \
     X(K_MATMUL_ROW_K, "matmul_row_k", kSpvMatmulRowK, sizeof(kSpvMatmulRowK), 12, kMatmulRowCounts, kSpvMatmulRowKPreserve, sizeof(kSpvMatmulRowKPreserve), 0, kPreserve32) \
@@ -1299,7 +1323,7 @@ const uint32_t kSpvHold[] = {
     X(K_MATMUL_ROW_Q3_DOT, "matmul_row_q3_dot", kSpvMatmulRowQ3Dot, sizeof(kSpvMatmulRowQ3Dot), 12, kMatmulRowCounts, kSpvMatmulRowQ3DotPreserve, sizeof(kSpvMatmulRowQ3DotPreserve), 0, kPreserve32, true) \
     X(K_MATMUL_TILE_BF16, "matmul_tile_bf16", kSpvMatmulTileBf16, sizeof(kSpvMatmulTileBf16), 6, nullptr, kSpvMatmulTileBf16Preserve, sizeof(kSpvMatmulTileBf16Preserve), 0, kPreserve32) \
     X(K_MATMUL_TILE_BF16_TALL, "matmul_tile_bf16_tall", kSpvMatmulTileBf16, sizeof(kSpvMatmulTileBf16), 6, nullptr, kSpvMatmulTileBf16Preserve, sizeof(kSpvMatmulTileBf16Preserve), 0, kPreserve32) \
-    X(K_MATMUL_ROW_NVFP4, "matmul_row_nvfp4", kSpvMatmulRowNvfp4, sizeof(kSpvMatmulRowNvfp4), 12, kMatmulRowCounts, kSpvMatmulRowNvfp4Preserve, sizeof(kSpvMatmulRowNvfp4Preserve), 0, kPreserve32) \
+    X(K_MATMUL_ROW_NVFP4, "matmul_row_nvfp4", kSpvMatmulRowNvfp4, sizeof(kSpvMatmulRowNvfp4), 12, kMatmulRowCounts, kSpvMatmulRowNvfp4Preserve, sizeof(kSpvMatmulRowNvfp4Preserve), 0, kPreserve32)     X(K_MATMUL_ROW_FP8, "matmul_row_fp8", kSpvMatmulRowFp8, sizeof(kSpvMatmulRowFp8), 12, kMatmulRowCounts, kSpvMatmulRowFp8Preserve, sizeof(kSpvMatmulRowFp8Preserve), 0, kPreserve32)     X(K_MATMUL_ROW_FP8_F16, "matmul_row_fp8_f16", kSpvMatmulRowFp8F16, sizeof(kSpvMatmulRowFp8F16), 12, kMatmulRowCounts, nullptr, 0, kF16InputControls, 0) \
     X(K_MATMUL_TILE_Q1_0, "matmul_tile_q1_0", kSpvMatmulTile, sizeof(kSpvMatmulTile), 6, nullptr, kSpvMatmulTilePreserve, sizeof(kSpvMatmulTilePreserve), 0, kPreserve32) \
     X(K_MATMUL_TILE_Q2_0, "matmul_tile_q2_0", kSpvMatmulTile, sizeof(kSpvMatmulTile), 6, nullptr, kSpvMatmulTilePreserve, sizeof(kSpvMatmulTilePreserve), 0, kPreserve32) \
     X(K_MATMUL_TILE_Q1_0_TALL, "matmul_tile_q1_0_tall", kSpvMatmulTile, sizeof(kSpvMatmulTile), 6, nullptr, kSpvMatmulTilePreserve, sizeof(kSpvMatmulTilePreserve), 0, kPreserve32) \
@@ -1522,6 +1546,9 @@ const WeightKernels weight_formats[] = {
     {quant::GGML_TYPE_NVFP4, RowLayout::values, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_NVFP4, K_MATMUL_ROW_NVFP4, K_MATMUL_ROW_NVFP4,
      K_MATMUL_TILE_NVFP4, K_MATMUL_TILE_NVFP4_TALL, K_MATMUL_TILE_NVFP4_BF16, K_MATMUL_TILE_NVFP4_BF16_TALL,
      K_COUNT, K_COUNT, K_COUNT, K_COUNT, K_COUNT, false, false, &DeviceProfile::prefer_integer_dot, &DeviceProfile::moe_tile_from},
+    {quant::GGML_TYPE_F8_E4M3, RowLayout::values, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_FP8, K_MATMUL_ROW_FP8, K_MATMUL_ROW_FP8,
+     K_MATMUL_TILE_FP8, K_MATMUL_TILE_FP8_TALL, K_MATMUL_TILE_FP8_BF16, K_MATMUL_TILE_FP8_BF16_TALL,
+     K_COUNT, K_COUNT, K_COUNT, K_COUNT, K_COUNT, true, false, &DeviceProfile::prefer_integer_dot, &DeviceProfile::moe_tile_from},
 };
 
 const WeightKernels* weight_kernels(uint32_t type) {
@@ -1550,6 +1577,9 @@ inline KernelId float_tile_kernel(bool tall, Dtype dtype, uint32_t type, bool f1
     if (narrow && type == quant::GGML_TYPE_MXFP4 && dtype != Dtype::bf16) return tall ? K_MATMUL_TILE_MXFP4_NARROW_TALL : K_MATMUL_TILE_MXFP4_NARROW;
     if (type == quant::GGML_TYPE_NVFP4 && dtype == Dtype::f16 && f16_inputs)
         return tall ? K_MATMUL_TILE_NVFP4_F16_TALL : K_MATMUL_TILE_NVFP4_F16;
+    // F8_E4M3 has no 8-bit form, so int8 takes its 16-bit inputs (docs/PRECISION.md).
+    if (type == quant::GGML_TYPE_F8_E4M3 && (dtype == Dtype::f16 || dtype == Dtype::int8) && f16_inputs)
+        return tall ? K_MATMUL_TILE_FP8_F16_TALL : K_MATMUL_TILE_FP8_F16;
     if (dtype == Dtype::bf16) return tall ? format.bf16_tall_tile : format.bf16_tile;
     return tall ? format.tall_tile : format.tile;
 }
@@ -1559,7 +1589,7 @@ inline bool is_row_kernel(KernelId id) {
     if (id == K_MATMUL_ROW_MXFP4 || id == K_MATMUL_ROW_MXFP4_DOT || id == K_MATMUL_ROW_MXFP4_FLOAT_X) return true;
     switch (id) {
     case K_MATMUL_ROW_WF16: case K_MATMUL_ROW_WBF16:
-    case K_MATMUL_ROW_FLOAT_X_Q2: case K_MATMUL_ROW_FLOAT_X_Q3: case K_MATMUL_ROW_NVFP4:
+    case K_MATMUL_ROW_FLOAT_X_Q2: case K_MATMUL_ROW_FLOAT_X_Q3: case K_MATMUL_ROW_NVFP4: case K_MATMUL_ROW_FP8: case K_MATMUL_ROW_FP8_F16:
     case K_MATMUL_ROW_Q1_0: case K_MATMUL_ROW_Q1_0_DOT:
     case K_MATMUL_ROW_Q2_0: case K_MATMUL_ROW_Q2_0_DOT:
     case K_MATMUL_ROW_Q2_DOT: case K_MATMUL_ROW_Q3_DOT:
@@ -1583,6 +1613,16 @@ inline bool is_row_kernel(KernelId id) {
 
 inline bool is_nvfp4_f16_tile(KernelId id) {
     return id == K_MATMUL_TILE_NVFP4_F16 || id == K_MATMUL_TILE_NVFP4_F16_TALL;
+}
+
+// The tiles whose activations are rounded to binary16 in the shader.
+inline bool is_f16_input_tile(KernelId id) {
+    return id == K_MATMUL_TILE_NVFP4_F16 || id == K_MATMUL_TILE_NVFP4_F16_TALL || id == K_MATMUL_TILE_FP8_F16 || id == K_MATMUL_TILE_FP8_F16_TALL;
+}
+
+inline bool is_fp8_tile(KernelId id) {
+    return id == K_MATMUL_TILE_FP8 || id == K_MATMUL_TILE_FP8_TALL || id == K_MATMUL_TILE_FP8_F16 || id == K_MATMUL_TILE_FP8_F16_TALL ||
+           id == K_MATMUL_TILE_FP8_BF16 || id == K_MATMUL_TILE_FP8_BF16_TALL;
 }
 
 inline bool is_nvfp4_tile(KernelId id) {
@@ -1609,7 +1649,7 @@ inline uint32_t low_bits_tile_type(KernelId id) {
 // Whether a kernel id is a tile kernel: they take their row count as specialization constant 0 and write only their outputs.
 inline bool is_tile_kernel(KernelId id) {
     if (low_bits_tile_type(id) != UINT32_MAX) return true;
-    if (is_nvfp4_tile(id)) return true;
+    if (is_nvfp4_tile(id) || is_fp8_tile(id)) return true;
     if (id == K_MATMUL_TILE_Q8MX || id == K_MATMUL_TILE_Q8MX_TALL) return true;
     if (id == K_MATMUL_TILE_MXFP4 || id == K_MATMUL_TILE_MXFP4_TALL || id == K_MATMUL_TILE_MXFP4_NARROW || id == K_MATMUL_TILE_MXFP4_NARROW_TALL ||
         id == K_MATMUL_TILE_MXFP4_BF16 || id == K_MATMUL_TILE_MXFP4_BF16_TALL) return true;

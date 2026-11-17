@@ -57,6 +57,12 @@ const bool AFFINE_Q5 = false;
 #extension GL_ARB_gpu_shader_fp64 : require
 #endif
 #include "float_controls.glsl"
+#ifdef LLMX_INPUT_F16
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_spirv_intrinsics : require
+// The F8_E4M3 build's binary16 inputs; the kernel table supplies both widths' controls.
+spirv_execution_mode(capabilities = [4467], 4462, 32);
+#endif
 #if defined(LLMX_LOW_BITS_DOT) && !defined(LLMX_Q1_0)
 #define LLMX_ROW_THREADS 64
 #else

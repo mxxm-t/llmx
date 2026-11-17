@@ -206,6 +206,38 @@ inline void pack(const Held& h, const uint8_t* src, uint8_t* dst) {
     zero_runs(h, [&](const Run& r) { std::memset(dst + r.to, 0, r.bytes); });
 }
 
+// The part of an F8_E4M3 weight's scale grid (format/weight_scales.hpp) beside a member's copy `h` of the weight `t`, so the copy reads its grid at its own rows and inputs: the grid rows and 128-input columns over what it holds.
+// Each held row run must start on a grid row and end on one or at its expert's last row, runs after it too, and a column run must be whole 128-input blocks, or the split is refused.
+inline Held grid(const Held& h, const TensorView& t, unsigned shift) {
+    const auto refuse = [&]() { return std::runtime_error("inference: F8_E4M3 tensor " + t.name + " is split off its scale grid's blocks"); };
+    const uint64_t block = uint64_t(1) << shift, out = t.shape.size() >= 2 ? t.shape[1] : 1, per = ((out - 1) >> shift) + 1;
+    const size_t cols = size_t(t.shape.at(0) / quant::F8_E4M3_SCALE_INPUTS), width = cols * sizeof(float);
+    Held g;
+    g.axis = h.axis;
+    g.row = width;
+    if (h.axis == Axis::rows) {
+        for (size_t i = 0; i < h.parts.size(); ++i) {
+            const Span c = h.parts[i].cover;
+            const uint64_t first = c.begin, last = c.begin + c.count - 1;
+            const bool whole = c.count % block == 0 || (i + 1 == h.parts.size() && (last + 1) % out == 0);
+            if (!c.count || (first % out) % block || !whole || (first / out != last / out && out % block)) throw refuse();
+            const uint64_t a = first / out * per + (first % out >> shift), b = last / out * per + (last % out >> shift);
+            g.parts.push_back(Part{Span{a, b - a + 1}, Span{a, b - a + 1}});
+            g.bytes = backend::size_add(g.bytes, backend::size_mul(size_t(b - a + 1), width));
+        }
+        return g;
+    }
+    for (const Run& r : h.columns) {
+        if (r.from % quant::F8_E4M3_SCALE_INPUTS || r.bytes % quant::F8_E4M3_SCALE_INPUTS) throw refuse();
+        g.columns.push_back(Run{r.from / quant::F8_E4M3_SCALE_INPUTS * sizeof(float), r.bytes / quant::F8_E4M3_SCALE_INPUTS * sizeof(float),
+                                r.to / quant::F8_E4M3_SCALE_INPUTS * sizeof(float)});
+    }
+    g.packed_row = h.packed_row / quant::F8_E4M3_SCALE_INPUTS * sizeof(float);
+    g.rows = size_t(h.rows / out * per);
+    g.bytes = backend::size_mul(g.rows, g.packed_row);
+    return g;
+}
+
 // The rows or columns of `role` member `member` of `width` holds along its axis, an expert stack's rows those of one expert.
 inline uint64_t share(const Role& role, size_t width, size_t member) {
     uint64_t n = 0;

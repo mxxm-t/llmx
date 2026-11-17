@@ -9,6 +9,7 @@
 #include <stdexcept>
 #include <vector>
 #include "backends/vulkan/vulkan_buffer.hpp"
+#include "format/weight_scales.hpp"
 
 namespace backend {
 namespace {
@@ -322,22 +323,26 @@ inline void VulkanBackend::grow(std::shared_ptr<VulkanBuffer>& buffer, size_t by
     buffer = std::make_shared<VulkanBuffer>(dev_, bytes, false);
 }
 
-inline void VulkanBackend::check_weight_scales(WeightView weight, size_t experts) {
+// An F8_E4M3 weight's grid is checked against `experts` matrices of `nout` rows of `nin` inputs (gguf::fp8_grid_count), as the CPU checks it.
+inline void VulkanBackend::check_weight_scales(WeightView weight, size_t nin, size_t nout, size_t experts) {
+    const bool fp8 = weight.type == quant::GGML_TYPE_F8_E4M3;
     if (!weight.scales.buffer) {
         if (weight.scale_count || weight.scales.offset) throw std::runtime_error("vulkan: weight scale count without storage");
+        if (fp8) throw std::runtime_error("vulkan: F8_E4M3 weights need their scale grid");
         return;
     }
-    if (weight.type != quant::GGML_TYPE_NVFP4) throw std::runtime_error("vulkan: weight scales require NVFP4 storage");
-    if (!weight.scale_count || (weight.scale_count != 1 && weight.scale_count != experts))
+    if (weight.type != quant::GGML_TYPE_NVFP4 && !fp8) throw std::runtime_error("vulkan: weight scales require NVFP4 or F8_E4M3 storage");
+    if (fp8 ? weight.scale_count != gguf::fp8_grid_count(nin, nout, weight.scale_shift, experts) || !weight.scale_count
+            : !weight.scale_count || (weight.scale_count != 1 && weight.scale_count != experts))
         throw std::runtime_error("vulkan: weight scale count differs from its matrices");
     const size_t offset = size_mul(weight.scales.offset, sizeof(float)), bytes = size_mul(weight.scale_count, sizeof(float));
     if (offset > weight.scales.buffer->size() || bytes > weight.scales.buffer->size() - offset)
         throw std::runtime_error("vulkan: weight scales outside the allocation");
 }
 
-// NVFP4 uses its spare F32 binding for scales, with an exact range so the shader distinguishes one scale from an expert vector.
+// NVFP4 uses its spare F32 binding for scales, with an exact range so the shader distinguishes one scale from an expert vector; F8_E4M3 binds its grid there.
 inline VkDescriptorBufferInfo VulkanBackend::weight_floats(WeightView weight, VkDescriptorBufferInfo otherwise) {
-    if (weight.type != quant::GGML_TYPE_NVFP4) return otherwise;
+    if (weight.type != quant::GGML_TYPE_NVFP4 && weight.type != quant::GGML_TYPE_F8_E4M3) return otherwise;
     if (!weight.scales.buffer) {
         if (!unit_scale_) {
             const float one = 1;

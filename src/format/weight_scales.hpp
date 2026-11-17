@@ -26,6 +26,12 @@ inline std::optional<unsigned> fp8_scale_shift(const std::vector<uint64_t>& weig
     return std::nullopt;
 }
 
+// The scales of the F8_E4M3 grids of `experts` matrices of `nout` rows of `nin` inputs at row shift `shift`, or 0 where no grid fits: inputs not whole 128-input blocks, no rows or another shift.
+inline size_t fp8_grid_count(size_t nin, size_t nout, unsigned shift, size_t experts) {
+    if (!nin || nin % kFp8ScaleInputs || !nout || (shift != 0 && shift != 7)) return 0;
+    return experts * ((((nout - 1) >> shift) + 1) * (nin / kFp8ScaleInputs));
+}
+
 // The grid shape of an F8_E4M3 weight of shape `weight` at row shift `shift`.
 inline std::vector<uint64_t> fp8_grid_shape(const std::vector<uint64_t>& weight, unsigned shift) {
     std::vector<uint64_t> ne = {weight[0] / kFp8ScaleInputs, ((weight[1] - 1) >> shift) + 1};

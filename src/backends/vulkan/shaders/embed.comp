@@ -11,11 +11,8 @@
 #endif
 #endif
 layout(local_size_x = 256) in;
-#ifdef LLMX_DEVICE_IDS
-layout(push_constant) uniform P { uint nin; uint type; uint skew; uint lo; uint hi; uint nrows; } p;
-#else
-layout(push_constant) uniform P { uint nin; uint type; uint skew; uint lo; uint hi; } p;
-#endif
+// `shift` is an F8_E4M3 table's grid row shift (backend.hpp WeightView); `nrows` is read with device ids.
+layout(push_constant) uniform P { uint nin; uint type; uint skew; uint lo; uint hi; uint nrows; uint shift; } p;
 layout(set = 0, binding = 0) writeonly buffer D { float dst[]; };
 layout(set = 0, binding = 1) readonly buffer TF { float table_f[]; };
 layout(set = 0, binding = 2) readonly buffer TB { uint8_t table_b[]; };
@@ -47,6 +44,7 @@ void main() {
 #endif
     // Another view's dispatch writes a row this view does not hold.
     if (id < p.lo || id >= p.hi) return;
+    uint table_row = id;
     id -= p.lo;
 #if defined(LLMX_WEIGHT_F16) || defined(LLMX_WEIGHT_BF16)
     uint base = p.skew + id * p.nin * 2u;
@@ -62,6 +60,17 @@ void main() {
     if (p.type == TYPE_F32) {
         uint base = p.skew / 4u + id * p.nin;
         for (uint j = lid; j < p.nin; j += 256u) dst[out_base + j] = table_f[base + j];
+    } else if (p.type == TYPE_F8_E4M3) {
+        // The code's magnitude times its grid scale's in one F32 product, as the CPU scales its decoded row, with the product's sign set from the bits, since this module does not ask drivers to keep the sign of zero.
+        // A NaN code gives the CPU's NaN, which keeps the code's sign through the product.
+        uint base = p.skew + id * p.nin, grid = (table_row >> p.shift) * (p.nin / 128u);
+        for (uint j = lid; j < p.nin; j += 256u) {
+            uint c = QBYTE(base + j), m = c & 0x7Fu;
+            float s = table_f[grid + j / 128u];
+            precise float scaled = e4m3_four(m).x * abs(s);
+            uint sign = (c & 0x80u) << 24u;
+            dst[out_base + j] = uintBitsToFloat(m == 0x7Fu ? 0x7FC00000u | sign : (floatBitsToUint(scaled) & 0x7FFFFFFFu) | (sign ^ (floatBitsToUint(s) & 0x80000000u)));
+        }
     } else if (p.type == TYPE_Q8_0) {
         uint blocks = p.nin / Q8_0_BLOCK;
         uint base = p.skew + id * blocks * Q8_0_BYTES;

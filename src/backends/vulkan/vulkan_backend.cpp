@@ -540,9 +540,9 @@ public:
     bool emulates_dtype(Dtype dtype) const override { return dtype == Dtype::bf16 && dev_->preserve_float32; }
     std::string dtype_path(Dtype dtype) const override {
         if (dtype == Dtype::bf16) return "bf16 (matrix inputs), f32 (routers)";
-        if (dtype == Dtype::int8) return "block-int8 (quantized rows and tiles but Q1_0/Q2_0/Q2_K/Q3_K/MXFP4/TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ4_NL/IQ4_XS/IQ3_S), block-int16 (Q1_0/Q2_0/Q2_K/Q3_K rows on integer-dot profiles and eligible tiles; MXFP4, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles and eligible tiles), f32 (Q1_0/Q2_0/Q2_K/Q3_K, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, other products, routers)";
+        if (dtype == Dtype::int8) return std::string(dev_->f16_inputs ? "f16 (F8_E4M3, which has no 8-bit form), " : "") + "block-int8 (quantized rows and tiles but Q1_0/Q2_0/Q2_K/Q3_K/MXFP4/TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ4_NL/IQ4_XS/IQ3_S), block-int16 (Q1_0/Q2_0/Q2_K/Q3_K rows on integer-dot profiles and eligible tiles; MXFP4, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles and eligible tiles), f32 (Q1_0/Q2_0/Q2_K/Q3_K, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, other products, routers)";
         if (dtype == Dtype::f16)
-            return std::string(dev_->f16_inputs ? "f16 (NVFP4 tile inputs), " : "") + (dev_->profile.prefer_integer_dot
+            return std::string(dev_->f16_inputs ? "f16 (NVFP4 tile inputs, F8_E4M3), " : "") + (dev_->profile.prefer_integer_dot
                 ? "block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
                 : "block-int16 (quantized rows except Q1_0/Q2_0/Q2_K/Q3_K; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (Q1_0/Q2_0/Q2_K/Q3_K, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)");
         return "f32";
@@ -1752,7 +1752,7 @@ public:
         if (count && !ids) throw std::runtime_error("vulkan: embed without ids");
         if (!count || !nin) return;
         check_matrix(type, table, nin, nrows, "embedding");
-        check_weight_scales(weight);
+        check_weight_scales(weight, nin, nrows);
         // An id past the table takes embed_ids' kernel, which writes its zero row.
         const bool past = std::any_of(ids, ids + count, [&](uint32_t id) { return id >= nrows; });
         if (past && nrows >= UINT32_MAX) throw std::runtime_error("vulkan: an embedding of more rows than 32-bit ids name");
@@ -1765,7 +1765,7 @@ public:
         const CSlice table = weight.data;
         if (!count || !nin) return;
         check_matrix(type, table, nin, nrows, "embedding");
-        check_weight_scales(weight);
+        check_weight_scales(weight, nin, nrows);
         if (floats_from(ids) < count || floats_from(dst) < size_mul(count, nin))
             throw std::runtime_error("vulkan: embed_ids operand outside its allocation");
         gather_views(weight_kernels(type)->embed_ids, dst, weight, nin, nrows, bind(ids), count, true);
@@ -1778,9 +1778,9 @@ public:
         for (const TableView& v : table_views(bind(table).offset, nrows, quant::row_bytes(type, nin), dev_->props.limits.maxStorageBufferRange,
                                               dev_->props.limits.minStorageBufferOffsetAlignment)) {
             const VkDescriptorBufferInfo view{buffer, v.offset, v.range};
-            const uint32_t pc[6] = {u32(nin), type, v.skew, v.first, v.end, u32(nrows)};
+            const uint32_t pc[7] = {u32(nin), type, v.skew, v.first, v.end, u32(nrows), weight.scale_shift};
             // Dictionary formats use the spare F32 table view for immutable format data.
-            dispatch(kernel, {bind(dst), weight_floats(weight, lookup_grid(type, view)), view, ids}, pc, device_ids ? sizeof(pc) : sizeof(pc) - sizeof(uint32_t), u32(count));
+            dispatch(kernel, {bind(dst), weight_floats(weight, lookup_grid(type, view)), view, ids}, pc, sizeof(pc), u32(count));
         }
     }
 
@@ -2054,7 +2054,7 @@ private:
     VkDescriptorBufferInfo bind(CSlice s);
     VkDescriptorBufferInfo bind(Slice s);
     CSlice bindable(CSlice s, size_t n);
-    static void check_weight_scales(WeightView weight, size_t experts = 1);
+    static void check_weight_scales(WeightView weight, size_t nin, size_t nout, size_t experts = 1);
     VkDescriptorBufferInfo weight_floats(WeightView weight, VkDescriptorBufferInfo otherwise);
     VkDescriptorBufferInfo lookup_grid(uint32_t type, VkDescriptorBufferInfo otherwise);
     VkDescriptorBufferInfo args(const void* data, size_t bytes);

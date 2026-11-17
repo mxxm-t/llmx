@@ -379,13 +379,15 @@ size_t check_matrix_witness(backend::Backend& vk) {
     const auto native = vk.native_dtypes();
     require(vk.dtype_path(backend::Dtype::f32) == "f32", "device F32 catalog claims a narrower path");
     require(vk.dtype_path(backend::Dtype::bf16) == "bf16 (matrix inputs), f32 (routers)", "device BF16 catalog hides retained F32 routers");
-    require(vk.dtype_path(backend::Dtype::int8) == "block-int8 (quantized rows and tiles but Q1_0/Q2_0/Q2_K/Q3_K/MXFP4/TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ4_NL/IQ4_XS/IQ3_S), block-int16 (Q1_0/Q2_0/Q2_K/Q3_K rows on integer-dot profiles and eligible tiles; MXFP4, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles and eligible tiles), f32 (Q1_0/Q2_0/Q2_K/Q3_K, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, other products, routers)",
-            "device int8 catalog omits a low-bit path");
+    const std::string int8_paths = "block-int8 (quantized rows and tiles but Q1_0/Q2_0/Q2_K/Q3_K/MXFP4/TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ4_NL/IQ4_XS/IQ3_S), block-int16 (Q1_0/Q2_0/Q2_K/Q3_K rows on integer-dot profiles and eligible tiles; MXFP4, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles and eligible tiles), f32 (Q1_0/Q2_0/Q2_K/Q3_K, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, other products, routers)";
     const std::string half_paths = integer
         ? "block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
         : "block-int16 (quantized rows except Q1_0/Q2_0/Q2_K/Q3_K; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (Q1_0/Q2_0/Q2_K/Q3_K, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)";
-    require(vk.dtype_path(backend::Dtype::f16) == half_paths ||
-            vk.dtype_path(backend::Dtype::f16) == "f16 (NVFP4 tile inputs), " + half_paths, "device path catalog ignores the tile profile");
+    // One flag gives both F8_E4M3 prefixes, so int8's form is keyed on f16's.
+    const std::string f16_path = vk.dtype_path(backend::Dtype::f16), fp8_prefix = "f16 (NVFP4 tile inputs, F8_E4M3), ";
+    const bool fp8 = f16_path.compare(0, fp8_prefix.size(), fp8_prefix) == 0;
+    require(f16_path == (fp8 ? fp8_prefix : std::string()) + half_paths, "device path catalog ignores the tile profile");
+    require(vk.dtype_path(backend::Dtype::int8) == (fp8 ? "f16 (F8_E4M3, which has no 8-bit form), " : "") + int8_paths, "device int8 catalog omits a low-bit path");
     require(vk.native_dtypes() == native, "device path catalog changed native policy preferences");
     require(testq::take_matrix_paths(vk).empty(), "device path catalog fabricated an execution witness");
     size_t checked = 0;
@@ -2668,11 +2670,11 @@ struct DecodeCells {
     bool is_wide(uint32_t type) const { return std::find(wide.begin(), wide.end(), type) != wide.end(); }
 };
 
-// Every weight type the device decodes, by GGUF id.
+// Every weight type the device decodes from its blocks alone, by GGUF id; F8_E4M3 runs only beside its scale grid, which weight-scales-vulkan checks.
 std::vector<uint32_t> device_types(const backend::Backend& vk) {
     std::vector<uint32_t> out;
     for (uint32_t id = 0; id < 64; ++id)
-        if (quant::storage_type(id) && vk.supports_type(id)) out.push_back(id);
+        if (quant::storage_type(id) && id != quant::GGML_TYPE_F8_E4M3 && vk.supports_type(id)) out.push_back(id);
     return out;
 }
 
@@ -3613,7 +3615,7 @@ size_t check_weight_dispatch() {
             checks += nout;
         }
     }
-    for (uint32_t type : {4u, 25u, 43u, UINT32_MAX}) {
+    for (uint32_t type : {4u, 25u, 44u, UINT32_MAX}) {
         require(!vk.supports_type(type), "metadata-only or unknown weight type acquired a kernel");
         const std::string expected = "vulkan: unsupported matrix type " + std::to_string(type) +
                                      " (docs/VULKAN.md lists the types the kernels decode)";

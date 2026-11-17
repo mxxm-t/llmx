@@ -895,4 +895,14 @@ The shared kernel table declares the F16 tile's float controls, and `kernel_modu
 
 The shared NVFP4 decoder reads doubled E2M1 magnitudes from a packed constant. It applies the block scale before attaching the sign, keeping zero codes positive and negative nonzero codes negative even when the scale is zero. Embedding, row and tile consumers use this one helper; MXFP4 keeps its existing decoder.
 
+F8_E4M3 weights (one E4M3 code a byte, under an F32 scale grid, [weight_scales](format-weight_scales.md)) take one row module and one tile source, as Q8_0-class 16-bit weights.
+`e4m3_four` in `qdecode.glsl` decodes a word's four codes exactly: each code's sign, exponent and mantissa are placed in a binary16 of 1/256 its value, the two NaN codes (low seven bits all ones) are given an all-ones exponent first, and the widened halves are multiplied by 256, which is exact over normals, subnormals and 448.
+The grid binds at the spare F32 view NVFP4's scales use (`weight_floats`), with its exact count checked by `check_weight_scales` against `gguf::fp8_grid_count`, as the CPU checks it; every kernel reads `grid[(expert * ceil(rows / 2^shift) + (row >> shift)) * (nin / 128) + k / 128]`.
+`matmul_row_fp8` gives each lane runs of 16 codes, which lie in one 128-input block: the run's sum of code times input is taken in F32 by FMA in input order, then scaled into the column's sum by one FMA, the same lanes and order at every column count, so a row has the same bits however many columns its call holds.
+The grid's row shift rides in the projection's `wide` slot, which value rows do not otherwise read, so a group of a block grid and a channel grid keeps each projection's shift.
+`matmul_tile` with `LLMX_FP8` stages exact codes as weights and sums each 32-input stage into `block_sum`, which the end of every 128-input block, or of a split's part, scales into the output accumulator by FMA; the shift is the tile's eleventh push constant.
+Under `f16`, and under `int8`, which has no form for these weights, `matmul_row_fp8_f16` and the `matmul_tile_fp8_f16` build round each activation to binary16 with ties to even, as the CPU does, on a device with the half conversion controls NVFP4's F16 tile needs; elsewhere the F32-input builds run, the wider path, and `dtype_path` names which.
+The embedding scales each decoded code by its grid entry in one F32 product, the CPU's arithmetic, with the shift in its push constants.
+`weight-scales-vulkan` (`llmx-weight-scales-test --vulkan`) holds these to the CPU (docs/TESTS.md).
+
 The native NVFP4 check also exercises scaled and unscaled tall tiles with F32, F16 and BF16 requests. One-hot inputs cover both scale groups in each 32-value stage, an extra output row checks the tail, and timestamp witnesses require the normal and BF16 tall kernels on a timed device. Performance experiments and their disposition are recorded in docs/STATUS.md.

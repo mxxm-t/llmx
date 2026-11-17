@@ -1663,18 +1663,23 @@ private:
             backend::Backend& b = *devices_[device + member]->b;
             // A member of a tensor group takes its shard of a split role, a buffer of its own even where another role reads the whole tensor there, as a tied head beside the embedding does.
             if (role.tensor_rows || (width_ > 1 && role.shard.axis != Axis::none)) {
-                // A shard's rows would read its grid from the shard's first row, which the grid does not offset by.
-                if (t.type == quant::GGML_TYPE_F8_E4M3) throw std::runtime_error("inference: a tensor group does not split F8_E4M3 tensor " + t.name);
+                // A member's copy of tensor `k`'s bytes that `h` holds: adopted by the hook, in place, or packed.
+                const auto hold = [&](size_t k, const shard::Held& h) {
+                    const TensorView& v = weights.tensors[k];
+                    if (adopt) return adopt(k, b, &h);
+                    if (h.parts.size() == 1 && h.parts[0].own.begin == h.parts[0].cover.begin && h.parts[0].own.count == h.parts[0].cover.count)
+                        return b.adopt(v.data + h.parts[0].cover.begin * h.row, h.bytes);
+                    packed_.emplace_back(h.bytes);
+                    shard::pack(h, v.data, packed_.back().data());
+                    return b.adopt(packed_.back().data(), packed_.back().size());
+                };
                 const shard::Held held = shard::held(role, t, width_, member);
-                backend::BufferPtr buffer;
-                if (adopt) {
-                    buffer = adopt(i, b, &held);
-                } else if (held.parts.size() == 1 && held.parts[0].own.begin == held.parts[0].cover.begin && held.parts[0].own.count == held.parts[0].cover.count) {
-                    buffer = b.adopt(t.data + held.parts[0].cover.begin * held.row, held.bytes);
-                } else {
-                    packed_.emplace_back(held.bytes);
-                    shard::pack(held, t.data, packed_.back().data());
-                    buffer = b.adopt(packed_.back().data(), packed_.back().size());
+                backend::BufferPtr buffer = hold(i, held);
+                // An F8_E4M3 shard takes the part of its grid over the rows and inputs it holds (shard::grid).
+                if (weight.scale_count && t.type == quant::GGML_TYPE_F8_E4M3) {
+                    const shard::Held grid = shard::grid(held, t, weight.scale_shift);
+                    weight.scales = hold(*t.scale, grid);
+                    weight.scale_count = grid.bytes / sizeof(float);
                 }
                 const size_t n = (size_t)shard::share(role, width_, member);
                 const bool rows = role.shard.axis == Axis::rows;

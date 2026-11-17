@@ -97,7 +97,7 @@ inline void VulkanBackend::check_group(const Projection* projections, size_t cou
     for (size_t i = 0; i < count; ++i) {
         const Projection& pr = projections[i];
         check_matrix(pr.weight.type, pr.weight.data, nin, pr.rows);
-        check_weight_scales(pr.weight);
+        check_weight_scales(pr.weight, nin, pr.rows);
         if (floats_from(pr.out) < size_mul(nbatch, pr.rows)) throw std::runtime_error("vulkan: matmul operand outside its allocation");
     }
     if (floats_from(X) < size_mul(nbatch, nin)) throw std::runtime_error("vulkan: matmul operand outside its allocation");
@@ -171,8 +171,8 @@ inline void VulkanBackend::matmul_group_impl(const Projection* projections, size
             const VkDescriptorBufferInfo wf = padded_f32(pr->weight.data, pr->weight.type, pr->rows, nin);
             const size_t wstride = wf.buffer == bind(pr->weight.data).buffer ? nin : nin + kF32Pad;
             const VkDescriptorBufferInfo words = weight_floats(pr->weight, lookup_grid(pr->weight.type, wf));
-            uint32_t pc[10] = {u32(nin), u32(pr->rows), u32(nbatch), pr->weight.type, accumulate && parts == 1 ? 1u : 0u, 0, 0,
-                                     u32(kper * 32), u32(gy), u32(wstride)};
+            uint32_t pc[11] = {u32(nin), u32(pr->rows), u32(nbatch), pr->weight.type, accumulate && parts == 1 ? 1u : 0u, 0, 0,
+                                     u32(kper * 32), u32(gy), u32(wstride), pr->weight.scale_shift};
             const KernelId kernel = float_tile_kernel(tall, dtype, pr->weight.type, dev_->f16_inputs);
             const int small = height == kTileRowsSmall ? 1 : 0;
             if (parts > 1) {
@@ -206,7 +206,7 @@ inline void VulkanBackend::matmul_group_impl(const Projection* projections, size
                 dispatch(kernel, {bind(pr->out), bind(pr->weight.data), words, bind(X), bind(pr->weight.data), bind(X)},
                          pc, sizeof(pc), groups(pr->rows, height), (uint32_t)gy, small, {nbatch * pr->rows});
             }
-            record_matrix_path(is_nvfp4_f16_tile(kernel) ? MatrixPath::f16 : dtype == Dtype::bf16 ? MatrixPath::bf16 : MatrixPath::f32);
+            record_matrix_path(is_f16_input_tile(kernel) ? MatrixPath::f16 : dtype == Dtype::bf16 ? MatrixPath::bf16 : MatrixPath::f32);
         }
         // The integer-dot tile takes the projections of one type in one dispatch, since each alone can be too small to fill the device.
         std::vector<const Projection*> pending;
@@ -462,6 +462,8 @@ inline VulkanBackend::RowPlan VulkanBackend::row_plan(uint32_t type, size_t nin,
     if (low_bits_dot_row(kernel)) cluster = std::min(cluster, kLowBitsRowLanes);
     // Where the integer dot is native, Q8_0 rows take the integer dot over the 16-bit twin (shaders/matmul_vec_q8.comp).
     if (dtype == Dtype::f16 && type == quant::GGML_TYPE_Q8_0 && dev_->profile.prefer_integer_dot) kernel = K_MATMUL_VEC_Q8;
+    // F8_E4M3 rows take binary16 inputs under f16 and under int8, which has no form for them, where the device converts as the CPU does.
+    if (type == quant::GGML_TYPE_F8_E4M3 && (dtype == Dtype::f16 || dtype == Dtype::int8) && dev_->f16_inputs) kernel = K_MATMUL_ROW_FP8_F16;
     return RowPlan{kernel, type, wide, cluster};
 }
 
@@ -493,7 +495,9 @@ inline void VulkanBackend::row_dispatch(const RowPlan& plan, const std::vector<c
     const Projection& a = *live[0];
     const Projection& b = live.size() > 1 ? *live[1] : a;
     const Projection& c = live.size() > 2 ? *live[2] : a;
-    const uint32_t t = plan.type, w = plan.wide;
+    const uint32_t t = plan.type;
+    // An F8_E4M3 row build reads each projection's grid row shift from its `wide` slot (shaders/matmul_row_one.glsl).
+    const auto w = [&](const Projection& pr) { return t == quant::GGML_TYPE_F8_E4M3 ? pr.weight.scale_shift : plan.wide; };
     // Dictionary float rows alias the first twin view; integer rows alias the unused F32 weight view.
     const VkDescriptorBufferInfo dictionary = (plan.kernel == K_MATMUL_ROW_IQ1_S || plan.kernel == K_MATMUL_ROW_IQ1_M || plan.kernel == K_MATMUL_ROW_IQ3_S || plan.kernel == K_MATMUL_ROW_IQ2_S || plan.kernel == K_MATMUL_ROW_IQ3_XXS || plan.kernel == K_MATMUL_ROW_IQ2_XXS || plan.kernel == K_MATMUL_ROW_IQ2_XS) ? lookup_grid(t, xqi) : xqi;
     const bool lookup_dot = plan.kernel == K_MATMUL_ROW_IQ1_S_DOT || plan.kernel == K_MATMUL_ROW_IQ1_M_DOT || plan.kernel == K_MATMUL_ROW_IQ3_S_DOT || plan.kernel == K_MATMUL_ROW_IQ2_S_DOT || (plan.kernel == K_MATMUL_ROW_IQ3_XXS_DOT || plan.kernel == K_MATMUL_ROW_IQ2_XXS_DOT || plan.kernel == K_MATMUL_ROW_IQ2_XS_DOT);
@@ -504,9 +508,9 @@ inline void VulkanBackend::row_dispatch(const RowPlan& plan, const std::vector<c
     const size_t chunk = per ? ncols : ncols / entries, longer = per ? 0 : ncols % entries;
     const uint32_t pc[23] = {u32(nin), u32(nbatch), u32(col0), u32(chunk), plan.cluster, dev_->caps.subgroup_size / plan.cluster,
                              (uint32_t)live.size(),
-                             nout[0], t, w, start[0],
-                             nout[1], t, w, start[1],
-                             nout[2], t, w, start[2], accumulate ? 1u : 0u, per, order0, u32(longer)};
+                             nout[0], t, w(a), start[0],
+                             nout[1], t, w(b), start[1],
+                             nout[2], t, w(c), start[2], accumulate ? 1u : 0u, per, order0, u32(longer)};
     dispatch(plan.kernel,
              {bind(a.out), bind(b.out), bind(c.out),
               bind(a.weight.data), bind(b.weight.data), bind(c.weight.data),
@@ -518,7 +522,7 @@ inline void VulkanBackend::row_dispatch(const RowPlan& plan, const std::vector<c
               bind(a.weight.data), bind(b.weight.data), bind(c.weight.data),
               dictionary, xqi, xqi, xqi, ids.buffer ? ids : bind(X), tab.buffer ? tab : bind(X)},
              pc, sizeof(pc), total, u32(entries), variant, {columns * a.rows, columns * b.rows, columns * c.rows});
-    record_matrix_path(weight_kernels(a.weight.type)->layout == RowLayout::values || plan.kernel == weight_kernels(a.weight.type)->float_row ? MatrixPath::f32
+    record_matrix_path(plan.kernel == K_MATMUL_ROW_FP8_F16 ? MatrixPath::f16 : weight_kernels(a.weight.type)->layout == RowLayout::values || plan.kernel == weight_kernels(a.weight.type)->float_row ? MatrixPath::f32
                        : reads_x8(plan.kernel) ? MatrixPath::block_int8 : MatrixPath::block_int16);
 }
 
@@ -571,7 +575,7 @@ inline void VulkanBackend::matmul_experts(std::initializer_list<Projection> proj
     if (projections.size() > 3) throw std::logic_error("vulkan: more than three routed projections");
     for (const Projection& pr : projections) {
         check_matrix(pr.weight.type, pr.weight.data, nin, size_mul(routing.n_expert, pr.rows));
-        check_weight_scales(pr.weight, routing.n_expert);
+        check_weight_scales(pr.weight, nin, pr.rows, routing.n_expert);
         if (floats_from(pr.out) < entries * pr.rows) throw std::runtime_error("vulkan: matmul operand outside its allocation");
         if (pr.weight.type != projections.begin()->weight.type) throw std::runtime_error("vulkan: routed projections of different types");
     }
@@ -593,7 +597,7 @@ inline void VulkanBackend::matmul_experts_add(WeightView weight, CSlice X, Slice
     if (!entries) return;
     const OpSteps steps(*this);
     check_matrix(type, weight.data, nin, size_mul(routing.n_expert, nout));
-    check_weight_scales(weight, routing.n_expert);
+    check_weight_scales(weight, nin, nout, routing.n_expert);
     if (floats_from(X) < entries * nin || floats_from(Y) < nrows * nout || floats_from(routing.ids) < entries ||
         floats_from(routing.weights) < entries)
         throw std::runtime_error("vulkan: matmul operand outside its allocation");
@@ -680,12 +684,12 @@ inline void VulkanBackend::routed_call(const std::vector<const Projection*>& liv
         for (const Projection* pr : live) {
             const size_t height_tiles = float_narrow ? (entries + 63) / 64 + touched : max_tiles;
             const uint32_t height = float_tile_rows_for(dev_->caps, dev_->profile, type, pr->rows, height_tiles, nin);
-            const uint32_t pc[10] = {u32(nin), u32(pr->rows), u32(xcols), type, 0, u32(per), order0, u32(nin), u32(max_tiles), u32(nin)};
+            const uint32_t pc[11] = {u32(nin), u32(pr->rows), u32(xcols), type, 0, u32(per), order0, u32(nin), u32(max_tiles), u32(nin), pr->weight.scale_shift};
             const KernelId kernel = float_tile_kernel(height == kTileRowsTall, dtype, type, dev_->f16_inputs, float_narrow);
             dispatch(kernel,
                      {bind(pr->out), bind(pr->weight.data), weight_floats(pr->weight, lookup_grid(type, bind(pr->weight.data))), bind(X), bind(pr->weight.data), tab},
                      pc, sizeof(pc), groups(pr->rows, float_narrow ? kNarrowFloatRows : height), u32(max_tiles), height == kTileRowsSmall ? 1 : 0, {entries * pr->rows});
-            record_matrix_path(is_nvfp4_f16_tile(kernel) ? MatrixPath::f16 : dtype == Dtype::bf16 ? MatrixPath::bf16 : MatrixPath::f32);
+            record_matrix_path(is_f16_input_tile(kernel) ? MatrixPath::f16 : dtype == Dtype::bf16 ? MatrixPath::bf16 : MatrixPath::f32);
         }
     }
 }

@@ -38,6 +38,32 @@
                 [[unroll]] for (uint k = 0u; k < 4u; ++k) acc[c] = fma(weights[k + 4u], x1[k], acc[c]);
             }
         }
+#elif defined(LLMX_FP8)
+        // A lane's run of 16 codes lies in one 128-input block: its F32 sum is scaled by the block's grid entry by FMA, the grid row shift riding in the projection's `wide` slot.
+        uint expert = wrow / nout, cols = p.nin / 128u;
+        uint grid = (expert * (((nout - 1u) >> wide) + 1u) + ((wrow - expert * nout) >> wide)) * cols;
+        for (uint first = 16u * l; first < p.nin; first += 16u * p.cluster) {
+            uvec4 codes = w128s[pi].w128[(wrow * p.nin + first) / 16u];
+            float scale = wfs[pi].wf[grid + first / 128u];
+            vec4 weights[4] = vec4[4](e4m3_four(codes.x), e4m3_four(codes.y), e4m3_four(codes.z), e4m3_four(codes.w));
+            for (uint c = 0u; c < ncols; ++c) {
+                uint xb = (XCOL(c) * p.nin + first) / 4u;
+#ifdef LLMX_PRESERVE_F32
+                precise float run = 0.0;
+#else
+                float run = 0.0;
+#endif
+                [[unroll]] for (uint v = 0u; v < 4u; ++v) {
+#ifdef LLMX_INPUT_F16
+                    vec4 xv = vec4(f16vec4(xt4[xb + v]));
+#else
+                    vec4 xv = xt4[xb + v];
+#endif
+                    [[unroll]] for (uint k = 0u; k < 4u; ++k) run = fma(weights[v][k], xv[k], run);
+                }
+                acc[c] = fma(run, scale, acc[c]);
+            }
+        }
 #elif defined(LLMX_FLOAT_X) && (defined(LLMX_Q1_0) || defined(LLMX_Q2_0))
 #ifdef LLMX_Q1_0
         const uint block = Q1_0_BLOCK, packed_type = TYPE_Q1_0;

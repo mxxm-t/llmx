@@ -291,7 +291,7 @@ void check_f16_input_boundaries(backend::Backend& device) {
     auto output = device.alloc((rows * columns + 2) * sizeof(float), backend::Memory::host_visible);
     std::vector<float> result(rows * columns + 2, guard);
 
-    const bool half_inputs = device.dtype_path(backend::Dtype::f16).find("f16 (NVFP4 tile inputs)") == 0;
+    const bool half_inputs = device.dtype_path(backend::Dtype::f16).find("f16 (NVFP4 tile inputs") == 0;
     backend::MatrixPaths prior;
     device.swap_matrix_paths(prior);
     device.write(*output, 0, result.data(), result.size() * sizeof(float));

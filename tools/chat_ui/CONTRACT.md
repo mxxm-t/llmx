@@ -207,7 +207,14 @@ conversations and event journal unchanged.
 
 The file editor uses native Tab and Shift+Tab focus movement and preserves the
 buffer when focus leaves. Ctrl+S or Cmd+S invokes the Workspace Save action
-when available and no dialog is open.
+when available and no dialog is open. Workspace tool cards hand off validated
+result metadata to the Workspace view. Read uses the returned path. Write
+uses the requested path when it is present in the returned file list. Run uses
+the returned job ID. The file owner still controls selection and discard
+confirmation. Leaving Workspace invalidates pending result-link navigation.
+Job navigation uses the current Workspace snapshot and leaves a newer job
+selection in place. Missing targets show an unavailable notice.
+Workspace limits are in a native disclosure.
 
 ## Workspace snapshots
 

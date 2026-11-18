@@ -4,13 +4,15 @@
   const {node, number} = window.ChatRender;
   const {api} = window.ChatShell;
   const view = document.getElementById('view-workbench');
-  const state = {snapshot: null, path: '', original: '', revision: 0, activeJob: null, timer: null, loading: null, isNew: false, selection: 0, saving: false};
+  const state = {snapshot: null, path: '', original: '', revision: 0, activeJob: null, timer: null, loading: null, isNew: false, selection: 0, saving: false, jobSelection: 0};
+  let viewLoad;
   const terminal = job => ['completed', 'failed', 'cancelled'].includes(job.status);
   function control(label, cls, listener) { const button = node('button', cls || 'secondary-button', label); button.type = 'button'; if (listener) button.addEventListener('click', () => Promise.resolve().then(listener).catch(showError)); return button; }
   const toolbar = node('div', 'view-toolbar'); const heading = node('div'); heading.append(node('h2', '', 'Managed workspace'), node('p', '', 'Files, checkpoints and isolated command execution.'));
   const headingActions = node('div', 'workspace-actions'); const revisionLabel = node('span', 'workspace-revision', 'Not loaded'); const refresh = control('Refresh', '', () => load()); const newFile = control('+ New file', 'primary-button', createFile); headingActions.append(revisionLabel, refresh, newFile); toolbar.append(heading, headingActions);
-  const error = node('div', 'view-notice workspace-error'); error.setAttribute('role', 'alert'); error.hidden = true;
-  const limits = node('p', 'workspace-limits'); limits.hidden = true;
+  const error = node('div', 'view-notice workspace-error'); error.setAttribute('role', 'alert'); error.tabIndex = -1; error.hidden = true;
+  const limits = node('details', 'workspace-limits'), limitsText = node('p');
+  limits.append(node('summary', '', 'Workspace limits'), limitsText); limits.hidden = true;
   const layout = node('div', 'workbench-layout');
   const filePanel = node('section', 'workspace-files'); filePanel.setAttribute('aria-label', 'Workspace files'); const fileHeading = node('div', 'workspace-section-heading'); fileHeading.append(node('h3', '', 'Files')); const fileCount = node('span', 'muted', '0'); fileHeading.append(fileCount); const fileList = node('nav', 'workspace-file-list'); fileList.setAttribute('aria-label', 'Files'); filePanel.append(fileHeading, fileList);
   const editorPanel = node('section', 'workspace-editor'); editorPanel.setAttribute('aria-label', 'File editor');
@@ -54,9 +56,12 @@
     });
     if (!list.length) checkpoints.append(node('p', 'workspace-empty', 'Save a checkpoint before making changes. Commands checkpoint saved files automatically.'));
   }
+  function selectJob(id) {
+    state.activeJob = id; state.jobSelection++; renderJobs();
+  }
   function renderJobs() {
     const jobs = state.snapshot?.jobs || []; jobTabs.replaceChildren();
-    jobs.slice().reverse().forEach(job => { const button = control(job.command, 'workspace-job' + (job.id === state.activeJob ? ' active' : ''), () => { state.activeJob = job.id; renderJobs(); }); button.title = job.command; button.append(node('span', 'badge' + (job.status === 'failed' ? ' error' : ''), job.status)); jobTabs.append(button); });
+    jobs.slice().reverse().forEach(job => { const button = control(job.command, 'workspace-job' + (job.id === state.activeJob ? ' active' : ''), () => selectJob(job.id)); button.title = job.command; button.append(node('span', 'badge' + (job.status === 'failed' ? ' error' : ''), job.status)); jobTabs.append(button); });
     const job = jobs.find(item => item.id === state.activeJob) || jobs.at(-1);
     if (job) {
       state.activeJob = job.id; const text = String(job.output || '') + (job.error ? '\n' + job.error : '');
@@ -71,7 +76,7 @@
     executionNote.textContent = snapshot.execution?.description || (snapshot.execution?.enabled ? 'Commands use a disposable container with networking disabled and no host directory mounts.' : 'Configure a sandbox image to enable isolated command execution. File editing and checkpoints remain available.');
     const policy = snapshot.execution?.limits || {}; const parts = [];
     for (const [key, label, suffix] of [['file_bytes', 'Per file', ''], ['project_bytes', 'Workspace', ''], ['files', 'Files', ''], ['command_seconds', 'Command time', ''], ['output_chars', 'Retained output', ' characters'], ['checkpoints', 'Checkpoints', '']]) if (typeof policy[key] === 'number') parts.push(label + ': ' + (key.endsWith('_bytes') ? bytes(policy[key]) : key === 'command_seconds' ? seconds(policy[key]) : number(policy[key], suffix)));
-    limits.textContent = parts.join(' / '); limits.hidden = !parts.length;
+    limitsText.textContent = parts.join(' / '); limits.hidden = !parts.length;
     renderFiles(); renderCheckpoints(); renderJobs(); scheduleJobs();
   }
   async function load() {
@@ -82,16 +87,25 @@
     try { const snapshot = await loading; clearError(); applySnapshot(snapshot); if (!state.path) state.revision = state.snapshot.revision; }
     finally { state.loading = null; }
   }
-  async function openFile(path) {
+  async function openFile(path, ready) {
     const selection = ++state.selection;
-    if (!await canReplace() || selection !== state.selection) return;
+    const isCurrent = () => selection === state.selection && (!ready || viewLoad === ready);
+    if (!await canReplace() || !isCurrent()) return;
     clearError(); const content = editor.value;
+    if (ready) {
+      await ready;
+      if (!isCurrent()) return;
+    }
     let file;
     try { file = await api('/workspace/file?path=' + encodeURIComponent(path)); }
-    catch (problem) { if (selection === state.selection) throw problem; return; }
-    if (selection !== state.selection) return;
+    catch (problem) {
+      if (!isCurrent()) return;
+      if (problem.status === 404) throw new Error('This Workspace file is no longer available: ' + path);
+      throw problem;
+    }
+    if (!isCurrent()) return;
     if (editor.value !== content && !await canReplace()) return;
-    if (selection !== state.selection) return;
+    if (!isCurrent()) return;
     state.path = file.path; state.original = file.content; state.isNew = false; state.revision = file.revision; editor.value = file.content; editor.disabled = false; updateEditor(); renderFiles(); editor.focus();
   }
   async function createFile() {
@@ -143,7 +157,7 @@
     });
   }
   async function startJob(event) {
-    event.preventDefault(); if (!command.value.trim() || run.disabled) return; clearError(); run.disabled = true;
+    event.preventDefault(); if (!command.value.trim() || run.disabled) return; clearError(); run.disabled = true; state.jobSelection++;
     try { const result = await api('/workspace/jobs', 'POST', {command: command.value.trim()}); state.activeJob = result.job.id; await load(); }
     catch (problem) { renderJobs(); showError(problem); }
   }
@@ -155,7 +169,26 @@
   }
   editor.addEventListener('input', updateEditor); editor.addEventListener('keyup', updateEditor); editor.addEventListener('click', updateEditor); commandForm.addEventListener('submit', startJob);
   document.addEventListener('keydown', event => { if (document.querySelector('dialog[open]')) return; if (document.getElementById('app').dataset.view === 'workbench' && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); if (!save.disabled) saveFile().catch(showError); } });
-  document.addEventListener('companion:view', event => { if (event.detail === 'workbench') load().catch(showError); else { clearTimeout(state.timer); state.timer = null; } });
+  document.addEventListener('companion:view', event => {
+    if (event.detail === 'workbench') { viewLoad = load(); viewLoad.catch(showError); }
+    else { viewLoad = null; clearTimeout(state.timer); state.timer = null; }
+  });
+  async function openToolResult(target) {
+    window.ChatShell.show('workbench');
+    if (!target) return;
+    const loading = viewLoad, selection = state.jobSelection;
+    try {
+      if (target.path) { await openFile(target.path, loading); return; }
+      await loading;
+      if (viewLoad !== loading || selection !== state.jobSelection) return;
+      if (!state.snapshot.jobs.some(job => job.id === target.jobId)) throw new Error('This Workspace job is no longer available.');
+      selectJob(target.jobId); output.focus();
+    } catch (problem) {
+      if (viewLoad !== loading) return;
+      showError(problem); error.focus();
+    }
+  }
+  window.ChatWorkspace = {openToolResult};
   document.addEventListener('visibilitychange', () => { if (!document.hidden && document.getElementById('app').dataset.view === 'workbench') load().catch(showError); });
   document.addEventListener('companion:artifact-edit', async event => {
     const selection = ++state.selection;

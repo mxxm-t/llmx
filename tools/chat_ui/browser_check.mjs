@@ -1262,6 +1262,7 @@ try {
   await wait("document.activeElement?.closest('.tool-call')?.dataset.toolCall==='nav-call-two'", 'keyboard activation targets the second call identity');
   assert.equal(await evaluate("document.activeElement.closest('.tool-call').innerText.includes('second argument') && document.activeElement.closest('.tool-call').innerText.includes('second result')"), true, 'keyboard navigation showed the wrong call');
   await cdp('Emulation.setDeviceMetricsOverride', {width:390,height:844,deviceScaleFactor:1,mobile:true});
+  await wait("document.documentElement.dataset.compact==='true'", 'mobile Activity viewport state');
   await evaluate("if(document.querySelector('#app').classList.contains('inspector-closed')) document.querySelector('.topbar [data-action=inspector]').click()");
   await wait("!document.querySelector('#app').classList.contains('inspector-closed')", 'open mobile inspector');
   await click('.activity-history .activity-tool-link[data-call="nav-call-one"]');
@@ -1639,6 +1640,13 @@ try {
     workspace=await write(removedPath,'Previously present.');
     const prior=await ChatShell.api('/workspace/file?path='+removedPath);
     workspace=await ChatShell.api('/workspace/delete','POST',{path:removedPath,revision:workspace.revision});
+    const duplicate=(await ChatShell.api('/workspace/jobs','POST',{command:job.command})).job;
+    let latest=duplicate;
+    for (let attempt=0; latest.status==='running' && attempt<50; attempt++) {
+      await new Promise(resolve=>setTimeout(resolve,20));
+      latest=(await ChatShell.api('/workspace/jobs/'+duplicate.id)).job;
+    }
+    if (latest.status!=='completed') throw new Error('Duplicate tool job fixture did not finish');
     const call=(id,name,args,metadata)=>({id,name:'workspace_'+name,arguments:JSON.stringify(args),result:{content:[{type:'text',text:JSON.stringify(metadata)}]},status:'completed'});
     const tool_calls=[
       call('linked-read','read',{path:safePath},await ChatShell.api('/workspace/file?path='+encodeURIComponent(safePath))),
@@ -1674,9 +1682,26 @@ try {
   await closeAction('#conversation-submit');
   await wait("document.querySelector('.workspace-file-path').textContent==='external.txt' && document.querySelector('#workspace-editor').value==='Follow-up after refresh failure'", 'write action opens requested file');
   await click('.global-nav [data-view="chat"]');
+  await evaluate(`(() => {
+    window.releaseToolFile=null;
+    const original=window.fetch, path=${JSON.stringify('/api/workspace/file?path='+encodeURIComponent(linkedWorkspace.safePath))};
+    window.fetch=async (...args)=>{
+      const response=await original(...args);
+      if (args[0]!==path) return response;
+      window.fetch=original;
+      return new Promise(resolve=>window.releaseToolFile=()=>resolve(response));
+    };
+  })()`);
+  await pointerClick(link('read'));
+  await wait("typeof window.releaseToolFile==='function'", 'hold tool link file-read response');
+  await click('.global-nav [data-view="chat"]');
+  await evaluate("window.releaseToolFile()");
+  await delay(160);
+  assert.equal(await evaluate("document.querySelector('.workspace-file-path').textContent"), 'external.txt', 'leaving Workspace let a stale tool link replace the editor');
   await evaluate("document.querySelector("+JSON.stringify(link('run'))+").focus()");
   await drawerKey('Enter', 13);
-  await wait("document.querySelector('.workspace-job.active')?.title==='printf browser-job' && document.querySelector('#workspace-output').textContent.includes('browser-job complete') && document.activeElement.id==='workspace-output'", 'keyboard opens exact retained job output');
+  await wait("document.querySelector('.workspace-job.active')?.title==='printf browser-job' && document.querySelector('#workspace-output').textContent.includes('browser-job complete') && document.activeElement.id==='workspace-output'", 'keyboard opens retained job output');
+  assert.equal(await evaluate("Array.from(document.querySelectorAll('.workspace-job')).filter(button=>button.title==='printf browser-job').at(-1).classList.contains('active')"), true, 'job link did not select the older job with the same command');
   for (const [id, reason] of [['removed','file is no longer available'],['pruned','job is no longer available']]) {
     await click('.global-nav [data-view="chat"]');
     await pointerClick(link(id));

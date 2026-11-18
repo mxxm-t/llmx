@@ -1,12 +1,5 @@
 # llmx - Development Status
 
-## Companion Workspace tool links (2026-11-18, In progress)
-
-- **Goal**. Open the saved file or retained job named by a built-in tool result and keep raw Workspace limits easy to find.
-- **Done**. Traced the existing tool result, file editor and job history owners.
-- **Left**. Reproduce generic-only navigation, implement direct targets and verify browser behavior.
-- **Gotchas**. A write result carries a file list and its request names the changed file. Navigation uses the editor guard and current job retention without adding mutations.
-
 ## Companion wording cleanup (2026-11-18, Done)
 
 - **Goal:** Use direct labels for current functionality and remove repeated welcome and branding copy.
@@ -10462,6 +10455,7 @@ Step 6, the head split, was measured on 2, 3, 4 and 8 cards and not merged (the 
 
 | Feature                                  | Status   |
 |------------------------------------------|----------|
+| [Companion Workspace tool links](benchmarks/chat-workspace-links-20261118.md) | Done |
 | [Companion navigation clarity](benchmarks/chat-navigation-clarity-20261118.md) | Done |
 | [Companion drawer keyboard access](benchmarks/chat-drawer-keyboard-20261118.md) | Done |
 | Companion compose-state preservation and Retry return | Done |

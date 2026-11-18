@@ -55,6 +55,8 @@
   line-height: 1.8;
   margin: -5px 0 20px;
 }
+.workspace-limits > summary { cursor: pointer; }
+.workspace-limits > p { margin: 4px 0 0; }
 .workspace,
 .artifact-dialog {
   height: var(--studio-height, 100dvh);

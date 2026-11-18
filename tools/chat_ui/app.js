@@ -453,20 +453,39 @@
     }
     return node('span', 'attachment-pill', attachment.name || 'Text attachment');
   }
+  function toolJson(value) {
+    if (typeof value !== 'string') return value;
+    try { return JSON.parse(value); } catch (_) { return value; }
+  }
+  function workspaceToolTarget(call, result, parts) {
+    if (parts.length !== 1 || parts[0]?.type !== 'text') return null;
+    const value = toolJson(parts[0].text);
+    if (call.name === 'workspace_run' && typeof value?.id === 'string' && /^[0-9a-f]{32}$/.test(value.id)) return {jobId: value.id};
+    if (result.isError) return null;
+    if (call.name === 'workspace_read' && typeof value?.path === 'string' && value.path) return {path: value.path};
+    if (call.name === 'workspace_write') {
+      const path = toolJson(call.arguments)?.path;
+      if (typeof path === 'string' && path && Array.isArray(value?.files) && value.files.some(file => file?.path === path)) return {path};
+    }
+    return null;
+  }
   function toolRow(call, message) {
     const wrap = node('div', 'tool-call'); wrap.dataset.toolCall = call.id || ''; const detail = node('details'); const summary = node('summary'); summary.tabIndex = 0;
     summary.append(node('span', '', '>_'), node('span', '', call.name || 'Tool call'), node('span', 'badge' + (call.error ? ' error' : ''), call.status || 'pending'));
     const body = node('div', 'tool-body'); body.append(node('div', 'section-label', 'ARGUMENTS'), node('pre', '', json(call.arguments ?? {})));
     if (call.result !== undefined) {
       body.append(node('div', 'section-label', 'RESULT'));
-      let result = call.result; if (typeof result === 'string') { try { result = JSON.parse(result); } catch (_) { /* Plain text results need no decoding. */ } }
-      const full = json(result); const readable = result?.content?.filter(part => part.type === 'text' && typeof part.text === 'string').map(part => part.text).join('\n\n');
+      const result = toolJson(call.result), parts = Array.isArray(result?.content) ? result.content : [];
+      const full = json(result); const readable = parts.filter(part => part?.type === 'text' && typeof part.text === 'string').map(part => part.text).join('\n\n');
       const preview = readable || full; body.append(node('pre', '', preview.slice(0, 16384) + (preview.length > 16384 ? '\n[Preview truncated]' : '')));
       const structured = node('details'); structured.append(node('summary', '', 'Structured result'), node('pre', '', full.slice(0, 16384) + (full.length > 16384 ? '\n[Preview truncated]' : ''))); body.append(structured);
       if (full.length > 16384 || preview.length > 16384) { const download = node('button', 'secondary-button', 'Download full result'); download.type = 'button'; download.addEventListener('click', () => { const url = URL.createObjectURL(new Blob([full], {type: 'application/json'})); const link = node('a'); link.href = url; link.download = 'tool-result.json'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }); body.append(download); }
-    }
-    if (call.result !== undefined && ['workspace_list', 'workspace_read', 'workspace_write', 'workspace_run'].includes(call.name)) {
-      const open = node('button', 'secondary-button workspace-tool-open', 'Open Workspace'); open.type = 'button'; open.addEventListener('click', () => window.ChatShell.show('workbench')); wrap.append(open);
+      if (['workspace_list', 'workspace_read', 'workspace_write', 'workspace_run'].includes(call.name)) {
+        const target = workspaceToolTarget(call, result, parts);
+        const label = target?.path ? 'Open file' : target?.jobId ? 'Open job output' : 'Open Workspace';
+        const open = node('button', 'secondary-button workspace-tool-open', label);
+        open.type = 'button'; open.addEventListener('click', () => window.ChatWorkspace.openToolResult(target)); wrap.append(open);
+      }
     }
     if (call.error) body.append(node('p', 'error-text', json(call.error)));
     if (call.duration_ms !== undefined) body.append(node('small', 'muted', number(call.duration_ms, ' ms')));

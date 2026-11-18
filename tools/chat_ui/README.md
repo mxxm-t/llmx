@@ -348,7 +348,14 @@ Console messages are displayed as bounded text after checking the frame and its
 per-preview token. Preview documents expire after 30 minutes, with at most 16
 retained in memory. External scripts, packages and fonts are not loaded.
 
-Workspace tool results include an Open Workspace button to reach the saved files.
+Built-in Workspace read and write results can open their saved file directly.
+Command results can open the matching retained job output. File links use the
+same unsaved-edit confirmation as the file list. If a file was deleted or a
+job is no longer retained, Workspace shows its unavailability without
+replacing the active editor or choosing a different job for the link.
+List results and results without target metadata still open Workspace.
+These actions only navigate. Select Workspace limits to see storage and
+execution limits.
 Workspace owns managed UTF-8 project files, a source editor, unified diffs,
 command output and file checkpoints. It never opens arbitrary host paths.
 From the file editor, Tab moves focus to the next control and Shift+Tab moves

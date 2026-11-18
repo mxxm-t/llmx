@@ -491,7 +491,7 @@ void exact_rows(Backend& g) {
 }
 void twin_types(Backend& g, Backend& c) {
     twin_checks::twin_types(g, c, {quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_IQ4_NL,
-                                   quant::GGML_TYPE_MXFP4},
+                                   quant::GGML_TYPE_MXFP4, quant::GGML_TYPE_Q3_K, quant::GGML_TYPE_Q2_K, quant::GGML_TYPE_IQ4_XS},
                             {Dtype::f16, Dtype::int8}, rocm_device(0).caps.subgroup_size, rocm_take_launches, [](uint32_t, Dtype, size_t, size_t, size_t) { return false; }, require);
 }
 

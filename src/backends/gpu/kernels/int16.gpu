@@ -851,6 +851,55 @@ struct Q6KLane {
         dmin = 0.0f;
     }
 };
+// Q3_K: sixteen lanes a block, lane t the 16 values of sub-scale t, half t % 2 of 32-value block t / 2; the block is 2-byte aligned, so its words come as 16-bit loads.
+// A value is its two low bits of plane t / 2 and its mask bit, a clear one taking four, so the lane's bytes hold the 3-bit code and the term takes the offset of 4.
+struct Q3KLane {
+    static constexpr int lanes = 16, segments = 1, values = 16;
+    unsigned lo[4], hm[4];
+    unsigned short d;
+    unsigned char sl, sh;
+    __device__ void load(const unsigned char* b, unsigned t) {
+        const unsigned sub = t >> 1, half = t & 1;
+        const unsigned short* l = (const unsigned short*)(b + 32 + 32 * (sub >> 2) + 16 * half);
+        const unsigned short* h = (const unsigned short*)(b + 16 * half);
+#pragma unroll
+        for (int i = 0; i < 4; ++i) lo[i] = l[2 * i] | ((unsigned)l[2 * i + 1] << 16), hm[i] = h[2 * i] | ((unsigned)h[2 * i + 1] << 16);
+        sl = b[96 + t % 8], sh = b[104 + t % 4];
+        d = *(const unsigned short*)(b + 108);
+    }
+    __device__ static unsigned xblock(unsigned t, int) { return t >> 1; }
+    __device__ static unsigned xoff(unsigned t, int) { return 16 * (t & 1); }
+    __device__ void decode(unsigned t, int, unsigned (&v)[4], float& ds, float& dmin) const {
+        const unsigned sub = t >> 1, shift = 2 * (sub & 3);
+#pragma unroll
+        for (int i = 0; i < 4; ++i) v[i] = ((lo[i] >> shift) & 0x03030303u) | (((hm[i] >> sub) & 0x01010101u) << 2);
+        const int sc = (int)(((sl >> (4 * (t / 8))) & 15) | (((sh >> (2 * (t / 4))) & 3) << 4)) - 32;
+        ds = __half2float(__ushort_as_half(d)) * (float)sc;
+        dmin = 0.0f;
+    }
+};
+// Q2_K: sixteen lanes a block, lane t the 16 two-bit values of sub-scale t, half t % 2 of 32-value block t / 2, under its 4-bit scale and min; the block is 4-byte aligned.
+struct Q2KLane {
+    static constexpr int lanes = 16, segments = 1, values = 16;
+    unsigned dm, q[4];
+    unsigned char sc;
+    __device__ void load(const unsigned char* b, unsigned t) {
+        const unsigned* w = (const unsigned*)b;
+        const unsigned qo = (16 + 32 * (t >> 3) + 16 * (t & 1)) / 4;
+#pragma unroll
+        for (int i = 0; i < 4; ++i) q[i] = w[qo + i];
+        dm = w[20], sc = b[t];
+    }
+    __device__ static unsigned xblock(unsigned t, int) { return t >> 1; }
+    __device__ static unsigned xoff(unsigned t, int) { return 16 * (t & 1); }
+    __device__ void decode(unsigned t, int, unsigned (&v)[4], float& ds, float& dmin) const {
+        const unsigned shift = 2 * ((t >> 1) & 3);
+#pragma unroll
+        for (int i = 0; i < 4; ++i) v[i] = (q[i] >> shift) & 0x03030303u;
+        ds = __half2float(__ushort_as_half((unsigned short)(dm & 0xffff))) * (float)(sc & 15);
+        dmin = __half2float(__ushort_as_half((unsigned short)(dm >> 16))) * (float)(sc >> 4);
+    }
+};
 // The fifth bits of a block's 32 values, bit j of h value j's, as bit 4 of each byte of eight words: words 0 to 3 hold values 0 to 15, words 4 to 7 values 16 to 31.
 __device__ inline void fifth_bits32(unsigned h, unsigned (&v)[8]) {
 #pragma unroll
@@ -994,6 +1043,53 @@ template <> struct KRaw<rq::Q6_K> {
         dmin = 0.0f;
     }
 };
+// Q3_K: a 110-byte block, 2-byte aligned, so its words come as 16-bit loads: the lane's eight low-bit bytes and eight mask bytes, its sub-scale's two packed bytes and the block's scale.
+// The bytes hold the 3-bit code, low bits | mask bit << 2, less the offset of 4; its scale changes every 16 values, so the tile takes two halves as Q6_K's does.
+template <> struct KRaw<rq::Q3_K> {
+    static constexpr int offset = 4, halves = 2;
+    using Lane = Q3KLane;
+    unsigned short lo[4], hm[4], d;
+    unsigned char sl, sh;
+    __device__ void load(const unsigned char* b, unsigned sub, unsigned part) {
+        const unsigned short* l = (const unsigned short*)(b + 32 + 32 * (sub >> 2) + 8 * part);
+        const unsigned short* h = (const unsigned short*)(b + 8 * part);
+#pragma unroll
+        for (int i = 0; i < 4; ++i) lo[i] = l[i], hm[i] = h[i];
+        const unsigned g = 2 * sub + (part >> 1);
+        sl = b[96 + g % 8], sh = b[104 + g % 4];
+        d = *(const unsigned short*)(b + 108);
+    }
+    __device__ void decode(unsigned sub, unsigned part, unsigned (&v)[2], float& ds, float& dmin) const {
+        const unsigned g = 2 * sub + (part >> 1), shift = 2 * (sub & 3);
+#pragma unroll
+        for (int i = 0; i < 2; ++i) {
+            const unsigned l = lo[2 * i] | ((unsigned)lo[2 * i + 1] << 16), h = hm[2 * i] | ((unsigned)hm[2 * i + 1] << 16);
+            v[i] = ((l >> shift) & 0x03030303u) | (((h >> sub) & 0x01010101u) << 2);
+        }
+        const int sc = (int)(((sl >> (4 * (g / 8))) & 15) | (((sh >> (2 * (g / 4))) & 3) << 4)) - 32;
+        ds = __half2float(__ushort_as_half(d)) * (float)sc;
+        dmin = 0.0f;
+    }
+};
+// Q2_K: an 84-byte block, 4-byte aligned, its scale and min word, the lane's eight two-bit bytes and its sub-scale byte; the scale and min change every 16 values, so the tile takes two halves.
+template <> struct KRaw<rq::Q2_K> {
+    static constexpr int offset = 0, halves = 2;
+    using Lane = Q2KLane;
+    unsigned dm, q[2];
+    unsigned char sc;
+    __device__ void load(const unsigned char* b, unsigned sub, unsigned part) {
+        const unsigned* w = (const unsigned*)b;
+        const unsigned qo = (16 + 32 * (sub >> 2) + 8 * part) / 4;
+        q[0] = w[qo], q[1] = w[qo + 1], dm = w[20], sc = b[2 * sub + (part >> 1)];
+    }
+    __device__ void decode(unsigned sub, unsigned, unsigned (&v)[2], float& ds, float& dmin) const {
+        const unsigned shift = 2 * (sub & 3);
+#pragma unroll
+        for (int i = 0; i < 2; ++i) v[i] = (q[i] >> shift) & 0x03030303u;
+        ds = __half2float(__ushort_as_half((unsigned short)(dm & 0xffff))) * (float)(sc & 15);
+        dmin = __half2float(__ushort_as_half((unsigned short)(dm >> 16))) * (float)(sc >> 4);
+    }
+};
 // The fifth bits of a lane's eight values, bits 0 to 7 of h, as bit 4 of each byte of two words.
 __device__ inline void fifth_bits(unsigned h, unsigned (&v)[2]) {
 #pragma unroll
@@ -1076,7 +1172,7 @@ template <> struct KRaw<rq::Q5_1> {
         dmin = -__half2float(__ushort_as_half((unsigned short)(dm >> 16)));
     }
 };
-// IQ4_NL: an 18-byte block, 2-byte aligned, its scale and the lane's eight nibble bytes as 16-bit loads; each nibble's value from the format's grid as a signed byte.
+// IQ4_NL: an 18-byte block, 2-byte aligned, its scale and the lane's eight nibble bytes as 16-bit loads; each nibble's value from the format's grid as a signed byte (rq::iq4_grid4).
 template <> struct KRaw<rq::IQ4_NL> {
     static constexpr int offset = 0, halves = 1;
     using Lane = QuarterLane<rq::IQ4_NL>;   // one lane a block decodes 32 grid values and measured slower at every width (docs/STATUS.md)
@@ -1092,11 +1188,30 @@ template <> struct KRaw<rq::IQ4_NL> {
 #pragma unroll
         for (int i = 0; i < 2; ++i) {
             const unsigned l = lo[2 * i] | ((unsigned)lo[2 * i + 1] << 16);
-            v[i] = 0;
-#pragma unroll
-            for (int j = 0; j < 4; ++j) v[i] |= ((unsigned)GPU_TABLE(quant::IQ4_NL_VALUES)[(l >> (8 * j + sh)) & 0xF] & 0xffu) << (8 * j);
+            v[i] = rq::iq4_grid4((l >> sh) & 0x0F0F0F0Fu);
         }
         ds = __half2float(__ushort_as_half(d));
+        dmin = 0.0f;
+    }
+};
+// IQ4_XS: a 136-byte block, 4-byte aligned, its scale and high scale bits, the low scale nibbles and the lane's eight nibble bytes as words; each nibble's value from IQ4_NL's grid under the sub-block's 6-bit signed scale.
+template <> struct KRaw<rq::IQ4_XS> {
+    static constexpr int offset = 0, halves = 1;
+    using Lane = QuarterLane<rq::IQ4_XS>;
+    unsigned hd, sl, lo[2];
+    __device__ void load(const unsigned char* b, unsigned sub, unsigned part) {
+        const unsigned* w = (const unsigned*)b;
+        const unsigned qo = (8 + 16 * sub + 8 * (part & 1)) / 4;
+        hd = w[0], sl = w[1], lo[0] = w[qo], lo[1] = w[qo + 1];
+    }
+    __device__ void decode(unsigned sub, unsigned part, unsigned (&v)[2], float& ds, float& dmin) const {
+        const unsigned sh = 4 * (part >> 1);
+#pragma unroll
+        for (int i = 0; i < 2; ++i) {
+            v[i] = rq::iq4_grid4((lo[i] >> sh) & 0x0F0F0F0Fu);
+        }
+        const int ls = (int)(((sl >> (4 * sub)) & 15) | (((hd >> (16 + 2 * sub)) & 3) << 4)) - 32;
+        ds = __half2float(__ushort_as_half((unsigned short)(hd & 0xffff))) * (float)ls;
         dmin = 0.0f;
     }
 };
@@ -1157,15 +1272,15 @@ template <> struct KRaw<rq::MXFP4> {
         dmin = 0.0f;
     }
 };
-// The quarter form: four lanes a 32-value block, lane t its values 8t to 8t + 7 through the type's KRaw, the tile's loads and arithmetic.
-// IQ4_NL's rows take it alone; a Q4_0, Q4_1, Q5_0 or Q5_1 row in the F16 class takes it or one lane a block by row_form (backend_core.hpp), and in the int8 class one lane a block.
+// The quarter form: four lanes a 32-value sub-block, lane t its sub-block t / 4's values 8 (t % 4) to 8 (t % 4) + 7 through the type's KRaw, the tile's loads and arithmetic.
+// IQ4_NL's and IQ4_XS's rows take it alone; a Q4_0, Q4_1, Q5_0 or Q5_1 row in the F16 class takes it or one lane a block by row_form (backend_core.hpp), and in the int8 class one lane a block.
 template <typename KT> struct QuarterLane {
-    static constexpr int lanes = 4, segments = 1, values = 8;
+    static constexpr int lanes = 4 * (KT::values / 32), segments = 1, values = 8;
     KRaw<KT> raw;
-    __device__ void load(const unsigned char* b, unsigned t) { raw.load(b, 0, t); }
-    __device__ static unsigned xblock(unsigned, int) { return 0; }
-    __device__ static unsigned xoff(unsigned t, int) { return 8 * t; }
-    __device__ void decode(unsigned t, int, unsigned (&v)[2], float& ds, float& dmin) const { raw.decode(0, t, v, ds, dmin); }
+    __device__ void load(const unsigned char* b, unsigned t) { raw.load(b, t / 4, t % 4); }
+    __device__ static unsigned xblock(unsigned t, int) { return t / 4; }
+    __device__ static unsigned xoff(unsigned t, int) { return 8 * (t % 4); }
+    __device__ void decode(unsigned t, int, unsigned (&v)[2], float& ds, float& dmin) const { raw.decode(t / 4, t % 4, v, ds, dmin); }
 };
 // The accumulators a lane keeps a (row, column): its words split evenly between them, each chained on its own (MXFP4Lane); 1 for every other lane.
 template <typename L, typename = void> struct LaneChains { static constexpr int n = 1; };
@@ -1175,6 +1290,7 @@ template <typename KT> struct G8Step { static constexpr int n = LaneChains<typen
 // Whether a type's decoded bytes are signed, which its 16-bit words then extend.
 template <typename KT> struct KSigned { static constexpr bool value = false; };
 template <> struct KSigned<rq::IQ4_NL> { static constexpr bool value = true; };
+template <> struct KSigned<rq::IQ4_XS> { static constexpr bool value = true; };
 template <> struct KSigned<rq::MXFP4> { static constexpr bool value = true; };
 // Whether a type's decode sets no min, so a term is ds * isum, which is fmaf(ds, isum, -(0 * xsum))'s value, and the twin sum is not needed.
 template <typename KT> struct KNoMin { static constexpr bool value = false; };
@@ -1442,10 +1558,11 @@ template <typename KT, typename QT, bool ROUTED, int ROWS>
 __device__ void k_vec(const TileCall& c, const QT* q, const float* dx, const TileGroups& tg);
 
 // The prompt K tile on the tensor-core builds: the 8-bit twin in k_mma, at 64 or 128 outputs, the 16-bit twin in k_vec at 64.
+// Q2_K's halves each carry a min, which k_mma's two half scales cannot hold, so its 8-bit twin stays on k_vec too.
 template <typename KT, typename QT, bool ROUTED = false, int ROWS = kTileRows, int OUTS = kTileOut>
 __device__ void k_tile(const TileCall& c, const QT* q, const float* dx, const TileGroups& tg = TileGroups{}) {
     static_assert(sizeof(QT) == 1 || OUTS == kTileOut, "only the tensor-core tile has a tall build");
-    if constexpr (sizeof(QT) == 1) k_mma<KT, ROUTED, ROWS, OUTS>(c, q, dx, tg);
+    if constexpr (sizeof(QT) == 1 && (KRaw<KT>::halves == 1 || KRaw<KT>::offset != 0)) k_mma<KT, ROUTED, ROWS, OUTS>(c, q, dx, tg);
     else k_vec<KT, QT, ROUTED, ROWS>(c, q, dx, tg);
 }
 #define LLMX_KVEC template <typename KT, typename QT, bool ROUTED, int ROWS> __device__ void k_vec(const TileCall& c, const QT* q, const float* dx, const TileGroups& tg)
@@ -2378,6 +2495,8 @@ LLMX_STREAM(llmx_q8_0_routed_stream8, rq::Q8_0)
 // Q6_K's int8 tiles keep one block an SM, since 128 registers spill the 64-output build on sm_90 and the tall one on sm_86.
 template <typename KT> constexpr int tile8_blocks() { return 2; }
 template <> constexpr int tile8_blocks<rq::Q6_K>() { return 1; }
+template <> constexpr int tile8_blocks<rq::Q3_K>() { return 1; }
+template <> constexpr int tile8_blocks<rq::Q2_K>() { return 1; }
 #define LLMX_KTILE(name, KT, QT, BOUNDS) \
     extern "C" __global__ void BOUNDS name(LLMX_GRID_CONST TileCall c, const QT* q, const float* dx) { k_tile<KT, QT>(c, q, dx); }
 #define LLMX_KTILE_ROUTED(name, KT, QT, ROWS) \
@@ -2466,6 +2585,9 @@ LLMX_KTYPE(q4_1, rq::Q4_1, tiles)
 LLMX_KTYPE(q5_0, rq::Q5_0, tiles)
 LLMX_KTYPE(q5_1, rq::Q5_1, tiles)
 LLMX_KTYPE(iq4_nl, rq::IQ4_NL, tiles)
+LLMX_KTYPE(q3_k, rq::Q3_K, tiles)
+LLMX_KTYPE(q2_k, rq::Q2_K, tiles)
+LLMX_KTYPE(iq4_xs, rq::IQ4_XS, tiles)
 LLMX_KTYPE(mxfp4, rq::MXFP4, streams)
 #if GPU_IMMA8
 // The K-quants' tall 8-bit builds, k_tile at 128 outputs, which only the tensor-core body has.

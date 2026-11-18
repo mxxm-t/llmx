@@ -111,11 +111,26 @@ struct BF16 {
     __device__ static float value(const unsigned char* b, int) { return __uint_as_float((unsigned)(b[0] | (b[1] << 8)) << 16); }
 };
 
+// IQ4_NL's grid as four words of signed bytes, held in registers by the byte selects below; the assert ties them to quant::IQ4_NL_VALUES.
+constexpr unsigned iq4_word(int i) {
+    return (unsigned)(unsigned char)quant::IQ4_NL_VALUES[4 * i] | (unsigned)(unsigned char)quant::IQ4_NL_VALUES[4 * i + 1] << 8 |
+           (unsigned)(unsigned char)quant::IQ4_NL_VALUES[4 * i + 2] << 16 | (unsigned)(unsigned char)quant::IQ4_NL_VALUES[4 * i + 3] << 24;
+}
+static_assert(iq4_word(0) == 0xBFAD9881u && iq4_word(1) == 0xF6EADDCFu && iq4_word(2) == 0x26190D01u && iq4_word(3) == 0x71594535u, "IQ4_NL grid words");
+// Four nibbles, one a byte, as their IQ4_NL grid values in signed bytes: byte selects of the grid's low and high halves, picked by each nibble's bit 3, so no table is read from memory.
+__device__ inline unsigned iq4_grid4(unsigned x) {
+    const unsigned idx = x & 0x07070707u, high = ((x >> 3) & 0x01010101u) * 0xffu;
+    const unsigned lo = byte_perm(0xF6EADDCFu, 0xBFAD9881u, idx), hi = byte_perm(0x71594535u, 0x26190D01u, idx);
+    return (lo & ~high) | (hi & high);
+}
+// One nibble's IQ4_NL grid value.
+__device__ inline int iq4_grid(unsigned q) { return (int)(signed char)(iq4_grid4(q) & 0xffu); }
+
 struct IQ4_NL {
     static constexpr unsigned values = quant::IQ4_NL_BLOCK, bytes = quant::IQ4_NL_TYPESIZE;
     __device__ static float value(const unsigned char* b, int j) {
         const int q = j < 16 ? b[2 + j] & 0xF : b[2 + j - 16] >> 4;
-        return half_at(b) * (float)GPU_TABLE(quant::IQ4_NL_VALUES)[q];
+        return half_at(b) * (float)iq4_grid((unsigned)q);
     }
 };
 
@@ -152,7 +167,7 @@ struct IQ4_XS {
         const int sc = (int)(((b[4 + g / 2] >> (4 * (g % 2))) & 15) | (((high >> (2 * g)) & 3) << 4)) - 32;
         const unsigned char* qs = b + 8 + 16 * g;
         const int q = l < 16 ? qs[l] & 15 : qs[l - 16] >> 4;
-        return half_at(b) * (float)sc * (float)GPU_TABLE(quant::IQ4_NL_VALUES)[q];
+        return half_at(b) * (float)sc * (float)iq4_grid((unsigned)q);
     }
 };
 

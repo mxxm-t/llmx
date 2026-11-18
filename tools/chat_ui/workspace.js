@@ -5,7 +5,7 @@
   const {api} = window.ChatShell;
   const view = document.getElementById('view-workbench');
   const state = {snapshot: null, path: '', original: '', revision: 0, activeJob: null, timer: null, loading: null, isNew: false, selection: 0, saving: false, attaching: false, jobSelection: 0};
-  const projectState = {items: null, loading: false, editing: null, saving: false, files: []};
+  const projectState = {items: null, loading: null, editing: null, saving: false, files: []};
   let viewLoad;
   const terminal = job => ['completed', 'failed', 'cancelled'].includes(job.status);
   function control(label, cls, listener) { const button = node('button', cls || 'secondary-button', label); button.type = 'button'; if (listener) button.addEventListener('click', () => Promise.resolve().then(listener).catch(showError)); return button; }
@@ -83,15 +83,19 @@
     }
     updateProjectControls();
   }
-  async function loadProjects() {
-    if (projectState.loading || projectState.editing) return;
-    projectState.loading = true; updateProjectControls(); setProjectStatus('Loading projects...');
-    try {
-      const result = await api('/workspace/projects');
+  function loadProjects() {
+    if (projectState.loading || projectState.editing) return projectState.loading;
+    setProjectStatus('Loading projects...');
+    projectState.loading = api('/workspace/projects').then(result => {
       projectState.items = result.projects; renderProjects();
       setProjectStatus(result.projects.length ? '' : 'No projects yet.');
-    } catch (problem) { projectState.items = null; renderProjects(); setProjectStatus(problem.message, true); }
-    finally { projectState.loading = false; updateProjectControls(); }
+    }).catch(problem => {
+      projectState.items = null; renderProjects(); setProjectStatus(problem.message, true);
+    }).finally(() => {
+      projectState.loading = null; updateProjectControls();
+    });
+    updateProjectControls();
+    return projectState.loading;
   }
   async function refreshWorkspace() {
     await load();
@@ -362,7 +366,17 @@
       showError(problem); error.focus();
     }
   }
-  window.ChatWorkspace = {openToolResult};
+  async function openProjects() {
+    window.ChatShell.show('workbench');
+    const loading = viewLoad;
+    projects.open = true;
+    if (projectState.editing && !projectFields.disabled) { projectName.focus(); return; }
+    projectsSummary.focus();
+    try { await Promise.all([loading, loadProjects()]); }
+    catch { return; }
+    if (viewLoad === loading && projects.open && document.activeElement === projectsSummary && !projectNew.disabled && !projectNew.hidden) projectNew.focus();
+  }
+  window.ChatWorkspace = {openToolResult, openProjects};
   document.addEventListener('visibilitychange', () => { if (!document.hidden && document.getElementById('app').dataset.view === 'workbench') load().catch(showError); });
   document.addEventListener('companion:artifact-edit', async event => {
     const selection = ++state.selection;

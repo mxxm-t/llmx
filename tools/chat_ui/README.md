@@ -30,10 +30,12 @@ attachment limits and temporary chat behavior apply.
 
 To reuse files in another chat, open **Projects** in Workspace. Give the
 project a name, select up to eight saved files and optionally enter instructions.
-In Chat, open **Settings** and select **Use a Workspace project**. Review the
-file paths, sizes and saved revision. Check the instructions box if you want
-them to replace this conversation's system instructions, then choose **Add
-to draft**. You can remove attachments before sending.
+In Chat, open **Settings** and select **Use a Workspace project**. If the
+picker is empty, choose **Open Workspace projects** to reach **New project**
+with your draft and editor intact. For a saved project, review the file paths,
+sizes and saved revision. Check the instructions box if you want them to
+replace this conversation's system instructions, then choose **Add to draft**.
+You can remove attachments before sending.
 
 Each use takes a snapshot. Editing a saved file later affects the next use.
 The draft and previously sent messages retain their copies. Applying the same

@@ -295,7 +295,7 @@
     <dialog id="project-context-dialog" aria-labelledby="project-context-title">
       <form class="dialog-content" id="project-context-form">
         <h2 id="project-context-title">Use a Workspace project</h2>
-        <label class="field">Project<select id="project-context-select"></select></label>
+        <label class="field" id="project-context-field">Project<select id="project-context-select"></select></label>
         <p id="project-context-status" role="status"></p>
         <ul id="project-context-files" hidden></ul>
         <div id="project-context-instructions" hidden>
@@ -303,7 +303,11 @@
           <label><input id="project-context-copy" type="checkbox"> <span id="project-context-copy-label">Use these instructions in this conversation</span></label>
         </div>
         <p id="project-context-error" class="error-text" role="alert" hidden></p>
-        <div class="conversation-form-actions"><button type="button" id="project-context-cancel" class="secondary-button">Cancel</button><button type="submit" id="project-context-apply" class="primary-button" disabled>Add to draft</button></div>
+        <div class="conversation-form-actions">
+          <button type="button" id="project-context-cancel" class="secondary-button">Cancel</button>
+          <button type="submit" id="project-context-apply" class="primary-button" disabled>Add to draft</button>
+          <button type="button" id="project-context-open-workspace" class="primary-button" hidden>Open Workspace projects</button>
+        </div>
       </form>
     </dialog>
     <dialog id="action-dialog" aria-labelledby="action-dialog-title" aria-describedby="action-dialog-description">

@@ -6,11 +6,13 @@
   const status = byId('project-context-status'), files = byId('project-context-files');
   const instructions = byId('project-context-instructions'), copy = byId('project-context-copy');
   const error = byId('project-context-error'), apply = byId('project-context-apply');
+  const field = byId('project-context-field'), setup = byId('project-context-open-workspace');
   const {api} = window.ChatShell;
   let draft, snapshot, request = 0;
 
   function reset() {
-    snapshot = null; apply.disabled = true; error.hidden = true;
+    snapshot = null; apply.disabled = true; apply.hidden = false; error.hidden = true;
+    field.hidden = false; setup.hidden = true;
     files.replaceChildren(); files.hidden = true;
     instructions.hidden = true; byId('project-context-text').value = ''; copy.checked = false;
   }
@@ -52,7 +54,11 @@
     try {
       const {projects} = await api('/workspace/projects');
       if (sequence !== request || !dialog.open) return;
-      if (!projects.length) { status.textContent = 'Create a project in Workspace to reuse its files here.'; return; }
+      if (!projects.length) {
+        status.textContent = 'Create a project to reuse saved Workspace files here.';
+        field.hidden = true; apply.hidden = true; setup.hidden = false;
+        return;
+      }
       select.add(new Option('Choose a project', ''));
       for (const project of projects) select.add(new Option(project.name, project.id));
       select.disabled = false;
@@ -75,5 +81,10 @@
   dialog.addEventListener('close', () => { if (!dialog.open) { ++request; draft = null; reset(); } });
   document.addEventListener('companion:unauthorized', () => { if (dialog.open) dialog.close(); });
   byId('project-context-cancel').addEventListener('click', () => dialog.close());
+  setup.addEventListener('click', () => {
+    if (!dialog.open || setup.hidden) return;
+    dialog.close();
+    window.ChatWorkspace.openProjects();
+  });
   byId('use-workspace-project').addEventListener('click', open);
 })();

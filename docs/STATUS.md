@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## First project from the chat picker (2026-11-18)
+
+- **Goal:** Let someone with no saved projects reach Workspace project setup from the empty Chat picker while preserving the open draft.
+- **Done:** An empty picker offers Open Workspace projects. It opens the existing Projects section. Focus goes to the current project form or to New project when ready.
+- **Checks:** The focused browser case failed on main and passed with the new action. It holds a project response across navigation and verifies that a newer visit retains focus. File edits and the unsent message survive the round trip. The qualifying head is identified by the Windows and Linux Chat workspace workflow.
+- **Landing:** The static companion change lands by fast-forward after the browser, docs, dead-code and hosted companion checks pass.
+- **Gotchas:** Opening setup must not create a project, save the editor or send a message. Keep keyboard focus and any unsaved form values.
+
 ## Named project context in the companion (2026-11-18)
 
 - **Goal:** Reuse a named set of saved Workspace files and optional instructions in more than one conversation. A person reviews the selection before anything enters the draft.

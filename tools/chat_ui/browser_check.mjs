@@ -1988,15 +1988,37 @@ try {
   const draftBeforeProjectSetup = await evaluate("document.querySelector('#draft').value");
   await fill('#draft', 'Unsent draft before first project');
   const mutationsBeforeProjectSetup = apiMutations.length;
-  await pointerClick('.composer [data-action="settings"]');
-  await pointerClick('#use-workspace-project');
-  await wait("document.querySelector('#project-context-status').textContent.includes('Create a project')", 'empty project list');
+  const openEmptyProjectPicker = async () => {
+    await pointerClick('.composer [data-action="settings"]');
+    await pointerClick('#use-workspace-project');
+    await wait("document.querySelector('#project-context-status').textContent.includes('Create a project')", 'empty project list');
+  };
+  await openEmptyProjectPicker();
   assert.equal(await evaluate("document.querySelector('#project-context-open-workspace')?.checkVisibility()"), true, 'empty Chat project picker must offer a direct Workspace action');
+  assert.equal(await evaluate("document.querySelector('#project-context-select').checkVisibility() || document.querySelector('#project-context-apply').checkVisibility()"), false, 'empty picker still shows unavailable actions');
   await pointerClick('#project-context-open-workspace');
   await wait("document.querySelector('#app').dataset.view==='workbench' && document.querySelector('#workspace-projects').open && document.activeElement.id==='workspace-project-new'", 'first project setup with focus on New project');
   assert.equal(await evaluate("document.querySelector('#project-context-dialog').open"), false);
   assert.equal(await evaluate("document.querySelector('#workspace-editor').value"), 'Unsaved file before first project');
   assert.equal(await evaluate("document.querySelector('#draft').value"), 'Unsent draft before first project');
+  await pointerClick('.workspace-back');
+  await openEmptyProjectPicker();
+  await evaluate(`{
+    const fetchProjects = window.fetch;
+    window.fetch = async function(...args) {
+      if (args[0] !== '/api/workspace/projects') return fetchProjects(...args);
+      window.fetch = fetchProjects;
+      const response = await fetchProjects(...args);
+      return new Promise(resolve => { window.releaseProjectSetup = () => resolve(response); });
+    };
+  }`);
+  await pointerClick('#project-context-open-workspace');
+  await wait("typeof window.releaseProjectSetup==='function'", 'held project list in Workspace');
+  await pointerClick('.workspace-back');
+  await pointerClick('.global-nav [data-view="workbench"]');
+  await evaluate("document.querySelector('#workspace-projects summary').focus(); window.releaseProjectSetup(); delete window.releaseProjectSetup;");
+  await wait("!document.querySelector('#workspace-project-new').disabled", 'released project list');
+  assert.equal(await evaluate("document.activeElement.matches('#workspace-projects summary')"), true, 'older navigation stole focus from a newer Workspace visit');
   assert.equal(apiMutations.length, mutationsBeforeProjectSetup, 'opening first project setup wrote to the API');
   await fill('#draft', draftBeforeProjectSetup);
   await fill('#workspace-editor', 'Saved tests/index.js');

@@ -266,6 +266,7 @@ for (const [name, samples, value, stale] of [
     const r = node.getBoundingClientRect(); return [r.x, r.y, r.width, r.height];
   }), font: getComputedStyle(strong).fontSize, color: getComputedStyle(strong).color});
   if (name === 'zero') check('zero readout has fixed precision', $('throughput-value').textContent === '0.00' && strong.textContent === '0.00');
+  if (name === 'stale') check('active repeated sample keeps its stale readout', $('throughput-at').textContent.startsWith('Stale / snapshot unchanged'));
   if (name === 'expired') check('expired gap reason is visible', $('throughput-at').textContent.includes('unchanged'));
   if (name === 'reset') check('reset gap reason is visible', $('throughput-at').textContent.includes('reset'));
   if (name === 'missing') check('missing counter reason is visible', $('throughput-at').textContent.includes('missing'));
@@ -286,6 +287,9 @@ const idleStart = sample(-20, 100);
 const idleLatest = {...idleStart, t: now, metrics: {...idleStart.metrics, 'requests.now.active': 0}};
 renderChart([sample(-30, 0), idleStart, idleLatest], now, config, []);
 check('idle frozen snapshot plots zero immediately', $('throughput-value').textContent === '0.00' && !!$('throughput-chart').querySelector('circle[data-sample-value="0"]'));
+check('idle frozen snapshot explains its zero readout', $('throughput-at').textContent === 'No active requests');
+chartViews.throughput.show(now);
+check('inspecting an idle sample still labels its selected interval', $('throughput-at').textContent.startsWith('Selected interval ending'));
 const missingIdle = {...idleLatest, metrics: {...idleLatest.metrics, [metric]: undefined}};
 renderChart([idleStart, missingIdle], now, config, []);
 check('idle sample with a missing counter remains a gap', $('throughput-value').textContent === '--' && $('throughput-at').textContent.includes('missing'));
@@ -302,9 +306,10 @@ state.ok = false; state.error = 'Live stream disconnected'; render();
 check('disconnect does not turn stale idle telemetry into zero', $('token-rate').textContent === '--');
 state.ok = true; state.error = null; state.lastSuccess = now + 2; state.samples = [idleHealth(now, 1), idleHealth(now + 2, 2)]; render();
 check('reconnect restores zero from a fresh idle sample', $('token-rate').textContent === '0.00');
+check('both throughput charts label fresh idle on reconnect', ['prompt', 'throughput'].every(id => $(id + '-at').textContent === 'No active requests'));
 renderChart([idleHealth(now, 1)], now, config, [], {end: now + 10, animate: false}, false);
 const disconnectGap = $('throughput-chart').querySelector('rect[data-rate-gap]');
-check('disconnected chart tail is shaded unavailable', !!disconnectGap && disconnectGap.querySelector('title').textContent === 'Telemetry stale or disconnected');
+check('disconnected chart tail is shaded unavailable', !!disconnectGap && disconnectGap.querySelector('title').textContent === 'Telemetry stale or disconnected' && $('throughput-at').textContent === 'Telemetry stale or disconnected');
 renderChart([idleHealth(now, 1)], now, config, [], {end: now + 10, animate: false}, true);
 check('healthy idle chart has no unavailable tail', !$('throughput-chart').querySelector('rect[data-rate-gap]'));
 renderLookupStorage({topology: {devices: [{index: 0, name: 'CPU'}], lookups: [
@@ -483,7 +488,7 @@ document.querySelector('#rate-test-results').textContent = JSON.stringify(outcom
         document = source.replace("</body>", results + "</body>")
         for width in (1440, 390):
             with self.subTest(width=width):
-                self.assertEqual(len(self.run_browser(document, width)), 25)
+                self.assertEqual(len(self.run_browser(document, width)), 29)
 
     def test_rope_configuration_display(self):
         source = without_stream_start(HTML_FILE.read_text(encoding="utf-8"))

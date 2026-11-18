@@ -240,7 +240,7 @@ const now = Math.floor(Date.now() / 1000);
 const metric = 'requests.live.work.generated_tokens';
 const clockField = 'requests.live.sample_elapsed_ms';
 const sample = (t, value, reset = false) => ({t: now + t, reset, metrics: {
-  [metric]: value, 'requests.live.work.prefilled_tokens': value, [clockField]: (100 + t) * 1000
+  [metric]: value, 'requests.live.work.prefilled_tokens': value, [clockField]: (100 + t) * 1000, 'requests.now.active': 1
 }});
 state.latest = {requests: {live: {sample_elapsed_ms: 110000, work: {prefilled_tokens: 100, generated_tokens: 100}}}};
 state.lastSuccess = now;
@@ -252,6 +252,7 @@ for (const [name, samples, value, stale] of [
   ['busy', [sample(-10, 0), sample(0, 100)], 10, false],
   ['zero', [sample(-10, 0), sample(0, 0)], 0, false],
   ['stale', [sample(-12, 0), sample(-2, 100), {...sample(0, 100), metrics: sample(-2, 100).metrics}], 10, true],
+  ['stale-zero', [sample(-12, 0), sample(-2, 0), {...sample(0, 0), metrics: sample(-2, 0).metrics}], 0, true],
   ['expired', [sample(-30, 0), sample(-20, 100), {...sample(0, 100), metrics: sample(-20, 100).metrics}], null, true],
   ['reset', [sample(-10, 100), sample(0, 0, true)], null, false],
   ['missing', [sample(-10, 0), sample(0, null)], null, false],
@@ -266,7 +267,7 @@ for (const [name, samples, value, stale] of [
     const r = node.getBoundingClientRect(); return [r.x, r.y, r.width, r.height];
   }), font: getComputedStyle(strong).fontSize, color: getComputedStyle(strong).color});
   if (name === 'zero') check('zero readout has fixed precision', $('throughput-value').textContent === '0.00' && strong.textContent === '0.00');
-  if (name === 'stale') check('active repeated sample keeps its stale readout', $('throughput-at').textContent.startsWith('Stale / snapshot unchanged'));
+  if (name === 'stale' || name === 'stale-zero') check(name + ' active repeated sample keeps its stale readout', $('throughput-at').textContent.startsWith('Stale / snapshot unchanged'));
   if (name === 'expired') check('expired gap reason is visible', $('throughput-at').textContent.includes('unchanged'));
   if (name === 'reset') check('reset gap reason is visible', $('throughput-at').textContent.includes('reset'));
   if (name === 'missing') check('missing counter reason is visible', $('throughput-at').textContent.includes('missing'));
@@ -488,7 +489,7 @@ document.querySelector('#rate-test-results').textContent = JSON.stringify(outcom
         document = source.replace("</body>", results + "</body>")
         for width in (1440, 390):
             with self.subTest(width=width):
-                self.assertEqual(len(self.run_browser(document, width)), 29)
+                self.assertEqual(len(self.run_browser(document, width)), 30)
 
     def test_rope_configuration_display(self):
         source = without_stream_start(HTML_FILE.read_text(encoding="utf-8"))

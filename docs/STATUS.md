@@ -8,11 +8,12 @@
 - **Gotchas:** Keep the real Escape input, close-event check and existing timeouts. No runtime or inference change is needed.
 - **Evidence:** The log and uploaded screenshots are under the audit landing worktree's `scratch/landing/main-ci-failure.log` and `scratch/landing/ubuntu-failure-artifacts/`. A separate 50-cycle native dialog probe passed the old sequence locally, so the hosted scheduling cause is not deterministically reproduced. The correction removes the ordering hazard; it does not establish a cause for every earlier protocol timeout. Local test receipts are in the Escape-order worktree's `scratch/escape-order/`.
 ## Monitor idle chart readout (2026-11-18, In progress)
+## Monitor idle chart readout (2026-11-18, Ready)
 
 - **Goal**. Identify zero throughput from fresh idle telemetry in the Monitor chart.
-- **Done**. Replayed the actual measurement and readout functions with repeated idle data. The measurement returned zero and the chart labeled it stale.
-- **Left**. Reproduce in the dashboard browser fixture, correct the readout and verify rate and timeline behavior.
-- **Gotchas**. The delayed timeline is intentional buffering. The collector, rate calculation and active stale states stay outside this change.
+- **Done**. Fresh zero PP/TG readouts now say No active requests when the runtime reports no active requests. The dashboard browser checks fresh idle, held active rates including zero, historical selections, disconnected gaps and the delayed timeline.
+- **Left**. Integrate the static dashboard change and verify the landing head when needed.
+- **Gotchas**. An exact-function replay produced zero with an 18-second unchanged runtime stamp and a stale caption. The browser reproduced the wrong caption at 9a0095555 in desktop and mobile widths. The timeline's delayed-view caption is intentional buffering. The change leaves the collector and rate calculations alone.
 
 ## Companion wording cleanup (2026-11-18, Done)
 

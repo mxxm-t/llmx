@@ -4478,10 +4478,12 @@ function renderChart(samples, stamp, config, events, motion = null, telemetryAva
   txt(config.id + '-summary', latest + ' ' + config.note);
   const readout = $(config.id + '-value');
   const snapshotAge = runtimeSampleAge(samples, config.clockField);
+  const idle = telemetryAvailable && config.mode === 'runtime' && samples.at(-1)?.metrics['requests.now.active'] === 0;
   const updateReadout = (value, time = null, reason = '') => {
     if (!readout) return;
     readout.textContent = format(value);
     txt(config.id + '-at', !number(value) ? reason || 'Metric unavailable / waiting for samples' : time !== null ? 'Selected interval ending ' + new Date(time * 1000).toLocaleTimeString() :
+      idle && value === 0 ? 'No active requests' :
       number(snapshotAge) && snapshotAge > 0 ? 'Stale / snapshot unchanged ' + fmt(snapshotAge) + ' s' :
       value === 0 ? config.zeroHint : config.mode === 'completed' ? 'Latest completed-request interval' : 'Latest measured rate');
     $(config.id + '-at').title = $(config.id + '-at').textContent;

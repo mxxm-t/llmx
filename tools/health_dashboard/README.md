@@ -98,8 +98,9 @@ The Runtime configuration card shows the effective RoPE policy, factor, original
   absent in either endpoint. The dashboard does not interpolate or poll more
   often. A successful sample with zero active requests and valid work counters
   shows zero PP/TG throughput immediately, including when the runtime snapshot
-  stops advancing. While requests remain active, repeated snapshots retain the
-  last measured interval as stale briefly in the headline and request cards,
+  stops advancing. With healthy collection, the charts label this zero
+  No active requests. While requests remain active, repeated snapshots briefly
+  retain the last measured interval as stale in the headline and request cards,
   then become unavailable. Missing counters, resets and collector gaps remain
   unavailable, and stale or disconnected chart tails are shaded unavailable.
   A new per-request rate becomes available after two distinct

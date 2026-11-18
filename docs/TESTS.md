@@ -9,7 +9,9 @@ Key-file checks cover anonymous and authenticated startup, file validation befor
 listening, ready and startup bearer requests, rejected keys, redirect refusal and
 credentials excluded from browser snapshots. Fixed shared-asset routes check exact
 SVG/PNG bytes, content types and refusals of unknown paths and traversal. They
-do not require a model.
+do not require a model. Dashboard browser coverage distinguishes healthy idle
+throughput readouts, held active rates, historical selection, disconnected
+gaps and the independently buffered chart timeline.
 
 The standalone [chat companion](../tools/chat_ui/README.md) is checked with
 `python -X utf8 -m unittest discover -s tools/chat_ui -v`. Temporary local HTTP

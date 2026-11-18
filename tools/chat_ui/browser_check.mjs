@@ -41,6 +41,7 @@ let heldChatCreateResponse = null;
 let attachmentChooser = null;
 const nativeDialogs = [];
 const apiMutations = [];
+const imageLinkRequests = [];
 async function cdp(method, params = {}) {
   const id = ++nextId;
   return new Promise((resolve, reject) => {
@@ -192,6 +193,7 @@ try {
     if (data.method === 'Runtime.exceptionThrown') { const detail = data.params.exceptionDetails; errors.push(detail.exception?.description || detail.text); }
     if (data.method === 'Network.requestWillBeSent' && /\/api\/runs\/[^/]+\/events(?:\?|$)/.test(data.params.request.url)) runStreams.push(data.params.request.url);
     if (data.method === 'Network.requestWillBeSent' && data.params.request.method !== 'GET') apiMutations.push({url: data.params.request.url, method: data.params.request.method});
+    if (data.method === 'Network.requestWillBeSent' && data.params.request.url.startsWith('https://example.invalid/')) imageLinkRequests.push(data.params.request.url);
     if (data.method === 'Fetch.requestPaused') {
       if (data.params.request.method === 'POST' && /\/api\/chats\/[^/]+\/runs$/.test(new URL(data.params.request.url).pathname)) heldSendResponse = data.params;
       else if (data.params.request.url.endsWith('/api/restore')) heldRestoreRequest = data.params.requestId;
@@ -485,6 +487,27 @@ try {
   await evaluate("localStorage.removeItem('llmx-chat')");
   await reloadDocument();
   await wait("window.ChatShell.config && !document.querySelector('[data-action=new]').disabled", 'compose fixture cleaned');
+  const imageLink = '![Lake](https://example.invalid/photo.jpg)';
+  const imageLinkSource = [imageLink + ' ![](https://example.invalid/other.jpg) [Source](https://example.invalid/source)',
+    '`' + imageLink + '`', '```markdown\n' + imageLink + '\n```', '![Unsafe](javascript:alert%281%29)'].join('\n\n');
+  const imageLinkShape = await evaluate(`(async () => {
+    const rendered = ChatRender.markdown(${JSON.stringify(imageLinkSource)});
+    document.body.append(rendered);
+    try {
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const first = rendered.firstElementChild;
+      return {text:first.textContent, links:Array.from(first.querySelectorAll('a[href]'), anchor =>
+        [anchor.textContent,anchor.href,anchor.target,anchor.rel]), images:rendered.querySelectorAll('img').length,
+        code:Array.from(rendered.querySelectorAll('code'), block => block.textContent),
+        unsafe:rendered.lastElementChild.querySelectorAll('a[href]').length};
+    } finally { rendered.remove(); }
+  })()`);
+  assert.deepEqual(imageLinkShape, {text:'Lake Open image Source', links:[
+    ['Lake','https://example.invalid/photo.jpg','_blank','noopener noreferrer'],
+    ['Open image','https://example.invalid/other.jpg','_blank','noopener noreferrer'],
+    ['Source','https://example.invalid/source','_blank','noopener noreferrer']],
+    images:0, code:[imageLink,imageLink], unsafe:0}, 'Markdown image links lost labels, changed code, or created unsafe markup');
+  assert.deepEqual(imageLinkRequests, [], 'rendering Markdown requested a remote image');
   const fencedMarkdown = ['Before the inner example', '```js', 'const value = 1;', '```', '~~~~', '```` still source', 'After the inner example'].join('\n');
   const fencedTilde = ['~~~', '```', '~~~~ still source', 'Nested code'].join('\n');
   const partialFence = '````markdown\n' + fencedMarkdown;

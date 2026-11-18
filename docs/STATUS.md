@@ -691,7 +691,8 @@ This stack did not land alone: it lands with land-20261119 on main ce2b0603b as 
   Each decodes a value as its CPU dequantizer does, so embeddings give the CPU's rows bit for bit and every `--dtype` takes the exact F32 product, wider than asked; the CPU decoders are held to `tests/spec_decode.py` by the raw-block checks already.
   `backend-rocm types` and `experts` take the three types (`twin_checks::exact_only` names the table's types without twins), and `exact_rows` their row builds.
   IQ2_XXS, IQ2_XS, IQ2_S, IQ3_XXS and IQ3_S the same way on branch `rocm/iq2-iq3`, stacked on `rocm/q2k-q3k-iq4xs`: their grids are `GPU_TABLE` reads of the CPU's own tables (`quant/iq2_*.hpp`, `quant/iq3_*.hpp`), and `rq::parity_signs` sets the eighth sign bit as `quant::iq_even_parity_signs` does.
-- **Left:** `backend-rocm types`, `experts` and `exact_rows` on one MI50 for NVFP4, Q2_K, Q3_K, IQ4_XS and the IQ2 and IQ3 types, and the microbenchmarks against the CPU decoder at Qwen3-0.6B and Qwen3.5-27B shapes, all waiting for the cards; then twins for Q3_K, Q2_K and IQ4_XS where their speed pays, and the IQ1, TQ, Q1_0, Q2_0 and F8_E4M3 types.
+  IQ1_S, IQ1_M, TQ1_0, TQ2_0, Q1_0 and Q2_0 the same way on branch `rocm/low-bits`, stacked on `rocm/iq2-iq3`; `typed_matrix` gives IQ1_M's scale nibbles a finite binary16 scale.
+- **Left:** `backend-rocm types`, `experts` and `exact_rows` on one MI50 for NVFP4, Q2_K, Q3_K, IQ4_XS, Q1_0, Q2_0 and the IQ1, IQ2, IQ3 and TQ types, and the microbenchmarks against the CPU decoder at Qwen3-0.6B and Qwen3.5-27B shapes, all waiting for the cards; then twins for Q3_K, Q2_K and IQ4_XS where their speed pays, and F8_E4M3 under its scale grid.
 - **Gotchas:** every type in `kTypes` must be Supported in README's ROCm column, which the `docs` component's readme check holds, so README changes with the table.
 
 ## Safetensors FP8 skip on devices without F8_E4M3 (2026-11-18, FP8R1, branch fix/safetensors-rocm-fp8 on main a274cfd62)

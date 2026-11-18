@@ -121,9 +121,18 @@ inline std::vector<uint8_t> typed_matrix(uint32_t type, size_t nin, size_t rows,
     if (type == quant::GGML_TYPE_Q6_K) halves = {208};
     if (type == quant::GGML_TYPE_Q2_K) halves = {80, 82};
     if (type == quant::GGML_TYPE_Q3_K) halves = {108};
+    if (type == quant::GGML_TYPE_TQ1_0) halves = {52};
+    if (type == quant::GGML_TYPE_TQ2_0) halves = {64};
+    if (type == quant::GGML_TYPE_IQ1_S || type == quant::GGML_TYPE_Q1_0 || type == quant::GGML_TYPE_Q2_0) halves = {0};
     if (type == quant::GGML_TYPE_IQ4_XS || type == quant::GGML_TYPE_IQ2_XXS || type == quant::GGML_TYPE_IQ2_XS || type == quant::GGML_TYPE_IQ2_S || type == quant::GGML_TYPE_IQ3_XXS || type == quant::GGML_TYPE_IQ3_S) halves = {0};
     for (size_t b = 0, i = 0; b < m.size() / st.type_size; ++b)
         for (size_t h : halves) put(b * st.type_size + h, f32_to_f16(scale[i++]));
+    // IQ1_M's binary16 scale is the high nibbles of its four scale words, which take a finite scale's nibbles.
+    if (type == quant::GGML_TYPE_IQ1_M)
+        for (size_t b = 0, i = 0; b < m.size() / st.type_size; ++b, ++i) {
+            const uint16_t h = f32_to_f16(scale[i]);
+            for (size_t k = 0; k < 4; ++k) m[b * st.type_size + 49 + 2 * k] = uint8_t((m[b * st.type_size + 49 + 2 * k] & 15) | (((h >> (4 * k)) & 15) << 4));
+        }
     // MXFP4's E8M0 scale byte at 2^-10 to 2^-6, as the raw-block fixtures' ordinary blocks take it.
     if (type == quant::GGML_TYPE_MXFP4)
         for (size_t b = 0; b < m.size() / st.type_size; ++b) m[b * st.type_size] = uint8_t(118 + m[b * st.type_size] % 5);
@@ -145,7 +154,8 @@ inline std::vector<uint8_t> typed_matrix(uint32_t type, size_t nin, size_t rows,
 // The table's types beside F32 without twins, which take their exact product in every class.
 inline bool exact_only(uint32_t type) {
     return type == quant::GGML_TYPE_BF16 || type == quant::GGML_TYPE_F16 || type == quant::GGML_TYPE_NVFP4 || type == quant::GGML_TYPE_Q2_K || type == quant::GGML_TYPE_Q3_K ||
-           type == quant::GGML_TYPE_IQ4_XS || type == quant::GGML_TYPE_IQ2_XXS || type == quant::GGML_TYPE_IQ2_XS || type == quant::GGML_TYPE_IQ2_S || type == quant::GGML_TYPE_IQ3_XXS || type == quant::GGML_TYPE_IQ3_S;
+           type == quant::GGML_TYPE_IQ4_XS || type == quant::GGML_TYPE_IQ2_XXS || type == quant::GGML_TYPE_IQ2_XS || type == quant::GGML_TYPE_IQ2_S || type == quant::GGML_TYPE_IQ3_XXS || type == quant::GGML_TYPE_IQ3_S ||
+           type == quant::GGML_TYPE_IQ1_S || type == quant::GGML_TYPE_IQ1_M || type == quant::GGML_TYPE_TQ1_0 || type == quant::GGML_TYPE_TQ2_0 || type == quant::GGML_TYPE_Q1_0 || type == quant::GGML_TYPE_Q2_0;
 }
 
 // Flash-Next's projection shapes, input by output, that a type's rows fill whole: the K-quants' 256-value blocks the 2560- and 6144-wide rows, the 32-value types the 640-wide expert down rows too.

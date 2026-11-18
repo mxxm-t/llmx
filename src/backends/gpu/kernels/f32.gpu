@@ -1146,6 +1146,12 @@ LLMX_DECODED(iq2_xs, IQ2_XS)
 LLMX_DECODED(iq2_s, IQ2_S)
 LLMX_DECODED(iq3_xxs, IQ3_XXS)
 LLMX_DECODED(iq3_s, IQ3_S)
+LLMX_DECODED(iq1_s, IQ1_S)
+LLMX_DECODED(iq1_m, IQ1_M)
+LLMX_DECODED(tq1_0, TQ1_0)
+LLMX_DECODED(tq2_0, TQ2_0)
+LLMX_DECODED(q1_0, Q1_0)
+LLMX_DECODED(q2_0, Q2_0)
 
 // NVFP4's values with the tensor's F32 factor, each rounded after the decode and again after the factor, as the CPU's float_rows rounds them; the factor is 1 without weight scales.
 struct ExactNVFP4 : ExactDecoded<rq::NVFP4> {

@@ -408,7 +408,8 @@ void types(Backend& g, Backend& c) {
     const uint32_t kinds[] = {quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0,
                               quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_BF16, quant::GGML_TYPE_F16, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4, quant::GGML_TYPE_NVFP4,
                               quant::GGML_TYPE_Q2_K, quant::GGML_TYPE_Q3_K, quant::GGML_TYPE_IQ4_XS,
-                              quant::GGML_TYPE_IQ2_XXS, quant::GGML_TYPE_IQ2_XS, quant::GGML_TYPE_IQ2_S, quant::GGML_TYPE_IQ3_XXS, quant::GGML_TYPE_IQ3_S};
+                              quant::GGML_TYPE_IQ2_XXS, quant::GGML_TYPE_IQ2_XS, quant::GGML_TYPE_IQ2_S, quant::GGML_TYPE_IQ3_XXS, quant::GGML_TYPE_IQ3_S,
+                              quant::GGML_TYPE_IQ1_S, quant::GGML_TYPE_IQ1_M, quant::GGML_TYPE_TQ1_0, quant::GGML_TYPE_TQ2_0, quant::GGML_TYPE_Q1_0, quant::GGML_TYPE_Q2_0};
     for (uint32_t type : kinds) {
         const std::string name = quant::storage_type(type)->name;
         require(g.supports_type(type), name + " is supported");
@@ -484,7 +485,8 @@ void exact_rows(Backend& g) {
     twin_checks::exact_rows(g, {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0,
                                quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_BF16, quant::GGML_TYPE_F16, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4, quant::GGML_TYPE_NVFP4,
                                quant::GGML_TYPE_Q2_K, quant::GGML_TYPE_Q3_K, quant::GGML_TYPE_IQ4_XS,
-                              quant::GGML_TYPE_IQ2_XXS, quant::GGML_TYPE_IQ2_XS, quant::GGML_TYPE_IQ2_S, quant::GGML_TYPE_IQ3_XXS, quant::GGML_TYPE_IQ3_S},
+                              quant::GGML_TYPE_IQ2_XXS, quant::GGML_TYPE_IQ2_XS, quant::GGML_TYPE_IQ2_S, quant::GGML_TYPE_IQ3_XXS, quant::GGML_TYPE_IQ3_S,
+                              quant::GGML_TYPE_IQ1_S, quant::GGML_TYPE_IQ1_M, quant::GGML_TYPE_TQ1_0, quant::GGML_TYPE_TQ2_0, quant::GGML_TYPE_Q1_0, quant::GGML_TYPE_Q2_0},
                             rocm_take_launches, require);
 }
 void twin_types(Backend& g, Backend& c) {

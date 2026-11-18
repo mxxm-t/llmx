@@ -5,6 +5,7 @@
 #include "backends/gpu/kernels/port.h"
 
 #include "quant/fp4.hpp"
+#include "quant/iq1.hpp"
 #include "quant/iq2_s.hpp"
 #include "quant/iq2_xs.hpp"
 #include "quant/iq2_xxs.hpp"
@@ -220,6 +221,71 @@ struct IQ3_S {
         const float value = scaled * (float)((GPU_TABLE(quant::IQ3_S_GRID)[index] >> (8 * lane)) & 255u);
         return (b[74 + j / 8] >> (j % 8)) & 1 ? -value : value;
     }
+};
+
+// A ternary lane of the IQ1 grid, stored as value + 1 in two bits, two eight-lane vectors a word (quant::iq1_value).
+__device__ inline int iq1_value(unsigned index, int lane) { return (int)((GPU_TABLE(quant::IQ1_GRID)[index / 2] >> (16 * (index % 2) + 2 * lane)) & 3u) - 1; }
+
+// Eight values a grid vector with an 11-bit index, an odd multiplier and a shift of an eighth each 32 values (quant::dequantize_row_iq1_s).
+struct IQ1_S {
+    static constexpr unsigned values = quant::IQ1_S_BLOCK, bytes = quant::IQ1_S_TYPESIZE;
+    __device__ static float value(const unsigned char* b, int j) {
+        const int g = j >> 3, h = 34 + 2 * (g / 4);
+        const unsigned fields = b[h] | (b[h + 1] << 8);
+        const unsigned index = b[2 + g] | (((fields >> (3 * (g % 4))) & 7u) << 8);
+        const float scaled = half_at(b) * (float)(1 + 2 * ((fields >> 12) & 7u));
+        return scaled * ((float)iq1_value(index, j & 7) + ((fields & 0x8000) ? -0.125f : 0.125f));
+    }
+};
+
+// IQ1_S's grid under 3-bit multipliers each 16 values and a binary16 scale spread over the scale words' high nibbles (quant::dequantize_row_iq1_m).
+struct IQ1_M {
+    static constexpr unsigned values = quant::IQ1_M_BLOCK, bytes = quant::IQ1_M_TYPESIZE;
+    __device__ static float value(const unsigned char* b, int j) {
+        const int g = j >> 3, s = 48 + 2 * (g / 8);
+        const unsigned half = (b[49] >> 4) | ((b[51] >> 4) << 4) | ((b[53] >> 4) << 8) | ((unsigned)(b[55] >> 4) << 12);
+        const unsigned fields = (b[32 + g / 2] >> (4 * (g % 2))) & 15u;
+        const unsigned index = b[g] | ((fields & 7u) << 8);
+        const unsigned scales = b[s] | (b[s + 1] << 8);
+        const float scaled = __half2float(__ushort_as_half((unsigned short)half)) * (float)(1 + 2 * ((scales >> (3 * ((g / 2) % 4))) & 7u));
+        return scaled * ((float)iq1_value(index, j & 7) + ((fields & 8u) ? -0.125f : 0.125f));
+    }
+};
+
+// Base-3 digits five a byte, read as the CPU's wrapped multiply (quant::tq1_digit), centered at one under the block's binary16 scale.
+struct TQ1_0 {
+    static constexpr unsigned values = quant::TQ1_0_BLOCK, bytes = quant::TQ1_0_TYPESIZE;
+    __device__ static float value(const unsigned char* b, int j) {
+        const int at = j < 160 ? j % 32 : j < 240 ? 32 + (j - 160) % 16 : 48 + (j - 240) % 4;
+        const int power = j < 160 ? j / 32 : j < 240 ? (j - 160) / 16 : (j - 240) / 4;
+        const unsigned scale = power == 0 ? 1u : power == 1 ? 3u : power == 2 ? 9u : power == 3 ? 27u : 81u;
+        const unsigned digit = (((b[at] * scale) & 255u) * 3) >> 8;
+        return (float)((int)digit - 1) * half_at(b + 52);
+    }
+};
+
+// Two-bit codes centered at one, four planes of 32 values in each half (quant::dequantize_row_tq2_0).
+struct TQ2_0 {
+    static constexpr unsigned values = quant::TQ2_0_BLOCK, bytes = quant::TQ2_0_TYPESIZE;
+    __device__ static float value(const unsigned char* b, int j) {
+        const unsigned code = (b[(j / 128) * 32 + j % 32] >> (2 * ((j % 128) / 32))) & 3u;
+        return (float)((int)code - 1) * half_at(b + 64);
+    }
+};
+
+// One sign bit a value under the block's binary16 scale (quant::dequantize_row_q1_0).
+struct Q1_0 {
+    static constexpr unsigned values = quant::Q1_0_BLOCK, bytes = quant::Q1_0_TYPESIZE;
+    __device__ static float value(const unsigned char* b, int j) {
+        const float d = half_at(b);
+        return (b[2 + j / 8] >> (j % 8)) & 1u ? d : -d;
+    }
+};
+
+// Two-bit codes centered at one under the block's binary16 scale (quant::dequantize_row_q2_0).
+struct Q2_0 {
+    static constexpr unsigned values = quant::Q2_0_BLOCK, bytes = quant::Q2_0_TYPESIZE;
+    __device__ static float value(const unsigned char* b, int j) { return (float)((int)((b[2 + j / 4] >> (2 * (j % 4))) & 3u) - 1) * half_at(b); }
 };
 
 // Half an E8M0 scale, 2^(e - 128), for the doubled E2M1 codes, as quant::mxfp4_scale gives it, subnormal below e = 2.

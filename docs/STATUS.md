@@ -6,6 +6,15 @@
 - **Done:** Removed the editor's custom Tab indentation so focus follows the browser's tab order. The hosted browser fixture's regression failed before the fix in 43.962 s and passed with the fix in 50.834 s on Windows Chrome 157. It checked both directions, selected text, and the saved file's clean state. The fixture also exercises Ctrl+S and the existing responsive layouts. JavaScript syntax, whitespace and dead-code checks pass.
 - **Left:** Run the docs check with the current CLI at the final UI stack head. The available root CLI was stale and produced unrelated option and command findings. Full logs are in `scratch/keyboard/`.
 - **Gotchas:** The Workspace save shortcut has a separate document handler. The browser script holds this regression in the hosted Chat workspace workflow.
+## Companion compose-state preservation (2026-11-18, in progress)
+
+**Goal.** Keep unsent text, attachments and edit targets when navigating ordinary conversations or refreshing the tab, without persisting temporary-chat content.
+
+**Done.** The UI audit reproduced draft loss on reselect, navigation and reload. The browser composer in `tools/chat_ui/app.js` owns this state; the server and inference runtime are unchanged.
+
+**Left.** Add a failing browser regression, retain per-conversation compose state with bounded browser-session persistence and explicit storage-failure feedback, then run the focused browser and static landing checks.
+
+**Gotchas.** Accepted sends must clear only their own unchanged draft. New typing during a request must survive. Temporary chat content stays in memory. Browser storage may be unavailable or full, so navigation must preserve the in-memory copy and reload limitations must be visible.
 
 ## Landing stack land-20261117 (2026-11-17, LAND68 then LAND69, Done)
 

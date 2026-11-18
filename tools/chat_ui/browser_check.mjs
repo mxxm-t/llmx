@@ -292,6 +292,37 @@ try {
     selection.removeAllRanges();current.remove();return result;
   })()`);
   assert.deepEqual(stableMarkdown,{pass:true,paragraph:true,button:true,feedback:'Copied',focus:true,selection:'Completed paragraph'}, 'streamed Markdown changed completed blocks, focus or selection');
+  const composeChats = await evaluate(`(async()=>{
+    const a=await ChatShell.api('/chats','POST',{title:'Compose A'});
+    const b=await ChatShell.api('/chats','POST',{title:'Compose B'});
+    localStorage.setItem('llmx-chat',a.id); return [a.id,b.id];
+  })()`);
+  await reloadDocument();
+  await wait("document.querySelector('#chat-title').textContent==='Compose A'", 'compose fixture');
+  await fill('#draft', 'Keep this unsent message.');
+  await upload('#file-input', fixture);
+  await wait("document.querySelector('#attachments').textContent.includes('notes.txt')", 'draft attachment');
+  await click('[data-chat="'+composeChats[0]+'"]');
+  await delay(200);
+  assert.equal(await evaluate("document.querySelector('#draft').value"), 'Keep this unsent message.', 'reselect discarded compose text');
+  await click('[data-chat="'+composeChats[1]+'"]');
+  await wait("document.querySelector('#chat-title').textContent==='Compose B'", 'second compose chat');
+  await fill('#draft', 'Second independent draft.');
+  await click('[data-chat="'+composeChats[0]+'"]');
+  await wait("document.querySelector('#chat-title').textContent==='Compose A'", 'first compose chat restored');
+  assert.equal(await evaluate("document.querySelector('#draft').value"), 'Keep this unsent message.', 'navigation discarded compose text');
+  assert.equal(await evaluate("document.querySelector('#attachments').textContent.includes('notes.txt')"), true, 'navigation discarded compose attachment');
+  await reloadDocument();
+  await wait("document.querySelector('#chat-title').textContent==='Compose A'", 'compose reload');
+  assert.equal(await evaluate("document.querySelector('#draft').value"), 'Keep this unsent message.', 'reload discarded compose text');
+  assert.equal(await evaluate("document.querySelector('#attachments').textContent.includes('notes.txt')"), true, 'reload discarded compose attachment');
+  await click('[data-chat="'+composeChats[1]+'"]');
+  await wait("document.querySelector('#chat-title').textContent==='Compose B'", 'second draft after reload');
+  assert.equal(await evaluate("document.querySelector('#draft').value"), 'Second independent draft.', 'drafts leaked between conversations');
+  await evaluate(`Promise.all(${JSON.stringify(composeChats)}.map(id=>ChatShell.api('/chats/'+id,'DELETE')))`);
+  await evaluate("localStorage.removeItem('llmx-chat')");
+  await reloadDocument();
+  await wait("window.ChatShell.config && !document.querySelector('[data-action=new]').disabled", 'compose fixture cleaned');
   const nestedListSource = '3. First\n   - Child\n     7. Leaf\n        Wrapped line\n\n        ```js\n        const value = 1;\n        ```\n4. Second\n\nAfter\n\n- Root\n  - Nested **text**\n- Next';
   const nestedListShape = await evaluate(`(() => {
     const rendered = ChatRender.markdown(${JSON.stringify(nestedListSource)});

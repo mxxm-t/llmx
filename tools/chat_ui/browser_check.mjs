@@ -38,6 +38,7 @@ let heldMonitorLoad = null;
 let heldRestoreRequest = null;
 let heldSendResponse = null;
 let heldChatCreateResponse = null;
+let attachmentChooser = null;
 const nativeDialogs = [];
 const apiMutations = [];
 async function cdp(method, params = {}) {
@@ -201,6 +202,7 @@ try {
       else heldMonitorLoad = data.params.requestId;
     }
     if (data.method === 'Page.javascriptDialogOpening') { nativeDialogs.push(data.params.type); cdp('Page.handleJavaScriptDialog', {accept: true, promptText: 'Research'}).catch(() => {}); }
+    if (data.method === 'Page.fileChooserOpened') attachmentChooser = data.params;
   };
   await cdp('Page.enable'); await cdp('Runtime.enable'); await cdp('DOM.enable'); await cdp('Network.enable');
   await cdp('Emulation.setDeviceMetricsOverride', {width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false});
@@ -239,6 +241,15 @@ try {
   await wait("document.querySelector('#login-error').textContent.includes('Incorrect')", 'invalid-password error');
   await fill('#password', 'browser-test'); await evaluate("document.querySelector('#login-form').requestSubmit()");
   await wait("!document.querySelector('#login-dialog').open && document.querySelector('#model').value==='qwen3-local' && !document.querySelector('[data-action=\"new\"]').disabled", 'authenticated workspace');
+  await cdp('Page.setInterceptFileChooserDialog', {enabled: true});
+  await pointerClick('[data-action=attach]');
+  await wait(() => attachmentChooser !== null, 'native attachment chooser');
+  await cdp('Page.setInterceptFileChooserDialog', {enabled: false});
+  const {node: chooserInput} = await cdp('DOM.describeNode', {backendNodeId: attachmentChooser.backendNodeId});
+  assert.equal(attachmentChooser.mode, 'selectMultiple', 'attachment chooser disabled multiple files');
+  assert.equal(chooserInput.attributes[chooserInput.attributes.indexOf('id') + 1], 'file-input');
+  const chooserHints = chooserInput.attributes[chooserInput.attributes.indexOf('accept') + 1].split(',');
+  assert.deepEqual(['.go', '.rs', '.sh'].filter(extension => !chooserHints.includes(extension)), [], 'chooser omitted accepted UTF-8 source files');
   for (const theme of ['dark', 'light']) {
     await evaluate(`document.documentElement.dataset.theme=${JSON.stringify(theme)}`);
     const point = await evaluate("(()=>{const r=document.querySelector('.global-nav [data-view=monitor]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()");

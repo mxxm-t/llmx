@@ -14,6 +14,12 @@
 - **Done**. Fresh zero PP/TG readouts now say No active requests when the runtime reports no active requests. The dashboard browser checks fresh idle, held active rates including zero, historical selections, disconnected gaps and the delayed timeline.
 - **Left**. Integrate the static dashboard change and verify the landing head when needed.
 - **Gotchas**. An exact-function replay produced zero with an 18-second unchanged runtime stamp and a stale caption. The browser reproduced the wrong caption at 9a0095555 in desktop and mobile widths. The timeline's delayed-view caption is intentional buffering. The change leaves the collector and rate calculations alone.
+## Chat attachment and model guidance (2026-11-18, In progress)
+
+- **Goal:** Make attachment formats and limits easy to find and explain the model selector's relationship to the connected server.
+- **Done:** Confirmed the existing limits and image preflight. The native chooser's filter omits text extensions already recognized by the browser validation.
+- **Left:** Reproduce the chooser mismatch, align its hints, add hover and keyboard guidance, and check Settings at narrow widths.
+- **Gotchas:** The chooser is a filter hint. Attachment validation and the upstream image preflight still decide what can be sent. The catalogue has no image capability field.
 
 ## Companion wording cleanup (2026-11-18, Done)
 

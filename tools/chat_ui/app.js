@@ -125,7 +125,7 @@
   function currentRun() { return S.runs.find(r => !terminal(r.status)); }
   function closeStream() { if (S.stream) S.stream.close(); S.stream = null; }
   document.addEventListener('companion:unauthorized', closeStream);
-  function connection(text, offline = false) { const el = $('connection'); el.replaceChildren(node('span', 'status-dot'), document.createTextNode(text)); el.classList.toggle('offline', offline); document.querySelector('.inspector-bottom').replaceChildren(node('span', 'status-dot'), document.createTextNode(offline ? text + ' / local runtime' : 'Connected to your local runtime')); }
+  function connection(text, offline = false) { const el = $('connection'); el.replaceChildren(node('span', 'status-dot'), document.createTextNode(text)); el.classList.toggle('offline', offline); document.querySelector('.inspector-bottom').replaceChildren(node('span', 'status-dot'), document.createTextNode(offline ? text : 'Connected to the model server')); }
   function settings() {
     const value = {model: $('model').value, system: $('setting-system').value};
     if (!(S.config.models || []).some(model => model.id === value.model)) throw new Error('This model is not available on the connected server. Choose another model before sending.');

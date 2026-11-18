@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## Companion wording cleanup (2026-11-18, Done)
+
+- **Goal:** Use direct labels for current functionality and remove repeated welcome and branding copy.
+- **Done:** Replaced the welcome slogans with Start a conversation, kept the three working suggestions, and removed the repeated footer credit. App settings names appearance, connections, sign-in and backups. Sign-in describes companion authentication; Command runner names the existing one-command execution surface. Connection text no longer claims that every upstream is local. The approved logo, controls and service behavior are unchanged.
+- **Checks:** Existing Chrome coverage passed in 63.936 seconds, including both themes, narrow layouts and zoom. The rendered welcome and command labels were reviewed. JavaScript syntax and whitespace checks passed. No new test mirrors the copy changes. Final docs and dead-code receipts are recorded in `scratch/wording/`.
+- **Landing:** One presentation-only commit over `80f8cb5f5`, fast-forward after its focused browser, docs and dead-code checks pass and main is rechecked. The existing docs CLI is applicable because native source and build inputs are unchanged. The Markdown reference review found no stale labels outside the updated companion README. No runtime, server, collector or numerical checks are required for this scope.
+- **Gotchas:** Settings behavior and search are separate features. Command runner remains a one-shot job runner, not an interactive shell.
+
 ## Companion UI reliability and clarity landing (2026-11-18, Done)
 
 **Goal.** Land the qualified companion fixes over public main `a274cfd62`, keeping each independent feature's failing test before its fix. The original November 16 UI bundle was live locally but absent from public main; this stack preserves it together with the new audit fixes.

@@ -348,6 +348,10 @@ Delayed file reads never replace a newer selection. If you type while another
 file loads, opening it asks again before discarding those new edits. Saving or
 starting another editor transition invalidates the older pending open.
 
+The Command runner starts one command at a time and shows its output and history.
+It is not an interactive shell. Sign-in in App settings describes access to the
+companion, separate from the Workspace execution configuration.
+
 Optional execution requires Docker and an existing Linux image with `/bin/sh`,
 `tar` and `sleep`, plus the languages or tools the operator needs:
 

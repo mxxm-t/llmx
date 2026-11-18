@@ -489,7 +489,7 @@
   }
   function showActionTooltip(target) {
     hideActionTooltip();
-    const tip = node('div', 'message-action-tooltip', target.getAttribute('aria-label'));
+    const tip = node('div', 'message-action-tooltip', target.dataset.tooltip || target.getAttribute('aria-label'));
     tip.id = 'message-action-tooltip-' + (++tooltipSequence); tip.setAttribute('role', 'tooltip'); document.body.append(tip);
     target.setAttribute('aria-describedby', tip.id); tooltipTarget = target; actionTooltip = tip;
     const box = target.getBoundingClientRect(), size = tip.getBoundingClientRect(), pad = 8;
@@ -498,16 +498,19 @@
     const top = below ? box.bottom + pad : Math.max(pad, box.top - size.height - pad);
     tip.style.left = left + 'px'; tip.style.top = top + 'px';
   }
+  function bindActionTooltip(el) {
+    el.addEventListener('pointerenter', () => showActionTooltip(el)); el.addEventListener('pointerleave', () => hideActionTooltip(el));
+    el.addEventListener('blur', () => hideActionTooltip(el)); el.addEventListener('click', () => hideActionTooltip(el, true));
+  }
   function actionIcon(label, action, id, path, cls = 'message-icon-action') {
     const el = button('', action, id, cls); el.setAttribute('aria-label', label);
     const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); icon.setAttribute('viewBox', '0 0 24 24'); icon.setAttribute('fill', 'none'); icon.setAttribute('stroke', 'currentColor'); icon.setAttribute('stroke-width', '1.8'); icon.setAttribute('stroke-linecap', 'round'); icon.setAttribute('stroke-linejoin', 'round'); icon.setAttribute('aria-hidden', 'true');
     const shape = document.createElementNS('http://www.w3.org/2000/svg', 'path'); shape.setAttribute('d', path); icon.append(shape); el.append(icon);
-    if (action === 'reply-stats') return el;
-    el.addEventListener('pointerenter', () => showActionTooltip(el)); el.addEventListener('pointerleave', () => hideActionTooltip(el));
-    el.addEventListener('blur', () => hideActionTooltip(el)); el.addEventListener('click', () => hideActionTooltip(el, true));
+    if (action !== 'reply-stats') bindActionTooltip(el);
     return el;
   }
-  document.addEventListener('focusin', event => { if (event.target.matches('.message-icon-action:not([data-action=reply-stats]),.branch-action')) showActionTooltip(event.target); }, true);
+  bindActionTooltip(document.querySelector('[data-action=attach]'));
+  document.addEventListener('focusin', event => { if (event.target.matches('.message-icon-action:not([data-action=reply-stats]),.branch-action,[data-tooltip]')) showActionTooltip(event.target); }, true);
   document.addEventListener('keydown', event => { if (event.key === 'Escape') hideActionTooltip(); }, true);
   document.addEventListener('scroll', () => { if (tooltipTarget && tooltipTarget === document.activeElement) showActionTooltip(tooltipTarget); else hideActionTooltip(); }, true);
   window.addEventListener('resize', () => hideActionTooltip());

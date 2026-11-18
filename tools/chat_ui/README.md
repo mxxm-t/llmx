@@ -79,7 +79,8 @@ the model file loaded at startup. It does not route a request to another model
 or load a different file from this selector. To use another model, connect to an
 upstream serving that model. If a saved conversation refers to a model ID the
 connected upstream does not report, that choice is marked unavailable and
-sending stays disabled until you select an available model.
+sending stays disabled until you select an available model. Conversation
+Settings describes the selector alongside the reported context capacities.
 
 Before starting a run with an explicit model choice, the companion fetches the
 upstream catalogue again. A missing choice is refused before any message or run
@@ -157,6 +158,8 @@ keyboard focus keeps its visible outline.
 - Attach up to eight UTF-8 text/code files or PNG/JPEG images. Text is included
   in full with its file name, not retrieved from an embedding index. Limits are
   2 MiB per text file, 8 MiB per image and 10 MiB total decoded attachments.
+  Hover over Attach or focus it with the keyboard for the file types. The
+  Attachments section in Conversation Settings shows the limits on any device.
   A read that finishes after switching conversations is discarded with a notice.
   The upstream model and server must support images. Image-bearing prompts are
   checked through llmx tokenization before a reply starts, including images in

@@ -429,6 +429,7 @@ kbd {
 .composer-left select {
   background:none;
   border:0;
+  min-width:0;
   max-width:220px;
   font-size:11px;
   padding:4px 0
@@ -934,7 +935,7 @@ kbd {
   color:var(--text);
   font-size:11px;
   line-height:16px;
-  white-space:nowrap;
+  overflow-wrap:anywhere;
   pointer-events:none
 }
 .reasoning {
@@ -1398,6 +1399,10 @@ body {
   row-gap:7px
 }
 @media(max-width:720px),(pointer:coarse) {
+  .composer-left [data-action=attach] {
+    width:40px;
+    height:40px
+  }
   .message-actions button {
     width:40px;
     min-width:40px;

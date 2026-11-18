@@ -15,11 +15,13 @@
 - **Left**. Integrate the static dashboard change and verify the landing head when needed.
 - **Gotchas**. An exact-function replay produced zero with an 18-second unchanged runtime stamp and a stale caption. The browser reproduced the wrong caption at 9a0095555 in desktop and mobile widths. The timeline's delayed-view caption is intentional buffering. The change leaves the collector and rate calculations alone.
 ## Chat attachment and model guidance (2026-11-18, In progress)
+## Chat attachment and model guidance (2026-11-18, Ready for integration)
 
 - **Goal:** Make attachment formats and limits easy to find and explain the model selector's relationship to the connected server.
-- **Done:** Confirmed the existing limits and image preflight. The native chooser's filter omits text extensions already recognized by the browser validation.
-- **Left:** Reproduce the chooser mismatch, align its hints, add hover and keyboard guidance, and check Settings at narrow widths.
-- **Gotchas:** The chooser is a filter hint. Attachment validation and the upstream image preflight still decide what can be sent. The catalogue has no image capability field.
+- **Done:** The chooser advertises exactly the 27 text extensions recognized by the browser alongside its MIME hints. Attach uses the shared tooltip for supported file types and has a 40 by 40 pixel touch target. Conversation Settings lists the limits, explains the model selector, and says that images require support from the connected model and server.
+- **Checks:** Windows Chrome opened the native multiple-file chooser and failed on three omitted extensions before the fix in 5.787 s. The full fixture passed in 100.309 s, including hover, keyboard focus and dismissal, narrow touch Settings, attachment boundaries and image admission. Six engine image/text tests and one HTTP attachment check passed. JavaScript syntax, whitespace, docs and dead-code pass. A focused Chrome rerun covers the final image-support sentence, the only product delta from that full fixture. The rerun also verifies the test waits for desktop layout after touch emulation before continuing. Logs and screenshots are in `scratch/chat-attachment-guidance-20261118/`.
+- **Left:** Integrate with current main and run the applicable static landing checks.
+- **Gotchas:** The chooser is a filter hint. Attachment validation and the upstream image preflight decide what can be sent. The catalogue includes model IDs and optional context capacity.
 
 ## Companion wording cleanup (2026-11-18, Done)
 

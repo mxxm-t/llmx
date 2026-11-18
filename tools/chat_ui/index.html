@@ -156,12 +156,12 @@
             <textarea id="draft" rows="1" aria-label="Message" placeholder="Message your model..." maxlength="1000000"></textarea>
             <div class="composer-toolbar">
               <div class="composer-left">
-                <button type="button" class="icon" data-action="attach" aria-label="Attach text or image" title="Attach text or image">
+                <button type="button" class="icon" data-action="attach" aria-label="Attach text or image" data-tooltip="Attach UTF-8 text or code, PNG or JPEG. See Settings for limits.">
                   <svg viewBox="0 0 24 24">
                     <path d="m8 12 6-6a4 4 0 0 1 6 6L10 22a6 6 0 0 1-8-8L12 4M6 16l10-10"/>
                   </svg>
                 </button>
-                <select id="model" aria-label="Model">
+                <select id="model" aria-label="Model on the connected server" aria-describedby="model-source-help">
                   <option value="">Select model</option>
                 </select>
                 <span class="composer-divider"></span>
@@ -261,6 +261,10 @@
           <div class="stat-row"><span>Server request limit</span><strong id="request-context-limit">Unavailable</strong></div>
           <div class="stat-row"><span>Model context</span><strong id="model-context-limit">Unavailable</strong></div>
           <p class="muted fine-print">Latest reported limits. Your conversation, tool results and reply share the request limit. These are capacities, not remaining tokens.</p>
+          <p class="muted fine-print" id="model-source-help">Choose a model the connected server already serves. Chat sends that model ID with your request.</p>
+          <h3 class="section-label">ATTACHMENTS</h3>
+          <p class="muted fine-print" id="attachment-help">UTF-8 text and code, PNG, and JPEG. Up to 8 files per message, with
+            2 MiB per text file, 8 MiB per image and 10 MiB total decoded. Images require support from the connected model and server.</p>
           <h3 class="section-label">TOOLS FOR THIS CONVERSATION</h3>
           <div id="tool-settings"></div>
           <button id="save-conversation-settings" class="secondary-button full" data-action="save-settings" aria-describedby="conversation-settings-help" hidden disabled>Save for this chat</button>
@@ -271,7 +275,7 @@
     </div>
     <div id="drawer-shade" class="drawer-shade" data-action="close-drawers" hidden></div>
     <div id="toast" class="toast" role="status" hidden></div>
-    <input id="file-input" type="file" multiple accept="image/png,image/jpeg,text/*,.md,.csv,.json,.py,.js,.ts,.cpp,.hpp,.log,.yaml,.yml,.toml" hidden>
+    <input id="file-input" type="file" multiple accept="image/png,image/jpeg,text/*,.txt,.md,.csv,.json,.py,.js,.ts,.jsx,.tsx,.cpp,.hpp,.h,.c,.rs,.go,.java,.sh,.ps1,.html,.css,.xml,.log,.yaml,.yml,.toml,.ini,.sql" hidden>
     <input id="import-input" type="file" accept="application/json,.json" hidden>
     <dialog id="login-dialog">
       <form id="login-form" class="dialog-content">

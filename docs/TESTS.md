@@ -29,6 +29,9 @@ selection.
 Retry also covers leaving and returning before the server admits the request:
 the visible conversation receives its new reply without refreshing the page.
 HTTP checks cover authentication, origin checks, attachments and import/export.
+Chrome confirms the native attachment chooser opens in multiple-file mode
+with common accepted source extensions. It exercises the Attach hint with a
+pointer and keyboard, and the attachment limits in narrow touch Settings.
 Saved-chat search checks cover case-folded literal matching across branches,
 metadata-only responses, archived and temporary isolation, excluded payloads,
 freshly persisted deltas, request validation and restore during an open reader.

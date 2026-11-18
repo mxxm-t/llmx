@@ -613,7 +613,7 @@ int main(int argc, char** argv) {
     std::printf("device 0: %s, warp %u, %u multiprocessors, %zu MiB, bus %s, %s\n", d.caps.device.c_str(), d.caps.subgroup_size, d.caps.compute_units,
                 d.total_memory >> 20, d.pci_bus.c_str(), d.caps.driver.c_str());
     require(d.caps.subgroup_size == 32, "the warp is 32 lanes");
-    require(std::stoi(d.arch.substr(3)) >= 80, "the device is sm_80 or newer: " + d.arch);
+    require(std::stoi(d.arch.substr(3)) >= 70, "the device is sm_70 or newer: " + d.arch);
     require(d.caps.shared_bytes >= 48u << 10 && d.caps.compute_units > 0 && d.total_memory > 0, "the device reports its shared memory, units and memory");
 
     BackendPtr g = make_backend("cuda:0");

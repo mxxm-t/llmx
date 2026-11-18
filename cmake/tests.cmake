@@ -897,8 +897,8 @@ if(LLMX_HAS_BACKEND_CUDA)
     # The fatbins' targets, the F32 matmul's FFMA, no flush to zero and no unlisted spill, read from the build without a device.
     find_package(Python3 COMPONENTS Interpreter REQUIRED)
     find_program(LLMX_CUOBJDUMP cuobjdump HINTS $ENV{CUDA_PATH}/bin /usr/local/cuda/bin)
-    add_test(NAME cuda-sass COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/cuda_sass.py ${CMAKE_CURRENT_BINARY_DIR}/generated/cuda ${LLMX_CUOBJDUMP})
-    set_tests_properties(cuda-sass PROPERTIES TIMEOUT 1200)
+    add_test(NAME cuda-sass COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/cuda_sass.py ${CMAKE_CURRENT_BINARY_DIR}/generated/cuda ${LLMX_CUOBJDUMP} "${LLMX_CUDA_ARCHS}")
+    set_tests_properties(cuda-sass PROPERTIES TIMEOUT 1800)
     # Device facts, buffers, a refused allocation, the F32 matmul and the F16 class's twin products against the CPU backend on cuda:0; it exits 77 without a driver or device.
     add_executable(llmx-backend-cuda-test tests/backend_cuda.cpp)
     target_include_directories(llmx-backend-cuda-test PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated ${CMAKE_CURRENT_SOURCE_DIR}/src ${LLMX_CUDA_INCLUDE_DIR})

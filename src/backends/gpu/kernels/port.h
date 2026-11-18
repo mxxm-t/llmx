@@ -190,16 +190,25 @@ LLMX_PORT_MODEL unsigned port_segment_mask(int width, unsigned lane) {
 #define GPU_DOT4 1
 
 #define LLMX_FULL_WARP 0xffffffffu
-__device__ __forceinline__ unsigned segment_lanes(int width) {
+__device__ __forceinline__ unsigned lane_index() {
     unsigned lane;
     asm("mov.u32 %0, %%laneid;" : "=r"(lane));
-    return port_segment_mask(width, lane);
+    return lane;
 }
+__device__ __forceinline__ unsigned segment_lanes(int width) { return port_segment_mask(width, lane_index()); }
 template <typename T> __device__ __forceinline__ auto shuffle_xor(T v, int m) { return __shfl_xor_sync(LLMX_FULL_WARP, v, m); }
 template <typename T> __device__ __forceinline__ auto shuffle_xor(T v, int m, int width) { return __shfl_xor_sync(segment_lanes(width), v, m, width); }
 template <typename T> __device__ __forceinline__ auto shuffle_down(T v, int d) { return __shfl_down_sync(LLMX_FULL_WARP, v, d); }
 template <typename T> __device__ __forceinline__ auto shuffle_down(T v, int d, int width) { return __shfl_down_sync(segment_lanes(width), v, d, width); }
-template <int W> __device__ __forceinline__ int segment_sum(int v) { return __reduce_add_sync(segment_lanes(W), v); }
+// Before sm_80, which lacks redux.sync, a segment's sum is a shuffle tree, the same exact integer sum.
+template <int W> __device__ __forceinline__ int segment_sum(int v) {
+#if __CUDA_ARCH__ >= 800
+    return __reduce_add_sync(segment_lanes(W), v);
+#else
+    for (int m = W / 2; m > 0; m /= 2) v += __shfl_xor_sync(segment_lanes(W), v, m, W);
+    return v;
+#endif
+}
 template <int M, typename T> __device__ __forceinline__ auto lane_xor_quad(T v) {
     static_assert(M == 1 || M == 2, "quad_perm exchanges cover xor 1 and 2");
     static_assert(__is_same(T, int) || __is_same(T, unsigned), "lane exchanges move a 32-bit integer's bits; a float goes through lane_xor");
@@ -234,7 +243,8 @@ __device__ __forceinline__ float dot2_f16(unsigned a, unsigned b, float s) {
     const auto h = [](unsigned v, int i) { return __half2float(__ushort_as_half((unsigned short)(v >> (16 * i)))); };
     return fmaf(h(a, 1), h(b, 1), fmaf(h(a, 0), h(b, 0), s));
 }
-// Every CUDA target has the four-way dot (GPU_DOT4, above) and the 8-bit integer tensor cores, so the int8 class takes both in its one module.
+// Every CUDA target has the four-way dot (GPU_DOT4, above), and from sm_80 the 8-bit integer tensor cores, so the int8 class takes both in its one module.
+// Before sm_80 the tensor-core products below are four-way dots over exchanged fragments: the same wrapping int32 sums, slower.
 #define GPU_IMMA8 1
 // The dense int8 tiles' blocks an SM: two hold a tile to 128 registers, which the tensor-core fragments pass otherwise (docs/STATUS.md, CUDA int8 tiles of every type on the tensor cores).
 #define LLMX_TILE8_BOUNDS(blocks) __launch_bounds__(kThreads, blocks)
@@ -244,21 +254,56 @@ __device__ __forceinline__ float dot2_f16(unsigned a, unsigned b, float s) {
 // d += the 16 by 8 product of a (16 rows by 32 signed bytes) and b (32 signed bytes by 8 columns), exact in wrapping int32 (mma m16n8k32 s8).
 // Lane l holds a's rows l / 4 and l / 4 + 8 at words l % 4 and l % 4 + 4, b's column l / 4 at the same words, and d's rows l / 4 and l / 4 + 8 at columns 2 * (l % 4) and the next.
 __device__ __forceinline__ void mma_s8(int (&d)[4], const int (&a)[4], const int (&b)[2]) {
+#if __CUDA_ARCH__ < 800
+    const int g = (int)lane_index() / 4, c = 2 * ((int)lane_index() % 4);
+    for (int w = 0; w < 4; ++w) {
+        const int r0 = __shfl_sync(LLMX_FULL_WARP, a[0], 4 * g + w), r0h = __shfl_sync(LLMX_FULL_WARP, a[2], 4 * g + w);
+        const int r8 = __shfl_sync(LLMX_FULL_WARP, a[1], 4 * g + w), r8h = __shfl_sync(LLMX_FULL_WARP, a[3], 4 * g + w);
+        const int c0 = __shfl_sync(LLMX_FULL_WARP, b[0], 4 * c + w), c0h = __shfl_sync(LLMX_FULL_WARP, b[1], 4 * c + w);
+        const int c1 = __shfl_sync(LLMX_FULL_WARP, b[0], 4 * c + 4 + w), c1h = __shfl_sync(LLMX_FULL_WARP, b[1], 4 * c + 4 + w);
+        d[0] = __dp4a(r0h, c0h, __dp4a(r0, c0, d[0]));
+        d[1] = __dp4a(r0h, c1h, __dp4a(r0, c1, d[1]));
+        d[2] = __dp4a(r8h, c0h, __dp4a(r8, c0, d[2]));
+        d[3] = __dp4a(r8h, c1h, __dp4a(r8, c1, d[3]));
+    }
+#else
     asm("mma.sync.aligned.m16n8k32.row.col.s32.s8.s8.s32 {%0, %1, %2, %3}, {%4, %5, %6, %7}, {%8, %9}, {%0, %1, %2, %3};"
                  : "+r"(d[0]), "+r"(d[1]), "+r"(d[2]), "+r"(d[3])
                  : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b[0]), "r"(b[1]));
+#endif
 }
 // d += the 16 by 8 product over 16 signed bytes (mma m16n8k16 s8): a0 holds a's row l / 4 and a1 its row l / 4 + 8 at word l % 4, b b's column l / 4 at that word, d as above.
 __device__ __forceinline__ void mma_s8_k16(int (&d)[4], int a0, int a1, int b) {
+#if __CUDA_ARCH__ < 800
+    const int g = (int)lane_index() / 4, c = 2 * ((int)lane_index() % 4);
+    for (int w = 0; w < 4; ++w) {
+        const int r0 = __shfl_sync(LLMX_FULL_WARP, a0, 4 * g + w), r8 = __shfl_sync(LLMX_FULL_WARP, a1, 4 * g + w);
+        const int c0 = __shfl_sync(LLMX_FULL_WARP, b, 4 * c + w), c1 = __shfl_sync(LLMX_FULL_WARP, b, 4 * c + 4 + w);
+        d[0] = __dp4a(r0, c0, d[0]);
+        d[1] = __dp4a(r0, c1, d[1]);
+        d[2] = __dp4a(r8, c0, d[2]);
+        d[3] = __dp4a(r8, c1, d[3]);
+    }
+#else
     asm("mma.sync.aligned.m16n8k16.row.col.s32.s8.s8.s32 {%0, %1, %2, %3}, {%4, %5}, {%6}, {%0, %1, %2, %3};"
                  : "+r"(d[0]), "+r"(d[1]), "+r"(d[2]), "+r"(d[3])
                  : "r"(a0), "r"(a1), "r"(b));
+#endif
 }
 // Four 8 by 16-byte matrices from shared memory, lane l giving row l % 8 of matrix l / 8; r[j] gets matrix j's row l / 4 at bytes 4 * (l % 4) on (ldmatrix x4).
+// Before sm_75, which lacks ldmatrix, each lane takes matrix j's row l / 4 address from lane 8 j + l / 4 and loads its word, the same bytes.
 __device__ __forceinline__ void ldsm_x4(int (&r)[4], const void* row) {
+#if __CUDA_ARCH__ >= 750
     asm volatile("ldmatrix.sync.aligned.m8n8.x4.shared.b16 {%0, %1, %2, %3}, [%4];"
                  : "=r"(r[0]), "=r"(r[1]), "=r"(r[2]), "=r"(r[3])
                  : "r"((unsigned)__cvta_generic_to_shared(row)));
+#else
+    const unsigned l = lane_index();
+    for (int j = 0; j < 4; ++j) {
+        const char* p = (const char*)__shfl_sync(LLMX_FULL_WARP, (unsigned long long)row, 8 * j + l / 4);
+        r[j] = *(const int*)(p + 4 * (l % 4));
+    }
+#endif
 }
 
 __device__ __forceinline__ void schedule_barrier() {}

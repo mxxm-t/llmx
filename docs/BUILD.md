@@ -186,8 +186,8 @@ cmake --build build --config Release --parallel
 ```
 
 Without the headers or the compiler, configuring stops with `LLMX_HAS_BACKEND_ROCM needs hip/hip_runtime_api.h and the ROCm clang++: install the ROCm SDK, or set ROCM_PATH`, and on another system with `LLMX_HAS_BACKEND_ROCM is Linux only`.
-The HIP kernels are compiled at build time to code objects for gfx906, gfx942 and gfx1151 and embedded in the binary, with a second build of the 16-bit integer products for gfx906 alone; only gfx906 (AMD MI50) has run them.
-gfx942 (AMD MI300X) is built so a ROCm build and the release's binaries load on it, but no llmx run on an MI300X is recorded and it is not checked against Hugging Face there ([ROCM](ROCM.md)).
+The HIP kernels are compiled at build time to a code object for each architecture in `LLMX_ROCM_ARCHS` and embedded in the binary, with a second build of the 16-bit integer products for gfx906 when the list has it; by default the list holds every AMD architecture from gfx906 (MI50) on, and only gfx906 (AMD MI50) has run them (GPU architectures, below).
+gfx942 (AMD MI300X) is in the default list so a ROCm build and the release's binaries load on it, but no llmx run on an MI300X is recorded and it is not checked against Hugging Face there ([ROCM](ROCM.md)).
 The ROCm 10 SDK seen in the cloud image keeps its clang++ under `lib/llvm/bin`, and the configure finds it there too.
 Nothing links against the HIP runtime: llmx opens `libamdhip64.so` when a ROCm device is first asked for, so a ROCm build still runs on the CPU or a Vulkan device on a machine without ROCm, and `--device rocm:N` there fails with a message.
 The device checks recorded in [STATUS](STATUS.md) ran under ROCm 7.2.1.
@@ -209,8 +209,46 @@ cmake --build build --config Release --parallel
 ```
 
 Without `nvcc` or `cuda.h`, configuring stops with `LLMX_HAS_BACKEND_CUDA needs nvcc and cuda.h`, and on another system with `LLMX_HAS_BACKEND_CUDA is Linux only`.
-The kernels are compiled at build time to a fatbin with SASS for sm_80, sm_86, sm_89, sm_90 and sm_120 and PTX for compute_80, and embedded in the binary.
+The kernels are compiled at build time to a fatbin with SASS for each compute capability in `LLMX_CUDA_ARCHS` and PTX for later GPUs, and embedded in the binary; by default the list holds every NVIDIA architecture from sm_70 (V100) on, or from sm_75 with CUDA 13, which no longer compiles for sm_70 (GPU architectures, below).
 Nothing links against the driver, the CUDA runtime or a vendor library: llmx opens `libcuda.so.1` when a CUDA device is first asked for, so a CUDA build still runs on the CPU on a machine without the driver, and `--device cuda:N` there says the device is missing.
+
+### GPU architectures
+
+A ROCm or CUDA build holds its kernels only for the GPU architectures it was compiled for.
+The defaults cover every architecture from AMD MI50 and NVIDIA V100 on:
+
+| Option | Default | GPUs |
+|---|---|---|
+| `LLMX_ROCM_ARCHS` | `gfx906;gfx908;gfx90a;gfx942;gfx950;gfx1030;gfx1100;gfx1101;gfx1102;gfx1150;gfx1151;gfx1200;gfx1201` | MI50 and Radeon VII, MI100, MI210 and MI250, MI300, MI350, RX 6800 to 6950, RX 7900, RX 7700 and 7800, RX 7600, Ryzen AI 300, Ryzen AI Max (Strix Halo), RX 9060, RX 9070 |
+| `LLMX_CUDA_ARCHS` | `70;75;80;86;89;90;100;120`, without `70` from CUDA 13 | V100, T4 and RTX 20, A100, RTX 30 and A10, RTX 40 and L40, H100 and H200, B200, RTX 50 |
+
+Only gfx906 and sm_86 (RTX 3060 and 3090) have run the kernels; every other architecture is compiled and not yet run.
+A CUDA build adds PTX for the lowest listed architecture from sm_80 on (the lowest listed when none is), which the driver compiles at load for a later GPU the list does not name, such as sm_103 or sm_121.
+Before sm_80 the int8 tensor-core tiles run as four-way integer dots over the same fragments, with the same sums and more time.
+The 16-bit integer dot build of the ROCm int16 kernels is compiled for gfx906 alone, so it exists only when the list has gfx906.
+
+To build for a GPU the default leaves out, name its architecture, as ROCm's `rocminfo` (the `gfx` name) or `nvidia-smi --query-gpu=compute_cap --format=csv` (8.6 is `86`) report it; the list replaces the default, so keep the others you need:
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DLLMX_HAS_BACKEND_ROCM=ON -DLLMX_ROCM_ARCHS="gfx1030;gfx1031;gfx1032"
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DLLMX_HAS_BACKEND_CUDA=ON -DLLMX_CUDA_ARCHS="87"
+```
+
+A shorter list builds faster and makes a smaller binary, so a build for one machine can name its GPUs alone, as `-DLLMX_ROCM_ARCHS=gfx906`.
+On an existing build directory the option given again replaces the cached list.
+A device whose architecture the build lacks is refused when it is first asked for, with `rocm: this build has no kernels for gfx1031: rebuild with it in LLMX_ROCM_ARCHS (docs/BUILD.md)`, and the CUDA backend says the same of `sm_` names.
+The name has to be one the toolkit's compiler accepts; an unknown one stops the build at the kernel compile.
+
+The targets of one kernel file compile side by side, as many as the build's memory holds while both kernel files compile, at 1 GiB a ROCm target and 3 GiB a CUDA target; the memory is the machine's, or a container's limit where it is lower.
+Each ROCm target adds about 7.5 MB to the binary and each CUDA target about 13 MB.
+Cold builds in containers of 4 CPUs and 12 GiB (ROCm 7.2.1, CUDA 12.9.1), which compile six ROCm or two CUDA targets at once, on a shared 16-core machine at a load of 15 to 30, so the times are upper bounds; the kernel compile is the `llmx-rocm-kernels` or `llmx-cuda-kernels` target, and linking `llmx` takes 2 to 4 minutes more:
+
+| Build | Kernel compile | Kernel modules | `llmx` |
+|---|---|---|---|
+| ROCm, the default list (13 targets) | 1099 s | 103 MB | 108 MB |
+| ROCm, `gfx906` | 233 s | 12 MB | 17 MB |
+| CUDA, the default list (8 targets) | 1227 s | 108 MB | 114 MB |
+| CUDA, `80;86;89;90;120` | 1160 s | 74 MB | 80 MB |
 
 ### Docker, with nothing installed on the host
 
@@ -276,6 +314,8 @@ Other generators that hold several configurations, such as Ninja Multi-Config or
 | `LLMX_HAS_BACKEND_VULKAN` | `OFF` | Builds the Vulkan backend into `llmx`, with every shader compiled by `glslc` at build time and embedded in the binary, so there are no shader files to ship |
 | `LLMX_HAS_BACKEND_ROCM` | `OFF` | Builds the ROCm backend into `llmx`, Linux only, with every HIP kernel compiled by the ROCm `clang++` at build time and embedded in the binary |
 | `LLMX_HAS_BACKEND_CUDA` | `OFF` | Builds the CUDA backend into `llmx`, Linux only, with every kernel compiled by `nvcc` at build time and embedded in the binary |
+| `LLMX_ROCM_ARCHS` | every AMD architecture from gfx906 on | The AMD GPU architectures the ROCm kernels are compiled for (GPU architectures, above) |
+| `LLMX_CUDA_ARCHS` | every NVIDIA architecture from sm_70 on (sm_75 from CUDA 13) | The NVIDIA compute capabilities the CUDA kernels are compiled for (GPU architectures, above) |
 | `BUILD_TESTING` | `ON` | Builds the native tests and tools and registers the tests with CTest; `OFF` builds only `llmx` and, in a Vulkan, ROCm or CUDA build, the backend libraries it links |
 
 With `BUILD_TESTING` on, every build has `llmx`, the `llmx-*-test` programs behind the CTests and the tools `llmx-split-check`, `llmx-decode-probe` and `llmx-model-logits`, which are not tests and take Vulkan, ROCm and CUDA devices when the build has them; `llmx-prefill-placement-test` is built on Windows only.

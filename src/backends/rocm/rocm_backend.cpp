@@ -7,7 +7,10 @@
 #include <string>
 
 // The kernel modules, linked in by llmx_embed_modules (cmake/embed_modules.cmake).
-extern "C" const unsigned char llmx_rocm_f32_module[], llmx_rocm_int16_module[], llmx_rocm_int16dot_module[];
+extern "C" const unsigned char llmx_rocm_f32_module[], llmx_rocm_int16_module[];
+#if defined(LLMX_ROCM_DOT_MODULE)
+extern "C" const unsigned char llmx_rocm_int16dot_module[];
+#endif
 
 namespace backend {
 namespace {
@@ -16,8 +19,12 @@ namespace {
 constexpr const unsigned char* kF32Module = llmx_rocm_f32_module;
 // The F16 class's quantized products on a block-int16 twin (gpu/kernels/int16.gpu).
 constexpr const unsigned char* kInt16Module = llmx_rocm_int16_module;
-// The same kernels on the 16-bit integer dot, compiled only for the targets with the instruction; a device it holds no code object for runs the module above.
+// The same kernels on the 16-bit integer dot, compiled for gfx906 alone and only where the build lists it; a device it holds no code object for runs the module above.
+#if defined(LLMX_ROCM_DOT_MODULE)
 constexpr const unsigned char* kInt16DotModule = llmx_rocm_int16dot_module;
+#else
+constexpr const unsigned char* kInt16DotModule = nullptr;
+#endif
 
 // The core's calls over HIP, each through hip() at the call, so a test that substitutes a call in the table reaches the backend.
 struct HipApi {
@@ -28,11 +35,12 @@ struct HipApi {
     using Function = hipFunction_t;
     using CopyKind = hipMemcpyKind;
     using Device = RocmDevice;
-    static constexpr Error kSuccess = hipSuccess, kNotReady = hipErrorNotReady, kPeerAlreadyEnabled = hipErrorPeerAccessAlreadyEnabled;
+    static constexpr Error kSuccess = hipSuccess, kNoBinary = hipErrorNoBinaryForGpu, kNotReady = hipErrorNotReady, kPeerAlreadyEnabled = hipErrorPeerAccessAlreadyEnabled;
     static constexpr CopyKind kToHost = hipMemcpyDeviceToHost, kToDevice = hipMemcpyHostToDevice, kAnyCopy = hipMemcpyDefault;
     static constexpr const char* name = "rocm";
     static constexpr bool int8_tensor_tiles = false;
     static inline const std::string prefix = "rocm: ";
+    static constexpr const char* arch_option = "LLMX_ROCM_ARCHS";
     static constexpr const unsigned char* f32_module = kF32Module;
     static constexpr const unsigned char* int16_module = kInt16Module;
     static constexpr const unsigned char* int16_dot_module = kInt16DotModule;
@@ -66,7 +74,7 @@ struct HipApi {
     static Error event_query(Event e) { return hip().hipEventQuery(e); }
     static Error event_sync(Event e) { return hip().hipEventSynchronize(e); }
     static Error event_elapsed(float* ms, Event start, Event end) { return hip().hipEventElapsedTime(ms, start, end); }
-    static Error module_load(Module* m, const void* image) { return hip().hipModuleLoadData(m, image); }
+    static Error module_load(Module* m, const void* image) { return image ? hip().hipModuleLoadData(m, image) : hipErrorNoBinaryForGpu; }
     static Error module_unload(Module m) { return hip().hipModuleUnload(m); }
     static Error module_function(Function* f, Module m, const char* name) { return hip().hipModuleGetFunction(f, m, name); }
     static Error function_local_bytes(int* v, Function f) { return hip().hipFuncGetAttribute(v, HIP_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES, f); }

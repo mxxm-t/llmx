@@ -15,12 +15,13 @@ namespace {
 // What the fake has handed out and not yet taken back, each kind counted, and calls a test makes fail.
 struct FakeState {
     std::atomic<long> memory{0}, host{0}, streams{0}, events{0}, modules{0}, launches{0};
-    std::atomic<bool> refuse_malloc{false}, refuse_elapsed{false};
+    std::atomic<bool> refuse_malloc{false}, refuse_elapsed{false}, no_binary{false};
 };
 FakeState fake;
 
 struct FakeDevice {
     int index = 0;
+    std::string arch = "fake9";
     DeviceCaps caps;
     std::string pci_bus = "0000:00:00.0", pci_root;
     size_t lanes_resident = 1024;
@@ -37,12 +38,13 @@ struct FakeApi {
     using Function = const char*;
     using CopyKind = int;
     using Device = FakeDevice;
-    static constexpr Error kSuccess = 0, kNotReady = 1, kPeerAlreadyEnabled = 2;
+    static constexpr Error kSuccess = 0, kNotReady = 1, kPeerAlreadyEnabled = 2, kNoBinary = 4;
     static constexpr int kRefused = 3;
     static constexpr CopyKind kToHost = 0, kToDevice = 0, kAnyCopy = 0;
     static constexpr const char* name = "fake";
     static constexpr bool int8_tensor_tiles = false;
     static inline const std::string prefix = "fake: ";
+    static constexpr const char* arch_option = "FAKE_ARCHS";
     static constexpr const unsigned char f32_image[1] = {1}, int16_image[1] = {2};
     static constexpr const unsigned char* f32_module = f32_image;
     static constexpr const unsigned char* int16_module = int16_image;
@@ -145,6 +147,7 @@ struct FakeApi {
     }
     static Error module_load(Module* m, const void* image) {
         if (!image) return kRefused;
+        if (fake.no_binary) return kNoBinary;
         *m = new int(0);
         ++fake.modules;
         return kSuccess;
@@ -256,5 +259,17 @@ int main() {
         GpuBackend<FakeApi> first(0, false), second(1, false);
         require(second.identity() == first.identity(), "another index of the same device gives the same identity: " + second.identity());
     }
+    // A device whose architecture the build left out is refused with its architecture and the build option that adds it.
+    fake.no_binary = true;
+    std::string refusal;
+    try {
+        GpuBackend<FakeApi> core(0, false);
+    } catch (const std::exception& e) {
+        refusal = e.what();
+        std::printf("  no code object: %s\n", e.what());
+    }
+    fake.no_binary = false;
+    require(refusal.find("fake: ") == 0 && refusal.find("fake9") != std::string::npos && refusal.find("FAKE_ARCHS") != std::string::npos,
+            "a device the modules hold no code object for is refused naming its architecture and the build option");
     return failures ? 1 : 0;
 }

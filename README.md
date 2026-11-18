@@ -117,6 +117,8 @@ cmake --build build --config Release --parallel
 
 Add `-DLLMX_HAS_BACKEND_VULKAN=ON` to the first command for the Vulkan backend, and on Linux `-DLLMX_HAS_BACKEND_ROCM=ON` for the ROCm backend, which needs the ROCm SDK to build and the HIP runtime to run on a device, or `-DLLMX_HAS_BACKEND_CUDA=ON` for the CUDA backend, which needs the CUDA toolkit to build and the NVIDIA driver to run on a device.
 The binary is `build/llmx`, or `build\Release\llmx.exe` with Visual Studio; on Windows, `build.bat` builds a CPU-only `llmx.exe` without CMake.
+The ROCm and CUDA kernels are compiled for a list of GPU architectures, by default the main ones from AMD MI50 (gfx906) and NVIDIA V100 (sm_70; sm_75 with CUDA 13) on.
+For a GPU outside the list, name the architectures to build for in `-DLLMX_ROCM_ARCHS="gfx1031"` or `-DLLMX_CUDA_ARCHS="87"`, which replace the default list; a shorter list also builds faster ([BUILD](docs/BUILD.md#gpu-architectures)).
 [BUILD](docs/BUILD.md) lists the compilers and packages for each platform and a Docker image.
 
 ## Run a model
@@ -144,7 +146,7 @@ model=$(./build/llmx pull Qwen/Qwen3-0.6B-GGUF:Q8_0)
 
 ARM CPUs, Apple Silicon included, are not supported.
 The Vulkan kernels are tuned for AMD GPUs' 64-wide subgroups; they run on NVIDIA GPUs, tested on the one card named above, and other GPUs are untested.
-The ROCm kernels are built for gfx906, gfx942 (MI300X) and gfx1151 (Strix Halo), and only gfx906 has run them: MI300X and Strix Halo are untested and not checked against Hugging Face.
+The ROCm and CUDA kernels are built for GPUs from AMD MI50 and NVIDIA V100 on ([Build](#build)); only the cards named above have run them.
 Pick a device with `--device cpu` (the default), `--device vulkan:N`, `--device rocm:N` or, in a CUDA build, `--device cuda:N`; see [USAGE](docs/USAGE.md#device-selection---device).
 
 ## Multi-device modes

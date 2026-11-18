@@ -8,7 +8,8 @@ import sys
 
 # The toolkit release the spill list below was made on.
 SPILL_TOOLKIT = "12.9"
-ARCHS = ["sm_80", "sm_86", "sm_89", "sm_90", "sm_120"]
+# The targets it was made on, the default list of that toolkit (CMakeLists.txt, LLMX_CUDA_ARCHS); another list may leave a family's spilling target out.
+SPILL_ARCHS = [70, 75, 80, 86, 89, 90, 100, 120]
 
 # Kernel families that spill today on some target, each with the step of docs/CUDA.md (Order of work) whose port is held to remove the spills; which kernels of a family spill moves between targets and toolkits.
 SPILL_ALLOWED = {
@@ -52,6 +53,9 @@ SPILL_ALLOWED = {
     "llmx_rms_norm_16_twin": "the held norm's 16-level twin builds: 8 bytes on sm_80 at its 32 registers since the norm's K reads issue before the first sum (docs/STATUS.md)",
 }
 
+
+# Kernels that spill only on the targets before sm_80, where the tensor-core products are four-way dots over exchanged fragments (kernels/port.h, mma_s8); no card of those targets has run them, and their tuning waits for one.
+PRE_SM80_SPILLS = ("llmx_q4_k_tile8", "llmx_q5_k_tile8", "llmx_q8_0_tile8", "llmx_matmul_cols4_f32")
 
 # The int8 class's witnesses: the tensor-core prompt tiles of every int8 tile type, dense and routed, and a Q8_0 and a K-quant row build on the 8-bit twin.
 INT8_TILE_TYPES = ("q4_0", "q4_1", "q5_0", "q5_1", "iq4_nl", "mxfp4", "q4_k", "q5_k", "q6_k")
@@ -133,10 +137,14 @@ def imma_loop(lines):
 
 
 def main():
-    if len(sys.argv) != 3:
-        print("usage: cuda_sass.py GENERATED_CUDA_DIR CUOBJDUMP")
+    if len(sys.argv) != 4:
+        print("usage: cuda_sass.py GENERATED_CUDA_DIR CUOBJDUMP ARCHS (the build's LLMX_CUDA_ARCHS, as 80;86)")
         return 2
     gen, cuobjdump = sys.argv[1], sys.argv[2]
+    # The targets the build compiled, and the PTX it keeps: the lowest with the integer tensor cores, else the lowest (CMakeLists.txt, LLMX_CUDA_ARCHS).
+    numbers = sorted(int(a) for a in sys.argv[3].split(";") if a)
+    archs = ["sm_%d" % a for a in numbers]
+    ptx_arch = "sm_%d" % next((a for a in numbers if a >= 80), numbers[0])
     failures = []
 
     def require(ok, what):
@@ -149,30 +157,31 @@ def main():
         fatbin = os.path.join(gen, kernel + ".fatbin")
         elf = subprocess.run([cuobjdump, "--list-elf", fatbin], capture_output=True, text=True, check=True).stdout
         ptx = subprocess.run([cuobjdump, "--list-ptx", fatbin], capture_output=True, text=True, check=True).stdout
-        missing = [a for a in ARCHS if "." + a + "." not in elf]
+        missing = [a for a in archs if "." + a + "." not in elf]
         require(not missing, f"{kernel}: SASS for every claimed target" + (" (missing " + ", ".join(missing) + ")" if missing else ""))
-        require("sm_80" in ptx, f"{kernel}: PTX for compute_80, which later targets compile at load")
+        require(ptx_arch in ptx, f"{kernel}: PTX for {ptx_arch}, which later targets compile at load")
         with open(os.path.join(gen, kernel + ".ptxas"), encoding="utf-8", errors="replace") as f:
             report = f.read()
-            for fn, archs in spills(report).items():
-                spilled.setdefault(fn, set()).update(archs)
+            for fn, where in spills(report).items():
+                spilled.setdefault(fn, set()).update(where)
             objects |= local_objects(report)
 
+    spilled = {fn: a for fn, a in ((fn, {t for t in a if not fn.startswith(PRE_SM80_SPILLS) or int(t[3:]) >= 80}) for fn, a in spilled.items()) if a}
     unexpected = sorted(fn for fn in spilled if not family(fn))
     require(not unexpected, "no kernel spills to local memory outside the listed families" + ("".join(f"\n  {fn} on {', '.join(sorted(spilled[fn]))}" for fn in unexpected)))
     stale = sorted(f for f in SPILL_ALLOWED if not any(family(fn) == f for fn in spilled))
     release = re.search(r"release (\d+\.\d+)", subprocess.run([cuobjdump, "--version"], capture_output=True, text=True, check=True).stdout)
     release = release.group(1) if release else "unknown"
-    if release == SPILL_TOOLKIT:
+    if release == SPILL_TOOLKIT and numbers == SPILL_ARCHS:
         require(not stale, "every listed family still spills" + ("".join(f"\n  {f} no longer spills: remove its line" for f in stale)))
     elif stale:
-        print(f"NOTE toolkit {release}, the spill list holds for {SPILL_TOOLKIT}: no longer spilling here: {', '.join(stale)}")
+        print(f"NOTE toolkit {release} and targets {numbers}, the spill list holds for {SPILL_TOOLKIT} and {SPILL_ARCHS}: no longer spilling here: {', '.join(stale)}")
 
     # Every kernel taking a TwinMap reads it in place (LLMX_GRID_CONST), so none keeps a local object or touches local memory beyond the spills the list above governs.
     # The takers are read from the PTX, and every _major build must be among them.
     f32_ptx = subprocess.run([cuobjdump, "-ptx", os.path.join(gen, "f32.fatbin")], capture_output=True, text=True, check=True).stdout
     takers = set(re.findall(r"\.param \.align \d+ \.b8 (llmx_\w+)_param_\d+\[%d\]" % TWIN_MAP_BYTES, f32_ptx))
-    for arch in ARCHS:
+    for arch in archs:
         funcs = sass_by_function(cuobjdump, os.path.join(gen, "f32.fatbin"), arch)
         matmul = [fn for fn in funcs if fn.startswith("llmx_matmul") and fn.endswith("_f32")]
         no_ffma = [fn for fn in matmul if not any("FFMA" in l for l in funcs[fn])]
@@ -187,9 +196,11 @@ def main():
         require(takers and not bad, f"{arch}: the {len(takers)} kernels taking a twin map keep no local object and use local memory only to spill" + (" (" + ", ".join(bad) + ")" if bad else ""))
         # The int8 class (docs/CUDA.md, step 4): the Q8_0 prompt tiles sum on the integer tensor cores and the 8-bit rows on the four-way dot.
         funcs = sass_by_function(cuobjdump, os.path.join(gen, "int16.fatbin"), arch)
-        no_imma = [fn for fn in IMMA_KERNELS if not any("IMMA" in l for l in funcs.get(fn, []))]
+        # Before sm_80 the tiles' products are four-way dots (kernels/port.h, mma_s8), so the tensor-core witness holds from sm_80.
+        no_imma = [fn for fn in IMMA_KERNELS if int(arch[3:]) >= 80 and not any("IMMA" in l for l in funcs.get(fn, []))]
         require(not no_imma, f"{arch}: the int8 prompt tiles sum with IMMA" + (" (not " + ", ".join(no_imma) + ")" if no_imma else ""))
-        for fn, most in TALL_LOOP.items():
+        # The tall tiles' loop is found by the IMMA it holds, so its ceiling holds from sm_80.
+        for fn, most in TALL_LOOP.items() if int(arch[3:]) >= 80 else ():
             loop = imma_loop(funcs.get(fn, []))
             per = loop[0] * 4096 / loop[1] if loop else None
             local = arch not in spilled.get(fn, ()) and any(re.search(r"\b(LDL|STL)\b", l) for l in funcs.get(fn, []))

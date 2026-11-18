@@ -1213,6 +1213,54 @@ The change lands by fast-forward.
 **Left:** nothing.
 README unchanged (kernel speed only).
 
+## GPU architecture build options (2026-11-18, BUILDARCH1 to BUILDARCH3, branch build/gpu-arch-options-land on main c494eea6f)
+
+**Goal.** The owner's requirement of 2026-11-18: the ROCm and CUDA builds support every GPU from MI50 (gfx906) and V100 (sm_70) on, with lists a user can trim or extend, and the README tells a user how to build for an architecture the default leaves out.
+
+**Done.**
+- `LLMX_ROCM_ARCHS` (CMake cache list, default gfx906, gfx908, gfx90a, gfx942, gfx950, gfx1030, gfx1100, gfx1101, gfx1102, gfx1150, gfx1151, gfx1200, gfx1201) replaces the hardcoded gfx906 and gfx1151; one kernel file's targets compile side by side (`-parallel-jobs` under HIP, `--threads` under nvcc), as many as the build's memory holds (`llmx_gpu_jobs`: the machine's memory or a container's cgroup limit, 1 GiB a ROCm target and 3 GiB a CUDA target, both kernel files at once). The 16-bit dot module is built only when the list has gfx906 (`LLMX_ROCM_DOT_MODULE`), the only target that has run it.
+- `LLMX_CUDA_ARCHS` (default 70, 75, 80, 86, 89, 90, 100, 120, without 70 from CUDA 13, which dropped sm_70; the toolkit version is read from `nvcc --version` at configure) replaces the fixed 80 to 120 list; PTX is the lowest listed target from sm_80 on, so a later GPU compiles the tensor-core path at load.
+- `kernels/port.h`: before sm_80, `mma_s8` and `mma_s8_k16` are `__dp4a` over fragments exchanged by `__shfl_sync`, the same wrapping int32 sums, so sm_70 and sm_75 compile; `segment_sum` is a shuffle tree before sm_80 (no `redux.sync`) and `ldsm_x4` a lane-exchanged address and word load before sm_75 (no `ldmatrix`), the same integer sums and bytes, which the twin builds and the K-quant int8 tiles reach in `backend-cuda`.
+- The GPU core refuses a device the F32 module holds no code object for, naming its architecture and the option (`Api::kNoBinary`, `Api::arch_option`), held by `gpu-core`; `cuda-sass` takes the build's list and checks IMMA and the tall tiles' loop ceilings from sm_80 on; its spill loop no longer overwrites the target list (it checked only the last spilling kernel's targets), so it reads every target, 677 s for the default list at load 45, and its CTest limit is 1800 s.
+- `backend-cuda` accepts sm_70 and later.
+- The 256-wide prompt attention tile's two-float total denominator, which this branch first carried, landed on main separately (Tile256 total denominator, above); the drift figures below were taken with it.
+- Docs: README Build and Backends, docs/BUILD.md (GPU architectures, the options table), docs/CUDA.md, docs/RELEASE.md, docs/TESTS.md, docs/src/backends-gpu.md and backends-cuda.md.
+
+**Device results on the stack** (taken on land/20261118 57083c8b6, before the rebase onto main; each binary's `--version`: CUDA `llmx 0.1.0+gd25dc4d4a56e.dirty`, the fix over the commit as it then stood; ROCm base = land/20261118 57083c8b6):
+
+| Device | `check_long` drift at 4133 / 16384 tokens, before | after | bound | `backend-cuda` |
+|---|---|---|---|---|
+| T4 (sm_75), rental | -2.20e-9 / -2.47e-8 (CUDA90, 73609e70 merge) | -5.63e-9 / -1.22e-8 | 2e-8 | 57999 PASS, 1 FAIL (vision, below) |
+| 2x V100 SXM2 (sm_70), rental | -2.47e-8 at 16384 (CUDA90) | -5.63e-9 / -1.22e-8 | 2e-8 | 57935 PASS, 1 FAIL (vision, below) |
+| MI50 (gfx906), renderD130, `backend-rocm attention` | 7.74e-9 / -1.84e-8 | -5.68e-9 / -3.21e-9 | 2e-8 | PASS |
+
+- rms error at 16384 tokens 4.02e-7 on CUDA and 3.98e-7 on the MI50 (4.18e-7 before), bound 1e-6.
+- Time, `backend-rocm rates attention`, one MI50, two interleaved rounds base then fix, 24 heads 256 wide at 16384 tokens and 512 rows: 2 KV heads 140.6, 140.6 against 139.1, 139.0 ms; 4 KV heads 141.6, 141.6 against 140.3, 140.1 ms; the host at load 44 to 45 of 16 cores. The first form, two-float sums inside the folds too, took 147.7 to 148.6 ms (+5%) and was dropped.
+- The suite's CUDA leg was not run on the rentals; `backend-cuda` covers the fallbacks (the twin builds' `segment_sum`, the K-quant int8 tiles' `ldsm_x4` and `mma_s8`).
+
+**Builds** (CPU-only containers, 4 CPUs and 12 GB each, on the rig at load 20 to 27 of 16 cores, so times are upper bounds):
+
+| Build | Kernel compile | Kernel modules | `llmx` | Memory peak | Checks |
+|---|---|---|---|---|---|
+| ROCm 7.2.1, default list, full build | 1099 s, 6 targets at once | f32 18.1, int16 80.0, int16dot 4.5 MB | 108.2 MB | 2.7 GB | CTest gpu-port, gpu-core pass; rocm-runtime, backend-rocm skip (no device) |
+| ROCm 7.2.1, `gfx906` | 233 s | f32 1.3, int16 5.9, int16dot 4.5 MB | 17.3 MB | 2.3 GB | builds |
+| CUDA 12.9.1, default list (70 to 120), full build | 1227 s, 2 targets at once | f32 42.1, int16 66.3 MB | 113.9 MB | 4.7 GB | CTest gpu-port, gpu-core, cuda-driver, cuda-sass pass (cuda-sass after `PRE_SM80_SPILLS`) |
+| CUDA 12.9.1, `80;86;89;90;120` (main's list) | 1160 s, 2 targets at once | f32 27.1, int16 47.2 MB | 79.9 MB | 4.5 GB | builds |
+
+- Before the job count followed memory, the CUDA default list compiled all eight targets of int16 at once (`--threads 0`) and was killed at 12 GiB; ptxas takes about 2.4 GB a target. Under ROCm 7.2.1 `--offload-jobs` is ignored by the HIP driver, so the targets compiled one after another; `-parallel-jobs` runs them at once (81 s against 27 s for three targets of f32).
+- docs and dead-code components pass on the branch with the ROCm default build's `llmx`.
+
+**Left (needs cards; the owner holds all ten rig GPUs).**
+- `backend-cuda` fails "the vision checks take llmx_attention_vec" on the T4 and the V100 alike: the landing stack's CUDA vision check (cc108706) had not run on a card before, so it is the vision stream's to read on an sm_80 card first; the attention values themselves pass.
+- The suite's CUDA leg on sm_70 and sm_75.
+- Any ROCm target but gfx906: the device checks on that card; gfx908 to gfx1201 are compile coverage.
+- The refusal on a real device outside the list: a gfx906 card with a build of `-DLLMX_ROCM_ARCHS=gfx1100`.
+- No CUDA 13 image on the rig, so the CUDA 13 default (from sm_75) is unbuilt.
+
+**Gotchas.**
+- The branch was rebased from land/20261118 onto main c494eea6f, where `tests/gpu_core.cpp`, `cmake/tests.cmake`, docs/TESTS.md and docs/src/backends-gpu.md conflicted and keep both sides; main already held the gfx942 `acquire_sync` guard and the tile256 denominator.
+- A Vast V100 box with a Xeon E5-2680 v2 (no AVX2) ends `backend-cuda` with SIGILL at start: llmx's CPU baseline, not a CUDA fault; the rental script checks the host's flags first.
+
 ## Landing stack land-20261117 (2026-11-17, LAND68 then LAND69, Done)
 
 **What lands.** The stack on main 3b88cfb3a, in this order: formats/quant-gptq (tests, then the change), formats/quant-compressed (tests, then the change), formats/quant-fp8 step 1 (tests, then the change) and its Vulkan step, perf/stage-rounds, feat/deepseek41-vision's image input, perf/ds4-decode-attn (DSDEV229's rebase), and the DeepSeek-V4.1-Flash prompt stack: dspp26/rope-form, dspp26/q8-tall, perf/sparse-pair-staging and perf/mxfp4-tile-staging.

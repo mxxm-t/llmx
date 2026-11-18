@@ -121,6 +121,7 @@ Conversation settings checks cover the blank composer, reuse of the current empt
 The browser distinguishes navigation hover from the selected section in both themes.
 The full browser subprocess has a 300-second outer limit for the expanded fixture; individual CDP and assertion waits keep their 12-second limits and no retries.
 Protocol timeouts retain the caller stack. The Chat workspace workflow uploads browser fixture screenshots on failure for seven days; a timeout remains a failed test.
+Failure JSON and Chrome stderr are saved before screenshot capture, so an unresponsive renderer does not erase the original diagnostics.
 The new-file Escape check acknowledges close-listener registration before sending the real key events, then checks the close event and unchanged editor contents.
 It also checks Activity navigation to two distinct tool-call identities, keyboard activation, the corresponding arguments and results, safe text rendering, and closing the narrow inspector before focusing the selected details.
 Drawer keyboard coverage checks focus entry, background inertness, Tab wrapping, return on Escape and backdrop dismissal, navigation from the sidebar, menu and native-dialog Escape priority, and release of modal state when returning to a docked desktop layout.

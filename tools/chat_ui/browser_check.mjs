@@ -46,7 +46,7 @@ async function cdp(method, params = {}) {
   return new Promise((resolve, reject) => {
     const timeoutError = new Error('CDP timed out: ' + method);
     const timeout = setTimeout(() => { pending.delete(id); reject(timeoutError); }, 12000);
-    pending.set(id, {resolve, reject, timeout});
+    pending.set(id, {resolve, reject, timeout, method});
     socket.send(JSON.stringify({id, method, params}));
   });
 }
@@ -2382,8 +2382,13 @@ try {
   console.log('PASS: chat regressions, shared monitor/theme, code/diff/HTML isolation, workspace/checkpoints/conflicts/jobs, backup/restore, responsive geometry and CSS 200% zoom. Screenshots: ' + artifacts);
   }
 } catch (error) {
-  if (socket?.readyState === 1) { try { await screenshot('failure.png'); } catch {} }
-  console.error(error.stack || error); process.exitCode = 1;
+  const diagnostic = launchDiagnostic('Browser fixture failed after ' + (Date.now() - startupStarted) + ' ms').message;
+  const failure = {error: error.stack || String(error), diagnostic, pending: [...pending.values()].map(call => call.method)};
+  console.error(failure.error + '\n' + diagnostic);
+  try { await mkdir(artifacts, {recursive: true}); await writeFile(path.join(artifacts, 'failure.json'), JSON.stringify(failure, null, 2)); }
+  catch (writeError) { console.error('Could not save browser failure evidence: ' + writeError.message); }
+  if (socket?.readyState === 1) { try { await screenshot('failure.png'); } catch (captureError) { console.error('Failure screenshot unavailable: ' + captureError.message); } }
+  process.exitCode = 1;
 } finally {
   if (socket?.readyState === 1) { try { await cdp('Browser.close'); } catch {} socket.close(); }
   for (const call of pending.values()) { clearTimeout(call.timeout); call.reject(new Error('Browser closed')); }

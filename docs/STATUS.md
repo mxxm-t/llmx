@@ -1,27 +1,15 @@
 # llmx - Development Status
 
-## Companion browser Escape ordering (2026-11-18, In progress)
+## Companion audit follow-ups (2026-11-18, Qualification)
 
-- **Goal:** Register the browser fixture's dialog-close observer before sending Escape.
-- **Done:** Hosted main run 44320829081 failed at the unacknowledged observer registration while its failure screenshot shows the dialog already closed. Windows passed. The fixture now waits for registration to return before sending Escape, then verifies the retained close-event promise, closed dialog and unchanged editor. The full Chrome fixture passed in 96.616 seconds. Source review confirms this introduces an ordering barrier without changing product behavior or timeouts.
-- **Left:** Complete the static checks and validate the test-only correction on the hosted workflow before fast-forward landing.
-- **Gotchas:** Keep the real Escape input, close-event check and existing timeouts. No runtime or inference change is needed.
-- **Evidence:** The log and uploaded screenshots are under the audit landing worktree's `scratch/landing/main-ci-failure.log` and `scratch/landing/ubuntu-failure-artifacts/`. A separate 50-cycle native dialog probe passed the old sequence locally, so the hosted scheduling cause is not deterministically reproduced. The correction removes the ordering hazard; it does not establish a cause for every earlier protocol timeout. Local test receipts are in the Escape-order worktree's `scratch/escape-order/`.
-## Monitor idle chart readout (2026-11-18, In progress)
-## Monitor idle chart readout (2026-11-18, Ready)
-
-- **Goal**. Identify zero throughput from fresh idle telemetry in the Monitor chart.
-- **Done**. Fresh zero PP/TG readouts now say No active requests when the runtime reports no active requests. The dashboard browser checks fresh idle, held active rates including zero, historical selections, disconnected gaps and the delayed timeline.
-- **Left**. Integrate the static dashboard change and verify the landing head when needed.
-- **Gotchas**. An exact-function replay produced zero with an 18-second unchanged runtime stamp and a stale caption. The browser reproduced the wrong caption at 9a0095555 in desktop and mobile widths. The timeline's delayed-view caption is intentional buffering. The change leaves the collector and rate calculations alone.
-## Chat attachment and model guidance (2026-11-18, In progress)
-## Chat attachment and model guidance (2026-11-18, Ready for integration)
-
-- **Goal:** Make attachment formats and limits easy to find and explain the model selector's relationship to the connected server.
-- **Done:** The chooser advertises exactly the 27 text extensions recognized by the browser alongside its MIME hints. Attach uses the shared tooltip for supported file types and has a 40 by 40 pixel touch target. Conversation Settings lists the limits, explains the model selector, and says that images require support from the connected model and server.
-- **Checks:** Windows Chrome opened the native multiple-file chooser and failed on three omitted extensions before the fix in 5.787 s. The full fixture passed in 100.309 s, including hover, keyboard focus and dismissal, narrow touch Settings, attachment boundaries and image admission. Six engine image/text tests and one HTTP attachment check passed. JavaScript syntax, whitespace, docs and dead-code pass. A focused Chrome rerun covers the final image-support sentence, the only product delta from that full fixture. The rerun also verifies the test waits for desktop layout after touch emulation before continuing. Logs and screenshots are in `scratch/chat-attachment-guidance-20261118/`.
-- **Left:** Integrate with current main and run the applicable static landing checks.
-- **Gotchas:** The chooser is a filter hint. Attachment validation and the upstream image preflight decide what can be sent. The catalogue includes model IDs and optional context capacity.
+- **Goal:** Finish attachment guidance and correct healthy-idle chart labels while retaining browser failure evidence.
+- **Done:** Attachment filters now include all 27 accepted text extensions. The existing tooltip and Conversation Settings explain formats, size limits, required image support and the served-model selector. Fresh idle PP/TG charts say No active requests, while held active samples and disconnected telemetry retain their distinct states. Browser Escape input waits for acknowledged close-listener registration. Failure JSON preserves the original error, Chrome process state and bounded stderr before screenshot capture.
+- **Checks:** The combined Chrome fixture at `cf9a29c88` passed in 89.390 seconds, and docs/dead-code passed. Separate attachment validation passed six engine tests and one HTTP test. Focused Monitor checks passed at 1440 and 390 pixels, including active zero, selected historical intervals and disconnected gaps. No collector, runtime or numerical code changed.
+- **Left:** Finish the applicable hosted browser check, review the remaining control hit areas, and publish by fast-forward after rechecking main. Deployment is separate: the already-authorized restart of companion 8183 was rejected by platform review before execution, so the service remains on `9add55959`.
+- **Evidence:** `scratch/followup-landing/` in the audit landing worktree holds combined receipts. Worker evidence is in root `scratch/chat-attachment-guidance-20261118/` and `scratch/ui-audit-20261118/monitor-idle-label/`. Both visual defects have retained failing browser cases.
+- **Hosted findings:** Main run 44320829081 passed Windows but failed Ubuntu at the unacknowledged Escape observer, with a screenshot of the closed dialog. A local 50-cycle native-dialog probe passed that old sequence, so exact hosted scheduling remains unproven. Corrected run 44322978782 passed Ubuntu but failed Windows at its first page navigation before UI assertions. It yielded no screenshot. The diagnostic follow-up is run 44324144002. Original failures remain recorded, with no retry or timeout increase.
+- **Evidence carry:** Commit `3a13b914c` changes only failure reporting and docs after the combined browser run. A controlled failure probe verifies JSON survives failed screenshot capture and still exits nonzero. No successful fixture execution or product path changed in that delta.
+- **Gotchas:** File chooser hints do not replace attachment validation or image admission. Monitor delayed-view wording describes intentional buffering and is unchanged. No screen-reader or physical-phone conformance is claimed.
 
 ## Companion wording cleanup (2026-11-18, Done)
 

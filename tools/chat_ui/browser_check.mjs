@@ -1704,6 +1704,16 @@ try {
   await evaluate('window.releaseRetrySnapshot()');
   await delay(300);
   assert.equal(await evaluate("document.querySelector('#chat-title').textContent"), 'Fresh reopened conversation', 'old retry snapshot replaced the reopened conversation');
+  await cdp('Fetch.enable', {patterns: [{urlPattern: url+'/api/chats/'+submittedChat+'/runs', requestStage: 'Request'}]});
+  await click('.message.assistant [data-action="retry"]');
+  await wait(() => heldSendResponse !== null, 'hold retry before server admission');
+  await click('[data-chat="'+otherChat+'"]');
+  await wait("document.querySelector('.chat-item.active')?.dataset.chat==="+JSON.stringify(otherChat), 'leave before retry admission');
+  await click('[data-chat="'+submittedChat+'"]');
+  await wait("document.querySelector('.chat-item.active')?.dataset.chat==="+JSON.stringify(submittedChat), 'return before retry admission');
+  await cdp('Fetch.continueRequest', {requestId: heldSendResponse.requestId});
+  await cdp('Fetch.disable'); heldSendResponse = null;
+  await wait("document.querySelector('.message.assistant')?.innerText.includes('The returning retry completed.') && document.querySelector('#stop').hidden", 'returned conversation receives accepted retry');
   await click('[data-chat="'+otherChat+'"]');
   await wait("document.querySelector('.chat-item.active')?.dataset.chat==="+JSON.stringify(otherChat), 'return to waiting destination');
   const browserStep = await fetch(upstreamFixture + '/browser-step');

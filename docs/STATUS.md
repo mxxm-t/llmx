@@ -1,5 +1,15 @@
 # llmx - Development Status
 
+## Retry acceptance after returning to a chat (2026-11-18, In progress)
+
+**Goal.** Show an accepted Retry when its conversation becomes visible again before admission completes.
+
+**Done.** Combined source review identified the remaining original-generation guard. This follow-up depends on the stacked draft/snapshot owner at `eec6eab80` and stays separate from the original Retry fix.
+
+**Left.** Reproduce the admission ordering, capture the visible generation when admission completes, and run the affected browser regression.
+
+**Gotchas.** An offscreen Retry must not replace another chat or its stream. Navigation during the subsequent snapshot fetch must still invalidate that response.
+
 ## Workspace editor keyboard navigation (2026-11-18, Ready for landing checks)
 
 - **Goal:** Let keyboard users leave the Workspace file editor with Tab and Shift+Tab while preserving the file buffer.

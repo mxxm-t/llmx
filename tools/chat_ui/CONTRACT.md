@@ -113,6 +113,14 @@ These routes share the chat session and mutation-header rules.
 - `GET /theme.css`: public, static visual tokens shared with the standalone dashboard.
 - `GET /api/monitor/history?after=N` and `GET /api/monitor/stream`: existing collector snapshot and SSE history protocol. One collector serves all clients. A stream ends when the session expires or is revoked.
 - `POST /api/previews` with `{html}` returns `{url}` for an authenticated opaque-origin preview document. Documents are at most 1 MiB and expire after 30 minutes; at most 16 are retained. They never execute on the host.
+- With `{html, workspace_path}` the same endpoint resolves direct relative
+  stylesheet and classic script links against a coherent saved Workspace file
+  snapshot. It returns `{url, workspace: {path, revision, assets}}`. The HTML
+  comes from the requester and the assets come from the recorded saved revision.
+  Validated `.css` and `.js` are embedded as typed data URLs. Project CSP allows
+  those data resources while remote resource sources remain blocked. The chat
+  preview keeps its existing policy. A missing eligible file or an assembled
+  document above 1 MiB is refused.
 - `GET /api/backup`: online SQLite chat backup download. It does not include workspace files.
 - `POST /api/restore` with a binary SQLite body and `Content-Type: application/vnd.sqlite3`: validates and replaces the idle chat database. The upload is streamed to a temporary file and limited to 256 MiB, advertised as `config.backup_max_bytes`. The caller reloads its view afterward. This binary route still requires the normal mutation header.
 - `GET /api/workspace`: `{revision,files:[{path,size}],checkpoints:[{id,label,created}],jobs:[...],execution:{enabled,image,description,limits}}`. Execution enabled means configured, not a successful Docker health check. A failed container start is reported as a failed job.

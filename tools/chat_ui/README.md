@@ -17,10 +17,10 @@ not retried automatically.
 
 Successful Workspace tool results can open their file or command output
 directly. Select a file in Workspace to edit it, or create one with New file.
-Preview HTML renders the current document in an isolated browser frame,
-including unsaved edits. Inline CSS and scripts can run in that document.
-Workspace sibling files remain in the editor and command runner. Other files
-offer View source. Close the viewer to return to the editor.
+Preview HTML renders the current editor buffer, including unsaved edits, in an
+isolated browser frame. It uses saved CSS and classic JavaScript linked directly
+from that document. The preview lists the saved Workspace revision and included
+assets. Other files offer View source. Close the viewer to return to the editor.
 
 Attach to Chat adds the current editor buffer, including unsaved edits, to the
 current draft and returns focus to the composer. The attachment can be removed
@@ -379,7 +379,15 @@ CSP refuses network resource fetches, nested frames and forms; browser previews
 are not an OS network sandbox and do not promise to block every self-navigation.
 Console messages are displayed as bounded text after checking the frame and its
 per-preview token. Preview documents expire after 30 minutes, with at most 16
-retained in memory. External scripts, packages and fonts are not loaded.
+retained in memory. Remote scripts, packages and fonts are blocked.
+
+Workspace previews resolve relative stylesheet links and classic `.js` scripts
+against the HTML file's path. For example, `pages/index.html` can link
+`../style/site.css` or `./boot.js`. Save those assets before previewing. A
+missing eligible asset yields an error with its resolved path. The assembled
+document, including the encoded assets, is limited to 1 MiB. This covers direct
+CSS and JavaScript links. Module imports, CSS imports, secondary assets,
+root-relative links and routing need a feature beyond this preview.
 
 Built-in Workspace read and write results can open their saved file directly.
 Command results can open the matching retained job output. File links use the

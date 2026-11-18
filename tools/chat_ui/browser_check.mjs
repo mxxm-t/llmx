@@ -1892,7 +1892,7 @@ try {
   await wait("document.querySelector('.artifact-console-output').textContent.includes('preview-error')", 'preview error bridge');
   await wait("document.querySelector('.artifact-console-output').textContent.includes('project-ready CSS1Compat rgb(12, 34, 56) Isolated preview')", 'deferred Workspace script sees the linked stylesheet and current HTML in standards mode');
   const previewRevision = await evaluate("(async () => (await window.ChatShell.api('/workspace')).revision)()");
-  const projectNote = '#artifact-dialog details.artifact-preview-note';
+  const projectNote = '#artifact-dialog .artifact-preview-note details';
   assert((await evaluate("document.querySelector("+JSON.stringify(projectNote)+").innerText")).includes('Workspace revision ' + previewRevision), 'preview did not identify its saved revision');
   await pointerClick(projectNote + ' summary');
   for (const path of Object.keys(previewFiles))

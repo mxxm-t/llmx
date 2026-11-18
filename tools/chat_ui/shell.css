@@ -767,6 +767,15 @@
   padding: 12px 25px;
   color: var(--muted);
 }
+.artifact-preview-note details {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+.artifact-preview-note details p {
+  margin: 4px 0 0;
+  max-height: 100px;
+  overflow: auto;
+}
 .artifact-frame {
   border: 0;
   background: white;

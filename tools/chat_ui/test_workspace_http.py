@@ -5,6 +5,7 @@ import tempfile
 import threading
 import time
 import unittest
+from base64 import b64encode
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from server import Application, Server
@@ -295,7 +296,59 @@ class WorkspaceHTTPTests(unittest.TestCase):
         self.assertIn("sandbox allow-scripts", csp)
         self.assertNotIn("allow-same-origin", csp)
         self.assertIn("connect-src 'none'", csp)
+        self.assertIn("script-src 'unsafe-inline';", csp)
         self.assertIn(b"preview", preview[2])
+
+    def test_project_preview_embeds_saved_assets_from_one_revision(self):
+        self.cookie = self.login()
+        css, js = "h1 { color: #123456; }", "console.log('</script>');"
+        for path, content in (("site/theme.css", css), ("site/pages/boot script.js", js), ("private.js", "unrelated")):
+            revision = self.app.workspace.snapshot()["revision"]
+            self.app.workspace.write(path, content, revision)
+        html = ('<!doctype html>\n<html class="project"><head>\n'
+                '<link rel="stylesheet" href="../theme.css?v=3" media="screen">\n'
+                '<script defer src="boot%20script.js" src="missing.js"></script>\n'
+                '<script type="module" src="module.js"></script>\n'
+                '<link rel="stylesheet" href="https://external.invalid/style.css"></head>\n'
+                '<body>Unsaved editor body<textarea/><script src="example.js"></script></textarea></body></html>')
+        request = self.request("POST", "/api/previews", {"html": html, "workspace_path": "site/pages/index.html"}, self.cookie)
+        self.assertEqual(request[0], 200, request[2])
+        preview = self.json_body(request)
+        self.assertEqual(preview["workspace"], {"path": "site/pages/index.html", "revision": 3,
+                                                "assets": ["site/theme.css", "site/pages/boot script.js"]})
+        self.app.workspace.write("site/theme.css", "changed", 3)
+        self.assertEqual(self.request("GET", preview["url"])[0], 401)
+        result = self.request("GET", preview["url"], cookie=self.cookie)
+        self.assertEqual(result[0], 200, result[2])
+        csp = result[1]["content-security-policy"]
+        self.assertIn("script-src 'unsafe-inline' data:;", csp)
+        self.assertIn("style-src 'unsafe-inline' data:;", csp)
+        self.assertIn("connect-src 'none'", csp)
+        self.assertIn("sandbox allow-scripts", csp)
+        self.assertNotIn("allow-same-origin", csp)
+        css_url = b"data:text/css;charset=utf-8;base64," + b64encode(css.encode())
+        js_url = b"data:text/javascript;charset=utf-8;base64," + b64encode(js.encode())
+        self.assertTrue(result[2].startswith(b'<!doctype html>\n<html class="project">'))
+        self.assertIn(b'<link rel="stylesheet" href="' + css_url + b'" media="screen">', result[2])
+        self.assertIn(b'<script defer src="' + js_url + b'"></script>', result[2])
+        self.assertIn(b'<script type="module" src="module.js"></script>', result[2])
+        self.assertIn(b"Unsaved editor body", result[2])
+        self.assertNotIn(b64encode(b"unrelated"), result[2])
+        self.assertNotIn(b64encode(b"changed"), result[2])
+
+    def test_project_preview_rejects_missing_escaping_and_oversized_assets(self):
+        self.cookie = self.login()
+        self.app.workspace.write("page/large.js", "x" * (800 * 1024), 0)
+        for source, message in (
+            ('<link rel="stylesheet" href="missing.css">', "page/missing.css"),
+            ('<script src="../../escape.js"></script>', "stay inside the workspace"),
+            ('<script src="large.js"></script>', "assembled Workspace preview"),
+        ):
+            with self.subTest(message=message):
+                result = self.request("POST", "/api/previews", {"html": source, "workspace_path": "page/index.html"}, self.cookie)
+                self.assertEqual(result[0], 400, result[2])
+                self.assertIn(message, self.json_body(result)["error"])
+        self.assertEqual(self.app.previews, {})
 
     def test_monitor_is_authenticated_and_shared_across_clients_without_tool_secret_leak(self):
         self.assertEqual(self.request("GET", "/api/monitor/history")[0], 401)

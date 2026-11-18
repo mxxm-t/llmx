@@ -77,6 +77,9 @@ Valid alternative branches need not be stored in parent-first row order. Workspa
 checks cover revision conflicts, file limits, checkpoint restore, bounded output,
 cancellation, container isolation flags and unsafe returned files. HTTP checks
 also cover authenticated monitoring, preview CSP and backup/restore routes,
+including immutable project preview assets from one saved Workspace revision,
+nested path resolution, missing files and assembled document limits.
+They also cover
 login body rejection before reading, failure limits isolated by socket peer,
 HTTPS validation before non-loopback binding, and bounded handler admission
 with recovery after connections finish or startup/handler errors. They also

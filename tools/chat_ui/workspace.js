@@ -152,7 +152,7 @@
   function openArtifact() {
     if (!state.path) return;
     const language = fileLanguage(state.path);
-    window.ChatArtifacts.open({name: state.path, source: editor.value, language}, {initialPreview: language === 'html', allowWorkspaceEdit: false});
+    window.ChatArtifacts.open({name: state.path, source: editor.value, language}, {initialPreview: language === 'html', allowWorkspaceEdit: false, workspacePath: /\.html?$/i.test(state.path) ? state.path : ''});
   }
   async function attachFile() {
     if (!state.path || state.attaching) return;

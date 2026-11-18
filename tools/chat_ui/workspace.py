@@ -213,6 +213,10 @@ class Workspace:
             path = file_path(path)
             return dict(path=path, content=self.state["files"][path], revision=self.state["revision"])
 
+    def preview_snapshot(self):
+        with self.lock:
+            return self.state["revision"], dict(self.state["files"])
+
     def _editable(self, revision):
         if self.control is not None:
             raise ValueError("Wait for the active command to finish or cancel it")

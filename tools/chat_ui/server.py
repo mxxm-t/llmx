@@ -23,6 +23,7 @@ from temporary import TemporaryChats
 from tools import ToolRegistry
 from upstream import Connection
 from monitor import ASSETS, Monitor
+from project_preview import MAX_PREVIEW_BYTES, assemble
 from workspace import Workspace, WorkspaceTools
 
 
@@ -402,10 +403,11 @@ class Handler(BaseHTTPRequestHandler):
                 policy = "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'; form-action 'none'"
             else:
                 with self.app.lock:
-                    created, data = self.app.previews[path[len('/preview/'):]]
+                    created, data, project = self.app.previews[path[len('/preview/'):]]
                 if time.monotonic() - created > 1800:
                     raise KeyError()
-                policy = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'; sandbox allow-scripts"
+                assets = " data:" if project else ""
+                policy = f"default-src 'none'; script-src 'unsafe-inline'{assets}; style-src 'unsafe-inline'{assets}; img-src data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'; sandbox allow-scripts"
             self._headers(200, "text/html; charset=utf-8", len(data), policy=policy)
             return self.wfile.write(data)
         if not path.startswith("/api/"):
@@ -480,15 +482,24 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/monitor/stream" and method == "GET" and not parsed.query:
             return self.app.monitor.stream(self, lambda: self.app.authenticated(raw_cookie))
         if path == "/api/previews" and method == "POST":
-            html = self._body().get("html")
-            if not isinstance(html, str) or len(html.encode()) > 1024 * 1024:
+            body = self._body()
+            html = body.get("html")
+            if not isinstance(html, str) or len(html.encode()) > MAX_PREVIEW_BYTES:
                 raise ValueError("Preview must be an HTML document of at most 1 MiB")
+            project = "workspace_path" in body
+            metadata = {}
+            if project:
+                revision, files = self.app.workspace.preview_snapshot()
+                data, assets = assemble(body["workspace_path"], html, files)
+                metadata = {"workspace": {"path": body["workspace_path"], "revision": revision, "assets": assets}}
+            else:
+                data = html.encode()
             token = secrets.token_urlsafe(24)
             with self.app.lock:
                 while len(self.app.previews) >= 16:
                     self.app.previews.pop(next(iter(self.app.previews)))
-                self.app.previews[token] = (time.monotonic(), html.encode())
-            return self._json({"url": "/preview/" + token})
+                self.app.previews[token] = (time.monotonic(), data, project)
+            return self._json({"url": "/preview/" + token, **metadata})
         if path == "/api/chats/run-status" and method == "GET":
             return self._json({"chats": self.app.store.sidebar_run_status()})
         if path == "/api/chats/search" and method == "POST":

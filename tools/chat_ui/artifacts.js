@@ -42,7 +42,9 @@ window.ChatArtifacts = (() => {
   const status = node('div', 'artifact-status'); status.setAttribute('role', 'status'); status.hidden = true;
   const content = node('div', 'artifact-content'); const sourcePanel = node('div', 'artifact-source'); sourcePanel.setAttribute('role', 'tabpanel'); sourcePanel.setAttribute('aria-labelledby', sourceButton.id); const pre = node('pre'); const code = node('code'); pre.append(code); sourcePanel.append(pre);
   const previewPanel = node('div', 'artifact-preview'); previewPanel.hidden = true; previewPanel.setAttribute('role', 'tabpanel'); previewPanel.setAttribute('aria-labelledby', previewButton.id);
-  const previewNote = node('p', 'artifact-preview-note', 'Isolated browser preview. Scripts may run; resource requests and access to the studio are restricted.');
+  const previewNote = node('div', 'artifact-preview-note', 'Isolated browser preview. Scripts may run; resource requests and access to the studio are restricted.');
+  const projectInfo = node('details'); projectInfo.hidden = true; previewNote.append(projectInfo);
+  const projectSummary = node('summary'); const projectAssets = node('p'); projectInfo.append(projectSummary, projectAssets);
   const consolePanel = node('details', 'artifact-console'); const consoleSummary = node('summary', '', 'Console / 0 entries'); const consoleOutput = node('div', 'artifact-console-output'); consoleOutput.setAttribute('aria-live', 'polite'); consolePanel.append(consoleSummary, consoleOutput); previewPanel.append(previewNote, consolePanel);
   content.append(sourcePanel, previewPanel); dialog.append(header, toolbar, status, content); document.body.append(dialog);
   function stopPreview() { previewVersion++; bridgeToken = ''; if (frame) frame.remove(); frame = null; }
@@ -53,22 +55,44 @@ window.ChatArtifacts = (() => {
   function bridge(token) {
     return '<script>(function(){"use strict";const token=' + JSON.stringify(token) + ',origin=' + JSON.stringify(location.origin) + ';let sent=0;function emit(kind,args){if(sent++>=256)return;let text;try{text=args.map(v=>typeof v==="string"?v:JSON.stringify(v)).join(" ")}catch(e){text="[Unserializable console value]"}parent.postMessage({channel:"llmx-preview",token,kind,text:String(text).slice(0,16384)},origin)}for(const kind of ["log","info","warn","error"]){const original=console[kind];console[kind]=function(...args){emit(kind,args);original.apply(console,args)}}addEventListener("error",e=>emit("error",[e.message]));addEventListener("unhandledrejection",e=>emit("error",[String(e.reason)]))})()<\/script>';
   }
+  function projectMarkup(source, instrumentation) {
+    const trivia = /^(?:[ \t\r\n\f\uFEFF]|<!--[\s\S]*?-->)*/;
+    let offset = trivia.exec(source)[0].length;
+    for (const tag of [/^<!doctype\b[^>]*>/i, /^<html(?=[\s>])(?:[^>"']|"[^"]*"|'[^']*')*>/i, /^<head(?=[\s>])(?:[^>"']|"[^"]*"|'[^']*')*>/i]) {
+      const match = tag.exec(source.slice(offset));
+      if (!match) continue;
+      offset += match[0].length;
+      offset += trivia.exec(source.slice(offset))[0].length;
+    }
+    return source.slice(0, offset) + instrumentation + source.slice(offset);
+  }
   async function showPreview() {
     if (!current || previewButton.hidden) return;
     stopPreview(); const version = previewVersion;
     const bytes = crypto.getRandomValues(new Uint8Array(24)); bridgeToken = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
     sourcePanel.hidden = true; previewPanel.hidden = false; status.hidden = false; status.textContent = 'Preparing isolated preview...'; consoleOutput.replaceChildren(); consoleSummary.textContent = 'Console / 0 entries';
+    projectInfo.hidden = true; projectInfo.open = false;
     sourceButton.setAttribute('aria-selected', 'false'); previewButton.setAttribute('aria-selected', 'true');
     try {
-      const data = await window.ChatShell.api('/previews', 'POST', {html: bridge(bridgeToken) + current.source});
+      const instrumentation = bridge(bridgeToken);
+      const body = current.workspacePath
+        ? {html: projectMarkup(current.source, instrumentation), workspace_path: current.workspacePath}
+        : {html: instrumentation + current.source};
+      const data = await window.ChatShell.api('/previews', 'POST', body);
       const target = new URL(data.url, location.href); if (target.origin !== location.origin || !target.pathname.startsWith('/preview/')) throw new Error('The preview service returned an invalid URL.');
       if (version !== previewVersion || !dialog.open) return;
+      if (data.workspace) {
+        const {revision, assets, path} = data.workspace;
+        projectSummary.textContent = 'Workspace revision ' + revision + ' / ' + assets.length + (assets.length === 1 ? ' saved asset' : ' saved assets');
+        projectAssets.textContent = path + (assets.length ? ' uses ' + assets.join(', ') + '.' : ' uses no saved CSS or JavaScript.');
+        projectInfo.hidden = false;
+      }
       frame = node('iframe', 'artifact-frame'); frame.title = current.name + ' preview'; frame.setAttribute('sandbox', 'allow-scripts'); frame.referrerPolicy = 'no-referrer'; frame.src = target.href;
       frame.addEventListener('load', () => { if (version === previewVersion) { status.hidden = true; } }); previewPanel.insertBefore(frame, consolePanel);
     } catch (error) { if (version === previewVersion) { status.textContent = error.message; status.hidden = false; } }
   }
-  function open(artifact, {initialPreview = false, allowWorkspaceEdit = true} = {}) {
-    current = {name: filename(artifact.name, artifact.language), language: language(artifact.language), source: String(artifact.source ?? '')};
+  function open(artifact, {initialPreview = false, allowWorkspaceEdit = true, workspacePath = ''} = {}) {
+    current = {name: filename(artifact.name, artifact.language), language: language(artifact.language), source: String(artifact.source ?? ''), workspacePath};
     showSource(); title.textContent = current.name; subtitle.textContent = current.language.toUpperCase() + ' / ' + new Intl.NumberFormat().format(new TextEncoder().encode(current.source).length) + ' bytes';
     code.replaceChildren(highlight(current.source, current.language)); previewButton.hidden = current.language !== 'html' && !/\.html?$/i.test(current.name); copy.textContent = 'Copy';
     edit.hidden = !allowWorkspaceEdit;

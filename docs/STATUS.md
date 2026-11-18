@@ -1,10 +1,18 @@
 # llmx - Development Status
 
+## Workspace project preview (2026-11-18)
+
+- **Goal:** Preview the current HTML editor buffer with saved relative CSS and classic JavaScript from one Workspace revision, inside the existing sealed browser preview.
+- **Done:** Assemble direct relative CSS and classic scripts from one saved Workspace snapshot while previewing the current HTML buffer. The viewer reports the saved revision and included files. The project variant permits typed data resources inside the existing opaque-origin frame.
+- **Checks:** Three focused HTTP preview tests pass in 3.047 seconds. They cover the existing snippet policy, a snapshot held across a newer write, first-attribute semantics, nested paths, missing assets and the assembled byte limit. JavaScript syntax and whitespace checks pass.
+- **Landing:** The Chrome fixture exercises an unsaved nested document, linked styles and a deferred script. It checks the computed style, standards mode, displayed revision and filenames. The change lands by fast-forward after the combined browser, docs, dead-code and dedicated Windows and Linux companion workflow pass.
+- **Gotchas:** Direct links use the existing 1 MiB document, expiry and retention bounds. Module imports, CSS imports and secondary resource requests are outside this feature. Preview compilation never saves the HTML buffer or changes the saved revision.
+
 ## Companion search, transcript and Workspace (2026-11-18)
 
 - **Search:** Saved conversation search shares the width and control styling of New conversation. Chrome verified the focus ring and alignment in both themes at 320, 360, 390 and 1440 pixels.
 - **Transcript:** Prompts have a You label and tinted background. Assistant prose is easier to scan on wide screens. A tool's name, approval and disclosure remain visible at 320 pixels. The measured expanded tool body shrank from 195 to 123 pixels on desktop and from 229 to 174 at 320 pixels.
-- **Workspace:** Back to Chat preserves editor changes. Preview HTML uses the current buffer in the existing isolated viewer. The command runner and checkpoint history operate on saved files. Linked sibling assets are outside this preview.
+- **Workspace:** Back to Chat preserves editor changes. This checkpoint added Preview HTML for the current buffer in the isolated viewer. The command runner and checkpoint history operate on saved files.
 - **Attachments:** Attach to Chat takes the editor's current text into the active draft. It preserves nested file identity and uses the composer's existing size and count checks. A delayed read cannot attach twice or navigate away from a newly selected file. The user can remove the attachment before sending. Temporary drafts stay in memory.
 - **Checks:** The three feature browser runs passed in 91.697 seconds for the transcript, 91.046 for Workspace and 92.520 for attachments. The attachment fixture covers a held read, nested names, unsaved edits, size refusal, keyboard focus and temporary chat privacy. The integrated commit is identified by the dedicated Windows and Linux Chat workspace workflow.
 - **Landing:** This static companion and browser-test stack lands by fast-forward after the combined Chrome, docs, dead-code and dedicated hosted checks pass on the landing tree. The Markdown audit covered the companion guide, contract, test catalogue and references across the project. Local service deployment is tracked separately.

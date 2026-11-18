@@ -239,6 +239,18 @@ kbd {
 .text-button:hover {
   color:var(--text)
 }
+#archive-toggle,.footer-actions .text-button,.composer-left [data-action=settings] {
+  min-width:var(--sidebar-composer-target,24px);
+  min-height:var(--sidebar-composer-target,24px)
+}
+@media(max-width:720px),(pointer:coarse) {
+  .workspace {
+    --sidebar-composer-target:40px
+  }
+}
+:root[data-compact=true] .workspace {
+  --sidebar-composer-target:40px
+}
 .main {
   display:flex;
   flex-direction:column;

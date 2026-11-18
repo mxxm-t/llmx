@@ -125,6 +125,7 @@ Failure JSON and Chrome stderr are saved before screenshot capture, so an unresp
 The new-file Escape check acknowledges close-listener registration before sending the real key events, then checks the close event and unchanged editor contents.
 It also checks Activity navigation to two distinct tool-call identities, keyboard activation, the corresponding arguments and results, safe text rendering, and closing the narrow inspector before focusing the selected details.
 Drawer keyboard coverage checks focus entry, background inertness, Tab wrapping, return on Escape and backdrop dismissal, navigation from the sidebar, menu and native-dialog Escape priority, and release of modal state when returning to a docked desktop layout.
+Sidebar archive, Import, theme and Lock controls and composer Settings are checked for minimum dimensions and unobstructed edge hits on desktop, with a coarse pointer, and at compact widths of 320 and 390 pixels.
 The optional `tools/chat_ui/check_sandbox.py` integration check uses an existing
 Docker image to verify actual container isolation, returned files and cancellation.
 How to run them, the project's two gates and the merge gates are in `AGENTS.md` (`AGENTS.md`, Tests).

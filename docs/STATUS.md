@@ -1,22 +1,16 @@
 # llmx - Development Status
 
-## Companion audit follow-ups (2026-11-18, Qualification)
+## Companion audit follow-ups (2026-11-18, Done)
 
 - **Goal:** Finish attachment guidance and correct healthy-idle chart labels while retaining browser failure evidence.
 - **Done:** Attachment filters now include all 27 accepted text extensions. The existing tooltip and Conversation Settings explain formats, size limits, required image support and the served-model selector. Fresh idle PP/TG charts say No active requests, while held active samples and disconnected telemetry retain their distinct states. Browser Escape input waits for acknowledged close-listener registration. Failure JSON preserves the original error, Chrome process state and bounded stderr before screenshot capture.
 - **Checks:** The combined Chrome fixture at `cf9a29c88` passed in 89.390 seconds, and docs/dead-code passed. Separate attachment validation passed six engine tests and one HTTP test. Focused Monitor checks passed at 1440 and 390 pixels, including active zero, selected historical intervals and disconnected gaps. No collector, runtime or numerical code changed.
-- **Left:** Finish the applicable hosted browser check, review the remaining control hit areas, and publish by fast-forward after rechecking main. Deployment is separate: the already-authorized restart of companion 8183 was rejected by platform review before execution, so the service remains on `9add55959`.
+- **Landing:** The reviewed static UI and test changes land by fast-forward after the final scoped checks and a main-head check. No native or inference gate applies. Deployment is separate: the already-authorized restart of companion 8183 was rejected by platform review before execution, so the service remains on `9add55959`.
 - **Evidence:** `scratch/followup-landing/` in the audit landing worktree holds combined receipts. Worker evidence is in root `scratch/chat-attachment-guidance-20261118/` and `scratch/ui-audit-20261118/monitor-idle-label/`. Both visual defects have retained failing browser cases.
-- **Hosted findings:** Main run 44320829081 passed Windows but failed Ubuntu at the unacknowledged Escape observer, with a screenshot of the closed dialog. A local 50-cycle native-dialog probe passed that old sequence, so exact hosted scheduling remains unproven. Corrected run 44322978782 passed Ubuntu but failed Windows at its first page navigation before UI assertions. It yielded no screenshot. The diagnostic follow-up is run 44324144002. Original failures remain recorded, with no retry or timeout increase.
-- **Evidence carry:** Commit `3a13b914c` changes only failure reporting and docs after the combined browser run. A controlled failure probe verifies JSON survives failed screenshot capture and still exits nonzero. No successful fixture execution or product path changed in that delta.
+- **Hosted findings:** Main run 44320829081 passed Windows but failed Ubuntu at the unacknowledged Escape observer, with a screenshot of the closed dialog. A local 50-cycle native-dialog probe passed that old sequence, so exact hosted scheduling remains unproven. Corrected run 44322978782 passed Ubuntu but failed Windows at its first page navigation before UI assertions. It yielded no screenshot. The diagnostic follow-up 44324144002 passed on Windows and Ubuntu at db71a03b6. Original failures remain recorded, with no retry or timeout increase.
+- **Control targets:** Archive, Import, theme, Lock and composer Settings now have a 24 CSS pixel minimum on desktop and 40 in compact layouts or with a coarse pointer. Visible edge-hit checks passed on the feature branch in 93.972 seconds. The stacked 320-pixel layout fits both the enlarged Attach and Settings controls with a long model name. The final integrated browser run at `6453f8d4e` passed in 93.826 seconds, including the concatenated attachment and target tests. Its exact receipt is `scratch/followup-landing/final-browser/receipt.json`; the landing delta after that run is documentation only.
+- **Documentation review:** Reviewed the changed companion/dashboard pages and test catalogue against the implementation, removed duplicate integration headings, and checked repository Markdown references with the docs component. Broader Workspace layout changes remain optional: the measured narrow layout scrolls correctly and no inaccessible functionality was found.
 - **Gotchas:** File chooser hints do not replace attachment validation or image admission. Monitor delayed-view wording describes intentional buffering and is unchanged. No screen-reader or physical-phone conformance is claimed.
-## Companion sidebar and composer hit areas (2026-11-18, In progress)
-
-- **Goal**. Enlarge the archive, Import, theme, Lock and conversation Settings controls without changing their typography or hierarchy.
-- **Done**. Chromium confirmed visible target heights of 14 to 17 CSS pixels on desktop and mobile.
-- **Left**. Reproduce in the browser fixture, enlarge the five controls and verify compact and coarse-pointer layouts.
-- **Gotchas**. Measure the mobile sidebar only while it is open and the composer while it is interactive. Workspace layout changes are outside this fix.
-
 ## Companion wording cleanup (2026-11-18, Done)
 
 - **Goal:** Use direct labels for current functionality and remove repeated welcome and branding copy.

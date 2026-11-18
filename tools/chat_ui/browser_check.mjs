@@ -1631,6 +1631,73 @@ try {
   await fill('#workspace-editor', 'Follow-up after refresh failure'); await click('#workspace-save');
   await wait("document.querySelector('.unsaved-indicator').hidden && document.querySelector('.workspace-error').hidden", 'follow-up uses accepted write revision');
   assert.equal(await evaluate("fetch('/api/workspace/file?path=external.txt').then(r=>r.json()).then(f=>f.content)"), 'Follow-up after refresh failure');
+  const linkedWorkspace = await evaluate(`(async () => {
+    let workspace=await ChatShell.api('/workspace');
+    const safePath='nested/space & #.txt', removedPath='removed-link.txt', job=workspace.jobs.find(item=>item.command==='printf browser-job');
+    const write=(path,content)=>ChatShell.api('/workspace/file','POST',{path,content,revision:workspace.revision});
+    workspace=await write(safePath,'Encoded Workspace path.');
+    workspace=await write(removedPath,'Previously present.');
+    const prior=await ChatShell.api('/workspace/file?path='+removedPath);
+    workspace=await ChatShell.api('/workspace/delete','POST',{path:removedPath,revision:workspace.revision});
+    const call=(id,name,args,metadata)=>({id,name:'workspace_'+name,arguments:JSON.stringify(args),result:{content:[{type:'text',text:JSON.stringify(metadata)}]},status:'completed'});
+    const tool_calls=[
+      call('linked-read','read',{path:safePath},await ChatShell.api('/workspace/file?path='+encodeURIComponent(safePath))),
+      call('linked-write','write',{path:'external.txt'},{revision:workspace.revision,files:workspace.files}),
+      call('linked-run','run',{command:job.command},job),
+      call('linked-removed','read',{path:removedPath},prior),
+      call('linked-pruned','run',{command:'old command'},{id:'00000000000000000000000000000000',command:'old command',status:'completed'}),
+      call('linked-malformed','read',{path:'../outside.txt'},{unexpected:'invalid'}),
+    ];
+    const chat=await ChatShell.api('/import','POST',{version:1,chat:{title:'Direct Workspace links',active_leaf:'linked-message'},messages:[{id:'linked-message',parent_id:null,role:'assistant',content:'Workspace links are ready.',tool_calls}]});
+    return {id:chat.id,safePath};
+  })()`);
+  await reloadDocument();
+  await wait("document.querySelector("+JSON.stringify('[data-chat="'+linkedWorkspace.id+'"]')+")!==null", 'direct Workspace link fixture');
+  await click('[data-chat="'+linkedWorkspace.id+'"]');
+  const link = id => '[data-tool-call="linked-'+id+'"] .workspace-tool-open';
+  await wait("document.querySelector("+JSON.stringify(link('read'))+")!==null", 'direct file result action rendered');
+  assert.equal(await evaluate("document.querySelector("+JSON.stringify(link('read'))+").textContent"), 'Open file', 'Workspace read result needs a direct file action');
+  assert.equal(await evaluate("document.querySelector("+JSON.stringify(link('malformed'))+").textContent"), 'Open Workspace', 'malformed result keeps the general Workspace action');
+  const linkMutations = apiMutations.filter(item=>item.url.includes('/api/workspace/')).length;
+  await pointerClick(link('read'));
+  await wait("document.querySelector('#workspace-editor').value==='Encoded Workspace path.' && document.activeElement.id==='workspace-editor'", 'open exact escaped file path');
+  assert.equal(await evaluate("document.querySelector('.workspace-file-path').textContent"), linkedWorkspace.safePath);
+  await fill('#workspace-editor', 'Keep this dirty buffer.');
+  await click('.global-nav [data-view="chat"]');
+  await pointerClick(link('write'));
+  await wait("document.querySelector('#action-dialog').open", 'discard guard for linked file');
+  await closeAction('#conversation-cancel');
+  assert.equal(await evaluate("document.querySelector('#workspace-editor').value"), 'Keep this dirty buffer.', 'cancelled link discarded the active buffer');
+  await click('.global-nav [data-view="chat"]');
+  await pointerClick(link('write'));
+  await wait("document.querySelector('#action-dialog').open", 'reopen discard guard for linked file');
+  await closeAction('#conversation-submit');
+  await wait("document.querySelector('.workspace-file-path').textContent==='external.txt' && document.querySelector('#workspace-editor').value==='Follow-up after refresh failure'", 'write action opens requested file');
+  await click('.global-nav [data-view="chat"]');
+  await evaluate("document.querySelector("+JSON.stringify(link('run'))+").focus()");
+  await drawerKey('Enter', 13);
+  await wait("document.querySelector('.workspace-job.active')?.title==='printf browser-job' && document.querySelector('#workspace-output').textContent.includes('browser-job complete') && document.activeElement.id==='workspace-output'", 'keyboard opens exact retained job output');
+  for (const [id, reason] of [['removed','file is no longer available'],['pruned','job is no longer available']]) {
+    await click('.global-nav [data-view="chat"]');
+    await pointerClick(link(id));
+    await wait("!document.querySelector('.workspace-error').hidden && document.querySelector('.workspace-error').textContent.includes("+JSON.stringify(reason)+")", 'missing workspace '+id+' feedback');
+    assert.equal(await evaluate("document.querySelector('.workspace-file-path').textContent"), 'external.txt', 'unavailable target replaced the editor');
+    assert.equal(await evaluate("document.querySelector('.workspace-job.active')?.title"), 'printf browser-job', 'unavailable target switched job output');
+  }
+  assert.equal(apiMutations.filter(item=>item.url.includes('/api/workspace/')).length, linkMutations, 'tool-result navigation sent a workspace mutation');
+  assert.equal(await evaluate("document.querySelector('.workspace-limits')?.matches('details:not([open])')"), true, 'Workspace limits should start collapsed');
+  await pointerClick('.workspace-limits summary');
+  assert.equal(await evaluate("document.querySelector('.workspace-limits').open && document.querySelector('.workspace-limits').innerText.includes('Per file')"), true, 'Workspace limits disclosure did not show the limits');
+  await pointerClick('.workspace-limits summary');
+  const linkTheme = await evaluate('document.documentElement.dataset.theme');
+  await cdp('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+  for (const theme of ['dark','light']) {
+    await evaluate("document.documentElement.dataset.theme="+JSON.stringify(theme)+"; window.ChatShell.show('chat')");
+    assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth && Array.from(document.querySelectorAll('.workspace-tool-open')).every(button=>button.getBoundingClientRect().right<=innerWidth)"), true, 'Workspace actions overflow at 390px in '+theme);
+    await screenshot('workspace-tool-links-mobile-'+theme+'.png');
+  }
+  await evaluate("document.documentElement.dataset.theme="+JSON.stringify(linkTheme)+"; window.ChatShell.show('workbench')");
+  await cdp('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
   const previewSource = '<!doctype html><html><body><h1>Isolated preview</h1><script>console.log("preview-ready");try{parent.document.body.dataset.previewTouched="yes"}catch(e){console.log("parent-blocked")}fetch("/api/session").then(()=>console.error("network-allowed")).catch(()=>console.log("network-blocked"));setTimeout(()=>{throw new Error("preview-error")},20)</script></body></html>';
   await evaluate(`window.ChatArtifacts.open({name:'preview.html',language:'html',source:${JSON.stringify(previewSource)}})`);
   await click('#artifact-preview-tab');

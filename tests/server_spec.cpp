@@ -547,6 +547,129 @@ void flash_sidecar(bool split, int compression, int layout, const std::vector<st
               << " drafts kept, " << stats.prefix_tokens << " prefix tokens reused, passes=" << stats.passes << " batched=" << proposer.batched << '\n';
 }
 
+// A CPU backend that counts the times two threads were inside its recording calls at once, each call held a little so an overlap is seen.
+// Every stage thread recording on a device holds that device (Model::Recording) where the device runs several stages, so the count stays 0.
+struct OneRecorder : Wide {
+    std::shared_ptr<std::atomic<size_t>> overlaps;
+    std::mutex m;
+    std::thread::id in;
+    size_t depth = 0;
+    explicit OneRecorder(std::shared_ptr<std::atomic<size_t>> o) : overlaps(std::move(o)) {}
+    struct Enter {
+        OneRecorder& b;
+        explicit Enter(OneRecorder& x) : b(x) {
+            {
+                std::lock_guard<std::mutex> lk(b.m);
+                if (b.depth && b.in != std::this_thread::get_id()) ++*b.overlaps;
+                b.in = std::this_thread::get_id();
+                ++b.depth;
+            }
+            std::this_thread::sleep_for(std::chrono::microseconds(200));
+        }
+        ~Enter() {
+            std::lock_guard<std::mutex> lk(b.m);
+            --b.depth;
+        }
+    };
+    void copy(backend::Buffer& dst, size_t dst_off, const backend::Buffer& src, size_t src_off, size_t bytes) override {
+        Enter e(*this);
+        Wide::copy(dst, dst_off, src, src_off, bytes);
+    }
+    void write(backend::Buffer& dst, size_t off, const void* src, size_t bytes) override {
+        Enter e(*this);
+        Wide::write(dst, off, src, bytes);
+    }
+    void argmax_pick(backend::Slice ids, backend::CSlice cands, size_t rows, size_t slots, size_t n, backend::CSlice after = {}) override {
+        Enter e(*this);
+        Wide::argmax_pick(ids, cands, rows, slots, n, after);
+    }
+};
+
+// The README's Flash-Next serve in small: the four-layer Flash fixture with its MTP sidecar on two tensor groups of two CPUs, each running two stages (rounds), drafting beside a host and a disk tier.
+// Two conversations read again turn by turn put one's copies on the first stage's thread while the other's chain records on the head stage's, both on the same devices (docs/TESTS.md).
+void flash_disk() {
+    flash_mtp::Fixture fixture(true, 4, true, false, 4);
+    fixture.c.context_length = 512;
+    // Both linear layers decay, as flash_sidecar's one does, or a long history overflows to NaN.
+    for (const char* name : {"blk.0.ssm_a", "blk.2.ssm_a"}) {
+        auto& decay = fixture.data.at(name);
+        std::fill(decay.begin(), decay.end(), -0.5f);
+    }
+    auto [target, side] = flash_mtp::headers(fixture, 2);
+    std::map<std::string, std::vector<float>> private_data = flash_mtp::private_globals(fixture, side);
+    flash_mtp::Files files(fixture, std::move(target), std::move(side), private_data);
+    auto overlaps = std::make_shared<std::atomic<size_t>>(0);
+    const auto load = [&](bool paired) {
+        infer::ModelOptions options;
+        options.kv_tokens = 1024; options.state_slots = 4; options.checkpoint_slots = 4;
+        options.mark_slots = 3; options.mark_rows = kDraftMax + 1;
+        infer::PlacementRequest request;
+        request.dtype = backend::Dtype::f32;
+        request.width = 2;
+        request.rounds = 2;
+        request.names = {"cpu", "cpu", "cpu", "cpu"};
+        request.shares = {1, 1};
+        std::vector<backend::BackendPtr> backends;
+        for (size_t i = 0; i < 4; ++i) backends.push_back(std::make_shared<OneRecorder>(overlaps));
+        auto loaded = infer::load_model(files.target_path, backends, request, options, {}, infer::LoadMode::mapped, paired ? files.side_path : "");
+        require(loaded->model->stage_count() == 4 && loaded->model->stage_devices() == 2, "Flash disk case: two stages on each of two tensor groups");
+        return loaded;
+    };
+    const std::string what = "Flash with its MTP sidecar beside a disk tier, two stages on each of two groups of two CPUs";
+    DiskRoot disk("flash-disk");
+    server::DiskOptions options = disk.options(uint64_t(1) << 30);
+    options.keep = true;
+    options.idle = std::chrono::milliseconds(0);
+    auto loaded = load(true);
+    FlashDrafts proposer(*loaded->model);
+    std::vector<Req> asked;
+    std::vector<Reply> got;
+    server::Scheduler::Stats stats;
+    {
+        server::Scheduler sched(*loaded->model, *loaded->tok, 4, 64, 0, false, size_t(1) << 30, &proposer, kDraftMax, false, options);
+        std::thread runner([&] { sched.run(); });
+        try {
+            within_a_minute([&] { return sched.stats().disk_ready; }, what + ": the disk tier made");
+            std::vector<std::vector<uint32_t>> prompts{prompt_of(1, 140, flash_mtp::V), prompt_of(3, 130, flash_mtp::V)};
+            const int lengths[2] = {6, 40};
+            for (size_t turn = 0; turn < 3; ++turn) {
+                std::vector<std::shared_ptr<server::Request>> hs;
+                for (size_t c = 0; c < 2; ++c) {
+                    asked.push_back(Req{prompts[c], lengths[c]});
+                    hs.push_back(sched.submit(prompts[c], params_of(asked.back())));
+                }
+                for (size_t c = 0; c < 2; ++c) {
+                    got.push_back(drain(*hs[c]));
+                    for (const auto& token : got.back()) prompts[c].push_back(token.id);
+                    prompts[c].insert(prompts[c].end(), {2, 4, 1});
+                    sched.follow(hs[c], prompts[c], true);
+                    const std::vector<uint32_t> tail = prompt_of(uint32_t(turn * 2 + c + 4) % flash_mtp::V, 20, flash_mtp::V);
+                    prompts[c].insert(prompts[c].end(), tail.begin(), tail.end());
+                }
+            }
+            within_a_minute([&] { return !sched.stats().disk_in_flight; }, what + ": the disk tier's writes ended");
+            stats = sched.stats();
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    require(overlaps->load() == 0, what + ": two threads recorded on one device at once " + std::to_string(overlaps->load()) + " times");
+    require(stats.draft_failures == 0, what + ": drafter failed");
+    require(proposer.begun > 0, what + ": no chain was recorded");
+    require(stats.host_bytes_moved > 0, what + ": nothing was copied to host memory");
+    require(stats.disk_errors == 0, what + ": " + std::to_string(stats.disk_errors) + " disk errors");
+    for (size_t i = 0; i < asked.size(); ++i) {
+        auto plain = load(false);
+        same(serve(*plain->model, *plain->tok, 2, {{asked[i]}}).back(), got[i], what + ": turn reply " + std::to_string(i));
+    }
+    std::cout << "server-spec: " << what << ": " << proposer.begun << " chains, " << total(stats.kept) << " of " << total(stats.drafted) << " drafts kept, " << stats.host_bytes_moved / 1024
+              << " KiB to host memory, " << stats.disk_bytes_written / 1024 << " KiB to disk, no device recorded by two threads at once\n";
+}
+
 void flash_sidecars(const std::vector<std::string>& devices) {
     const size_t before = checks;
     flash_sidecar(false, 0, 1, devices);
@@ -944,6 +1067,7 @@ int main(int argc, char** argv) {
         }
         if (groups_given) flash_sidecars(group_devices);
         else {
+            flash_disk();
             flash_sidecars({"cpu", "cpu"});
             flash_sidecars({"cpu", "cpu", "cpu", "cpu"});
         }

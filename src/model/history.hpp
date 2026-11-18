@@ -1533,16 +1533,23 @@ inline void Model::draft_record(Chain& c) {
             for (size_t g = 0; g < W; ++g)
                 devices_[o + g]->b->argmax_pick({draft_ids_[g].get(), (j + 1) * R}, ctx_.collectives[o]->partial(g), rows, W, V, {draft_ids_[g].get(), j * R});
         };
-        for (size_t g = 0; g < W; ++g) devices_[o + g]->b->write(*draft_ids_[g], 0, c.last.data(), R * sizeof(uint32_t));
         const int P = int(plan_.draft_sums + B), L = int(plan_.layers.size());
         if (!draft_apart_) {
             // One device runs a call whole; a group runs it in parts (DraftStep).
+            // The head's devices are held for the whole chain, since a copy or another stage's pass may record there from another thread where a device runs several stages.
+            const Recording held(*this, o, W);
+            for (size_t g = 0; g < W; ++g) devices_[o + g]->b->write(*draft_ids_[g], 0, c.last.data(), R * sizeof(uint32_t));
             for (size_t m = 0; m < steps; ++m)
                 for (int phase = W > 1 ? 0 : -1; phase < (W > 1 ? P : 0); ++phase) {
                     for (size_t g = 0; g < W; ++g) call(o, g, m, phase);
                     after(o, m, phase);
                 }
+            for (size_t g = 0; g < W; ++g) c.sent[o + g] = devices_[o + g]->b->submit();
         } else {
+            {
+                const Recording held(*this, o, W);
+                for (size_t g = 0; g < W; ++g) devices_[o + g]->b->write(*draft_ids_[g], 0, c.last.data(), R * sizeof(uint32_t));
+            }
             // Each step runs its parts in spans, a span the parts on one device, each span's rows crossing to the next; the head's picks of a step cross as the next step's ids to stage 0's device, and the first step's are written there.
             size_t from = SIZE_MAX, moved = 0;
             backend::Ticket sent = 0;
@@ -1582,10 +1589,10 @@ inline void Model::draft_record(Chain& c) {
                     sent = c.sent[d];
                     from = d;
                 }
-        }
-        for (size_t g = 0; g < W; ++g) {
-            const Recording held(*this, o + g, 1);
-            c.sent[o + g] = devices_[o + g]->b->submit();
+            for (size_t g = 0; g < W; ++g) {
+                const Recording held(*this, o + g, 1);
+                c.sent[o + g] = devices_[o + g]->b->submit();
+            }
         }
         for (size_t g = 0; g < W; ++g) devices_[o + g]->b->wait(c.sent[o + g]);
         // The ids buffers serve the next chain, which a server may record before this one ends.

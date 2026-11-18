@@ -160,7 +160,7 @@ inline void Model::prepare_stage(Pass& p, size_t s) {
 // Each group has its own paths swap, tickets before it and trace entry, so nothing of a pass recorded between two groups is counted in this one.
 inline void Model::record_stage(ExecContext& ctx, Pass& p, size_t s, size_t layers) {
     const Stage& st = stages_[s];
-    // The stage's evidence of the matrix paths it took stays with this model, as run_stage keeps it.
+    // The stage's evidence of the matrix paths it took stays with this model, as run_stage keeps it; it is swapped under the recording lock, since another stage's thread may record on these devices.
     struct Paths {
         const std::vector<std::unique_ptr<Device>>& devices;
         const std::vector<size_t>& touches;
@@ -170,8 +170,7 @@ inline void Model::record_stage(ExecContext& ctx, Pass& p, size_t s, size_t laye
                 for (size_t m = d; m < d + width; ++m) devices[m]->b->swap_matrix_paths(devices[m]->matrix_paths);
         }
         ~Paths() { swap(); }
-    } paths{devices_, st.touches, width_};
-    paths.swap();
+    };
     if (!p.open) {
         p.receive_ms = p.write_ms = 0;
         p.group_ms = 0;
@@ -183,6 +182,8 @@ inline void Model::record_stage(ExecContext& ctx, Pass& p, size_t s, size_t laye
     try {
         // Where a drafter's stages sit apart or a device runs several, what records on this stage's devices records one at a time (Recording); a pipelined split's stage touches its own device alone.
         const Recording held(*this, st.device, width_);
+        const Paths paths{devices_, st.touches, width_};
+        paths.swap();
         for (size_t d : st.touches)
             for (size_t m = d; m < d + width_; ++m) p.before[m] = devices_[m]->b->last_ticket();
         if (width_ > 1) group_record(ctx, p, s, layers);

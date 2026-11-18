@@ -21,8 +21,8 @@ std::map<std::string, size_t> rocm_take_launches(Backend& backend);
 // A ROCm backend's routed tile calls launch only the builds whose kernel name holds `build`, every build again once it is empty: the witness of which build computes a group.
 void rocm_route_only(Backend& backend, std::string build);
 
-// A collective over `members` whose fast sums all take `form`, the members possibly backends of one device, never probed: the tests' witness of each form.
-std::unique_ptr<Collective> rocm_collective(const std::vector<Backend*>& members, size_t rows, size_t width, GpuSumForm form);
+// A collective over `members` whose fast sums all take `form` over `transport`, the members possibly backends of one device, never probed: the tests' witness of each form and transport.
+std::unique_ptr<Collective> rocm_collective(const std::vector<Backend*>& members, size_t rows, size_t width, GpuSumForm form, GroupTransport transport = GroupTransport::peer_writes);
 // The same with each fast sum's form by its size, `forms` from each size up as the join's timing keeps them, the one-shot below them all: the tests' witness of the forms following one another.
 std::unique_ptr<Collective> rocm_collective(const std::vector<Backend*>& members, size_t rows, size_t width, const std::map<size_t, GpuSumForm>& forms);
 

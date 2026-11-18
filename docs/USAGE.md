@@ -59,7 +59,7 @@ After 16384 tokens of context Qwen3.5-9B Q4_K_M chose another token than the HF 
 | `f32` | F32 inputs | F32 | F32 | outside `--dtype` |
 | `f16` | F16 or wider: blocks of 32 scaled to 16-bit integers, or F32 | F32 | F32 | outside `--dtype` |
 | `bf16` | inputs rounded to BF16, widened to F32 | rounded to BF16 | F32 | outside `--dtype` |
-| `int8` | blocks of 32 scaled to 8-bit integers; MXFP4, which has no 8-bit build yet, as `f16` | as `f16` | F32 | outside `--dtype` |
+| `int8` | blocks of 32 scaled to 8-bit integers; MXFP4 on Vulkan, which has no 8-bit build of it, as `f16` | as `f16` | F32 | outside `--dtype` |
 
 `logits`, `perplexity` and model `bench` also write one `matrix-paths:` JSON record to stderr after computation, containing the effective `dtype` and a `devices` list of the matrix paths actually dispatched. The correctness tools use it to select their precision bound; the startup capability description is not execution evidence. Numerical stdout is unchanged.
 

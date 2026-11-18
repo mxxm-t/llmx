@@ -31,6 +31,7 @@ struct HipApi {
     static constexpr Error kSuccess = hipSuccess, kNotReady = hipErrorNotReady, kPeerAlreadyEnabled = hipErrorPeerAccessAlreadyEnabled;
     static constexpr CopyKind kToHost = hipMemcpyDeviceToHost, kToDevice = hipMemcpyHostToDevice, kAnyCopy = hipMemcpyDefault;
     static constexpr const char* name = "rocm";
+    static constexpr bool int8_tensor_tiles = false;
     static inline const std::string prefix = "rocm: ";
     static constexpr const unsigned char* f32_module = kF32Module;
     static constexpr const unsigned char* int16_module = kInt16Module;
@@ -98,15 +99,15 @@ void rocm_route_only(Backend& backend, std::string build) { dynamic_cast<RocmBac
 DeviceProfile& rocm_profile(Backend& backend) { return dynamic_cast<RocmBackend&>(backend).profile(); }
 DeviceCaps& rocm_caps(Backend& backend) { return dynamic_cast<RocmBackend&>(backend).caps(); }
 
-std::unique_ptr<Collective> rocm_collective(const std::vector<Backend*>& members, size_t rows, size_t width, GpuSumForm form) {
+std::unique_ptr<Collective> rocm_collective(const std::vector<Backend*>& members, size_t rows, size_t width, GpuSumForm form, GroupTransport transport) {
     std::vector<RocmBackend*> group;
     for (Backend* b : members) group.push_back(&dynamic_cast<RocmBackend&>(*b));
-    return std::make_unique<GpuCollective<HipApi>>(group, rows, width, true, false, form);
+    return std::make_unique<GpuCollective<HipApi>>(group, rows, width, transport, false, form);
 }
 std::unique_ptr<Collective> rocm_collective(const std::vector<Backend*>& members, size_t rows, size_t width, const std::map<size_t, GpuSumForm>& forms) {
     std::vector<RocmBackend*> group;
     for (Backend* b : members) group.push_back(&dynamic_cast<RocmBackend&>(*b));
-    auto c = std::make_unique<GpuCollective<HipApi>>(group, rows, width, true);
+    auto c = std::make_unique<GpuCollective<HipApi>>(group, rows, width, GroupTransport::peer_writes);
     c->use(forms);
     return c;
 }

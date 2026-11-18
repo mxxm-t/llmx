@@ -29,9 +29,9 @@ The tables summarize current model, weight-format and backend support. **Support
 On ROCm, `qwen3` is checked with Qwen3-0.6B and 8B Q8_0, `qwen35` with Qwen3.5-0.8B Q4_K_M, `qwen4exp` with Qwen3.8-Flash-Next UD-Q4_K_XL and `deepseek41` with DeepSeek-V4.1-Flash-1017 MXFP4 over ten devices.
 `qwen3moe` and `qwen35moe` pass their tiny Hugging Face fixtures on ROCm and run Qwen3-30B-A3B and Qwen3.6-35B-A3B Q4_K_M there, though those two files are not yet checked against Hugging Face on ROCm.
 A mixture-of-experts file whose expert gate and up weights differ in type is refused on ROCm.
-On CUDA, which is in development, dense `qwen3` and hybrid `qwen35` models run, checked on an RTX 3060 and an RTX 3090: Qwen3-0.6B Q8_0 passes the Hugging Face checks at `--dtype f16`, including 16k-token sequences, Qwen3.5-0.8B Q8_0 passes the `qwen35` Hugging Face checks at `--dtype f16`, Qwen3.6-27B Q4_K_M runs with drafts on and off, and the synthetic dense models pass at `--dtype f32`.
+On CUDA, which is in development, `qwen3`, `qwen3moe`, `qwen35`, `qwen35moe` and `deepseek41` run on one device, checked on an RTX 3060 and an RTX 3090: Qwen3-0.6B Q8_0 passes the Hugging Face checks at `--dtype f16`, including 16k-token sequences, Qwen3.5-0.8B Q8_0 passes the `qwen35` Hugging Face checks at `--dtype f16`, Qwen3.6-27B Q4_K_M runs with drafts on and off, Qwen3-30B-A3B Q4_K_M runs at `f16` and `int8`, and the synthetic models pass at `--dtype f32`.
 `int8` runs and holds the frozen int8 budget on the synthetic models, while the Qwen3-0.6B and Qwen3.5-0.8B Q8_0 baselines each miss one top-5 tie at `int8`.
-No other architecture and no multi-device mode has run on CUDA yet; see [CUDA](docs/CUDA.md).
+Layer splits and tensor groups on `cuda:N` have run once, on an RTX 3090 pair without peer access, so with host writes and pulls only; see [CUDA](docs/CUDA.md).
 A model runs on ROCm only when every weight format it holds is one the ROCm backend reads (below); image input (`--mmproj`) runs there as on Vulkan.
 
 Selected outputs are checked against Hugging Face references; [ASSETS](docs/ASSETS.md) lists the models and checks covered.
@@ -86,8 +86,8 @@ A device that lacks the requested dtype runs the nearest wider form the table gi
 | `--dtype` | CPU | Vulkan | ROCm | CUDA (in development) |
 |---|---|---|---|---|
 | `auto` | `f16` | `f16` | `f16` | `f16` |
-| `f32` | Native | Native | Native | Runs on dense `qwen3` and `qwen35` |
-| `f16` | Native: 16-bit integer blocks where a kernel has them, F32 products elsewhere | Native: 16-bit integer blocks on most types, F32 products for the `Q1_0`, `Q2_0`, `Q2_K` and `Q3_K` rows of devices without the integer dot and for some `IQ` and `TQ` types | Native: 16-bit integer blocks for `Q8_0`, `Q4_0`, `Q4_1`, `Q4_K`, `Q5_K`, `Q6_K`, `Q5_0`, `Q5_1`, `IQ4_NL` and `MXFP4`, binary16 inputs for `F16` weights' prompt tiles, F32 products for `F32` and `BF16` weights and `F16` weights' generated rows | Runs on dense `qwen3` and `qwen35` |
+| `f32` | Native | Native | Native | Native |
+| `f16` | Native: 16-bit integer blocks where a kernel has them, F32 products elsewhere | Native: 16-bit integer blocks on most types, F32 products for the `Q1_0`, `Q2_0`, `Q2_K` and `Q3_K` rows of devices without the integer dot and for some `IQ` and `TQ` types | Native: 16-bit integer blocks for `Q8_0`, `Q4_0`, `Q4_1`, `Q4_K`, `Q5_K`, `Q6_K`, `Q5_0`, `Q5_1`, `IQ4_NL` and `MXFP4`, binary16 inputs for `F16` weights' prompt tiles, F32 products for `F32` and `BF16` weights and `F16` weights' generated rows | Native, in ROCm's forms |
 | `bf16` | Emulated: inputs rounded to BF16, F32 arithmetic | Emulated on devices that keep F32 denormals, signed zeros, infinities and NaNs; others run `f32` with a warning | Runs `f32` with a warning | Runs `f32` with a warning |
 | `int8` | Runs `f16` with a warning | Native on devices that prefer the integer dot product, today the MI50 under Mesa; others run `f16` with a warning | Native: 8-bit integer blocks for the types with 16-bit integer blocks above, `F16` weights as under `f16`, F32 products for `F32` and `BF16` weights | Native: 8-bit integer rows on the four-way dot and prompt tiles on the integer tensor cores; routed tiles on the four-way dot |
 
@@ -139,7 +139,7 @@ model=$(./build/llmx pull Qwen/Qwen3-0.6B-GGUF:Q8_0)
 | CPU | x86-64 with AVX2, FMA and F16C | Windows, Linux, Intel macOS | Supported |
 | Vulkan | Vulkan 1.2 GPUs; tested on AMD Radeon VII, AMD MI50 and NVIDIA GeForce RTX 3060 | Windows, Linux | Supported |
 | ROCm (HIP) | AMD GPUs; tested on AMD MI50 (gfx906), built also for AMD MI300X (gfx942) | Linux | Supported |
-| CUDA | NVIDIA GPUs; tested on NVIDIA GeForce RTX 3060 and RTX 3090 | Linux | In development: dense `qwen3` and `qwen35` with `F32`, `F16` and `int8` activations, one device; see [CUDA](docs/CUDA.md) |
+| CUDA | NVIDIA GPUs; tested on NVIDIA GeForce RTX 3060, RTX 3090 and RTX A6000 | Linux | In development: `qwen3`, `qwen3moe`, `qwen35`, `qwen35moe` and `deepseek41` with `F32`, `F16` and `int8` activations on one device, and layer splits and tensor groups once on an RTX 3090 pair; see [CUDA](docs/CUDA.md) |
 | SYCL | Intel GPUs | | Planned |
 
 ARM CPUs, Apple Silicon included, are not supported.

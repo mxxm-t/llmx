@@ -6,6 +6,7 @@
 #include "backends/gpu/kernels/shapes.h"
 #include "core/bf16.hpp"
 #include "core/fp16.hpp"
+#include "quant/fp4.hpp"
 #include "quant/types.hpp"
 #include "row_classes.hpp"
 
@@ -42,6 +43,44 @@ using backend::dtype_name;
 // A failed check's report, and the kernels a backend launched since it was last asked, by name and count.
 using Require = std::function<void(bool, const std::string&)>;
 using Launches = std::function<std::map<std::string, size_t>(Backend&)>;
+
+// Every value within 1e-4 * (1 + |reference|) of the CPU's, the bound the device tests hold F32 ops to; the first value outside it is printed.
+inline bool f32_close(const std::vector<float>& got, const std::vector<float>& want) {
+    bool ok = got.size() == want.size();
+    size_t bad = 0;
+    for (size_t i = 0; ok && i < got.size(); ++i) ok = std::fabs(got[i] - want[i]) <= 1e-4f * (1.0f + std::fabs(want[i])), bad = i;
+    if (!ok && got.size() == want.size()) std::fprintf(stderr, "  value %zu: %.9g against %.9g\n", bad, got[bad], want[bad]);
+    return ok;
+}
+inline bool same(const std::vector<float>& a, const std::vector<float>& b) { return a.size() == b.size() && std::memcmp(a.data(), b.data(), a.size() * sizeof(float)) == 0; }
+// Double sums of the CPU's decoded weights wd over x, columns of nout, and beside each the sum of |w*x| that bounds an F32 reduction's rounding.
+struct DoubleSums {
+    std::vector<double> sum, mag;
+};
+inline DoubleSums double_sums(const std::vector<float>& wd, const std::vector<float>& x, size_t nin, size_t nout) {
+    const size_t n = x.size() / nin * nout;
+    DoubleSums d{std::vector<double>(n), std::vector<double>(n)};
+    for (size_t i = 0; i < n; ++i) {
+        const size_t r = i / nout, o = i % nout;
+        for (size_t j = 0; j < nin; ++j) {
+            const double p = double(wd[o * nin + j]) * x[r * nin + j];
+            d.sum[i] += p;
+            d.mag[i] += std::fabs(p);
+        }
+    }
+    return d;
+}
+
+// An exact product against the double sums, within 16 F32 epsilons of the sum of |w*x|: each backend reduces in its own order, and the bound covers that rounding however the terms cancel.
+inline bool exact_close(const std::vector<float>& got, const DoubleSums& d) {
+    bool ok = got.size() == d.sum.size();
+    for (size_t i = 0; ok && i < got.size(); ++i) {
+        const double bound = 16 * double(FLT_EPSILON) * d.mag[i];
+        ok = std::fabs(got[i] - d.sum[i]) <= bound + 1e-30;
+        if (!ok) std::fprintf(stderr, "  value %zu: %.9g against %.9g, bound %.3g\n", i, got[i], d.sum[i], bound);
+    }
+    return ok;
+}
 
 inline std::vector<float> read(Backend& b, const Buffer& buf, size_t n, size_t off = 0) {
     std::vector<float> v(n);
@@ -247,7 +286,7 @@ inline std::vector<std::array<size_t, 2>> cluster_shapes(uint32_t type) {
 // The twin products of the given types at Flash-Next's shapes in the given classes, extents on both sides of each crossover, each output against a double sum over the twin.
 // The backend's launches name the build or tile that ran, and a row of a call is the row alone or in another call of its class, every generated column of up to 64; the cluster widths (cluster_shapes) take the generated rows alone.
 inline void twin_types(Backend& g, Backend& c, const std::vector<uint32_t>& kinds, const std::vector<Dtype>& dtypes, size_t wave, const Launches& launches,
-                       const Require& require) {
+                       const std::function<bool(uint32_t, Dtype, size_t, size_t, size_t)>& tall, const Require& require) {
     const size_t cols[] = {1, 2, 3, 5, 8, 9, 16, 17, 33}, extents[] = {2, 33, 64, 65, 320};
     for (uint32_t type : kinds) {
         std::string tname = quant::storage_type(type)->name;
@@ -331,7 +370,8 @@ inline void twin_types(Backend& g, Backend& c, const std::vector<uint32_t>& kind
                     if (si >= flash) break;
                     const std::string what = "a " + cls + " prompt of " + std::to_string(e) + " rows";
                     const std::map<std::string, size_t> ran = run(e, e, *yb, 0);
-                    require(ran.size() == 1 && ran.begin()->first == "llmx_" + tname + "_tile" + form, what + " runs the tile alone");
+                    const std::string tile = "llmx_" + tname + "_tile" + form + (tall(type, dt, nin, nout, e) ? "_tall" : "");
+                    require(ran.size() == 1 && ran.begin()->first == tile, what + " runs " + tile + " alone");
                     const std::vector<float> all = read(g, *yb, nout * e);
                     check(all, e, what);
                     const size_t part = (e + 1) / 2;
@@ -875,5 +915,319 @@ inline void delta_step_bits(Backend& g, const DeviceCaps& caps, const Launches& 
         }
     }
 }
+
+// The witnesses that read the device's caps and profile: the F16 half tile, the Q8_0 and MXFP4 decode rows against the host's order, and a decode call's columns each its column alone.
+// A test passes its device's caps and profile, its launches reader and its require.
+struct Bits {
+    DeviceCaps caps;
+    std::function<DeviceProfile&(Backend&)> profile_of;
+    Launches launches;
+    Require require;
+
+    void exact_close(const std::vector<float>& got, const DoubleSums& d, const std::string& what) const { require(twin_checks::exact_close(got, d), what); }
+
+    // F16 weights' prompt tile (half_product): outputs within the F32 bound of the double sum over binary16-rounded inputs, subnormal and signed-zero weights and inputs among them, past every tile edge.
+    // A tile row has the bits of the same row in a call of another row count, added outputs the plain ones added, and decode columns in a call the exact product's bits.
+    void half_tile(Backend& g) {
+        const size_t R = 130;
+        for (size_t nin : {size_t(32), size_t(96), size_t(2560)})
+            for (size_t nout : {size_t(1), size_t(63), size_t(64), size_t(65), size_t(130)}) {
+                const std::string shape = "F16 " + std::to_string(nin) + "->" + std::to_string(nout);
+                std::vector<uint8_t> w(nin * nout * 2);
+                std::vector<float> wf(nin * nout);
+                const std::vector<float> wv = row_classes::values(nin * nout, uint32_t(nin + nout), 0.05f);
+                for (size_t i = 0; i < wf.size(); ++i) {
+                    uint16_t h = f32_to_f16(wv[i]);
+                    if (i % 97 == 3) h = uint16_t(1 + i % 1023);   // subnormal weights
+                    if (i % 89 == 5) h = i % 2 ? 0x8000 : 0x0000;
+                    w[2 * i] = uint8_t(h), w[2 * i + 1] = uint8_t(h >> 8);
+                    wf[i] = f16_to_f32(h);
+                }
+                std::vector<float> x = row_classes::values(nin * R, uint32_t(nin + 3 * nout));
+                for (size_t i = 0; i < x.size(); i += 53) x[i] = (i % 2 ? -3e-6f : 4e-7f) * float(1 + i % 5);   // inputs rounding to binary16 subnormals
+                std::vector<float> xh(x.size());
+                for (size_t i = 0; i < x.size(); ++i) xh[i] = f16_to_f32(f32_to_f16(x[i]));
+                const DoubleSums want = double_sums(wf, xh, nin, nout);
+                auto wb = g.adopt(w.data(), w.size()), xb = g.adopt(x.data(), x.size() * 4), yb = g.alloc(nout * R * 4), y1 = g.alloc(nout * R * 4);
+                const WeightView wt{quant::GGML_TYPE_F16, {wb.get(), 0}};
+                for (size_t rows : {size_t(2), size_t(63), size_t(64), size_t(65), size_t(R - 3)}) {
+                    const std::string at = shape + " over " + std::to_string(rows) + " rows";
+                    launches(g);
+                    g.matmul(wt, {xb.get(), 0}, {yb.get(), 0}, nin, nout, rows, {}, Dtype::f16);
+                    require(launches(g).count("llmx_f16_tile") == 1, "a " + at + " prompt takes the half tile");
+                    const std::vector<float> all = read(g, *yb, nout * rows);
+                    const DoubleSums part{std::vector<double>(want.sum.begin(), want.sum.begin() + std::ptrdiff_t(nout * rows)),
+                                          std::vector<double>(want.mag.begin(), want.mag.begin() + std::ptrdiff_t(nout * rows))};
+                    exact_close(all, part, "a " + at + " half tile against the double sum on binary16 inputs");
+                    g.matmul(wt, {xb.get(), 0}, {y1.get(), 0}, nin, nout, rows + 1, {}, Dtype::f16);
+                    require(std::memcmp(read(g, *y1, nout * rows).data(), all.data(), nout * rows * 4) == 0, "a " + at + " half tile row keeps its bits in a call of one row more");
+                    const std::vector<float> y0 = row_classes::values(nout * rows, uint32_t(rows + nout));
+                    std::vector<float> sum(y0.size());
+                    for (size_t i = 0; i < y0.size(); ++i) sum[i] = y0[i] + all[i];
+                    g.write(*y1, 0, y0.data(), y0.size() * 4);
+                    g.matmul_add(wt, {xb.get(), 0}, {y1.get(), 0}, nin, nout, rows, {}, Dtype::f16);
+                    require(std::memcmp(read(g, *y1, nout * rows).data(), sum.data(), nout * rows * 4) == 0, "a " + at + " added half tile adds the plain outputs");
+                    // Three decode columns, then a prompt: the columns take the exact product's bits, the prompt the half tile's.
+                    const RowRun runs[2] = {{3, 1}, {rows + 3, 64}};
+                    const size_t n = rows + 3;
+                    launches(g);
+                    g.matmul(wt, {xb.get(), 0}, {yb.get(), 0}, nin, nout, n, {runs, 2}, Dtype::f16);
+                    const auto ran = launches(g);
+                    require(ran.count("llmx_f16_tile") == 1 && ran.count("llmx_matmul_rows_f16") == 1, "a " + at + " call of decode columns and a prompt takes the exact rows and the half tile");
+                    const std::vector<float> mixed = read(g, *yb, nout * n);
+                    g.matmul(wt, {xb.get(), 0}, {y1.get(), 0}, nin, nout, 3, {}, Dtype::f32);
+                    require(std::memcmp(read(g, *y1, nout * 3).data(), mixed.data(), nout * 3 * 4) == 0, "a " + at + " call's decode columns have the exact product's bits");
+                    g.matmul(wt, {xb.get(), 3 * nin}, {y1.get(), 0}, nin, nout, rows, {}, Dtype::f16);
+                    require(std::memcmp(read(g, *y1, nout * rows).data(), mixed.data() + 3 * nout, nout * rows * 4) == 0, "a " + at + " call's prompt rows have the half tile's bits");
+                }
+            }
+    }
+
+    // The one-column Q8_0 decode row of one wave of W lanes, on the host, in the kernels' order, then the xor tree from W / 2.
+    // The half-block layout (int8 twin, an even block count) takes two lanes a block, each lane's half-block dots scaled in block order, and the quarter layout four lanes a block.
+    float q8_row_host(const uint8_t* row, const std::vector<float>& d, const std::vector<int16_t>& q, size_t blocks, bool half, unsigned W) {
+        std::vector<float> acc(W, 0.0f);
+        const size_t parts = half ? 2 : 4, per = 32 / parts;
+        for (size_t u = 0; u < blocks * parts; ++u) {
+            const size_t b = u / parts, p = u % parts;
+            const uint8_t* block = row + b * 34;
+            int s = 0;
+            for (size_t j = p * per; j < (p + 1) * per; ++j) s += int(int8_t(block[2 + j])) * q[b * 32 + j];
+            const float dw = f16_to_f32(uint16_t(block[0] | block[1] << 8)), dd = dw * d[b];
+            float& a = acc[half ? (b % (W / 2)) * 2 + p : u % W];
+            a = std::fmaf(dd, float(s), a);
+        }
+        for (unsigned m = W / 2; m; m /= 2) {
+            std::vector<float> next(W);
+            for (unsigned l = 0; l < W; ++l) next[l] = acc[l] + acc[l ^ m];
+            acc = next;
+        }
+        return acc[0];
+    }
+
+    // Each one-column Q8_0 decode build against the host's one-row build bit for bit, the paired build (two rows a wave, rows of at most 16 blocks) among them, whose idle half the one-row tree adds as +0.
+    // The rows pin the zero's sign: all-zero weights, a negative scale against a zero integer dot (dw * xd = -0), and lanes whose partials cancel to an exact zero from nonzero terms.
+    void q8_decode_bits(Backend& g) {
+        const unsigned W = caps.subgroup_size;
+        const size_t nout = 33;
+        DeviceProfile& profile = profile_of(g);
+        const uint32_t keep = profile.q8_decode_two_rows_from;
+        const size_t four = profile.q8_decode_four_steps_from;
+        // Row widths reach both edges of the step rule (63 to 65 and 254 to 257 blocks), both edges of the held rule (32 to 34 and 160 to 162) and step tails, and output counts both edges of the two-row rule at both profiles' values.
+        for (size_t blocks0 : {size_t(8), size_t(16), size_t(18), size_t(20), size_t(24), size_t(32), size_t(33), size_t(34), size_t(40), size_t(63), size_t(64), size_t(65), size_t(80), size_t(96),
+                               size_t(128), size_t(136), size_t(160), size_t(162), size_t(191), size_t(192), size_t(193), size_t(254), size_t(255), size_t(256), size_t(257)}) {
+            const size_t nin = blocks0 * 32;
+            const size_t blocks = nin / 32;
+            std::vector<uint8_t> w = q8_matrix(nin, nout, uint32_t(nin + 5));
+            const auto set_scale = [&](size_t o, size_t b, float s) {
+                const uint16_t h = f32_to_f16(s);
+                w[(o * blocks + b) * 34] = uint8_t(h), w[(o * blocks + b) * 34 + 1] = uint8_t(h >> 8);
+            };
+            for (size_t b = 0; b < blocks; ++b) {
+                std::memset(&w[(0 * blocks + b) * 34], 0, 34);          // row 0: all zero
+                std::memset(&w[(1 * blocks + b) * 34 + 2], 0, 32);      // row 1: values zero under negative scales
+                set_scale(1, b, -0.25f - 0.01f * float(b));
+                if (b % 2) {
+                    // Row 2: each odd block the even block before it negated, so on a block-periodic twin a lane's partial cancels its partner's exactly.
+                    std::memcpy(&w[(2 * blocks + b) * 34], &w[(2 * blocks + b - 1) * 34], 34);
+                    for (size_t j = 0; j < 32; ++j) w[(2 * blocks + b) * 34 + 2 + j] = uint8_t(-int8_t(w[(2 * blocks + b) * 34 + 2 + j]));
+                }
+            }
+            const std::vector<float> rnd = row_classes::values(nin, uint32_t(nin + 6));
+            std::vector<float> periodic(nin);
+            for (size_t i = 0; i < nin; ++i) periodic[i] = rnd[i % 32];
+            // Rows past the special ones repeat the first 33, so a call of many outputs holds them too.
+            const size_t nmax = 4097;
+            const std::vector<uint8_t> first = w;
+            for (size_t o = nout; o < nmax; ++o) w.insert(w.end(), first.begin() + (o % nout) * blocks * 34, first.begin() + (o % nout + 1) * blocks * 34);
+            auto wb = g.adopt(w.data(), w.size()), yb = g.alloc(nmax * 4);
+            const std::vector<float>* inputs[] = {&rnd, &periodic};
+            for (const std::vector<float>* xv : inputs) {
+                auto xb = g.adopt(xv->data(), nin * 4);
+                for (Dtype dt : {Dtype::f16, Dtype::int8}) {
+                    const bool half = dt == Dtype::int8 && blocks % 2 == 0;
+                    const float L = dt == Dtype::int8 ? 127.0f : 32767.0f;
+                    std::vector<float> d(blocks);
+                    std::vector<int16_t> q(nin);
+                    for (size_t b = 0; b < blocks; ++b) twin_rule(xv->data() + b * 32, d[b], q.data() + b * 32, L);
+                    for (const auto& [from, n] : std::vector<std::pair<uint32_t, size_t>>{{2560, 1}, {2560, 2}, {2560, nout}, {2560, 2559}, {2560, 2560}, {2560, 4097}, {4096, 4095}, {4096, 4096}}) {
+                        if (dt == Dtype::f16 && from == 4096) continue;
+                        const RowRun rr{1, 1};
+                        profile.q8_decode_two_rows_from = from;
+                        launches(g);
+                        g.matmul({quant::GGML_TYPE_Q8_0, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, n, 1, {&rr, 1}, dt);
+                        profile.q8_decode_two_rows_from = keep;
+                        const std::vector<float> y = read(g, *yb, n);
+                        std::string ran;
+                        for (const auto& [k, v] : launches(g))
+                            if (k.rfind("llmx_q8_0", 0) == 0) ran += k;
+                        // A row of two to five spans of blocks takes one row a wave with all its steps loaded at once, whatever the outputs.
+                        // Other half-block rows run one row a wave for few outputs and two for many, paired up to 16 blocks a row, and under two spans one step a load, two rows a wave from the profile's four-step width four.
+                        const bool narrow = blocks < W;
+                        const size_t spans = (blocks + W / 2 - 1) / (W / 2);
+                        const std::string want = !half                   ? "llmx_q8_0_rows" + std::string(dt == Dtype::int8 ? "8" : "16") + "_1"
+                                                 : W == 64 && blocks <= 16 ? "llmx_q8_0_half8_1p"
+                                                 : spans >= 2 && spans <= 5 ? "llmx_q8_0_half8_1h" + std::to_string(spans)
+                                                 : n < from              ? (narrow ? "llmx_q8_0_half8_1s1" : "llmx_q8_0_half8_1")
+                                                 : narrow                ? "llmx_q8_0_half8_1r2s1"
+                                                 : blocks >= four        ? "llmx_q8_0_half8_1r2s4"
+                                                                         : "llmx_q8_0_half8_1r2";
+                        const std::string what = "a Q8_0 decode row " + std::to_string(nin) + " wide, " + std::to_string(n) + " outputs from " + std::to_string(from) + ", " + dtype_name(dt) +
+                                                 (xv == &periodic ? ", periodic twin" : "");
+                        require(ran == want, what + " runs " + want + " (ran " + ran + ")");
+                        bool ok = true;
+                        for (size_t o = 0; o < n; ++o) {
+                            const float h = q8_row_host(w.data() + o * blocks * 34, d, q, blocks, half, W);
+                            ok = ok && std::memcmp(&h, &y[o], 4) == 0;
+                        }
+                        require(ok, what + ": every row the one-row build's bits");
+                        bool zero = true;
+                        for (size_t o = 0; o < std::min<size_t>(n, 2); ++o) zero = zero && y[o] == 0.0f && !std::signbit(y[o]);
+                        require(zero, what + ": the zero rows are +0");
+                        if (xv == &periodic && n > 2 && blocks % 2 == 0) require(y[2] == 0.0f && !std::signbit(y[2]), what + ": the cancelling row is +0");
+                    }
+                }
+            }
+        }
+    }
+
+    // One MXFP4 decode row on the host in the order every MXFP4 row kernel keeps: four units a block of eight values, unit u's terms chained in accumulator u % W.
+    // W is the power of two covering the units, at most the wave, and the accumulators are summed by the xor tree from W / 2.
+    float mxfp4_row_host(const uint8_t* row, const std::vector<float>& d, const int16_t* q, size_t blocks, unsigned wave) {
+        unsigned W = 1;
+        while (W < wave && W < blocks * 4) W *= 2;
+        std::vector<float> acc(W, 0.0f);
+        for (size_t u = 0; u < blocks * 4; ++u) {
+            const size_t b = u / 4, t = u % 4;
+            const uint8_t* block = row + b * 17;
+            int s = 0;
+            for (size_t j = 8 * t; j < 8 * t + 8; ++j) s += quant::FP4_VALUES[j < 16 ? block[1 + j] & 15 : block[1 + j - 16] >> 4] * q[b * 32 + j];
+            const uint32_t bits = block[0] <= 1 ? 0x00200000u << block[0] : uint32_t(block[0] - 1) << 23;
+            float ds;
+            std::memcpy(&ds, &bits, 4);
+            acc[u % W] = std::fmaf(d[b], ds * float(s), acc[u % W]);
+        }
+        for (unsigned m = W / 2; m; m /= 2) {
+            std::vector<float> next(W);
+            for (unsigned l = 0; l < W; ++l) next[l] = acc[l] + acc[l ^ m];
+            acc = next;
+        }
+        return acc[0];
+    }
+
+    // A Q8_0 int8 decode call of 9 to 16 columns against each column computed alone, bit for bit, by the kernels it ran.
+    // Sixteen columns take the half-block build of four rows a wave once its waves give each compute unit row_four_waves_per_cu, from the rule's edge on, and the two-row build below it; 9 to 15 columns keep their own builds.
+    void q8_columns_bits(Backend& g) {
+        const size_t nin = 1024, edge = size_t(4) * profile_of(g).row_four_waves_per_cu * caps.compute_units;
+        const uint32_t waves = profile_of(g).row_four_waves_per_cu;
+        // The rule is rows_a_cluster at a whole subgroup and a cap of four.
+        require(rows_a_cluster(caps, edge - 1, caps.subgroup_size, 4, waves) < 4 && rows_a_cluster(caps, edge, caps.subgroup_size, 4, waves) == 4,
+                "rows_a_cluster at a whole subgroup takes four rows from row_build's edge on and fewer one row below it");
+        const size_t big = std::max<size_t>(edge, 4097);
+        const std::vector<uint8_t> w = q8_matrix(nin, big, 27);
+        auto wb = g.adopt(w.data(), w.size());
+        const std::vector<float> x = row_classes::values(nin * 16, 28);
+        std::vector<BufferPtr> xs;
+        for (size_t c = 0; c < 16; ++c) xs.push_back(g.adopt(x.data() + c * nin, nin * 4));
+        auto xb = g.adopt(x.data(), x.size() * 4), yb = g.alloc(big * 16 * 4);
+        for (const size_t n : {size_t(33), edge - 1, edge, big})
+            for (size_t cols = 9; cols <= 16; ++cols) {
+                if (cols < 16 && n != big) continue;
+                const RowRun rr{cols, 1};
+                launches(g);
+                g.matmul({quant::GGML_TYPE_Q8_0, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, n, cols, {&rr, 1}, Dtype::int8);
+                std::string ran;
+                for (const auto& [k, v] : launches(g))
+                    if (k.rfind("llmx_q8_0", 0) == 0) ran += k;
+                const std::vector<float> y = read(g, *yb, n * cols);
+                const std::string want = "llmx_q8_0_half8_" + std::to_string(cols) + (cols == 16 && n >= edge ? "_r4" : "");
+                const std::string what = "a Q8_0 int8 decode call of " + std::to_string(cols) + " columns, " + std::to_string(n) + " outputs";
+                require(ran == want, what + " runs " + want + " (ran " + ran + ")");
+                bool ok = true;
+                for (size_t c = 0; c < cols; ++c) {
+                    const RowRun one{1, 1};
+                    g.matmul({quant::GGML_TYPE_Q8_0, {wb.get(), 0}}, {xs[c].get(), 0}, {yb.get(), 0}, nin, n, 1, {&one, 1}, Dtype::int8);
+                    const std::vector<float> y1 = read(g, *yb, n);
+                    ok = ok && std::memcmp(y1.data(), y.data() + c * n, n * 4) == 0;
+                }
+                require(ok, what + ": every column the one-column call's bits");
+            }
+    }
+
+    // Every MXFP4 decode build against the host's row bit for bit in both twins: dense rows of 1 to 16 columns, routed entries and the grouped builds of 2, 4 and 8.
+    // The widths take 4 to 1040 units a row, on both sides of 32 and 64, with DeepSeek-V4.1-Flash's 2304 and 5120, a 65-block row, and the quad rows' edges: 15 to 18 and 20 blocks, 256 blocks (the staging loop's two passes) and 260.
+    void mxfp4_decode_bits(Backend& g) {
+        const unsigned wave = caps.subgroup_size;
+        const uint32_t T = quant::GGML_TYPE_MXFP4;
+        const size_t nout = 40, ne = 4, cols = 16, K = 2;
+        size_t quad_runs = 0;
+        for (size_t nin : {size_t(32), size_t(224), size_t(256), size_t(288), size_t(480), size_t(512), size_t(544), size_t(576), size_t(640), size_t(2080), size_t(2304), size_t(5120), size_t(8192), size_t(8320)}) {
+            const size_t blocks = nin / 32, rowb = blocks * 17;
+            // 64 experts of rows, so the routed calls over 64 have them all; the entries pick among the first 4.
+            const std::vector<uint8_t> w = typed_matrix(T, nin, nout * 64, uint32_t(nin + 3));
+            const std::vector<float> x = row_classes::values(nin * cols, uint32_t(nin + 4));
+            std::vector<uint32_t> ids(cols * K);
+            for (size_t c = 0; c < cols; ++c)
+                for (size_t k = 0; k < K; ++k) ids[c * K + k] = uint32_t((c + 3 * k) % ne);
+            const std::vector<float> wts(cols * K, 0.5f);
+            auto wb = g.adopt(w.data(), w.size()), xb = g.adopt(x.data(), x.size() * 4), ib = g.adopt(ids.data(), ids.size() * 4), tb = g.adopt(wts.data(), wts.size() * 4);
+            auto yb = g.alloc(nout * ne * cols * 4);
+            for (Dtype dt : {Dtype::f16, Dtype::int8}) {
+                const float L = dt == Dtype::int8 ? 127.0f : 32767.0f;
+                std::vector<std::vector<float>> d(cols, std::vector<float>(blocks));
+                std::vector<std::vector<int16_t>> q(cols, std::vector<int16_t>(nin));
+                for (size_t c = 0; c < cols; ++c)
+                    for (size_t b = 0; b < blocks; ++b) twin_rule(x.data() + c * nin + b * 32, d[c][b], q[c].data() + b * 32, L);
+                const std::string tw = dt == Dtype::int8 ? "8" : "16", at = std::to_string(nin) + " wide, " + dtype_name(dt);
+                const auto bits = [&](const std::vector<float>& y, const std::vector<std::pair<size_t, size_t>>& rc, const std::string& what) {
+                    bool ok = true;
+                    for (size_t i = 0; ok && i < rc.size(); ++i) {
+                        const float h = mxfp4_row_host(w.data() + rc[i].first * rowb, d[rc[i].second], q[rc[i].second].data(), blocks, wave);
+                        ok = std::memcmp(&h, &y[i], 4) == 0;
+                        if (!ok) std::fprintf(stderr, "  output %zu: %.9g against %.9g\n", i, y[i], h);
+                    }
+                    require(ok, what + ": every output the host row's bits");
+                };
+                // A one-column 8-bit call takes MXFP4's quad rows exactly where the shared rule gives them at the 32-lane cluster a 64-lane wave gives rows of 16 blocks or more (twin_checks.hpp, quad_build).
+                const bool quad = twin_checks::quad_build(quant::GGML_TYPE_MXFP4, dt, nin, wave);
+                const auto ran = [&](const std::string& build, const std::string& quad_build, const std::string& what, bool one_column) {
+                    const auto l = launches(g);
+                    const bool takes = one_column && quad;
+                    require(l.count(takes ? quad_build : build) > 0, what + " runs " + (takes ? quad_build : build));
+                    require(l.count(takes ? build : quad_build) == 0, what + " does not run " + (takes ? build : quad_build));
+                    quad_runs += takes;
+                };
+                for (size_t n : {size_t(1), size_t(2), size_t(3), size_t(5), size_t(9), size_t(16)}) {
+                    const RowRun rr{n, 1};
+                    launches(g);
+                    g.matmul({T, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout * ne, n, {&rr, 1}, dt);
+                    const std::string what = "MXFP4 decode rows " + at + ", " + std::to_string(n) + " columns";
+                    ran("llmx_mxfp4_rows" + tw + "_" + std::to_string(n <= 1 ? 1 : n <= 2 ? 2 : n <= 4 ? 4 : n <= 8 ? 8 : 16), "llmx_mxfp4_quad_rows8_1", what, n == 1);
+                    std::vector<std::pair<size_t, size_t>> rc;
+                    for (size_t c = 0; c < n; ++c)
+                        for (size_t o = 0; o < nout * ne; ++o) rc.push_back({o, c});
+                    bits(read(g, *yb, nout * ne * n), rc, what);
+                }
+                // 64 experts keep the entries below the grouped builds' break-even; over 4 the average entries an expert pick g2, g4 and g8.
+                const std::pair<size_t, size_t> cases[] = {{64, 1}, {64, 6}, {4, 1}, {4, 6}, {4, 16}};
+                for (const auto& [n_expert, n] : cases) {
+                    const RowRun rr{n, 1};
+                    const Backend::Routing routing{{ib.get(), 0}, {tb.get(), 0}, K, n_expert};
+                    launches(g);
+                    g.matmul_experts({Projection{{T, {wb.get(), 0}}, {yb.get(), 0}, nout}}, {xb.get(), 0}, nin, n, routing, {&rr, 1}, dt);
+                    const size_t avg = n * K / std::min(n_expert, n * K);
+                    const std::string build = "llmx_mxfp4_routed" + tw + (n_expert == 64 ? "" : avg <= 2 ? "_g2" : avg <= 4 ? "_g4" : "_g8");
+                    const std::string what = "MXFP4 routed decode " + at + ", " + std::to_string(n) + " columns over " + std::to_string(n_expert) + " experts";
+                    ran(build, "llmx_mxfp4_quad_routed8", what, n_expert == 64);
+                    std::vector<std::pair<size_t, size_t>> rc;
+                    for (size_t e = 0; e < n * K; ++e)
+                        for (size_t o = 0; o < nout; ++o) rc.push_back({ids[e] * nout + o, e / K});
+                    bits(read(g, *yb, nout * n * K), rc, what);
+                }
+            }
+        }
+        require(wave != 64 || quad_runs > 0, "MXFP4 decode takes the quad rows on a 64-lane wave");
+    }
+};
 
 } // namespace twin_checks

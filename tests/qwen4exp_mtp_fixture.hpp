@@ -48,7 +48,7 @@ struct Fixture {
     Fixture(bool split, int compression, bool group_capable = false, bool ple = false,
             size_t trunk_layers = 2, size_t group_width = 2) {
         using namespace infer::qwen4exp;
-        if (trunk_layers != 2 && trunk_layers != 3) throw std::runtime_error("Flash fixture supports two or three trunk layers");
+        if (trunk_layers < 2 || trunk_layers > 4) throw std::runtime_error("Flash fixture supports two to four trunk layers");
         c.n_layer = int(trunk_layers); c.n_nextn = 1; c.n_embd = E;
         c.n_expert = 2; c.n_expert_used = 1; c.n_ff_exp = 4; c.n_ff_shexp = 4;
         c.n_head = 1; c.n_head_kv = 1; c.head_dim = E; c.rope_dim = 2; c.context_length = 64;
@@ -59,9 +59,11 @@ struct Fixture {
             c.n_head = c.n_head_kv = c.k_heads = int(group_width);
             c.v_heads = int(group_width); c.v_dim = 4 / int(group_width);
         }
-        c.layers = trunk_layers == 2 ? std::vector<LayerKind>{linear_attention, qwen_sparse_attention}
-                                     : std::vector<LayerKind>{linear_attention, qwen_sparse_attention, linear_attention};
-        c.compress_ratios = trunk_layers == 2 ? std::vector<int>{0, 2} : std::vector<int>{0, 2, 0};
+        // Linear and sparse attention alternate, the sparse layers compressed.
+        for (size_t l = 0; l < trunk_layers; ++l) {
+            c.layers.push_back(l % 2 ? qwen_sparse_attention : linear_attention);
+            c.compress_ratios.push_back(l % 2 ? 2 : 0);
+        }
         c.rope_sections = {1, 0, 0, 0}; c.rope_theta = 10000.0f;
         c.indexer_n_heads = 1; c.indexer_head_dim = E; c.indexer_budget = 4; c.indexer_compress_ratio = 2;
         c.nextn_compress_ratio = compression; c.hc_count = H; c.hc_low_rank = 2;

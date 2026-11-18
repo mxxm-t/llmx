@@ -406,7 +406,7 @@ void exact_close(const std::vector<float>& got, const DoubleSums& d, const std::
 // The descriptor table's types at Flash-Next's shapes: embeddings the CPU's rows bit for bit, exact products of the CPU and the device within the F32 bound of a double sum, and a row of a call the row alone.
 void types(Backend& g, Backend& c) {
     const uint32_t kinds[] = {quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0,
-                              quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_BF16, quant::GGML_TYPE_F16, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4};
+                              quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_BF16, quant::GGML_TYPE_F16, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4, quant::GGML_TYPE_NVFP4};
     for (uint32_t type : kinds) {
         const std::string name = quant::storage_type(type)->name;
         require(g.supports_type(type), name + " is supported");
@@ -480,7 +480,7 @@ moe_checks::Moe& moe() {
 }
 void exact_rows(Backend& g) {
     twin_checks::exact_rows(g, {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0,
-                               quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_BF16, quant::GGML_TYPE_F16, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4},
+                               quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_BF16, quant::GGML_TYPE_F16, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4, quant::GGML_TYPE_NVFP4},
                             rocm_take_launches, require);
 }
 void twin_types(Backend& g, Backend& c) {
@@ -3586,6 +3586,7 @@ int main(int argc, char** argv) {
             bits().q8_decode_bits(*g);
             bits().q8_columns_bits(*g);
             bits().mxfp4_decode_bits(*g);
+            twin_checks::nvfp4_scales(*g, *c, rocm_take_launches, require);
             std::cout << (failures ? "backend-rocm types: FAIL\n" : "backend-rocm types: PASS\n");
             return failures ? 1 : 0;
         }
@@ -3600,6 +3601,7 @@ int main(int argc, char** argv) {
         bits().q8_decode_bits(*g);
         bits().q8_columns_bits(*g);
         bits().mxfp4_decode_bits(*g);
+        twin_checks::nvfp4_scales(*g, *c, rocm_take_launches, require);
         attention(*g, *c);
         classes(*g);
         twin_checks::twin_products(*g, rocm_device(0).caps, Dtype::f16, rocm_take_launches, require);

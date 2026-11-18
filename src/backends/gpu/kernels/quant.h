@@ -124,6 +124,22 @@ struct MXFP4 {
     }
 };
 
+// Half an unsigned E4M3 scale for the doubled E2M1 codes, as quant::nvfp4_scale gives it: subnormal at exponent 0, and the reserved byte 127 zero.
+__device__ inline float e4m3_half(unsigned s) {
+    const unsigned e = (s >> 3) & 15, m = s & 7;
+    if (s == 127) return 0.0f;
+    return e ? __uint_as_float(((e + 119) << 23) | (m << 20)) : (float)m * (1.0f / 1024.0f);
+}
+
+// Four scales, then four groups of eight bytes, each byte's low nibble a value of the group's first eight and its high nibble one of its last eight (quant::dequantize_row_nvfp4).
+struct NVFP4 {
+    static constexpr unsigned values = quant::NVFP4_BLOCK, bytes = quant::NVFP4_TYPESIZE;
+    __device__ static float value(const unsigned char* b, int j) {
+        const int g = j >> 4, packed = b[4 + 8 * g + (j & 7)];
+        return e4m3_half(b[g]) * (float)GPU_TABLE(quant::FP4_VALUES)[j & 8 ? packed >> 4 : packed & 15];
+    }
+};
+
 } // namespace rq
 
 // The activation twin's rule, which every producer of a twin in both modules takes (docs/src/backends-gpu.md).

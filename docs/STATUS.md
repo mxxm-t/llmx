@@ -683,6 +683,13 @@ This stack did not land alone: it lands with land-20261119 on main ce2b0603b as 
   The same epilogue in the one-row-a-wave form the held builds take (gate row o and up row o in different waves, sums through LDS) gives 12.82 on 0.6B int8 at 16 waves a block and 270.6 against 234.8 on the 27B shape at 8, so the loss is not the two-row form.
   It needs a build a weight family, class and row form, and the Qwen3.5 and 27B Q4_K_M files' gate and up are not Q8_0, for at most about 1 percent of a 0.6B pass at the default dtype, so it is not built.
 
+## ROCm weight-type gap fill (2026-11-18, ROCGAP8, branch rocm/nvfp4 on main a274cfd62)
+
+- **Goal:** the GPU core's descriptor table (`kTypes`, `src/backends/gpu/backend_core.hpp`) reads every weight type the CPU and Vulkan read, so ROCm and CUDA refuse none of them: NVFP4 first, then Q3_K, Q2_K and IQ4_XS, which released GGUFs use, then the IQ2 and IQ3 types, IQ1, TQ, Q1_0, Q2_0 and F8_E4M3.
+- **Done:** NVFP4 as an exact family under its tensor's F32 scales, replayed from the MiniMax stack's step 7f (26f09598) onto main (MiniMax-M3.1, step 8 records it).
+- **Left:** NVFP4's `backend-rocm types` on one MI50, which waits for the cards; then the next types in the order of the goal, each with raw-block checks and device checks.
+- **Gotchas:** every type in `kTypes` must be Supported in README's ROCm column, which the `docs` component's readme check holds, so README changes with the table.
+
 ## Safetensors FP8 skip on devices without F8_E4M3 (2026-11-18, FP8R1, branch fix/safetensors-rocm-fp8 on main a274cfd62)
 
 - Goal: the suite's `safetensors` component failed on `--device rocm:0`, since ROCm refuses the FP8 fixtures' F8_E4M3 linears at load and `fp8_checks` asserted the exit status without asking `common.device_lacks_kernel`.
@@ -2371,6 +2378,12 @@ Gotchas: a kernel without `__launch_bounds__` is compiled for 1024 lanes and cap
    `sparse_attention` takes id groups and blocks on ROCm and CUDA through `slot_ids` and `slot_token`, the sparse builds' one walk, where one group of single positions is the ids as before; it builds for ROCm with no error, backend-rocm passes on one MI50 and sparse-attention passes 409012 checks on rocm:0, and the CUDA build has 0 errors, the gpu-core test passes and the sparse walk adds no spill (hosted run 43758853094 on gate/minimax-step7 succeeded, the amend after it changing only this line).
    Left for the GPU core: sigmoid routing, after 7a.
 8. ROCm: NVFP4 as its own step under the ROCm backend owner, then the step 4 ops; the int8 arm matched to the reference's 8-bit activations, auto beside it.
+   7f (MMX20, MMX21): NVFP4 runs on the GPU core as an exact family with no twin, so every `--dtype` takes its exact F32 product, wider than asked, as BF16 does.
+   `rq::NVFP4` and `ExactNVFP4` decode as the CPU does and round again after the tensor's F32 factor, and `llmx_gather_nvfp4`, `llmx_matmul_nvfp4`, `llmx_matmul_rows_nvfp4` and `llmx_routed_nvfp4` take the weight's scales after the exact family's arguments.
+   Checks: `backend-rocm types` and `backend-cuda` run `nvfp4_scales` (rows under four factors the CPU's bits, scaled products in the F32, F16 and int8 classes the F32 product of those rows, routed entries per expert, Q8_0 scales refused, each of the four kernels seen running).
+   The step was built on the MiniMax stack at 26f09598, where `nvfp4_scales` passed on one MI50 and the CUDA kernels compiled with 0 spills on sm_80 to sm_120; on main it lands as `rocm/nvfp4` under the ROCm gap fill (ROCGAP8), its device check waiting for the cards.
+   README's ROCm Supported rests on `nvfp4_scales` alone; step 8's whole-model run of the MiniMax file on ROCm is where it meets HF.
+   No perf claim, since nothing was timed; next on the GPU core are the F16 prompt tile (`TypeKernels.half`) and a 16-bit or int8 twin only if MiniMax's expert shapes pay for it.
 9. CUDA after the CUDA stream's MoE and BF16, on a rented card through COORD; DSpark, serving, tensor groups and vision later.
 
 **Gotchas.**

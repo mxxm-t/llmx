@@ -282,6 +282,7 @@ void bench(Backend& g) {
 void types(const CudaDevice& d, Backend& g, Backend& cpu) {
     const std::vector<uint32_t> quants = {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4};
     guarded("exact_rows", [&] { twin_checks::exact_rows(g, {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_BF16, quant::GGML_TYPE_F16, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4}, cuda_take_launches, require); });
+    guarded("nvfp4_scales", [&] { twin_checks::nvfp4_scales(g, cpu, cuda_take_launches, require); });
     guarded("twin_products", [&] { twin_checks::twin_products(g, d.caps, Dtype::f16, cuda_take_launches, require); });
     guarded("twin_products int8", [&] { twin_checks::twin_products(g, d.caps, Dtype::int8, cuda_take_launches, require); });
     guarded("imma_tile", [&] { imma_tile(g, d.caps); });

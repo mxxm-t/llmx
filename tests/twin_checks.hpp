@@ -1265,4 +1265,77 @@ inline void kernel_times(Backend& timed, Backend& plain, const Launches& launche
     }
 }
 
+// NVFP4 under its tensor's F32 scales, which every class takes through the exact family (kernels/f32.gpu, ExactNVFP4), at MiniMax-M3.1-Flash's expert width.
+// Embeddings are the CPU's rows bit for bit; a product is the F32 product of those rows bit for bit, one row and several, in every class; a routed entry is its expert's one-row product, one factor or one an expert.
+inline void nvfp4_scales(Backend& g, Backend& c, const Launches& launches, const Require& require) {
+    const uint32_t T = quant::GGML_TYPE_NVFP4;
+    const size_t nin = 3072, nout = 96, ne = 4, K = 2, cols = 5;
+    // Every scale byte occurs, 0, 127 and those with the top bit among them, since the seeded bytes fill each block's four scales.
+    const std::vector<uint8_t> w = typed_matrix(T, nin, ne * nout, 61);
+    const std::vector<float> factors = {0.0123457f, 3.14159274f, 1.0f, -0.70710677f}, one = {0.0123457f};
+    const std::vector<float> x = row_classes::values(nin * cols, 67);
+    const size_t eb = quant::row_bytes(T, nin, nout);
+    auto gw = g.adopt(w.data(), w.size()), gs = g.adopt(factors.data(), ne * 4), g1 = g.adopt(one.data(), 4), gx = g.adopt(x.data(), x.size() * 4);
+    auto cw = c.adopt(w.data(), w.size()), cs = c.adopt(factors.data(), ne * 4);
+    std::vector<uint32_t> every(nout);
+    for (size_t i = 0; i < nout; ++i) every[i] = uint32_t(i);
+    std::vector<std::vector<float>> rows(ne);
+    std::map<std::string, size_t> ran;
+    const auto note = [&] {
+        for (const auto& [name, n] : launches(g)) ran[name] += n;
+    };
+    note();
+    ran.clear();
+    for (size_t e = 0; e < ne; ++e) {
+        const std::string at = "NVFP4 expert " + std::to_string(e) + " under factor " + std::to_string(factors[e]);
+        const WeightView cv{T, {cw.get(), e * eb / 4}, {cs.get(), e}, 1}, gv{T, {gw.get(), e * eb / 4}, {gs.get(), e}, 1};
+        auto ce = c.alloc(nout * nin * 4), ge = g.alloc(nout * nin * 4);
+        c.embed({ce.get(), 0}, cv, nin, nout, every.data(), nout);
+        g.embed({ge.get(), 0}, gv, nin, nout, every.data(), nout);
+        note();
+        rows[e] = read(c, *ce, nout * nin);
+        require(!std::memcmp(rows[e].data(), read(g, *ge, nout * nin).data(), nout * nin * 4), "a scaled " + at + " embedding gives the CPU's rows, bit for bit");
+        auto fw = g.adopt(rows[e].data(), nout * nin * 4), want = g.alloc(nout * cols * 4), got = g.alloc(nout * cols * 4);
+        for (size_t n : {size_t(1), cols}) {
+            g.matmul({quant::GGML_TYPE_F32, {fw.get(), 0}}, {gx.get(), 0}, {want.get(), 0}, nin, nout, n, {}, Dtype::f32);
+            const std::vector<float> f = read(g, *want, nout * n);
+            for (Dtype dt : {Dtype::f32, Dtype::f16, Dtype::int8}) {
+                note();
+                g.matmul(gv, {gx.get(), 0}, {got.get(), 0}, nin, nout, n, {}, dt);
+                note();
+                require(!std::memcmp(f.data(), read(g, *got, nout * n).data(), nout * n * 4),
+                        "a scaled " + at + " product of " + std::to_string(n) + " rows in " + dtype_name(dt) + " is the F32 product of its decoded rows, bit for bit");
+            }
+        }
+    }
+    std::vector<uint32_t> ids(cols * K);
+    for (size_t r = 0; r < cols; ++r)
+        for (size_t k = 0; k < K; ++k) ids[r * K + k] = uint32_t((r + 3 * k) % ne);
+    const std::vector<float> wts(cols * K, 0.5f);
+    auto gi = g.adopt(ids.data(), ids.size() * 4), gt = g.adopt(wts.data(), wts.size() * 4), gy = g.alloc(cols * K * nout * 4), gd = g.alloc(nout * 4);
+    const Backend::Routing routing{{gi.get(), 0}, {gt.get(), 0}, K, ne};
+    for (size_t count : {ne, size_t(1)}) {
+        const std::string at = count == 1 ? "one factor" : "a factor an expert";
+        g.matmul_experts({Projection{{T, {gw.get(), 0}, {count == 1 ? g1.get() : gs.get(), 0}, count}, {gy.get(), 0}, nout}}, {gx.get(), 0}, nin, cols, routing, {}, Dtype::f16);
+        note();
+        const std::vector<float> y = read(g, *gy, cols * K * nout);
+        for (size_t e = 0; e < cols * K; ++e) {
+            const size_t id = ids[e];
+            g.matmul({T, {gw.get(), id * eb / 4}, {count == 1 ? g1.get() : gs.get(), count == 1 ? 0 : id}, 1}, {gx.get(), e / K * nin}, {gd.get(), 0}, nin, nout, 1, {}, Dtype::f32);
+            require(!std::memcmp(y.data() + e * nout, read(g, *gd, nout).data(), nout * 4), "routed NVFP4 entry " + std::to_string(e) + " under " + at + " is its expert's one-row product, bit for bit");
+        }
+    }
+    bool refused = false;
+    try {
+        const std::vector<uint8_t> q = typed_matrix(quant::GGML_TYPE_Q8_0, nin, nout, 71);
+        auto qw = g.adopt(q.data(), q.size());
+        g.matmul({quant::GGML_TYPE_Q8_0, {qw.get(), 0}, {g1.get(), 0}, 1}, {gx.get(), 0}, {gd.get(), 0}, nin, nout, 1, {}, Dtype::f32);
+    } catch (const std::exception&) {
+        refused = true;
+    }
+    require(refused, "weight scales on a Q8_0 matrix are refused, as the CPU refuses them");
+    for (const char* k : {"llmx_gather_nvfp4", "llmx_matmul_nvfp4", "llmx_matmul_rows_nvfp4", "llmx_routed_nvfp4"})
+        require(ran.count(k) > 0, std::string("the NVFP4 checks ran ") + k);
+}
+
 } // namespace twin_checks

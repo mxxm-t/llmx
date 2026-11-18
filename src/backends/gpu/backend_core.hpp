@@ -653,21 +653,21 @@ public:
         return halves + form + twins + (dev_.caps.integer_dot ? std::string(" rows, and tiles on the ") + (dtype == Dtype::int8 ? "8" : "16") + "-bit dot), f32 (" : " rows and tiles), f32 (") + exact + ")";
     }
     void embed(Slice dst, WeightView weight, size_t nin, size_t nrows, const uint32_t* ids, size_t count) override {
-        const TypeKernels& kinds = check_weight(weight, nin, "embedding");
+        const TypeKernels& kinds = check_weight(weight, nin, "embedding", 1);
         if (!count) return;
         if (nrows > UINT32_MAX) throw std::runtime_error(Api::prefix + "an embedding of more rows than 32-bit ids name");
         span(*weight.data.buffer, weight.data.offset * sizeof(float), quant::row_bytes(weight.type, nin, nrows));
-        gather(kinds.embed, dst, bytes(weight.data), nin, (const unsigned*)arg(ids, count * sizeof(uint32_t)), count, nrows);
+        gather(kinds.embed, dst, bytes(weight.data), nin, (const unsigned*)arg(ids, count * sizeof(uint32_t)), count, nrows, kinds.scaled, scales(weight));
     }
     // embed's gather with the ids read where the device holds them; the kernel writes a zero row for an id of `nrows` or more.
     void embed_ids(Slice dst, WeightView weight, size_t nin, size_t nrows, CSlice ids, size_t count) override {
-        const TypeKernels& kinds = check_weight(weight, nin, "embedding");
+        const TypeKernels& kinds = check_weight(weight, nin, "embedding", 1);
         if (!count) return;
         if (nrows > UINT32_MAX) throw std::runtime_error(Api::prefix + "an embedding of more rows than 32-bit ids name");
         if (!ids.buffer) throw std::runtime_error(Api::prefix + "operand without storage");
         span(*weight.data.buffer, weight.data.offset * sizeof(float), quant::row_bytes(weight.type, nin, nrows));
         span(*ids.buffer, ids.offset * sizeof(float), size_mul(count, sizeof(float)));
-        gather(kinds.embed, dst, bytes(weight.data), nin, (const unsigned*)f32(ids), count, nrows);
+        gather(kinds.embed, dst, bytes(weight.data), nin, (const unsigned*)f32(ids), count, nrows, kinds.scaled, scales(weight));
     }
     // For each row of `n` logits the id of the largest (Backend::argmax_rows), in slices of the profile's argmax_slice ids merged a row; no ids is refused, as Vulkan refuses it.
     void argmax_rows(Slice ids, CSlice logits, size_t rows, size_t n, CSlice after = {}) override {
@@ -2226,12 +2226,12 @@ private:
     // The F32 module's kernels, then from kRows16x1 the int16 module's, which only read twins.
     enum Kernel { kAdd, kCopy, kSiluMul, kSiluMulTwin16, kSiluMulTwin8, kRmsNorm, kRmsNorm16, kRmsNorm16Twin16, kRmsNorm16Twin8, kRmsNorm32, kRmsNorm32Twin16,
                   kRmsNorm32Twin8, kNormRope, kNormRopeKv, kGather, kGatherQ8, kMatmul, kMatmulQ8, kMatmulQ4K, kGatherQ4K, kMatmulQ5K, kGatherQ5K, kMatmulQ6K,
-                  kGatherQ6K, kMatmulQ50, kGatherQ50, kMatmulQ40, kGatherQ40, kMatmulQ41, kGatherQ41, kMatmulQ51, kGatherQ51, kMatmulBF16, kGatherBF16, kMatmulF16, kGatherF16, kMatmulIQ4NL, kGatherIQ4NL, kMatmulMXFP4, kGatherMXFP4, kKvWrite, kAttentionChunk, kAttentionTile, kAttentionTile256, kAttentionMerge, kAttentionVec,
+                  kGatherQ6K, kMatmulQ50, kGatherQ50, kMatmulQ40, kGatherQ40, kMatmulQ41, kGatherQ41, kMatmulQ51, kGatherQ51, kMatmulBF16, kGatherBF16, kMatmulF16, kGatherF16, kMatmulIQ4NL, kGatherIQ4NL, kMatmulMXFP4, kGatherMXFP4, kMatmulNVFP4, kGatherNVFP4, kKvWrite, kAttentionChunk, kAttentionTile, kAttentionTile256, kAttentionMerge, kAttentionVec,
                   kAttentionVecMerge, kTwin16, kTwin8, kSiluMulTwin16Major, kSiluMulTwin8Major, kRmsNorm16Twin16Major, kRmsNorm16Twin8Major,
                   kRmsNorm32Twin16Major, kRmsNorm32Twin8Major, kAttentionVecMajor, kAttentionVecMergeMajor, kTwin16Major, kTwin8Major, kGroupSum, kGroupTwoShots, kGroupChain, kGroupArm, kGroupAddCheck, kGroupPush, kGroupTake, kSigmoidMul, kGatedRmsNorm, kNormRopeStreams, kCausalConvSilu, kGatedDeltaRule, kGatedDeltaRuleShort, kGroupRmsNorm, kSiluScaled, kMixStreams, kInjectStreams, kSignedSqrtGate, kDilatedConvSiluAdd, kKvIndexPool, kKvIndexScores, kKvIndexSelect, kKvIndexSelectWide, kSparseChunk, kSparseMerge, kSparseVec, kSparseVec256, kSparseVecMerge, kSparseVecMerge256,
                   kAttentionVec256, kAttentionVec256Major, kAttentionVecMerge256, kAttentionVecMerge256Major, kArgmaxSlices, kArgmaxMerge, kArgmaxPart, kArgmaxPick,
-                  kMoeRoute, kMoeCombine, kMoeGroup, kRoutedExactF32, kRoutedExactQ8, kRoutedExactQ4K, kRoutedExactQ5K, kRoutedExactQ6K, kRoutedExactQ50, kRoutedExactQ40, kRoutedExactQ41, kRoutedExactQ51, kRoutedExactBF16, kRoutedExactF16, kRoutedExactIQ4NL, kRoutedExactMXFP4,
-                  kRowsExactF32, kRowsExactQ8, kRowsExactQ4K, kRowsExactQ5K, kRowsExactQ6K, kRowsExactQ50, kRowsExactQ40, kRowsExactQ41, kRowsExactQ51, kRowsExactBF16, kRowsExactF16, kRowsExactIQ4NL, kRowsExactMXFP4, kSparseVecG4, kSparseVec256G4, kColsF32x2, kColsF32x4, kMoeStepRoute,
+                  kMoeRoute, kMoeCombine, kMoeGroup, kRoutedExactF32, kRoutedExactQ8, kRoutedExactQ4K, kRoutedExactQ5K, kRoutedExactQ6K, kRoutedExactQ50, kRoutedExactQ40, kRoutedExactQ41, kRoutedExactQ51, kRoutedExactBF16, kRoutedExactF16, kRoutedExactIQ4NL, kRoutedExactMXFP4, kRoutedExactNVFP4,
+                  kRowsExactF32, kRowsExactQ8, kRowsExactQ4K, kRowsExactQ5K, kRowsExactQ6K, kRowsExactQ50, kRowsExactQ40, kRowsExactQ41, kRowsExactQ51, kRowsExactBF16, kRowsExactF16, kRowsExactIQ4NL, kRowsExactMXFP4, kRowsExactNVFP4, kSparseVecG4, kSparseVec256G4, kColsF32x2, kColsF32x4, kMoeStepRoute,
                   kHcCoeffsCollapse, kHcExpand, kModelFormatQdq, kTopkRows, kCompressPool, kIndexerScores, kIndexerScoresTile, kIndexerScoresInt, kRawIndexScores, kPoolWrite, kSparseScoresFew16, kSparseValuesFew16, kSparseScoresFew8, kSparseValuesFew8, kSparseScoresFew4, kSparseValuesFew4, kSparseScoresFew2, kSparseValuesFew2, kSparseScoresFew32, kSparseValuesFew16x2, kSparseScoresTile, kSparseValuesTile, kRouteSqrtSoftplus, kRouteStepF32, kRouteStepBF16,
 
                   kNormRopeForm, kDeltaStep, kMixRows, kLayerNormRows, kGelu, kAddBias,
@@ -2253,12 +2253,12 @@ private:
                                                            "llmx_gather_q4_0", "llmx_matmul_q4_1",
                                                            "llmx_gather_q4_1", "llmx_matmul_q5_1", "llmx_gather_q5_1", "llmx_matmul_bf16", "llmx_gather_bf16",
                                                            "llmx_matmul_f16", "llmx_gather_f16",
-                                                           "llmx_matmul_iq4_nl", "llmx_gather_iq4_nl", "llmx_matmul_mxfp4", "llmx_gather_mxfp4", "llmx_kv_write",
+                                                           "llmx_matmul_iq4_nl", "llmx_gather_iq4_nl", "llmx_matmul_mxfp4", "llmx_gather_mxfp4", "llmx_matmul_nvfp4", "llmx_gather_nvfp4", "llmx_kv_write",
                                                            "llmx_attention_chunk", "llmx_attention_tile", "llmx_attention_tile256", "llmx_attention_merge", "llmx_attention_vec", "llmx_attention_vec_merge",
                                                            "llmx_twin16", "llmx_twin8", "llmx_silu_mul_twin16_major", "llmx_silu_mul_twin8_major",
                                                            "llmx_rms_norm_16_twin16_major", "llmx_rms_norm_16_twin8_major", "llmx_rms_norm_32_twin16_major",
                                                            "llmx_rms_norm_32_twin8_major", "llmx_attention_vec_major", "llmx_attention_vec_merge_major",
-                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_group_two_shots", "llmx_group_chain", "llmx_group_arm", "llmx_group_add_check", "llmx_group_push", "llmx_group_take", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_argmax_part", "llmx_argmax_pick", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q4_0", "llmx_routed_q4_1", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_f16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q4_0", "llmx_matmul_rows_q4_1", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_f16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols2_f32", "llmx_matmul_cols4_f32", "llmx_moe_step_route", "llmx_hc_coeffs_collapse", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_indexer_scores_tile", "llmx_indexer_scores_int", "llmx_raw_index_scores", "llmx_pool_write", "llmx_sparse_scores_few16", "llmx_sparse_values_few16", "llmx_sparse_scores_few8", "llmx_sparse_values_few8", "llmx_sparse_scores_few4", "llmx_sparse_values_few4", "llmx_sparse_scores_few2", "llmx_sparse_values_few2", "llmx_sparse_scores_few32", "llmx_sparse_values_few16x2", "llmx_sparse_scores_tile", "llmx_sparse_values_tile", "llmx_route_sqrt_softplus", "llmx_route_step_f32", "llmx_route_step_bf16", "llmx_norm_rope_form", "llmx_delta_step", "llmx_mix_rows", "llmx_layer_norm_rows", "llmx_gelu", "llmx_add_bias", "llmx_q8_0_rows16_1",
+                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_group_two_shots", "llmx_group_chain", "llmx_group_arm", "llmx_group_add_check", "llmx_group_push", "llmx_group_take", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_argmax_part", "llmx_argmax_pick", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q4_0", "llmx_routed_q4_1", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_f16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_routed_nvfp4", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q4_0", "llmx_matmul_rows_q4_1", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_f16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_matmul_rows_nvfp4", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols2_f32", "llmx_matmul_cols4_f32", "llmx_moe_step_route", "llmx_hc_coeffs_collapse", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_indexer_scores_tile", "llmx_indexer_scores_int", "llmx_raw_index_scores", "llmx_pool_write", "llmx_sparse_scores_few16", "llmx_sparse_values_few16", "llmx_sparse_scores_few8", "llmx_sparse_values_few8", "llmx_sparse_scores_few4", "llmx_sparse_values_few4", "llmx_sparse_scores_few2", "llmx_sparse_values_few2", "llmx_sparse_scores_few32", "llmx_sparse_values_few16x2", "llmx_sparse_scores_tile", "llmx_sparse_values_tile", "llmx_route_sqrt_softplus", "llmx_route_step_f32", "llmx_route_step_bf16", "llmx_norm_rope_form", "llmx_delta_step", "llmx_mix_rows", "llmx_layer_norm_rows", "llmx_gelu", "llmx_add_bias", "llmx_q8_0_rows16_1",
 
                                                            "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_2_r4", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_4_r4",
                                                            "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_8_r4", "llmx_q8_0_rows16_16", "llmx_q8_0_tile16", "llmx_q8_0_rows8_1",
@@ -2383,6 +2383,7 @@ private:
         const TwinKernels* twin;
         Kernel cols;   // the few-row builds of the exact product, 2 and 4 rows from here on; kKernels where the type has none
         Kernel half = kKernels;   // the F16 class's prompt tile, which reads the activations rounded to binary16 (half_product); kKernels where the type has none
+        bool scaled = false;      // the exact family takes the weight's scales after its other arguments (kernels/f32.gpu, ExactNVFP4): NVFP4's alone
     };
     static constexpr TypeKernels kTypes[] = {
         {quant::GGML_TYPE_F32, "F32", kMatmul, kRowsExactF32, kGather, kRoutedExactF32, nullptr, kColsF32x2},          {quant::GGML_TYPE_Q8_0, "Q8_0", kMatmulQ8, kRowsExactQ8, kGatherQ8, kRoutedExactQ8, &kQ8Twins, kKernels},
@@ -2393,6 +2394,7 @@ private:
         {quant::GGML_TYPE_Q4_0, "Q4_0", kMatmulQ40, kRowsExactQ40, kGatherQ40, kRoutedExactQ40, &kQ40Twins, kKernels},     {quant::GGML_TYPE_Q4_1, "Q4_1", kMatmulQ41, kRowsExactQ41, kGatherQ41, kRoutedExactQ41, &kQ41Twins, kKernels},
         {quant::GGML_TYPE_IQ4_NL, "IQ4_NL", kMatmulIQ4NL, kRowsExactIQ4NL, kGatherIQ4NL, kRoutedExactIQ4NL, &kIQ4NLTwins, kKernels},
         {quant::GGML_TYPE_MXFP4, "MXFP4", kMatmulMXFP4, kRowsExactMXFP4, kGatherMXFP4, kRoutedExactMXFP4, &kMXFP4Twins, kKernels},
+        {quant::GGML_TYPE_NVFP4, "NVFP4", kMatmulNVFP4, kRowsExactNVFP4, kGatherNVFP4, kRoutedExactNVFP4, nullptr, kKernels, kKernels, true},
     };
     static_assert(kQ8Twins.routed_stream != kKernels && kQ4KTwins.routed_stream != kKernels && kQ5KTwins.routed_stream != kKernels && kQ6KTwins.routed_stream != kKernels && kQ50Twins.routed_stream != kKernels && kQ40Twins.routed_stream != kKernels && kQ41Twins.routed_stream != kKernels && kQ51Twins.routed_stream != kKernels && kIQ4NLTwins.routed_stream != kKernels && kMXFP4Twins.routed_stream != kKernels, "every twin type has its 8-bit routed stream, since its 8-bit routed tiles leave it the groups of up to kStreamRows entries");
     static const TypeKernels* type_kernels(uint32_t type) {
@@ -2789,12 +2791,20 @@ private:
     }
     static float* f32(Slice s) { return (float*)as_gpu<Api>(*s.buffer).data() + s.offset; }
     static const float* f32(CSlice s) { return (const float*)as_gpu<Api>(*s.buffer).data() + s.offset; }
+    // A weight's scales on the device, null without them (check_weight admits them).
+    static const float* scales(const WeightView& w) { return w.scales.buffer ? f32(w.scales) : nullptr; }
     static const uint8_t* bytes(CSlice s) { return (const uint8_t*)as_gpu<Api>(*s.buffer).data() + s.offset * sizeof(float); }
-    // The weights the products and the embedding read: the types of kTypes, decoded exactly into F32 sums, in whole blocks and without scales.
-    static const TypeKernels& check_weight(const WeightView& w, size_t nin, const char* what) {
+    // The weights the products and the embedding read: the types of kTypes, decoded exactly into F32 sums, in whole blocks.
+    // A caller passing `experts` takes a scaled type's scales, one or one an expert, as the CPU's weight_scales admits them; every other caller refuses scales.
+    static const TypeKernels& check_weight(const WeightView& w, size_t nin, const char* what, size_t experts = 0) {
         const TypeKernels* t = type_kernels(w.type);
         if (!t) throw std::runtime_error(std::string(Api::prefix + "an ") + what + " of type " + std::to_string(w.type) + " is not implemented");
-        if (w.scales.buffer) throw std::runtime_error(std::string(Api::prefix + "a scaled ") + what + " is not implemented");
+        if (!w.scales.buffer && (w.scale_count || w.scales.offset)) throw std::runtime_error(Api::prefix + "a weight scale count without storage");
+        if (w.scales.buffer) {
+            if (!t->scaled || !experts) throw std::runtime_error(std::string(Api::prefix + "a scaled ") + what + " is not implemented");
+            if (w.scale_count != 1 && w.scale_count != experts) throw std::runtime_error(Api::prefix + "weight scales neither one nor one an expert");
+            span(*w.scales.buffer, w.scales.offset * sizeof(float), size_mul(w.scale_count, sizeof(float)));
+        }
         if (!w.data.buffer) throw std::runtime_error(std::string(Api::prefix + "an ") + what + " without storage");
         if (nin % quant::storage_type(w.type)->block_size) throw std::runtime_error(std::string(Api::prefix + "a ") + t->name + " " + what + " row ends inside a block");
         return *t;
@@ -2811,7 +2821,7 @@ private:
     }
     void product(const WeightView& weight, CSlice X, Slice Y, size_t nin, size_t nout, size_t nbatch, bool accumulate, RowRuns runs, Dtype dtype,
                  bool twin) {
-        const TypeKernels& kinds = check_weight(weight, nin, "matrix");
+        const TypeKernels& kinds = check_weight(weight, nin, "matrix", 1);
         if (!nin || !nout || !nbatch) return;
         span(*weight.data.buffer, weight.data.offset * sizeof(float), quant::row_bytes(weight.type, nin, nout));
         span(*X.buffer, X.offset * sizeof(float), size_mul(size_mul(nin, nbatch), sizeof(float)));
@@ -2846,11 +2856,13 @@ private:
         } else if (nbatch > 1) {
             // Several rows take the blocked build, each output the bits of its one-row product (kernels/f32.gpu, exact_rows).
             unsigned long long nr = nbatch;
-            const Args args(w, x, y, ni, no, nr, add);
+            Args args(w, x, y, ni, no, nr, add);
+            if (kinds.scaled) args.put(scales(weight));
             launch_writing({{y, size_mul(nout, nbatch)}}, kinds.rows, (unsigned)((nout + kRowsOut - 1) / kRowsOut), (unsigned)((nbatch + kRowsIn - 1) / kRowsIn), args);
         } else {
             // One row takes a wave an output (kernels/f32.gpu, exact_wave).
-            const Args args(w, x, y, ni, no, add);
+            Args args(w, x, y, ni, no, add);
+            if (kinds.scaled) args.put(scales(weight));
             const size_t waves = kThreads / dev_.caps.subgroup_size;
             launch_writing({{y, nout}}, kinds.exact, (unsigned)((nout + waves - 1) / waves), 1, args);
         }
@@ -3168,11 +3180,11 @@ private:
     }
     void routed(const Projection* proj, size_t nproj, CSlice X, size_t nin, size_t xrows, size_t entries, const Routing& routing, size_t per, Dtype dtype, bool tile) {
         const uint32_t type = proj[0].weight.type;
-        const TypeKernels& kinds = check_weight(proj[0].weight, nin, "expert matrix");
+        const TypeKernels& kinds = check_weight(proj[0].weight, nin, "expert matrix", routing.n_expert);
         span(*routing.ids.buffer, routing.ids.offset * sizeof(float), size_mul(entries, sizeof(float)));
         for (size_t p = 0; p < nproj; ++p) {
             if (proj[p].weight.type != type) throw std::runtime_error(Api::prefix + "routed projections of different types");
-            check_weight(proj[p].weight, nin, "expert matrix");
+            check_weight(proj[p].weight, nin, "expert matrix", routing.n_expert);
             span(*proj[p].weight.data.buffer, proj[p].weight.data.offset * sizeof(float), quant::row_bytes(type, nin, size_mul(routing.n_expert, proj[p].rows)));
             span(*proj[p].out.buffer, proj[p].out.offset * sizeof(float), size_mul(size_mul(entries, proj[p].rows), sizeof(float)));
             if (as_gpu<Api>(*proj[p].out.buffer).host_ptr()) throw std::runtime_error(Api::prefix + "a routed product into host memory");
@@ -3274,7 +3286,8 @@ private:
             // An entry's outputs a wave each, as the one-row product takes them (kernels/f32.gpu, exact_wave).
             const size_t waves = kThreads / dev_.caps.subgroup_size;
             for (; r.first < entries; r.first += kGridY) {
-                const Args args(w, x, y, ni, no, r);
+                Args args(w, x, y, ni, no, r);
+                if (kinds.scaled) args.put(scales(proj[p].weight)), args.put((unsigned long long)(proj[p].weight.scale_count == 1 ? 0 : 1));
                 launch_writing({{y, size_mul(proj[p].rows, entries)}}, kinds.routed, (unsigned)((proj[p].rows + waves - 1) / waves), (unsigned)std::min<size_t>(kGridY, entries - r.first), args);
             }
         }
@@ -3466,12 +3479,13 @@ private:
         }
     }
     // Rows `ids` of a table through the type's gather kernel, ids on the device; an id of `nrows` or more gives a zero row.
-    void gather(Kernel k, Slice dst, const void* table, size_t width, const unsigned* ids, size_t count, size_t nrows) {
+    void gather(Kernel k, Slice dst, const void* table, size_t width, const unsigned* ids, size_t count, size_t nrows, bool scaled = false, const float* sc = nullptr) {
         span(*dst.buffer, dst.offset * sizeof(float), size_mul(size_mul(count, width), sizeof(float)));
         float* d = f32(dst);
         unsigned long long w = width;
         unsigned nr = (unsigned)std::min<size_t>(nrows, UINT32_MAX);
-        const Args args(d, table, ids, w, nr);
+        Args args(d, table, ids, w, nr);
+        if (scaled) args.put(sc);
         launch(k, (unsigned)((width + kThreads - 1) / kThreads), (unsigned)count, args);
     }
     // Where a producer writes the twin of its output of `values` floats: once a product has read a twin, in that class, for an output of whole blocks in device memory.

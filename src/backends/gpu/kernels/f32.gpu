@@ -904,7 +904,7 @@ __device__ inline void vector_run(const unsigned char* row, const float* X, unsi
 // One row's outputs, a wave each, wave w of block b taking output b * (256 / the wave) + w: lane t holds chains J t to J t + J - 1 (J = 256 / the wave), each over its units in order.
 // The steps every lane fills go in batches with their loads ahead of their products (vector_run); block_sum's pairs then fold them, levels 128 to J by shuffles and those below J in registers.
 template <class D>
-__device__ inline float exact_sum(const unsigned char* W, const float* X, unsigned long long nin, unsigned long long o) {
+__device__ inline float exact_sum(const unsigned char* W, const float* X, unsigned long long nin, unsigned long long o, D d = {}) {
     constexpr int J = kThreads / kWave;
     const int t = threadIdx.x % kWave;
     const unsigned char* row = W + o * D::row_bytes(nin);
@@ -921,11 +921,11 @@ __device__ inline float exact_sum(const unsigned char* W, const float* X, unsign
     if (!done) {
         for (unsigned long long m = 0; m < full; ++m)
 #pragma unroll
-            for (int j = 0; j < J; ++j) s[j] = D::step(row, X, first + j + m * kThreads, s[j]);
+            for (int j = 0; j < J; ++j) s[j] = d.step(row, X, first + j + m * kThreads, s[j]);
     }
 #pragma unroll
     for (int j = 0; j < J; ++j)
-        if (first + j + full * kThreads < n) s[j] = D::step(row, X, first + j + full * kThreads, s[j]);
+        if (first + j + full * kThreads < n) s[j] = d.step(row, X, first + j + full * kThreads, s[j]);
 #pragma unroll
     for (int h = kThreads / 2; h >= J; h >>= 1)
 #pragma unroll
@@ -938,8 +938,8 @@ __device__ inline float exact_sum(const unsigned char* W, const float* X, unsign
 }
 // exact_sum's output written by the wave's first lane.
 template <class D>
-__device__ inline void exact_row(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long o, int add) {
-    const float s = exact_sum<D>(W, X, nin, o);
+__device__ inline void exact_row(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long o, int add, D d = {}) {
+    const float s = exact_sum<D>(W, X, nin, o, d);
     if (threadIdx.x % kWave == 0) Y[o] = add ? Y[o] + s : s;
 }
 // vector_steps over C rows of X, nin apart: the weights loaded once for all of them, each row's chains stepped as exact_wave steps its one.
@@ -1025,15 +1025,15 @@ __device__ void exact_cols(const unsigned char* W, const float* X, float* Y, uns
     }
 }
 template <class D>
-__device__ void exact_wave(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, int add) {
+__device__ void exact_wave(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, int add, D d = {}) {
     const unsigned long long o = (unsigned long long)blockIdx.x * (kThreads / kWave) + threadIdx.x / kWave;
-    if (o < nout) exact_row<D>(W, X, Y, nin, o, add);
+    if (o < nout) exact_row<D>(W, X, Y, nin, o, add, d);
 }
 // kRowsOut outputs by kRowsIn rows a block, each output the bits of exact_wave: every lane keeps its strided chain for each, folded by block_sum's tree.
 // Sixteen threads an output take the tree's levels 128 to 16 from shared memory and 8 to 1 by shuffles; rows and outputs past the call repeat the last and are not written.
 constexpr int kRowsOut = 8, kRowsIn = 8, kRowsChunk = kThreads / 16;
 template <class D>
-__device__ void exact_rows(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, unsigned long long nrows, int add) {
+__device__ void exact_rows(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, unsigned long long nrows, int add, D d = {}) {
     __shared__ float lds[kRowsChunk][kThreads + 16];
     const unsigned long long o0 = (unsigned long long)blockIdx.x * kRowsOut, b0 = (unsigned long long)blockIdx.y * kRowsIn;
     const unsigned char* rows[kRowsOut];
@@ -1047,7 +1047,7 @@ __device__ void exact_rows(const unsigned char* W, const float* X, float* Y, uns
     for (int o = 0; o < kRowsOut; ++o)
 #pragma unroll
         for (int r = 0; r < kRowsIn; ++r) s[o][r] = 0.0f;
-    D::template parts<kRowsOut, kRowsIn>(rows, x, nin, s);
+    d.template parts<kRowsOut, kRowsIn>(rows, x, nin, s);
     const int t = threadIdx.x, v = t / 16, j = t % 16;
 #pragma unroll
     for (int c0 = 0; c0 < kRowsOut * kRowsIn; c0 += kRowsChunk) {
@@ -1081,11 +1081,14 @@ struct RoutedExact {
     unsigned long long first, per, n_expert, expert_bytes;
 };
 // Entry e = first + blockIdx.y: its expert's rows against X row e / per into Y + e * nout through the one-row build, a wave an output; an entry without an expert writes nothing.
-template <class D> __device__ void routed_exact(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, RoutedExact r) {
+// A product's decoder, the type's alone; NVFP4's takes its weight's factor scales[i] (ExactNVFP4).
+template <class D> __device__ inline D decoder(const float*, unsigned long long) { return D{}; }
+template <class D> __device__ void routed_exact(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, RoutedExact r,
+                                                const float* scales = nullptr, unsigned long long step = 0) {
     const unsigned long long e = r.first + blockIdx.y;
     const unsigned id = r.ids[e];
     if (id >= r.n_expert) return;
-    exact_wave<D>(W + id * r.expert_bytes, X + e / r.per * nin, Y + e * nout, nin, nout, 0);
+    exact_wave<D>(W + id * r.expert_bytes, X + e / r.per * nin, Y + e * nout, nin, nout, 0, decoder<D>(scales, id * step));
 }
 #define LLMX_EXACT(t, ...)                                                                                                                                         \
     extern "C" __global__ void __launch_bounds__(kThreads) llmx_matmul_##t(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, int add) { \
@@ -1105,7 +1108,7 @@ LLMX_COLS(f32, 2, ExactF32)
 LLMX_COLS(f32, 4, ExactF32)
 
 // Rows of a table of type T decoded: dst row i = table row ids[i], `width` floats each, and a zero row for an id of `nrows` or more; offsets are 64-bit, since a lookup table passes 4 GiB.
-template <class T> __device__ void gather_decoded(float* dst, const unsigned char* table, const unsigned* ids, unsigned long long width, unsigned nrows) {
+template <class T> __device__ void gather_decoded(float* dst, const unsigned char* table, const unsigned* ids, unsigned long long width, unsigned nrows, float factor = 1.0f) {
     const unsigned long long i = blockIdx.y, j = (unsigned long long)blockIdx.x * kThreads + threadIdx.x;
     if (j >= width) return;
     const unsigned id = ids[i];
@@ -1114,7 +1117,9 @@ template <class T> __device__ void gather_decoded(float* dst, const unsigned cha
         return;
     }
     const unsigned char* row = table + (unsigned long long)id * (width / T::values) * T::bytes;
-    dst[i * width + j] = T::value(row + j / T::values * T::bytes, (int)(j % T::values));
+    const float v = T::value(row + j / T::values * T::bytes, (int)(j % T::values));
+    if constexpr (__is_same(T, rq::NVFP4)) dst[i * width + j] = v * factor;
+    else dst[i * width + j] = v;
 }
 
 #define LLMX_DECODED(t, T) \
@@ -1133,6 +1138,47 @@ LLMX_DECODED(bf16, BF16)
 LLMX_DECODED(f16, F16)
 LLMX_DECODED(iq4_nl, IQ4_NL)
 LLMX_DECODED(mxfp4, MXFP4)
+
+// NVFP4's values with the tensor's F32 factor, each rounded after the decode and again after the factor, as the CPU's float_rows rounds them; the factor is 1 without weight scales.
+struct ExactNVFP4 : ExactDecoded<rq::NVFP4> {
+    float factor = 1.0f;
+    __device__ float value(const unsigned char* row, unsigned long long u) const { return rq::NVFP4::value(row + u / rq::NVFP4::values * rq::NVFP4::bytes, (int)(u % rq::NVFP4::values)) * factor; }
+    __device__ float step(const unsigned char* row, const float* x, unsigned long long u, float s) const { return fmaf(value(row, u), x[u], s); }
+    template <int O, int R> __device__ void parts(const unsigned char* const* rows, const float* const* x, unsigned long long nin, float (&s)[O][R]) const {
+        for (unsigned long long i = threadIdx.x; i < nin; i += kThreads) {
+            float w[O], v[R];
+#pragma unroll
+            for (int o = 0; o < O; ++o) w[o] = value(rows[o], i);
+#pragma unroll
+            for (int r = 0; r < R; ++r) v[r] = x[r][i];
+#pragma unroll
+            for (int o = 0; o < O; ++o)
+#pragma unroll
+                for (int r = 0; r < R; ++r) s[o][r] = fmaf(w[o], v[r], s[o][r]);
+        }
+    }
+};
+template <> __device__ inline ExactNVFP4 decoder<ExactNVFP4>(const float* scales, unsigned long long i) {
+    ExactNVFP4 d;
+    if (scales) d.factor = scales[i];
+    return d;
+}
+// NVFP4's exact family takes its weight's scales after the other types' arguments, null without them; a routed call's are one an expert `step` apart, step 0 for one factor.
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_matmul_nvfp4(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, int add,
+                                                                         const float* scales) {
+    exact_wave<ExactNVFP4>(W, X, Y, nin, nout, add, decoder<ExactNVFP4>(scales, 0));
+}
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_routed_nvfp4(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, RoutedExact r,
+                                                                         const float* scales, unsigned long long step) {
+    routed_exact<ExactNVFP4>(W, X, Y, nin, nout, r, scales, step);
+}
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_matmul_rows_nvfp4(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout,
+                                                                              unsigned long long nrows, int add, const float* scales) {
+    exact_rows<ExactNVFP4>(W, X, Y, nin, nout, nrows, add, decoder<ExactNVFP4>(scales, 0));
+}
+extern "C" __global__ void llmx_gather_nvfp4(float* dst, const unsigned char* table, const unsigned* ids, unsigned long long width, unsigned nrows, const float* scales) {
+    gather_decoded<rq::NVFP4>(dst, table, ids, width, nrows, scales ? scales[0] : 1.0f);
+}
 
 extern "C" __global__ void llmx_gather_q8_0(float* dst, const unsigned char* table, const unsigned* ids, unsigned long long width, unsigned nrows) {
     gather_decoded<rq::Q8_0>(dst, table, ids, width, nrows);

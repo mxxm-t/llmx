@@ -843,13 +843,13 @@
     let message = S.messages.find(m => m.id === id); const seen = new Set();
     while (message && message.role !== 'user' && !seen.has(message.id)) { seen.add(message.id); message = S.messages.find(m => m.id === message.parent_id); }
     if (!message) throw new Error('The original user message could not be found.');
-    const chatId = S.chat.id, generation = S.generation;
-    const isCurrentView = () => S.chat?.id === chatId && S.generation === generation;
+    const chatId = S.chat.id;
     await api('/chats/' + encodeURIComponent(chatId) + '/runs', 'POST', {regenerate: true, parent_id: message.id, settings: settings()});
     admitted(chatId);
-    if (!isCurrentView()) return;
+    if (S.chat?.id !== chatId) return;
+    const generation = S.generation;
     await syncSnapshot(chatId);
-    if (!isCurrentView()) return;
+    if (S.chat?.id !== chatId || S.generation !== generation) return;
     const run = currentRun(); if (run) subscribe(run); bottom();
   }
   async function patchChat(changes, chatId = S.chat?.id) {

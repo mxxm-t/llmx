@@ -24,6 +24,8 @@ recover after writes resume. They check that Temporary chat content stays out
 of draft storage and accepted sends cannot restore an already submitted draft
 after navigating away and back. Delayed navigation cannot override a newer
 selection.
+Retry also covers leaving and returning before the server admits the request:
+the visible conversation receives its new reply without refreshing the page.
 HTTP checks cover authentication, origin checks, attachments and import/export.
 Model-selection checks replace the upstream catalogue after configuration was
 cached, refuse stale sends and retries without storing messages or runs, and

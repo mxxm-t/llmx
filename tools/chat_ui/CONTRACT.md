@@ -261,9 +261,9 @@ and the previous conversation's stream stays connected until replacement.
 
 ## Pending Retry requests
 
-Retry keeps its original conversation and view generation across admission and
-snapshot refresh. Navigating away, including leaving and reopening the same
-conversation, prevents that completion from replacing the current snapshot,
-restarting its event stream or scrolling its view. The admitted retry continues
-in its original conversation. Snapshot refreshes also discard responses from an
-older view generation. Errors use the existing action notification.
+Retry keeps its original conversation across admission. If that conversation
+is visible when admission completes, including after leaving and returning,
+the current view refreshes and reconnects to its reply. Navigation during that
+refresh prevents the completion from replacing or scrolling the new view.
+An offscreen retry continues in its own conversation without replacing another
+conversation's snapshot or stream. Errors use the existing action notification.

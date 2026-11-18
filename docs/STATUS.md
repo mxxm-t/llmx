@@ -1,40 +1,30 @@
 # llmx - Development Status
 
-## Retry acceptance after returning to a chat (2026-11-18, In progress)
+## Companion UI reliability and clarity landing (2026-11-18, Done)
 
-**Goal.** Show an accepted Retry when its conversation becomes visible again before admission completes.
+**Goal.** Land the qualified companion fixes over public main `a274cfd62`, keeping each independent feature's failing test before its fix. The original November 16 UI bundle was live locally but absent from public main; this stack preserves it together with the new audit fixes.
 
-**Done.** Combined source review identified the remaining original-generation guard. This follow-up depends on the stacked draft/snapshot owner at `eec6eab80` and stays separate from the original Retry fix.
+| Feature | Result |
+|---|---|
+| Retry navigation | Admission stays attached to its conversation; snapshots from superseded views are ignored. The return-before-admission follow-up depends on the shared draft/snapshot owner. |
+| Workspace Save and Open | New typing and file transitions retain their ownership across delayed operations. |
+| Streamed Markdown | Completed blocks retain DOM identity, selection and copy controls. |
+| Upstream key file docs | One raw client key, separate from a server key database and browser sign-in. |
+| Ordinary drafts | Text, attachments and edit targets survive navigation and refresh through tab-session storage; quota failures retain memory drafts with an explicit warning. |
+| Keyboard navigation | Tab and Shift+Tab leave the editor without changing its buffer. |
+| Tool approvals | Pending arguments open visibly; one-call and same-tool-for-this-reply permissions are explicit. Tool descriptions have their own line. |
 
-**Left.** Reproduce the admission ordering, capture the visible generation when admission completes, and run the affected browser regression.
+**Done.** Independent browser regressions failed before their fixes. Draft preservation passed in 54.370 seconds, keyboard navigation in 50.834 seconds, and approval clarity in 50.332 seconds. The combined browser fixture passed in 58.489 seconds at `eec6eab80`. Review then identified the remaining Retry return-before-admission ordering: test-first commit `c96e71ed0` failed in 68.526 seconds, and the final combined browser passed in 59.496 seconds after the correction. No server, collector, model or inference code changes.
 
-**Gotchas.** An offscreen Retry must not replace another chat or its stream. Navigation during the subsequent snapshot fetch must still invalidate that response.
+**Landing.** This stack lands by fast-forward over public main `a274cfd62` after verifying syntax, docs and dead-code on its final tree and confirming main has not moved. Combined source review found no remaining integration defect. The Linux-only Chrome launch diagnostic skips on Windows. Static UI scope does not wait for unrelated inference jobs. The shared docs CLI is `0.1.0+g6a5868fb9598`, SHA256 `c108f252ea169ae64cbed95eea2b0e39347d89fafb5dd9334f048c915079c787`; its source and build inputs are unchanged through the final UI commits. The final browser inputs are unchanged after its pass; only this Markdown qualification changes.
 
-## Workspace editor keyboard navigation (2026-11-18, Ready for landing checks)
+**Static checks.** Dead-code passes with 17 expected findings and 20 planted faults in 34.2 seconds. Docs passes with zero findings and 29 planted faults in 31.0 seconds, then runs once more after this qualification text. The review scans all 180 tracked Markdown files for changed-behavior references and leaves unrelated historical measurements intact. JavaScript syntax and whitespace checks pass. The final delta does not alter browser, dead-code or CLI-help inputs.
 
-- **Goal:** Let keyboard users leave the Workspace file editor with Tab and Shift+Tab while preserving the file buffer.
-- **Done:** Removed the editor's custom Tab indentation so focus follows the browser's tab order. The hosted browser fixture's regression failed before the fix in 43.962 s and passed with the fix in 50.834 s on Windows Chrome 157. It checked both directions, selected text, and the saved file's clean state. The fixture also exercises Ctrl+S and the existing responsive layouts. JavaScript syntax, whitespace and dead-code checks pass.
-- **Left:** Run the docs check with the current CLI at the final UI stack head. The available root CLI was stale and produced unrelated option and command findings. Full logs are in `scratch/keyboard/`.
-- **Gotchas:** The Workspace save shortcut has a separate document handler. The browser script holds this regression in the hosted Chat workspace workflow.
-## Companion compose-state preservation (2026-11-18, in progress)
+**Historical performance.** The November 16 renderer experiment at 128 KiB reduced frame p95 from 133.3 to 33.3 ms, with parse p95 26.7 to 31.6 ms and post-GC heap 2.19 to 3.34 MiB. These are the original isolated UI measurements in [the recorded experiment](benchmarks/chat-stream-blocks-20261116.json), not new inference results or a timing claim for this whole stack. The changing suffix still rebuilds.
 
-**Goal.** Keep unsent text, attachments and edit targets when navigating ordinary conversations or refreshing the tab, without persisting temporary-chat content.
+**Docs review.** README, AGENTS, architecture, roadmap, build/CI instructions, the Markdown inventory and references to the changed companion behavior were checked. Companion README, CONTRACT and TESTS own the changed descriptions. This record consolidates the superseded READY blocks and removes the stale LAND61 hold. Runtime flags, model support and historical numerical results are unchanged. Full browser and source-check logs remain in `scratch/landing/`; the audit is `scratch/ui-audit-20261118/AUDIT.txt` in the main workspace.
 
-**Done.** Test-first commit `965fda8ca` reproduced same-chat draft loss in 6.786 seconds. The browser composer in `tools/chat_ui/app.js` now retains ordinary text, attachments and edit targets per chat, with debounced tab-session persistence and visible write-failure fallback. Blank-chat creation carries its draft forward. Temporary chat content stays in memory. Accepted sends remove only their unchanged draft record, including after leaving and returning; a shared snapshot reader refetches when admission happened during its request.
-
-**Left.** Integrate with the separately qualified UI fixes and run the applicable landing checks on that head. No runtime or inference gate applies to this static companion change.
-
-**Checks.** Chrome passed in 54.370 seconds with ordinary draft/attachment reload, edit-target reload, quota failure and recovery, blank migration, separate drafts, Temporary chat privacy, latest-selection ordering, accepted-send round trips and stale pre-admission snapshots. Existing streaming, branch, attachment, workspace, responsive and zoom checks also pass. Source review rechecked the reported navigation/admission races. Receipts are in `scratch/drafts/`; final static checks are recorded at landing.
-
-**Gotchas.** Accepted sends must clear only their own unchanged draft. New typing during a request must survive. Temporary chat content stays in memory. Browser storage may be unavailable or full, so navigation must preserve the in-memory copy and reload limitations must be visible.
-## Tool approval clarity (2026-11-18, In progress)
-## Tool approval clarity (2026-11-18, Ready for landing checks)
-
-- **Goal:** Show the pending tool arguments and make the scope of each approval decision clear. Separate tool descriptions and policy labels in Settings.
-- **Done:** Pending calls open their arguments on transition into approval and after reload. The focused summary remains connected. The unchecked checkbox defaults to Allow once and explains how remembered approval covers later calls to this tool, even with different arguments, during the same reply. Deny this call submits a denial with `remember: false`. Settings displays the tool policy and description on separate lines.
-- **Checks:** The new regression failed in 21.921 s before the fix and the full deterministic browser fixture passed in 50.332 s on Windows Chrome 157. JavaScript syntax and whitespace pass. Evidence is in `scratch/approval-clarity/`.
-- **Left:** Combined browser, docs and dead-code checks at the final UI stack head.
-- **Gotchas:** Preparing calls expose no approval controls. The existing engine still owns the lifetime and scope of approvals.
+**Gotchas.** Temporary chat drafts never enter ordinary draft storage and do not survive refresh. Ordinary draft persistence is browser-tab-local, is not a server backup, and can hit the browser's quota. A browser that denies the app's existing metadata storage may still prevent startup. Source review and Chrome emulation do not establish Safari or screen-reader coverage. The larger visual-layout and settings/search audit follow-ups remain separate work.
 
 ## Landing stack land-20261117 (2026-11-17, LAND68 then LAND69, Done)
 
@@ -294,119 +284,6 @@ A timing round on the head with the argument under a host load of 35 to 57 sprea
 | DeepSeek-V4.1-Flash pp16384 / tg16, ten MI50s | width 1: 1957/1704 pp, 28.0/25.5 tg (best of two, branch/main); width 2: 1595/1533 pp, 37.9/34.3 tg | carried |
 
 The hosted run of the landing head and the Radeon VII check are COORD's, and the head lands by fast-forward of gitea main and GitHub main.
-## Chat retry navigation (2026-11-16, ready for landing)
-## Chat UI stack update (2026-11-16, ready for landing)
-
-**Goal.** Land the four qualified UI fixes together: Retry navigation, pending Save edits, streamed Markdown preservation and file-open ordering.
-
-**Done.** Seven commits over public main `fa0e1b372` retain the independent test-first fixes. Adjacent browser fixtures were combined with file-open checks before Save checks. The workspace owner retains both the Save baseline and busy-state fix and the new selection generation. Documentation retains both contracts. No runtime or collector code changes.
-
-**Checks.** The combined browser run passes in 55.360 s, retaining Open and Save regressions and the existing Retry, Markdown, responsive, theme and zoom coverage. JavaScript syntax and the combined source review pass. Dead-code reports 15 expected findings and 20 planted checks in 29.3 s; docs reports zero findings and 21 planted checks in 21.0 s. The Linux-only browser launch diagnostic skips on Windows.
-
-**Left.** Send the replacement bundle to LAND61. Public main remains held for coordinated landing. The earlier three-fix stack below is a qualified historical checkpoint, not the final proposed head.
-
-**Gotchas.** No inference or unrelated hosted gates are required for these static UI changes. The source conflict resolution must preserve both workspace fixes; the combined browser checks exercise them together.
-
-## Workspace file-open ordering (2026-11-16, ready for landing)
-
-**Goal.** Keep delayed file reads from overwriting later editor input or a newer file selection. The owner is `tools/chat_ui/workspace.js`; this is an independent static UI fix based on public main.
-
-**Done.** The actual-browser regression fails on public main in 40.237 s: a held file response replaces newer editor input with the requested file contents. The failing test is committed before the fix; its log is in `scratch/open/red.log`.
-
-**Left.** Integrate with the already qualified UI stack and hand it to the landing coordinator. Public main is held by LAND61; this is ready, not merged. The intended landing is a fast-forward with no inference gates for this static UI scope.
-
-**Implementation.** One workspace-local selection generation rejects obsolete file results and errors. Text changed during a read requires fresh discard approval. Save, new-file, artifact, delete and restore transitions invalidate earlier opens. Review also caught a file loading behind a delete confirmation; invalidation now begins at the dialog intent, with a regression check. Early browser checks passed in 50.832 s, before that additional review coverage.
-
-**Checks.** Final browser checks pass in 52.863 s, including changed-text cancel and approval, competing reads, a new unsaved file, obsolete errors and Delete dialog ordering. Existing chat, workspace, responsive, theme and zoom checks also pass. The Linux-only launch diagnostic skips on Windows. JavaScript syntax and bounded source review pass. Dead-code reports 15 expected findings and 20 planted checks in 29.3 s; docs reports zero findings and 21 planted checks in 20.8 s.
-
-**Docs review.** Companion README, CONTRACT and TESTS now describe the file-open ordering. Runtime, CLI, build and model behavior are unchanged; source documentation checks cover the Markdown inventory.
-
-**Gotchas.** The separate pending-save change is already READY and must be preserved when integrating. Do not change runtime or storage behavior, or block normal typing while files load.
-
-
-## Chat UI stack (2026-11-16, ready for landing)
-
-**Goal.** Land Retry navigation, workspace pending-save handling and streaming block preservation together, retaining each feature's independent history and qualification.
-
-**Done.** Five commits combine the two bug-fix pairs and the single rendering optimization over public main `fa0e1b372`. Product changes merge without conflict. One adjacent TESTS description conflict retains both paragraphs; STATUS sections retain each feature's evidence with consistent spacing. All three product assets exactly match the local preview's qualified overlays.
-
-**Checks.** The combined browser fixture passes in 53.402 s on tested head `9da7cf912`, including all three features and the existing responsive/theme/zoom flows. The Linux-only Chrome launch diagnostic is skipped on Windows. Dead-code passes with 15 expected findings and 20 planted checks in 28.3 s; docs passes with zero findings and 21 planted checks in 20.8 s. Combined source review found no overlap issue. The final delta is this qualification record only; product and test hashes are retained in `scratch/stack/tested-inputs.json`. No runtime or numerical path changed, so unrelated inference checks are not required.
-
-**Performance evidence.** Renderer measurements retain the exact tested hashes in the feature's report below. Stacking adds the already-qualified Retry guards and workspace Save behavior, without changing the renderer or its measured streaming path. The combined browser check covers their interaction.
-
-**Docs review.** README, CONTRACT and TESTS contain all three features and their limits. The source/document inventory checks cover the combined tree. Each earlier feature record below remains historical evidence for that branch rather than a claim of separate merging.
-
-**Left.** The landing coordinator owns incorporation into the held main stack. This branch is intended to land by fast-forward after incorporation and applicable checks; it is not yet merged. No direct main or Gitea push is performed by CHATUI. Final receipts are in `scratch/stack/`.
-
-
-## Chat streaming block preservation (2026-11-16, ready for landing)
-
-**Goal.** Reduce long-reply browser stalls by retaining completed Markdown blocks. `render.js` remains the sole Markdown owner; `app.js` keeps its existing message and disclosure owners.
-
-**Done.** The parser records line ranges for each generated block against one current source array. Reconciliation keeps the source-identical leading blocks and replaces the changed suffix, including inside reasoning. Code controls read their DOM text instead of retaining earlier parser buffers. No second parser, dependency, model or server change is introduced.
-
-**Measured.** An actual isolated companion HTTP/SSE fixture sent ASCII Markdown in 512-character chunks every 50 ms. Fresh headless Chrome profiles ran on the same Windows host; exact final payload hashes matched. The final paired results are in [the measurement record](benchmarks/chat-stream-blocks-20261116.json):
-
-| Reply size | Frame p95 before | Frame p95 candidate | Parse p95 before | Parse p95 candidate | Retained JS heap before | Retained JS heap candidate |
-| --- | --- | --- | --- | --- | --- | --- |
-| 32 KiB | 16.8 ms | 16.8 ms | 6.8 ms | 8.4 ms | 1.41 MiB | 1.64 MiB |
-| 128 KiB | 133.3 ms | 33.3 ms | 26.7 ms | 31.6 ms | 2.19 MiB | 3.34 MiB |
-
-The host was active: final-round total CPU ranged from 31 to 64 percent, with editor, browser, backup, security and game processes present. Timestamped CPU/disk/process monitoring ran through every paired round; all planned samples remain recorded. GPU activity was not collected; Chrome GPU use was disabled. These are browser responsiveness measurements, not inference throughput or a comparison with mx. A separate baseline trace attributed 3043 ms to layout, 1813 ms to style updates and 1406 ms to pre-paint work. The parsing and memory increases are accepted for the substantially smaller long-reply frame gaps.
-
-**Memory diagnosis.** The first candidate retained 47.1 MB after 128 KiB. Moving a local helper reduced that to 12.1 MB. Heap inspection then found 123 large strings totaling 9.14 MB, retained through sliced-string parents, code arrays and source keys. Range metadata and DOM-backed code controls reduced final retention to 3.51 MB. Both rejected implementations and their source hashes remain in the measurement record. The final design retains no historical source arrays in block metadata.
-
-**Checks.** The final browser fixture passes in 51.841 s. It covers every prefix and rewrite against fresh rendering, shifted source offsets, Copy feedback, selection and focus, reasoning, tools and existing responsive/theme/zoom flows. The Linux-only launch diagnostic is skipped on Windows. JavaScript syntax and bounded source review pass. The first browser attempt had a fixture string-escaping error and is retained separately; it is not counted as a product failure. Raw timing, heap, trace, browser and source receipts are in `scratch/ui-audit/`.
-
-**Docs review.** Companion README, CONTRACT and TESTS describe the changed preservation behavior and its limits. Runtime, CLI, build and model claims are unchanged. The Markdown inventory checks cover the tree.
-
-**Source checks.** Dead-code passes with 15 expected findings and 20 planted checks in 28.0 s. Docs passes with zero findings and 21 planted checks in 20.4 s.
-
-**Left.** Included in the combined Chat UI stack above, ready for coordinated landing. No direct main push while LAND61 holds the stack. The static browser change needs no inference or unrelated hosted gates; it is intended to land by fast-forward after incorporation, not claimed already on main.
-
-**Gotchas.** The changing suffix may still be replaced. One giant changing paragraph, list or code block does not benefit from completed-prefix retention. These measurements do not establish every message shape or device.
-
-## Workspace pending-save edits (2026-11-16, ready for landing)
-
-**Goal.** Keep text typed while Save is pending visibly unsaved, and apply the accepted save only to its original file and revision. The single owner is `tools/chat_ui/workspace.js`.
-
-**Done.** The browser regression fails on the old code in 39.147 s: accepted Save(A) marks later editor text B clean. Save now captures its submitted content and base revision, applies the returned revision only to that editor base, and permits typing while preventing a second pending save. File selection keeps its own baseline. A failed metadata refresh cannot erase an accepted write or advance the editor past an unseen write. The first test attempt raced its fixture file read; the corrected test waits for a distinct file before reopening the source. Both logs remain in `scratch/save/`.
-
-**Checks.** The candidate browser fixture passes in 51.843 s: typed-after-submit content stays dirty, the pending Save control remains disabled, switching files preserves destination edits, and a successful write followed by a failed metadata refresh still permits a correct subsequent save. Existing chat, workspace, conflict, checkpoint, responsive, theme and zoom checks pass. The Linux-only Chrome launch diagnostic is skipped on Windows. JavaScript syntax passes; dead-code reports 15 expected findings and 20 planted checks in 30.0 s; docs reports zero findings and 21 planted checks in 20.5 s. A bounded source review found no remaining defect.
-
-**Docs review.** The Markdown inventory checks cover the tree. The companion README, CONTRACT and TESTS now describe pending-save content and revision ownership. Runtime, model, CLI and build claims do not change. No dependency or second persistence owner is added.
-
-**Left.** The two-commit branch is ready for the landing coordinator, with the original failing test before the fix. It is intended to land by fast-forward after incorporation into the coordinated stack; it is not yet on main. Static browser scope needs no inference or unrelated hosted gates.
-
-**Gotchas.** The editor remains usable during saving. An intervening file selection or another writer must not silently gain the old save's baseline or newer revision.
-
-## Chat retry navigation (2026-11-16, ready for landing)
-
-**Goal.** Keep an admitted retry attached to its original conversation when the user navigates before the response arrives. The browser action owner is `tools/chat_ui/app.js`; model execution and persistence are unchanged.
-
-**Done.** The real-browser regression fails on the previous code in 51.805 s: releasing the admitted retry response opens a fourth destination stream where only three should exist. Retry now checks the conversation and view generation before and after snapshot refresh. Snapshot refresh itself refuses a response from a view left and reopened.
-
-**Checks.** The candidate browser fixture passes in 52.304 s, including held Retry admission while another conversation is active, held snapshot response across leaving and reopening the same conversation, existing chat flows, both themes, responsive geometry and 200 percent zoom. The Linux-only Chrome launch diagnostic is skipped on Windows. JavaScript syntax checks pass. Dead-code reports 15 expected findings and 20 planted checks in 27.4 s; docs reports zero findings and 21 planted checks in 20.1 s. A bounded source review found no remaining defect. Evidence is in `scratch/retry/`.
-
-**Docs review.** The Markdown inventory checks pass across the tree. README, companion CONTRACT and TESTS describe the changed action and snapshot behavior; runtime, build and model claims are unchanged. No new flag, dependency, storage path or model arithmetic is introduced.
-
-**Left.** The tested two-commit branch is ready for the landing coordinator. No direct main push while LAND61 holds the stack. Static browser scope requires no inference or unrelated hosted gates. The change is intended to land by fast-forward after the coordinator incorporates it; this is not a claim that it is already on main.
-
-**Gotchas.** Navigation does not cancel an admitted retry. Errors retain the existing action notification path.
-## Companion upstream key-file guidance (2026-11-16)
-
-**Goal.** Clarify how the companion's `--api-key-file` is read and how it differs from browser authentication and an upstream server's key database.
-
-**Done.** The companion README now specifies one raw upstream bearer key, startup-time reading and restart after rotation. It directs operators to use a separate single-key file when the upstream accepts a key list, and states that this key does not authenticate browser users.
-
-**Checks.** `python tests/run_tests.py --exe ../chat-request-key-landing-20261116/llmx.exe --only docs,dead-code` passes: docs has zero findings and 21 planted checks; dead-code has 15 expected findings and 20 planted checks. The companion source confirms one whole stripped file value is sent in upstream bearer headers. No authenticated runtime was tested.
-
-**Left.** Ready for coordinated landing with LAND61; not yet on public main. This is docs-only and has no inference gates.
-
-**Landing integration.** This documentation commit is stacked after the four-fix UI checkpoint `dee243911`. It changes only this status record and the companion README. All application and browser-test bytes are unchanged from that checkpoint's passing 55.360 s browser run and source review; its dead-code evidence carries forward. A final docs check runs on the stacked head before the combined bundle is handed over. The earlier seven-commit stack record below remains its qualification history.
-
-**Gotchas.** Do not document runtime authentication flags or key-length constraints that are not present on this branch.
-
 ## Companion deployment documentation refresh (2026-11-16, Done)
 
 **Goal.** Keep the durable live-metrics contract free of changing local port and process claims, while preserving deployment evidence as dated history.
@@ -10546,6 +10423,10 @@ Step 6, the head split, was measured on 2, 3, 4 and 8 cards and not merged (the 
 
 | Feature                                  | Status   |
 |------------------------------------------|----------|
+| Companion compose-state preservation and Retry return | Done |
+| Workspace pending Save/Open ownership and keyboard exit | Done |
+| Tool approval scope and argument visibility | Done |
+| Streamed Markdown block preservation | Done |
 | Layered restructure                      | Done     |
 | Build config (config.hpp + CMake + build.bat) | Done |
 | Test suite (roundtrip / perf / tokenizer)| Done     |

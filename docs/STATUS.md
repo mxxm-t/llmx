@@ -7,6 +7,12 @@
 - **Checks:** Existing Chrome coverage passed in 63.936 seconds, including both themes, narrow layouts and zoom. The rendered welcome and command labels were reviewed. JavaScript syntax and whitespace checks passed. No new test mirrors the copy changes. Final docs and dead-code receipts are recorded in `scratch/wording/`.
 - **Landing:** One presentation-only commit over `80f8cb5f5`, fast-forward after its focused browser, docs and dead-code checks pass and main is rechecked. The existing docs CLI is applicable because native source and build inputs are unchanged. The Markdown reference review found no stale labels outside the updated companion README. No runtime, server, collector or numerical checks are required for this scope.
 - **Gotchas:** Settings behavior and search are separate features. Command runner remains a one-shot job runner, not an interactive shell.
+## Companion conversation settings (2026-11-18, In progress)
+
+- **Goal**. Make live request settings and optional conversation saves predictable, and start independent chats from server defaults.
+- **Done**. Identified blank Save success without a write, settings inheritance on New, and conflicting writes during run admission.
+- **Left**. Reproduce in the browser, fix in the companion frontend, and document the persistence rules.
+- **Gotchas**. Send and Retry write their captured settings during run admission. Model availability gates admission, while the settings PATCH may preserve an unavailable model ID. The runtime and service API stay out of this change.
 
 ## Companion UI reliability and clarity landing (2026-11-18, Done)
 

@@ -1425,10 +1425,11 @@ try {
   const longestWorkspacePath = 'p'.repeat(236) + '.txt';
   await cdp('Input.insertText', {text: longestWorkspacePath});
   assert.equal(await evaluate("document.querySelector('#conversation-value').value"), longestWorkspacePath, 'new-file field shortened a valid 240-character path');
-  const escapedForm = evaluate("new Promise(resolve=>document.querySelector('#action-dialog').addEventListener('close',()=>resolve(true),{once:true}))");
+  await evaluate("{window.escapedForm=new Promise(resolve=>document.querySelector('#action-dialog').addEventListener('close',()=>resolve(true),{once:true}));true}");
   await cdp('Input.dispatchKeyEvent', {type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27});
   await cdp('Input.dispatchKeyEvent', {type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27});
-  await escapedForm;
+  assert.equal(await evaluate('window.escapedForm'), true, 'Escape did not emit the dialog close event');
+  await evaluate('delete window.escapedForm');
   assert.equal(await evaluate("document.querySelector('#action-dialog').open"), false, 'Escape cancels new-file dialog');
   assert.equal(await evaluate("document.querySelector('#workspace-editor').value"), '', 'cancel changed editor contents');
   await click('.workbench-view .primary-button');

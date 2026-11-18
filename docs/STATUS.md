@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## Companion browser Escape ordering (2026-11-18, In progress)
+
+- **Goal:** Register the browser fixture's dialog-close observer before sending Escape.
+- **Done:** Hosted main run 44320829081 failed at the unacknowledged observer registration while its failure screenshot shows the dialog already closed. Windows passed. The fixture now waits for registration to return before sending Escape, then verifies the retained close-event promise, closed dialog and unchanged editor. The full Chrome fixture passed in 96.616 seconds. Source review confirms this introduces an ordering barrier without changing product behavior or timeouts.
+- **Left:** Complete the static checks and validate the test-only correction on the hosted workflow before fast-forward landing.
+- **Gotchas:** Keep the real Escape input, close-event check and existing timeouts. No runtime or inference change is needed.
+- **Evidence:** The log and uploaded screenshots are under the audit landing worktree's `scratch/landing/main-ci-failure.log` and `scratch/landing/ubuntu-failure-artifacts/`. A separate 50-cycle native dialog probe passed the old sequence locally, so the hosted scheduling cause is not deterministically reproduced. The correction removes the ordering hazard; it does not establish a cause for every earlier protocol timeout. Local test receipts are in the Escape-order worktree's `scratch/escape-order/`.
+
 ## Companion wording cleanup (2026-11-18, Done)
 
 - **Goal:** Use direct labels for current functionality and remove repeated welcome and branding copy.

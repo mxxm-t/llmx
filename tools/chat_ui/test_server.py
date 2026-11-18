@@ -315,6 +315,22 @@ class RouteTests(unittest.TestCase):
         self.assertIn("SameSite=Strict", set_cookie)
         return set_cookie.split(";", 1)[0]
 
+    def test_sidebar_run_status_route_only_returns_saved_identifiers_and_states(self):
+        path = "/api/chats/run-status"
+        self.assertEqual(self.request("GET", path)[0], 401)
+        cookie = self.login()
+        saved = self.app.store.create_chat({"title": "Private title"})
+        run = self.app.store.start(saved["id"], {"content": "Private prompt"}, {"system": "Private settings"})
+        self.app.store.publish(run["id"], "state", {"status": "failed", "error": "Private error"})
+        self.app.store.update_chat(saved["id"], {"archived": True})
+        temp = self.app.temporary.create({"title": "Private temporary"})
+        store, _ = self.app.temporary.access(temp["id"])
+        store.start(temp["id"], {"content": "Temporary prompt"}, {})
+        response = self.request("GET", path, cookie=cookie)
+        self.assertEqual(response[0], 200)
+        self.assertIn(("Cache-Control", "no-store"), response[1])
+        self.assertEqual(self.json_body(response), {"chats": [{"id": saved["id"], "status": "failed"}]})
+
     def test_search_route_is_authenticated_bounded_and_saved_only(self):
         path = "/api/chats/search"
         query = {"query": " search witness ", "archived": False}

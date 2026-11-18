@@ -7,7 +7,7 @@ import unittest
 from unittest import mock
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from engine import Engine
+from engine import Control, Engine
 from store import Store
 
 
@@ -124,6 +124,21 @@ class EngineTests(unittest.TestCase):
         if self.store is not None:
             self.store.close()
         self.temp.cleanup()
+
+    def test_expired_approval_leaves_no_waiting_sidebar_state(self):
+        run = self.store.start(self.chat["id"], {"content": "Use echo"}, {})
+        message = self.store.message(run["message_id"])
+        call = dict(id="fixture-call", name="echo", arguments="{}", status="pending")
+        message["tool_calls"] = [call]
+        self.store.publish(run["id"], "message", message)
+        control = Control()
+        clock = mock.Mock(monotonic=mock.Mock(side_effect=[0, 0, 1800, 1800]))
+        with mock.patch("engine.time", clock):
+            result = self.engine._tool(run["id"], message["id"], call, {"echo": {"approval": True}}, control)
+        self.assertTrue(result["isError"])
+        self.assertFalse(control.pending)
+        self.assertEqual(self.tools.calls, [])
+        self.assertEqual(self.store.run(run["id"])["status"], "running")
 
     def test_rejected_image_turn_allows_text_followup(self):
         self.reply(text_event("Earlier answer"))

@@ -7,6 +7,12 @@
 - **Done:** Timeout caller-stack probe failed on main and passed with call-site Error capture. The browser check passed in 70.127 seconds. Failure-only focus diagnostics and hosted screenshot upload are prepared. The latest main hosted run also failed Windows protocol evaluation and Ubuntu keyboard tooltip focus; both failures are retained.
 - **Left:** Run the hosted diagnostic branch, identify the original failures and finish the focused tooling checks.
 - **Gotchas:** This is test diagnostics only. Do not raise timeouts, retry failures away or claim the original cause is fixed.
+## Saved-chat background reply status (2026-11-18, In progress)
+
+- **Goal:** Show the latest attempt's progress, approval request, failure or interruption on saved sidebar rows, including archive and search results.
+- **Done:** Run states are already durable, and selection changes close the only transcript stream. The sidebar can use a small status projection without opening those streams.
+- **Left:** Measure indexed lookup cost and competing writes/searches, add regressions first, then implement status transport and focused verification.
+- **Gotchas:** Distinguish the latest attempted reply from the branch being viewed. Preserve search admission and row focus. Check stale approval timeouts and stop polling when Chat is hidden or inactive.
 
 ## Companion wording cleanup (2026-11-18, Done)
 

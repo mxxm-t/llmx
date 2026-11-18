@@ -55,6 +55,70 @@ class StorePersistenceTests(unittest.TestCase):
         store.publish(run["id"], "state", dict(store.run(run["id"]), status="completed"))
         return store, chat["id"], run["id"]
 
+    def test_sidebar_run_status_uses_latest_attempt_across_restore_and_restart(self):
+        source, cid, old = self.populated(self.path("status-source"), "History")
+        replacement = self.path("status-replacement")
+        backup = self.path("status-backup")
+        reopened = Store(replacement)
+        try:
+            latest = source.start(cid, {"content": "New attempt"}, self.settings())
+            source.publish(old, "state", {"status": "failed"})
+            self.assertEqual(source.sidebar_run_status(), [{"id": cid, "status": "running"}])
+            source.publish(latest["id"], "state", {"status": "approval"})
+            self.assertEqual(source.sidebar_run_status(), [{"id": cid, "status": "approval"}])
+            source.backup(backup)
+            reopened.restore(backup)
+            self.assertEqual([run["id"] for run in reopened.snapshot(cid)["runs"]], [old, latest["id"]])
+            self.assertEqual(reopened.sidebar_run_status(), [{"id": cid, "status": "interrupted"}])
+            source.publish(latest["id"], "state", {"status": "cancelled"})
+            self.assertEqual(source.sidebar_run_status(), [])
+            source.close()
+            with self.assertRaises(sqlite3.ProgrammingError):
+                source.sidebar_run_status()
+            reopened.close()
+            reopened = Store(replacement)
+            self.assertEqual(reopened.sidebar_run_status(), [{"id": cid, "status": "interrupted"}])
+        finally:
+            reopened.close()
+            source.close()
+
+    def test_sidebar_run_status_changes_only_after_commit(self):
+        class RejectedCommit(sqlite3.Connection):
+            reject = False
+
+            def __exit__(self, exc_type, exc, tb):
+                if self.reject and exc_type is None:
+                    self.rollback()
+                    raise sqlite3.OperationalError("injected commit failure")
+                return super().__exit__(exc_type, exc, tb)
+
+        connect = sqlite3.connect
+        with mock.patch("store.sqlite3.connect", side_effect=lambda *a, **kw: connect(*a, factory=RejectedCommit, **kw)):
+            store = Store(self.path("status-commit"))
+        try:
+            cid = store.create_chat({})["id"]
+            store.db.reject = True
+            with self.assertRaises(sqlite3.OperationalError):
+                store.start(cid, {"content": "Uncommitted"}, self.settings())
+            self.assertEqual(store.sidebar_run_status(), [])
+            store.db.reject = False
+            run = store.start(cid, {"content": "Committed"}, self.settings())
+            store.db.reject = True
+            with self.assertRaises(sqlite3.OperationalError):
+                store.publish(run["id"], "state", {"status": "approval"})
+            self.assertEqual(store.sidebar_run_status(), [{"id": cid, "status": "running"}])
+            store.db.reject = False
+            store.publish(run["id"], "state", {"status": "failed"})
+            store.db.reject = True
+            with self.assertRaises(sqlite3.OperationalError):
+                store.delete_chat(cid)
+            self.assertEqual(store.sidebar_run_status(), [{"id": cid, "status": "failed"}])
+            store.db.reject = False
+            store.delete_chat(cid)
+            self.assertEqual(store.sidebar_run_status(), [])
+        finally:
+            store.close()
+
     def test_search_saved_content_and_current_metadata(self):
         store = Store(self.path("search"))
         try:

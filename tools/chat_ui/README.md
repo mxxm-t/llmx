@@ -91,6 +91,9 @@ It does not lock the upstream model or control later server restarts.
 
 ## Conversations
 
+Main navigation highlights the selected section. Hover uses a lighter fill, and
+keyboard focus keeps its visible outline.
+
 - Unsent text, attachments and edit targets stay with each ordinary conversation
   when you switch chats or select the same chat again. They are saved in this
   browser tab's session storage for refresh recovery, not in chat backups.

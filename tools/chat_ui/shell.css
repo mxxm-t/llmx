@@ -81,7 +81,10 @@
   color: var(--muted);
   font-size: 13px;
 }
-.global-nav button:hover,
+.global-nav button:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--hover) 50%, transparent);
+}
 .global-nav button[aria-current=page] {
   color: var(--text);
   background: var(--hover);
@@ -92,11 +95,6 @@
 .global-nav svg {
   height: 17px;
   width: 17px;
-}
-.global-nav kbd {
-  margin-left: auto;
-  color: var(--faint);
-  font-size: 10px;
 }
 .chat-library-heading {
   padding: 0 8px 13px;

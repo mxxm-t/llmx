@@ -1,13 +1,5 @@
 # llmx - Development Status
 
-## Companion navigation clarity (2026-11-18, In progress)
-
-- **Goal:** Distinguish the selected main section from a hovered section and remove decorative shortcut-like numbering.
-- **Done:** Live desktop inspection reproduced two equally filled navigation items when the pointer remains over Chat while Workspace is selected.
-- **Left:** Reproduce the visual distinction failure, adjust the existing navigation styles, verify both themes and responsive behavior, and review affected docs before landing.
-- **Gotchas:** This changes static presentation only. Main navigation remains owned by ChatShell and keeps its existing focus and aria-current behavior.
-
-
 ## Companion wording cleanup (2026-11-18, Done)
 
 - **Goal:** Use direct labels for current functionality and remove repeated welcome and branding copy.
@@ -10463,6 +10455,7 @@ Step 6, the head split, was measured on 2, 3, 4 and 8 cards and not merged (the 
 
 | Feature                                  | Status   |
 |------------------------------------------|----------|
+| [Companion navigation clarity](benchmarks/chat-navigation-clarity-20261118.md) | Done |
 | [Companion drawer keyboard access](benchmarks/chat-drawer-keyboard-20261118.md) | Done |
 | Companion compose-state preservation and Retry return | Done |
 | Workspace pending Save/Open ownership and keyboard exit | Done |

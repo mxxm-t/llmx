@@ -125,6 +125,7 @@ delegated to a `backend::Backend`.
   past its last token, for a generated token 1. `prefill`, `score` and the
   server set it, so a prompt computes the same in one pass or in slices.
   An entry of many generated tokens at extent 1, which is how the server recomputes a paused request's reply, takes the decode kernels for every one of them.
+  `context`, true by default, asks an embedded drafter for the entry's context rows; `prefill` clears it on a prompt's slices before the drafter's window (`ModelPlan::draft_window`) of the prompt's end and of its kept state.
 - `Model`: built from `ModelWeights` over one backend (the CPU's by
   default) or over several with a `Placement` and an optional
   `AdoptWeight`, planning the weights itself or given their plan

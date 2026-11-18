@@ -123,6 +123,7 @@ inline void DeepSeek41::plan_drafter(const TensorIndex& tensors, ModelPlan& p) c
     p.index_width = std::max({p.index_width, size_t(W) + B, T});
     p.role_ids = draft_role(c, draft_roles);
     p.draft_block = B;
+    p.draft_window = size_t(W);
     p.draft_sums = 2 * stages;
     // Apart from the head a draft's rows carry their streams' coefficients, its ids sit in the window's ids until its attention writes them, and the context rows' stages read the collapsed rows.
     p.draft_carried = {{pre_ffn}};

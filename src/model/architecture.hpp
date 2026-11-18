@@ -202,6 +202,8 @@ struct ModelPlan {
     // Then also the slot a draft call's input ids sit in on a stage's device, and the slot a context call's first part leaves the rows its stages read in.
     std::vector<Carried> draft_carried;
     size_t draft_ids = 0, draft_rows_x = 0;
+    // The positions before a history's end that a draft reads the drafter's context rows of, 0 where it reads them all; a prompt's slices before those leave them out (BatchEntry::context).
+    size_t draft_window = 0;
     // Whether the layers' declared native widths are in effect (LayerPlan::native, settle_cache).
     bool native = false;
 };

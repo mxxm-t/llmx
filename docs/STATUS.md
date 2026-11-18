@@ -418,6 +418,34 @@ Vulkan and the CPU cross through the host, so the rule keeps them at one round; 
 - **Left:** Nothing; it lands by fast-forward with the stack land-20261117.
   Image rows' correctness on the real text file is open under DEEPSEEK4.md section 5.3, whose layered reference is not built.
 - **Gotchas:** the tiny `-vl` vocabulary holds 128 tokens, so its image id is 127, not 129264; a grid thinner than 3 patches a side (a raised image under 29 pixels a side, or a small budget, as photo-300x200.png at 5) is padded to whole tokens as the official code pads it, the arena sized per grid for its aligner (`EncodeInputs::arena_patches`), since a per-patch arena falls short there; DSpark routes its draft rows with the stage's `exp_probs_b`, never a `bias_vl`, as `forward_spec` does, and drafts are text rows; the marker id given through `--then-ids` is not refused (ids are taken as ids); a `-vl` file's two biases are source roles only, since a source tensor's host copy is freed after load.
+## DSpark keeps prefill (fix/dspark-prompt-context, 2026-11-17, active)
+
+**Goal.** Drafting must not cost prefill, and the fix must not cost drafting decode (owner, 2026-11-17). The 0.2.0 README cells on DeepSeek-V4.1-Flash MXFP4, ten MI50s at tensor width 2, ROCm int8, `generate` of 1910 tokens, gave 703 to 848 tok/s prefill plain and 385 to 427 with `--drafter` DSpark.
+
+**Cause.** `Model::draft_context` ran DSpark's context rows after the last stage of every prompt slice. With the drafter's stages on groups 2 and 3, each call put a device-side wait for the head group's finish of slice c into those groups' in-order streams, ahead of their own trunk work for slice c + 3, so the pipelined prefill lost its overlap; the rows themselves are a `main_proj` and three `attn_kv` projections. DSpark's stages are window-only rings, and a draft reads the context rows of the 128 positions before its block alone.
+
+**Done.** `ModelPlan::draft_window` (DSpark sets its window), `BatchEntry::context`, and `Model::prefill` clearing it on a prompt's slices that end the window or more before the prompt's end and before its kept state; `draft_context` runs nothing for a pass of such slices. Drafters that read every row (MTP keeps KV) leave the window 0 and are unchanged. Test `arch-deepseek4 --dspark`: 142 of a 198-token prompt's rows computed in slices of 16, drafts and draft logits equal to one pass bit for bit; a state kept at 256 of 416 tokens, 264 rows, drafts after a retract to it equal to its prefix in one pass.
+
+**Measured.** DeepSeek-V4.1-Flash MXFP4, ten MI50s, ROCm, dtype int8, main a274cfd62 `llmx 0.1.0+ga274cfd62fa9` (sha256 2412db5c) against the fix `llmx 0.1.0+gbd8a9ad5d810` (b16ebb1e), both built the same way, 2026-11-18 04:43 to 06:08, every cell kept; values per cell in `/opt/claude-work/dspk4/out3/progress` on the test machine.
+  `generate` of 512 tokens at tensor width 2 on the hard (1303 prompt tokens), medium (1077) and easy (1046) drafting prompts, plain and `--drafter DSpark --draft-max 3`, one round in ABBA order per prompt, run-queue wait 0.3 to 23 s a cell:
+
+| Prompt | Prefill main plain / DSpark | Prefill fix plain / DSpark | Decode DSpark main / fix | Decode plain main / fix |
+|---|---|---|---|---|
+| hard | 545 / 363 (67%) | 682 / 700 (103%) | 33.8 / 33.6 | 35.4 to 36.2 both |
+| medium | 540 / 413 (76%) | 728 / 647 (89%) | 50.0 / 50.8 | 35.4 to 36.2 both |
+| easy | 647 / 424 (66%) | 811 / 715 (88%) | 72.0 / 72.8 | 35.4 to 36.2 both |
+
+  Units tok/s; greedy ids are identical in all four cells of a prompt (hard 494cbb16, medium 2725a8ff, easy 47ab8476).
+  `bench --p 16384 --n 16 --r 2 --lookup-storage file --ubatch 512`, two mirrored rounds, run-queue wait 150 to 355 s a cell (contended, kept), pp16384 tok/s per round: layer split plain main 2127.6 and 2128.4, fix 2129.0 and 2128.4; width 2 plain main 1734.9 and 1749.4, fix 1738.8 and 1708.6; width 2 DSpark main 1708.1 and 1661.6, fix 1721.0 and 1739.9.
+  The layer-split DSpark bench cells were not produced: both arms refuse them in placement ("drafting does not fit beside the model ... even at one KV block of 64 tokens"), a fit limit main already has and this change does not reach.
+  An earlier contended round (2026-11-17, main 3b88cfb3a, `/opt/claude-work/dspk3/out2/progress`) agreed: pooled DSpark prefill 98% of plain on the fix against 63% on main, drafts kept identical in both arms.
+  Landing gates at bd8a9ad5d, ROCm 7.2.1 builds, 2026-11-18 (`/opt/claude-work/dspk6` on the test machine): suite `docs` and `dead-code` PASS (0 findings, 17 listed); suite with `--device rocm:0` on one MI50, `deepseek4` PASS, 32 components PASS, `safetensors` FAIL as on main a274cfd62 in the same run (its FP8 directory's F8_E4M3 tensors are refused by the ROCm backend), the rest skipped for missing device kernels, numpy or fixtures.
+  Qwen3-0.6B Q8_0 against main a274cfd62 on the CPU (dtype auto) and one MI50 (auto and int8): generated text, greedy ids of a short and a 6500-byte prompt in slices of 128, and the top-8 logits of the last 400 prompt positions byte identical, 12 of 12 cells; only the timing lines differ.
+
+**Left.** The branch lands by fast-forward once reviewed.
+The server's prompt slices keep every row: its state points (kept states, message boundaries, proofs that compare states, jobs and pauses) need the same rule from the scheduler, proposed as a follow-up.
+
+**Gotchas.** A state's ring keeps 2 windows of rows, so the older half of a kept state's ring holds whatever the skipped slices left; anything that compares states bit for bit over the whole ring (the server's proofs) must keep every row.
 
 ## Landing stack land-20261116 (2026-11-16, Done)
 

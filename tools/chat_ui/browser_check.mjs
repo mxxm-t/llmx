@@ -691,6 +691,11 @@ try {
   await evaluate("document.querySelector('#setting-system').value='Keep this unsaved system prompt';document.querySelector('#draft').value='Keep this unsent draft';");
   await click('[data-view="preferences"]');
   assert.equal(await evaluate("document.querySelector('#preferences-tools').innerText.includes('Approval required')"), true, 'operator approval policy label missing');
+  const toolMetadataSeparated = await evaluate(`{
+    const [policy, description] = document.querySelectorAll('#preferences-tools .connected-tool span');
+    policy.textContent === 'Approval required' && description.textContent === 'Echo text' &&
+      description.getBoundingClientRect().top >= policy.getBoundingClientRect().bottom;
+  }`);
   await evaluate(`window.__toolTestCalls=0;window.__realFetch=window.fetch;window.fetch=async (url,options)=>{if(String(url)==='/api/tools/test'){window.__toolTestCalls++;return new Response(JSON.stringify({tools:[{name:'fresh_tool',description:'Freshly listed',connection:'mcp:fixture',approval:false}],tool_servers:[{id:'mcp:fixture',name:'Fixture MCP',kind:'mcp',status:'ready',tool_count:1,approval:false,checked_at:1794760000,duration_ms:14,error:null}],tools_error:null}),{status:200,headers:{'Content-Type':'application/json'}})}return window.__realFetch(url,options)};`);
   await click('[data-test-server="mcp:fixture"]');
   await wait("document.querySelector('#preferences-tools').innerText.includes('Freshly listed')", 'tested tool list refresh');
@@ -733,10 +738,34 @@ try {
   await wait("document.querySelector('.tool-call summary').textContent.includes('echo') && document.querySelector('.tool-body pre').textContent.endsWith('hello')", 'tool-only stream updates arguments and name');
   assert.equal(await evaluate("document.querySelector('.tool-call summary')===preparingSummary && document.querySelector('.tool-call details').open && document.activeElement===preparingSummary"), true, 'tool fragment detached the active disclosure');
   assert.equal(await evaluate("document.querySelector('.approval')===null && document.querySelectorAll('.tool-call').length===1"), true, 'partial call duplicated or became executable');
+  await pointerClick('.tool-call summary');
+  await wait("!document.querySelector('.tool-call details').open", 'collapsed preparing tool arguments');
   assert.equal((await fetch(upstreamFixture + '/browser-step')).status, 204);
   await wait("document.querySelector('.approval')!==null", 'tool approval');
+  const approvalArguments = "document.querySelector('.tool-call details').open && JSON.parse(document.querySelector('.tool-body pre').textContent).text==='hello'";
+  const transition = await evaluate(`({argumentsVisible: ${approvalArguments}, focusKept: document.activeElement===preparingSummary})`);
   await reloadDocument();
   await wait("document.querySelector('.approval')!==null", 'persisted approval after refresh');
+  const approvalStyle = await evaluate(`{
+    const panel = document.querySelector('.approval');
+    const remember = panel.querySelector('.remember-approval');
+    const allow = panel.querySelector('[data-action=approve]');
+    const defaults = {allow: allow.textContent, deny: panel.querySelector('[data-action=deny]').textContent,
+      checked: remember.checked, scope: remember.labels[0].textContent.trim()};
+    remember.click();
+    const remembered = allow.textContent;
+    remember.click();
+    ({defaults, remembered, reset: allow.textContent});
+  }`);
+  assert.deepEqual({toolMetadataSeparated, transition, reloadArguments: await evaluate(approvalArguments), ...approvalStyle}, {
+    toolMetadataSeparated: true,
+    transition: {argumentsVisible: true, focusKept: true},
+    reloadArguments: true,
+    defaults: {allow: 'Allow once', deny: 'Deny this call', checked: false,
+      scope: 'Also allow later calls to this tool in this reply, even with different arguments.'},
+    remembered: 'Allow for this reply',
+    reset: 'Allow once',
+  }, 'pending tool review, decision scope and Settings tool metadata');
   await click('.activity-tool-link');
   const approvedCall = await evaluate("document.querySelector('.tool-call').dataset.toolCall");
   assert.equal(await evaluate("document.activeElement?.closest('.tool-call')?.dataset.toolCall==="+JSON.stringify(approvedCall)), true, 'pending Activity entry did not focus the live tool summary');

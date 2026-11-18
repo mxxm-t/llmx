@@ -17,6 +17,12 @@
 **Checks.** Chrome passed in 54.370 seconds with ordinary draft/attachment reload, edit-target reload, quota failure and recovery, blank migration, separate drafts, Temporary chat privacy, latest-selection ordering, accepted-send round trips and stale pre-admission snapshots. Existing streaming, branch, attachment, workspace, responsive and zoom checks also pass. Source review rechecked the reported navigation/admission races. Receipts are in `scratch/drafts/`; final static checks are recorded at landing.
 
 **Gotchas.** Accepted sends must clear only their own unchanged draft. New typing during a request must survive. Temporary chat content stays in memory. Browser storage may be unavailable or full, so navigation must preserve the in-memory copy and reload limitations must be visible.
+## Tool approval clarity (2026-11-18, In progress)
+
+- **Goal:** Show the pending tool arguments and make the scope of each approval decision clear. Separate tool descriptions and policy labels in Settings.
+- **Done:** Confirmed that approval controls can render below a collapsed disclosure and that the engine remembers an allow by tool name for the current reply. Settings renders adjacent policy and description spans without spacing.
+- **Left:** Add a Chrome regression and check the browser changes in the existing fixture.
+- **Gotchas:** A preparing call has no approval controls. Approval for a later call to the same tool can cover different arguments, and denial applies to the current call.
 
 ## Landing stack land-20261117 (2026-11-17, LAND68 then LAND69, Done)
 

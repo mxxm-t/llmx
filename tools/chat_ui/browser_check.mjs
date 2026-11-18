@@ -235,6 +235,17 @@ try {
   await wait("document.querySelector('#login-error').textContent.includes('Incorrect')", 'invalid-password error');
   await fill('#password', 'browser-test'); await evaluate("document.querySelector('#login-form').requestSubmit()");
   await wait("!document.querySelector('#login-dialog').open && document.querySelector('#model').value==='qwen3-local' && !document.querySelector('[data-action=\"new\"]').disabled", 'authenticated workspace');
+  for (const theme of ['dark', 'light']) {
+    await evaluate(`document.documentElement.dataset.theme=${JSON.stringify(theme)}`);
+    const point = await evaluate("(()=>{const r=document.querySelector('.global-nav [data-view=monitor]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()");
+    await cdp('Input.dispatchMouseEvent', {type:'mouseMoved', ...point});
+    await delay(180);
+    await screenshot('navigation-hover-' + theme + '.png');
+    const navigation = await evaluate("(()=>{const selected=document.querySelector('.global-nav [aria-current=page]'), hovered=document.querySelector('.global-nav button:hover');return {selected:selected.dataset.view,hovered:hovered?.dataset.view,selectedFill:getComputedStyle(selected).backgroundColor,hoveredFill:getComputedStyle(hovered).backgroundColor};})()");
+    assert.equal(navigation.selected, 'chat'); assert.equal(navigation.hovered, 'monitor');
+    assert.notEqual(navigation.selectedFill, navigation.hoveredFill, theme + ' navigation hover looks selected');
+  }
+  await evaluate("document.documentElement.dataset.theme='dark'");
   assert.equal(await evaluate("document.querySelector('#temporary-button')?.closest('.topbar-actions')!==null"), true, 'Temporary chat is not in the conversation header');
   const detailsToggle = '.topbar [data-action="inspector"]';
   const detailsOpen = () => evaluate("getComputedStyle(document.querySelector('#inspector')).display!=='none'");

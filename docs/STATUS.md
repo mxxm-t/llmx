@@ -687,7 +687,10 @@ This stack did not land alone: it lands with land-20261119 on main ce2b0603b as 
 
 - **Goal:** the GPU core's descriptor table (`kTypes`, `src/backends/gpu/backend_core.hpp`) reads every weight type the CPU and Vulkan read, so ROCm and CUDA refuse none of them: NVFP4 first, then Q3_K, Q2_K and IQ4_XS, which released GGUFs use, then the IQ2 and IQ3 types, IQ1, TQ, Q1_0, Q2_0 and F8_E4M3.
 - **Done:** NVFP4 as an exact family under its tensor's F32 scales, replayed from the MiniMax stack's step 7f (26f09598) onto main (MiniMax-M3.1, step 8 records it).
-- **Left:** NVFP4's `backend-rocm types` on one MI50, which waits for the cards; then the next types in the order of the goal, each with raw-block checks and device checks.
+  Q2_K, Q3_K and IQ4_XS as exact families with no twin (`rq::Q2_K`, `rq::Q3_K`, `rq::IQ4_XS` in `kernels/quant.h`, one `LLMX_DECODED` line each), on branch `rocm/q2k-q3k-iq4xs` stacked on `rocm/nvfp4`, since both change the same table rows.
+  Each decodes a value as its CPU dequantizer does, so embeddings give the CPU's rows bit for bit and every `--dtype` takes the exact F32 product, wider than asked; the CPU decoders are held to `tests/spec_decode.py` by the raw-block checks already.
+  `backend-rocm types` and `experts` take the three types (`twin_checks::exact_only` names the table's types without twins), and `exact_rows` their row builds.
+- **Left:** `backend-rocm types`, `experts` and `exact_rows` on one MI50 for NVFP4, Q2_K, Q3_K and IQ4_XS, and the microbenchmarks against the CPU decoder at Qwen3-0.6B and Qwen3.5-27B shapes, all waiting for the cards; then twins for Q3_K, Q2_K and IQ4_XS where their speed pays, and the IQ2, IQ3, IQ1, TQ, Q1_0, Q2_0 and F8_E4M3 types.
 - **Gotchas:** every type in `kTypes` must be Supported in README's ROCm column, which the `docs` component's readme check holds, so README changes with the table.
 
 ## Safetensors FP8 skip on devices without F8_E4M3 (2026-11-18, FP8R1, branch fix/safetensors-rocm-fp8 on main a274cfd62)

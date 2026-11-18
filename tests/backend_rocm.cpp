@@ -406,7 +406,8 @@ void exact_close(const std::vector<float>& got, const DoubleSums& d, const std::
 // The descriptor table's types at Flash-Next's shapes: embeddings the CPU's rows bit for bit, exact products of the CPU and the device within the F32 bound of a double sum, and a row of a call the row alone.
 void types(Backend& g, Backend& c) {
     const uint32_t kinds[] = {quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0,
-                              quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_BF16, quant::GGML_TYPE_F16, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4, quant::GGML_TYPE_NVFP4};
+                              quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_BF16, quant::GGML_TYPE_F16, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4, quant::GGML_TYPE_NVFP4,
+                              quant::GGML_TYPE_Q2_K, quant::GGML_TYPE_Q3_K, quant::GGML_TYPE_IQ4_XS};
     for (uint32_t type : kinds) {
         const std::string name = quant::storage_type(type)->name;
         require(g.supports_type(type), name + " is supported");
@@ -443,7 +444,7 @@ void types(Backend& g, Backend& c) {
             exact_close(read(c, *cy, nout * 33), want, "a " + at + " CPU matmul of 33 rows against the double sum");
             auto wb = g.adopt(w.data(), w.size()), xb = g.adopt(x.data(), x.size() * 4), yb = g.alloc(nout * 33 * 4);
             // A type with twins takes its exact kernel in the F32 class alone (twin_types), and F16 weights' prompt rows outside it the half tile on binary16 inputs (half_tile).
-            const bool twins = type != quant::GGML_TYPE_BF16 && type != quant::GGML_TYPE_F16, halves = type == quant::GGML_TYPE_F16;
+            const bool twins = !twin_checks::exact_only(type), halves = type == quant::GGML_TYPE_F16;
             std::vector<float> xh(x.size());
             for (size_t i = 0; i < x.size(); ++i) xh[i] = f16_to_f32(f32_to_f16(x[i]));
             const DoubleSums want_half = halves ? double_sums(read(c, *ce, nout * nin), xh, nin, nout) : DoubleSums{};
@@ -480,7 +481,8 @@ moe_checks::Moe& moe() {
 }
 void exact_rows(Backend& g) {
     twin_checks::exact_rows(g, {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0,
-                               quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_BF16, quant::GGML_TYPE_F16, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4, quant::GGML_TYPE_NVFP4},
+                               quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_BF16, quant::GGML_TYPE_F16, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4, quant::GGML_TYPE_NVFP4,
+                               quant::GGML_TYPE_Q2_K, quant::GGML_TYPE_Q3_K, quant::GGML_TYPE_IQ4_XS},
                             rocm_take_launches, require);
 }
 void twin_types(Backend& g, Backend& c) {

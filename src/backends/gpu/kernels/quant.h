@@ -113,6 +113,43 @@ struct IQ4_NL {
     }
 };
 
+// Sixteen affine groups of 16 values: a scale and min nibble a group, four 2-bit planes in two halves, then the f16 scale and min (quant::dequantize_row_q2_K).
+struct Q2_K {
+    static constexpr unsigned values = quant::Q2_K_BLOCK, bytes = quant::Q2_K_TYPESIZE;
+    __device__ static float value(const unsigned char* b, int j) {
+        const int g = j >> 4, lane = j & 15;
+        const float scale = half_at(b + 80) * (float)(b[g] & 15);
+        const float min = half_at(b + 82) * (float)(b[g] >> 4);
+        const int code = (b[16 + 32 * (g / 8) + 16 * (g % 2) + lane] >> (2 * ((g % 8) / 2))) & 3;
+        return scale * (float)code - min;
+    }
+};
+
+// Sixteen signed 6-bit scales on signed 3-bit codes, a clear high bit taking four from the stored low code (quant::dequantize_row_q3_K).
+struct Q3_K {
+    static constexpr unsigned values = quant::Q3_K_BLOCK, bytes = quant::Q3_K_TYPESIZE;
+    __device__ static float value(const unsigned char* b, int j) {
+        const int g = j >> 4, plane = j >> 5;
+        const int scale = ((b[96 + g % 8] >> (4 * (g / 8))) & 15) | (((b[104 + g % 4] >> (2 * (g / 4))) & 3) << 4);
+        const float ds = half_at(b + 108) * (float)(scale - 32);
+        const int low = (b[32 + 32 * (j >> 7) + (j & 31)] >> (2 * (plane % 4))) & 3;
+        return ds * (float)(low - (((b[j & 31] >> plane) & 1) ? 0 : 4));
+    }
+};
+
+// Eight 32-value groups of IQ4_NL codes under 6-bit signed scales of the f16 scale, low nibbles before high in each group (quant::dequantize_row_iq4_xs).
+struct IQ4_XS {
+    static constexpr unsigned values = quant::IQ4_XS_BLOCK, bytes = quant::IQ4_XS_TYPESIZE;
+    __device__ static float value(const unsigned char* b, int j) {
+        const int g = j >> 5, l = j & 31;
+        const unsigned high = b[2] | (b[3] << 8);
+        const int sc = (int)(((b[4 + g / 2] >> (4 * (g % 2))) & 15) | (((high >> (2 * g)) & 3) << 4)) - 32;
+        const unsigned char* qs = b + 8 + 16 * g;
+        const int q = l < 16 ? qs[l] & 15 : qs[l - 16] >> 4;
+        return half_at(b) * (float)sc * (float)GPU_TABLE(quant::IQ4_NL_VALUES)[q];
+    }
+};
+
 // Half an E8M0 scale, 2^(e - 128), for the doubled E2M1 codes, as quant::mxfp4_scale gives it, subnormal below e = 2.
 __device__ inline float e8m0_half(unsigned e) { return __uint_as_float(e <= 1 ? 0x00200000u << e : (e - 1) << 23); }
 

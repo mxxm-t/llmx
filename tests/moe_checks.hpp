@@ -127,7 +127,8 @@ struct Moe {
     // Routed products at Flash-Next's expert shapes, every type and class, each entry its expert's one-column product bit for bit (docs/src/backends-gpu.md).
     void experts(Backend& g, Backend& c) {
         const uint32_t kinds[] = {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K,
-                                  quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_BF16, quant::GGML_TYPE_F16, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4};
+                                  quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_BF16, quant::GGML_TYPE_F16, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4,
+                                  quant::GGML_TYPE_Q2_K, quant::GGML_TYPE_Q3_K, quant::GGML_TYPE_IQ4_XS};
         const size_t n_expert = 8, k = 4;
         for (uint32_t type : kinds) {
             const std::string name = quant::storage_type(type)->name;
@@ -157,7 +158,7 @@ struct Moe {
                     for (size_t r = 0; r < rows; ++r) decode[r] = {r + 1, 1};
                     const RowRun prompt[1] = {{rows, rows}};
                     for (Dtype dt : {Dtype::f32, Dtype::f16, Dtype::int8}) {
-                        const bool twins = type != quant::GGML_TYPE_F32 && type != quant::GGML_TYPE_BF16 && type != quant::GGML_TYPE_F16;
+                        const bool twins = type != quant::GGML_TYPE_F32 && !twin_checks::exact_only(type);
                         if (!twins && dt != Dtype::f32) continue;
                         for (const RowRuns runs : {RowRuns{decode.data(), rows}, RowRuns{prompt, 1}}) {
                             const std::string at = name + " " + std::to_string(nin) + "->" + std::to_string(ff) + ", " + std::to_string(rows) + (runs.n == 1 && rows > 1 ? " prompt rows, " : " rows, ") + dtype_name(dt);

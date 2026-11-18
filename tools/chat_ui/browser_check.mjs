@@ -284,6 +284,38 @@ try {
   await cdp('Emulation.setDeviceMetricsOverride', {width:1440,height:1000,deviceScaleFactor:1,mobile:false});
   await wait("document.documentElement.dataset.compact==='false' && document.querySelector('#drawer-shade').hidden", 'restored desktop attachment layout');
   await evaluate("document.documentElement.dataset.theme='dark'");
+  const sidebarTargets = ['#archive-toggle','.footer-actions [data-action=import]','#theme-button','#logout-button'];
+  const composerTargets = ['.composer-left [data-action=settings]'];
+  const assertTargets = async (selectors, size, label) => {
+    const measurements = await evaluate(`(() => {
+      const boxes=${JSON.stringify(selectors)}.map(selector=>{
+        const element=document.querySelector(selector), rect=element.getBoundingClientRect();
+        const x=rect.x+rect.width/2, y=rect.y+rect.height/2;
+        const hits=[[x,rect.top+1],[x,rect.bottom-1],[rect.left+1,y],[rect.right-1,y]]
+          .every(([left,top])=>element.contains(document.elementFromPoint(left,top)));
+        return {selector,w:rect.width,h:rect.height,hits};
+      });
+      return {boxes,overflow:document.documentElement.scrollWidth>innerWidth};
+    })()`);
+    assert(measurements.boxes.every(box=>box.w>=size && box.h>=size && box.hits) && !measurements.overflow,
+      label+' hit areas require '+size+' CSS px and must remain unoccluded: '+JSON.stringify(measurements));
+  };
+  await assertTargets([...sidebarTargets,...composerTargets],24,'desktop');
+  await cdp('Emulation.setTouchEmulationEnabled', {enabled:true,maxTouchPoints:1});
+  await wait("matchMedia('(pointer:coarse)').matches", 'desktop coarse pointer');
+  await assertTargets([...sidebarTargets,...composerTargets],40,'desktop coarse pointer');
+  await cdp('Emulation.setTouchEmulationEnabled', {enabled:false});
+  for (const width of [320,390]) {
+    await cdp('Emulation.setDeviceMetricsOverride', {width,height:844,deviceScaleFactor:1,mobile:true});
+    await wait("document.documentElement.dataset.compact==='true' && innerWidth==="+width, 'compact target test viewport');
+    await assertTargets(composerTargets,40,'compact composer at '+width);
+    await pointerClick('#sidebar-toggle');
+    await wait("document.querySelector('#sidebar').getBoundingClientRect().left>=0 && document.querySelector('#sidebar').getAttribute('aria-modal')==='true'", 'open sidebar for target measurement');
+    await assertTargets(sidebarTargets,40,'compact sidebar at '+width);
+    await pointerClick('#sidebar-close');
+  }
+  await cdp('Emulation.setDeviceMetricsOverride', {width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+  await wait("document.documentElement.dataset.compact==='false' && getComputedStyle(document.querySelector('#sidebar')).visibility==='visible'", 'restore desktop after target measurement');
   for (const theme of ['dark', 'light']) {
     await evaluate(`document.documentElement.dataset.theme=${JSON.stringify(theme)}`);
     const point = await evaluate("(()=>{const r=document.querySelector('.global-nav [data-view=monitor]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()");

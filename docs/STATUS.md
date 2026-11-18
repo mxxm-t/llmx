@@ -10,6 +10,12 @@
 - **Hosted findings:** Main run 44320829081 passed Windows but failed Ubuntu at the unacknowledged Escape observer, with a screenshot of the closed dialog. A local 50-cycle native-dialog probe passed that old sequence, so exact hosted scheduling remains unproven. Corrected run 44322978782 passed Ubuntu but failed Windows at its first page navigation before UI assertions. It yielded no screenshot. The diagnostic follow-up is run 44324144002. Original failures remain recorded, with no retry or timeout increase.
 - **Evidence carry:** Commit `3a13b914c` changes only failure reporting and docs after the combined browser run. A controlled failure probe verifies JSON survives failed screenshot capture and still exits nonzero. No successful fixture execution or product path changed in that delta.
 - **Gotchas:** File chooser hints do not replace attachment validation or image admission. Monitor delayed-view wording describes intentional buffering and is unchanged. No screen-reader or physical-phone conformance is claimed.
+## Companion sidebar and composer hit areas (2026-11-18, In progress)
+
+- **Goal**. Enlarge the archive, Import, theme, Lock and conversation Settings controls without changing their typography or hierarchy.
+- **Done**. Chromium confirmed visible target heights of 14 to 17 CSS pixels on desktop and mobile.
+- **Left**. Reproduce in the browser fixture, enlarge the five controls and verify compact and coarse-pointer layouts.
+- **Gotchas**. Measure the mobile sidebar only while it is open and the composer while it is interactive. Workspace layout changes are outside this fix.
 
 ## Companion wording cleanup (2026-11-18, Done)
 

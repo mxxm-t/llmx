@@ -13,6 +13,7 @@
 #include "model/weights.hpp"
 #include "model/architecture.hpp"
 #include "model/arch/metadata.hpp"
+#include "model/rope.hpp"
 #include "model/arch/blocks.hpp"
 
 // Qwen 3.5, 3.6 and 3.8 (docs/QWEN35.md): linear-attention layers alternate with a gated full-attention layer at every interval, each followed by a dense feed-forward block or, on qwen35moe, routed experts and a gated shared expert.
@@ -28,6 +29,7 @@ struct Config {
     int rope_dim = 0;             // the leading dims of each head that rotate
     int context_length = 0;
     float rope_theta = 10000.0f;
+    rope::Policy rope_policy;     // the rope the model runs (model/rope.hpp), from the file and the command line
     float rms_eps = 1e-6f;
     int k_heads = 0, v_heads = 0, k_dim = 0, v_dim = 0;   // the linear attention's heads and widths
     std::vector<uint8_t> full;    // per decoder layer, whether it is a full-attention layer
@@ -58,14 +60,11 @@ inline void check_config(const Config& c) {
 }
 
 // A qwen35 file's configuration, its keys read under `p`, the prefix the registry names; with `moe`, a qwen35moe file's, which adds the experts' keys and has no dense width.
-inline Config read_config(const gguf::GGUFModel& m, const std::string& p, bool moe) {
+inline Config read_config(const gguf::GGUFModel& m, const std::string& p, bool moe, const rope::Request& request = {}) {
     using metadata::integer;
     using metadata::real;
     Config c;
     metadata::option(m, p + "tensor_data_layout", "reference");
-    metadata::option(m, p + "rope.scaling.type", "none");
-    if (real(m, p + "rope.scaling.factor", 1) != 1 || real(m, p + "rope.scale_linear", 1) != 1)
-        throw std::runtime_error("inference: scaled RoPE is unsupported");
 
     const int blocks = integer(m, p + "block_count");
     c.n_nextn = metadata::count(m, p + "nextn_predict_layers", 0);
@@ -120,6 +119,12 @@ inline Config read_config(const gguf::GGUFModel& m, const std::string& p, bool m
         for (int l = 0; l < c.n_layer; ++l) c.full[(size_t)l] = (l + 1) % interval == 0;
     }
     check_config(c);
+    c.rope_policy = rope::resolve(m, p, {rope::Base::negative_power, c.rope_theta, size_t(c.rope_dim), size_t(c.context_length)}, request);
+    // YaRN from the command line sets its own context, held to the same limits.
+    if (c.rope_policy.context != size_t(c.context_length)) {
+        c.context_length = int(c.rope_policy.context);
+        check_config(c);
+    }
     return c;
 }
 
@@ -149,7 +154,9 @@ inline std::vector<size_t> slot_widths(const Config& c) {
 
 class Qwen35 final : public Architecture {
 public:
-    explicit Qwen35(const Config& cfg) : cfg_(cfg) {}
+    explicit Qwen35(const Config& cfg) : cfg_(cfg) {
+        cfg_.rope_policy = rope::bind(cfg_.rope_policy, {rope::Base::negative_power, cfg_.rope_theta, size_t(cfg_.rope_dim), size_t(cfg_.context_length)});
+    }
 
     // A layer's roles are its norm, then its mixer's by its kind, then the feed-forward norm and the dense block or, on qwen35moe, the router, expert stacks and shared expert with its gate.
     // A full-attention layer keeps KV and a linear-attention layer a state; a layer holding the other kind's tensors, or a router in a dense architecture, is refused, and blocks past the decoder layers are not read.
@@ -231,14 +238,7 @@ public:
 
     // The rope's cos and sin for every position the tables cover over the rotated pairs only, indexed as [pos * (rope_dim / 2) + i].
     void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<TensorView>&) const override {
-        const size_t half = (size_t)cfg_.rope_dim / 2;
-        std::vector<float> freq(half);
-        for (size_t i = 0; i < half; ++i) freq[i] = std::pow(cfg_.rope_theta, -2.0f * (float)i / (float)cfg_.rope_dim);
-        for (size_t pos = 0; pos < tables[0].size() / half; ++pos)
-            for (size_t i = 0; i < half; ++i) {
-                tables[0][pos * half + i] = std::cos((float)pos * freq[i]);
-                tables[1][pos * half + i] = std::sin((float)pos * freq[i]);
-            }
+        rope::fill(cfg_.rope_policy, tables[0], tables[1]);
     }
 
     void embed(const Step& s, const uint32_t* ids) const override { blocks::embed(s, s.w[token_embd], ids); }
@@ -368,6 +368,8 @@ public:
         if (s.phase != 0) b.gated_delta_rule(o, u, alpha, beta, w[ssm_a].slice(), w[ssm_dt].slice(), s.state_layer, s.states, s.n_views);
     }
 
+    const rope::Policy& rope_policy() const override { return cfg_.rope_policy; }
+
 private:
     Config cfg_;
 
@@ -479,11 +481,11 @@ private:
 };
 
 // The registry's readers: a qwen35 file's architecture, and a qwen35moe file's.
-inline std::shared_ptr<const Architecture> open_dense(const gguf::GGUFModel& m, const std::string& prefix) {
-    return std::make_shared<const Qwen35>(read_config(m, prefix, false));
+inline std::shared_ptr<const Architecture> open_dense(const gguf::GGUFModel& m, const std::string& prefix, const rope::Request& request) {
+    return std::make_shared<const Qwen35>(read_config(m, prefix, false, request));
 }
-inline std::shared_ptr<const Architecture> open_routed(const gguf::GGUFModel& m, const std::string& prefix) {
-    return std::make_shared<const Qwen35>(read_config(m, prefix, true));
+inline std::shared_ptr<const Architecture> open_routed(const gguf::GGUFModel& m, const std::string& prefix, const rope::Request& request) {
+    return std::make_shared<const Qwen35>(read_config(m, prefix, true, request));
 }
 
 } // namespace infer::qwen35

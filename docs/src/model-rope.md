@@ -1,0 +1,28 @@
+# `src/model/rope.hpp` - the rope tables, scaling keys and YaRN
+
+The rotary position tables every text architecture reads, in namespace `infer::rope`: the reading of a file's rope scaling keys and of the command line's request, the policy they resolve to, and the one writer of the tables, so all of it has one owner (docs/USAGE.md, Rope scaling).
+It names no architecture; each module (qwen3 and qwen3moe, qwen35 and qwen35moe, qwen4exp, minimax-m3 and deepseek41) hands it neutral inputs from its reader and calls it from its `fill_tables`.
+The vision tower's 2-D rope ([qwen3vl_vision](model-arch-qwen3vl_vision.md)) is not a text rope, HF does not scale it, and it keeps its own tables.
+
+- `Base`: how a module spells a pair's base frequency, `negative_power` (`pow(theta, -2i/d)`, qwen3 and qwen35) or `reciprocal_power` (`1 / pow(theta, 2i/d)`, qwen4exp, minimax-m3 and deepseek41).
+  The two spellings give different F32 values for about a quarter of the pairs at the pinned files' bases and widths, so each module keeps its own and its unscaled tables are the bits it wrote before the owner took them over.
+- `Arithmetic`: the precision the tables are computed in, `f32_hf` (F32, every module but deepseek41) or `f64_once` (each frequency and angle in double, rounded to F32 once, as deepseek41's model.py computes them).
+- `Attention`: YaRN's attention factor on the tables, `hf` (0.1 ln(factor) + 1 on cos and sin) or `none` (deepseek41, whose reference scales no table).
+- `base_frequency(form, theta, i, dim)`: pair `i`'s frequency in that spelling, in F32.
+- `Request`: what `--yarn` and `--yarn-original-ctx` ask, each empty when not given; the loader carries it in `PlacementRequest::rope`, and the command line refuses `--yarn-original-ctx` without `--yarn` before it.
+- `Inputs`: what a module hands over: its `Base`, the base, the rotated width, the file's context, its `Arithmetic` and its `Attention`.
+- `Policy`: the rope a model runs: the inputs, whether YaRN is on with its factor, original length, betas and attention factor (1 under `Attention::none`), the context it gives, what the file declared, what was requested and whether the request forced the rope away from the declaration.
+  `describe()` is the `rope:` line a load prints where YaRN is on, naming the attention factor or `attention none`, with a warning where it is forced on a model that declares none; `identity()` is the line `Model::host_identity` adds where YaRN is on, so a disk entry saved under one rope is not read under another, while equal effective policies, declared or forced, give one line and the unscaled rope gives none.
+- `unscaled(inputs)`: the unscaled rope of the inputs, for tables no scaling key reaches, such as deepseek41's window layers.
+- `resolve(file, prefix, inputs, request)`: the file's keys under the prefix and the request, every refusal made before any allocation.
+  `rope.scaling.type` absent or `none` takes the unscaled rope, `rope.scaling.factor` and the legacy `rope.scale_linear` then absent or exactly one ("scaled RoPE is unsupported"); `yarn` reads its factor (above 1), `rope.scaling.original_context_length` (required, a positive integer, which may pass the context as deepseek41's reference declares it), `rope.scaling.yarn_beta_fast` and `yarn_beta_slow` (32 and 1 by default, fast above slow), and refuses `attn_factor`, `yarn_ext_factor`, `yarn_attn_factor` and `yarn_log_multiplier` by name; any other type is "unsupported metadata".
+  A request sets YaRN at its factor (finite, above 1) over its original length (at most the file's context), else the declared one (as the file gives it, past the context too), else the file's context, and the context becomes floor(factor x original), refused past the largest `int`; a request equal to the declaration is not forced.
+  The module then runs its own allocation checks on that context.
+- `bind(policy, inputs)`: the policy on a module's configuration as its constructor takes it: the unscaled rope follows the configuration's base, width and context, so a configuration built or changed in code runs the rope it states, and YaRN keeps the file's context it was resolved from.
+- `frequencies(policy)`: each pair's frequency, held exactly in double: the base frequency, or under YaRN its blend with the interpolated one along the ramp between the correction dims, `floor` and `ceil` of `d ln(L0 / (2 pi beta)) / (2 ln theta)` in double, clamped to 0 and d - 1.
+  Under `f32_hf` YaRN follows HF's `_compute_yarn_parameters` operation for operation, whatever the module's `Base`: `p = theta^(2i/d)` in F32, `1 / p` extrapolated, `1 / (factor p)` interpolated, the F32 ramp and its blend; the platform's `pow` may still differ from torch's in the last bit, which the rope CTest bounds and the HF gate measures.
+  Under `f64_once` it is model.py's `precompute_freqs_cis` in double.
+- `fill(policy, cos, sin)`: the cos and sin of every position the tables cover over the `dim / 2` rotated pairs, `[pos * (dim / 2) + i]`; under `f32_hf` each is the F32 cos or sin of the position as a float times the pair's frequency, under `f64_once` the double one rounded once, and the attention factor multiplies it in the same write; the unscaled rope writes the plain values in one pass, and the tables come sized by the module's plan.
+  Every kernel reads only these tables, so YaRN needs no kernel change.
+
+The `rope` CTest holds the unscaled tables to the loops the five modules wrote before, bit for bit, deepseek41's YaRN tables to its own loop bit for bit, and HF-form YaRN to HF's formulas written in the test (`docs/TESTS.md`).

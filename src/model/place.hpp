@@ -372,6 +372,7 @@ inline HostShares host_shares(std::optional<size_t> given, std::optional<size_t>
 // How a caller wants a model placed over the backends it made (docs/MULTI-DEVICE.md).
 struct PlacementRequest {
     std::optional<backend::Dtype> dtype; // empty selects auto
+    rope::Request rope;               // --yarn and --yarn-original-ctx, which the architecture reads beside the file's rope keys (model/rope.hpp)
     std::vector<std::string> names;   // each backend's name, for the fit's messages and its description
     std::vector<int> shares;          // each backend's proportion of the layers; empty to fit them to the devices' free memory
     int cpu_moe = 0;                  // the routed layers whose experts run on a CPU placed before the devices, -1 for every one

@@ -196,7 +196,7 @@ Its gates are cheaper than V4.1's: V4 fits six MI50s beside production (V4.1 nee
 |---|---|
 | keys, refusals, tensor roles, layer kinds, the variant, both `deepseek41` layouts, the math | the module `src/model/arch/deepseek4/`, a directory since it passed about 1,000 lines |
 | which file runs it | `src/model/arch/registry.hpp`: `deepseek41` and `deepseek4`, declared dtype BF16, `dflash` drafters paired through `normalize_drafter` |
-| the YaRN tables | the module's `fill_tables` (CACHE-PLAN.md section 10 (b)); the rope owner of the shared graph pieces once a second architecture declares YaRN |
+| the YaRN tables | the shared rope owner, `src/model/rope.hpp` (`rope::resolve`, `rope::fill`), in model.py's double arithmetic without an attention factor (`rope::Arithmetic::f64_once`, `rope::Attention::none`) |
 | the model's FP8 and FP4 encoders and scale rules | one C++ owner under `src/quant/` and its GLSL twin (XDEV's area) |
 | the MXFP8 decoder (upstream layout) | `src/quant/`, beside MXFP4 (XDEV's area) |
 | the Engram hash and gate | the n-gram lookup of the shared graph pieces (`src/model/arch/blocks.hpp`), moved there from qwen4exp and generalized once; each module's `lookup_ids` and mixer only read their keys into it and call it (section 4.4) |

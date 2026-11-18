@@ -911,6 +911,8 @@ size_t check_kernels(backend::Backend& vk) {
         struct Case { size_t heads, dim, rope, src_stride, head_stride; bool in_place; };
         const Case cases[] = {{3, 128, 128, 3 * 128, 128, true}, {3, 256, 64, 3 * 512 + 8, 512, false}, {2, 256, 64, 2 * 256, 256, true},
                               {4, 40, 8, 4 * 80, 80, false}};
+        // Unit tables and tables YaRN's attention factor scales (1.2).
+        for (const float scale : {1.0f, 1.2f})
         for (const Case& c : cases) {
             const size_t half = c.rope / 2, width = c.heads * c.dim, src_floats = (rows - 1) * c.src_stride + (c.heads - 1) * c.head_stride + c.dim;
             const auto x = uniform(src_floats, 8, -2.0f, 2.0f), w = uniform(c.dim, 9, 0.5f, 1.5f);
@@ -918,8 +920,8 @@ size_t check_kernels(backend::Backend& vk) {
             for (size_t t = 0; t < table; ++t)
                 for (size_t i = 0; i < half; ++i) {
                     const double f = std::pow(10000.0, -2.0 * double(i) / double(c.rope));
-                    cs[t * half + i] = float(std::cos(double(t) * f));
-                    sn[t * half + i] = float(std::sin(double(t) * f));
+                    cs[t * half + i] = float(std::cos(double(t) * f)) * scale;
+                    sn[t * half + i] = float(std::sin(double(t) * f)) * scale;
                 }
             Pair::In xi = p.in(x), wi = p.in(w), ci = p.in(cs), si = p.in(sn);
             Pair::Out d = p.out(c.in_place ? src_floats : rows * width);
@@ -1211,7 +1213,7 @@ size_t check_kernels(backend::Backend& vk) {
             }
         }
         // norm_rope_kv: the fused attention inputs against the CPU's three separate ops; q compared directly, k and v through attention over the view each backend wrote, after a 70-token history.
-        {
+        for (const float scale : {1.0f, 1.2f}) {
             const int n_head = 4, n_head_kv = 2, head_dim = 40;
             const size_t half = head_dim / 2, qw = (size_t)n_head * head_dim, kvw = (size_t)n_head_kv * head_dim;
             const size_t rows = 3, hist = 70, table = 128;
@@ -1219,8 +1221,8 @@ size_t check_kernels(backend::Backend& vk) {
             for (size_t t = 0; t < table; ++t)
                 for (size_t i = 0; i < half; ++i) {
                     const double f = std::pow(10000.0, -2.0 * double(i) / double(head_dim));
-                    cs[t * half + i] = float(std::cos(double(t) * f));
-                    sn[t * half + i] = float(std::sin(double(t) * f));
+                    cs[t * half + i] = float(std::cos(double(t) * f)) * scale;
+                    sn[t * half + i] = float(std::sin(double(t) * f)) * scale;
                 }
             const auto q0 = uniform(rows * qw, 31), k0 = uniform(rows * kvw, 32), v0 = uniform(rows * kvw, 33);
             const auto qn = uniform(head_dim, 34, 0.5f, 1.5f), kn = uniform(head_dim, 35, 0.5f, 1.5f);

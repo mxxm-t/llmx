@@ -91,7 +91,7 @@ Branch `fix/qwen-model-validation` starts at JSON conversion checkpoint
 checks precede narrowing/division and required tensor checks precede model
 activation/KV/RoPE allocation. They preserve valid separate projection widths,
 tied/untied weights, supported F32/block types and singleton tensor axes.
-Declared unsupported architecture, tensor layout or RoPE scaling is rejected.
+Declared unsupported architecture, tensor layout or RoPE scaling other than YaRN is rejected.
 Metadata defaults apply only to absent optional keys.
 
 Native `model-validation` uses independently sized in-memory fixtures with
@@ -1300,6 +1300,7 @@ fractions. `tools/gen_baseline.py f32` generates its committed full-logit and
 NLL references with HF `Qwen3ForCausalLM`, float32 eager attention, torch
 2.5.1+cpu and transformers 4.55.2. No HF dependency is needed to run the tests.
 The golden file records weight hashes and configuration so fixture drift fails.
+`tools/gen_baseline.py yarn` writes `tests/data/baseline_yarn.json` in the same environment from the untied model with `rope_scaling` YaRN at factor 4 over 512 and `max_position_embeddings` 2048, the product, since transformers 4.55.2 recomputes the factor from the two; it records the attention scaling HF applies, 1.138629436111989.
 
 Two layers, hidden width 37, FFN width 19, head width 42, GQA 2:1 and vocabulary
 257 exercise scalar tails and partial row blocks. Five prompt lengths, physical

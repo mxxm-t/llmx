@@ -754,7 +754,7 @@ inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vec
     }
     loaded->tok.emplace(loaded->file);
     loaded->chat = chat::chat_format(loaded->file, *loaded->tok);
-    ModelWeights weights = gguf_weights(loaded->file);
+    ModelWeights weights = gguf_weights(loaded->file, request.rope);
     return detail::load_weights(std::move(loaded), std::move(weights), std::move(backends), placing, options, report, mode, directory);
 }
 

@@ -737,7 +737,7 @@ std::vector<float> score_slices(infer::Model& model, const std::vector<uint32_t>
 
 infer::ModelWeights views(gguf::GGUFModel& gguf) {
     infer::ModelWeights result;
-    result.arch = infer::qwen4exp::open(gguf, "qwen4exp.");
+    result.arch = infer::qwen4exp::open(gguf, "qwen4exp.", {});
     result.declared_dtype = backend::Dtype::f32;
     if (gguf.offsets.size() != gguf.tensors.size()) throw std::runtime_error("fixture tensor storage mismatch");
     result.tensors.reserve(gguf.tensors.size());

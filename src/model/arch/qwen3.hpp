@@ -15,6 +15,7 @@
 #include "model/weights.hpp"
 #include "model/architecture.hpp"
 #include "model/arch/metadata.hpp"
+#include "model/rope.hpp"
 #include "model/arch/blocks.hpp"
 #include "model/arch/hf_config.hpp"
 
@@ -32,6 +33,7 @@ struct Config {
     int head_dim = 0;
     int context_length = 4096;
     float rope_theta = 10000.0f;
+    rope::Policy rope_policy;     // the rope the model runs (model/rope.hpp), from the file and the command line
     float rms_eps = 1e-6f;
     // qwen3moe: experts per layer, experts each token takes, an expert's hidden width, and whether the chosen probabilities are renormalized to sum to one.
     // A layer is a mixture of experts when its router tensor is present, so dense and routed layers can mix.
@@ -58,16 +60,12 @@ inline void check_config(const Config& c) {
 }
 
 // A GGUF file's configuration, its keys read under `p`, the prefix the registry names: qwen3's, or qwen3moe's with `moe`, which adds the experts' keys and lets a file without the dense width have no dense layer.
-inline Config read_config(const gguf::GGUFModel& m, const std::string& p, bool moe) {
+inline Config read_config(const gguf::GGUFModel& m, const std::string& p, bool moe, const rope::Request& request = {}) {
     using metadata::integer;
     using metadata::option;
     using metadata::real;
     Config c;
     option(m, p + "tensor_data_layout", "reference");
-    option(m, p + "rope.scaling.type", "none");
-    if (real(m, p + "rope.scaling.factor", 1) != 1 ||
-        real(m, p + "rope.scale_linear", 1) != 1)
-        throw std::runtime_error("inference: scaled RoPE is unsupported");
 
     c.n_layer = integer(m, p + "block_count");
     c.n_embd = integer(m, p + "embedding_length");
@@ -96,6 +94,12 @@ inline Config read_config(const gguf::GGUFModel& m, const std::string& p, bool m
             throw std::runtime_error("inference: shared experts are unsupported");
     }
     check_config(c);
+    c.rope_policy = rope::resolve(m, p, {rope::Base::negative_power, c.rope_theta, size_t(c.head_dim), size_t(c.context_length)}, request);
+    // YaRN from the command line sets its own context, held to the same limits.
+    if (c.rope_policy.context != size_t(c.context_length)) {
+        c.context_length = int(c.rope_policy.context);
+        check_config(c);
+    }
     return c;
 }
 
@@ -115,7 +119,7 @@ inline const hf::Table& hf_table() {
          {"head_dim", "attention.value_length", Rule::integer, nullptr},
          {"attention_bias", nullptr, Rule::check, "false"},
          {"hidden_act", nullptr, Rule::check, "\"silu\""},
-         {"rope_scaling", nullptr, Rule::check, "null"},
+         {"rope_scaling", nullptr, Rule::rope_scaling, nullptr},
          {"use_sliding_window", nullptr, Rule::check, "false"},
          {"layer_types", nullptr, Rule::each, "\"full_attention\""},
          {"tie_word_embeddings", nullptr, Rule::check, "true|false"},
@@ -171,7 +175,9 @@ inline std::vector<size_t> slot_widths(const Config& cfg, bool dense) {
 // Qwen3 and qwen3moe under one configuration: the plan of a file's tensors, the rope tables, and the embedding, attention, feed-forward block and head as backend ops.
 class Qwen3 final : public Architecture {
 public:
-    explicit Qwen3(const Config& cfg) : cfg_(cfg) {}
+    explicit Qwen3(const Config& cfg) : cfg_(cfg) {
+        cfg_.rope_policy = rope::bind(cfg_.rope_policy, {rope::Base::negative_power, cfg_.rope_theta, size_t(cfg_.head_dim), size_t(cfg_.context_length)});
+    }
 
     // The embedding gives the vocabulary, and a layer with a router is routed, which a dense architecture refuses, as a dense layer is refused without the dense width.
     // A layer's roles are its attention's, its feed-forward norm, then its router and expert stacks or its three dense matrices; a routed layer copies its norm and router beside its mixer and writes its stacks into a window.
@@ -257,16 +263,7 @@ public:
 
     // The RoPE cos and sin tables for every position they cover, indexed as [pos*(head_dim/2) + i].
     void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<TensorView>&) const override {
-        std::vector<float>& rope_cos = tables[0];
-        std::vector<float>& rope_sin = tables[1];
-        int half = cfg_.head_dim / 2;
-        for (size_t pos = 0; pos < rope_cos.size() / (size_t)half; pos++) {
-            for (int i = 0; i < half; i++) {
-                float fre = std::pow(cfg_.rope_theta, -2.0f * (float)i / (float)cfg_.head_dim);
-                rope_cos[(size_t)pos * half + i] = std::cos((float)pos * fre);
-                rope_sin[(size_t)pos * half + i] = std::sin((float)pos * fre);
-            }
-        }
+        rope::fill(cfg_.rope_policy, tables[0], tables[1]);
     }
 
     void embed(const Step& s, const uint32_t* ids) const override { blocks::embed(s, s.w[token_embd], ids); }
@@ -316,16 +313,18 @@ public:
 
     void head(const HeadStep& s) const override { blocks::head(s, s.w[output_norm], s.w[output], cfg_.rms_eps, s.slot(1)); }
 
+    const rope::Policy& rope_policy() const override { return cfg_.rope_policy; }
+
 private:
     Config cfg_;
 };
 
 // The registry's readers: a qwen3 file's architecture, and a qwen3moe file's.
-inline std::shared_ptr<const Architecture> open_dense(const gguf::GGUFModel& m, const std::string& prefix) {
-    return std::make_shared<const Qwen3>(read_config(m, prefix, false));
+inline std::shared_ptr<const Architecture> open_dense(const gguf::GGUFModel& m, const std::string& prefix, const rope::Request& request) {
+    return std::make_shared<const Qwen3>(read_config(m, prefix, false, request));
 }
-inline std::shared_ptr<const Architecture> open_routed(const gguf::GGUFModel& m, const std::string& prefix) {
-    return std::make_shared<const Qwen3>(read_config(m, prefix, true));
+inline std::shared_ptr<const Architecture> open_routed(const gguf::GGUFModel& m, const std::string& prefix, const rope::Request& request) {
+    return std::make_shared<const Qwen3>(read_config(m, prefix, true, request));
 }
 
 // A model of this architecture with the given shape and random weights, Q8_0 matrices and F32 norms, for timing the backend without a file (bench without --model).

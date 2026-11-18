@@ -79,6 +79,8 @@ struct BenchNumbers {
 struct ExecOptions {
     std::string device = "cpu";   // cpu, or vulkan:N, rocm:N or cuda:N when built with them; several, comma separated, split the model by layers over them
     std::optional<backend::Dtype> dtype; // empty selects auto
+    std::optional<float> yarn;           // --yarn: the rope is YaRN at this factor (model/rope.hpp); empty keeps the file's rope
+    std::optional<size_t> yarn_original; // --yarn-original-ctx: the trained length --yarn scales from; empty takes the file's
     std::string layer_shares;     // with several devices, their proportions of the layers, comma separated; empty fits them to the devices' free memory
     int tensor_width = 1;         // devices each layer is split across: the listed devices form groups of this many, the stages of the layer split (docs/TENSOR-SPLIT.md)
     int threads = 0;              // CPU workers, decode's where a command tells the phases apart; 0 selects automatically
@@ -562,6 +564,11 @@ bool exec_flag(int argc, char** argv, int& i, ExecOptions& exec, bool batch_thre
         else if (value == "int8") exec.dtype = backend::Dtype::int8;
         else throw UsageError("--dtype: expected auto, f16, bf16, f32 or int8");
     }
+    else if (f == "--yarn") {
+        exec.yarn = float_arg(argc, argv, i, a, 1.0f);
+        if (*exec.yarn == 1.0f) throw UsageError("--yarn: a factor above 1");
+    }
+    else if (f == "--yarn-original-ctx") exec.yarn_original = count_arg<size_t>(argc, argv, i, a, 1);
     else return false;
     return true;
 }
@@ -587,6 +594,7 @@ std::string load_timing(const infer::LoadTimes& t) {
 std::vector<std::string> exec_specs(const ExecOptions& exec) {
     // Only experts on the CPU are streamed, and the flags alone say whether there are any.
     if (exec.moe_stream_from && !exec.cpu_moe) throw UsageError("--moe-stream-from streams the experts on the CPU; give --n-cpu-moe or --cpu-moe");
+    if (exec.yarn_original && !exec.yarn) throw UsageError("--yarn-original-ctx is the length --yarn scales from; give --yarn");
     const auto specs = backend::device_specs(exec.device);
     tensor_groups(exec, specs);
     return specs;
@@ -615,6 +623,7 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
     infer::PlacementRequest request;
     request.names = specs;
     request.dtype = exec.dtype;
+    request.rope = {exec.yarn, exec.yarn_original};
     request.shares = layer_shares(exec.layer_shares);
     request.width = (size_t)exec.tensor_width;
     request.cpu_moe = exec.cpu_moe;
@@ -662,7 +671,7 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
         watch(step);
     };
     auto loaded = infer::load_model(path, std::move(backends), request, options, report, exec.load_mode, drafter_file);
-    std::cerr << loaded->dtype.describe();
+    std::cerr << loaded->dtype.describe() << loaded->model->rope_policy().describe();
     if (loaded->replaced_template) std::cerr << "chat template: " << exec.chat_template_file << " replaces the template the model carries\n";
     if (show_plan) std::cerr << loaded->plan << load_timing(loaded->times);
     if (threads > 0) loaded->model->set_threads(threads);
@@ -1658,6 +1667,10 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "                          over them in that order, fitted to their free memory\n"
             << "  --dtype T               Matmul inputs: auto (default), f16, bf16, f32 or int8.\n"
             << "                          Emulation or a wider fallback is reported per device\n"
+            << "  --yarn F                Rope scaled by YaRN at factor F over the trained length;\n"
+            << "                          the model context becomes F times that length\n"
+            << "  --yarn-original-ctx N   The trained length --yarn scales, 32k = 32768\n"
+            << "                          (default: the file's declared one, else its context)\n"
             << "  --layer-shares A,B      With several devices, their proportions of the layers\n"
             << "  --tensor-width N        Devices each layer is split across: the listed devices\n"
             << "                          form groups of N, the stages of the layer split (default: " << defaults.tensor_width << ")\n"

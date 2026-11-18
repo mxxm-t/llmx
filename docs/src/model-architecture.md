@@ -131,6 +131,7 @@ never sees devices, placements, stages or caches beyond what a call hands it.
     every load mode and drops them once the model is built. The runtime
     keeps the tables for the model's life and adopts them on every device
     that runs a mixer part.
+  - `rope_policy()`: the rope the model runs (`rope::Policy`, [rope](model-rope.md)), which its configuration resolved from the file and the request and its tables hold; the record, `/v1/health` and `Model::host_identity` read it without naming an architecture.
   - `embed(step, ids)`, `mixer(step)`, `ffn(step)` and `head(step)`, whose
     step is a `HeadStep`: the parts as backend ops. The runtime calls each once per layer per
     pass, or once per group of entries when a routed layer streams, and a

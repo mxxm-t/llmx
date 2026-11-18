@@ -202,7 +202,8 @@ def check_usage_errors():
                ("-tb", ["-1"]), ("--ubatch", ["0", "-5"]), ("--topk", ["-1"]), ("--seed", ["-1", "0x10", "18446744073709551616"]),
                ("--temp", ["-0.5", "x", "nan", "inf", "1e39", "0x1p1", "1,5"]), ("--topp", ["1.5", "-0.1"]), ("--penalty", ["0.5"]),
                ("--n-cpu-moe", ["-2"]), ("--tensor-width", ["0", "-1", "x"]), ("--moe-stream-from", ["-1"]), ("--layer-shares", ["1,x", "-1", "1000000"]),
-               ("--cache-type-k", ["q8_0", "F16", ""]), ("-ctv", ["bf16"]), ("--load-mode", ["x", "Auto", "mmap", ""]), ("--dtype", ["x", "F16", "half", ""])]
+               ("--cache-type-k", ["q8_0", "F16", ""]), ("-ctv", ["bf16"]), ("--load-mode", ["x", "Auto", "mmap", ""]), ("--dtype", ["x", "F16", "half", ""]),
+               ("--yarn", ["0.5", "-4", "x", "nan", "inf"]), ("--yarn-original-ctx", ["0", "-1", "1.5", "32q"])]
     for flag, values in numbers:
         for value in values:
             usage_error(["generate", model, "a", flag, value], "generate")
@@ -254,6 +255,11 @@ def check_usage_errors():
     for value in ("lookup", "lookup,embedded", "lookup,x.gguf"):
         usage_error(["bench", "--model", model, "--drafter", value], "bench", "--drafter: bench --model takes off, embedded or a drafter file, not lookup")
     usage_error(["bench", "--model", model, "--drafter", "off,off"], "bench", "--drafter: off is listed twice")
+    # The rope flags, each refusal by its reason on every model command: a factor of 1 scales nothing, and the trained length belongs to a factor.
+    for command in (["generate", model, "a"], ["chat", model], ["logits", model, "a"], ["perplexity", model, "a"], ["bench", "--model", model], ["serve", model]):
+        usage_error(command + ["--yarn", "1"], command[0], "--yarn: a factor above 1")
+        usage_error(command + ["--yarn-original-ctx", "32k"], command[0], "--yarn-original-ctx is the length --yarn scales from; give --yarn")
+    usage_error(["bench", "--yarn", "4"], "bench", "--yarn takes --model")
     # The image flags go together and with --chat, each refusal by its reason, on both commands that take them; --image lists its files.
     for command in (["generate", model, "a"], ["logits", model, "a"]):
         for args, reason in ((["--image", "a.png", "--chat"], "--image needs the vision encoder --mmproj names"),
@@ -321,9 +327,10 @@ def check_help():
     # The image flags are taken together and with --chat, but serve's, which take an encoder alone and size its images with it.
     serve_company = {"--mmproj": [], "--image-max-tokens": ["--mmproj", "missing.gguf"]}
     company = {"--profile": ["--device", "vulkan:0"], "--moe-stream-from": ["--cpu-moe"], "--image": ["--chat", "--mmproj", "missing.gguf"],
-               "--mmproj": ["--chat", "--image", "missing.png"], "--image-max-tokens": ["--chat", "--mmproj", "missing.gguf", "--image", "missing.png"]}
-    # Values a placeholder's would not give: --size is a multiple of 32, a perplexity window holds two tokens at least, and --drafter names a drafter.
-    values = {"--size": "32", "--ctx-size": "2", "-c": "2", "--drafter": "off"}
+               "--mmproj": ["--chat", "--image", "missing.png"], "--image-max-tokens": ["--chat", "--mmproj", "missing.gguf", "--image", "missing.png"],
+               "--yarn-original-ctx": ["--yarn", "4"]}
+    # Values a placeholder's would not give: --size is a multiple of 32, a perplexity window holds two tokens at least, --drafter names a drafter and --yarn scales by more than 1.
+    values = {"--size": "32", "--ctx-size": "2", "-c": "2", "--drafter": "off", "--yarn": "4"}
 
     def given(flag, value):
         return [flag] + ([values.get(flag, PLACEHOLDERS[value])] if value else [])

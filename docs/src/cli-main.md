@@ -1,6 +1,7 @@
 # `src/cli/main.cpp` - CLI dispatcher
 
 `open_model` writes the resolved dtype record once to stderr, and serving passes that same record to its configuration for health reporting. Selection stays in placement. Shared execution options parse `--dtype auto|f16|bf16|f32|int8` once for all model commands and pass it to placement. Missing, invalid and repeated values are usage errors. Auto selects the preferred common native policy, F16 on the current CPU, Vulkan and ROCm backends. Explicit BF16 uses emulation where supported and reports F32 fallback on a device that cannot emulate it; the CLI does not implement either conversion or fallback.
+`--yarn F` and `--yarn-original-ctx N` are read the same way into `ExecOptions::yarn` and `yarn_original`, a factor not above 1 and a length of 0 refused as usage errors and the length without the factor refused by `exec_specs`; `open_model` passes them as `PlacementRequest::rope` ([rope](model-rope.md)), to every model it opens, a draft model included, and prints the policy's `rope:` line after the dtype record where YaRN is on.
 
 `matrix_record` writes a completed execution witness once for `logits`, `perplexity` and a `bench` that loads a model, with the effective dtype and the model's dispatched matrix paths per device. It drains the existing counters after work completes; no new profiler or tuning flag is involved.
 

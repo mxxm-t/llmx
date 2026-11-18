@@ -63,6 +63,20 @@ After 16384 tokens of context Qwen3.5-9B Q4_K_M chose another token than the HF 
 
 `logits`, `perplexity` and model `bench` also write one `matrix-paths:` JSON record to stderr after computation, containing the effective `dtype` and a `devices` list of the matrix paths actually dispatched. The correctness tools use it to select their precision bound; the startup capability description is not execution evidence. Numerical stdout is unchanged.
 
+## Rope scaling
+
+A file that declares YaRN (`rope.scaling.type` `yarn` with its factor and `rope.scaling.original_context_length` under the architecture's prefix) runs it as declared, at the context the file gives; a Hugging Face directory's `rope_scaling` of type `yarn` is read into the same keys, and its `attention_factor`, `mscale` and `mscale_all_dim` are refused by name.
+`--yarn F` makes the rope YaRN at factor F (a number above 1) on any model llmx runs, replacing a declared factor, and the model context becomes floor(F x L0), L0 being `--yarn-original-ctx N` (a token count, `32k` = 32768), else the file's declared original length, else the file's context; `--yarn-original-ctx` is refused without `--yarn`, and past the file's context.
+`--ctx-size` keeps its rule, at most the model context, and never changes the rope. `--yarn` applies to every model a command loads, a draft model beside it included.
+YaRN changes only the rope tables: each pair's frequency is blended between the plain and the interpolated one along HF's ramp (`beta_fast` 32 and `beta_slow` 1, or the file's `rope.scaling.yarn_beta_fast` and `yarn_beta_slow`), and the tables are scaled by HF's attention factor 0.1 ln(F) + 1; no kernel changes, and the vision encoder's rope is not scaled.
+DeepSeek-V4.1 declares YaRN on its compressed layers only and scales no table by an attention factor, as its reference does; `--yarn` replaces those layers' factor and original length, and its window layers keep the unscaled rope.
+YaRN applies at every position, as in HF, so it changes outputs at short context too.
+A load where YaRN is on prints one `rope:` line to stderr beside `dtype:`, with the factor, the original length, the context, the attention factor and what the file declares, and a warning where YaRN is forced on a model that does not declare it, whose quality is measured, not assumed.
+`/v1/health` gives the same as `rope` (`docs/SERVER.md`), and a server's disk tier keys its entries on a scaled rope, so a history saved under one rope is never read under another.
+Example: Qwen3 files give a context of 40960, and the vendor documents YaRN at factor 4 over 32768, which `--yarn 4 --yarn-original-ctx 32k` gives, a context of 131072.
+HF reads such a config with `max_position_embeddings` 131072; transformers versions that recompute the factor as `max_position_embeddings / original_max_position_embeddings` read the vendor's 40960 as factor 1.25.
+A file's `rope.scaling.attn_factor`, `yarn_ext_factor`, `yarn_attn_factor` and `yarn_log_multiplier`, whose meaning differs between writers, are refused by name.
+
 ## Global conventions
 
 - A model file is a GGUF v3 container (see `docs/src/format-gguf.md`).
@@ -267,7 +281,7 @@ Decode a comma- or whitespace-separated list of token ids back into text and pri
 llmx logits <in.gguf> ("<text>" | --file <path> | -f <path>) [flags...]
 ```
 
-`--dtype` selects activation precision (Precision, above).
+`--dtype` selects activation precision (Precision, above). `--yarn` and `--yarn-original-ctx` scale the rope (Rope scaling, above).
 
 Print the top-N next-token logits for `text`, one `id value` pair per line after a `tokens:` header.
 The list is most likely first, a tie going to the lower id.
@@ -280,7 +294,7 @@ That tool takes `--dtype auto|f16|bf16|f32` to select the same request for promp
 `--per-token` reads every token one at a time through decode steps, the path a generated token takes, instead of the batched passes a prompt takes, as `perplexity --per-token` does; on a device the two paths run different kernels, so a reply's `--then-ids` read this way gives the logits its decode steps gave.
 `--top` and `--last` are at least 1.
 
-Shared execution options for `logits` are `--threads`, `--ubatch`, `--kv-tokens`, `--device`, `--layer-shares`, `--tensor-width`, `--n-cpu-moe`, `--cpu-moe`, `--moe-stream-from`, `--cache-type-k`, `--cache-type-v`, `--load-mode`, `--lookup-storage` and `--dtype`; their meanings and defaults are in the shared execution sections above.
+Shared execution options for `logits` are `--threads`, `--ubatch`, `--kv-tokens`, `--device`, `--layer-shares`, `--tensor-width`, `--n-cpu-moe`, `--cpu-moe`, `--moe-stream-from`, `--cache-type-k`, `--cache-type-v`, `--load-mode`, `--lookup-storage`, `--dtype`, `--yarn` and `--yarn-original-ctx`; their meanings and defaults are in the shared execution sections above.
 
 This exists for the correctness gate. Comparing llmx against a reference
 through sampled text hides everything except argmax flips, so
@@ -298,7 +312,7 @@ matching the top token alone does not establish numerical correctness.
 llmx perplexity <in.gguf> ("<text>" | --file <path> | -f <path>) [flags...]
 ```
 
-`--dtype` selects activation precision (Precision, above).
+`--dtype` selects activation precision (Precision, above). `--yarn` and `--yarn-original-ctx` scale the rope (Rope scaling, above).
 
 Compute the loss-based perplexity of `text` under the model.
 
@@ -340,6 +354,8 @@ Flags:
 | `--per-token` | score one token at a time, the decode path, instead of in batched passes |
 | `--verbose` | show scoring phase and actual worker count on stderr, and each window's scored tokens and mean NLL on stdout |
 | `--dtype T` | activation precision: `auto`, `f16`, `bf16`, `f32` or `int8` (Precision, above; default `auto`) |
+| `--yarn F` | rope scaled by YaRN at factor F (Rope scaling, above) |
+| `--yarn-original-ctx N` | the trained length `--yarn` scales from (Rope scaling, above) |
 | `--threads N`   | worker thread count (0 = auto)                 |
 | `-tb`, `--threads-batch N` | threads for batched passes (omitted or 0: `--threads`); refused with `--per-token`, which scores on `--threads` |
 | `--ubatch N`    | tokens per batched pass (default 512)          |
@@ -600,7 +616,7 @@ A draft model beside the model (`--drafter`) keeps its own.
 llmx generate <in.gguf> ("<prompt>" | --file <path>) [flags...]
 ```
 
-`--dtype` selects activation precision (Precision, above).
+`--dtype` selects activation precision (Precision, above). `--yarn` and `--yarn-original-ctx` scale the rope (Rope scaling, above).
 
 Prompt-process `prompt`, then autoregressively generate tokens until eos or
 `--max-tokens`. Streams generated text as tokens arrive, reasoning included.
@@ -641,6 +657,8 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--frequency-penalty F` | subtracted from a generated token's score once for each time, -2 to 2 | 0 |
 | `--min-p F`             | drop tokens less likely than F times the likeliest, 0 to 1 (0 = off) | 0       |
 | `--dtype T`             | activation precision: `auto`, `f16`, `bf16`, `f32` or `int8` (Precision, above) | `auto` |
+| `--yarn F`              | rope scaled by YaRN at factor F (Rope scaling, above) | none |
+| `--yarn-original-ctx N` | the trained length `--yarn` scales from (Rope scaling, above) | the file's |
 | `--threads N`           | worker thread count (0 = auto)                       | 0       |
 | `--ubatch N`            | prefill physical batch                       | 512     |
 | `--kv-tokens N`         | KV cache tokens, in whole blocks, backed at load, fitted as `llmx serve`, below, gives | model context |
@@ -702,7 +720,7 @@ A verify costs more than a step, and on a device its cost steps where its rows c
 llmx chat <in.gguf> [--system "<text>"] [flags...]
 ```
 
-`--dtype` selects activation precision (Precision, above).
+`--dtype` selects activation precision (Precision, above). `--yarn` and `--yarn-original-ctx` scale the rope (Rope scaling, above).
 
 Interactive chat loop reading lines from stdin.
 Uses the model's `tokenizer.chat_template` to format the conversation, rendered byte for byte as the Jinja template language defines it (`docs/src/inference-chat.md` lists what the renderer takes).
@@ -737,7 +755,7 @@ process starts a new history. Press Ctrl+C to exit.
 llmx bench [flags...]
 ```
 
-`--dtype` selects activation precision only with `--model` (Precision, above); the synthetic benchmark refuses it.
+`--dtype` selects activation precision only with `--model` (Precision, above), and `--yarn` and `--yarn-original-ctx` scale the rope only with it (Rope scaling, above); the synthetic benchmark refuses all three.
 
 Micro-benchmark of the backend hot paths, plus end-to-end TPS:
 
@@ -772,7 +790,7 @@ comparison below for that path.
 llmx serve <in.gguf> [flags...]
 ```
 
-`--dtype` selects activation precision (Precision, above).
+`--dtype` selects activation precision (Precision, above). `--yarn` and `--yarn-original-ctx` scale the rope (Rope scaling, above).
 
 The multi-user server (`docs/SERVER.md`): one model, a sequence per
 request, selected ready decoding requests advanced by one token in a pass
@@ -912,7 +930,7 @@ The server draws a pass's tokens on its scheduler thread and up to four sampling
 | `POST /v1/chat` | `{"messages": [{"role": "user", "content": "...", "reasoning_content": "..."}], ...}` (the same sampling fields; `reasoning_content` is optional) | as above; the prompt is the model's chat template over the messages |
 | `POST /v1/tokenize` | `{"text": "..."}`, or `{"messages": [...]}` in place of the text | `{"tokens": [ids], "count": n}` |
 | `POST /v1/detokenize` | `{"tokens": [ids]}` | `{"text": "..."}` |
-| `GET /v1/health` | | `{"status": "ok", "server", "precision", "requests", "reuse", "pressure", "reread", "drafting", "passes", "service"}`, each group's numbers split into `now` and `since_start`, and `"timing"` with `--timing`; every field is in the table below |
+| `GET /v1/health` | | `{"status": "ok", "server", "precision", "rope", "requests", "reuse", "pressure", "reread", "drafting", "passes", "service"}`, each group's numbers split into `now` and `since_start`, and `"timing"` with `--timing`; every field is in the table below |
 | `GET /v1/live` | | `{"status": "ok"}`, answered without the scheduler |
 | `GET /v1/models` | | `{"object": "list", "data": [{"id", "object": "model", "created", "owned_by", "context_length", "vocab"}]}` |
 | `POST /v1/chat/completions` | `{"messages": [...], "max_tokens" or "max_completion_tokens", "temperature", "top_p", "presence_penalty", "frequency_penalty", "seed", "stop", "stream", "stream_options": {"include_usage"}, "logprobs", "top_logprobs", "tools", "tool_choice", "parallel_tool_calls"}`, plus `top_k`, `min_p`, `penalty` or `repetition_penalty`, and `ignore_eos` | `{"id", "object": "chat.completion", "created", "model", "choices": [{"index": 0, "message": {"role", "reasoning_content", "content"}, "logprobs", "finish_reason"}], "usage": {"prompt_tokens", "completion_tokens", "total_tokens", "prompt_tokens_details": {"cached_tokens"}}}`, `reasoning_content` only for a reply that reasons, `logprobs` only when asked |
@@ -1005,6 +1023,7 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 {"status": "ok",
  "server": {"version": "0.1.0+g1234567", "numerics": "0123456789abcdef", "uptime_s": 8123, "model": "Qwen3-8B-Q8_0.gguf", "context_tokens": 40960, "request_tokens": 40960, "kv_tokens": 40960, "devices": ["vulkan:0"]},
  "precision": {"requested": "auto", "declared": "bf16", "effective": "f16", "devices": [{"device": "vulkan:0", "how": "native", "paths": "...", "effective": "f16"}]},
+ "rope": {"type": "none", "context": 40960, "forced": false, "declared": {"type": "none"}, "requested": null},
  "requests": {"now": {"active": 3, "queued": 0, "paused": 0, "kv_tokens": 9216}, "limits": {"active": 16, "queued": 64},
               "since_start": {"finished": 912, "prompt_tokens": 481203, "generated_tokens": 90112}},
  "work": {"since_start": {"prefilled_tokens": 300000, "generated_tokens": 90200}},
@@ -1031,6 +1050,7 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 | `server.kv_tokens` | tokens | fixed | The KV pool every request and kept conversation shares (`--kv-tokens`, or what the devices' memory gave) | |
 | `server.request_tokens` | tokens | fixed | What one request may hold: the smallest of `--ctx-size`, the model's context and the pool | |
 | `precision` | | fixed | The activation precision requested and the one each device runs, with `how` it runs (`native`, `emulated` or `fallback`) | a device shows `fallback` |
+| `rope` | factor, tokens | fixed | The rope the model runs (Rope scaling, above): `type` `none` or `yarn`, under YaRN its `factor`, `original` length, `attention_factor`, `beta_fast` and `beta_slow`; the model `context`, whether `--yarn` `forced` it away from what the file `declared`, and the `requested` factor and original length, null without `--yarn` | `forced` is true and you did not mean to force it |
 | `topology` | indices, layer ranges, bytes | fixed | The realized `mode` (`single`, `layer`, `tensor`, `staged_tensor`), `tensor_width`, `mixed_roles`, backend `devices`, mixer `stages`, `embedding_members`, `head_members` and per-layer mixer, feed-forward and eligible expert-stream groups. `lookups` lists each lookup table's `layer`, `rows`, `row_bytes`, logical `bytes`, weight `type`, `storage` (`device` or `file`) and backend `members`. Layer ranges are half-open and device indices refer to this model's backend list. File storage does not report resident host memory. | the actual placement differs from the intended layout |
 | `requests.now.active` | requests | now | Requests running in passes | it sits at `requests.limits.active` |
 | `requests.now.queued` | requests | now | Requests waiting for a place | it stays above 0, or reaches `requests.limits.queued`, where new requests get a 503 |

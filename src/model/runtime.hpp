@@ -981,6 +981,7 @@ public:
     int context_length() const { return (int)plan_.context_length; }
     // The positions the tables cover, past which a pass is refused.
     size_t positions() const { return positions_; }
+    const rope::Policy& rope_policy() const { return arch_->rope_policy(); }
     // The host bytes the lookup tables hold of their hot rows (WeightRows::store_bytes), each table once.
     size_t lookup_store_bytes() const {
         std::vector<const WeightRows*> seen;

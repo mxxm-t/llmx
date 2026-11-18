@@ -13,6 +13,7 @@
 #include "format/gguf.hpp"
 #include "model/arch/blocks.hpp"
 #include "model/arch/deepseek4/config.hpp"
+#include "model/rope.hpp"
 
 // DeepSeek-V4.1: the plan of the fork layout's tensors and caches, and the math on the CPU (docs/DEEPSEEK4.md).
 namespace infer::deepseek4 {
@@ -287,19 +288,15 @@ public:
         return p;
     }
 
-    // Each angle in double, rounded once; the sources are each Engram layer's engram_q then engram_k, as the plan lists them.
+    const rope::Policy& rope_policy() const override { return cfg_.rope; }
+
+    // The window's unscaled rope and the compressed layers' YaRN in model.py's arithmetic; the sources are each Engram layer's engram_q then engram_k, as the plan lists them.
     void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<TensorView>& sources) const override {
         const Config& c = cfg_;
-        const size_t half = size_t(c.rope_dim / 2);
-        const std::vector<double> window = rope_frequencies(c.rope_dim, c.rope_theta, 0, 1, 0, 0);
-        const std::vector<double> compressed = rope_frequencies(c.rope_dim, c.compress_rope_theta, c.original_context, c.rope_factor, c.beta_fast, c.beta_slow);
-        for (size_t pos = 0; pos < tables[rope_cos].size() / half; ++pos)
-            for (size_t i = 0; i < half; ++i) {
-                tables[rope_cos][pos * half + i] = float(std::cos(double(pos) * window[i]));
-                tables[rope_sin][pos * half + i] = float(std::sin(double(pos) * window[i]));
-                tables[compressed_cos][pos * half + i] = float(std::cos(double(pos) * compressed[i]));
-                tables[compressed_sin][pos * half + i] = float(std::sin(double(pos) * compressed[i]));
-            }
+        rope::Inputs window = c.rope.in;
+        window.theta = c.rope_theta;
+        rope::fill(rope::unscaled(window), tables[rope_cos], tables[rope_sin]);
+        rope::fill(c.rope, tables[compressed_cos], tables[compressed_sin]);
         std::fill(tables[first_pre].begin(), tables[first_pre].end(), 0.0f);
         tables[first_pre][0] = 1.0f;
         for (uint32_t g = 0; g < uint32_t(c.out_groups); ++g) std::memcpy(&tables[groups][g], &g, sizeof(g));
@@ -747,12 +744,12 @@ private:
     std::vector<blocks::NgramHash> hashes_;
 };
 
-inline std::shared_ptr<const Architecture> open_v41(const gguf::GGUFModel& m, const std::string& prefix) {
+inline std::shared_ptr<const Architecture> open_v41(const gguf::GGUFModel& m, const std::string& prefix, const rope::Request& request) {
     for (const gguf::TensorInfo& tensor : m.tensors)
         if (tensor.name == "token_embd.weight") {
             if (tensor.ne.size() < 2 || !tensor.ne[1] || tensor.ne[1] > uint64_t(std::numeric_limits<int>::max()))
                 throw std::runtime_error("inference: invalid vocabulary dimension");
-            return std::make_shared<const DeepSeek41>(read_config(m, prefix, uint32_t(tensor.ne[1])));
+            return std::make_shared<const DeepSeek41>(read_config(m, prefix, uint32_t(tensor.ne[1]), request));
         }
     throw TensorIndex::missing("token_embd.weight");
 }

@@ -841,7 +841,8 @@ void ops(Backend& g, Backend& c) {
         close(qg[0][0], qg[0][1], "silu_mul's quick_gelu against the CPU");
         close(qg[1][0], qg[1][1], "silu_mul's quick_gelu at limit 7 against the CPU");
     }
-    // The rope with and without a norm, positions out of order.
+    // The rope with and without a norm, positions out of order, on unit tables and on tables YaRN's attention factor scales (1.2).
+    for (const float scale : {1.0f, 1.2f})
     for (bool weighted : {true, false}) {
         const size_t rows = 4, heads = 3, head_dim = 128, half = 64, positions = 50;
         const std::vector<float> x = row_classes::values(rows * heads * head_dim, 8), w = row_classes::values(head_dim, 9);
@@ -849,8 +850,8 @@ void ops(Backend& g, Backend& c) {
         for (size_t p = 0; p < positions; ++p)
             for (size_t j = 0; j < half; ++j) {
                 const float a = (float)p * std::pow(10000.0f, -2.0f * (float)j / (float)head_dim);
-                cos[p * half + j] = std::cos(a);
-                sin[p * half + j] = std::sin(a);
+                cos[p * half + j] = std::cos(a) * scale;
+                sin[p * half + j] = std::sin(a) * scale;
             }
         const uint32_t pos[rows] = {7, 0, 49, 3};
         std::vector<std::vector<float>> out(2);

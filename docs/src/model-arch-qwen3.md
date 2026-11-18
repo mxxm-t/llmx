@@ -36,8 +36,9 @@ names it.
   width is an exact embedding/head quotient, context is 4096, RoPE base is
   10000 and RMS epsilon is 1e-6. Explicit key width can differ from that quotient.
   Declared value/rotary widths must equal key width, and tensor layout
-  must be `reference`. RoPE scaling is unsupported: type must be absent or
-  `none`, and current/legacy factors absent or exactly one. These keys use
+  must be `reference`. The rope scaling keys and the command line's request go to
+  `rope::resolve` ([rope](model-rope.md)) after the other checks, which gives the unscaled rope or YaRN and the context, whose allocation limits `check_config` holds again
+  when YaRN from the command line changed it. These keys use
   the [GGUF metadata vocabulary](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md).
 - `check_config(config)`: the rules a configuration keeps whichever file it
   came from, which `read_config` calls last: head width even,
@@ -60,7 +61,7 @@ names it.
     dense, and the two RoPE tables hold the covered positions at half a
     head each.
     Each role declares its split over a tensor group ([shard](model-shard.md)): the head by its vocabulary rows, q by heads and k and v by KV heads, replicated where the width is a multiple of them, `attn_output` by the heads' columns, the dense block by `blocks::shard_swiglu` and a routed layer's expert stacks by `blocks::shard_experts`, each expert's hidden rows; norms, the embedding and the router stay whole.
-  - `fill_tables`: the RoPE cos and sin tables, `[pos*(head_dim/2) + i]`.
+  - `fill_tables`: the RoPE cos and sin tables, `[pos*(head_dim/2) + i]`, through `rope::fill` from the policy (`Config::rope_policy`), at base frequency `rope_theta^(-2i/head_dim)`.
   - `embed`, `mixer`, `ffn` and `head`: the embedding gather; the attention
     (norm, grouped q, k and v projections, `norm_rope_kv`, `attention` and
     the output projection added into the residual); the feed-forward block,

@@ -25,7 +25,7 @@ backends its caller made. It reads the plan
   It checks the tensor width against the plan's shards first (`shard::check_plan`), so a width the model cannot take is refused naming the projection before the fit reads a member's shards.
   The plan it places is settled to the options' cache type first (`settle_cache` in `model/runtime.hpp`), and the fit settles the drafter-free plan it reads the same way, so the fit, the split and the model count one set of cache widths.
 - `PlacementRequest`, `PlacedModel`: how a caller wants a model placed
-  (the backends' names, layer shares, experts on the CPU and their stream
+  (the activation dtype, the rope request `rope` that `--yarn` gives ([rope](model-rope.md)), the backends' names, layer shares, experts on the CPU and their stream
   point, the ubatch, the decode rows, pass slots and logits rows a split is
   fitted for,
   and the histories that set the budget where none is given, `kv_auto`, a server's budget

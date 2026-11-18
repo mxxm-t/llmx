@@ -1858,11 +1858,23 @@ try {
   }
   await evaluate("document.documentElement.dataset.theme="+JSON.stringify(linkTheme)+"; window.ChatShell.show('workbench')");
   await cdp('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
-  const previewSource = '<!doctype html><html><body><h1>Isolated preview</h1><script>console.log("preview-ready");try{parent.document.body.dataset.previewTouched="yes"}catch(e){console.log("parent-blocked")}fetch("/api/session").then(()=>console.error("network-allowed")).catch(()=>console.log("network-blocked"));setTimeout(()=>{throw new Error("preview-error")},20)</script></body></html>';
+  const previewFiles = {
+    'site/styles/site.css': 'h1 { color: rgb(12, 34, 56); }',
+    'site/pages/boot.js': 'const title = document.querySelector("h1"); console.log("project-ready", document.compatMode, getComputedStyle(title).color, title.textContent);'
+  };
+  await evaluate(`(async () => {
+    for (const [path, content] of Object.entries(${JSON.stringify(previewFiles)})) {
+      const {revision} = await window.ChatShell.api('/workspace');
+      await window.ChatShell.api('/workspace/file', 'POST', {path, revision, content});
+    }
+  })()`);
+  await pointerClick('.workspace-actions button');
+  await wait("document.querySelector('.workspace-file[title=\"site/pages/boot.js\"]')", 'saved project assets listed');
+  const previewSource = '<!doctype html><html><head><link rel="stylesheet" href="../styles/site.css"><script defer src="./boot.js"></script></head><body><h1>Isolated preview</h1><script>console.log("preview-ready");try{parent.document.body.dataset.previewTouched="yes"}catch(e){console.log("parent-blocked")}fetch("/api/session").then(()=>console.error("network-allowed")).catch(()=>console.log("network-blocked"));setTimeout(()=>{throw new Error("preview-error")},20)</script></body></html>';
   await pointerClick('.workspace-actions .primary-button');
   await wait("document.querySelector('#action-dialog').open", 'new HTML file dialog');
-  await fill('#conversation-value', 'preview.html'); await closeAction('#conversation-submit');
-  await wait("document.querySelector('.workspace-file-path').textContent==='preview.html'", 'HTML editor');
+  await fill('#conversation-value', 'site/pages/preview.html'); await closeAction('#conversation-submit');
+  await wait("document.querySelector('.workspace-file-path').textContent==='site/pages/preview.html'", 'HTML editor');
   await fill('#workspace-editor', previewSource);
   const activeChat = await evaluate("document.querySelector('.chat-item.active')?.dataset.chat");
   const writesBeforeReturn = apiMutations.filter(item=>item.url.endsWith('/api/workspace/file')).length;
@@ -1878,6 +1890,14 @@ try {
   assert.equal(await evaluate("document.body.dataset.previewTouched"), undefined, 'preview accessed parent document');
   assert((await evaluate("document.querySelector('.artifact-console-output').textContent")).includes('parent-blocked'));
   await wait("document.querySelector('.artifact-console-output').textContent.includes('preview-error')", 'preview error bridge');
+  await wait("document.querySelector('.artifact-console-output').textContent.includes('project-ready CSS1Compat rgb(12, 34, 56) Isolated preview')", 'deferred Workspace script sees the linked stylesheet and current HTML in standards mode');
+  const previewRevision = await evaluate("(async () => (await window.ChatShell.api('/workspace')).revision)()");
+  const projectNote = '#artifact-dialog details.artifact-preview-note';
+  assert((await evaluate("document.querySelector("+JSON.stringify(projectNote)+").innerText")).includes('Workspace revision ' + previewRevision), 'preview did not identify its saved revision');
+  await pointerClick(projectNote + ' summary');
+  for (const path of Object.keys(previewFiles))
+    assert((await evaluate("document.querySelector("+JSON.stringify(projectNote)+").innerText")).includes(path), 'preview did not list ' + path);
+
   await evaluate("new Promise(resolve=>{function received(event){if(event.data?.token==='forged'){window.removeEventListener('message',received);resolve();}}window.addEventListener('message',received);window.postMessage({channel:'llmx-preview',token:'forged',kind:'error',text:'forged-output'},location.origin);})");
   assert.equal(await evaluate("document.querySelector('.artifact-console-output').textContent.includes('forged-output')"), false, 'preview accepted forged bridge message');
   await screenshot('studio-artifact-preview.png');
@@ -1889,7 +1909,7 @@ try {
   await pointerClick('.workspace-file');
   await wait("document.querySelector('#action-dialog').open", 'leave unsaved preview fixture');
   await closeAction('#conversation-submit');
-  await wait("document.querySelector('.workspace-file-path').textContent!=='preview.html'", 'return to a saved file');
+  await wait("document.querySelector('.workspace-file-path').textContent!=='site/pages/preview.html'", 'return to a saved file');
   await evaluate(`(async()=>{
     for(const path of ['src/index.js','tests/index.js']) {
       const {revision}=await window.ChatShell.api('/workspace');

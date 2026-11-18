@@ -236,6 +236,26 @@ try {
   await fill('#password', 'browser-test'); await evaluate("document.querySelector('#login-form').requestSubmit()");
   await wait("!document.querySelector('#login-dialog').open && document.querySelector('#model').value==='qwen3-local' && !document.querySelector('[data-action=\"new\"]').disabled", 'authenticated workspace');
   assert.equal(await evaluate("document.querySelector('#temporary-button')?.closest('.topbar-actions')!==null"), true, 'Temporary chat is not in the conversation header');
+  const detailsToggle = '.topbar [data-action="inspector"]';
+  const detailsOpen = () => evaluate("getComputedStyle(document.querySelector('#inspector')).display!=='none'");
+  const inspectorPreference = {defaultOpen: await detailsOpen()};
+  await screenshot('reading-default-1440-dark.png');
+  if (!await detailsOpen()) await click(detailsToggle);
+  await reloadDocument();
+  inspectorPreference.rememberedOpen = await detailsOpen();
+  await cdp('Emulation.setDeviceMetricsOverride', {width:390,height:844,deviceScaleFactor:1,mobile:true});
+  await reloadDocument();
+  inspectorPreference.mobileOpen = await detailsOpen();
+  await cdp('Emulation.setDeviceMetricsOverride', {width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+  await reloadDocument();
+  inspectorPreference.restoredOpen = await detailsOpen();
+  if (await detailsOpen()) await click(detailsToggle);
+  await reloadDocument();
+  inspectorPreference.rememberedClosed = !await detailsOpen();
+  await click('[data-action="settings"]');
+  inspectorPreference.settingsOpened = await evaluate("!document.querySelector('#panel-settings').hidden && getComputedStyle(document.querySelector('#inspector')).display!=='none'");
+  await reloadDocument();
+  inspectorPreference.closedAfterSettings = !await detailsOpen();
   await evaluate("localStorage.removeItem('llmx-theme')");
   await cdp('Emulation.setEmulatedMedia', {features: [{name: 'prefers-color-scheme', value: 'light'}]});
   await reloadDocument();
@@ -796,8 +816,9 @@ try {
   const replyTheme = await evaluate('document.documentElement.dataset.theme');
   const replyInspectorClosed = await evaluate("document.querySelector('#app').classList.contains('inspector-closed')");
   await evaluate("document.querySelector('#app').classList.add('inspector-closed')");
-  for (const width of [1440, 390]) {
-    await cdp('Emulation.setDeviceMetricsOverride', {width,height:width===390?844:1000,deviceScaleFactor:1,mobile:width===390});
+  const replyLayout = [];
+  for (const width of [1440, 390, 320]) {
+    await cdp('Emulation.setDeviceMetricsOverride', {width,height:width===1440?1000:844,deviceScaleFactor:1,mobile:width<500});
     for (const theme of ['dark', 'light']) {
       await evaluate(`document.documentElement.dataset.theme=${JSON.stringify(theme)};document.querySelector('#scroll-region').scrollTop=document.querySelector('#scroll-region').scrollHeight`);
       const geometry = await evaluate(`(() => {
@@ -805,8 +826,12 @@ try {
         const details=tool.querySelector('.tool-call details'),actions=answer.querySelector('.message-actions');
         return {gap:parseFloat(getComputedStyle(tool).paddingBottom)+parseFloat(getComputedStyle(answer).paddingTop),
           details:details.open,actions:actions.getBoundingClientRect().height,
+          actionTarget:Math.min(...Array.from(actions.querySelectorAll('button:not([hidden])'),button=>button.getBoundingClientRect().height)),
+          actionGap:parseFloat(getComputedStyle(actions).marginTop),
+          toolHeight:tool.getBoundingClientRect().height,answerHeight:answer.getBoundingClientRect().height,
           overflow:document.documentElement.scrollWidth>innerWidth};
       })()`);
+      replyLayout.push({width, theme, ...geometry});
       assert(geometry.gap<=16, 'one reply still has full inter-message spacing');
       assert.equal(geometry.details, true, 'grouping collapsed the open tool details');
       assert(geometry.actions>=32, 'grouping hid the reply actions');
@@ -1067,6 +1092,7 @@ try {
   assert.equal(await evaluate("{const r=document.querySelector('#action-menu').getBoundingClientRect(); r.left>=0 && r.right<=innerWidth && r.top>=0 && r.bottom<=innerHeight}"), true, '200% menu overflows viewport');
   await screenshot('chat-actions-200-percent.png');
   await evaluate("window.ChatShell.closeMenu();document.documentElement.style.zoom='1';window.dispatchEvent(new Event('resize'))");
+  if (!await detailsOpen()) await click(detailsToggle);
   const navigationChat = await evaluate(`fetch('/api/import',{method:'POST',headers:{'Content-Type':'application/json','X-Chat-Request':'1'},body:JSON.stringify({version:1,chat:{title:'Tool navigation identities',active_leaf:'navigation-message-two'},messages:[{id:'navigation-message-one',parent_id:null,role:'assistant',content:'Two tool calls.',tool_calls:[{id:'nav-call-one',name:'lookup',arguments:'{"query":"first argument"}',result:{content:[{type:'text',text:'first result'}]},status:'completed'},{id:'nav-call-two',name:'lookup',arguments:'{"query":"second argument"}',result:{content:[{type:'text',text:'second result <script>window.injected=true</script>'}]},status:'completed'}]},{id:'navigation-message-two',parent_id:'navigation-message-one',role:'assistant',content:'A later tool call reuses its provider call ID.',tool_calls:[{id:'nav-call-one',name:'lookup',arguments:'{"query":"follow-up argument"}',result:{content:[{type:'text',text:'follow-up result'}]},status:'completed'}]}]})}).then(r=>r.json()).then(c=>c.id)`);
   await reloadDocument(); await wait(`document.querySelector('[data-chat="${navigationChat}"]')!==null`, 'imported tool navigation fixture');
   await click(`[data-chat="${navigationChat}"]`);
@@ -1558,21 +1584,28 @@ try {
   assert.equal(await evaluate("fetch('/api/chats').then(r=>r.json()).then(d=>d.chats.length)"), savedBeforeTemporary, 'temporary toggle created an empty saved conversation');
   assert.equal(await evaluate("document.querySelector('#chat-title').textContent==='New conversation' && document.querySelector('.chat-item.active')===null"), true, 'leaving temporary mode did not return to the blank normal view');
   assert.equal(await evaluate(`fetch('/api/chats/${temporaryId}').then(r=>r.status)`), 404, 'temporary transcript retained after exit');
-  for (const width of [1440, 320]) for (const theme of ['dark', 'light']) {
+  if (await detailsOpen()) await click(detailsToggle);
+  const chatHeader = [];
+  for (const width of [1440, 390, 320]) for (const theme of ['dark', 'light']) {
     await cdp('Emulation.setDeviceMetricsOverride', {width, height: 1000, deviceScaleFactor: 1, mobile: width < 500});
     await evaluate("document.documentElement.dataset.theme=" + JSON.stringify(theme));
     const geometry = () => evaluate(`(() => {
       const button = document.querySelector('#temporary-button');
       const menu = document.querySelector('.topbar [data-action="chat-menu"]');
       const box = button.getBoundingClientRect();
-      return {width: box.width, x: box.x, menuX: menu.getBoundingClientRect().x};
+      return {width: box.width, x: box.x, menuX: menu.getBoundingClientRect().x,
+        titleWidth: document.querySelector('#chat-title').getBoundingClientRect().width};
     })()`);
-    const before = await geometry();
+    const {titleWidth, ...before} = await geometry();
+    chatHeader.push({viewport:width,theme,titleWidth,...before});
+    await screenshot('reading-normal-'+width+'-'+theme+'.png');
     assert.equal(await evaluate("getComputedStyle(document.querySelector('#temporary-button')).borderTopStyle"), 'dashed', 'Temporary chat button lost dashed border');
     await pointerClick('#temporary-button');
     await wait("!document.querySelector('#temporary-notice').hidden && !document.querySelector('#temporary-button').disabled", 'empty temporary mode');
     assert.equal(await evaluate("getComputedStyle(document.querySelector('#temporary-button')).borderTopStyle"), 'solid', 'Normal chat button must be solid');
-    assert.deepEqual(await geometry(), before, 'mode toggle shifted header controls');
+    const {titleWidth: temporaryTitleWidth, ...temporaryControls} = await geometry();
+    assert.deepEqual(temporaryControls, before, 'mode toggle shifted header controls');
+    if (width < 500) assert.equal(temporaryTitleWidth, titleWidth, 'mode toggle shifted the mobile title width');
     assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'toggle overflow');
     await screenshot('toggle-' + width + '-' + theme + '.png');
     await holdHistoryRefresh();
@@ -1581,9 +1614,14 @@ try {
     assert.equal(await evaluate("document.querySelector('#temporary-button').disabled"), true, 'pending history did not retain the toggle guard');
     await evaluate('releaseChatHistory()');
     await wait("!document.querySelector('#temporary-button').disabled", 'empty temporary exit fully settled');
-    assert.deepEqual(await geometry(), before, 'normal mode shifted header controls');
+    assert.deepEqual(await geometry(), {titleWidth,...before}, 'normal mode shifted header controls');
     assert.equal(await evaluate("fetch('/api/chats').then(r=>r.json()).then(d=>d.chats.length)"), savedBeforeTemporary, 'mode toggle created empty saved chat');
   }
+  console.log('Reading layout geometry: '+JSON.stringify({inspectorPreference,replyLayout,chatHeader}));
+  assert.deepEqual(inspectorPreference, {defaultOpen:false,rememberedOpen:true,mobileOpen:false,
+    restoredOpen:true,rememberedClosed:true,settingsOpened:true,closedAfterSettings:true}, 'docked conversation details preference');
+  assert(chatHeader.every(({viewport,titleWidth,width})=>viewport===1440 || titleWidth>=viewport-240 && width>=40), 'compact mode toggle crowds the title');
+  assert(replyLayout.every(({width,actionTarget,actionGap,gap})=>actionTarget>=(width===1440?32:40) && actionGap<=8 && gap<=8), 'within-reply spacing or action target');
   await send('Normal browser persistence check');
   await idle();
   await wait("fetch('/api/chats').then(r=>r.json()).then(d=>d.chats.length===" + (savedBeforeTemporary + 1) + ")", 'normal message appears in saved history');

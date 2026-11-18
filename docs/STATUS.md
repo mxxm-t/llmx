@@ -25,6 +25,12 @@
 **Docs review.** README, AGENTS, architecture, roadmap, build/CI instructions, the Markdown inventory and references to the changed companion behavior were checked. Companion README, CONTRACT and TESTS own the changed descriptions. This record consolidates the superseded READY blocks and removes the stale LAND61 hold. Runtime flags, model support and historical numerical results are unchanged. Full browser and source-check logs remain in `scratch/landing/`; the audit is `scratch/ui-audit-20261118/AUDIT.txt` in the main workspace.
 
 **Gotchas.** Temporary chat drafts never enter ordinary draft storage and do not survive refresh. Ordinary draft persistence is browser-tab-local, is not a server backup, and can hit the browser's quota. A browser that denies the app's existing metadata storage may still prevent startup. Source review and Chrome emulation do not establish Safari or screen-reader coverage. The larger visual-layout and settings/search audit follow-ups remain separate work.
+## Chat reading layout (2026-11-18, In progress)
+
+- **Goal:** Give the conversation more room by default, keep the conversation title readable on narrow screens and tighten spacing within each reply.
+- **Done:** Confirmed that desktop starts with a 304-pixel details panel, the mode toggle reserves an 84-pixel label plus its icon, and the transcript uses separate margins around reply controls and disclosure cards.
+- **Left:** Check the default and remembered docked-panel state, keep Settings and narrow drawers usable, and measure the header and transcript at 1440, 390 and 320 pixels in both themes.
+- **Gotchas:** The docked panel preference is independent of opening Settings and the mobile drawer. Compact labels must keep the toggle's position and dashed/solid state stable. Keep normal message type, between-turn spacing and action hit areas.
 
 ## Landing stack land-20261117 (2026-11-17, LAND68 then LAND69, Done)
 

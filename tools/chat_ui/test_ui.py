@@ -147,7 +147,9 @@ class BrowserTests(unittest.TestCase):
                 [text_event("The submitted edit completed."), metrics],
                 [text_event("The second submission completed."), metrics],
                 [text_event("The delayed retry completed."), metrics],
-                [text_event("The snapshot retry completed."), metrics]]
+                [text_event("The snapshot retry completed."), metrics],
+                [text_event("The round trip submission completed."), metrics],
+                [text_event("The stale snapshot submission completed."), metrics]]
             BrowserUpstream.requests = []
         BrowserUpstream.gate = StepGate()
         BrowserUpstream.stream_opened = threading.Event()

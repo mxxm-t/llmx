@@ -245,7 +245,18 @@ before the request starts. Later composer edits stay in place when it completes.
 Changing conversations prevents the old completion from clearing that view,
 replacing its snapshot or subscribing to its stream again. A failure arriving
 after navigation uses a toast rather than replacing the new conversation's banner.
-This does not provide persistent drafts when leaving a conversation.
+The browser owns compose state per ordinary conversation, including text,
+attachments and the edited message ID. Navigation preserves it; tab session
+storage restores it after refresh. This is separate from the server database
+and backups. Temporary chat content never enters that draft store. A draft
+write failure keeps the in-memory value and shows a reload-loss notice rather
+than claiming persistence. Signing out clears the tab's draft store.
+
+The accepted send removes only its matching draft record. Returning to the
+originating conversation before admission completes still clears that unchanged
+draft and reconnects the visible run; edits made meanwhile retain their own
+record. Navigation requests replace the view only if they are still current,
+and the previous conversation's stream stays connected until replacement.
 
 ## Pending Retry requests
 

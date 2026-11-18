@@ -10,9 +10,11 @@
 
 **Goal.** Keep unsent text, attachments and edit targets when navigating ordinary conversations or refreshing the tab, without persisting temporary-chat content.
 
-**Done.** The UI audit reproduced draft loss on reselect, navigation and reload. The browser composer in `tools/chat_ui/app.js` owns this state; the server and inference runtime are unchanged.
+**Done.** Test-first commit `965fda8ca` reproduced same-chat draft loss in 6.786 seconds. The browser composer in `tools/chat_ui/app.js` now retains ordinary text, attachments and edit targets per chat, with debounced tab-session persistence and visible write-failure fallback. Blank-chat creation carries its draft forward. Temporary chat content stays in memory. Accepted sends remove only their unchanged draft record, including after leaving and returning; a shared snapshot reader refetches when admission happened during its request.
 
-**Left.** Add a failing browser regression, retain per-conversation compose state with bounded browser-session persistence and explicit storage-failure feedback, then run the focused browser and static landing checks.
+**Left.** Integrate with the separately qualified UI fixes and run the applicable landing checks on that head. No runtime or inference gate applies to this static companion change.
+
+**Checks.** Chrome passed in 54.370 seconds with ordinary draft/attachment reload, edit-target reload, quota failure and recovery, blank migration, separate drafts, Temporary chat privacy, latest-selection ordering, accepted-send round trips and stale pre-admission snapshots. Existing streaming, branch, attachment, workspace, responsive and zoom checks also pass. Source review rechecked the reported navigation/admission races. Receipts are in `scratch/drafts/`; final static checks are recorded at landing.
 
 **Gotchas.** Accepted sends must clear only their own unchanged draft. New typing during a request must survive. Temporary chat content stays in memory. Browser storage may be unavailable or full, so navigation must preserve the in-memory copy and reload limitations must be visible.
 

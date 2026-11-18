@@ -91,6 +91,15 @@ It does not lock the upstream model or control later server restarts.
 
 ## Conversations
 
+- Unsent text, attachments and edit targets stay with each ordinary conversation
+  when you switch chats or select the same chat again. They are saved in this
+  browser tab's session storage for refresh recovery, not in chat backups.
+  Closing the tab ends that session. If draft storage writes fail or reach the
+  browser's quota, a notice explains that affected drafts remain in this page
+  only; switching chats still preserves them, but refreshing can discard them.
+  Sending clears only the submitted draft, preserving newer typing. Signing out
+  clears this tab's ordinary drafts. Temporary chat drafts stay in memory and
+  are discarded on refresh, as the composer explains.
 - New conversation reuses the current empty conversation and keeps its unsent
   text and attachments. Repeated clicks create at most one new conversation.
   If a conversation is created after you have selected another chat, it stays

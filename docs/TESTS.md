@@ -17,6 +17,13 @@ fixtures exercise stream accumulation and usage, approval and denial, tool
 execution, replay, conversation branches, cancellation and restart recovery.
 The browser keeps a focused tool summary connected across approval completion
 and removes the obsolete approval controls.
+Compose-state checks preserve ordinary text, attachments and edit targets on
+reselect, navigation and reload, keep drafts separate, migrate the blank draft
+on explicit creation, retain memory drafts after storage write failures and
+recover after writes resume. They check that Temporary chat content stays out
+of draft storage and accepted sends cannot restore an already submitted draft
+after navigating away and back. Delayed navigation cannot override a newer
+selection.
 HTTP checks cover authentication, origin checks, attachments and import/export.
 Model-selection checks replace the upstream catalogue after configuration was
 cached, refuse stale sends and retries without storing messages or runs, and

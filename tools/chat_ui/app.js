@@ -25,6 +25,73 @@
   const terminal = status => ['completed', 'failed', 'cancelled', 'interrupted'].includes(status);
   const S = {chats: [], chat: null, messages: [], runs: [], config: {models: [], tools: []}, attachments: [], edit: null, stream: null, cursor: 0, archive: false, tab: 'activity', scheduled: false, fingerprint: new Map(), searchText: new Map(), inspectorKey: '', generation: 0, busy: false};
   let toastTimer, creatingChat = false, menuId = null, composerRevision = 0;
+  const drafts = new Map(), changedDrafts = new Set(), volatileDrafts = new Set(), draftPrefix = 'llmx-draft:';
+  const admissions = new Map();
+  let draftTimer, draftReady = false;
+  const draftNotice = node('p', 'muted fine-print'); draftNotice.hidden = true; draftNotice.setAttribute('role', 'status'); draftNotice.id = 'draft-notice'; $('attachments').after(draftNotice);
+  function draftKey() { return S.chat?.id || 'new'; }
+  function composeValue() { return {text: $('draft').value, attachments: S.attachments.slice(), edit: S.edit?.id || null}; }
+  function sameDraft(a, b) { return Boolean(a && b && a.text === b.text && a.edit === b.edit && a.attachments.length === b.attachments.length && a.attachments.every((item, index) => item === b.attachments[index])); }
+  function hasDraft(value) { return Boolean(value && (value.text || value.attachments.length || value.edit)); }
+  function draftWarning() {
+    const temporary = S.chat?.temporary && hasDraft(composeValue());
+    draftNotice.textContent = temporary ? 'This temporary draft stays in this page. Refreshing discards it.' : volatileDrafts.size ? 'Some drafts are kept in this page only because browser storage is unavailable or full. Refreshing may discard them.' : '';
+    draftNotice.hidden = !draftNotice.textContent;
+  }
+  function forgetDraft(key) {
+    drafts.delete(key); changedDrafts.delete(key); volatileDrafts.delete(key);
+    try { sessionStorage.removeItem(draftPrefix + key); } catch (_) { /* Browser storage may be disabled. */ }
+  }
+  function flushDrafts() {
+    clearTimeout(draftTimer);
+    for (const key of changedDrafts) {
+      const value = drafts.get(key);
+      try { if (hasDraft(value)) sessionStorage.setItem(draftPrefix + key, JSON.stringify(value)); else sessionStorage.removeItem(draftPrefix + key); volatileDrafts.delete(key); }
+      catch (_) { volatileDrafts.add(key); try { sessionStorage.removeItem(draftPrefix + key); } catch (_) { /* Keep the current in-memory draft. */ } }
+      changedDrafts.delete(key);
+    }
+    draftWarning();
+  }
+  function rememberDraft() {
+    if (!draftReady) return;
+    if (!S.chat?.temporary) {
+      const value = composeValue();
+      if (!sameDraft(drafts.get(draftKey()), value)) {
+        drafts.set(draftKey(), value); changedDrafts.add(draftKey());
+        clearTimeout(draftTimer); draftTimer = setTimeout(flushDrafts, 250);
+      }
+    }
+    draftWarning();
+  }
+  function readDraft(key) {
+    if (drafts.has(key)) return drafts.get(key);
+    try {
+      const raw = sessionStorage.getItem(draftPrefix + key); if (!raw) return null;
+      const value = JSON.parse(raw);
+      if (typeof value.text !== 'string' || value.text.length > 1000000 || !Array.isArray(value.attachments) || value.attachments.length > 8 || value.edit !== null && typeof value.edit !== 'string' || value.attachments.some(a => !a || typeof a.name !== 'string' || typeof a.type !== 'string' || typeof a.text !== 'string' && typeof a.data !== 'string')) throw new Error('Invalid draft');
+      drafts.set(key, value); return value;
+    } catch (_) { forgetDraft(key); toast('The saved draft could not be restored.'); return null; }
+  }
+  function restoreDraft() {
+    draftReady = false;
+    const value = S.chat?.temporary ? null : readDraft(draftKey());
+    $('draft').value = value?.text || ''; S.attachments = value?.attachments.slice() || [];
+    S.edit = value?.edit ? S.messages.find(m => m.id === value.edit && m.role === 'user') || null : null;
+    if (value?.edit && !S.edit) toast('The edited message is no longer available. Your draft is kept as a new message.');
+    composerRevision++; resizeDraft(); renderAttachments(); $('edit-note').hidden = !S.edit;
+    draftReady = true; draftWarning();
+  }
+  function clearDrafts() {
+    clearTimeout(draftTimer); drafts.clear(); changedDrafts.clear(); volatileDrafts.clear();
+    try { for (const key of Object.keys(sessionStorage)) if (key.startsWith(draftPrefix)) sessionStorage.removeItem(key); } catch (_) { /* Browser storage may be disabled. */ }
+    draftReady = false;
+  }
+  async function chatSnapshot(id) {
+    let epoch, data;
+    do { epoch = admissions.get(id); data = await api('/chats/' + encodeURIComponent(id)); } while (epoch !== admissions.get(id));
+    return data;
+  }
+  function admitted(id) { admissions.set(id, (admissions.get(id) || 0) + 1); }
   const liveMetrics = {id: null, stream: null, history: [], row: null, received: 0, collector: null};
   let runtimeLimits = null;
   const objectIds = new WeakMap(); let nextObjectId = 0;
@@ -175,13 +242,16 @@
   }
   async function openChat(id, snapshot = null) {
     if (S.chat?.temporary && S.chat.id !== id && !await leaveTemporary()) return;
+    rememberDraft(); flushDrafts();
     hideReplyStats();
-    const generation = ++S.generation; closeStream(); banner(configurationWarning());
-    const data = snapshot || await api('/chats/' + encodeURIComponent(id)); if (generation !== S.generation) return;
+    const generation = ++S.generation; banner(configurationWarning());
+    const data = snapshot || await chatSnapshot(id); if (generation !== S.generation) return;
+    rememberDraft(); flushDrafts();
+    closeStream();
     S.chat = data.chat; S.messages = data.messages || []; S.runs = data.runs || []; S.edit = null; S.fingerprint.clear(); S.inspectorKey = '';
     snapshotBanner();
     S.searchText.set(id, S.messages.map(m => m.content || '').join(' '));
-    S.attachments = []; $('draft').value = ''; composerRevision++; resizeDraft(); renderAttachments(); $('edit-note').hidden = true;
+    restoreDraft();
     if (S.chat.temporary) sessionStorage.setItem('llmx-temporary-chat', id); else localStorage.setItem('llmx-chat', id);
     loadSettings(); renderSidebar(); render(); closeDrawers();
     requestAnimationFrame(() => bottom());
@@ -201,16 +271,20 @@
       if (S.chat?.temporary && !await leaveTemporary()) return;
       const generation = S.generation, selectedChat = S.chat?.id;
       const chat = await api('/chats', 'POST', {settings: settings()}); await refreshChats();
-      if (generation === S.generation && selectedChat === S.chat?.id) { await openChat(chat.id, {chat, messages: [], runs: []}); $('draft').focus(); }
+      if (!selectedChat && S.generation === generation && !S.chat) {
+        rememberDraft(); const value = drafts.get('new'); forgetDraft('new');
+        if (value) { drafts.set(chat.id, value); changedDrafts.add(chat.id); }
+      }
+      if (generation === S.generation && selectedChat === S.chat?.id) { await openChat(chat.id, {chat, messages: [], runs: []}); if (!selectedChat && S.chat?.id === chat.id) forgetDraft('new'); $('draft').focus(); }
     } finally { chatCreating(false); }
   }
   function clearChat() {
     hideReplyStats();
-    const old = S.chat; closeStream(); ++S.generation;
+    const old = S.chat; forgetDraft(draftKey()); draftReady = false; closeStream(); ++S.generation;
     if (old?.temporary) sessionStorage.removeItem('llmx-temporary-chat'); else localStorage.removeItem('llmx-chat');
     if (old) S.searchText.delete(old.id);
     S.chat = null; S.messages = []; S.runs = []; S.edit = null; S.attachments = []; S.fingerprint.clear(); S.inspectorKey = '';
-    $('draft').value = ''; composerRevision++; $('edit-note').hidden = true; resizeDraft(); renderAttachments(); loadSettings(); render();
+    restoreDraft(); loadSettings(); render();
   }
   async function leaveTemporary() {
     if (!S.chat?.temporary) return true;
@@ -701,7 +775,7 @@
       } catch (error) { banner('Could not apply a stream update: ' + error.message); }
     });
   }
-  async function syncSnapshot(chatId) { const generation = S.generation, data = await api('/chats/' + encodeURIComponent(chatId)); if (S.chat?.id !== chatId || S.generation !== generation) return; S.chat = data.chat; S.messages = data.messages || []; S.runs = data.runs || []; snapshotBanner(); scheduleRender(); }
+  async function syncSnapshot(chatId) { const generation = S.generation; const data = await chatSnapshot(chatId); if (S.chat?.id !== chatId || S.generation !== generation) return; S.chat = data.chat; S.messages = data.messages || []; S.runs = data.runs || []; snapshotBanner(); scheduleRender(); }
   function tick() {
     renderLiveMetrics(); renderContextLimits();
     const run = currentRun(); if (!run) { $('run-caption').textContent = 'Enter to send / Shift + Enter for a new line'; return; }
@@ -712,6 +786,7 @@
   async function send() {
     if (currentRun() || S.busy || creatingChat) return;
     const originalChat = S.chat, generation = S.generation, edit = S.edit;
+    rememberDraft(); const submittedKey = draftKey(), submittedDraft = S.chat?.temporary ? composeValue() : drafts.get(submittedKey);
     const draft = $('draft').value, content = draft.trim(), revision = composerRevision, attachments = S.attachments.slice(), requestSettings = settings();
     if (!content && !attachments.length) { $('draft').focus(); return; }
     if (!requestSettings.model) throw new Error('Select a model before sending a message.');
@@ -726,22 +801,30 @@
         const chat = await api('/chats', 'POST', {settings: requestSettings});
         chatId = chat.id; parent = null; chatTitle = chat.title || chatTitle;
         S.chats.unshift(chat);
-        if (S.generation === generation && S.chat === originalChat) { S.chat = chat; localStorage.setItem('llmx-chat', chat.id); }
+        if (S.generation === generation && S.chat === originalChat) {
+          rememberDraft(); const value = drafts.get('new'); forgetDraft('new');
+          S.chat = chat; localStorage.setItem('llmx-chat', chat.id);
+          if (value) { drafts.set(chat.id, value); changedDrafts.add(chat.id); }
+        }
         renderSidebar();
       }
       phase = 'send to "' + chatTitle + '"';
       await api('/chats/' + encodeURIComponent(chatId) + '/runs', 'POST', {content, attachments, parent_id: parent || null, settings: requestSettings});
-      if (!isCurrentView()) return;
-      if (composerRevision === revision && S.edit === edit) {
+      admitted(chatId);
+      const acceptedDraft = originalChat?.temporary ? composerRevision === revision && S.edit === edit : drafts.get(chatId) === submittedDraft;
+      for (const key of new Set([submittedKey, chatId])) if (drafts.get(key) === submittedDraft) forgetDraft(key);
+      if (S.chat?.id !== chatId) return;
+      const acceptedGeneration = S.generation;
+      if (acceptedDraft) {
         $('draft').value = ''; S.attachments = []; S.edit = null; composerRevision++; $('edit-note').hidden = true; resizeDraft(); renderAttachments();
       }
       phase = 'refresh "' + chatTitle + '"';
       await syncSnapshot(chatId);
-      if (!isCurrentView()) return;
+      if (S.chat?.id !== chatId || S.generation !== acceptedGeneration) return;
       const run = currentRun(); if (run) subscribe(run);
       phase = 'refresh conversations after sending to "' + chatTitle + '"';
       await refreshChats();
-      if (isCurrentView()) bottom();
+      if (S.chat?.id === chatId && S.generation === acceptedGeneration) bottom();
     } catch (error) {
       if (!isCurrentView()) { toast('Could not ' + phase + ': ' + error.message); return; }
       throw error;
@@ -755,6 +838,7 @@
     const chatId = S.chat.id, generation = S.generation;
     const isCurrentView = () => S.chat?.id === chatId && S.generation === generation;
     await api('/chats/' + encodeURIComponent(chatId) + '/runs', 'POST', {regenerate: true, parent_id: message.id, settings: settings()});
+    admitted(chatId);
     if (!isCurrentView()) return;
     await syncSnapshot(chatId);
     if (!isCurrentView()) return;
@@ -785,6 +869,7 @@
       const summary = node('span', 'attachment-total', 'Total: ' + S.attachments.length + (S.attachments.length === 1 ? ' file' : ' files') + ' - ' + formatAttachmentSize(total) + ' / 10 MiB');
       summary.setAttribute('role', 'status'); summary.setAttribute('aria-label', 'Total attachment size: ' + total.toLocaleString() + ' bytes of 10 MiB'); root.append(summary);
     }
+    rememberDraft();
   }
   function attachmentBytes(attachment) {
     if (typeof attachment.text === 'string') return new TextEncoder().encode(attachment.text).byteLength;
@@ -824,7 +909,7 @@
     S.attachments.push(...pending); composerRevision++; renderAttachments(); $('draft').focus();
   }
   function bottom() { const region = $('scroll-region'); region.scrollTop = region.scrollHeight; $('jump-bottom').hidden = true; }
-  function resizeDraft() { const el = $('draft'); el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 220) + 'px'; }
+  function resizeDraft() { const el = $('draft'); el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 220) + 'px'; rememberDraft(); }
   function showTab(name) { S.tab = name; document.querySelectorAll('[data-tab]').forEach(el => { el.setAttribute('aria-selected', String(el.dataset.tab === name)); el.tabIndex = el.dataset.tab === name ? 0 : -1; }); for (const tab of ['activity', 'stats', 'settings']) $('panel-' + tab).hidden = tab !== name; syncLiveMetrics(); renderContextLimits(); }
   function updateShade() { const compact = document.documentElement.dataset.compact === 'true'; $('drawer-shade').hidden = !(compact && $('app').classList.contains('sidebar-open') || (compact || window.innerWidth <= 1200) && $('app').dataset.view === 'chat' && !$('app').classList.contains('inspector-closed')); syncLiveMetrics(); renderContextLimits(); }
   function closeDrawers() { $('app').classList.remove('sidebar-open'); if (document.documentElement.dataset.compact === 'true' || window.innerWidth <= 1200) $('app').classList.add('inspector-closed'); updateShade(); }
@@ -859,7 +944,7 @@
     if (name === 'remove-attachment') { S.attachments.splice(Number(el.dataset.id), 1); composerRevision++; renderAttachments(); return; }
     if (name === 'bottom') return bottom();
     if (name === 'import') return $('import-input').click();
-    if (name === 'logout') { await api('/logout', 'POST', {}); closeStream(); location.reload(); return; }
+    if (name === 'logout') { await api('/logout', 'POST', {}); clearDrafts(); closeStream(); location.reload(); return; }
     if (name === 'cancel-edit') { S.edit = null; $('edit-note').hidden = true; $('draft').value = ''; S.attachments = []; composerRevision++; renderAttachments(); resizeDraft(); return; }
     if (name === 'save-settings') { if (S.chat) await patchChat({settings: settings()}); toast('Settings saved for the next response.'); return; }
     if (name === 'chat-menu') return showChatMenu(el.dataset.id || S.chat?.id, el);
@@ -875,7 +960,7 @@
         if (chat.temporary) return leaveTemporary();
         return window.ChatShell.conversationForm({title: 'Delete conversation?', description: 'Delete "' + chat.title + '" and all its branches permanently. This cannot be undone.', destructive: true, submit: 'Delete'}, async () => {
           await api('/chats/' + encodeURIComponent(chat.id), 'DELETE');
-          S.searchText.delete(chat.id); if (S.chat?.id === chat.id) clearChat(); await refreshChats();
+          S.searchText.delete(chat.id); forgetDraft(chat.id); if (S.chat?.id === chat.id) clearChat(); await refreshChats();
         });
       }
       if (name === 'duplicate') {
@@ -903,6 +988,7 @@
       if (!S.config.upstream_available) banner(S.config.upstream_error || 'The model server is unavailable. Check the companion connection and try again.');
       if (S.config.tools_error) banner([S.config.upstream_error, 'Tool connection issue: ' + S.config.tools_error].filter(Boolean).join(' '));
       await refreshChats(); loadSettings();
+      try { for (const key of Object.keys(sessionStorage)) if (key.startsWith(draftPrefix) && key !== draftPrefix + 'new' && !S.chats.some(chat => draftPrefix + chat.id === key)) forgetDraft(key.slice(draftPrefix.length)); } catch (_) { /* Browser storage may be disabled. */ }
       $('temporary-button').hidden = !S.config.temporary?.enabled;
       const temporary = sessionStorage.getItem('llmx-temporary-chat');
       if (temporary) {
@@ -910,7 +996,7 @@
         catch (error) { if (error.status !== 404) throw error; sessionStorage.removeItem('llmx-temporary-chat'); toast('Your temporary chat has ended or expired.'); }
       }
       const previous = localStorage.getItem('llmx-chat');
-      if (previous && S.chats.some(c => c.id === previous)) await openChat(previous); else render();
+      if (previous && S.chats.some(c => c.id === previous)) await openChat(previous); else { restoreDraft(); render(); }
     } catch (error) { connection('Offline', true); banner(error.message + ' Reload the page to reconnect.'); }
     finally { chatCreating(false); }
   }
@@ -950,7 +1036,7 @@
   window.addEventListener('resize', updateShade);
   document.addEventListener('companion:view', () => { syncLiveMetrics(); renderLiveMetrics(); });
   document.addEventListener('visibilitychange', () => { syncLiveMetrics(); renderLiveMetrics(); });
-  window.addEventListener('pagehide', () => { liveMetrics.stream?.close(); liveMetrics.stream = null; liveMetrics.id = null; });
+  window.addEventListener('pagehide', () => { rememberDraft(); flushDrafts(); liveMetrics.stream?.close(); liveMetrics.stream = null; liveMetrics.id = null; });
   window.addEventListener('pageshow', syncLiveMetrics);
   document.addEventListener('visibilitychange', () => { if (!document.hidden && currentRun() && !S.stream) syncSnapshot(S.chat.id).then(() => { const run = currentRun(); if (run) subscribe(run); }).catch(error => toast(error.message)); });
   setTheme(themeChosen ? storedTheme : systemTheme.matches ? 'light' : 'dark');

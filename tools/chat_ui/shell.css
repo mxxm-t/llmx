@@ -104,9 +104,6 @@
   letter-spacing: 1.4px;
   color: var(--faint);
 }
-.search-box {
-  margin-bottom: 17px;
-}
 .welcome h1 {
   font-family: inherit;
   letter-spacing: -1.5px;

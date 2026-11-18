@@ -96,23 +96,30 @@ kbd {
 .search-box {
   display:flex;
   align-items:center;
+  flex-shrink:0;
   gap:8px;
-  color:var(--faint);
-  margin:18px 8px 29px
+  min-height:38px;
+  margin:10px 0 16px;
+  padding:0 11px;
+  background:var(--panel);
+  color:var(--muted);
+  border:1px solid var(--border);
+  border-radius:var(--ui-control-radius);
+  cursor:text
 }
-.search-box>span {
-  font-size:22px
-}
+.search-box:hover { border-color:var(--muted) }
+.search-box:focus-within { outline:2px solid var(--accent); outline-offset:1px }
+.search-box svg { width:15px; height:15px; flex:none }
 .search-box input {
   border:0;
   background:none;
+  outline:none;
   min-width:0;
   width:100%;
+  padding:8px 0;
   font-size:12px
 }
-.search-box input::placeholder {
-  color:var(--faint)
-}
+.search-box input::placeholder { color:var(--muted) }
 .library-heading {
   display:flex;
   align-items:center;

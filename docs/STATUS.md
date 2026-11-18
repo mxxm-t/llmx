@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Conversation search field (2026-11-18, Done)
+
+- **Goal:** Make saved conversation search recognizable and consistent with sidebar controls.
+- **Done:** Aligned search with New conversation and used the sidebar control radius, border and accent focus ring. A line icon replaces the font glyph.
+- **Checks:** Chrome verified alignment, a visible focus ring and a 38 pixel field without horizontal overflow at 320, 360, 390 and 1440 pixels in both themes. The existing browser fixture covers saved-content filtering and returning focus to Search.
+- **Gotchas:** Preserve the native search input, keyboard focus and saved-content filtering.
+
 ## Companion audit follow-ups (2026-11-18, Done)
 
 - **Goal:** Finish attachment guidance and correct healthy-idle chart labels while retaining browser failure evidence.

@@ -612,6 +612,25 @@
       } else current.insertBefore(child, cursor);
     });
   }
+  function reconcileFocusedAction(current, replacement) {
+    const focused = document.activeElement;
+    const actions = focused?.closest('.message-actions');
+    if (!actions || !current.contains(actions)) return null;
+    const nextActions = replacement.querySelector('.message-actions');
+    const direction = focused.dataset.action === 'branch' ? focused.getAttribute('aria-label') : null;
+    const next = Array.from(nextActions.querySelectorAll('button')).find(button =>
+      button.dataset.action === focused.dataset.action && button.dataset.id === focused.dataset.id &&
+      (!direction || button.getAttribute('aria-label') === direction));
+    if (!next) return null;
+    if (focused.parentElement === actions) {
+      reconcileChildren(actions, nextActions, [[next, focused]]);
+    } else {
+      const group = focused.parentElement, nextGroup = next.parentElement;
+      reconcileChildren(group, nextGroup, [[next, focused]]);
+      reconcileChildren(actions, nextActions, [[nextGroup, group]]);
+    }
+    return [nextActions, actions];
+  }
   function render() {
     const region = $('scroll-region'); const nearBottom = region.scrollHeight - region.scrollTop - region.clientHeight < 120;
     const selected = path().filter(m => m.role !== 'tool'); const container = $('messages'); const wanted = new Set(selected.map(m => m.id));
@@ -629,6 +648,8 @@
         });
         if (old) {
           const preserved = [];
+          const action = reconcileFocusedAction(old, replacement);
+          if (action) preserved.push(action);
           const content = old.querySelector(':scope > .markdown'), nextContent = replacement.querySelector(':scope > .markdown');
           if (content && nextContent) { reconcileMarkdown(content, nextContent); preserved.push([nextContent, content]); }
           const reasoning = old.querySelector('.reasoning'); const nextReasoning = replacement.querySelector('.reasoning');

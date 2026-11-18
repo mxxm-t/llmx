@@ -190,6 +190,12 @@ The sidebar menu remains inside the active drawer while open, and native
 dialogs take precedence over drawer keyboard handling. Docked Details leaves
 the page nonmodal. Errors and empty states are explicit. Use ASCII source and SVG icons, no external CDN, packages or fonts.
 
+Message reconciliation preserves a focused action when the replacement has
+the same action and target, including direction for branch controls. Other
+controls and branch destinations continue
+to reflect the updated message. Reply statistics still snapshot the current
+measurements on each open.
+
 Adjacent assistant messages on the selected branch share a visual header only
 when their nonempty run identities match. Continuations retain their own article
 label, actions, reasoning, tool details and per-call metrics. Branch changes

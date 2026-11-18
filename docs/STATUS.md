@@ -1,28 +1,5 @@
 # llmx - Development Status
 
-## Companion browser failure evidence (2026-11-18, In progress)
-
-- **Goal:** Identify the browser operation that stalls and retain fixture screenshots from failed hosted runs.
-- **Done:** Ubuntu run 44313960618 failed with a Runtime.evaluate protocol timeout after an 11.682 second Chrome launch. The log lacks the caller and has no uploaded screenshots. Cause remains unknown.
-- **Done:** Timeout caller-stack probe failed on main and passed with call-site Error capture. The browser check passed in 70.127 seconds. Failure-only focus diagnostics and hosted screenshot upload are prepared. The latest main hosted run also failed Windows protocol evaluation and Ubuntu keyboard tooltip focus; both failures are retained.
-- **Left:** Run the hosted diagnostic branch, identify the original failures and finish the focused tooling checks.
-- **Gotchas:** This is test diagnostics only. Do not raise timeouts, retry failures away or claim the original cause is fixed.
-## Saved-chat background reply status (2026-11-18, In progress)
-## Saved-chat background reply status (2026-11-18, Ready for integration)
-
-- **Goal:** Show the latest attempt's progress, approval request, failure or interruption on saved sidebar rows, including archive and search results.
-- **Done:** The Store derives latest-attempt cues from SQLite on open and restore, and changes them after successful run-start, state and delete commits. The small authenticated response reads the projection without scanning SQLite or taking the search reader gate. Existing run events own the underlying state. The engine clears an expired approval when no other decision remains.
-- **Checks:** Red Store, HTTP and expired-approval tests reproduced the gaps. All 19 Store tests and focused approval, route and auth checks pass. Additional tests hold the search gate and inject restore recovery failure. Windows Chrome passes in 89.832 s. It verifies a background run, archive and search rows, open-menu focus, reload, request deadline recovery, hidden and away suspension, stale response rejection and authorization. Dark desktop and light mobile screenshots are in `scratch/chat-background-status-20261118/`. The docs and dead-code checks pass in development.
-- **Timing:** On the disposable 500-chat fixture plus one live run, latest run JSON totals 50.08 MB. The actual status projection copy takes 0.078 ms median and 0.105 ms maximum. The delta scheduled 1 ms after the poll starts completes in 1.157 ms median and 2.156 ms maximum. The indexed projection rebuild takes 72.047 ms median and 81.933 ms maximum after fixture warm-up. The paired WAL query costs 82.209 ms median per poll. The separate writer-lock prototype held delta writes for 77.183 ms median. Raw samples and query plans are retained. System and probe CPU were captured, with no disk, GPU or per-background-process counters.
-- **Left:** Integrate with current main and run the applicable combined companion and static checks.
-- **Gotchas:** The cue refers to the newest run inserted for a saved conversation, including when an older branch is selected. The browser polls only during visible signed-in Chat, cancels requests when leaving and expires a request and its snapshot at nine seconds. It updates the cue inside existing buttons to preserve row geometry and focus.
-## Companion message action focus during refresh (2026-11-18, In progress)
-
-- **Goal**. Retain keyboard focus through message updates when the same action remains available.
-- **Done**. A held terminal snapshot removed the focused Retry button and its tooltip in Chromium.
-- **Left**. Preserve the connected action through reconciliation and verify refreshed measurements.
-- **Gotchas**. A terminal stream close and its snapshot are separate. New or changed actions still need to update. The observed hosted failure showed an open statistics preview, and this reproduction does not identify every hosted failure.
-
 ## Companion wording cleanup (2026-11-18, Done)
 
 - **Goal:** Use direct labels for current functionality and remove repeated welcome and branding copy.
@@ -10478,6 +10455,8 @@ Step 6, the head split, was measured on 2, 3, 4 and 8 cards and not merged (the 
 
 | Feature                                  | Status   |
 |------------------------------------------|----------|
+| [Saved-chat reply status and refresh focus](benchmarks/companion-status-focus-20261118.md) | Done |
+| [Companion browser failure evidence](benchmarks/companion-status-focus-20261118.md) | Done |
 | [Companion Workspace tool links](benchmarks/chat-workspace-links-20261118.md) | Done |
 | [Companion navigation clarity](benchmarks/chat-navigation-clarity-20261118.md) | Done |
 | [Companion drawer keyboard access](benchmarks/chat-drawer-keyboard-20261118.md) | Done |

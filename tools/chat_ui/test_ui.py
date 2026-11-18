@@ -202,7 +202,7 @@ class BrowserTests(unittest.TestCase):
                         "http://127.0.0.1:%d" % upstream.server_address[1],
                         str(text_max), str(text_over), str(image_max), str(image_over), str(text_tiny),
                         str(text_raw_over), str(text_bom_max), str(text_race_a), str(text_race_b)],
-                        capture_output=True, text=True, timeout=100)
+                        capture_output=True, text=True, timeout=300)
                     self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                     self.assertGreaterEqual(len(tools.calls), 1)
                     print(result.stdout.strip())

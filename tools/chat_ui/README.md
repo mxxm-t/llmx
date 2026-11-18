@@ -151,6 +151,8 @@ keyboard focus keeps its visible outline.
   remains visible as literal content. Unchanged leading Markdown blocks remain
   connected during streaming, preserving their selection and code controls.
   The changing suffix is rebuilt, so selection inside it may be lost.
+  A focused message action stays focused across message updates while its
+  action and target remain available.
   It does not execute model HTML or JavaScript.
 - Attach up to eight UTF-8 text/code files or PNG/JPEG images. Text is included
   in full with its file name, not retrieved from an embedding index. Limits are

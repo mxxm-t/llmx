@@ -727,8 +727,19 @@ try {
   await pointerClick('.reasoning > summary');
   await pointerClick('.reasoning > summary');
   assert.equal(await evaluate("document.querySelector('.reasoning').open"), false, 'reasoning did not close while streaming');
+  const branchTargets = await evaluate(`(() => {
+    const buttons=Array.from(document.querySelectorAll('.message.assistant .branch-switch button'));
+    window.focusedNextBranch=buttons[1]; focusedNextBranch.focus({preventScroll:true});
+    return buttons.map(button=>({label:button.getAttribute('aria-label'), id:button.dataset.id, glyph:button.querySelector('path').getAttribute('d')}));
+  })()`);
+  assert.deepEqual(branchTargets.map(button=>button.label), ['Previous branch','Next branch']);
+  assert.equal(branchTargets[0].id, branchTargets[1].id, 'two-branch retry does not exercise the directional target collision');
   assert.equal((await fetch(upstreamFixture + '/browser-step')).status, 204);
   await wait("document.querySelector('.message.assistant')?.innerText.includes('An alternative approach.') && document.querySelector('#stop').hidden", 'retry branch');
+  assert.deepEqual(await evaluate(`(() => {
+    const buttons=Array.from(document.querySelectorAll('.message.assistant .branch-switch button'));
+    return {actions:buttons.map(button=>({label:button.getAttribute('aria-label'), id:button.dataset.id, glyph:button.querySelector('path').getAttribute('d')})), focused:document.activeElement===focusedNextBranch && buttons[1]===focusedNextBranch};
+  })()`), {actions:branchTargets, focused:true}, 'retry completion changed the direction, position, or target of Next branch');
   assert.equal(await evaluate("document.querySelector('.reasoning').open"), false, 'completion discarded closed reasoning choice');
   await click('.message.assistant .branch-switch button');
   await wait("document.querySelector('.message.assistant')?.innerText.includes('A practical plan.')", 'previous response branch');
@@ -935,8 +946,11 @@ try {
     };
   })()`);
   await cdp('Input.dispatchMouseEvent', {type:'mouseMoved', x:10, y:90});
+  await evaluate("window.metricsFocusedButton=document.querySelector('.message.assistant:last-of-type [data-action=retry]');window.metricsFocusedButton.focus({preventScroll:true})");
+  assert.equal(await evaluate("document.activeElement===window.metricsFocusedButton"), true, 'Retry is focused before metrics arrive');
   assert.equal((await fetch(upstreamFixture + '/browser-step')).status, 204);
   await wait("document.querySelector('#stop').hidden && typeof window.releaseTerminalTooltipSnapshot==='function'", 'terminal snapshot held while actions are visible');
+  assert.equal(await evaluate("document.activeElement===window.metricsFocusedButton && window.metricsFocusedButton.isConnected && document.querySelector('.message-action-tooltip')?.textContent==='Retry response'"), true, 'reported metrics removed a focused action or tooltip');
   await click('[data-tab="stats"]');
   await click('#panel-stats .conversation-totals > summary');
   assert((await evaluate("document.querySelector('#panel-stats').innerText")).includes('960'), 'all-branch totals omitted retries');

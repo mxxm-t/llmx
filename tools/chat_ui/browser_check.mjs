@@ -819,6 +819,7 @@ try {
   const replyLayout = [];
   for (const width of [1440, 390, 320]) {
     await cdp('Emulation.setDeviceMetricsOverride', {width,height:width===1440?1000:844,deviceScaleFactor:1,mobile:width<500});
+    await wait(`document.documentElement.dataset.compact==='${width<500}'`, 'reply viewport resize');
     for (const theme of ['dark', 'light']) {
       await evaluate(`document.documentElement.dataset.theme=${JSON.stringify(theme)};document.querySelector('#scroll-region').scrollTop=document.querySelector('#scroll-region').scrollHeight`);
       const geometry = await evaluate(`(() => {
@@ -1588,21 +1589,25 @@ try {
   const chatHeader = [];
   for (const width of [1440, 390, 320]) for (const theme of ['dark', 'light']) {
     await cdp('Emulation.setDeviceMetricsOverride', {width, height: 1000, deviceScaleFactor: 1, mobile: width < 500});
+    await wait(`document.documentElement.dataset.compact==='${width<500}'`, 'mode toggle viewport resize');
     await evaluate("document.documentElement.dataset.theme=" + JSON.stringify(theme));
     const geometry = () => evaluate(`(() => {
       const button = document.querySelector('#temporary-button');
       const menu = document.querySelector('.topbar [data-action="chat-menu"]');
       const box = button.getBoundingClientRect();
-      return {width: box.width, x: box.x, menuX: menu.getBoundingClientRect().x,
+      return {width: box.width, height: box.height, x: box.x, menuX: menu.getBoundingClientRect().x,
         titleWidth: document.querySelector('#chat-title').getBoundingClientRect().width};
     })()`);
+    const compactLabel = () => evaluate("{const label=document.querySelector('.temporary-short-label'); label?.getClientRects().length ? label.textContent : ''}");
     const {titleWidth, ...before} = await geometry();
     chatHeader.push({viewport:width,theme,titleWidth,...before});
     await screenshot('reading-normal-'+width+'-'+theme+'.png');
     assert.equal(await evaluate("getComputedStyle(document.querySelector('#temporary-button')).borderTopStyle"), 'dashed', 'Temporary chat button lost dashed border');
+    if (width < 500) assert.equal(await compactLabel(), 'Temporary', 'mobile temporary mode label is not visible');
     await pointerClick('#temporary-button');
     await wait("!document.querySelector('#temporary-notice').hidden && !document.querySelector('#temporary-button').disabled", 'empty temporary mode');
     assert.equal(await evaluate("getComputedStyle(document.querySelector('#temporary-button')).borderTopStyle"), 'solid', 'Normal chat button must be solid');
+    if (width < 500) assert.equal(await compactLabel(), 'Normal', 'mobile normal mode label is not visible');
     const {titleWidth: temporaryTitleWidth, ...temporaryControls} = await geometry();
     assert.deepEqual(temporaryControls, before, 'mode toggle shifted header controls');
     if (width < 500) assert.equal(temporaryTitleWidth, titleWidth, 'mode toggle shifted the mobile title width');
@@ -1620,7 +1625,7 @@ try {
   console.log('Reading layout geometry: '+JSON.stringify({inspectorPreference,replyLayout,chatHeader}));
   assert.deepEqual(inspectorPreference, {defaultOpen:false,rememberedOpen:true,mobileOpen:false,
     restoredOpen:true,rememberedClosed:true,settingsOpened:true,closedAfterSettings:true}, 'docked conversation details preference');
-  assert(chatHeader.every(({viewport,titleWidth,width})=>viewport===1440 || titleWidth>=viewport-240 && width>=40), 'compact mode toggle crowds the title');
+  assert(chatHeader.every(({viewport,titleWidth,width,height})=>viewport===1440 || titleWidth>=viewport-240 && width>=40 && height>=40), 'compact mode toggle crowds the title or is too small');
   assert(replyLayout.every(({width,actionTarget,actionGap,gap})=>actionTarget>=(width===1440?32:40) && actionGap<=8 && gap<=8), 'within-reply spacing or action target');
   await send('Normal browser persistence check');
   await idle();

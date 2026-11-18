@@ -20,7 +20,7 @@
   </head>
   <body>
     <a class="skip-link" href="#draft">Skip to message</a>
-    <div id="app" class="workspace" data-view="chat">
+    <div id="app" class="workspace inspector-closed" data-view="chat">
       <aside class="sidebar" id="sidebar" aria-label="Conversations">
         <div class="brand">
           <span class="brand-wordmark" role="img" aria-label="llmx"></span>
@@ -102,9 +102,10 @@
           <div class="topbar-actions">
             <button id="monitor-reload" class="secondary-button" aria-label="Reconnect runtime monitor">Reconnect</button>
             <span id="connection" class="connection"><span class="status-dot"></span>Connecting</span>
-            <button type="button" id="temporary-button" data-action="temporary" class="new-chat temporary-button" disabled aria-busy="true">
+            <button type="button" id="temporary-button" data-action="temporary" class="new-chat temporary-button" aria-label="Start a temporary chat" disabled aria-busy="true">
               <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>
               <span class="chat-create-label">Temporary chat</span>
+              <span class="temporary-short-label" aria-hidden="true">Temporary</span>
             </button>
             <button class="icon" data-action="chat-menu" aria-haspopup="menu" aria-label="Conversation actions" title="Conversation actions">
               <svg viewBox="0 0 24 24">
@@ -113,7 +114,7 @@
                 <circle cx="19" cy="12" r="1"/>
               </svg>
             </button>
-            <button class="icon" data-action="inspector" aria-label="Toggle details" title="Conversation details">
+            <button id="details-toggle" class="icon" data-action="inspector" aria-label="Conversation details" aria-controls="inspector" aria-expanded="false" title="Conversation details">
               <svg viewBox="0 0 24 24">
                 <rect x="3" y="4" width="18" height="16" rx="3"/>
                 <path d="M15 4v16"/>

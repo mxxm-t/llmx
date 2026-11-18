@@ -168,6 +168,11 @@ Other sampling defaults stay temperature 0.7, top P 0.95 and top K 40.
 
 ## Reply statistics and activity
 
+Use the Conversation details button in the header to open or close Activity,
+Stats and Settings. On wide screens the panel starts closed and the browser
+remembers your docked-panel choice. On narrow screens, Details opens as a drawer
+when needed. The composer's Settings shortcut opens directly to Settings.
+
 Hover over a reply's statistics icon to preview reported token counts and timings.
 Click the icon, or use Enter or Space, to keep the panel open for text selection
 and Copy values. Touch users tap the icon. Close, Escape or a click outside the
@@ -186,7 +191,11 @@ selected branch, with other branches available separately when present.
 
 ## Temporary chats
 
-Temporary chat in the conversation header opens a conversation held only in companion memory. In temporary mode, the same button is labeled Normal chat and returns to a blank normal conversation, saved only when you send a message. Both labels keep the same width; the Temporary chat action is dashed and the Normal chat action is solid.
+Temporary chat in the conversation header opens a conversation held only in
+companion memory. In temporary mode, the same button is labeled Normal chat and
+returns to a blank normal conversation, saved only when you send a message. On
+narrow screens the labels are Temporary and Normal. The button keeps its width
+when toggled, with a dashed Temporary action and a solid Normal action.
 It is absent from saved history and SQLite backups. Messages, attachments, settings
 and replay events share the normal conversation engine in a separate in-memory
 store. Reloading the page recovers the current temporary chat through an identifier

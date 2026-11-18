@@ -15,6 +15,8 @@
   const $ = id => document.getElementById(id);
   const systemTheme = window.matchMedia('(prefers-color-scheme: light)');
   const storedTheme = localStorage.getItem('llmx-theme');
+  let dockedDetailsOpen = localStorage.getItem('llmx-conversation-details') === 'open';
+  let detailsInDrawer = usesDetailsDrawer();
   let themeChosen = storedTheme === 'light' || storedTheme === 'dark';
   function setTheme(theme, save = false) {
     document.documentElement.dataset.theme = theme;
@@ -524,6 +526,7 @@
     const temporaryMode = Boolean(S.chat?.temporary);
     $('temporary-notice').hidden = !temporaryMode;
     $('temporary-button').querySelector('.chat-create-label').textContent = temporaryMode ? 'Normal chat' : 'Temporary chat';
+    $('temporary-button').querySelector('.temporary-short-label').textContent = temporaryMode ? 'Normal' : 'Temporary';
     $('temporary-button').setAttribute('aria-label', temporaryMode ? 'Switch to a normal chat' : 'Start a temporary chat');
     $('app').dataset.temporary = String(temporaryMode);
     const lifetime = S.config.temporary?.ttl_seconds;
@@ -919,12 +922,19 @@
   function bottom() { const region = $('scroll-region'); region.scrollTop = region.scrollHeight; $('jump-bottom').hidden = true; }
   function resizeDraft() { const el = $('draft'); el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 220) + 'px'; rememberDraft(); }
   function showTab(name) { S.tab = name; document.querySelectorAll('[data-tab]').forEach(el => { el.setAttribute('aria-selected', String(el.dataset.tab === name)); el.tabIndex = el.dataset.tab === name ? 0 : -1; }); for (const tab of ['activity', 'stats', 'settings']) $('panel-' + tab).hidden = tab !== name; syncLiveMetrics(); renderContextLimits(); }
-  function updateShade() { const compact = document.documentElement.dataset.compact === 'true'; $('drawer-shade').hidden = !(compact && $('app').classList.contains('sidebar-open') || (compact || window.innerWidth <= 1200) && $('app').dataset.view === 'chat' && !$('app').classList.contains('inspector-closed')); syncLiveMetrics(); renderContextLimits(); }
-  function closeDrawers() { $('app').classList.remove('sidebar-open'); if (document.documentElement.dataset.compact === 'true' || window.innerWidth <= 1200) $('app').classList.add('inspector-closed'); updateShade(); }
+  function usesDetailsDrawer() { return document.documentElement.dataset.compact === 'true' || window.innerWidth <= 1200; }
+  function updateShade() {
+    const app = $('app'); const detailsOpen = !app.classList.contains('inspector-closed');
+    $('details-toggle').setAttribute('aria-expanded', String(detailsOpen));
+    const sidebarOpen = document.documentElement.dataset.compact === 'true' && app.classList.contains('sidebar-open');
+    $('drawer-shade').hidden = !(sidebarOpen || usesDetailsDrawer() && app.dataset.view === 'chat' && detailsOpen);
+    syncLiveMetrics(); renderContextLimits();
+  }
+  function closeDrawers() { $('app').classList.remove('sidebar-open'); if (usesDetailsDrawer()) $('app').classList.add('inspector-closed'); updateShade(); }
   function showToolCall(messageId, callId) {
     const message = path().find(item => item.id === messageId && item.role === 'assistant');
     if (!message || !(message.tool_calls || []).some(call => call.id === callId)) throw new Error('This tool call is no longer on the selected branch.');
-    if (window.innerWidth <= 1200 || document.documentElement.dataset.compact === 'true') closeDrawers();
+    if (usesDetailsDrawer()) closeDrawers();
     const article = $('messages').querySelector('[data-message="' + CSS.escape(messageId) + '"]');
     const wrap = Array.from(article?.querySelectorAll('.tool-call') || []).find(item => item.dataset.toolCall === callId);
     const detail = wrap?.querySelector(':scope > details'); const summary = detail?.querySelector(':scope > summary');
@@ -945,7 +955,18 @@
     if (name === 'tool-detail') return showToolCall(el.dataset.message, el.dataset.call);
     if (name === 'sidebar') { $('app').classList.toggle('sidebar-open'); updateShade(); return; }
     if (name === 'close-drawers') return closeDrawers();
-    if (name === 'inspector' || name === 'settings') { if (name === 'settings') { $('app').classList.remove('inspector-closed'); showTab('settings'); } else $('app').classList.toggle('inspector-closed'); updateShade(); return; }
+    if (name === 'inspector' || name === 'settings') {
+      if (name === 'settings') {
+        $('app').classList.remove('inspector-closed'); showTab('settings');
+      } else {
+        const closed = $('app').classList.toggle('inspector-closed');
+        if (!usesDetailsDrawer()) {
+          dockedDetailsOpen = !closed;
+          localStorage.setItem('llmx-conversation-details', closed ? 'closed' : 'open');
+        }
+      }
+      updateShade(); return;
+    }
     if (name === 'theme') { setTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light', true); return; }
     if (name === 'archive-view') { S.archive = !S.archive; renderSidebar(); return; }
     if (name === 'attach') return $('file-input').click();
@@ -1046,13 +1067,21 @@
     }
     if (event.target.matches('[role=tab]') && ['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); const tabs = ['activity', 'stats', 'settings']; const index = (tabs.indexOf(S.tab) + (event.key === 'ArrowRight' ? 1 : 2)) % 3; showTab(tabs[index]); $('tab-' + tabs[index]).focus(); }
   });
-  window.addEventListener('resize', updateShade);
+  window.addEventListener('resize', () => {
+    const drawer = usesDetailsDrawer();
+    if (drawer !== detailsInDrawer) {
+      detailsInDrawer = drawer;
+      $('app').classList.toggle('inspector-closed', drawer || !dockedDetailsOpen);
+    }
+    updateShade();
+  });
   document.addEventListener('companion:view', () => { syncLiveMetrics(); renderLiveMetrics(); });
   document.addEventListener('visibilitychange', () => { syncLiveMetrics(); renderLiveMetrics(); });
   window.addEventListener('pagehide', () => { rememberDraft(); flushDrafts(); liveMetrics.stream?.close(); liveMetrics.stream = null; liveMetrics.id = null; });
   window.addEventListener('pageshow', syncLiveMetrics);
   document.addEventListener('visibilitychange', () => { if (!document.hidden && currentRun() && !S.stream) syncSnapshot(S.chat.id).then(() => { const run = currentRun(); if (run) subscribe(run); }).catch(error => toast(error.message)); });
   setTheme(themeChosen ? storedTheme : systemTheme.matches ? 'light' : 'dark');
-  if (window.innerWidth <= 1200) $('app').classList.add('inspector-closed');
+  $('app').classList.toggle('inspector-closed', detailsInDrawer || !dockedDetailsOpen);
+  updateShade();
   showTab('activity'); setInterval(tick, 1000); initialize();
 })();

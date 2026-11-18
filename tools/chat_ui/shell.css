@@ -1046,6 +1046,26 @@
   width: 84px;
   white-space: nowrap;
 }
+.temporary-short-label {
+  display: none;
+}
+:root[data-compact=true] #app[data-view=chat] .topbar {
+  gap: 8px;
+  padding-inline: 12px;
+}
+:root[data-compact=true] .topbar-actions .temporary-button {
+  justify-content: center;
+  width: 78px;
+  min-height: 40px;
+  padding: 4px;
+}
+:root[data-compact=true] .topbar-actions .temporary-button svg,
+:root[data-compact=true] .topbar-actions .temporary-button .chat-create-label {
+  display: none;
+}
+:root[data-compact=true] .temporary-short-label {
+  display: inline;
+}
 .workspace:not([data-view=chat]) .topbar-actions .temporary-button {
   display: none;
 }

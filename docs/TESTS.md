@@ -40,6 +40,9 @@ refusals and recover the connection after a successful retry.
 They also check shared visual headers and spacing for one tool-assisted reply
 in both themes at desktop and mobile widths, while imported messages without
 run identities retain their own headers.
+Chat layout checks cover the default and remembered docked-details state,
+temporary Settings access, the mobile drawer, stable mode-toggle geometry and
+reply action target sizes at 1440, 390 and 320 CSS pixels.
 Shared branding checks cover the same asset bytes and MIME types in both servers,
 with the browser checking icon loading, sizing and matching Chat/Monitor favicons.
 

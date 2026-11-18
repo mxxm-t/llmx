@@ -688,7 +688,7 @@ kbd {
   overflow-wrap:anywhere
 }
 .message.assistant:has(+ .message.assistant.continuation) {
-  padding-bottom:12px
+  padding-bottom:6px
 }
 .message.assistant.continuation {
   padding-top:0
@@ -714,6 +714,9 @@ kbd {
   margin-bottom:14px;
   font-size:11px;
   font-weight:500
+}
+.message.assistant>.message-header {
+  margin-bottom:10px
 }
 .message-avatar {
   height:25px;
@@ -859,6 +862,9 @@ kbd {
   color:var(--muted);
   font-size:12px
 }
+.message.assistant>.message-actions {
+  margin-top:7px
+}
 .message-actions button {
   display:inline-grid;
   place-items:center;
@@ -913,7 +919,7 @@ kbd {
 .reasoning {
   border:1px solid var(--border);
   border-radius:8px;
-  margin:0 0 18px;
+  margin:0 0 12px;
   color:var(--muted)
 }
 .reasoning summary {
@@ -928,7 +934,7 @@ kbd {
 .tool-call {
   border:1px solid var(--border);
   border-radius:8px;
-  margin:12px 0;
+  margin:8px 0;
   background:var(--surface);
   width:100%
 }

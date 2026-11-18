@@ -263,7 +263,7 @@ def logits_of(out):
 
 def fp8_checks(directory, dialect, form, dtype):
     """An FP8 directory: info lists each linear as F8_E4M3 beside its F32 grid and the schemes as not applied, and one scale a tensor reads as its GGUF twin byte for byte.
-    Its logits stay within the F32 bound of its F32 twin at f32 and within the frozen F16 budget at f16."""
+    Its logits stay within the F32 bound of its F32 twin at f32 and within the frozen F16 budget at f16, or None when the configured device has no F8_E4M3 kernel."""
     entries, weights, quantized = fp8_fixture(dialect, form, dtype)
     label = "fp8-%s-%s" % (dialect, form)
     model = write_directory(os.path.join(directory, label), entries, True, c=FP8_CONFIG, extra={"torch_dtype": "bfloat16", "quantization_config": fp8_quantization(dialect, form)})
@@ -282,6 +282,8 @@ def fp8_checks(directory, dialect, form, dtype):
     worst = {}
     for dt, bound in (("f32", common.F32_HF_LOGIT_BOUND), ("f16", common.hf_bounds("f16", [["f16"]])["logit"])):
         got = common.run_process(["logits", model, text, "--top", str(f32.VOCAB), "--dtype", dt], cache="f32")
+        if common.device_lacks_kernel(got.returncode, got.stderr.decode(errors="replace")):
+            return None
         assert got.returncode == 0, "logits on the %s directory: %s" % (label, got.stderr)
         a, b = logits_of(got.stdout.decode()), logits_of(reference.stdout.decode())
         assert set(a) == set(b) == set(range(f32.VOCAB)), "missing %s logits" % label
@@ -377,10 +379,18 @@ def run():
                         ct_quantization(bits, sym, packed, group), "Q8_0" if bits == 8 else "Q4_0" if sym else "Q5_0")
         fp8_worst = {"f32": 0.0, "f16": 0.0}
         for dialect, form, dtype in FP8_FORMS:
-            for dt, error in fp8_checks(directory, dialect, form, dtype).items():
+            errors = fp8_checks(directory, dialect, form, dtype)
+            if errors is None:
+                if fp8_worst:
+                    print("safetensors: FP8 directories' logits SKIP - %s has no F8_E4M3 kernel" % os.environ["LLMX_DEVICE"])
+                fp8_worst = None
+                continue
+            for dt, error in errors.items():
                 fp8_worst[dt] = max(fp8_worst[dt], error)
         fp8_refusals(directory)
-    print("safetensors: tiny F32 directories, tied in one file and untied in two under an index, all 257 logits vs HF, PPL, --last/--then-ids/--per-token rows, and the GGUF twin's ids, text and logits; an AWQ directory with F16 and BF16 scales and GPTQ 4-bit symmetric, 4-bit v2 and 8-bit directories and compressed-tensors 4-bit symmetric and asymmetric packed and 8-bit packed and int8 directories as their Q5_0, Q4_0 and Q8_0 twins' ids, text and logits; max error %.8f; FP8 directories in both dialects by tensor, channel and block against their F32 twins, worst %.8f at f32 and %.8f at f16, by tensor as their F8_E4M3 GGUF twins byte for byte, and the refusals  [ok]" % (worst, fp8_worst["f32"], fp8_worst["f16"]))
+    fp8 = ("against their F32 twins, worst %.8f at f32 and %.8f at f16, by tensor as their F8_E4M3 GGUF twins byte for byte"
+           % (fp8_worst["f32"], fp8_worst["f16"]) if fp8_worst else "listed by info, their logits skipped")
+    print("safetensors: tiny F32 directories, tied in one file and untied in two under an index, all 257 logits vs HF, PPL, --last/--then-ids/--per-token rows, and the GGUF twin's ids, text and logits; an AWQ directory with F16 and BF16 scales and GPTQ 4-bit symmetric, 4-bit v2 and 8-bit directories and compressed-tensors 4-bit symmetric and asymmetric packed and 8-bit packed and int8 directories as their Q5_0, Q4_0 and Q8_0 twins' ids, text and logits; max error %.8f; FP8 directories in both dialects by tensor, channel and block %s, and the refusals  [ok]" % (worst, fp8))
     return True
 
 

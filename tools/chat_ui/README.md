@@ -128,6 +128,10 @@ keyboard focus keeps its visible outline.
   alternate branches. It matches literal text without regard to case. Temporary
   chats, reasoning, attachments and tool payloads are excluded. Export and
   import preserve messages and their branches. Imported chats do not restart runs.
+  Saved rows show when their latest reply is in progress, needs tool approval,
+  failed or was interrupted. These cues refer to the latest attempt even if
+  you select an older branch. Open the conversation to review a decision or
+  see what happened. Archive and search rows show the same cues.
 - Send and Retry use the current conversation settings. Acceptance saves them
   for this chat and captures them for all model calls in that reply, including
   those after tool results. **Save for this chat** saves without starting a

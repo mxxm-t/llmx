@@ -489,6 +489,8 @@ class Handler(BaseHTTPRequestHandler):
                     self.app.previews.pop(next(iter(self.app.previews)))
                 self.app.previews[token] = (time.monotonic(), html.encode())
             return self._json({"url": "/preview/" + token})
+        if path == "/api/chats/run-status" and method == "GET":
+            return self._json({"chats": self.app.store.sidebar_run_status()})
         if path == "/api/chats/search" and method == "POST":
             body = self._body(4096)
             query = body.get("query")

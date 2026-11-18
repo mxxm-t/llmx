@@ -28,6 +28,11 @@
   const S = {chats: [], chat: null, messages: [], runs: [], config: {models: [], tools: []}, attachments: [], edit: null, stream: null, cursor: 0, archive: false, tab: 'activity', scheduled: false, fingerprint: new Map(), inspectorKey: '', generation: 0, busy: false};
   let toastTimer, creatingChat = false, menuId = null, composerRevision = 0;
   const chatSearch = {request: null, timer: null, running: false, chats: [], notice: ''};
+  const sidebarRuns = {ready: false, active: false, epoch: 0, request: null, poll: null, expires: null, states: new Map()};
+  const sidebarRunCues = new Map([
+    ['running', ['', 'Reply in progress']], ['approval', ['?', 'Waiting for tool approval']],
+    ['failed', ['!', 'Latest reply failed']], ['interrupted', ['~', 'Latest reply interrupted']],
+  ]);
   const drafts = new Map(), changedDrafts = new Set(), volatileDrafts = new Set(), draftPrefix = 'llmx-draft:';
   const admissions = new Map(), settingsWrites = new Map();
   let draftTimer, draftReady = false;
@@ -283,6 +288,63 @@
       else if (chatSearch.request && chatSearch.timer === null) searchChats();
     }
   }
+  function updateSidebarCue(button) {
+    const cue = button.querySelector('.chat-run-cue');
+    const status = sidebarRuns.states.get(button.dataset.chat) || '';
+    if (cue.dataset.status === status) return;
+    const [mark, label] = sidebarRunCues.get(status) || ['', ''];
+    cue.dataset.status = status;
+    cue.textContent = mark;
+    cue.title = label;
+    if (label) button.setAttribute('aria-label', button.querySelector('.chat-name').textContent + ', ' + label);
+    else button.removeAttribute('aria-label');
+  }
+  function setSidebarStates(states = []) {
+    sidebarRuns.states = new Map(states.filter(row => sidebarRunCues.has(row.status)).map(row => [row.id, row.status]));
+    $('chat-list').querySelectorAll('.chat-item').forEach(updateSidebarCue);
+  }
+  function stopSidebarRuns() {
+    sidebarRuns.active = false;
+    sidebarRuns.epoch++;
+    clearTimeout(sidebarRuns.poll);
+    clearTimeout(sidebarRuns.expires);
+    sidebarRuns.request?.abort();
+    setSidebarStates();
+  }
+  function syncSidebarRuns() {
+    const active = sidebarRuns.ready && !document.hidden && $('app').dataset.view === 'chat';
+    if (active === sidebarRuns.active) return;
+    if (!active) { stopSidebarRuns(); return; }
+    sidebarRuns.active = true;
+    pollSidebarRuns();
+  }
+  async function pollSidebarRuns() {
+    if (!sidebarRuns.active || sidebarRuns.request) return;
+    const epoch = sidebarRuns.epoch;
+    const maxAge = 9000;
+    const deadline = performance.now() + maxAge;
+    const request = new AbortController();
+    sidebarRuns.request = request;
+    const timeout = setTimeout(() => request.abort(), maxAge);
+    try {
+      const response = await fetch('/api/chats/run-status', {credentials: 'same-origin', signal: request.signal});
+      if (!sidebarRuns.active || epoch !== sidebarRuns.epoch || request.signal.aborted || performance.now() >= deadline) return;
+      if (response.status === 401) document.dispatchEvent(new CustomEvent('companion:unauthorized'));
+      if (!response.ok) return;
+      const data = await response.json();
+      const remaining = deadline - performance.now();
+      if (sidebarRuns.active && epoch === sidebarRuns.epoch && remaining > 0) {
+        setSidebarStates(data.chats || []);
+        clearTimeout(sidebarRuns.expires);
+        sidebarRuns.expires = setTimeout(setSidebarStates, remaining);
+      }
+    } catch (_) { /* Keep the last snapshot only until its freshness deadline. */ }
+    finally {
+      clearTimeout(timeout);
+      sidebarRuns.request = null;
+      if (sidebarRuns.active) sidebarRuns.poll = setTimeout(pollSidebarRuns, epoch === sidebarRuns.epoch ? 3000 : 0);
+    }
+  }
   function renderSidebar() {
     const chats = chatSearch.request ? chatSearch.chats : S.chats.filter(c => Boolean(c.archived) === S.archive);
     if (!chatSearch.request) chats.sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || (String(b.updated).localeCompare(String(a.updated))));
@@ -295,6 +357,8 @@
         const button = node('button', 'chat-item' + (S.chat?.id === chat.id ? ' active' : '')); button.type = 'button'; button.dataset.chat = chat.id; button.title = chat.title;
         if (S.chat?.id === chat.id) button.setAttribute('aria-current', 'page');
         button.append(node('span', 'chat-glyph', '#'), node('span', 'chat-name', chat.title || 'Untitled conversation'));
+        const cue = node('span', 'chat-run-cue'); cue.setAttribute('aria-hidden', 'true'); button.append(cue);
+        updateSidebarCue(button);
         if (chat.pinned) button.append(node('span', 'pin-mark', '*'));
         const row = node('div', 'chat-row' + (S.chat?.id === chat.id ? ' active' : ''));
         const menu = node('button', 'chat-row-menu', '...'); menu.type = 'button'; menu.dataset.action = 'chat-menu'; menu.dataset.id = chat.id;
@@ -1088,7 +1152,12 @@
     if (name === 'remove-attachment') { S.attachments.splice(Number(el.dataset.id), 1); composerRevision++; renderAttachments(); return; }
     if (name === 'bottom') return bottom();
     if (name === 'import') return $('import-input').click();
-    if (name === 'logout') { await api('/logout', 'POST', {}); clearDrafts(); closeStream(); location.reload(); return; }
+    if (name === 'logout') {
+      sidebarRuns.ready = false; stopSidebarRuns();
+      try { await api('/logout', 'POST', {}); }
+      catch (error) { if (error.status !== 401) { sidebarRuns.ready = true; syncSidebarRuns(); } throw error; }
+      clearDrafts(); closeStream(); location.reload(); return;
+    }
     if (name === 'cancel-edit') { S.edit = null; $('edit-note').hidden = true; $('draft').value = ''; S.attachments = []; composerRevision++; renderAttachments(); resizeDraft(); return; }
     if (name === 'save-settings') return saveConversationSettings();
     if (name === 'chat-menu') return showChatMenu(el.dataset.id || S.chat?.id, el);
@@ -1130,6 +1199,7 @@
   }
   async function initialize() {
     chatCreating(true);
+    sidebarRuns.ready = false; syncSidebarRuns();
     try {
       const session = await api('/session'); $('logout-button').hidden = !session.password_required;
       if (!session.authenticated && session.password_required) { $('login-dialog').showModal(); $('password').focus(); return; }
@@ -1137,6 +1207,7 @@
       if (!S.config.upstream_available) banner(S.config.upstream_error || 'The model server is unavailable. Check the companion connection and try again.');
       if (S.config.tools_error) banner([S.config.upstream_error, 'Tool connection issue: ' + S.config.tools_error].filter(Boolean).join(' '));
       await refreshChats(); loadSettings();
+      sidebarRuns.ready = true; syncSidebarRuns();
       try { for (const key of Object.keys(sessionStorage)) if (key.startsWith(draftPrefix) && key !== draftPrefix + 'new' && !S.chats.some(chat => draftPrefix + chat.id === key)) forgetDraft(key.slice(draftPrefix.length)); } catch (_) { /* Browser storage may be disabled. */ }
       $('temporary-button').hidden = !S.config.temporary?.enabled;
       const temporary = sessionStorage.getItem('llmx-temporary-chat');
@@ -1205,6 +1276,11 @@
     renderLiveMetrics();
   });
   document.addEventListener('visibilitychange', () => { syncLiveMetrics(); renderLiveMetrics(); });
+  document.addEventListener('companion:view', syncSidebarRuns);
+  document.addEventListener('visibilitychange', syncSidebarRuns);
+  document.addEventListener('companion:unauthorized', () => { sidebarRuns.ready = false; stopSidebarRuns(); });
+  window.addEventListener('pagehide', stopSidebarRuns);
+  window.addEventListener('pageshow', syncSidebarRuns);
   window.addEventListener('pagehide', () => { rememberDraft(); flushDrafts(); liveMetrics.stream?.close(); liveMetrics.stream = null; liveMetrics.id = null; });
   window.addEventListener('pageshow', syncLiveMetrics);
   document.addEventListener('visibilitychange', () => { if (!document.hidden && currentRun() && !S.stream) syncSnapshot(S.chat.id).then(() => { const run = currentRun(); if (run) subscribe(run); }).catch(error => toast(error.message)); });

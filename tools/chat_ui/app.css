@@ -165,6 +165,27 @@ kbd {
   white-space:nowrap;
   flex:1
 }
+.chat-run-cue {
+  flex:0 0 14px;
+  line-height:16px;
+  text-align:center;
+  color:var(--muted)
+}
+.chat-run-cue[data-status="running"]::before {
+  content:"";
+  display:inline-block;
+  width:7px;
+  height:7px;
+  border:1px solid currentColor;
+  border-right-color:transparent;
+  border-radius:50%
+}
+.chat-run-cue[data-status="approval"] {
+  color:var(--accent)
+}
+.chat-run-cue:is([data-status="failed"],[data-status="interrupted"]) {
+  color:var(--danger)
+}
 .chat-item .chat-glyph {
   color:var(--faint);
   font-size:15px

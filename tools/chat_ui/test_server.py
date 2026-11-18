@@ -326,7 +326,8 @@ class RouteTests(unittest.TestCase):
         temp = self.app.temporary.create({"title": "Private temporary"})
         store, _ = self.app.temporary.access(temp["id"])
         store.start(temp["id"], {"content": "Temporary prompt"}, {})
-        response = self.request("GET", path, cookie=cookie)
+        with self.app.store.search_lock:
+            response = self.request("GET", path, cookie=cookie)
         self.assertEqual(response[0], 200)
         self.assertIn(("Cache-Control", "no-store"), response[1])
         self.assertEqual(self.json_body(response), {"chats": [{"id": saved["id"], "status": "failed"}]})

@@ -33,6 +33,13 @@ freshly persisted deltas, request validation and restore during an open reader.
 The Chrome fixture searches an unopened chat after reload, uses its archived
 row actions and verifies that a delayed response cannot supersede the current
 input or the cleared search. Search errors appear separately from no matches.
+Background sidebar status checks cover committed run-state transitions,
+insertion order across backup and restore, failed commit and restore rollback,
+restart interruption, and minimal authenticated responses during a held search
+gate. A tool approval timeout clears the waiting state when no decisions remain.
+Chrome verifies status changes for an unopened chat, stable focus and menus,
+reload, archive and search rows, request deadline recovery, and stale or
+unauthorized responses across view and visibility changes.
 Model-selection checks replace the upstream catalogue after configuration was
 cached, refuse stale sends and retries without storing messages or runs, and
 cover an unavailable upstream, explicit valid choices and default-model calls.

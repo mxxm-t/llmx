@@ -2208,6 +2208,9 @@ try {
   await wait(`document.querySelector(${JSON.stringify(backgroundRow)})!==null && !document.querySelector('[data-action=new]').disabled`, 'unopened background chat in catalogue');
   const backgroundRun = await startBackground();
   await expectCue('running');
+  await evaluate("document.documentElement.dataset.theme='dark'");
+  assert.equal(await evaluate(`getComputedStyle(document.querySelector(${JSON.stringify(backgroundCue)}),'::before').borderTopWidth`), '1px');
+  await screenshot('background-status-running-dark.png');
   const streamCountAtBackgroundApproval = runStreams.length;
   await pointerClick(`${backgroundRow} .chat-row-menu`);
   await evaluate(`window.backgroundRow=document.querySelector(${JSON.stringify(backgroundRow)}); window.backgroundFocus=document.activeElement`);
@@ -2219,6 +2222,7 @@ try {
   await reloadDocument();
   await expectCue('approval');
   assert.notEqual(await evaluate("localStorage.getItem('llmx-chat')"), background, 'reload selected the background chat');
+  await evaluate("document.documentElement.dataset.theme='dark'");
   await screenshot('background-status-desktop-dark.png');
   await click(`${backgroundRow} .chat-row-menu`); await click('#action-menu [data-action=archive]');
   await wait(`!document.querySelector(${JSON.stringify(backgroundRow)})`, 'background row archived');
@@ -2228,7 +2232,7 @@ try {
   await wait("document.documentElement.dataset.compact==='true'", 'compact background sidebar');
   await evaluate("document.documentElement.dataset.theme='light'");
   await pointerClick('.mobile-nav');
-  assert.equal(await evaluate(`{const cue=document.querySelector(${JSON.stringify(backgroundCue)});cue.getBoundingClientRect().right<=innerWidth && getComputedStyle(cue).visibility==='visible'}`), true, 'archived search result cue is clipped on mobile');
+  await wait(`{const cue=document.querySelector(${JSON.stringify(backgroundCue)});const box=cue.getBoundingClientRect();box.left>=0 && box.right<=innerWidth && getComputedStyle(cue).visibility==='visible'}`, 'archived search result cue fits on mobile');
   await screenshot('background-status-mobile-light.png');
   await cdp('Emulation.setDeviceMetricsOverride', {width:1440,height:1000,deviceScaleFactor:1,mobile:false});
   await evaluate("document.documentElement.dataset.theme='dark'");
@@ -2239,21 +2243,41 @@ try {
   assert.equal(await evaluate(`document.querySelector(${JSON.stringify(backgroundRow+' .chat-item')}).getAttribute('aria-label').includes('Latest reply failed')`), true, 'failed sidebar status does not name the latest attempt');
   await evaluate(`{
     const fetch = window.fetch;
+    const setTimeout = window.setTimeout;
     window.statusFetches = 0;
+    window.statusAborts = 0;
+    window.setTimeout = (callback, delay, ...args) => {
+      const id = setTimeout(callback, delay, ...args);
+      if (delay === 9000) window.expireStatus = () => { window.clearTimeout(id); callback(...args); };
+      return id;
+    };
     window.fetch = (url, options) => {
-      if (url === '/api/chats/run-status') {window.statusFetches++; return new Promise(resolve => {window.releaseStatus = resolve;});}
+      if (url === '/api/chats/run-status') {
+        const number = ++window.statusFetches;
+        return new Promise((resolve, reject) => {
+          window.releaseStatus = resolve;
+          options.signal.addEventListener('abort', () => {
+            window.statusAborts++;
+            if (number !== 2) reject(options.signal.reason);
+          }, {once:true});
+        });
+      }
       return fetch(url, options);
     };
   }`);
-  await wait("typeof window.releaseStatus==='function'", 'hold a background status response');
+  await wait("window.statusFetches===1 && typeof window.expireStatus==='function'", 'hold a background status response with its deadline armed');
+  await evaluate('window.expireStatus()');
+  await wait("window.statusAborts===1 && window.statusFetches===2", 'expired status request aborts and the next poll starts');
   await click('[data-view=preferences]');
+  assert.equal(await evaluate('window.statusAborts'), 2, 'leaving Chat did not abort the status request');
   await evaluate("window.releaseStatus(new Response(JSON.stringify({chats:[{id:"+JSON.stringify(background)+",status:'approval'}]})))");
   assert.equal(await evaluate(`document.querySelector(${JSON.stringify(backgroundCue)})?.dataset.status`), '', 'status remains active outside Chat');
   await evaluate("delete window.releaseStatus; Object.defineProperty(document,'hidden',{configurable:true,value:true}); document.dispatchEvent(new Event('visibilitychange'))");
   await click('[data-view=chat]');
-  assert.equal(await evaluate('window.statusFetches'), 1, 'hidden Chat started a status request');
+  await delay(3150);
+  assert.equal(await evaluate('window.statusFetches'), 2, 'hidden Chat started a status request');
   await evaluate("delete document.hidden; document.dispatchEvent(new Event('visibilitychange'))");
-  await wait("window.statusFetches===2 && typeof window.releaseStatus==='function'", 'visible Chat refreshes status immediately');
+  await wait("window.statusFetches===3 && typeof window.releaseStatus==='function'", 'visible Chat refreshes status immediately');
   await evaluate("window.releaseStatus(new Response(JSON.stringify({error:'Sign in to continue'}),{status:401}))");
   await wait("document.querySelector('#login-dialog').open", 'sidebar status detects an expired session');
   assert.equal(await evaluate(`document.querySelector(${JSON.stringify(backgroundCue)})?.dataset.status`), '', 'status leaked across expiry');

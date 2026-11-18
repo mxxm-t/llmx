@@ -294,7 +294,9 @@ class Engine:
             return {"isError": True, "content": [{"type": "text", "text": str(exc)[:1000]}]}
         finally:
             with control.changed:
-                control.pending.pop(call["id"], None)
+                expired = control.pending.pop(call["id"], None)
+                if expired and not control.cancel.is_set() and not any(v["decision"] is None for v in control.pending.values()):
+                    self._state(rid, "running")
 
     def _run(self, run, control):
         rid, message_id = run["id"], run["message_id"]

@@ -12,6 +12,7 @@ from contextlib import closing
 
 
 SCHEMA_VERSION = 1
+SIDEBAR_RUN_STATES = {"running", "approval", "failed", "interrupted"}
 
 
 def identity():
@@ -45,7 +46,17 @@ class Store:
             self.db.execute("PRAGMA temp_store=MEMORY")
         self.db.execute("PRAGMA foreign_keys=ON")
         self._migrate(version)
+        self._latest_runs = {}
         self._recover_runs()
+        self._load_latest_runs()
+
+    def _load_latest_runs(self):
+        latest = {}
+        for cid, raw in self.db.execute("""SELECT c.id, r.data FROM chats c JOIN runs r ON r.rowid = (
+                SELECT rowid FROM runs WHERE chat=c.id ORDER BY rowid DESC LIMIT 1)"""):
+            run = json.loads(raw)
+            latest[cid] = (run["id"], run["status"])
+        self._latest_runs = latest
 
     def _recover_runs(self):
         for row in self.db.execute("SELECT data FROM runs").fetchall():
@@ -261,6 +272,7 @@ class Store:
                     self.db.execute("PRAGMA foreign_keys=ON")
                     self.db.execute("PRAGMA journal_mode=WAL")
                     self._recover_runs()
+                    self._load_latest_runs()
                 except Exception:
                     if self.db is not None:
                         self.db.close()
@@ -271,6 +283,7 @@ class Store:
                     self.db = sqlite3.connect(self.database_path, check_same_thread=False)
                     self.db.execute("PRAGMA foreign_keys=ON")
                     self.db.execute("PRAGMA journal_mode=WAL")
+                    self._load_latest_runs()
                     raise ValueError("Restore failed; the original database was restored.") from None
         finally:
             for path in (prepared, rollback):
@@ -309,6 +322,13 @@ class Store:
         with self.lock:
             return sorted((json.loads(r[0]) for r in self.db.execute("SELECT data FROM chats")),
                           key=chat_order)
+
+    def sidebar_run_status(self):
+        with self.lock:
+            if self._closed:
+                raise sqlite3.ProgrammingError("Cannot operate on a closed database.")
+            return [{"id": cid, "status": status} for cid, (_, status) in self._latest_runs.items()
+                    if status in SIDEBAR_RUN_STATES]
 
     def search_chats(self, query, archived):
         if not self.search_lock.acquire(blocking=False):
@@ -377,10 +397,12 @@ class Store:
             return chat
 
     def delete_chat(self, key):
-        with self.lock, self.db:
-            self.chat(key)
-            self._idle(key)
-            self.db.execute("DELETE FROM chats WHERE id=?", (key,))
+        with self.lock:
+            with self.db:
+                self.chat(key)
+                self._idle(key)
+                self.db.execute("DELETE FROM chats WHERE id=?", (key,))
+            self._latest_runs.pop(key, None)
 
     def path(self, leaf):
         with self.lock:
@@ -395,33 +417,36 @@ class Store:
             return list(reversed(chain))
 
     def start(self, chat_id, body, settings):
-        with self.lock, self.db:
-            chat = self.chat(chat_id)
-            self._idle(chat_id)
-            parent = body.get("parent_id", chat["active_leaf"])
-            if parent and self.message(parent)["chat_id"] != chat_id:
-                raise ValueError("The parent belongs to another conversation.")
-            if body.get("regenerate") and (not parent or self.message(parent)["role"] != "user"):
-                raise ValueError("Regeneration needs a user message.")
-            rid, now = self.id_prefix + identity(), time.time()
-            run = dict(id=rid, chat_id=chat_id, status="running", message_id=None, created=now,
-                       updated=now, error=None, last_seq=0, settings=settings)
-            self.db.execute("INSERT INTO runs VALUES(?,?,?)", (rid, chat_id, encoded(run)))
-            if not body.get("regenerate"):
-                user = self.new_message(chat_id, parent, "user", rid, content=body.get("content", ""),
-                                        attachments=body.get("attachments", []), status="completed")
-                self._publish(rid, "message", user)
-                parent = user["id"]
-                if chat["title"] == "New conversation":
-                    chat["title"] = (body.get("content", "").strip() or "Attachment conversation")[:80]
-            message = self.new_message(chat_id, parent, "assistant", rid)
-            self._publish(rid, "message", message)
-            run.update(message_id=message["id"])
-            self._publish(rid, "state", run)
-            chat.update(active_leaf=message["id"], updated=now, settings=settings)
-            self.db.execute("UPDATE chats SET data=? WHERE id=?", (encoded(chat), chat_id))
+        with self.changed:
+            with self.db:
+                chat = self.chat(chat_id)
+                self._idle(chat_id)
+                parent = body.get("parent_id", chat["active_leaf"])
+                if parent and self.message(parent)["chat_id"] != chat_id:
+                    raise ValueError("The parent belongs to another conversation.")
+                if body.get("regenerate") and (not parent or self.message(parent)["role"] != "user"):
+                    raise ValueError("Regeneration needs a user message.")
+                rid, now = self.id_prefix + identity(), time.time()
+                run = dict(id=rid, chat_id=chat_id, status="running", message_id=None, created=now,
+                           updated=now, error=None, last_seq=0, settings=settings)
+                self.db.execute("INSERT INTO runs VALUES(?,?,?)", (rid, chat_id, encoded(run)))
+                if not body.get("regenerate"):
+                    user = self.new_message(chat_id, parent, "user", rid, content=body.get("content", ""),
+                                            attachments=body.get("attachments", []), status="completed")
+                    self._publish(rid, "message", user)
+                    parent = user["id"]
+                    if chat["title"] == "New conversation":
+                        chat["title"] = (body.get("content", "").strip() or "Attachment conversation")[:80]
+                message = self.new_message(chat_id, parent, "assistant", rid)
+                self._publish(rid, "message", message)
+                run.update(message_id=message["id"])
+                self._publish(rid, "state", run)
+                chat.update(active_leaf=message["id"], updated=now, settings=settings)
+                self.db.execute("UPDATE chats SET data=? WHERE id=?", (encoded(chat), chat_id))
+                persisted = self.run(rid)
+            self._latest_runs[chat_id] = (rid, persisted["status"])
             self.changed.notify_all()
-            return self.run(rid)
+            return persisted
 
     @staticmethod
     def new_message(chat_id, parent, role, rid, **values):
@@ -481,8 +506,15 @@ class Store:
         return dict(event, seq=cursor.lastrowid)
 
     def publish(self, rid, kind, data):
-        with self.changed, self.db:
-            event = self._publish(rid, kind, data)
+        with self.changed:
+            with self.db:
+                event = self._publish(rid, kind, data)
+            if kind == "state":
+                run = event["data"]
+                cid = run["chat_id"]
+                previous = self._latest_runs.get(cid)
+                if previous is not None and previous[0] == rid:
+                    self._latest_runs[cid] = (rid, run["status"])
             self.changed.notify_all()
             return event
 

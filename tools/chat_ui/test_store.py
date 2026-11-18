@@ -70,6 +70,12 @@ class StorePersistenceTests(unittest.TestCase):
             reopened.restore(backup)
             self.assertEqual([run["id"] for run in reopened.snapshot(cid)["runs"]], [old, latest["id"]])
             self.assertEqual(reopened.sidebar_run_status(), [{"id": cid, "status": "interrupted"}])
+            source.publish(latest["id"], "state", {"status": "failed"})
+            source.backup(backup)
+            with mock.patch.object(reopened, "_recover_runs", side_effect=ValueError("injected recovery failure")):
+                with self.assertRaisesRegex(ValueError, "original database was restored"):
+                    reopened.restore(backup)
+            self.assertEqual(reopened.sidebar_run_status(), [{"id": cid, "status": "interrupted"}])
             source.publish(latest["id"], "state", {"status": "cancelled"})
             self.assertEqual(source.sidebar_run_status(), [])
             source.close()

@@ -1,5 +1,32 @@
 # llmx - Development Status
 
+## Drafter chain holds the head's devices (2026-11-18, CRASH1 then CRASH2, branch fix/disk-tier-drafter-race on main a274cfd62)
+
+**Goal.** Stop the heap corruption REUSE1 saw serving Qwen3.8-Flash-Next UD-Q4_K_XL with its MTP head and the disk tier on four MI50s under ROCm (README flags, tensor width 2): 2 of the 3 disk-tier runs that reached a second turn aborted in malloc ("corrupted size vs. prev_size", "free(): invalid pointer"), 0 of 3 without the disk tier.
+
+**Cause.** Where a device runs several stages (stage rounds), `Model::draft_record` recorded the chain on the head's devices without their recording lock (`Model::Recording`): only its final submit took it, and its first id writes took it in neither path.
+A copy item (`Model::copy_out`, freed slabs, a rerun's parts) goes to the first stage on those devices and records there from that stage's thread under the lock, so two threads recorded on one GPU backend at once, and `GpuBackend::flush` swaps its held operations unlocked.
+The disk tier makes such copies frequent while replies decode: saving a live donor's blocks and the boundary copies at each turn's end.
+docs/SPECULATIVE.md (section 9) already says the chain records one at a time with the other recorders there, so this was an omission.
+
+**Done.** The chain takes the head's devices' locks over its first writes, its steps and its submit, and drops them before it waits; with stages apart its first writes are locked as well.
+`llmx-server-spec-test` gains `flash_disk` (docs/TESTS.md): CPU backends that count two threads inside a recording call at once must count none.
+`record_stage` swaps its matrix-path evidence in and out under the same locks, since it too ran outside them.
+The hosted TSan job builds `llmx-server-spec-test` and runs it with `--flash-only` beside `http` and `server-passes-cpu`; under TSan on the test machine those cases take about 10 seconds, and the job took 21.5 of its 40 minutes on main.
+Cost: where a device runs several stages, the first stage's recording on the head's devices now waits for the chain's whole host recording, where before it raced it; with one stage per device the chain takes no lock and nothing changes.
+TSan, `llmx-server-spec-test --flash-only` (RelWithDebInfo, CPU): main a274cfd62 with the test fails, two recordings at once 13, 38 and 3 times in three runs with 25, 53 and 26 TSan reports; the fix passes with 0 reports, every turn equal to its prompt alone, 41 chains and 6 of 144 drafts kept.
+A first fix run failed with a NaN reply that the request alone gave too: the four-layer fixture's second linear layer kept its random positive decay, and the test now sets both linear layers' decay.
+Stacked on fix/host-growth-step cf9c4031e, the five first-token runs of Qwen3.8-Flash-Next UD-Q4_K_XL with its MTP head on four MI50s (ROCm, tensor width 2, no disk tier): 5 of 5 runs without a crash or a corruption message (crash2/ab), where that branch alone crashed or hung in 2 of 5.
+At a8e69d9c3 on four MI50s (ROCm), Qwen3.8-Flash-Next UD-Q4_K_XL with its MTP head over lookup at 63 drafts, tensor width 2, int8, a 12 GiB host tier and a 100 GiB kept disk tier: three servers with the reported flags, whose disk cache was still being made as in the reported crash, served three turns each with no crash or corruption message.
+Three more runs waited for the disk cache to be made, wrote each run's turns to disk (119 MiB) and served the same turns again from a second server on the kept directory: all six servers served three turns each with no crash, container peak 12.9 to 13.1 GB.
+The second servers did not adopt the kept directory (Left, below).
+Gates at a045e37f3 (llmx 0.1.0+ga045e37f3088), test commit 56a8df849 before it: CTest CPU 90/90; TSan `llmx-http-test`, `llmx-server-passes-cpu-test` and `llmx-server-spec-test --flash-only` pass; the CPU suite passes (50 components, `--require-tools --no-perf-floor`); Qwen3-0.6B Q8_0 greedy, seeded and `tools/server_mix_check.py` ids byte-identical to main a274cfd62; the `server` component on one MI50 under Vulkan passes.
+The change touches no kernel and no numerics, so no HF record applies; the landing stack's Flash-Next timing round records MTP decode with the fix beside main; it lands by fast-forward.
+
+**Left.** The hosted run and the landing stack's Flash-Next MTP decode timing round, then landing by fast-forward.
+- A view of registered host memory dropped on another thread (`~GpuBuffer` of `wrap_host`) also calls `GpuBackend::flush` under the graves lock only, which a recording thread does not take; the CPU test cannot see it, and nothing has shown it causes a crash. Owner: the REUSE stream.
+- Two servers with the same flags listed a tensor group's devices in a different order in their host layout, so the second did not adopt the kept disk directory. Owner: the REUSE stream.
+
 ## ROCm image input (2026-11-17, ROCVIS1 then ROCVIS2, branch feat/rocm-vision on main a274cfd62; F2DEV reviews)
 - **Goal:** `--mmproj` on ROCm (and CUDA, from the same GPU core) for Qwen3.8-Flash-Next's and DeepSeek-V4.1-Flash's encoders, held as the CPU and Vulkan paths are; it was refused at load on `layer_norm`.
 - **Op list:** of the ops the two encoders declare (`EncoderPlan::ops`), the GPU core lacked kernels for `layer_norm`, `gelu` and `add_bias`, and implemented but did not declare `rope_streams` (`norm_rope_partial`'s stream build) and `attention_full` (the attention kernels' non-causal views); every other call the encoders make (products on F32, F16 and BF16, `rms_norm_rows`, `silu_mul`, `add`, `kv_write`, `gather_rows`, `copy`, `mix_rows`) it already ran.

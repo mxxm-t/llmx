@@ -875,15 +875,17 @@ template <class T> struct ExactDecoded {
         }
     }
 };
+// A decoder for one row of its matrix; a type whose scales follow the row (ExactF8) binds them here once.
+template <class D> __device__ inline D bound(const D& d, const unsigned char*) { return d; }
 // A lane's weight bytes a batch of steps: 128 measured slower than 64 on the 2560 x 512 F32 router, more loads in flight than memory takes (docs/STATUS.md).
 constexpr int kBatchBytes = 64;
 // U whole steps of a lane's chains from unit u on, every load issued before the first product (held there by a scheduling barrier), so the wave waits on memory once for all of them.
-template <class D, int J, int U> __device__ inline void vector_steps(const unsigned char* row, const float* X, unsigned long long u, float (&s)[J]) {
+template <class D, int J, int U> __device__ inline void vector_steps(const unsigned char* row, const float* X, unsigned long long u, float (&s)[J], const D& d) {
     float4 a[U][J / 4], b[U][J / 4];
 #pragma unroll
     for (int q = 0; q < U; ++q)
 #pragma unroll
-        for (int k = 0; k < J / 4; ++k) a[q][k] = D::load4(row, u + 4 * k + q * kThreads), b[q][k] = ((const float4*)X)[(u + 4 * k + q * kThreads) / 4];
+        for (int k = 0; k < J / 4; ++k) a[q][k] = d.load4(row, u + 4 * k + q * kThreads), b[q][k] = ((const float4*)X)[(u + 4 * k + q * kThreads) / 4];
     schedule_barrier();
 #pragma unroll
     for (int q = 0; q < U; ++q)
@@ -897,9 +899,9 @@ template <class D, int J, int U> __device__ inline void vector_steps(const unsig
 }
 // The whole steps from step m on in batches of U, then the rest in halving batches, each step once and in order.
 template <class D, int J, int U>
-__device__ inline void vector_run(const unsigned char* row, const float* X, unsigned long long first, unsigned long long full, unsigned long long m, float (&s)[J]) {
-    for (; m + U <= full; m += U) vector_steps<D, J, U>(row, X, first + m * kThreads, s);
-    if constexpr (U > 1) vector_run<D, J, U / 2>(row, X, first, full, m, s);
+__device__ inline void vector_run(const unsigned char* row, const float* X, unsigned long long first, unsigned long long full, unsigned long long m, float (&s)[J], const D& d) {
+    for (; m + U <= full; m += U) vector_steps<D, J, U>(row, X, first + m * kThreads, s, d);
+    if constexpr (U > 1) vector_run<D, J, U / 2>(row, X, first, full, m, s, d);
 }
 // One row's outputs, a wave each, wave w of block b taking output b * (256 / the wave) + w: lane t holds chains J t to J t + J - 1 (J = 256 / the wave), each over its units in order.
 // The steps every lane fills go in batches with their loads ahead of their products (vector_run); block_sum's pairs then fold them, levels 128 to J by shuffles and those below J in registers.
@@ -908,6 +910,7 @@ __device__ inline float exact_sum(const unsigned char* W, const float* X, unsign
     constexpr int J = kThreads / kWave;
     const int t = threadIdx.x % kWave;
     const unsigned char* row = W + o * D::row_bytes(nin);
+    const D e = bound(d, row);
     const unsigned long long n = D::units(nin), full = n / kThreads, first = (unsigned long long)J * t;
     float s[J];
 #pragma unroll
@@ -916,16 +919,16 @@ __device__ inline float exact_sum(const unsigned char* W, const float* X, unsign
     if constexpr (D::vector)
         if (((unsigned long long)row % D::align | (unsigned long long)X % 16) == 0) {
             done = true;
-            vector_run<D, J, kBatchBytes / (J * D::weight_bytes)>(row, X, first, full, 0, s);
+            vector_run<D, J, kBatchBytes / (J * D::weight_bytes)>(row, X, first, full, 0, s, e);
         }
     if (!done) {
         for (unsigned long long m = 0; m < full; ++m)
 #pragma unroll
-            for (int j = 0; j < J; ++j) s[j] = d.step(row, X, first + j + m * kThreads, s[j]);
+            for (int j = 0; j < J; ++j) s[j] = e.step(row, X, first + j + m * kThreads, s[j]);
     }
 #pragma unroll
     for (int j = 0; j < J; ++j)
-        if (first + j + full * kThreads < n) s[j] = d.step(row, X, first + j + full * kThreads, s[j]);
+        if (first + j + full * kThreads < n) s[j] = e.step(row, X, first + j + full * kThreads, s[j]);
 #pragma unroll
     for (int h = kThreads / 2; h >= J; h >>= 1)
 #pragma unroll
@@ -1192,6 +1195,163 @@ extern "C" __global__ void __launch_bounds__(kThreads) llmx_matmul_rows_nvfp4(co
 }
 extern "C" __global__ void llmx_gather_nvfp4(float* dst, const unsigned char* table, const unsigned* ids, unsigned long long width, unsigned nrows, const float* scales) {
     gather_decoded<rq::NVFP4>(dst, table, ids, width, nrows, scales ? scales[0] : 1.0f);
+}
+
+// F8_E4M3's values under its grid: row r's input k takes grid[(r >> shift) * (nin / 128) + k / 128], the code's value rounded once after it, as the CPU's embedding rounds it.
+// The decoder holds its matrix's first row, so a row pointer gives its grid row.
+struct ExactF8 : ExactDecoded<rq::F8_E4M3> {
+    static constexpr bool vector = true;
+    static constexpr int weight_bytes = 1;
+    static constexpr unsigned long long align = 4;
+    const unsigned char* base;
+    const float* grid;
+    unsigned long long nin;
+    unsigned shift;
+    const float* g = nullptr;   // the bound row's grid row (bound), null before
+    __device__ const float* row_grid(const unsigned char* row) const { return grid + ((unsigned long long)(row - base) / nin >> shift) * (nin / quant::F8_E4M3_SCALE_INPUTS); }
+    __device__ float4 load4(const unsigned char* row, unsigned long long u) const {
+        const unsigned w = ((const unsigned*)row)[u / 4];
+        const float sc = g[u / quant::F8_E4M3_SCALE_INPUTS];
+        const auto v = [](unsigned c) { const unsigned char b = (unsigned char)c; return rq::F8_E4M3::value(&b, 0); };
+        return make_float4(v(w) * sc, v(w >> 8) * sc, v(w >> 16) * sc, v(w >> 24) * sc);
+    }
+    __device__ float step(const unsigned char* row, const float* x, unsigned long long u, float s) const {
+        return fmaf(rq::F8_E4M3::value(row + u, 0) * g[u / quant::F8_E4M3_SCALE_INPUTS], x[u], s);
+    }
+    template <int O, int R> __device__ void parts(const unsigned char* const* rows, const float* const* x, unsigned long long n, float (&s)[O][R]) const {
+        const float* gr[O];
+#pragma unroll
+        for (int o = 0; o < O; ++o) gr[o] = row_grid(rows[o]);
+        for (unsigned long long i = threadIdx.x; i < n; i += kThreads) {
+            float w[O], v[R];
+#pragma unroll
+            for (int o = 0; o < O; ++o) w[o] = rq::F8_E4M3::value(rows[o] + i, 0) * gr[o][i / quant::F8_E4M3_SCALE_INPUTS];
+#pragma unroll
+            for (int r = 0; r < R; ++r) v[r] = x[r][i];
+#pragma unroll
+            for (int o = 0; o < O; ++o)
+#pragma unroll
+                for (int r = 0; r < R; ++r) s[o][r] = fmaf(w[o], v[r], s[o][r]);
+        }
+    }
+};
+__device__ inline ExactF8 bound(const ExactF8& d, const unsigned char* row) {
+    ExactF8 e = d;
+    e.g = d.row_grid(row);
+    return e;
+}
+// Four codes of a word under their scale, the bits ExactF8::load4 gives: a code's bits placed as binary16 are its value / 256, so the scale times 256 rounds each product once.
+// A scale that would overflow there, or is not finite, takes ExactF8's decode, as does a word holding a NaN code.
+__device__ inline float4 f8_values(unsigned w, float sc) {
+    const auto v = [](unsigned c) { const unsigned char b = (unsigned char)c; return rq::F8_E4M3::value(&b, 0); };
+    const unsigned nan = (w & 0x7f7f7f7fu) ^ 0x7f7f7f7fu;   // a zero byte where a code is NaN
+    if (!(fabsf(sc) < 0x1p119f) || ((nan - 0x01010101u) & ~nan & 0x80808080u) != 0) return make_float4(v(w) * sc, v(w >> 8) * sc, v(w >> 16) * sc, v(w >> 24) * sc);
+    const unsigned lo = (w & 0xffu) | (w & 0xff00u) << 8, hi = (w >> 16 & 0xffu) | (w >> 8 & 0xff0000u);
+    const unsigned hl = (lo & 0x007f007fu) << 7 | (lo & 0x00800080u) << 8, hh = (hi & 0x007f007fu) << 7 | (hi & 0x00800080u) << 8;
+    const float k = sc * 256.0f;
+    const auto h = [](unsigned b) { return __half2float(__ushort_as_half((unsigned short)b)); };
+    return make_float4(h(hl) * k, h(hl >> 16) * k, h(hh) * k, h(hh >> 16) * k);
+}
+// The one-row F8_E4M3 product takes kF8Outputs outputs a wave, which share each activation load, in batches of kF8Batch steps (docs/src/backends-gpu.md).
+constexpr int kF8Outputs = 4, kF8Batch = 4;
+template <int U>
+__device__ inline void f8_steps(const ExactF8 (&e)[kF8Outputs], const unsigned char* const (&rows)[kF8Outputs], const float* X, unsigned long long u, float (&s)[kF8Outputs][kThreads / kWave]) {
+    constexpr int J = kThreads / kWave;
+    unsigned a[U][kF8Outputs][J / 4];
+    float sc[U][kF8Outputs];
+    float4 b[U][J / 4];
+#pragma unroll
+    for (int q = 0; q < U; ++q) {
+        const unsigned long long v = u + (unsigned long long)q * kThreads;
+#pragma unroll
+        for (int k = 0; k < J / 4; ++k) b[q][k] = ((const float4*)X)[(v + 4 * k) / 4];
+#pragma unroll
+        for (int r = 0; r < kF8Outputs; ++r) {
+            sc[q][r] = e[r].g[v / quant::F8_E4M3_SCALE_INPUTS];
+#pragma unroll
+            for (int k = 0; k < J / 4; ++k) a[q][r][k] = ((const unsigned*)rows[r])[(v + 4 * k) / 4];
+        }
+    }
+    schedule_barrier();
+#pragma unroll
+    for (int q = 0; q < U; ++q)
+#pragma unroll
+        for (int r = 0; r < kF8Outputs; ++r)
+#pragma unroll
+            for (int k = 0; k < J / 4; ++k) {
+                const float4 w = f8_values(a[q][r][k], sc[q][r]);
+                s[r][4 * k] = fmaf(w.x, b[q][k].x, s[r][4 * k]);
+                s[r][4 * k + 1] = fmaf(w.y, b[q][k].y, s[r][4 * k + 1]);
+                s[r][4 * k + 2] = fmaf(w.z, b[q][k].z, s[r][4 * k + 2]);
+                s[r][4 * k + 3] = fmaf(w.w, b[q][k].w, s[r][4 * k + 3]);
+            }
+}
+// Each output the bits of exact_wave<ExactF8>: its lanes, chains, step order and tree as exact_sum keeps them; outputs past nout repeat the last and are not written.
+__device__ void f8_wave(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, int add, const ExactF8& d) {
+    constexpr int J = kThreads / kWave;
+    const int t = threadIdx.x % kWave;
+    const unsigned long long o0 = ((unsigned long long)blockIdx.x * (kThreads / kWave) + threadIdx.x / kWave) * kF8Outputs;
+    if (o0 >= nout) return;
+    if ((nin % 4 | (unsigned long long)W % 4 | (unsigned long long)X % 16) != 0) {
+        for (int r = 0; r < kF8Outputs; ++r)
+            if (o0 + r < nout) exact_row<ExactF8>(W, X, Y, nin, o0 + r, add, d);
+        return;
+    }
+    const unsigned long long full = nin / kThreads, first = (unsigned long long)J * t;
+    const unsigned char* rows[kF8Outputs];
+    ExactF8 e[kF8Outputs];
+    float s[kF8Outputs][J];
+#pragma unroll
+    for (int r = 0; r < kF8Outputs; ++r) {
+        rows[r] = W + (o0 + r < nout ? o0 + r : nout - 1) * nin;
+        e[r] = bound(d, rows[r]);
+#pragma unroll
+        for (int j = 0; j < J; ++j) s[r][j] = 0.0f;
+    }
+    unsigned long long m = 0;
+    for (; m + kF8Batch <= full; m += kF8Batch) f8_steps<kF8Batch>(e, rows, X, first + m * kThreads, s);
+    for (; m < full; ++m) f8_steps<1>(e, rows, X, first + m * kThreads, s);
+#pragma unroll
+    for (int r = 0; r < kF8Outputs; ++r) {
+#pragma unroll
+        for (int j = 0; j < J; ++j)
+            if (first + j + full * kThreads < nin) s[r][j] = e[r].step(rows[r], X, first + j + full * kThreads, s[r][j]);
+#pragma unroll
+        for (int h = kThreads / 2; h >= J; h >>= 1)
+#pragma unroll
+            for (int j = 0; j < J; ++j) s[r][j] += shuffle_down(s[r][j], h / J, kWave);
+#pragma unroll
+        for (int h = J / 2; h > 0; h >>= 1)
+#pragma unroll
+            for (int j = 0; j < h; ++j) s[r][j] += s[r][j + h];
+        if (t == 0 && o0 + r < nout) Y[o0 + r] = add ? Y[o0 + r] + s[r][0] : s[r][0];
+    }
+}
+// F8_E4M3's exact family takes its grid and row shift after the other types' arguments; a routed call's experts have grids `step` scales apart.
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_matmul_f8_e4m3(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, int add,
+                                                                           const float* grid, unsigned long long shift) {
+    f8_wave(W, X, Y, nin, nout, add, ExactF8{{}, W, grid, nin, (unsigned)shift});
+}
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_routed_f8_e4m3(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, RoutedExact r,
+                                                                           const float* grid, unsigned long long step, unsigned long long shift) {
+    const unsigned long long e = r.first + blockIdx.y;
+    const unsigned id = r.ids[e];
+    if (id >= r.n_expert) return;
+    const unsigned char* base = W + id * r.expert_bytes;
+    f8_wave(base, X + e / r.per * nin, Y + e * nout, nin, nout, 0, ExactF8{{}, base, grid + id * step, nin, (unsigned)shift});
+}
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_matmul_rows_f8_e4m3(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout,
+                                                                                unsigned long long nrows, int add, const float* grid, unsigned long long shift) {
+    exact_rows<ExactF8>(W, X, Y, nin, nout, nrows, add, ExactF8{{}, W, grid, nin, (unsigned)shift});
+}
+extern "C" __global__ void llmx_gather_f8_e4m3(float* dst, const unsigned char* table, const unsigned* ids, unsigned long long width, unsigned nrows, const float* grid,
+                                               unsigned long long shift) {
+    const unsigned long long i = blockIdx.y, j = (unsigned long long)blockIdx.x * kThreads + threadIdx.x;
+    if (j >= width) return;
+    const unsigned id = ids[i];
+    dst[i * width + j] = id >= nrows ? 0.0f
+                                     : rq::F8_E4M3::value(table + (unsigned long long)id * width + j, 0) *
+                                           grid[((unsigned long long)id >> shift) * (width / quant::F8_E4M3_SCALE_INPUTS) + j / quant::F8_E4M3_SCALE_INPUTS];
 }
 
 extern "C" __global__ void llmx_gather_q8_0(float* dst, const unsigned char* table, const unsigned* ids, unsigned long long width, unsigned nrows) {

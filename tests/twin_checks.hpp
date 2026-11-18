@@ -6,6 +6,7 @@
 #include "backends/gpu/kernels/shapes.h"
 #include "core/bf16.hpp"
 #include "core/fp16.hpp"
+#include "format/weight_scales.hpp"
 #include "quant/fp4.hpp"
 #include "quant/types.hpp"
 #include "row_classes.hpp"
@@ -1355,6 +1356,127 @@ inline void nvfp4_scales(Backend& g, Backend& c, const Launches& launches, const
     require(refused, "weight scales on a Q8_0 matrix are refused, as the CPU refuses them");
     for (const char* k : {"llmx_gather_nvfp4", "llmx_matmul_nvfp4", "llmx_matmul_rows_nvfp4", "llmx_routed_nvfp4"})
         require(ran.count(k) > 0, std::string("the NVFP4 checks ran ") + k);
+}
+
+// F8_E4M3 under its scale grid through the exact family (kernels/f32.gpu, ExactF8) at row shifts 0 and 7, against the CPU embedding and the F32 product of its rows (docs/TESTS.md).
+inline void fp8_grids(Backend& g, Backend& c, const Launches& launches, const Require& require) {
+    const uint32_t T = quant::GGML_TYPE_F8_E4M3;
+    const size_t nin = 1024, nout = 200, ne = 3, K = 2, cols = 5;
+    const auto codes = [](size_t n, size_t seed) {
+        std::vector<uint8_t> w(n);
+        for (size_t i = 0; i < n; ++i) {
+            const uint8_t b = uint8_t(i * 37 + i / 1024 * 11 + i / 7 + seed * 101);
+            w[i] = (b & 0x7F) == 0x7F ? 0x3F : b;
+        }
+        return w;
+    };
+    const auto grid = [](size_t n, size_t seed) {
+        std::vector<float> s(n);
+        for (size_t i = 0; i < n; ++i) s[i] = std::ldexp(float(int((i + seed) % 7) - 3) * 0.75f + 0.5f, -int(i % 5) - 6);
+        return s;
+    };
+    std::map<std::string, size_t> ran;
+    const auto note = [&] {
+        for (const auto& [name, n] : launches(g)) ran[name] += n;
+    };
+    note();
+    ran.clear();
+    {
+        std::vector<uint8_t> all(3 * 256);
+        for (size_t i = 0; i < all.size(); ++i) all[i] = uint8_t(i);
+        const std::vector<float> sc = {1.0f, -std::ldexp(1.0f, -7)};
+        const uint32_t ids[] = {2, 0, 1, 3};
+        auto gw = g.adopt(all.data(), all.size()), gs = g.adopt(sc.data(), 8), cw = c.adopt(all.data(), all.size()), cs = c.adopt(sc.data(), 8);
+        auto ge = g.alloc(4 * 256 * 4), ce = c.alloc(4 * 256 * 4);
+        c.embed({ce.get(), 0}, {T, {cw.get(), 0}, {cs.get(), 0}, 2, 7}, 256, 3, ids, 4);
+        g.embed({ge.get(), 0}, {T, {gw.get(), 0}, {gs.get(), 0}, 2, 7}, 256, 3, ids, 4);
+        note();
+        require(!std::memcmp(read(c, *ce, 4 * 256).data(), read(g, *ge, 4 * 256).data(), 4 * 256 * 4), "an F8_E4M3 embedding of every code under its grid gives the CPU's rows, bit for bit");
+    }
+    const std::vector<float> x = row_classes::values(nin * cols, 73);
+    auto gx = g.adopt(x.data(), x.size() * 4), cx = c.adopt(x.data(), x.size() * 4);
+    std::vector<uint32_t> every(nout);
+    for (size_t i = 0; i < nout; ++i) every[i] = uint32_t(i);
+    for (unsigned shift : {0u, 7u}) {
+        const size_t per = gguf::fp8_grid_count(nin, nout, shift, 1);
+        const std::vector<uint8_t> w = codes(ne * nout * nin, shift);
+        const std::vector<float> sc = grid(ne * per, shift);
+        auto gw = g.adopt(w.data(), w.size()), gs = g.adopt(sc.data(), sc.size() * 4), cw = c.adopt(w.data(), w.size()), cs = c.adopt(sc.data(), sc.size() * 4);
+        const std::string at = "F8_E4M3 at row shift " + std::to_string(shift);
+        const WeightView gv{T, {gw.get(), 0}, {gs.get(), 0}, per, shift}, cv{T, {cw.get(), 0}, {cs.get(), 0}, per, shift};
+        auto ce = c.alloc(nout * nin * 4), ge = g.alloc(nout * nin * 4);
+        c.embed({ce.get(), 0}, cv, nin, nout, every.data(), nout);
+        g.embed({ge.get(), 0}, gv, nin, nout, every.data(), nout);
+        note();
+        const std::vector<float> rows = read(c, *ce, nout * nin);
+        require(!std::memcmp(rows.data(), read(g, *ge, nout * nin).data(), nout * nin * 4), "an " + at + " embedding gives the CPU's rows, bit for bit");
+        auto fw = g.adopt(rows.data(), nout * nin * 4), want = g.alloc(nout * cols * 4), got = g.alloc(nout * cols * 4), cy = c.alloc(nout * cols * 4);
+        for (size_t n : {size_t(1), cols}) {
+            g.matmul({quant::GGML_TYPE_F32, {fw.get(), 0}}, {gx.get(), 0}, {want.get(), 0}, nin, nout, n, {}, Dtype::f32);
+            const std::vector<float> f = read(g, *want, nout * n);
+            c.matmul(cv, {cx.get(), 0}, {cy.get(), 0}, nin, nout, n, {}, Dtype::f32);
+            const std::vector<float> cf = read(c, *cy, nout * n);
+            double worst = 0.0;
+            for (size_t r = 0; r < n; ++r)
+                for (size_t o = 0; o < nout; ++o) {
+                    double size = 0.0;
+                    for (size_t k = 0; k < nin; ++k) size += std::fabs(double(rows[o * nin + k]) * x[r * nin + k]);
+                    worst = std::max(worst, std::fabs(double(f[r * nout + o]) - cf[r * nout + o]) / (16.0 * FLT_EPSILON * size + 1e-30));
+                }
+            require(worst <= 1.0, "an " + at + " product of " + std::to_string(n) + " rows is within 16 eps of the CPU's, ratio " + std::to_string(worst));
+            c.matmul(cv, {cx.get(), 0}, {cy.get(), 0}, nin, nout, n, {}, Dtype::f16);
+            const std::vector<float> ch = read(c, *cy, nout * n);
+            for (Dtype dt : {Dtype::f32, Dtype::f16, Dtype::int8}) {
+                note();
+                g.matmul(gv, {gx.get(), 0}, {got.get(), 0}, nin, nout, n, {}, dt);
+                const auto took = launches(g);
+                for (const auto& [name, k] : took) ran[name] += k;
+                const bool tile = n > 1 && dt != Dtype::f32;
+                require((took.count("llmx_f8_e4m3_tile") > 0) == tile, "an " + at + " product of " + std::to_string(n) + " rows in " + dtype_name(dt) + (tile ? " takes" : " does not take") + " the half tile");
+                const std::vector<float> y = read(g, *got, nout * n);
+                if (!tile) {
+                    require(!std::memcmp(f.data(), y.data(), nout * n * 4), "an " + at + " product of " + std::to_string(n) + " rows in " + dtype_name(dt) + " is the F32 product of its decoded rows, bit for bit");
+                    continue;
+                }
+                // The half tile's terms, exact binary16 codes times binary16 inputs, are the CPU's f16 terms, summed in another order.
+                double worst = 0.0;
+                for (size_t r = 0; r < n; ++r)
+                    for (size_t o = 0; o < nout; ++o) {
+                        double size = 0.0;
+                        for (size_t k = 0; k < nin; ++k) size += std::fabs(double(rows[o * nin + k]) * f16_to_f32(f32_to_f16(x[r * nin + k])));
+                        worst = std::max(worst, std::fabs(double(y[r * nout + o]) - ch[r * nout + o]) / (16.0 * FLT_EPSILON * size + 1e-30));
+                    }
+                require(worst <= 1.0, "an " + at + " half tile of " + std::to_string(n) + " rows in " + dtype_name(dt) + " is within 16 eps of the CPU's f16 product, ratio " + std::to_string(worst));
+            }
+        }
+        std::vector<uint32_t> ids(cols * K);
+        for (size_t r = 0; r < cols; ++r)
+            for (size_t k = 0; k < K; ++k) ids[r * K + k] = uint32_t((r + 2 * k) % ne);
+        const std::vector<float> wts(cols * K, 0.5f);
+        auto gi = g.adopt(ids.data(), ids.size() * 4), gt = g.adopt(wts.data(), wts.size() * 4), gy = g.alloc(cols * K * nout * 4), gd = g.alloc(nout * 4);
+        const Backend::Routing routing{{gi.get(), 0}, {gt.get(), 0}, K, ne};
+        g.matmul_experts({Projection{{T, {gw.get(), 0}, {gs.get(), 0}, ne * per, shift}, {gy.get(), 0}, nout}}, {gx.get(), 0}, nin, cols, routing, {}, Dtype::f16);
+        note();
+        const std::vector<float> y = read(g, *gy, cols * K * nout);
+        const size_t eb = nout * nin;
+        for (size_t e = 0; e < cols * K; ++e) {
+            const size_t id = ids[e];
+            g.matmul({T, {gw.get(), id * eb / 4}, {gs.get(), id * per}, per, shift}, {gx.get(), e / K * nin}, {gd.get(), 0}, nin, nout, 1, {}, Dtype::f32);
+            require(!std::memcmp(y.data() + e * nout, read(g, *gd, nout).data(), nout * 4), "routed " + at + " entry " + std::to_string(e) + " is its expert's one-row product, bit for bit");
+        }
+        const auto refused = [&](const WeightView& v) {
+            try {
+                g.matmul(v, {gx.get(), 0}, {gd.get(), 0}, nin, nout, 1, {}, Dtype::f32);
+            } catch (const std::exception&) {
+                return true;
+            }
+            return false;
+        };
+        require(refused({T, {gw.get(), 0}, {gs.get(), 0}, per - 1, shift}) && refused({T, {gw.get(), 0}, {gs.get(), 0}, per, shift ? 6u : 1u}) && refused({T, {gw.get(), 0}}),
+                "an " + at + " matrix with a grid of another count or row shift, or none, is refused, as the CPU refuses it");
+    }
+    for (const char* k : {"llmx_gather_f8_e4m3", "llmx_matmul_f8_e4m3", "llmx_matmul_rows_f8_e4m3", "llmx_routed_f8_e4m3", "llmx_f8_e4m3_tile"})
+        require(ran.count(k) > 0, std::string("the F8_E4M3 checks ran ") + k);
 }
 
 } // namespace twin_checks

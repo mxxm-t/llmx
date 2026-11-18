@@ -315,6 +315,16 @@ struct NVFP4 {
     }
 };
 
+// An F8_E4M3 code as its unscaled value (quant::dequantize_row_f8_e4m3): subnormal at exponent 0, the codes 0x7F and 0xFF NaN of their sign.
+struct F8_E4M3 {
+    static constexpr unsigned values = quant::F8_E4M3_BLOCK, bytes = quant::F8_E4M3_TYPESIZE;
+    __device__ static float value(const unsigned char* b, int) {
+        const unsigned c = b[0], e = (c >> 3) & 15, m = c & 7, sign = (c & 0x80u) << 24;
+        if (e == 15 && m == 7) return __uint_as_float(sign | 0x7fc00000u);
+        return __uint_as_float(sign | __float_as_uint(e ? __uint_as_float(((e + 120) << 23) | (m << 20)) : (float)m * (1.0f / 512.0f)));
+    }
+};
+
 } // namespace rq
 
 // The activation twin's rule, which every producer of a twin in both modules takes (docs/src/backends-gpu.md).

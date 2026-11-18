@@ -683,7 +683,7 @@ This stack did not land alone: it lands with land-20261119 on main ce2b0603b as 
   The same epilogue in the one-row-a-wave form the held builds take (gate row o and up row o in different waves, sums through LDS) gives 12.82 on 0.6B int8 at 16 waves a block and 270.6 against 234.8 on the 27B shape at 8, so the loss is not the two-row form.
   It needs a build a weight family, class and row form, and the Qwen3.5 and 27B Q4_K_M files' gate and up are not Q8_0, for at most about 1 percent of a 0.6B pass at the default dtype, so it is not built.
 
-## ROCm weight-type gap fill (2026-11-18, ROCGAP8, branch rocm/nvfp4 on main a274cfd62)
+## ROCm weight-type gap fill (2026-11-18, ROCGAP8 to ROCGAP12, branch rocm/nvfp4 on main a274cfd62)
 
 - **Goal:** the GPU core's descriptor table (`kTypes`, `src/backends/gpu/backend_core.hpp`) reads every weight type the CPU and Vulkan read, so ROCm and CUDA refuse none of them: NVFP4 first, then Q3_K, Q2_K and IQ4_XS, which released GGUFs use, then the IQ2 and IQ3 types, IQ1, TQ, Q1_0, Q2_0 and F8_E4M3.
 - **Done:** NVFP4 as an exact family under its tensor's F32 scales, replayed from the MiniMax stack's step 7f (26f09598) onto main (MiniMax-M3.1, step 8 records it).
@@ -692,7 +692,12 @@ This stack did not land alone: it lands with land-20261119 on main ce2b0603b as 
   `backend-rocm types` and `experts` take the three types (`twin_checks::exact_only` names the table's types without twins), and `exact_rows` their row builds.
   IQ2_XXS, IQ2_XS, IQ2_S, IQ3_XXS and IQ3_S the same way on branch `rocm/iq2-iq3`, stacked on `rocm/q2k-q3k-iq4xs`: their grids are `GPU_TABLE` reads of the CPU's own tables (`quant/iq2_*.hpp`, `quant/iq3_*.hpp`), and `rq::parity_signs` sets the eighth sign bit as `quant::iq_even_parity_signs` does.
   IQ1_S, IQ1_M, TQ1_0, TQ2_0, Q1_0 and Q2_0 the same way on branch `rocm/low-bits`, stacked on `rocm/iq2-iq3`; `typed_matrix` gives IQ1_M's scale nibbles a finite binary16 scale.
-- **Left:** `backend-rocm types`, `experts` and `exact_rows` on one MI50 for NVFP4, Q2_K, Q3_K, IQ4_XS, Q1_0, Q2_0 and the IQ1, IQ2, IQ3 and TQ types, and the microbenchmarks against the CPU decoder at Qwen3-0.6B and Qwen3.5-27B shapes, all waiting for the cards; then twins for Q3_K, Q2_K and IQ4_XS where their speed pays, and F8_E4M3 under its scale grid.
+  F8_E4M3 as an exact family under its scale grid on branch `rocm/f8-e4m3`, stacked on `rocm/low-bits`: `ExactF8` takes the grid scale of its row and 128-input block, `check_grid` counts the grid, and `twin_checks::fp8_grids` holds it; the GPU core now refuses no weight type the CPU reads.
+  Its prompt rows outside the F32 class take `llmx_f8_e4m3_tile`, the F16 half tile with each code staged as its exact binary16 value, and its one-row and routed products take `f8_wave`, four outputs a wave in batches of four steps, each output the bits of `exact_wave`.
+  `llmx-qb` on one MI50 (B1 4cd6caa5 before, B3 after, both dirty builds of the same tree kind, quiet host): Qwen3.5-27B one-row ff 5120x17408 179 to 312 GB/s, down 17408x5120 214 to 360, qg 5120x12288 178 to 317; Qwen3-0.6B ff 48.0 to 30.5 us, down 30.5 to 27.4, q 29.7 to 23.4; every output the same bits before and after (`same`), err/bound 0.021 to 0.038 of the F32 bound.
+  A standalone scratch bench of 35 row and batch variants gave the same bits in each and chose four rows by four steps (345 to 383 GB/s at the 27B shapes, against 174 to 224 for the exact vector path).
+  Qwen3-0.6B-FP8 on ROCm: greedy 32 ids at f32, f16 and int8 equal the CPU's f32 ids; pp512/tg128 f16 4545/93 to 5283/173, int8 5034/108 to 5258/169 tok/s (bench r 3); `backend-rocm types` PASS on the half tile build (B1) and on the f8_wave build (B3).
+- **Left:** the CUDA compile of the F8 kernels, and the per-type gate rows against mx Vulkan; then twins for Q3_K, Q2_K and IQ4_XS where their speed pays (branch `rocm/k-twins`).
 - **Gotchas:** every type in `kTypes` must be Supported in README's ROCm column, which the `docs` component's readme check holds, so README changes with the table.
 
 ## Safetensors FP8 skip on devices without F8_E4M3 (2026-11-18, FP8R1, branch fix/safetensors-rocm-fp8 on main a274cfd62)

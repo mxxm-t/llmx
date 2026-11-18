@@ -709,6 +709,78 @@ __device__ void f16_tile(const TileCall& c, const float* X) {
         }
 }
 
+// F8_E4M3's prompt tile, f16_tile's 64 outputs by 64 rows: each code staged as its exact binary16 value and the activations rounded to binary16, each 128-input partial summed in F32 by half dots in k order and added times its grid scale, as the CPU's fp8_dot adds it.
+// A row's sums depend on nin alone, so a row gives the same bits wherever the tile falls; the host takes it on 16-byte aligned rows, whose inputs the grid holds to whole blocks of 128 (backend_core.hpp, half_product).
+__device__ inline unsigned f8_half(unsigned c) {
+    const unsigned e = (c >> 3) & 15, m = c & 7;
+    unsigned v = e ? ((e + 8) << 10) | (m << 7) : (unsigned)__half_as_ushort(__float2half_rn((float)m * (1.0f / 512.0f)));
+    if ((c & 0x7f) == 0x7f) v = 0x7e00;
+    return (c & 0x80) << 8 | v;
+}
+__device__ void f8_tile(const TileCall& c, const float* X, const float* grid, unsigned shift) {
+    constexpr int OUTS = kTileOut, ROWS = kTileRows, WORDS = 16;   // a step's 32 values as 16 words of two halves
+    const unsigned long long nout = c.nout[0], nrows = c.nrows, nin = c.nin, steps = nin / 32, blocks = nin / 128;
+    __shared__ __attribute__((aligned(16))) unsigned wq[2][WORDS][OUTS];
+    __shared__ __attribute__((aligned(16))) unsigned xw[2][WORDS][ROWS];
+    const int t = threadIdx.x, tr = t / 16, tc = t % 16, r = t / 4, seg = t % 4;   // outputs tr * 4.., rows tc * 4..; weight row and twin row r staged, values 8 * seg..
+    const unsigned long long o = (unsigned long long)blockIdx.x * OUTS + r, b = (unsigned long long)blockIdx.y * ROWS + r;
+    const bool wok = o < nout, xok = b < nrows;
+    const unsigned char* wrow = c.w[0] + (wok ? o : 0) * nin + seg * 8;
+    const float* xrow = X + (xok ? b : 0) * nin + seg * 8;
+    const float* g[4];
+    for (int i = 0; i < 4; ++i) g[i] = grid + (min((unsigned long long)blockIdx.x * OUTS + tr * 4 + i, nout - 1) >> shift) * blocks;
+    float acc[4][4], part[4][4];
+    for (int i = 0; i < 4; ++i)
+        for (int j = 0; j < 4; ++j) acc[i][j] = 0.0f, part[i][j] = 0.0f;
+    uint2 wv;
+    float4 x0, x1;
+    const auto load = [&](unsigned long long k) {
+        wv = *(const uint2*)(wrow + k * 32);
+        x0 = *(const float4*)(xrow + k * 32), x1 = *(const float4*)(xrow + k * 32 + 4);
+    };
+    const auto codes = [](unsigned w, int h) { return f8_half((w >> (16 * h)) & 0xff) | f8_half((w >> (16 * h + 8)) & 0xff) << 16; };
+    const auto pack = [](float lo, float hi) { return (unsigned)__half_as_ushort(__float2half_rn(lo)) | ((unsigned)__half_as_ushort(__float2half_rn(hi)) << 16); };
+    const auto store = [&](int s) {
+        wq[s][4 * seg][r] = wok ? codes(wv.x, 0) : 0, wq[s][4 * seg + 1][r] = wok ? codes(wv.x, 1) : 0, wq[s][4 * seg + 2][r] = wok ? codes(wv.y, 0) : 0, wq[s][4 * seg + 3][r] = wok ? codes(wv.y, 1) : 0;
+        xw[s][4 * seg][r] = xok ? pack(x0.x, x0.y) : 0, xw[s][4 * seg + 1][r] = xok ? pack(x0.z, x0.w) : 0;
+        xw[s][4 * seg + 2][r] = xok ? pack(x1.x, x1.y) : 0, xw[s][4 * seg + 3][r] = xok ? pack(x1.z, x1.w) : 0;
+    };
+    // Step k computes from stage k % 2 while step k + 1's values, loaded before it, are stored to the other stage; every fourth step closes a block.
+    load(0);
+    store(0);
+    __syncthreads();
+    for (unsigned long long k = 0; k < steps; ++k) {
+        const int s = (int)(k & 1);
+        if (k + 1 < steps) load(k + 1);
+#pragma unroll
+        for (int w = 0; w < WORDS; ++w) {
+            const uint4 a = *(const uint4*)&wq[s][w][tr * 4], x = *(const uint4*)&xw[s][w][tc * 4];
+            const unsigned av[4] = {a.x, a.y, a.z, a.w}, xv[4] = {x.x, x.y, x.z, x.w};
+#pragma unroll
+            for (int i = 0; i < 4; ++i)
+#pragma unroll
+                for (int j = 0; j < 4; ++j) part[i][j] = dot2_f16(av[i], xv[j], part[i][j]);
+        }
+        if ((k & 3) == 3) {
+#pragma unroll
+            for (int i = 0; i < 4; ++i) {
+                const float sc = g[i][k / 4];
+#pragma unroll
+                for (int j = 0; j < 4; ++j) acc[i][j] = fmaf(part[i][j], sc, acc[i][j]), part[i][j] = 0.0f;
+            }
+        }
+        if (k + 1 < steps) store(s ^ 1);
+        __syncthreads();
+    }
+    for (int j = 0; j < 4; ++j)
+        for (int i = 0; i < 4; ++i) {
+            const unsigned long long oo = (unsigned long long)blockIdx.x * OUTS + tr * 4 + i, bb = (unsigned long long)blockIdx.y * ROWS + tc * 4 + j;
+            if (oo >= nout || bb >= nrows) continue;
+            float* y = c.y[0] + bb * nout + oo;
+            *y = c.add ? *y + acc[i][j] : acc[i][j];
+        }
+}
+
 // The twin products of the K-quants, Q4_0, Q4_1, Q5_0, Q5_1 and IQ4_NL: a lane takes eight values of one 32-value sub-block, whose term is ds * dot(q, x) - dm * sum(x) over the twin's integers.
 // Every fused step is written as fmaf, the kernels compiling without contraction (CMakeLists.txt, LLMX_HIP_FLAGS).
 
@@ -2267,6 +2339,7 @@ LLMX_HALF(llmx_q8_0_half8_16_r4, 16, 4, 4)
 
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_tile16(LLMX_GRID_CONST TileCall c, const short* q, const float* dx) { q8_0_tile<short, 4>(c, q, dx); }
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_f16_tile(LLMX_GRID_CONST TileCall c, const float* X) { f16_tile(c, X); }
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_f8_e4m3_tile(LLMX_GRID_CONST TileCall c, const float* X, const float* grid, unsigned long long shift) { f8_tile(c, X, grid, (unsigned)shift); }
 extern "C" __global__ void LLMX_TILE8_BOUNDS(2) llmx_q8_0_tile8(LLMX_GRID_CONST TileCall c, const signed char* q, const float* dx) { q8_0_tile<signed char, 4>(c, q, dx); }
 
 // The parts of a split tile call added in part order, plus y when adding (the Vulkan reduce's order, matmul_reduce.comp): a thread an output, projection p's outputs from block c.start[p] on.

@@ -3593,6 +3593,7 @@ int main(int argc, char** argv) {
             bits().q8_columns_bits(*g);
             bits().mxfp4_decode_bits(*g);
             twin_checks::nvfp4_scales(*g, *c, rocm_take_launches, require);
+            twin_checks::fp8_grids(*g, *c, rocm_take_launches, require);
             std::cout << (failures ? "backend-rocm types: FAIL\n" : "backend-rocm types: PASS\n");
             return failures ? 1 : 0;
         }
@@ -3608,6 +3609,7 @@ int main(int argc, char** argv) {
         bits().q8_columns_bits(*g);
         bits().mxfp4_decode_bits(*g);
         twin_checks::nvfp4_scales(*g, *c, rocm_take_launches, require);
+        twin_checks::fp8_grids(*g, *c, rocm_take_launches, require);
         attention(*g, *c);
         classes(*g);
         twin_checks::twin_products(*g, rocm_device(0).caps, Dtype::f16, rocm_take_launches, require);

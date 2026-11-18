@@ -96,6 +96,7 @@ The workspace browser fixture holds an actual file-write response while typing o
 The Markdown browser checks compare each incremental prefix and full rewrite with fresh rendering, including shifted blank-line offsets. They also verify that completed blocks retain selection, focused code controls and Copy feedback.
 The companion browser check also delays a successful Send response while editing its original draft or switching to another active conversation. It verifies captured request content, branch parent and files, preservation of newer composer state, and no duplicate subscription to the other reply.
 It also holds Retry admission and snapshot responses across navigation, checking that another active chat keeps its stream and a reopened chat keeps its newer snapshot.
+Conversation settings checks cover the blank composer, reuse of the current empty chat, fresh defaults after a populated chat, saving an unavailable model choice, pending admission, and persistence through Send and Retry without a separate save. A held settings save targets its original chat and preserves the destination's edits.
 It also checks Activity navigation to two distinct tool-call identities, keyboard activation, the corresponding arguments and results, safe text rendering, and closing the narrow inspector before focusing the selected details.
 The optional `tools/chat_ui/check_sandbox.py` integration check uses an existing
 Docker image to verify actual container isolation, returned files and cancellation.

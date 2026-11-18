@@ -253,6 +253,15 @@ and backups. Temporary chat content never enters that draft store. A draft
 write failure keeps the in-memory value and shows a reload-loss notice rather
 than claiming persistence. Signing out clears the tab's draft store.
 
+Run admission saves its captured settings in both the run and the conversation.
+The browser uses the live controls for Send and Retry. The explicit settings
+PATCH saves the conversation without starting a run and can preserve an
+unavailable model ID. Save is hidden before a conversation exists. The browser
+allows one pending settings save or admission per chat, with the controls still
+editable. A delayed Save updates only its target and leaves the current form
+values in place. Opening a conversation reloads the server's saved settings.
+Creating a new chat from an existing populated one uses the server defaults.
+
 The accepted send removes only its matching draft record. Returning to the
 originating conversation before admission completes still clears that unchanged
 draft and reconnects the visible run; edits made meanwhile retain their own

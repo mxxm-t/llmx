@@ -250,7 +250,8 @@
         <div id="panel-activity" class="inspector-panel" role="tabpanel" aria-labelledby="tab-activity"></div>
         <div id="panel-stats" class="inspector-panel" role="tabpanel" aria-labelledby="tab-stats" hidden></div>
         <div id="panel-settings" class="inspector-panel" role="tabpanel" aria-labelledby="tab-settings" hidden>
-          <p class="panel-intro">Fine-tune this conversation. Changes apply to the next response.</p>
+          <p id="conversation-settings-help" class="panel-intro" role="status">Send a message to save these settings with your first reply.</p>
+          <p id="conversation-settings-unsaved" class="muted fine-print" hidden>Unsaved changes reset when you switch conversations or reload.</p>
           <label class="field">System instructions<textarea id="setting-system" rows="5" placeholder="How should the model respond?"></textarea></label>
           <div class="field-grid">
             <label class="field">Temperature<input id="setting-temperature" type="number" min="0" max="5" step="0.05"></label>
@@ -266,7 +267,7 @@
           <p class="muted fine-print">Latest reported limits. Your conversation, tool results and reply share the request limit. These are capacities, not remaining tokens.</p>
           <h3 class="section-label">TOOLS FOR THIS CONVERSATION</h3>
           <div id="tool-settings"></div>
-          <button class="secondary-button full" data-action="save-settings">Save settings</button>
+          <button id="save-conversation-settings" class="secondary-button full" data-action="save-settings" aria-describedby="conversation-settings-help" hidden disabled>Save for this chat</button>
           <p class="muted fine-print">Operator approval policy is configured outside the browser. Where approval is required, each requested call needs approval. Remembering applies only to this run.</p>
         </div>
         <div class="inspector-bottom"><span class="status-dot"></span>Checking connection</div>

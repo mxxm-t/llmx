@@ -319,6 +319,9 @@ try {
   await click('[data-action="new"]');
   await wait("document.querySelector('.chat-item.active')", 'explicit first chat');
   assert.equal(await evaluate("fetch('/api/chats/'+localStorage.getItem('llmx-chat')).then(r=>r.json()).then(d=>d.chat.settings.system)"), 'Keep first-chat settings.', 'first chat creation lost blank settings');
+  const firstSettingsChat = await evaluate("localStorage.getItem('llmx-chat')");
+  await click('[data-action="new"]');
+  assert.equal(await evaluate("localStorage.getItem('llmx-chat')"), firstSettingsChat, 'New replaced the current empty chat');
   assert.equal(await evaluate("document.querySelector('#draft').value"), 'Draft before explicit creation.', 'creation lost the blank draft');
   await evaluate("ChatShell.api('/chats/'+localStorage.getItem('llmx-chat'),'DELETE')");
   await evaluate("localStorage.removeItem('llmx-chat')");
@@ -455,13 +458,16 @@ try {
   await wait("document.querySelector('#toast').textContent.includes('positive whole number')", 'empty custom reply cap refused');
   await fill('#setting-max_tokens', '123');
   await click('[data-action="save-settings"]');
-  await wait("document.querySelector('#toast').textContent==='Settings saved for the next response.'", 'explicit reply cap saved');
+  await wait("document.querySelector('#toast').textContent==='Settings saved for this chat.'", 'explicit reply cap saved');
   await reloadDocument();
   await wait("document.querySelector('#setting-max_tokens').value==='123'", 'saved explicit cap restored');
   assert.equal(await evaluate("document.querySelector('#setting-reply-limit').value"), 'custom');
   await click('[data-action="settings"]');
   for (const width of [1440, 390]) for (const theme of ['dark', 'light']) {
     await cdp('Emulation.setDeviceMetricsOverride', {width, height:1000,deviceScaleFactor:1,mobile:width<500});
+    await wait(`document.documentElement.dataset.compact==='${width<500}'`, 'settings viewport resize');
+    await click('[data-action="settings"]');
+    assert.equal(await evaluate("!document.querySelector('#panel-settings').hidden && document.querySelector('#inspector').getBoundingClientRect().width>0"), true, 'settings screenshot did not open its panel');
     await evaluate("document.documentElement.dataset.theme="+JSON.stringify(theme));
     assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth"), true, 'settings overflow');
     assert.equal(await evaluate("getComputedStyle(document.querySelector('#setting-reply-limit')).backgroundColor===getComputedStyle(document.querySelector('#setting-temperature')).backgroundColor && getComputedStyle(document.querySelector('#setting-reply-limit')).paddingTop==='10px'"), true, 'reply select does not use shared field styling');
@@ -1766,8 +1772,10 @@ try {
   await delay(300);
   assert.equal(await evaluate("document.querySelector('#chat-title').textContent"), 'Fresh reopened conversation', 'old retry snapshot replaced the reopened conversation');
   await cdp('Fetch.enable', {patterns: [{urlPattern: url+'/api/chats/'+submittedChat+'/runs', requestStage: 'Request'}]});
+  await fill('#setting-system', 'Retry with these live settings.');
   await click('.message.assistant [data-action="retry"]');
   await wait(() => heldSendResponse !== null, 'hold retry before server admission');
+  assert.equal(await evaluate("document.querySelector('[data-action=save-settings]').disabled"), true, 'Save must wait for the earlier retry admission');
   await click('[data-chat="'+otherChat+'"]');
   await wait("document.querySelector('.chat-item.active')?.dataset.chat==="+JSON.stringify(otherChat), 'leave before retry admission');
   await click('[data-chat="'+submittedChat+'"]');
@@ -1775,6 +1783,7 @@ try {
   await cdp('Fetch.continueRequest', {requestId: heldSendResponse.requestId});
   await cdp('Fetch.disable'); heldSendResponse = null;
   await wait("document.querySelector('.message.assistant')?.innerText.includes('The returning retry completed.') && document.querySelector('#stop').hidden", 'returned conversation receives accepted retry');
+  assert.equal(await evaluate("fetch('/api/chats/'+localStorage.getItem('llmx-chat')).then(r=>r.json()).then(d=>d.chat.settings.system)"), 'Retry with these live settings.', 'Retry without Save did not persist settings');
   await click('[data-chat="'+otherChat+'"]');
   await wait("document.querySelector('.chat-item.active')?.dataset.chat==="+JSON.stringify(otherChat), 'return to waiting destination');
   const browserStep = await fetch(upstreamFixture + '/browser-step');
@@ -1815,6 +1824,7 @@ try {
   assert.equal(await evaluate("document.querySelector('#draft').value"), '', 'old snapshot restored accepted draft');
   assert.equal(await evaluate("fetch('/api/chats/'+localStorage.getItem('llmx-chat')).then(r=>r.json()).then(d=>d.chat.settings.system)"), 'Send with these live settings.', 'Send without Save did not persist settings');
   await fill('#setting-system', 'Do not use previous conversation settings.');
+  await evaluate("document.querySelector('#tool-settings input').checked=true");
   await click('[data-action="new"]');
   await wait("localStorage.getItem('llmx-chat')!=="+JSON.stringify(submittedChat), 'new chat from populated conversation');
   const defaultSettings = await evaluate("fetch('/api/chats/'+localStorage.getItem('llmx-chat')).then(r=>r.json()).then(d=>d.chat.settings)");
@@ -1872,9 +1882,26 @@ try {
   })()`);
   await click('#send');
   await wait("document.querySelector('#connection').textContent==='Unavailable' && !document.querySelector('#send').disabled", 'failed catalogue check allows retry');
+  assert.equal(await evaluate("document.querySelector('[data-action=save-settings]').disabled"), false, 'refused admission kept Save disabled');
   assert.equal(await evaluate("document.querySelector('#draft').value"), 'Keep this draft while the model catalogue changes');
   assert.equal(await evaluate("document.querySelector('#setting-temperature').value"), '0.3');
   assert((await evaluate("document.querySelector('#attachments').innerText")).includes('notes.txt'));
+  await evaluate(`(() => {
+    const original=window.fetch, url='/api/chats/'+localStorage.getItem('llmx-chat');
+    window.releaseOfflineSave=null;
+    window.fetch=async (...args) => {
+      const response=await original(...args);
+      if(args[0]===url && args[1]?.method==='PATCH') {
+        window.fetch=original; await new Promise(resolve=>window.releaseOfflineSave=resolve);
+      }
+      return response;
+    };
+  })()`);
+  await click('[data-action="save-settings"]');
+  await wait("typeof window.releaseOfflineSave==='function' && fetch('/api/chats/'+localStorage.getItem('llmx-chat')).then(r=>r.json()).then(d=>d.chat.settings.temperature===0.3)", 'settings saved while upstream connection was unavailable');
+  assert.equal(await evaluate("document.querySelector('#send').disabled"), true, 'Send reopened before the settings save response');
+  await evaluate('window.releaseOfflineSave()');
+  await wait("!document.querySelector('[data-action=save-settings]').disabled && !document.querySelector('#send').disabled", 'save response releases reply submission');
   await evaluate(`window.catalogueStatus=201;window.catalogueModels=[${JSON.stringify(availableModel)}]`);
   await click('#send');
   await wait("window.catalogueCalls.length===2 && document.querySelector('#connection').textContent==='Connected' && !document.querySelector('#send').disabled", 'successful admission restores model connection');

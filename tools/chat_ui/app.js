@@ -28,7 +28,7 @@
   const S = {chats: [], chat: null, messages: [], runs: [], config: {models: [], tools: []}, attachments: [], edit: null, stream: null, cursor: 0, archive: false, tab: 'activity', scheduled: false, fingerprint: new Map(), searchText: new Map(), inspectorKey: '', generation: 0, busy: false};
   let toastTimer, creatingChat = false, menuId = null, composerRevision = 0;
   const drafts = new Map(), changedDrafts = new Set(), volatileDrafts = new Set(), draftPrefix = 'llmx-draft:';
-  const admissions = new Map();
+  const admissions = new Map(), settingsWrites = new Map();
   let draftTimer, draftReady = false;
   const draftNotice = node('p', 'muted fine-print'); draftNotice.hidden = true; draftNotice.setAttribute('role', 'status'); draftNotice.id = 'draft-notice'; $('attachments').after(draftNotice);
   function draftKey() { return S.chat?.id || 'new'; }
@@ -128,7 +128,6 @@
   function connection(text, offline = false) { const el = $('connection'); el.replaceChildren(node('span', 'status-dot'), document.createTextNode(text)); el.classList.toggle('offline', offline); document.querySelector('.inspector-bottom').replaceChildren(node('span', 'status-dot'), document.createTextNode(offline ? text : 'Connected to the model server')); }
   function settings() {
     const value = {model: $('model').value, system: $('setting-system').value};
-    if (!(S.config.models || []).some(model => model.id === value.model)) throw new Error('This model is not available on the connected server. Choose another model before sending.');
     for (const key of ['temperature', 'top_p', 'top_k']) {
       const input = $('setting-' + key);
       if (!input.checkValidity() || input.value.trim() === '') throw new Error('Check the ' + key.replaceAll('_', ' ') + ' setting.');
@@ -139,6 +138,45 @@
     value.max_tokens = $('setting-reply-limit').value === 'none' ? null : Number(cap.value);
     value.tools = S.chat?.temporary ? [] : Array.from($('tool-settings').querySelectorAll('input:checked')).map(el => el.value);
     return value;
+  }
+  function settingsForRun() {
+    const value = settings();
+    if (!(S.config.models || []).some(model => model.id === value.model)) throw new Error('This model is not available on the connected server. Choose another model before sending.');
+    return value;
+  }
+  function renderSettingsState() {
+    const chat = S.chat, pending = settingsWrites.get(chat?.id), button = $('save-conversation-settings');
+    button.hidden = !chat;
+    button.disabled = !chat || Boolean(pending);
+    const help = !chat ? 'Send a message to save these settings with your first reply.'
+      : pending === 'reply' ? 'Wait for the reply request to be accepted before saving. You can keep editing.'
+      : pending === 'save' ? 'Saving settings for this chat...'
+      : 'Sending or retrying saves these settings. Save for this chat keeps them without starting a reply.';
+    if ($('conversation-settings-help').textContent !== help) $('conversation-settings-help').textContent = help;
+    $('conversation-settings-unsaved').hidden = !chat;
+  }
+  async function writeConversationSettings(chatId, operation, write) {
+    if (settingsWrites.has(chatId)) throw new Error('Wait for the pending reply request or settings save.');
+    settingsWrites.set(chatId, operation); renderSettingsState(); scheduleRender();
+    try { return await write(); }
+    finally { settingsWrites.delete(chatId); renderSettingsState(); scheduleRender(); }
+  }
+  async function admitRun(chatId, body) {
+    await writeConversationSettings(chatId, 'reply', async () => {
+      await api('/chats/' + encodeURIComponent(chatId) + '/runs', 'POST', body);
+      admitted(chatId);
+    });
+  }
+  async function saveConversationSettings() {
+    const chat = S.chat, generation = S.generation;
+    if (!chat) return;
+    const value = settings();
+    const saved = await writeConversationSettings(chat.id, 'save', () => api('/chats/' + encodeURIComponent(chat.id), 'PATCH', {settings: value}));
+    if (S.chat?.id === chat.id && S.generation === generation) {
+      S.chat.settings = saved.settings;
+      toast('Settings saved for this chat.');
+    }
+    if (!chat.temporary) await refreshChats();
   }
   function modelChoices(selected) {
     $('model').replaceChildren();
@@ -163,7 +201,7 @@
     for (const key of ['system', 'temperature', 'top_p', 'top_k']) $('setting-' + key).value = value[key];
     $('setting-reply-limit').value = value.max_tokens === null ? 'none' : 'custom';
     $('setting-max_tokens').value = value.max_tokens === null ? '' : value.max_tokens;
-    renderReplyLimit(); renderContextLimits(); renderToolSelections(value.tools || []);
+    renderReplyLimit(); renderContextLimits(); renderToolSelections(value.tools || []); renderSettingsState();
   }
   function renderReplyLimit() {
     const custom = $('setting-reply-limit').value === 'custom';
@@ -272,7 +310,7 @@
     try {
       if (S.chat?.temporary && !await leaveTemporary()) return;
       const generation = S.generation, selectedChat = S.chat?.id;
-      const chat = await api('/chats', 'POST', {settings: settings()}); await refreshChats();
+      const chat = await api('/chats', 'POST', {settings: selectedChat ? S.config.settings_defaults : settings()}); await refreshChats();
       if (!selectedChat && S.generation === generation && !S.chat) {
         rememberDraft(); const value = drafts.get('new'); forgetDraft('new');
         if (value) { drafts.set(chat.id, value); changedDrafts.add(chat.id); }
@@ -532,7 +570,7 @@
     const lifetime = S.config.temporary?.ttl_seconds;
     $('temporary-description').textContent = 'Not saved to history or backups. Tools are off.' + (Number.isFinite(lifetime) ? ' Expires after ' + number(lifetime / 60) + ' minutes of inactivity.' : '') + ' The model server may retain logs or caches.';
     const modelUnavailable = !(S.config.models || []).some(model => model.id === $('model').value);
-    $('send').hidden = Boolean(run); $('stop').hidden = !run; $('send').disabled = S.busy || modelUnavailable;
+    $('send').hidden = Boolean(run); $('stop').hidden = !run; $('send').disabled = S.busy || modelUnavailable || settingsWrites.has(S.chat?.id);
     if (!run && modelUnavailable && S.config.upstream_available) banner('This model is not available on the connected server. Choose another model before sending.');
     if ($('app').dataset.view === 'chat') document.title = (S.chat?.title ? S.chat.title + ' / ' : '') + 'llmx Chat';
     const groups = replyGroups();
@@ -795,12 +833,12 @@
     document.querySelectorAll('.run-elapsed').forEach(el => { el.textContent = elapsed; }); $('run-caption').textContent = elapsed + ' / ' + (run.status === 'approval' ? 'Permission required' : 'Generating');
   }
   async function send() {
-    if (currentRun() || S.busy || creatingChat) return;
+    if (currentRun() || S.busy || creatingChat || settingsWrites.has(S.chat?.id)) return;
     const originalChat = S.chat, generation = S.generation, edit = S.edit;
     rememberDraft(); const submittedKey = draftKey(), submittedDraft = S.chat?.temporary ? composeValue() : drafts.get(submittedKey);
-    const draft = $('draft').value, content = draft.trim(), revision = composerRevision, attachments = S.attachments.slice(), requestSettings = settings();
+    const content = $('draft').value.trim(), revision = composerRevision, attachments = S.attachments.slice();
     if (!content && !attachments.length) { $('draft').focus(); return; }
-    if (!requestSettings.model) throw new Error('Select a model before sending a message.');
+    const requestSettings = settingsForRun();
     let chatId = originalChat?.id, parent = edit ? edit.parent_id : originalChat?.active_leaf;
     let chatTitle = originalChat?.title || 'New conversation';
     let phase = 'create a conversation for this send';
@@ -820,8 +858,7 @@
         renderSidebar();
       }
       phase = 'send to "' + chatTitle + '"';
-      await api('/chats/' + encodeURIComponent(chatId) + '/runs', 'POST', {content, attachments, parent_id: parent || null, settings: requestSettings});
-      admitted(chatId);
+      await admitRun(chatId, {content, attachments, parent_id: parent || null, settings: requestSettings});
       const acceptedDraft = originalChat?.temporary ? composerRevision === revision && S.edit === edit : drafts.get(chatId) === submittedDraft;
       for (const key of new Set([submittedKey, chatId])) if (drafts.get(key) === submittedDraft) forgetDraft(key);
       if (S.chat?.id !== chatId) return;
@@ -847,8 +884,7 @@
     while (message && message.role !== 'user' && !seen.has(message.id)) { seen.add(message.id); message = S.messages.find(m => m.id === message.parent_id); }
     if (!message) throw new Error('The original user message could not be found.');
     const chatId = S.chat.id;
-    await api('/chats/' + encodeURIComponent(chatId) + '/runs', 'POST', {regenerate: true, parent_id: message.id, settings: settings()});
-    admitted(chatId);
+    await admitRun(chatId, {regenerate: true, parent_id: message.id, settings: settingsForRun()});
     if (S.chat?.id !== chatId) return;
     const generation = S.generation;
     await syncSnapshot(chatId);
@@ -975,7 +1011,7 @@
     if (name === 'import') return $('import-input').click();
     if (name === 'logout') { await api('/logout', 'POST', {}); clearDrafts(); closeStream(); location.reload(); return; }
     if (name === 'cancel-edit') { S.edit = null; $('edit-note').hidden = true; $('draft').value = ''; S.attachments = []; composerRevision++; renderAttachments(); resizeDraft(); return; }
-    if (name === 'save-settings') { if (S.chat) await patchChat({settings: settings()}); toast('Settings saved for the next response.'); return; }
+    if (name === 'save-settings') return saveConversationSettings();
     if (name === 'chat-menu') return showChatMenu(el.dataset.id || S.chat?.id, el);
     if (['rename', 'pin', 'archive', 'folder', 'delete', 'export', 'duplicate'].includes(name)) {
       const id = el.dataset.id || (name === 'rename' ? S.chat?.id : menuId);

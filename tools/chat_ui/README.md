@@ -101,7 +101,10 @@ It does not lock the upstream model or control later server restarts.
   clears this tab's ordinary drafts. Temporary chat drafts stay in memory and
   are discarded on refresh, as the composer explains.
 - New conversation reuses the current empty conversation and keeps its unsent
-  text and attachments. Repeated clicks create at most one new conversation.
+  text and attachments. A first blank chat keeps the settings already entered.
+  Starting a new conversation from an existing populated one uses the companion
+  defaults, including an empty tool selection. Repeated clicks create at most
+  one new conversation.
   If a conversation is created after you have selected another chat, it stays
   in the sidebar without replacing that selection or clearing its newer draft.
 - Replies stream while the companion records them. Refreshing or switching
@@ -119,8 +122,14 @@ It does not lock the upstream model or control later server restarts.
   that row without opening it. Rename, folder and delete use accessible dialogs.
   The sidebar also supports search. Export and import
   preserve messages and their branches. Imported chats do not restart runs.
-- Settings are per conversation. System instructions and generation settings
-  apply to subsequent calls, including subsequent calls after a tool result.
+- Send and Retry use the current conversation settings. Acceptance saves them
+  for this chat and captures them for all model calls in that reply, including
+  those after tool results. **Save for this chat** saves without starting a
+  reply, even if the saved model is unavailable. A blank chat offers this
+  button after it is created. Switching chats or refreshing restores the last
+  saved settings. You can keep editing while Save or a reply request is
+  pending. Wait for that request to finish before submitting another change
+  for the same chat.
 - Consecutive model calls in one tool-assisted reply share a visual header and
   closer spacing. Each call keeps its own actions and details. One statistics icon covers the reply, including its tool-related model calls.
 - Reasoning is displayed only when the upstream supplies `reasoning_content`.

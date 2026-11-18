@@ -1084,8 +1084,10 @@
     if (S.attachments.length + pending.length > 8) throw new Error('Attach up to 8 files per message.');
     const total = S.attachments.reduce((sum, attachment) => sum + attachmentBytes(attachment), 0) + pending.reduce((sum, attachment) => sum + attachmentBytes(attachment), 0);
     if (total > 10 * 1024 * 1024) throw new Error('Attachments exceed 10 MiB. Remove a file before adding more.');
-    S.attachments.push(...pending); composerRevision++; renderAttachments(); $('draft').focus();
+    S.attachments.push(...pending); composerRevision++; renderAttachments();
+    if ($('app').dataset.view === 'chat') $('draft').focus();
   }
+  window.ChatComposer = {attach};
   function bottom() { const region = $('scroll-region'); region.scrollTop = region.scrollHeight; $('jump-bottom').hidden = true; }
   function resizeDraft() { const el = $('draft'); el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 220) + 'px'; rememberDraft(); }
   function showTab(name) { S.tab = name; document.querySelectorAll('[data-tab]').forEach(el => { el.setAttribute('aria-selected', String(el.dataset.tab === name)); el.tabIndex = el.dataset.tab === name ? 0 : -1; }); for (const tab of ['activity', 'stats', 'settings']) $('panel-' + tab).hidden = tab !== name; syncLiveMetrics(); renderContextLimits(); }

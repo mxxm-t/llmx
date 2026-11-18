@@ -4,7 +4,7 @@
   const {node, number} = window.ChatRender;
   const {api} = window.ChatShell;
   const view = document.getElementById('view-workbench');
-  const state = {snapshot: null, path: '', original: '', revision: 0, activeJob: null, timer: null, loading: null, isNew: false, selection: 0, saving: false, jobSelection: 0};
+  const state = {snapshot: null, path: '', original: '', revision: 0, activeJob: null, timer: null, loading: null, isNew: false, selection: 0, saving: false, attaching: false, jobSelection: 0};
   let viewLoad;
   const terminal = job => ['completed', 'failed', 'cancelled'].includes(job.status);
   function control(label, cls, listener) { const button = node('button', cls || 'secondary-button', label); button.type = 'button'; if (listener) button.addEventListener('click', () => Promise.resolve().then(listener).catch(showError)); return button; }
@@ -17,7 +17,7 @@
   const filePanel = node('section', 'workspace-files'); filePanel.setAttribute('aria-label', 'Workspace files'); const fileHeading = node('div', 'workspace-section-heading'); fileHeading.append(node('h3', '', 'Files')); const fileCount = node('span', 'muted', '0'); fileHeading.append(fileCount); const fileList = node('nav', 'workspace-file-list'); fileList.setAttribute('aria-label', 'Files'); filePanel.append(fileHeading, fileList);
   const editorPanel = node('section', 'workspace-editor'); editorPanel.setAttribute('aria-label', 'File editor');
   const editorHeading = node('div', 'workspace-editor-heading'); const fileLabel = node('span', 'workspace-file-path', 'Select a file'); const dirtyLabel = node('span', 'unsaved-indicator', 'Unsaved'); dirtyLabel.hidden = true;
-  const fileActions = node('div', 'workspace-editor-actions'); const preview = control('View source', '', openArtifact); const download = control('Download', '', () => window.ChatArtifacts.download(editor.value, state.path, fileLanguage(state.path))); const save = control('Save', 'primary-button', saveFile); save.id = 'workspace-save'; const remove = control('Delete', 'text-button danger', deleteFile); fileActions.append(preview, download, remove, save); editorHeading.append(fileLabel, dirtyLabel, fileActions);
+  const fileActions = node('div', 'workspace-editor-actions'); const preview = control('View source', '', openArtifact); const attach = control('Attach to Chat', '', attachFile); attach.id = 'workspace-attach'; const download = control('Download', '', () => window.ChatArtifacts.download(editor.value, state.path, fileLanguage(state.path))); const save = control('Save', 'primary-button', saveFile); save.id = 'workspace-save'; const remove = control('Delete', 'text-button danger', deleteFile); fileActions.append(preview, attach, download, remove, save); editorHeading.append(fileLabel, dirtyLabel, fileActions);
   const editor = node('textarea', 'workspace-code-editor'); editor.id = 'workspace-editor'; editor.spellcheck = false; editor.autocomplete = 'off'; editor.wrap = 'off'; editor.setAttribute('aria-label', 'File content'); editor.placeholder = 'Create a file or select one from the workspace.'; editor.disabled = true;
   const editorFooter = node('div', 'workspace-editor-footer'); const editorPosition = node('span', '', 'UTF-8'); const saveHint = node('span', '', 'Ctrl / Cmd + S to save'); editorFooter.append(editorPosition, saveHint); editorPanel.append(editorHeading, editor, editorFooter);
   layout.append(filePanel, editorPanel);
@@ -32,9 +32,9 @@
   const jobTabs = node('div', 'workspace-job-tabs'); jobTabs.setAttribute('aria-label', 'Command history');
   const output = node('pre', 'workspace-output', 'Command output appears here.'); output.id = 'workspace-output'; output.setAttribute('aria-label', 'Command output'); output.tabIndex = 0; const jobStatus = node('div', 'workspace-job-status'); jobStatus.setAttribute('role', 'status'); terminalPanel.append(terminalHeading, executionNote, commandForm, jobTabs, output, jobStatus);
   view.append(toolbar, error, layout, historyPanel, terminalPanel, limits);
-  function returnToChat() {
+  function returnToChat(focusId = 'chat-title') {
     window.ChatShell.show('chat');
-    document.getElementById('chat-title').focus();
+    document.getElementById(focusId).focus();
   }
   function showError(problem) { error.textContent = problem.message || String(problem); error.hidden = false; }
   function clearError() { error.hidden = true; error.textContent = ''; }
@@ -44,7 +44,8 @@
   async function canReplace() { return !dirty() || Boolean(await window.ChatShell.conversationForm({title: 'Discard unsaved changes?', description: 'Discard the unsaved changes in ' + state.path + '?', destructive: true, submit: 'Discard'})); }
   function fileLanguage(path) { const ext = path.split('.').pop().toLowerCase(); return ({htm: 'html', py: 'python', js: 'javascript', ts: 'typescript', sh: 'bash', rs: 'rust', md: 'markdown', patch: 'diff'})[ext] || ext; }
   function updateEditor() {
-    dirtyLabel.hidden = !dirty(); const enabled = Boolean(state.path); for (const button of [preview, download, save, remove]) button.disabled = !enabled; save.disabled = !enabled || !dirty() || state.saving; save.setAttribute('aria-busy', String(state.saving));
+    dirtyLabel.hidden = !dirty(); const enabled = Boolean(state.path); for (const button of [preview, download, remove]) button.disabled = !enabled; save.disabled = !enabled || !dirty() || state.saving; save.setAttribute('aria-busy', String(state.saving));
+    attach.disabled = !enabled || state.attaching; attach.setAttribute('aria-busy', String(state.attaching));
     preview.textContent = fileLanguage(state.path) === 'html' ? 'Preview HTML' : 'View source';
     fileLabel.textContent = state.path || 'Select a file';
     const before = editor.value.slice(0, editor.selectionStart); const rows = before.split('\n'); editorPosition.textContent = enabled ? fileLanguage(state.path).toUpperCase() + ' / Ln ' + rows.length + ', Col ' + (rows.at(-1).length + 1) + ' / UTF-8' : 'UTF-8';
@@ -153,12 +154,30 @@
     const language = fileLanguage(state.path);
     window.ChatArtifacts.open({name: state.path, source: editor.value, language}, {initialPreview: language === 'html', allowWorkspaceEdit: false});
   }
+  async function attachFile() {
+    if (!state.path || state.attaching) return;
+    const loading = viewLoad, selection = state.selection;
+    const isCurrent = () => viewLoad === loading && state.selection === selection;
+    clearError(); state.attaching = true; updateEditor();
+    try {
+      if (/[:\\]/.test(state.path)) throw new Error('Use a Workspace path with forward slashes and no colons to attach this file.');
+      const name = state.path.replaceAll('/', ':');
+      await window.ChatComposer.attach([new File([editor.value], name, {type: 'text/plain'})]);
+      if (isCurrent()) returnToChat('draft');
+    } catch (problem) {
+      if (!isCurrent()) return;
+      showError(problem);
+      error.focus();
+    } finally {
+      state.attaching = false; updateEditor();
+    }
+  }
   async function createCheckpoint() {
     await window.ChatShell.conversationForm({title: 'Create checkpoint', description: 'Save a named checkpoint of the current saved files.', label: 'Checkpoint name', maxLength: 120, value: 'Workspace checkpoint', submit: 'Create'}, async label => {
       await api('/workspace/checkpoints', 'POST', {label}); await load(); history.open = true;
     });
   }
-  async function viewDiff(checkpoint) { const result = await api('/workspace/diff?checkpoint=' + encodeURIComponent(checkpoint.id)); window.ChatArtifacts.open({name: checkpoint.label + '.diff', source: result.diff || 'No differences from the current saved files.\n', language: 'diff'}, {allowWorkspaceEdit: false}); }
+  async function viewDiff(checkpoint) { const result = await api('/workspace/diff?checkpoint=' + encodeURIComponent(checkpoint.id)); window.ChatArtifacts.open({name: checkpoint.label + '.diff', source: result.diff || 'No differences from the current saved files.\n', language: 'diff'}); }
   async function restoreCheckpoint(checkpoint) {
     const revision = state.snapshot.revision, selection = ++state.selection;
     await window.ChatShell.conversationForm({title: 'Restore checkpoint?', description: 'Restore "' + checkpoint.label + '"? This replaces the managed workspace files and discards unsaved editor changes.', destructive: true, submit: 'Restore'}, async () => {

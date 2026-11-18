@@ -1,27 +1,13 @@
 # llmx - Development Status
 
-## Conversation search field (2026-11-18, Done)
+## Companion search, transcript and Workspace (2026-11-18)
 
-- **Goal:** Make saved conversation search recognizable and consistent with sidebar controls.
-- **Done:** Aligned search with New conversation and used the sidebar control radius, border and accent focus ring. A line icon replaces the font glyph.
-- **Checks:** Chrome verified alignment, a visible focus ring and a 38 pixel field without horizontal overflow at 320, 360, 390 and 1440 pixels in both themes. The existing browser fixture covers saved-content filtering and returning focus to Search.
-- **Gotchas:** Preserve the native search input, keyboard focus and saved-content filtering.
-## Companion Workspace workflow (2026-11-18)
-
-- **Goal:** Make the path from a Chat result through file editing and preview back to Chat clear, with saved-file checkpoint and command context.
-- **Done:** Back to Chat keeps the current editor buffer. The existing isolated viewer previews the HTML buffer directly. Checkpoint history is a disclosure below the editor with a separate Create checkpoint action. The command runner identifies saved files as its input.
-- **Checks:** The Chrome fixture passed in 91.046 seconds. It covered the unsaved HTML preview, return focus and buffer preservation, isolated resource access, checkpoint history and responsive geometry from 320 to 1440 pixels. Receipts and failure diagnostics are under `scratch/workspace-flow/` in the feature worktree.
-- **Checks:** JavaScript syntax, whitespace, docs and dead-code passed. Only static companion assets, the browser fixture and their documentation changed.
-- **Left:** Land the reviewed branch by fast-forward.
-- **Gotchas:** Workspace editor buffers are in-memory. Save conflicts, file replacement guards, preview isolation and command admission stay in their current owners. The failed mobile fixture assertions assumed history remained open across reload. The final case checks the disclosure from its actual default-closed state.
-## Chat transcript readability (2026-11-18, Ready for integration)
-
-- **Goal:** Make speakers, the main reply and the boundaries between turns easier to scan on desktop and touch layouts.
-- **Done:** User prompts show a compact speaker header and a tinted, borderless bubble. Assistant prose uses 15-pixel text and shorter lines on desktop. A quiet rule joins tool-assisted reply segments. Action buttons keep a visible surface and 32-pixel desktop and 40-pixel touch targets. Reasoning and tool disclosures are quieter, and tool summaries identify their purpose and show the open or closed state.
-- **Visual checks:** Matched realistic captures at 1440, 390 and 320 pixels in both themes show no page overflow. Expanded tool body height drops from 195 to 123 pixels at 1440, 212 to 157 at 390, and 229 to 174 at 320. At 320 pixels a 64-character tool name wraps across three lines without crowding its approval badge. The Tool label stays on one line, approval controls and long reasoning remain visible, and long code scrolls inside its block. Captures, measurements and raw logs are in `scratch/chat-transcript-readability-20261118/`.
-- **Checks:** The full Windows Chrome fixture passed in 91.697 s, covering streaming, keyboard and touch actions, tool approvals, and disclosure continuity. JavaScript syntax and whitespace checks pass. Docs found zero findings in 37.3 s. Dead-code matched 17 expected findings in 47.6 s.
-- **Left:** Integrate and qualify the combined landing head.
-- **Gotchas:** Two preliminary fixture runs caught the established borderless prompt and visible action surface expectations. Both assertions are preserved. Consecutive assistant segments use the existing run identity, and disclosure, approval and action handling keep their existing owners.
+- **Search:** Saved conversation search shares the width and control styling of New conversation. Chrome verified the focus ring and alignment in both themes at 320, 360, 390 and 1440 pixels.
+- **Transcript:** Prompts have a You label and tinted background. Assistant prose is easier to scan on wide screens. A tool's name, approval and disclosure remain visible at 320 pixels. The measured expanded tool body shrank from 195 to 123 pixels on desktop and from 229 to 174 at 320 pixels.
+- **Workspace:** Back to Chat preserves editor changes. Preview HTML uses the current buffer in the existing isolated viewer. The command runner and checkpoint history operate on saved files. Linked sibling assets are outside this preview.
+- **Attachments:** Attach to Chat takes the editor's current text into the active draft. It preserves nested file identity and uses the composer's existing size and count checks. A delayed read cannot attach twice or navigate away from a newly selected file. The user can remove the attachment before sending. Temporary drafts stay in memory.
+- **Checks:** The three feature browser runs passed in 91.697 seconds for the transcript, 91.046 for Workspace and 92.520 for attachments. The attachment fixture covers a held read, nested names, unsaved edits, size refusal, keyboard focus and temporary chat privacy. The integrated commit is identified by the dedicated Windows and Linux Chat workspace workflow.
+- **Landing:** This static companion and browser-test stack lands by fast-forward after the combined Chrome, docs, dead-code and dedicated hosted checks pass on the landing tree. The Markdown audit covered the companion guide, contract, test catalogue and references across the project. Local service deployment is tracked separately.
 
 ## Companion audit follow-ups (2026-11-18, Done)
 

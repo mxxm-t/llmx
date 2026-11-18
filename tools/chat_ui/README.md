@@ -22,6 +22,12 @@ including unsaved edits. Inline CSS and scripts can run in that document.
 Workspace sibling files remain in the editor and command runner. Other files
 offer View source. Close the viewer to return to the editor.
 
+Attach to Chat adds the current editor buffer, including unsaved edits, to the
+current draft and returns focus to the composer. The attachment can be removed
+before sending. A path such as `src/index.js` appears as `src:index.js` to
+distinguish it from another file with the same basename. The normal text
+attachment limits and temporary chat behavior apply.
+
 Create checkpoint captures saved workspace files. Open Checkpoint history to
 review differences or restore a checkpoint. The command runner starts from
 saved workspace files and creates a checkpoint before a command runs. Back to

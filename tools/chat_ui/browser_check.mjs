@@ -1571,6 +1571,7 @@ try {
   await wait("document.querySelector('#artifact-dialog').open", 'checkpoint diff');
   assert((await evaluate("document.querySelector('.artifact-source').textContent")).includes('+third version'));
   assert.equal(await evaluate("document.querySelector('.artifact-source .syntax-add')!==null"), true, 'diff highlighting missing');
+  assert.equal(await evaluate("document.querySelector('.artifact-toolbar-actions button:first-child').hidden"), false, 'checkpoint diff still offers generated-file editing');
   await click('#artifact-dialog [aria-label="Close artifact"]');
   await evaluate("Array.from(document.querySelectorAll('.workspace-checkpoint')).find(card=>card.querySelector('strong').textContent==='Workspace checkpoint').querySelector('.checkpoint-actions button:last-child').click()");
   await wait("document.querySelector('#action-dialog').open", 'checkpoint restore dialog');
@@ -1889,6 +1890,78 @@ try {
   await wait("document.querySelector('#action-dialog').open", 'leave unsaved preview fixture');
   await closeAction('#conversation-submit');
   await wait("document.querySelector('.workspace-file-path').textContent!=='preview.html'", 'return to a saved file');
+  await evaluate(`(async()=>{
+    for(const path of ['src/index.js','tests/index.js']) {
+      const {revision}=await window.ChatShell.api('/workspace');
+      await window.ChatShell.api('/workspace/file','POST',{path,revision,content:'Saved '+path});
+    }
+  })()`);
+  await pointerClick('.workspace-back');
+  const originalDraft = await evaluate("document.querySelector('#draft').value");
+  await fill('#draft', 'Keep this draft while attaching Workspace files');
+  const bridgeMutations = apiMutations.length;
+  const showRefreshedWorkspace = async () => {
+    await evaluate("window.previousWorkspaceRow=document.querySelector('.workspace-file')");
+    await click('.global-nav [data-view="workbench"]');
+    await wait("{const row=document.querySelector('.workspace-file'); row && row!==window.previousWorkspaceRow}", 'Workspace file refresh rendered');
+    await evaluate("delete window.previousWorkspaceRow");
+  };
+  await showRefreshedWorkspace();
+  await wait("document.querySelector('.workspace-file[title=\"src/index.js\"]')", 'nested Workspace files');
+  await pointerClick('.workspace-file[title="src/index.js"]');
+  await wait("document.querySelector('#workspace-editor').value==='Saved src/index.js'", 'source file loaded');
+  await fill('#workspace-editor', 'Unsaved source edit for Chat');
+  await evaluate("document.querySelector('#workspace-attach').focus()");
+  const attachKey = {key:'Enter',code:'Enter',windowsVirtualKeyCode:13};
+  await cdp('Input.dispatchKeyEvent', {type:'keyDown', ...attachKey, text:'\r', unmodifiedText:'\r'});
+  await cdp('Input.dispatchKeyEvent', {type:'keyUp', ...attachKey});
+  await wait("document.querySelector('#app').dataset.view==='chat' && document.activeElement.id==='draft' && document.querySelector('[aria-label=\"Remove src:index.js\"]')", 'keyboard attachment returns to composer');
+  assert.equal(await evaluate("document.querySelector('#draft').value"), 'Keep this draft while attaching Workspace files');
+  await showRefreshedWorkspace();
+  assert.equal(await evaluate("document.querySelector('#workspace-editor').value"), 'Unsaved source edit for Chat', 'attaching changed the editor');
+  await pointerClick('.workspace-file[title="tests/index.js"]');
+  await wait("document.querySelector('#action-dialog').open", 'attached unsaved file still needs a discard decision');
+  await closeAction('#conversation-submit');
+  await wait("document.querySelector('#workspace-editor').value==='Saved tests/index.js'", 'test file loaded');
+  await pointerClick('#workspace-attach');
+  await wait("document.querySelector('[aria-label=\"Remove tests:index.js\"]')", 'same basename attachment retains workspace identity');
+  const savedBridgeDraft = "JSON.parse(sessionStorage.getItem('llmx-draft:'+localStorage.getItem('llmx-chat'))||'{}')";
+  await wait(`(${savedBridgeDraft}).attachments?.length===2`, 'attachments retained with ordinary draft');
+  assert.deepEqual(await evaluate(`(${savedBridgeDraft}).attachments.map(({name,text})=>({name,text}))`), [
+    {name:'src:index.js',text:'Unsaved source edit for Chat'}, {name:'tests:index.js',text:'Saved tests/index.js'}
+  ], 'attachments should contain the exact editor text and distinct relative names');
+  assert.equal(apiMutations.length, bridgeMutations, 'attaching from Workspace should neither send nor save');
+  await showRefreshedWorkspace();
+  await evaluate("{const editor=document.querySelector('#workspace-editor');editor.value='x'.repeat(2*1024*1024+4);editor.dispatchEvent(new Event('input'))}");
+  await pointerClick('#workspace-attach');
+  await wait("!document.querySelector('.workspace-error').hidden && document.querySelector('.workspace-error').textContent.includes('larger than 2 MiB') && document.activeElement.matches('.workspace-error')", 'Workspace attachment uses composer refusal');
+  assert.equal(await evaluate("document.querySelector('#app').dataset.view"), 'workbench', 'refusal left Workspace');
+  await fill('#workspace-editor', 'Saved tests/index.js');
+  await pointerClick('.workspace-back');
+  assert.equal(await evaluate("document.querySelectorAll('#attachments .attachment-pill').length"), 2, 'refusal changed the existing draft attachments');
+  await click('[aria-label="Remove src:index.js"]'); await click('[aria-label="Remove tests:index.js"]');
+  await fill('#draft', originalDraft);
+  await showRefreshedWorkspace();
+  await pointerClick('.workspace-file[title="src/index.js"]');
+  await wait("document.querySelector('#workspace-editor').value==='Saved src/index.js'", 'source file ready for held attachment');
+  await evaluate(`{
+    const readFile=File.prototype.arrayBuffer;
+    File.prototype.arrayBuffer=function(){
+      File.prototype.arrayBuffer=readFile;
+      return new Promise(resolve=>{window.releaseWorkspaceAttachment=()=>resolve(readFile.call(this));});
+    };
+  }`);
+  await pointerClick('#workspace-attach');
+  await wait("typeof window.releaseWorkspaceAttachment==='function'", 'held Workspace attachment read');
+  assert.equal(await evaluate("document.querySelector('#workspace-attach').disabled"), true, 'attachment must disable duplicate activation during read');
+  await click('#workspace-attach');
+  await pointerClick('.workspace-file[title="tests/index.js"]');
+  await wait("document.querySelector('#workspace-editor').value==='Saved tests/index.js' && document.activeElement.id==='workspace-editor'", 'new editor selection during attachment read');
+  await evaluate("window.releaseWorkspaceAttachment(); delete window.releaseWorkspaceAttachment;");
+  await wait("!document.querySelector('#workspace-attach').disabled && document.querySelector('#attachments .attachment-pill')", 'held attachment finished');
+  assert.deepEqual(await evaluate("({view:document.querySelector('#app').dataset.view,focus:document.activeElement.id,count:document.querySelectorAll('#attachments .attachment-pill').length})"), {view:'workbench',focus:'workspace-editor',count:1}, 'held attachment navigated away from the newer file or attached twice');
+  await pointerClick('.workspace-back');
+  await click('[aria-label="Remove src:index.js"]');
   for (const [width,height] of [[320,720],[360,800],[390,844],[768,1024],[1024,768],[1440,1000],[844,390],[720,500]]) {
     await cdp('Emulation.setDeviceMetricsOverride', {width, height, deviceScaleFactor: width===720 ? 2 : 1, mobile: width<=390});
     await evaluate("window.dispatchEvent(new Event('resize'))");
@@ -1902,6 +1975,9 @@ try {
       await evaluate("window.ChatShell.show('workbench')");
       const checkpointsFit = await evaluate("document.querySelector('.workspace-checkpoints').scrollWidth<=document.querySelector('.workspace-checkpoints').clientWidth");
       assert(checkpointsFit, 'checkpoint controls overflow at 320px');
+      await evaluate("document.querySelector('#workspace-attach').scrollIntoView({block:'center',behavior:'instant'})");
+      assert.equal(await evaluate("{const button=document.querySelector('#workspace-attach'),box=button.getBoundingClientRect(),parent=button.closest('.workspace-editor').getBoundingClientRect();box.left>=parent.left&&box.right<=parent.right&&button.contains(document.elementFromPoint(box.x+box.width/2,box.y+box.height/2))}"), true, 'Workspace attachment target is clipped or blocked at 320px');
+      await screenshot('workspace-attach-mobile.png');
       assert.equal(await evaluate("document.querySelector('.workspace-checkpoints details').open"), false, 'a reload should start with checkpoint history collapsed');
       await evaluate("document.querySelector('.workspace-checkpoints summary').scrollIntoView({block:'center',behavior:'instant'})");
       await pointerClick('.workspace-checkpoints summary');
@@ -1939,8 +2015,17 @@ try {
   assert.equal(await evaluate("localStorage.getItem('llmx-chat')"), lastSavedChat, 'temporary chat replaced saved-chat preference');
   assert.equal(await evaluate("document.querySelector('#tool-settings input')===null"), true, 'temporary tools still selectable');
   await fill('#draft', 'Temporary draft privacy marker.');
+  await click('.global-nav [data-view="workbench"]');
+  await fill('#workspace-editor', 'Temporary Workspace attachment marker.');
+  await pointerClick('#workspace-attach');
+  await wait("document.querySelector('#app').dataset.view==='chat' && !document.querySelector('#temporary-notice').hidden && document.querySelector('[aria-label=\"Remove tests:index.js\"]')", 'Workspace file attaches to the temporary draft');
+  assert.equal(await evaluate("sessionStorage.getItem('llmx-temporary-chat')"), temporaryId, 'attachment changed temporary mode');
   await delay(300);
-  assert.equal(await evaluate("Object.keys(sessionStorage).filter(k=>k.startsWith('llmx-draft:')).some(k=>sessionStorage.getItem(k).includes('Temporary draft privacy marker.'))"), false, 'temporary draft was persisted');
+  assert.equal(await evaluate("Object.keys(sessionStorage).filter(k=>k.startsWith('llmx-draft:')).some(k=>/Temporary (draft privacy|Workspace attachment) marker/.test(sessionStorage.getItem(k)))"), false, 'temporary draft or Workspace attachment was persisted');
+  await click('[aria-label="Remove tests:index.js"]');
+  await click('.global-nav [data-view="workbench"]');
+  await fill('#workspace-editor', 'Saved tests/index.js');
+  await pointerClick('.workspace-back');
   await holdHistoryRefresh();
   await send('Temporary browser privacy check');
   await wait("typeof releaseChatHistory==='function' && !document.querySelector('#stop').hidden && document.querySelector('#messages').innerText.includes('Temporary response.')", 'streaming before send admission finishes');

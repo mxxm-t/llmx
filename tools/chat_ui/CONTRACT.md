@@ -222,6 +222,12 @@ confirmation. Leaving Workspace invalidates pending result-link navigation.
 Job navigation uses the current Workspace snapshot and leaves a newer job
 selection in place. Missing targets show an unavailable notice.
 Back to Chat keeps the editor buffer and focuses the current conversation.
+Attach to Chat uses the current editor buffer as a text attachment through the
+existing composer validator and draft owner. It replaces Workspace path
+separators with colons in attachment names so nested files stay distinct under
+the attachment API's filename sanitization. The current draft remains editable
+and the editor buffer remains in memory. Admission and save still use their
+separate actions. Temporary draft attachments stay in memory.
 Workspace HTML preview uses the current unsaved or saved buffer with the
 existing isolated viewer. The viewer from Workspace leaves editing in the
 existing editor. Checkpoint history and Workspace limits are native

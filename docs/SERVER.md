@@ -433,7 +433,7 @@ POST /v1/chat        {"messages": [{"role": "user", "content": "..."}], ...}
 POST /v1/tokenize    {"text": "..."} or {"messages": [...]}
                      -> {"tokens": [ids], "count": n}
 POST /v1/detokenize  {"tokens": [ids]} -> {"text": "..."}
-GET  /v1/health      {"status": "ok", "server": {...}, "precision": {...},
+GET  /v1/health      {"status": "ok", "server": {...}, "precision": {...}, "rope": {...},
                       "requests": {...}, "work": {...}, "reuse": {...}, "pressure": {...},
                       "reread": {...}, "drafting": {...}, "passes": {...}}
                      each group has "now" (true at this moment) and
@@ -465,6 +465,7 @@ A streaming response is `text/event-stream`: one `data:` line per token with the
 The server holds a character split across tokens until its bytes complete, and replaces each byte that starts no valid UTF-8 character with U+FFFD, since JSON carries only characters.
 The CLI writes each token's bytes as they come.
 The topology object in /v1/health reports the runtime's realized placement. Its mode is single, layer, tensor or staged_tensor; mixed_roles independently marks roles placed on different backend groups, as with CPU expert offload. Devices gives backend-vector indices, canonical device labels, whether the model uses them and their tensor-group member number. Stages are the ordered mixer-layer runs with half-open layer ranges and the backend indices of each stage's tensor-group members. embedding_members and head_members identify the endpoint groups. Each layers entry reports its mixer and feed-forward groups, whether it is routed, and an expert_stream target when the runtime admitted streaming for that layer. The target is eligible for prompts from min_prompt_tokens; it does not describe the path currently running. Backend names are labels from the resolved device list, not guesses about physical GPU numbering.
+The `rope` object in `/v1/health` is the rope the model runs, from the file and `--yarn` (`docs/USAGE.md`, Rope scaling), which `Api::rope_json` writes from `Model::rope_policy`.
 The `precision` object in `/v1/health` is the placement record passed at startup: `requested`, `declared`, `effective` and `devices`, each with `device`, `effective`, `how` and `paths`. A device may report F32 fallback while another implements the requested dtype. An entirely F32 run reports F32 as the overall effective dtype. The API serializes it without resolving precision or treating the listed paths as execution witnesses.
 
 The model's name in `/v1/health`, `/v1/models` and every compatible reply is its file name, which on Linux can hold bytes that are not UTF-8, and an error message can carry text from outside the request, such as a chat template's from the model file or a backend's failure.

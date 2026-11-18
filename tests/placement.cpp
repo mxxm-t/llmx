@@ -437,6 +437,7 @@ struct Carrying final : infer::Architecture {
         return p;
     }
     void fill_tables(std::vector<std::vector<float>>& t, const std::vector<infer::TensorView>& sources) const override { base->fill_tables(t, sources); }
+    const infer::rope::Policy& rope_policy() const override { return base->rope_policy(); }
     void embed(const infer::Step& s, const uint32_t* ids) const override { base->embed(s, ids); }
     void mixer(const infer::Step& s) const override {
         infer::Step own = s;
@@ -524,6 +525,7 @@ struct Reading final : infer::Architecture {
         return p;
     }
     void fill_tables(std::vector<std::vector<float>>& t, const std::vector<infer::TensorView>& sources) const override { base->fill_tables(t, sources); }
+    const infer::rope::Policy& rope_policy() const override { return base->rope_policy(); }
     void embed(const infer::Step& s, const uint32_t* ids) const override { base->embed(s, ids); }
     void mixer(const infer::Step& s) const override { seen.push_back({s.kind >> 4, s.kv_layer, s.appends}); }
     void ffn(const infer::Step& s) const override {
@@ -1427,6 +1429,7 @@ struct LookupArchitecture : infer::Architecture {
         return p;
     }
     void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<infer::TensorView>& sources) const override { base->fill_tables(tables, sources); }
+    const infer::rope::Policy& rope_policy() const override { return base->rope_policy(); }
     void embed(const infer::Step& s, const uint32_t* ids) const override { base->embed(s, ids); }
     void pass_values(const infer::Step& s) const override { base->pass_values(s); }
     void mixer(const infer::Step& s) const override { base->mixer(s); }
@@ -1619,6 +1622,7 @@ struct TwoLookups : infer::Architecture {
         return p;
     }
     void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<infer::TensorView>& sources) const override { base->fill_tables(tables, sources); }
+    const infer::rope::Policy& rope_policy() const override { return base->rope_policy(); }
     void embed(const infer::Step& s, const uint32_t* ids) const override { base->embed(s, ids); }
     void pass_values(const infer::Step& s) const override { base->pass_values(s); }
     void mixer(const infer::Step& s) const override { base->mixer(s); }
@@ -2822,6 +2826,7 @@ struct PassValuesCounting final : infer::Architecture {
     explicit PassValuesCounting(std::shared_ptr<const infer::Architecture> b) : base(std::move(b)) {}
     infer::ModelPlan plan(const infer::TensorIndex& t) const override { return base->plan(t); }
     void fill_tables(std::vector<std::vector<float>>& t, const std::vector<infer::TensorView>& sources) const override { base->fill_tables(t, sources); }
+    const infer::rope::Policy& rope_policy() const override { return base->rope_policy(); }
     void embed(const infer::Step& s, const uint32_t* ids) const override { base->embed(s, ids); }
     void pass_values(const infer::Step& s) const override {
         note(s, 'p');
@@ -2893,6 +2898,7 @@ struct Unsplit final : infer::Architecture {
         return p;
     }
     void fill_tables(std::vector<std::vector<float>>& t, const std::vector<infer::TensorView>& sources) const override { base->fill_tables(t, sources); }
+    const infer::rope::Policy& rope_policy() const override { return base->rope_policy(); }
     void embed(const infer::Step& s, const uint32_t* ids) const override { base->embed(s, ids); }
     void mixer(const infer::Step& s) const override { base->mixer(s); }
     void ffn(const infer::Step& s) const override { base->ffn(s); }

@@ -14,6 +14,7 @@
 #include "model/architecture.hpp"
 #include "model/arch/metadata.hpp"
 #include "model/arch/blocks.hpp"
+#include "model/rope.hpp"
 
 // MiniMax-M3.1's text model (docs/MINIMAX.md): GQA attention with block-sparse selection by an index on every layer, dense lead layers, then sigmoid-routed experts with one shared expert.
 // The registry reaches it as minimax-m3; a backend lacking one of its ops refuses the model at load by the op's name.
@@ -26,6 +27,7 @@ struct Config {
     int n_head = 0, n_head_kv = 0, head_dim = 0, rope_dim = 0;
     int context_length = 0;
     float rope_theta = 0.0f, rms_eps = 0.0f;
+    rope::Policy rope_policy;  // the rope the model runs (model/rope.hpp), from the file and the command line
     int n_expert = 0, n_expert_used = 0, n_ff_exp = 0;
     float expert_scale = 1.0f;
     // The index: one head per KV head, its key width, the blocks of `index_block` positions a query keeps with its own counted.
@@ -50,7 +52,7 @@ inline void check_config(const Config& c) {
 }
 
 // A file's configuration under `p`; every key that changes the math is required and held to the one value the module computes.
-inline Config read_config(const gguf::GGUFModel& m, const std::string& p) {
+inline Config read_config(const gguf::GGUFModel& m, const std::string& p, const rope::Request& request = {}) {
     using metadata::integer;
     using metadata::real;
     const auto unsupported = [&](bool bad, const std::string& k) {
@@ -60,9 +62,6 @@ inline Config read_config(const gguf::GGUFModel& m, const std::string& p) {
         if (!m.find(p + k)) throw std::runtime_error("inference: missing metadata " + p + k);
     };
     metadata::option(m, p + "tensor_data_layout", "reference");
-    metadata::option(m, p + "rope.scaling.type", "none");
-    if (real(m, p + "rope.scaling.factor", 1) != 1)
-        throw std::runtime_error("inference: scaled RoPE is unsupported");
 
     Config c;
     c.n_layer = integer(m, p + "block_count");
@@ -100,6 +99,12 @@ inline Config read_config(const gguf::GGUFModel& m, const std::string& p) {
     c.index_block = integer(m, p + "attention.indexer.block_size");
     unsupported(integer(m, p + "attention.indexer.local_blocks") != 1, "attention.indexer.local_blocks");
     check_config(c);
+    c.rope_policy = rope::resolve(m, p, {rope::Base::reciprocal_power, c.rope_theta, size_t(c.rope_dim), size_t(c.context_length)}, request);
+    // YaRN from the command line sets its own context, held to the same limits.
+    if (c.rope_policy.context != size_t(c.context_length)) {
+        c.context_length = int(c.rope_policy.context);
+        check_config(c);
+    }
     return c;
 }
 
@@ -127,7 +132,9 @@ inline std::vector<size_t> slot_widths(const Config& c) {
 
 class MinimaxM3 final : public Architecture {
 public:
-    explicit MinimaxM3(const Config& cfg) : cfg_(cfg) {}
+    explicit MinimaxM3(const Config& cfg) : cfg_(cfg) {
+        cfg_.rope_policy = rope::bind(cfg_.rope_policy, {rope::Base::reciprocal_power, cfg_.rope_theta, size_t(cfg_.rope_dim), size_t(cfg_.context_length)});
+    }
 
     ModelPlan plan(const TensorIndex& tensors) const override {
         const Config& c = cfg_;
@@ -221,15 +228,9 @@ public:
 
     // NeoX RoPE over the first rope_dim values of a head, its frequencies over that width: cos and sin at [pos * rope_dim / 2 + i].
     void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<TensorView>&) const override {
-        const size_t half = size_t(cfg_.rope_dim / 2);
-        for (size_t i = 0; i < half; ++i) {
-            const float freq = 1.0f / std::pow(cfg_.rope_theta, 2.0f * float(i) / float(cfg_.rope_dim));
-            for (size_t pos = 0; pos < tables[0].size() / half; ++pos) {
-                tables[0][pos * half + i] = std::cos(float(pos) * freq);
-                tables[1][pos * half + i] = std::sin(float(pos) * freq);
-            }
-        }
+        rope::fill(cfg_.rope_policy, tables[0], tables[1]);
     }
+    const rope::Policy& rope_policy() const override { return cfg_.rope_policy; }
 
     void embed(const Step& s, const uint32_t* ids) const override { blocks::embed(s, s.w[token_embd], ids); }
 
@@ -293,8 +294,8 @@ private:
     Config cfg_;
 };
 
-inline std::shared_ptr<const Architecture> open(const gguf::GGUFModel& m, const std::string& prefix) {
-    return std::make_shared<const MinimaxM3>(read_config(m, prefix));
+inline std::shared_ptr<const Architecture> open(const gguf::GGUFModel& m, const std::string& prefix, const rope::Request& request) {
+    return std::make_shared<const MinimaxM3>(read_config(m, prefix, request));
 }
 
 } // namespace infer::minimax_m3

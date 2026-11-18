@@ -13,6 +13,7 @@
 #include "format/gguf.hpp"
 #include "model/arch/blocks.hpp"
 #include "model/arch/metadata.hpp"
+#include "model/rope.hpp"
 
 // DeepSeek-V4.1's configuration: its keys read from a file, the rules it is held to, each block's place among the shared caches and the rope's frequencies (docs/DEEPSEEK4.md).
 namespace infer::deepseek4 {
@@ -31,8 +32,8 @@ struct Config {
     uint32_t vocab = 0;
     int n_layer = 0, context_length = 0, n_embd = 0, n_head = 0, head_dim = 0, rope_dim = 0;
     int q_lora_rank = 0, window = 0, out_groups = 0, out_rank = 0;
-    float rope_theta = 0, compress_rope_theta = 0, rope_factor = 0, beta_fast = 0, beta_slow = 0, rms_eps = 0;
-    int original_context = 0;
+    float rope_theta = 0, compress_rope_theta = 0, rms_eps = 0;
+    rope::Policy rope;  // the compressed layers' YaRN as the file declares it or --yarn sets it (model/rope.hpp)
     int n_expert = 0, n_expert_used = 0, n_ff_exp = 0;
     float expert_scale = 0;
     std::vector<float> swiglu_exp, swiglu_shexp;  // each block's clamp and each drafter stage's after them, 0 for none
@@ -70,9 +71,9 @@ inline void check_config(const Config& c) {
     if (c.n_embd <= 0 || c.n_head <= 0 || c.head_dim <= 0 || c.q_lora_rank <= 0 || c.window <= 0 || c.out_groups <= 0 ||
         c.out_rank <= 0 || c.n_expert <= 0 || c.n_expert_used <= 0 || c.n_ff_exp <= 0 || c.index_heads <= 0 ||
         c.index_head_dim <= 0 || c.index_top_k <= 0 || c.hc_count <= 0 || c.hc_iterations <= 0 || c.context_length <= 0 ||
-        c.original_context <= 0 || !c.vocab)
+        !c.rope.yarn || !c.vocab)
         throw std::runtime_error("inference: invalid DeepSeek-V4.1 dimensions");
-    for (float f : {c.rope_theta, c.compress_rope_theta, c.rope_factor, c.beta_fast, c.beta_slow, c.rms_eps, c.hc_eps, c.expert_scale})
+    for (float f : {c.rope_theta, c.compress_rope_theta, c.rms_eps, c.hc_eps, c.expert_scale})
         if (!std::isfinite(f) || f <= 0) throw std::runtime_error("inference: invalid DeepSeek-V4.1 floating-point configuration");
     if (c.n_expert_used > c.n_expert) throw std::runtime_error("inference: more experts per token than the layer has");
     if (c.rope_dim <= 0 || c.rope_dim % 2 || c.rope_dim > c.head_dim || c.rope_dim > c.index_head_dim)
@@ -198,7 +199,7 @@ inline void supported(bool ok, const std::string& k) {
 }
 
 // The fork layout's keys under `p`; the upstream layout, which names its Engram keys `ple.*`, is refused by its key until it is read (docs/DEEPSEEK4.md, step 16).
-inline Config read_config(const gguf::GGUFModel& m, const std::string& p, uint32_t vocab) {
+inline Config read_config(const gguf::GGUFModel& m, const std::string& p, uint32_t vocab, const rope::Request& request = {}) {
     using metadata::integer;
     using metadata::real;
     const bool fork = m.find(p + "engram.layer_ids"), upstream = m.find(p + "ple.layers");
@@ -230,10 +231,11 @@ inline Config read_config(const gguf::GGUFModel& m, const std::string& p, uint32
     };
     c.rope_theta = real_key("rope.freq_base");
     c.compress_rope_theta = real_key("attention.compress_rope_freq_base");
-    c.rope_factor = real_key("rope.scaling.factor");
-    c.original_context = integer(m, p + "rope.scaling.original_context_length");
-    c.beta_fast = real_key("rope.scaling.yarn_beta_fast");
-    c.beta_slow = real_key("rope.scaling.yarn_beta_slow");
+    for (const char* key : {"rope.scaling.factor", "rope.scaling.original_context_length", "rope.scaling.yarn_beta_fast", "rope.scaling.yarn_beta_slow"}) required(m, p + key);
+    // model.py's precompute_freqs_cis: double angles rounded once, no attention factor on the tables.
+    c.rope = rope::resolve(m, p, {rope::Base::reciprocal_power, c.compress_rope_theta, size_t(c.rope_dim), size_t(c.context_length), rope::Arithmetic::f64_once, rope::Attention::none},
+                           request);
+    c.context_length = int(c.rope.context);
     c.rms_eps = real_key("attention.layer_norm_rms_epsilon");
 
     c.n_expert = integer(m, p + "expert_count");
@@ -335,21 +337,6 @@ inline void engram_norm_weight(const TensorView& q, const TensorView& k, float* 
     source_floats(q, out, n);
     source_floats(k, kv.data(), n);
     for (size_t i = 0; i < n; ++i) out[i] *= kv[i];
-}
-
-// The rotary angle of each adjacent pair at position 1, in double: 1 / base^(2i / dim), and with original_context above 0 YaRN's ramp between the dims that turn beta_fast and beta_slow times over it (model.py:369-389).
-inline std::vector<double> rope_frequencies(int dim, double base, int original_context, double factor, double beta_fast, double beta_slow) {
-    std::vector<double> f(size_t(dim / 2));
-    for (size_t i = 0; i < f.size(); ++i) f[i] = 1.0 / std::pow(base, double(2 * i) / double(dim));
-    if (original_context <= 0) return f;
-    const double pi = 3.14159265358979323846;
-    const auto corrected = [&](double turns) { return double(dim) * std::log(double(original_context) / (turns * 2 * pi)) / (2 * std::log(base)); };
-    const double low = std::max(std::floor(corrected(beta_fast)), 0.0), high = std::min(std::ceil(corrected(beta_slow)), double(dim - 1));
-    for (size_t i = 0; i < f.size(); ++i) {
-        const double ramp = std::clamp((double(i) - low) / std::max(high - low, 1e-3), 0.0, 1.0), smooth = 1 - ramp;
-        f[i] = f[i] / factor * (1 - smooth) + f[i] * smooth;
-    }
-    return f;
 }
 
 } // namespace infer::deepseek4

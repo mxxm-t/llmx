@@ -26,9 +26,9 @@ conversation's prefix through state checkpoints ([server](server.md)).
     `attention.head_count_kv` (default the query heads),
     `attention.key_length`, which `attention.value_length` must equal,
     `context_length`, `rope.freq_base` (default 10000) and
-    `attention.layer_norm_rms_epsilon` (default 1e-6), with RoPE scaling
-    and a tensor layout other than `reference` refused, as Qwen3's reader
-    refuses them.
+    `attention.layer_norm_rms_epsilon` (default 1e-6), with a tensor layout
+    other than `reference` refused, as Qwen3's reader refuses it; the scaling keys and the request go to
+    `rope::resolve` over the rotary width ([rope](model-rope.md)), as in Qwen3.
   - `rope.dimension_count`, the leading dims of each head that rotate
     (default the head width), even and at most the head width. For text
     every section's position stream holds the same position, so the
@@ -88,7 +88,7 @@ conversation's prefix through state checkpoints ([server](server.md)).
     expert's after them, whichever is wider. A qwen35moe plan adds four: the router's scores,
     the expert ids and weights, and the shared expert's gate.
   - `fill_tables`: the rope's cos and sin over the rotated pairs,
-    `[pos * (rope_dim / 2) + i]` at frequency `rope_theta^(-2i/rope_dim)`.
+    `[pos * (rope_dim / 2) + i]` at frequency `rope_theta^(-2i/rope_dim)`, through `rope::fill`.
   - `embed`, `ffn` and `head` are the shared pieces of
     [blocks](model-arch-blocks.md), the feed-forward block after the
     `post_attention_norm` norm: `swiglu` on qwen35, and on qwen35moe

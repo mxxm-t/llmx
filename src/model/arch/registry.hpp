@@ -24,7 +24,7 @@ namespace infer {
 // A general.architecture value and the reader of its files, which reads the configuration under the name's prefix.
 struct ArchEntry {
     const char* name;
-    std::shared_ptr<const Architecture> (*read)(const gguf::GGUFModel&, const std::string& prefix);
+    std::shared_ptr<const Architecture> (*read)(const gguf::GGUFModel&, const std::string& prefix, const rope::Request&);
     backend::Dtype dtype;
     // A drafter file's header adaptation into the target's blocks, called by the pairing owner after tokenizer equality for every drafter file; a file the hook does not recognise is left as it is, and null preserves the ordinary contract.
     void (*normalize_drafter)(const gguf::GGUFModel& target, gguf::GGUFModel& side) = nullptr;
@@ -59,12 +59,12 @@ inline const ArchEntry& hf_architecture(const std::string& model_type) {
     throw std::runtime_error("inference: no Hugging Face reader for model_type " + model_type);
 }
 
-// A GGUF model's weights: its architecture, whose configuration is read once, and a view of every tensor, whose data is null while the tensor's file is not mapped (gguf::map_payload).
+// A GGUF model's weights: its architecture, whose configuration is read once with the command line's rope request, and a view of every tensor, whose data is null while the tensor's file is not mapped (gguf::map_payload).
 // A tensor table whose storage count does not match its tensors, with a rank above four, or an offset or extent outside the payload is refused, which includes a payload its owner released; read_gguf has refused duplicate names already.
-inline ModelWeights gguf_weights(const gguf::GGUFModel& m) {
+inline ModelWeights gguf_weights(const gguf::GGUFModel& m, const rope::Request& request = {}) {
     const ArchEntry& entry = architecture_of(m);
     ModelWeights w;
-    w.arch = entry.read(m, std::string(entry.name) + ".");
+    w.arch = entry.read(m, std::string(entry.name) + ".", request);
     w.declared_dtype = entry.dtype;
     if (m.offsets.size() != m.tensors.size())
         throw std::runtime_error("inference: tensor storage count mismatch");
@@ -85,7 +85,7 @@ inline ModelWeights gguf_weights(const gguf::GGUFModel& m) {
 }
 
 // The weights are views into the model, so a temporary model, const or not, would leave them dangling.
-ModelWeights gguf_weights(const gguf::GGUFModel&&) = delete;
+ModelWeights gguf_weights(const gguf::GGUFModel&&, const rope::Request& = {}) = delete;
 
 // A vision encoder llmx runs, by the general.architecture and clip.projector_type an mmproj file gives, and the reader of its files (docs/VISION.md, section 9).
 struct VisionEntry {

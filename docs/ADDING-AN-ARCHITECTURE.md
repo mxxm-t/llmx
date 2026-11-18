@@ -123,6 +123,7 @@ Until the architecture's math runs, its `plan` refuses the architecture by name 
 ### The position tables
 
 `fill_tables` computes them once at load, as values that depend only on the position and the configuration, or on a weight read only for it: a `source` role, whose host view the call is handed and which no device holds.
+A text module's rope tables come from `rope::fill` (`src/model/rope.hpp`), and its reader hands `rope::resolve` its base-frequency spelling, base, rotated width and context and takes back the policy (the unscaled rope or YaRN, from the file and `--yarn`) and the context it gives, so the tables, the keys and the request have one owner; the module returns the policy from `Architecture::rope_policy`.
 The runtime keeps them for the model's life and adopts them on every device the model uses, since any part may read a table.
 
 ### The math

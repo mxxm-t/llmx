@@ -12,6 +12,7 @@
 
 #include "format/gguf.hpp"
 #include "model/arch/metadata.hpp"
+#include "model/rope.hpp"
 #include "model/arch/blocks.hpp"
 
 // Qwen4Exp text configuration, integer n-gram selection and layer graph pieces.
@@ -25,6 +26,7 @@ struct Config {
     bool expert_norm = true;
     int n_head = 0, n_head_kv = 0, head_dim = 0, rope_dim = 0, context_length = 0;
     float rope_theta = 10000000.0f, rms_eps = 1e-6f;
+    rope::Policy rope_policy;  // the rope the model runs (model/rope.hpp), from the file and the command line
     int k_heads = 0, v_heads = 0, k_dim = 0, v_dim = 0;
     std::vector<int> rope_sections;
     std::vector<LayerKind> layers;
@@ -211,14 +213,11 @@ inline void check_config(const Config& c) {
         throw std::runtime_error("inference: QSA indexer cache exceeds allocation limit");
 }
 
-inline Config read_config(const gguf::GGUFModel& m, const std::string& p) {
+inline Config read_config(const gguf::GGUFModel& m, const std::string& p, const rope::Request& request = {}) {
     using metadata::integer;
     using metadata::real;
     Config c;
     metadata::option(m, p + "tensor_data_layout", "reference");
-    metadata::option(m, p + "rope.scaling.type", "none");
-    if (real(m, p + "rope.scaling.factor", 1) != 1 || real(m, p + "rope.scale_linear", 1) != 1)
-        throw std::runtime_error("inference: scaled RoPE is unsupported");
 
     const int blocks = integer(m, p + "block_count");
     c.n_nextn = metadata::count(m, p + "nextn_predict_layers", 0);
@@ -350,6 +349,12 @@ inline Config read_config(const gguf::GGUFModel& m, const std::string& p) {
         throw std::runtime_error("inference: PLE metadata without qwen4exp.ple.layers");
     }
     check_config(c);
+    c.rope_policy = rope::resolve(m, p, {rope::Base::reciprocal_power, c.rope_theta, size_t(c.rope_dim), size_t(c.context_length)}, request);
+    // YaRN from the command line sets its own context, held to the same limits.
+    if (c.rope_policy.context != size_t(c.context_length)) {
+        c.context_length = int(c.rope_policy.context);
+        check_config(c);
+    }
     return c;
 }
 
@@ -498,6 +503,7 @@ inline std::vector<size_t> slot_widths(const Config& c) {
 class Qwen4Exp final : public Architecture {
 public:
     explicit Qwen4Exp(const Config& cfg, uint32_t vocab) : cfg_(cfg), vocab_(vocab) {
+        cfg_.rope_policy = rope::bind(cfg_.rope_policy, {rope::Base::reciprocal_power, cfg_.rope_theta, size_t(cfg_.rope_dim), size_t(cfg_.context_length)});
         check_config(cfg_);
         if (!vocab_ || vocab_ > uint32_t(std::numeric_limits<int>::max()))
             throw std::runtime_error("inference: invalid vocabulary dimension");
@@ -581,14 +587,7 @@ public:
     }
 
     void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<TensorView>&) const override {
-        const size_t half = size_t(cfg_.rope_dim / 2);
-        for (size_t i = 0; i < half; ++i) {
-            const float freq = 1.0f / std::pow(cfg_.rope_theta, 2.0f * float(i) / float(cfg_.rope_dim));
-            for (size_t pos = 0; pos < tables[0].size() / half; ++pos) {
-                tables[0][pos * half + i] = std::cos(float(pos) * freq);
-                tables[1][pos * half + i] = std::sin(float(pos) * freq);
-            }
-        }
+        rope::fill(cfg_.rope_policy, tables[0], tables[1]);
         std::fill(tables[2].begin(), tables[2].end(), 0.0f);
     }
 
@@ -752,6 +751,8 @@ public:
                                 s.state_layer, s.states, s.n_views);
         }
     }
+
+    const rope::Policy& rope_policy() const override { return cfg_.rope_policy; }
 
 private:
     static constexpr uint8_t linear_kind = 0, qsa_kind = 1, ple_kind = 2, dense_kind = 3, mtp_qsa_kind = 4;
@@ -1013,12 +1014,12 @@ private:
     }
 };
 
-inline std::shared_ptr<const Architecture> open(const gguf::GGUFModel& m, const std::string& prefix) {
+inline std::shared_ptr<const Architecture> open(const gguf::GGUFModel& m, const std::string& prefix, const rope::Request& request) {
     for (const gguf::TensorInfo& tensor : m.tensors)
         if (tensor.name == "token_embd.weight") {
             if (tensor.ne.size() < 2 || !tensor.ne[1] || tensor.ne[1] > uint64_t(std::numeric_limits<int>::max()))
                 throw std::runtime_error("inference: invalid vocabulary dimension");
-            return std::make_shared<const Qwen4Exp>(read_config(m, prefix), uint32_t(tensor.ne[1]));
+            return std::make_shared<const Qwen4Exp>(read_config(m, prefix, request), uint32_t(tensor.ne[1]));
         }
     throw TensorIndex::missing("token_embd.weight");
 }

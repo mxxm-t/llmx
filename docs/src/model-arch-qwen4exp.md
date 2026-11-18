@@ -22,7 +22,7 @@ Legal widths depend on the plan's head, vocabulary and quant-block spans.
   The table row width times its head count gives the PLE embedding input width.
 - `check_config(config)`: the geometry constraints, apart from metadata parsing: positive dimensions, divisible query/KV and V/K heads, an even rotary width no wider than an attention head, four MRoPE sections covering the rotary width, valid HC dimensions, and products and cache sizes within supported integer and allocation bounds.
   PLE may only be attached to a linear layer.
-- `fill_tables`: builds the F32 rotary frequency and position tables; the `arch-qwen4exp` CTest checks cells of them against values from the pinned HF rotary module.
+- `fill_tables`: builds the F32 rotary frequency and position tables through `rope::fill` ([rope](model-rope.md)) from the policy its reader resolved (`rope::resolve`), at base frequency `1 / rope_theta^(2i/rope_dim)`, the module's own spelling, and zero-fills its third table; the `arch-qwen4exp` CTest checks cells of them against values from the pinned HF rotary module.
 - `Config::ple_hash`, a `blocks::NgramHash` ([blocks](model-arch-blocks.md)), holds the PLE hash's n-gram size, heads per order, multipliers, head offsets and vocabulary sizes, and its fill id, the PLE EOS id; `blocks::ngram_rows(config.ple_hash, vocab_size, previous, current, output)` computes the token-major PLE gather rows.
 - `lookup_ids(step)`: applies those rules to each entry's token snapshot and fills the runtime's ID scratch without backend work or I/O.
   The PLE layer declares its table role and head count in `lookup`.

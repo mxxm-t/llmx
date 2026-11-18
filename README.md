@@ -97,6 +97,8 @@ Matrix products take 16-bit integer inputs under the default and 8-bit under `in
 Attention, norms, RoPE, residuals and routers stay F32, and the KV cache is `f16` unless `--cache-type-k` and `--cache-type-v` say `f32`, or `native` on a model that declares its own cache format, where that is the default.
 The full table of what each part computes in is in [PRECISION](docs/PRECISION.md#what-each-part-computes-in).
 
+A model that declares YaRN rope scaling runs it as declared, and `--yarn F` (with `--yarn-original-ctx N`) turns it on for any model, the context becoming F times the trained length. See [rope scaling](docs/USAGE.md#rope-scaling).
+
 ## File formats
 
 | Format | Status |

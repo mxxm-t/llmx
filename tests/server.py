@@ -2627,6 +2627,52 @@ def terminate(srv, seconds=60):
     return status
 
 
+def disk_identity_text(model, cache, *flags):
+    """The identity text a server of `model` with a disk tier in `cache` writes beside its entries."""
+    srv = Server(model, *(disk_flags(cache) + flags))
+    try:
+        deadline = time.time() + 60
+        found = []
+        while not found and time.time() < deadline:
+            found = [os.path.join(cache, d, "identity") for d in (servers_in(cache) if os.path.isdir(cache) else [])
+                     if os.path.isfile(os.path.join(cache, d, "identity")) and os.path.getsize(os.path.join(cache, d, "identity"))]
+            time.sleep(0.05)
+        assert found, "the server wrote no identity beside its entries"
+        return open(found[0], encoding="utf-8").read()
+    finally:
+        srv.close()
+
+
+def check_rope(model, directory):
+    """The rope a server runs (docs/USAGE.md, Rope scaling) on the synthetic model of a 16-token context: /v1/health's rope without --yarn and with --yarn 2, which doubles the context, a forced greedy reply equal to generate with the same flag, logits unlike the unscaled rope's with the record and its warning on stderr, and the disk tier's identity keyed on the rope, a line for YaRN only and another factor another identity."""
+    srv = Server(model)
+    try:
+        assert srv.get("/v1/health")["rope"] == {"type": "none", "context": 16, "forced": False, "declared": {"type": "none"}, "requested": None}, srv.get("/v1/health")["rope"]
+    finally:
+        srv.close()
+    flags = ("--yarn", "2")
+    srv = Server(model, *flags)
+    try:
+        health = srv.get("/v1/health")
+        rope = health["rope"]
+        assert health["server"]["context_tokens"] == 32, health["server"]
+        assert rope == {"type": "yarn", "factor": 2, "original": 16, "attention_factor": rope["attention_factor"], "beta_fast": 32, "beta_slow": 1, "context": 32,
+                        "forced": True, "declared": {"type": "none"}, "requested": {"factor": 2, "original": None}}, rope
+        assert abs(rope["attention_factor"] - (0.1 * math.log(2) + 1)) < 1e-6, rope
+        reply = post_ok(srv, "/v1/generate", {"prompt": "abc", "max_tokens": 20, "temperature": 0})
+        want, count = cli_reply(model, "abc", 20, flags + ("--temp", "0"))
+        assert reply["text"] == repaired(want) and len(reply["ids"]) == count, (reply, want)
+    finally:
+        srv.close()
+    p = common.run_process(["logits", model, "abcdefgh", "--yarn", "2"], cache="f32", text=True)
+    q = common.run_process(["logits", model, "abcdefgh"], cache="f32", text=True)
+    assert p.returncode == 0 and q.returncode == 0 and p.stdout != q.stdout, "logits under --yarn 2 are those of the unscaled rope"
+    assert "rope: yarn factor 2 over 16 -> context 32" in p.stderr and "warning: YaRN forced" in p.stderr and "rope:" not in q.stderr, p.stderr
+    texts = [disk_identity_text(model, os.path.join(directory, "rope-%d" % k), *f) for k, f in enumerate(((), ("--yarn", "2"), ("--yarn", "3")))]
+    assert "rope " not in texts[0] and "rope yarn factor 2 original 16" in texts[1] and "rope yarn factor 3 original 16" in texts[2], texts
+    assert len(set(texts)) == 3, "two ropes share a disk identity"
+
+
 def check_disk_identity(directory):
     """The disk tier's identity covers every file of a sharded model (docs/DISK-TIER.md, The entry file): two models of three shards whose first shard, metadata alone, is the same bytes and whose tensors differ must not share an identity, or the entries one kept would be adopted for the other.
     Each is served with a disk tier of its own, and the identity text its server writes beside its entries is read: the two differ, and each names the digest of every one of its files."""
@@ -2639,19 +2685,7 @@ def check_disk_identity(directory):
         files = sorted(f for f in os.listdir(root) if f.endswith(".gguf"))
         assert len(files) == 3 and os.path.join(root, files[0]) == model, (model, files)
         digests.append([hashlib.sha256(open(os.path.join(root, f), "rb").read()).hexdigest() for f in files])
-        cache = os.path.join(root, "cache")
-        srv = Server(model, *disk_flags(cache))
-        try:
-            deadline = time.time() + 60
-            found = []
-            while not found and time.time() < deadline:
-                found = [os.path.join(cache, d, "identity") for d in (servers_in(cache) if os.path.isdir(cache) else [])
-                         if os.path.isfile(os.path.join(cache, d, "identity")) and os.path.getsize(os.path.join(cache, d, "identity"))]
-                time.sleep(0.05)
-            assert found, "the server wrote no identity beside its entries"
-            texts.append(open(found[0], encoding="utf-8").read())
-        finally:
-            srv.close()
+        texts.append(disk_identity_text(model, os.path.join(root, "cache")))
     assert digests[0][0] == digests[1][0] and digests[0][1:] != digests[1][1:], "the two models' first shards differ, or their tensors do not"
     assert texts[0] != texts[1], "two models that share a first shard and differ in their tensors have one disk identity:\n" + texts[0]
     for text, ds in zip(texts, digests):
@@ -3097,6 +3131,8 @@ def run(require=False):
         check_mxfp4(directory)
         check_disk_identity(directory)
         print("server: two models of three shards that share their first shard and differ in their tensors have different disk identities, each naming every file's digest  [ok]")
+        check_rope(model, directory)
+        print("server: synthetic F32 model under --yarn 2, /v1/health's rope, its greedy reply equal to the CLI's, its logits unlike the unscaled rope's and a disk identity of its own for each rope  [ok]")
         if check_startup(model, directory):
             print("server: a server whose model is a pipe answers /v1/health with 503 and its start's record while it reads the metadata, every other route 503, "
                   "a SIGTERM ending it within seconds and a fault in the file ending it nonzero, and a server that serves keeps its record, every phase done  [ok]")

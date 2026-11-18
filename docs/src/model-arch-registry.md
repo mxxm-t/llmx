@@ -10,8 +10,8 @@ build a model without the loader include it, and nothing else does. A module nev
 which variant it reads and under which prefix.
 
 - `ArchEntry`, `kArchitectures`: each `general.architecture` value llmx
-  runs and the reader of its files, which reads the configuration under the
-  name's prefix: `qwen3` (`qwen3::open_dense`) and `qwen3moe`
+  runs and the reader of its files, which reads the configuration under the name's prefix with the command line's rope request (`rope::Request`, [rope](model-rope.md)):
+  `qwen3` (`qwen3::open_dense`) and `qwen3moe`
   (`qwen3::open_routed`), [qwen3](model-arch-qwen3.md), and `qwen35`
   (`qwen35::open_dense`) and `qwen35moe` (`qwen35::open_routed`),
   [qwen35](model-arch-qwen35.md), `qwen4exp` (`qwen4exp::open`), [qwen4exp](model-arch-qwen4exp.md), `deepseek41` (`deepseek4::open_v41`), [deepseek4](model-arch-deepseek4.md), with its `dflash` drafter pairing (`deepseek4::normalize_drafter`), and `minimax-m3` (`minimax_m3::open`), [minimax_m3](model-arch-minimax_m3.md), whose plan is refused by name until its math runs.
@@ -23,9 +23,9 @@ which variant it reads and under which prefix.
   `general.architecture` is read as qwen3, since the tests' fixtures write
   none; an unknown name, or one that is not a string, is refused
   ("inference: unsupported metadata general.architecture").
-- `gguf_weights(GGUFModel)`: a GGUF model's weights (`ModelWeights`,
+- `gguf_weights(GGUFModel, request)`: a GGUF model's weights (`ModelWeights`,
   [weights](model-weights.md)): the architecture its entry reads, whose
-  configuration is read once and, before any backend storage exists, a
+  configuration is read once with the rope request (empty by default, the file's own rope) and, before any backend storage exists, a
   view per tensor, refusing a tensor table whose storage count does not
   match its tensors, with a rank above four, or an offset or extent outside
   the payload, which includes a payload its owner released; a composite

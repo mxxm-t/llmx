@@ -88,6 +88,12 @@ static float real(const gguf::GGUFModel& m, const std::string& key) {
     return f;
 }
 
+static std::string text_of(const gguf::GGUFModel& m, const std::string& key) {
+    const gguf::MetaValue* v = m.find(key);
+    require(v && v->vtype == gguf::V_STRING, key + " is not a string");
+    return v->s;
+}
+
 int main() {
     try {
         {
@@ -157,7 +163,28 @@ int main() {
         refused(config("\"model_type\":\"qwen3\"", "\"model_type\":\"qwen2\""), tensors(), "model_type must be qwen3");
         refused(config("\"attention_bias\":false", "\"attention_bias\":true"), tensors(), "attention_bias = true");
         refused(config("\"hidden_act\":\"silu\"", "\"hidden_act\":\"gelu\""), tensors(), "hidden_act");
-        refused(config("\"rope_scaling\":null", "\"rope_scaling\":{\"type\":\"yarn\"}"), tensors(), "rope_scaling");
+        {
+            // YaRN as the GGUF converter writes it, and the original length max_position_embeddings where the config gives none, as transformers reads it.
+            ++cases;
+            gguf::GGUFModel m = tensors();
+            read_config(config("\"rope_scaling\":null", "\"rope_scaling\":{\"rope_type\":\"yarn\",\"factor\":4.0,\"original_max_position_embeddings\":16,\"beta_fast\":32,\"beta_slow\":1}"), m);
+            require(m.kv.size() == 16 && text_of(m, "qwen3.rope.scaling.type") == "yarn" && real(m, "qwen3.rope.scaling.factor") == 4.0f &&
+                        integer(m, "qwen3.rope.scaling.original_context_length") == 16 && real(m, "qwen3.rope.scaling.yarn_beta_fast") == 32.0f &&
+                        real(m, "qwen3.rope.scaling.yarn_beta_slow") == 1.0f, "rope_scaling yarn keys");
+            const infer::qwen3::Config c = infer::qwen3::read_config(m, "qwen3.", false);
+            require(c.rope_policy.yarn && !c.rope_policy.forced && c.rope_policy.factor == 4.0f && c.rope_policy.original == 16 && c.context_length == 64, "declared YaRN read");
+            gguf::GGUFModel n = tensors();
+            read_config(config("\"rope_scaling\":null", "\"rope_scaling\":{\"type\":\"yarn\",\"factor\":2}"), n);
+            require(n.kv.size() == 14 && integer(n, "qwen3.rope.scaling.original_context_length") == 64, "the original defaults to max_position_embeddings");
+        }
+        const auto scaling = [&](const std::string& body) { return config("\"rope_scaling\":null", "\"rope_scaling\":" + body); };
+        refused(scaling("{\"rope_type\":\"linear\",\"factor\":2}"), tensors(), "rope_scaling.rope_type = \"linear\" is not supported");
+        refused(scaling("{\"factor\":2}"), tensors(), "rope_scaling gives no rope_type");
+        refused(scaling("{\"rope_type\":\"yarn\"}"), tensors(), "rope_scaling gives no factor");
+        refused(scaling("1"), tensors(), "rope_scaling is not an object or null");
+        for (const char* key : {"attention_factor", "mscale", "mscale_all_dim"})
+            refused(scaling(std::string("{\"rope_type\":\"yarn\",\"factor\":2,\"") + key + "\":1}"), tensors(), std::string("rope_scaling.") + key + " is not supported");
+        refused(scaling("{\"rope_type\":\"yarn\",\"factor\":2,\"truncate\":false}"), tensors(), "key rope_scaling.truncate is not one llmx reads");
         refused(config("\"use_sliding_window\":false", "\"use_sliding_window\":true"), tensors(), "use_sliding_window");
         refused(config("", "\"layer_types\":[\"full_attention\",\"sliding_attention\"]"), tensors(), "layer_types = \"sliding_attention\"");
         refused(config("", "\"layer_types\":\"full_attention\""), tensors(), "layer_types is not an array");

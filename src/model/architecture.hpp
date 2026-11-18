@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "backends/backend.hpp"
+#include "model/rope.hpp"
 #include "model/weights.hpp"
 
 // The contract between the runtime (model/runtime.hpp) and an architecture: the plan an architecture declares, which the runtime resolves, fits, places and streams from, and the parts of a pass it runs as backend ops.
@@ -370,6 +371,8 @@ public:
     virtual ModelPlan plan(const TensorIndex& tensors) const = 0;
     // The tables come sized as the plan says; `sources` are host views of the plan's RoleKind::source roles in plan order, the layers ascending and a layer's roles in order, read only during the call.
     virtual void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<TensorView>& sources) const = 0;
+    // The rope the model runs, which its tables hold, for the record, the server and the identity of a history copied off the devices.
+    virtual const rope::Policy& rope_policy() const = 0;
     virtual void embed(const Step& s, const uint32_t* ids) const = 0;
     // Fill Step::indices from the pass's tokens and preceding token snapshots, without backend work, allocation or I/O.
     virtual void lookup_ids(const Step&) const { throw std::runtime_error("inference: this architecture has no weight-row lookup"); }

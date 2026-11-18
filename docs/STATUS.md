@@ -79,6 +79,35 @@
   Follow-up, not a landing item: eligibility by a cell's worst rep with ranking by the median, adopted only after the 20-startup series on both cards, and a rep's chains in one submission where timestamps exist, to cut the host waits.
 - **Gotchas:** absolute link costs move about 35% between a cold card and one after benches, so only ratios within one rep are compared; a mixed chain alone ranks the family-only cell first, which the models refute, so the one-pipeline limit is part of the rule.
 
+## YaRN rope scaling (2026-11-18, RDEV, YARN1 to YARN4, branch feat/rope-owner on main a274cfd62; plan proposals/rdev-yarn-20261101/PLAN.md, approved with changes by F2DEV and XDEV on 2026-11-01; lands by fast-forward)
+
+- **Done:** one rope owner, `src/model/rope.hpp`, writes every text module's tables (qwen3, qwen35, qwen4exp, minimax-m3, deepseek41), each module supplying its base-frequency spelling (`rope::Base`).
+  `rope::resolve` reads the file's keys and the request into a `rope::Policy`: declared YaRN runs as written, `--yarn F` with `--yarn-original-ctx N` turns it on for any model with the context floor(F x L0), and every refusal comes before allocation.
+  `rope::frequencies` gives HF's YaRN blend and `rope::fill` folds the attention factor into the tables, so no kernel changes; the policy is printed as the `rope:` record, given in `/v1/health` `rope` and in `Model::host_identity`, so the disk tier never reads a history saved under another rope.
+  The health `rope` object carries `declared` and `requested` beside the 2026-11-01 shape, for the dashboard.
+  Only a given `--yarn-original-ctx` is held to the model's context: a declared original past it, as the tiny deepseek41 golden's 65536 over 256, takes `--yarn F` alone (`rope` CTest).
+  Tests: `rope` CTest, the tiny HF YaRN fixture and its `--yarn` twin byte-equal in `f32`, the YaRN golden, device rope cases on scaled tables in backend-vulkan and backend-rocm, the flags' refusals on every model command in `cli`, and `/v1/health`, the CLI-equal greedy reply and a disk identity per rope in `server` (docs/TESTS.md).
+- **Left:** `--yarn` in the tools `llmx-split-check`, `llmx-model-logits` and `llmx-decode-probe` (plan step 3); the fill-time and table-memory profile at 131072 x 64 and 1048576 x 32 pairs.
+- **Gotchas:** transformers 4.55.2 (the qwen3 pin) recomputes the factor as max_position_embeddings / original whenever the original is given, 5.16.1 and 5.17.0 only when the factor is absent (docs/USAGE.md, Rope scaling). `--yarn` applies to every model a command loads, a draft model included. The numerics fingerprint covers `src/model/`, so this build's disk entries are a new identity whatever the rope.
+  With `--ctx-size 1m` on Flash-Next over four MI50s the KV pool holds 815104 tokens, and the server caps a request there and says so.
+
+| Check | Result | Tree |
+|---|---|---|
+| Builds Vulkan and ROCm 7.2.1 | 0 errors | 82c9e768b |
+| CTest (Vulkan build, CPU) | 112/112 | 82c9e768b |
+| backend-vulkan and backend-rocm, one MI50 each | pass, rope cases at the 1.0 and 1.2 tables | 82c9e768b |
+| Suite on the CPU | PASS but arch-boundary: a comment in `rope.hpp` named an architecture, reworded at the head, after which arch-boundary and dead-code pass | 82c9e768b |
+| Suite on vulkan:0, one MI50 | PASS | 82c9e768b |
+| `f32` YaRN against the tiny HF fixture | max logit error 6.1e-7 (bound 2e-5), NLL 4e-8 (bound 1e-5), the forced twin byte-equal | 82c9e768b |
+| YaRN off against main: logits, per-token logits and greedy generate | byte identical on the CPU for Qwen3-0.6B Q8_0, Qwen3.5-0.8B Q8_0 and the tiny qwen4exp, minimax and deepseek41; one MI50 Vulkan the same but minimax, which Vulkan refuses in both arms (sigmoid_routing); Qwen3.8-Flash-Next UD-Q4_K_XL on four MI50s Vulkan | 82c9e768b |
+| `--yarn 4` loads and runs | every model above, the tiny deepseek41 given `--yarn-original-ctx 64` as well (the refusal item 3 of F2DEV's 2026-11-18 review removed at the head); Flash-Next on four MI50s Vulkan at its default context of 1048576 generates "the Seine" (KV 33.8 GB over four cards) | 82c9e768b |
+| 48k against file-exact HF YaRN, Qwen3-0.6B Q8_0, `--yarn 4 --yarn-original-ctx 32k`, 49152 tokens, one MI50 Vulkan | f32: 49152/49152 top-1 exact, max abs dlogit 8e-4; default f16 (quality information, no operation-matched reference): 49060 exact, 91 accepted ties (HF gap under 0.05), 1 miss (position 35771, HF gap 0.007); HF mean NLL 3.4764 | 82c9e768b |
+| README Flash-Next ROCm serve example with `--yarn 4 --ctx-size 1m`, four MI50s, tensor width 2, int8, lookup and MTP drafter | starts and answers a chat request with HTTP 200 | 82c9e768b |
+| Timing, one MI50 Vulkan, `bench --p 512 --n 128 --r 3`, main, YaRN off and `--yarn 4`, four alternating rounds | first round: all 24 cells contended (host wait 630 to 3589 ms), no verdict; quiet rerun in COORD's window: 5 of 24 cells contended (host wait up to 574 ms, all Qwen3.5-0.8B), medians Qwen3-0.6B Q8_0 pp512 8945 / 8939 / 8937, tg128 393 / 393 / 393; Qwen3.5-0.8B Q8_0 pp512 7649 / 7645 / 7645, tg128 351 / 350 / 349 tok/s: level | 82c9e768b |
+
+The head differs from 82c9e768b by one comment line and the original-past-context rule in `src/model/rope.hpp`, its `rope` CTest case and this record; the rope CTest and the suite's cli, docs and dead-code components ran at the head.
+README gains the rope-scaling line (models that declare YaRN and `--yarn F`), which the readme check passes.
+
 ## Landing stack land-20261117 (2026-11-17, LAND68 then LAND69, Done)
 
 **What lands.** The stack on main 3b88cfb3a, in this order: formats/quant-gptq (tests, then the change), formats/quant-compressed (tests, then the change), formats/quant-fp8 step 1 (tests, then the change) and its Vulkan step, perf/stage-rounds, feat/deepseek41-vision's image input, perf/ds4-decode-attn (DSDEV229's rebase), and the DeepSeek-V4.1-Flash prompt stack: dspp26/rope-form, dspp26/q8-tall, perf/sparse-pair-staging and perf/mxfp4-tile-staging.
@@ -5278,6 +5307,7 @@ The suite on rocm:0 fails reference-consumer, half-weights, moe and vision on ma
 - **References:** the code comments and live docs that pointed to AGENTS.md, Tests for a test's cases now point to `docs/TESTS.md`; dated STATUS records keep theirs, which still resolve to AGENTS.md's Tests heading.
 - **Left:** the hosted run, which the coordinator starts.
 - **Gotchas:** a new test is described in `docs/TESTS.md`, not AGENTS.md; `test-name` fails a CTest or component that page never names.
+
 ## Compressed dashboard event stream (2026-11-01, standalone dashboard)
 
 - **Goal:** reduce the initial dashboard stream transfer while keeping the existing SSE event schema, history cursor, reconnect behavior and uncompressed clients.

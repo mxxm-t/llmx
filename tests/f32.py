@@ -15,6 +15,11 @@ CONFIG = {"block_count": 2, "embedding_length": 37, "feed_forward_length": 19,
           "attention.head_count": 2, "attention.head_count_kv": 1,
           "attention.key_length": 42, "context_length": 16}
 TEXTS = ["a", "ab", "abc", "abcdefg", "abcdefghijklm"]
+# The same model declaring YaRN at factor 4 over 512 tokens, its context 4 x 512 as transformers needs to run that factor (docs/USAGE.md, Rope scaling), so the ramp lies inside the 21 pairs; and its twin without the keys.
+YARN_TWIN = dict(CONFIG, context_length=2048)
+YARN_CONFIG = dict(YARN_TWIN, **{"rope.scaling.type": "yarn", "rope.scaling.factor": 4.0, "rope.scaling.original_context_length": 512})
+YARN_SCALING = {"rope_type": "yarn", "factor": 4.0, "original_max_position_embeddings": 512}
+YARN_FLAGS = ["--yarn", "4", "--yarn-original-ctx", "512"]
 # One token per byte, then <|endoftext|>.
 VOCAB = 257
 
@@ -73,13 +78,13 @@ def weight_hash(weights):
                                    for _, _, _, v in weights)).hexdigest()
 
 
-def golden(name):
+def golden(name, config=CONFIG):
     """The golden `name` in tests/data for this model, checked against CONFIG and against the weights tensors() builds.
     A golden of several fixtures holds each one's tied flag and weight hash, and one of a single model holds its hash at the top level, for the untied weights.
     Each checked fixture, or the golden itself, gets those weights under "weights"."""
     with open(os.path.join(os.path.dirname(__file__), "data", name), encoding="utf-8") as f:
         doc = json.load(f)
-    assert doc["config"] == CONFIG, "%s: fixture config changed" % name
+    assert doc["config"] == config, "%s: fixture config changed" % name
     for fixture in doc.get("fixtures", [doc]):
         fixture["weights"] = tensors(fixture.get("tied", False))
         assert weight_hash(fixture["weights"]) == fixture["weights_sha256"], "%s: fixture weights changed" % name
@@ -87,7 +92,9 @@ def golden(name):
 
 
 def metadata_value(value):
-    """A config value as the converter types it in a GGUF: an int as uint32, a float as float32, and a list of ints as an int32 array, as rope.dimension_sections is."""
+    """A config value as the converter types it in a GGUF: an int as uint32, a float as float32, a string as a string, and a list of ints as an int32 array, as rope.dimension_sections is."""
+    if isinstance(value, str):
+        return struct.pack("<IQ", 8, len(value.encode())) + value.encode()
     if isinstance(value, float):
         return struct.pack("<If", 6, value)
     if isinstance(value, list):
@@ -227,6 +234,30 @@ def check_logits_input(directory, model, cases):
     return worst
 
 
+def check_yarn(directory):
+    """The model declaring YaRN against HF's YaRN goldens, its drafts leaving output as it was, and its twin without the keys under YARN_FLAGS printing the declared model's bytes; returns the largest logit error."""
+    doc = golden("baseline_yarn.json", YARN_CONFIG)
+    declared, twin = os.path.join(directory, "yarn.gguf"), os.path.join(directory, "yarn-twin.gguf")
+    write_model(declared, doc["weights"], config=YARN_CONFIG)
+    write_model(twin, doc["weights"], config=YARN_TWIN)
+    error, _ = common.check_hf_fixture("F32 YaRN", declared, doc["cases"], doc["perplexity"], TEXTS[-1], (1, 5, 16))
+    common.check_drafts("F32 YaRN", declared)
+    text = TEXTS[-1]
+    for args in (["logits", text, "--top", "257"], ["logits", text, "--per-token", "--last", str(len(text)), "--top", "257"],
+                 ["perplexity", text, "-c", "4"], ["generate", "abc", "-n", "12", "--ignore-eos", "--verbose", "--temp", "0"]):
+        # Bytes, since a generated text need not be UTF-8; surrogateescape keeps every byte for the comparison, and stderr reads Windows CRLF line ends as newlines.
+        a, b = (common.run_process(cmd, cache="f32") for cmd in ([args[0], declared] + args[1:], [args[0], twin] + args[1:] + YARN_FLAGS))
+        assert a.returncode == 0 and b.returncode == 0, (args, a.stderr, b.stderr)
+        a, b = ({"stdout": p.stdout.decode("utf-8", "surrogateescape"), "stderr": p.stderr.decode("utf-8", "surrogateescape").replace("\r\n", "\n")} for p in (a, b))
+        keep = (lambda out: re.findall(r"^ids:.*$", out, re.M)) if args[0] == "generate" else (
+            (lambda out: {k: v for k, v in common.perplexity_fields(out).items() if "NLL" in k or "perplexity" in k}) if args[0] == "perplexity" else (lambda out: out))
+        assert keep(a["stdout"]) and keep(a["stdout"]) == keep(b["stdout"]), "%s: the twin under %s differs from the declaring model" % (args, " ".join(YARN_FLAGS))
+        record = "rope: yarn factor 4 over 512 -> context 2048, attention x%.9g" % (0.1 * math.log(4) + 1)
+        assert record + " (model declares yarn factor 4 over 512)\n" in a["stderr"], a["stderr"]
+        assert record + " (model declares none) (warning: YaRN forced" in b["stderr"], b["stderr"]
+    return error
+
+
 def run():
     if common.f32_cache_skip("f32") or common.tensor_width_skip("f32"):
         return common.SKIPPED
@@ -239,6 +270,7 @@ def run():
                                                (1, 2, 3, 5, 16))
             worst = max(worst, error, check_logits_input(directory, model, fixture["cases"]))
             common.check_drafts("F32", model)
+        worst = max(worst, check_yarn(directory))
         # The bench measures on top of a history when asked for a depth, and refuses one with batched decode.
         rc, out = cli(["bench", "--model", model, "--p", "4", "--n", "2", "--r", "1", "--depth", "6"])
         assert rc == 0 and "pp4 @ d6" in out and "tg2 @ d6" in out, "bench --depth failed: " + out
@@ -249,7 +281,8 @@ def run():
         reports = re.findall(r"^bench: (.+?)\s+(\S+) \+- (\S+) tok/s  \((\d+) runs\)$", out, re.M)
         assert rc == 0 and [(what, runs) for what, _, _, runs in reports] == [("pp4", "2"), ("x2 tg2", "2")], "bench --seqs 2 failed: " + out
         assert all(math.isfinite(float(mean)) and float(mean) > 0 and math.isfinite(float(sd)) for _, mean, sd, _ in reports), out
-    print("f32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads, PPL, --file and --last/--then-ids/--per-token rows, the same bytes over passes, bench --seqs 2; max error %.8f  [ok]" % worst)
+    print("f32: all 257 logits vs HF, tied/untied, batch/row/column tails, threads, PPL, --file and --last/--then-ids/--per-token rows, the same bytes over passes, bench --seqs 2, "
+          "declared YaRN vs HF and its twin under --yarn byte-equal; max error %.8f  [ok]" % worst)
     return True
 
 

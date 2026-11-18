@@ -431,7 +431,7 @@ void rules() {
         {"a candidate source past the blocks", u32("attention.candidate_source_layer_id", 9), "the candidate source layer is not an index source"},
         {"candidates read at another ratio", u32("attention.candidate_source_layer_id", 4), "index source layer 5 reads candidates of another ratio"},
         {"more experts a token than a layer has", u32("expert_used_count", 5), "more experts per token than the layer has"},
-        {"an odd rotary width", u32("rope.dimension_count", 7), "invalid rotary width, which must be even and at most the head and indexer head widths"},
+        {"an odd rotary width", u32("rope.dimension_count", 7), "invalid rope base, width or context"},  // the rope owner refuses it first
         {"a rotary width past the indexer head", u32("attention.indexer.key_length", 4), "invalid rotary width, which must be even and at most the head and indexer head widths"},
         {"output groups that do not divide the heads", u32("attention.output_group_count", 3), "the output groups do not divide the attention heads' width"},
         {"an Engram n-gram of one token", u32("engram.max_ngram_size", 1), "invalid Engram dimensions"},
@@ -859,8 +859,7 @@ void position_tables() {
             if (double(tables[infer::deepseek4::engram_norms + l][i]) != double(values[2 * l][i]) * double(values[2 * l + 1][i])) throw std::runtime_error("layer " + std::to_string(l) + "'s norm table");
     require(true, "the rope tables within one F32 unit of the double reference and the norm tables exact");
     // What the reference's own float32 pipeline (float32 frequencies, the angle in float32, then polar) differs by from the tables, at 256 and 65536 positions, for STATUS.
-    const std::vector<double> f = infer::deepseek4::rope_frequencies(dim, g.args.at("compress_rope_theta"), int(g.args.at("original_seq_len")), g.args.at("rope_factor"),
-                                                                     g.args.at("beta_fast"), g.args.at("beta_slow"));
+    const std::vector<double> f = infer::rope::frequencies(w.arch->rope_policy());
     for (size_t positions : {size_t(256), size_t(65536)}) {
         double most = 0;
         for (size_t pos = 0; pos < positions; ++pos)

@@ -22,6 +22,7 @@ enum class Rule {
     real,      // a finite positive number, stored as FLOAT32
     check,     // checked against `allowed` and not stored
     each,      // an array whose every entry is checked as `check` checks a value, not stored
+    rope_scaling,  // null, or YaRN's parameters stored as the rope.scaling keys the GGUF converter writes
 };
 
 struct Key {
@@ -90,6 +91,40 @@ inline gguf::MetaValue meta(const jmini::Value& v, Rule rule, const std::string&
     return out;
 }
 
+// rope_scaling under the prefix `p`: null for the unscaled rope, or YaRN's object, its original length max_position_embeddings where it gives none, as transformers reads it.
+// HF's keys for an attention factor other than 0.1 ln(factor) + 1 are refused by name, as is any other key or type.
+inline void rope_scaling(const jmini::Value& v, const jmini::Value& config, const std::string& p, std::vector<std::pair<std::string, gguf::MetaValue>>& kv) {
+    if (v.t == jmini::Value::T::Null) return;
+    if (!v.isObject()) throw std::runtime_error("config.json rope_scaling is not an object or null");
+    gguf::MetaValue type;
+    type.vtype = gguf::V_STRING;
+    type.s = "yarn";
+    kv.emplace_back(p + "rope.scaling.type", type);
+    std::set<std::string> seen;
+    for (const auto& [key, value] : v.obj) {
+        const std::string what = "rope_scaling." + key;
+        if (!seen.insert(key).second) throw std::runtime_error("config.json repeats key " + what);
+        if (key == "rope_type" || key == "type") {
+            if (!value.isString() || value.str != "yarn") throw std::runtime_error("config.json " + what + " = " + text(value) + " is not supported (\"yarn\")");
+        } else if (key == "factor") {
+            kv.emplace_back(p + "rope.scaling.factor", meta(value, Rule::real, what));
+        } else if (key == "original_max_position_embeddings") {
+            kv.emplace_back(p + "rope.scaling.original_context_length", meta(value, Rule::integer, what));
+        } else if (key == "beta_fast" || key == "beta_slow") {
+            kv.emplace_back(p + "rope.scaling.yarn_" + key, meta(value, Rule::real, what));
+        } else if (key == "attention_factor" || key == "mscale" || key == "mscale_all_dim") {
+            throw std::runtime_error("config.json " + what + " is not supported");
+        } else {
+            throw std::runtime_error("config.json key " + what + " is not one llmx reads");
+        }
+    }
+    if (!seen.count("rope_type") && !seen.count("type")) throw std::runtime_error("config.json rope_scaling gives no rope_type");
+    if (!seen.count("factor")) throw std::runtime_error("config.json rope_scaling gives no factor");
+    const jmini::Value* longest = config.get("max_position_embeddings");
+    if (!seen.count("original_max_position_embeddings") && longest)
+        kv.emplace_back(p + "rope.scaling.original_context_length", meta(*longest, Rule::integer, "max_position_embeddings"));
+}
+
 // The layer number `name` gives where `pattern` has "{N}", if it matches.
 inline bool match(const std::string& pattern, const std::string& name, uint64_t& layer) {
     const size_t at = pattern.find("{N}");
@@ -134,6 +169,8 @@ inline void apply(const Table& table, const std::string& arch, const jmini::Valu
             known = true;
             if (k.rule == Rule::check) {
                 detail::check(k, key, value);
+            } else if (k.rule == Rule::rope_scaling) {
+                detail::rope_scaling(value, config, arch + ".", kv);
             } else if (k.rule == Rule::each) {
                 if (!value.isArray()) throw std::runtime_error("config.json " + key + " is not an array");
                 for (const jmini::Value& entry : value.arr) detail::check(k, key, entry);

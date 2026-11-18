@@ -956,7 +956,7 @@ inline Sequence Model::fork(const Sequence& src, size_t length, HostHistory& sta
     return f;
 }
 
-// What a history copied to host memory holds and how, beyond the model file and the build: each device's identity, effective dtype and runs, the cache types, the placement and the row classes up to the most a history holds.
+// What a history copied to host memory holds and how, beyond the model file and the build: a scaled rope, each device's identity, effective dtype and runs, the cache types, the placement and the row classes up to the most a history holds.
 // Two models of one file and one build with equal identities hold the same bytes for the same history, so a copy written by one is restored by the other (docs/DISK-TIER.md, The entry file).
 inline std::string Model::host_identity() const {
     std::string s = token_width_ ? "llmx-host-history 2\n" : "llmx-host-history 1\n";
@@ -967,6 +967,8 @@ inline std::string Model::host_identity() const {
         return t;
     };
     s += "kv " + std::string(backend::kv_type_name(options_.kv_k)) + " " + backend::kv_type_name(options_.kv_v) + "\n";
+    // A scaled rope changes every history's bits; the unscaled one adds nothing, so its identities are the ones before YaRN.
+    s += arch_->rope_policy().identity();
     for (size_t i = 0; i < devices_.size(); ++i) {
         const Device& d = *devices_[i];
         const backend::Dtype dtype = options_.device_dtypes.empty() ? options_.dtype : options_.device_dtypes[i];

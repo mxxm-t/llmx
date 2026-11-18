@@ -297,6 +297,7 @@ public:
         return p;
     }
     void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<infer::TensorView>& sources) const override { base_->fill_tables(tables, sources); }
+    const infer::rope::Policy& rope_policy() const override { return base_->rope_policy(); }
     void embed(const infer::Step& s, const uint32_t* ids) const override { base_->embed(s, ids); }
     void pass_values(const infer::Step& s) const override { base_->pass_values(s); }
     void mixer(const infer::Step& s) const override { base_->mixer(s); }

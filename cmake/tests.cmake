@@ -224,6 +224,13 @@ target_include_directories(llmx-fp16-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/sr
 list(APPEND LLMX_TARGETS llmx-fp16-test)
 add_test(NAME fp16 COMMAND llmx-fp16-test)
 set_tests_properties(fp16 PROPERTIES TIMEOUT 60)
+
+add_executable(llmx-rope-test tests/rope.cpp)
+target_include_directories(llmx-rope-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+list(APPEND LLMX_TARGETS llmx-rope-test)
+add_test(NAME rope COMMAND llmx-rope-test)
+set_tests_properties(rope PROPERTIES TIMEOUT 60)
+
 add_executable(llmx-twin-quotients-test tests/twin_quotients.cpp)
 if(NOT MSVC AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     # Each multiply and add must round alone, as the shader's precise ones do.

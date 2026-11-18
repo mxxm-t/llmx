@@ -445,7 +445,7 @@ Read at main 8bdef6867, with production's logs of 2026-10-17 to 2026-10-27 (`/zp
 
 ### (b) YaRN
 
-Not an item of its own. No model llmx runs declares rope scaling, and llmx never applies scaling a model does not declare. The first architecture whose files declare it, DeepSeek-V4.1 on the roadmap, takes YaRN in its own module as its declared rope, with that module's tiny HF fixture and the long-context check (AGENTS.md, Traps the gates exist for) as its gate. qwen35 and qwen4exp keep refusing a scaled rope by name until a file of theirs declares one. When a second architecture's files declare it, YaRN moves into the rope owner the architectures share (the graph pieces under `src/model/arch/`), never a copy (F2DEV, 2026-10-27).
+Superseded on 2026-11-01 by the owner's decision of that day: YaRN lives in the shared rope owner `src/model/rope.hpp` for every text architecture, declared YaRN automatic and `--yarn` for a file that declares none (`docs/USAGE.md`, Rope scaling). The text below is the earlier decision. Not an item of its own. No model llmx runs declares rope scaling, and llmx never applies scaling a model does not declare. The first architecture whose files declare it, DeepSeek-V4.1 on the roadmap, takes YaRN in its own module as its declared rope, with that module's tiny HF fixture and the long-context check (AGENTS.md, Traps the gates exist for) as its gate. qwen35 and qwen4exp keep refusing a scaled rope by name until a file of theirs declares one. When a second architecture's files declare it, YaRN moves into the rope owner the architectures share (the graph pieces under `src/model/arch/`), never a copy (F2DEV, 2026-10-27).
 
 ### (c) KV beyond VRAM
 

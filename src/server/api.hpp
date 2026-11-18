@@ -447,7 +447,7 @@ private:
                   "{\"status\":\"ok\",\"server\":{\"version\":" + jmini::quote(LLMX_VERSION_STRING) + ",\"numerics\":" + jmini::quote(numerics) +
                   ",\"uptime_s\":" + n((uint64_t)std::max<int64_t>(0, up)) + ",\"model\":" + jmini::quote(cfg_.model_name) +
                   ",\"context_tokens\":" + n(model_.context_length()) + ",\"request_tokens\":" + n(sched_.token_limit()) + ",\"kv_tokens\":" + n(model_.kv_tokens_total()) + ",\"devices\":[" + devices + "]}" + (startup_ ? ",\"startup\":" + startup_->json() : std::string()) +
-                  ",\"topology\":" + cached_topology_json_ + ",\"precision\":" + dtype_json(cfg_.dtype) +
+                  ",\"topology\":" + cached_topology_json_ + ",\"precision\":" + dtype_json(cfg_.dtype) + ",\"rope\":" + rope_json(model_.rope_policy()) +
                   ",\"requests\":{\"now\":{\"active\":" + n(s.active) + ",\"queued\":" + n(s.queued) + ",\"paused\":" + n(s.paused) + ",\"kv_tokens\":" + n(s.kv_tokens) +
                   "},\"limits\":{\"active\":" + n(cfg_.max_seqs) + ",\"queued\":" + n(cfg_.max_queue) +
                   "},\"since_start\":{\"finished\":" + n(s.finished) + ",\"prompt_tokens\":" + n(s.prompt_tokens) + ",\"generated_tokens\":" + n(s.generated_tokens) +
@@ -603,6 +603,21 @@ private:
             devices += (devices.empty() ? "" : ",") + std::string("{\"device\":") + jmini::quote(dev.name) + ",\"how\":" + jmini::quote(dev.how) + ",\"paths\":" + jmini::quote(dev.paths) + ",\"effective\":\"" + backend::dtype_name(dev.effective) + "\"}";
         return std::string("{\"requested\":\"") + d.requested_name() + "\",\"declared\":\"" + backend::dtype_name(d.declared) + "\",\"effective\":\"" +
                backend::dtype_name(d.effective) + "\",\"devices\":[" + devices + "]}";
+    }
+    // The rope the model runs (model/rope.hpp): what the file declared, what --yarn asked and what took effect.
+    static std::string rope_json(const infer::rope::Policy& p) {
+        const auto n = [](size_t v) { return std::to_string(v); };
+        const auto yarn = [&](float factor, size_t original) {
+            return "\"type\":\"yarn\",\"factor\":" + jmini::number(factor) + ",\"original\":" + n(original);
+        };
+        std::string s = p.yarn ? "{" + yarn(p.factor, p.original) + ",\"attention_factor\":" + jmini::number(p.attention) + ",\"beta_fast\":" + jmini::number(p.beta_fast) +
+                                     ",\"beta_slow\":" + jmini::number(p.beta_slow)
+                               : std::string("{\"type\":\"none\"");
+        s += ",\"context\":" + n(p.context) + ",\"forced\":" + (p.forced ? "true" : "false");
+        s += ",\"declared\":{" + (p.declared_yarn ? yarn(p.declared_factor, p.declared_original) : std::string("\"type\":\"none\"")) + "}";
+        s += ",\"requested\":" + (p.requested.factor ? "{\"factor\":" + jmini::number(*p.requested.factor) + ",\"original\":" + (p.requested.original ? n(*p.requested.original) : "null") + "}"
+                                                     : std::string("null"));
+        return s + "}";
     }
     // A timed scheduler's figures (--timing): each thread time as a mean over the rounds, each stage's idle share over the span its device time was read in, and the device-bound rate of that span.
     static std::string timing_json(const Scheduler::Timing& t) {

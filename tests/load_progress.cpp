@@ -874,6 +874,7 @@ public:
         p.tables.push_back(size_t(t.shape[0] * t.shape[1]));
         return p;
     }
+    const infer::rope::Policy& rope_policy() const override { return base_->rope_policy(); }
     void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<infer::TensorView>& sources) const override {
         require(sources.size() == 1 && sources[0].data && sources[0].name == "blk.0.src.weight", "fill_tables was not handed the source's host view");
         seen_->bytes.assign(sources[0].data, sources[0].data + sources[0].bytes);

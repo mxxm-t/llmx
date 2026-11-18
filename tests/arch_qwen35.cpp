@@ -351,6 +351,7 @@ struct TokenHistoryArchitecture final : infer::Architecture {
         return p;
     }
     void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<infer::TensorView>& sources) const override { base->fill_tables(tables, sources); }
+    const infer::rope::Policy& rope_policy() const override { return base->rope_policy(); }
     void embed(const infer::Step& s, const uint32_t* ids) const override { base->embed(s, ids); }
     void mixer(const infer::Step& s) const override {
         if (s.previous_count) {

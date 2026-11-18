@@ -155,7 +155,7 @@ inline std::vector<uint8_t> typed_matrix(uint32_t type, size_t nin, size_t rows,
 // The table's types beside F32 without twins, which take their exact product in every class.
 inline bool exact_only(uint32_t type) {
     return type == quant::GGML_TYPE_BF16 || type == quant::GGML_TYPE_F16 || type == quant::GGML_TYPE_NVFP4 ||
-           type == quant::GGML_TYPE_IQ2_XXS || type == quant::GGML_TYPE_IQ2_XS || type == quant::GGML_TYPE_IQ2_S || type == quant::GGML_TYPE_IQ3_XXS || type == quant::GGML_TYPE_IQ3_S ||
+           type == quant::GGML_TYPE_IQ2_S || type == quant::GGML_TYPE_IQ3_XXS ||
            type == quant::GGML_TYPE_IQ1_S || type == quant::GGML_TYPE_IQ1_M || type == quant::GGML_TYPE_TQ1_0 || type == quant::GGML_TYPE_TQ2_0 || type == quant::GGML_TYPE_Q1_0 || type == quant::GGML_TYPE_Q2_0;
 }
 
@@ -252,10 +252,10 @@ inline std::vector<uint8_t> one_hot_q8(size_t nin, size_t b, size_t j) {
 }
 
 // A block's min for its sub-block: Q4_K's and Q5_K's dmin times the 6-bit min as the format packs them, Q4_1's and Q5_1's min, Q2_K's dmin times the larger 4-bit min of the sub-block's halves.
-// Q6_K, Q3_K, Q4_0, Q5_0, IQ4_NL, IQ4_XS and MXFP4 have none.
+// Q6_K, Q3_K, Q4_0, Q5_0, IQ4_NL, IQ4_XS, IQ2_XXS, IQ2_XS, IQ3_S and MXFP4 have none.
 inline float k_min(uint32_t type, const uint8_t* block, int sub) {
     if (type == quant::GGML_TYPE_Q6_K || type == quant::GGML_TYPE_Q3_K || type == quant::GGML_TYPE_Q4_0 || type == quant::GGML_TYPE_Q5_0 || type == quant::GGML_TYPE_IQ4_NL || type == quant::GGML_TYPE_IQ4_XS ||
-        type == quant::GGML_TYPE_MXFP4)
+        type == quant::GGML_TYPE_IQ2_XXS || type == quant::GGML_TYPE_IQ2_XS || type == quant::GGML_TYPE_IQ3_S || type == quant::GGML_TYPE_MXFP4)
         return 0.0f;
     if (type == quant::GGML_TYPE_Q2_K) return f16_to_f32(uint16_t(block[82] | (block[83] << 8))) * float(std::max(block[2 * sub] >> 4, block[2 * sub + 1] >> 4));
     if (type == quant::GGML_TYPE_Q5_1 || type == quant::GGML_TYPE_Q4_1) return f16_to_f32(uint16_t(block[2] | (block[3] << 8)));

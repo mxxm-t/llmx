@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Safetensors FP8 skip on devices without F8_E4M3 (2026-11-18, FP8R1, branch fix/safetensors-rocm-fp8 on main a274cfd62)
+
+- Goal: the suite's `safetensors` component failed on `--device rocm:0`, since ROCm refuses the FP8 fixtures' F8_E4M3 linears at load and `fp8_checks` asserted the exit status without asking `common.device_lacks_kernel`.
+- Done: on that refusal the FP8 directories' logits and GGUF twins print a SKIP line naming the device, and `info`, the refusals and every other directory still run; CUDA's GPU core lacks F8_E4M3 too and takes the same generic path, with no backend named in the test. docs/TESTS.md says so.
+- Gates, on main a274cfd62's binaries (llmx 0.1.0+ga274cfd62fa9) with the branch's tests on one MI50: main's tests on rocm:0 FAIL on the refusal; the branch's on rocm:0 PASS with the SKIP line; `--require-device-types F8_E4M3` on rocm:0 FAIL as required; vulkan:0 PASS with FP8 worst 1.0e-6 at f32 and 1.173e-3 at f16; CPU `safetensors`, `docs` and `dead-code` PASS (FP8 1.0e-6 and 1.181e-3). No CUDA card on hand; the refusal text is runtime.hpp's, shared by every backend. Tests and docs only, so no runtime gates apply.
+- Left: lands by fast-forward. README unchanged, since its F8_E4M3 row already gives ROCm Planned and CUDA No.
+
 ## Drafter chain holds the head's devices (2026-11-18, CRASH1 then CRASH2, branch fix/disk-tier-drafter-race on main a274cfd62)
 
 **Goal.** Stop the heap corruption REUSE1 saw serving Qwen3.8-Flash-Next UD-Q4_K_XL with its MTP head and the disk tier on four MI50s under ROCm (README flags, tensor width 2): 2 of the 3 disk-tier runs that reached a second turn aborted in malloc ("corrupted size vs. prev_size", "free(): invalid pointer"), 0 of 3 without the disk tier.

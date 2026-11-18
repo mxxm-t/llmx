@@ -23,12 +23,19 @@
 #define GPU_IMMA8 0
 // The launch bounds of the dense int8 tiles, which HIP leaves at the block size so gfx9 keeps its code.
 #define LLMX_TILE8_BOUNDS(blocks) __launch_bounds__(kThreads)
+// A kernel's by-value struct parameter, which HIP leaves as it is so gfx9 keeps its code.
+#define LLMX_GRID_CONST
 
 // The value of lane (this lane xor m), or of lane (this lane + d), within groups of width lanes, the whole wave where no width is given.
 template <typename T> __device__ __forceinline__ auto shuffle_xor(T v, int m) { return __shfl_xor(v, m); }
 template <typename T> __device__ __forceinline__ auto shuffle_xor(T v, int m, int width) { return __shfl_xor(v, m, width); }
 template <typename T> __device__ __forceinline__ auto shuffle_down(T v, int d) { return __shfl_down(v, d); }
 template <typename T> __device__ __forceinline__ auto shuffle_down(T v, int d, int width) { return __shfl_down(v, d, width); }
+// The integer sum over each aligned group of W lanes, which every lane of the group returns.
+template <int W> __device__ __forceinline__ int segment_sum(int v) {
+    for (int o = W / 2; o > 0; o >>= 1) v += __shfl_xor(v, o, W);
+    return v;
+}
 
 // The value of lane (this lane xor M) for M = 1 or 2 by DPP quad_perm within each group of four lanes: selector 0xB1 is [1,0,3,2] (xor 1), 0x4E is [2,3,0,1] (xor 2).
 // Both pass row mask 0xF, bank mask 0xF and bound_ctrl false, so every lane writes and reads its partner.
@@ -93,6 +100,8 @@ template <typename P, typename V> __device__ __forceinline__ void atomic_store_r
 __device__ __forceinline__ void fence_acquire_device() { __builtin_amdgcn_fence(__ATOMIC_ACQUIRE, "agent"); }
 // An acquire fence at system scope.
 __device__ __forceinline__ void fence_acquire_system() { __atomic_thread_fence(__ATOMIC_ACQUIRE); }
+// The device library's tanhf.
+__device__ __forceinline__ float gpu_tanhf(float x) { return tanhf(x); }
 // A constexpr host table read in device code, which HIP reads in place.
 #define GPU_TABLE(a) (a)
 
@@ -164,6 +173,7 @@ template <typename T> __device__ __forceinline__ auto shuffle_xor(T v, int m) { 
 template <typename T> __device__ __forceinline__ auto shuffle_xor(T v, int m, int width) { return __shfl_xor_sync(segment_lanes(width), v, m, width); }
 template <typename T> __device__ __forceinline__ auto shuffle_down(T v, int d) { return __shfl_down_sync(LLMX_FULL_WARP, v, d); }
 template <typename T> __device__ __forceinline__ auto shuffle_down(T v, int d, int width) { return __shfl_down_sync(segment_lanes(width), v, d, width); }
+template <int W> __device__ __forceinline__ int segment_sum(int v) { return __reduce_add_sync(segment_lanes(W), v); }
 template <int M, typename T> __device__ __forceinline__ auto lane_xor_quad(T v) {
     static_assert(M == 1 || M == 2, "quad_perm exchanges cover xor 1 and 2");
     static_assert(__is_same(T, int) || __is_same(T, unsigned), "lane exchanges move a 32-bit integer's bits; a float goes through lane_xor");
@@ -184,9 +194,12 @@ __device__ __forceinline__ unsigned long long wave_ballot(int p) { return __ball
 
 __device__ __forceinline__ unsigned byte_align(unsigned hi, unsigned lo, unsigned n) { return __funnelshift_r(lo, hi, (n & 3u) * 8u); }
 __device__ __forceinline__ unsigned bit_align(unsigned hi, unsigned lo, unsigned s) { return __funnelshift_r(lo, hi, s); }
+// prmt is written out because __byte_perm keeps three bits of each selector nibble, which drops the sign mode selectors 8 to 11 need.
 __device__ __forceinline__ unsigned byte_perm(unsigned hi, unsigned lo, unsigned sel) {
     const PortPrmt p = port_prmt(sel);
-    return (__byte_perm(lo, hi, p.nibbles) & ~(p.clear | p.ones)) | p.ones;
+    unsigned r;
+    asm("prmt.b32 %0, %1, %2, %3;" : "=r"(r) : "r"(lo), "r"(hi), "r"(p.nibbles));
+    return (r & ~(p.clear | p.ones)) | p.ones;
 }
 
 __device__ __forceinline__ int dot4_i8(int a, int b, int s) { return __dp4a(a, b, s); }
@@ -199,6 +212,8 @@ __device__ __forceinline__ float dot2_f16(unsigned a, unsigned b, float s) {
 #define GPU_IMMA8 1
 // The dense int8 tiles' blocks an SM: two hold a tile to 128 registers, which the tensor-core fragments pass otherwise (docs/STATUS.md, CUDA int8 tiles of every type on the tensor cores).
 #define LLMX_TILE8_BOUNDS(blocks) __launch_bounds__(kThreads, blocks)
+// A kernel's by-value struct parameter read in place, since a kernel taking its address otherwise copies it to local memory (docs/STATUS.md, CUDA prompt gap).
+#define LLMX_GRID_CONST const __grid_constant__
 // d += the 16 by 8 product of a (16 rows by 32 signed bytes) and b (32 signed bytes by 8 columns), exact in wrapping int32 (mma m16n8k32 s8).
 // Lane l holds a's rows l / 4 and l / 4 + 8 at words l % 4 and l % 4 + 4, b's column l / 4 at the same words, and d's rows l / 4 and l / 4 + 8 at columns 2 * (l % 4) and the next.
 __device__ __forceinline__ void mma_s8(int (&d)[4], const int (&a)[4], const int (&b)[2]) {
@@ -211,6 +226,12 @@ __device__ __forceinline__ void mma_s8_k16(int (&d)[4], int a0, int a1, int b) {
     asm("mma.sync.aligned.m16n8k16.row.col.s32.s8.s8.s32 {%0, %1, %2, %3}, {%4, %5}, {%6}, {%0, %1, %2, %3};"
                  : "+r"(d[0]), "+r"(d[1]), "+r"(d[2]), "+r"(d[3])
                  : "r"(a0), "r"(a1), "r"(b));
+}
+// Four 8 by 16-byte matrices from shared memory, lane l giving row l % 8 of matrix l / 8; r[j] gets matrix j's row l / 4 at bytes 4 * (l % 4) on (ldmatrix x4).
+__device__ __forceinline__ void ldsm_x4(int (&r)[4], const void* row) {
+    asm volatile("ldmatrix.sync.aligned.m8n8.x4.shared.b16 {%0, %1, %2, %3}, [%4];"
+                 : "=r"(r[0]), "=r"(r[1]), "=r"(r[2]), "=r"(r[3])
+                 : "r"((unsigned)__cvta_generic_to_shared(row)));
 }
 
 __device__ __forceinline__ void schedule_barrier() {}
@@ -292,6 +313,12 @@ __device__ __forceinline__ gpu_vector4 load_volatile(const gpu_vector4* p) {
     gpu_vector4 r;
     asm volatile("ld.volatile.global.v4.u32 {%0, %1, %2, %3}, [%4];" : "=r"(r.x), "=r"(r.y), "=r"(r.z), "=r"(r.w) : "l"(p) : "memory");
     return r;
+}
+
+// tanh as (1 - e) / (1 + e) of e = expf(-2|x|) with an IEEE divide, since CUDA's tanhf flushes subnormals in its reciprocal and the kernels keep them (tests/cuda_sass.py).
+__device__ __forceinline__ float gpu_tanhf(float x) {
+    const float e = expf(-2.0f * fabsf(x));
+    return copysignf((1.0f - e) / (1.0f + e), x);
 }
 
 #endif

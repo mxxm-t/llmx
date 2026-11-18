@@ -1,7 +1,7 @@
 # CUDA backend: design and qualification
 
 The CUDA backend is the second vendor backend over the shared GPU core in `src/backends/gpu/` ([backends-gpu](src/backends-gpu.md)), after ROCm ([ROCM](ROCM.md)).
-This page is its design and plan; steps 1 to 5 of the order of work below are built: dense qwen3 and qwen35 models ran on an RTX 3060 and an RTX 3090 at `--dtype f32`, `f16` and `int8`, while no MoE, other architecture or multi-device mode has run on CUDA yet.
+This page is its design and plan; steps 1 to 5 of the order of work below are built, step 6 is written, and step 8's weight types and DeepSeek-V4.1 operations: dense qwen3 and qwen35 models ran on an RTX 3060 and an RTX 3090 at `--dtype f32`, `f16` and `int8`, and the MoE models and the DeepSeek operations on an RTX 3090, while step 6's layer split and tensor groups ran once, on an RTX 3090 pair without peer access, so only host writes and pulls; step 8's card sessions are recorded in Qualification so far, below.
 The design was reviewed and approved on 2026-11-13.
 [STATUS](STATUS.md) records each step as it lands, and a result on a card nobody has run stays marked untested ([ROADMAP](ROADMAP.md), 4b).
 
@@ -95,10 +95,14 @@ Three transports, chosen at join by the existing probe (peer access, then a sum 
 3. Conservative: event-ordered host-staged copies and the same sum kernel, where the probe fails.
 
 Every form sums in member order in F32 and writes the same bytes, so a group's result does not depend on which transport or form timing chose.
+As built in step 6, transports 1 and 2 are one collective in the shared core (`gpu/collective_core.hpp`, `GroupTransport`): host writes run the peer-write kernels and forms with each member's signals and slots in mapped pinned host memory, and time transport 3's pulls per size beside the forms, so a size where the copy engines win takes them; a group where both probes fail takes pulls throughout.
+NVLink and NVSwitch take transport 1 unchanged and the form timing picks per size; a context reaches at most eight peers, so an all-peer group is at most nine cards on every NVIDIA card, and host writes are the fast transport past that.
+Hopper's asynchronous copies do not enter the collective.
+A bridgeless GeForce pair refuses peer access, so a session on one proves transports 2 and 3 only, and peer writes on CUDA wait for the NVLink session.
 Layer-split handoffs use the shared counters in coherent host memory with the driver's stream wait and write calls, and need no peer access.
 
 NCCL is an optional byte transport behind its own off-by-default build option, valid only with the CUDA backend, and opened at run time like the driver.
-It carries bytes only, send and receive or gather inside the two-shot and chain forms, followed by the ordered local sums; its all-reduce is never used, since its sum order follows size and topology and would break member-order identity and batch invariance.
+It would be a fourth `GroupTransport` and carries bytes only, send and receive or gather inside the two-shot and chain forms, followed by the ordered local sums; its all-reduce is never used, since its sum order follows size and topology and would break member-order identity and batch invariance.
 This is the rule ROCM.md gives RCCL (ROCM.md, Collective design and proof), and it is adopted only if timing at join shows it beating transports 1 and 2 at some size.
 Graph capture is not part of the first delivery; it is added later only with a measured launch-gap cost.
 
@@ -132,6 +136,49 @@ The first landing needs, on the cards each model needs: HF on Qwen3-0.6B Q8_0 an
 Both arms are built the same way and interleaved; each run records the driver, clocks, power limit, host CPU activity and both binaries' `--version` and hash, at default clocks and power.
 A figure from another runtime build or another machine is reported separately, never subtracted.
 SASS for an SM version no card has run is compile coverage, marked untested.
+
+## Qualification so far (step 8, RTX 3090, sm_86, 2026-11-16)
+
+Two scripted sessions on 24 GB RTX 3090s ran the checks of step 8 at `--dtype f16` and `int8`: S8 on the branch before its port fixes (driver 610.57, 280 W power limit), and S9 with them (driver 580.196, 180 W power limit).
+A result below is what the logs show; a cell that says fail is open work, not a pass.
+
+| Type or model | Check | f16 | int8 |
+| --- | --- | --- | --- |
+| Q8_0, Q4_K, Q5_K, Q6_K, Q4_0, Q4_1, Q5_0, Q5_1, IQ4_NL, MXFP4 | `backend-cuda types`: product witnesses, row classes, path records (S9) | pass | pass |
+| MXFP4 | suite `mxfp4`, dense tied, untied and MoE files against HF (S9) | pass, max logit error 0.00032 against 0.0033 | pass, max logit error 0.054 against 0.079 |
+| F16 weights | `backend-cuda types` half tile; suite `half-weights` (S9) | pass | half tile pass; `half-weights` skips at int8 by design |
+| qwen3moe, qwen35moe | suite `moe` and `qwen35`, tiny HF fixtures (S8; `qwen35` again in S9) | pass | pass |
+| qwen3moe, qwen35moe | `backend-cuda moe`, routed builds against the CPU (S9) | pass | pass |
+| deepseek41 | suite `deepseek4` (S8) | pass | pass |
+| deepseek41 | `backend-cuda deepseek4`, `ds4::check_ops` and the sparse tile pair (S9) | pass | pass |
+| qwen35 | `backend-cuda qwen35` (S8) | pass | pass |
+| drafters | suite `drafters` (S9) | pass | pass |
+| Qwen3-30B-A3B Q4_K_M | greedy text, 96 tokens (S8 and S9) | runs | the same text as f16, in both sessions |
+| any | `--dtype bf16` (S8) | runs f32 with the fallback warning | not applicable |
+
+The synthetic suite components `f32`, `moe`, `int8`, `q5-0`, `q5-1`, `iq4-nl`, `qwen35` and `deepseek4` passed on `cuda:0` at both dtypes in S8, on the binary before the fixes; the fixes change only the CUDA byte permute, the dot-module skip of the F16 tile and the NaN of `model_format_qdq`, and S9's types check reran every type's rows on them.
+The suite's `moe` and `deepseek4` pass again on the fixed binary at f16 and int8 in batch S10, since `model_format_qdq` is on the DeepSeek path, and on one MI50 on the fixed ROCm build.
+S10 timed the fixes, 4591a038 (A) against eec57368 (B) on Qwen3-30B-A3B Q4_K_M, `bench --p 512 --n 128 --r 3`, ABAB twice on that one card, medians of A against B in tok/s: int8 pp512 1226 against 1197 and tg128 124.7 against 124.0, f16 pp512 645 against 646 and tg128 98.4 against 97.2.
+B ran after A in each pair and 0.1 to 2.8 percent below it, while each arm's second round ran 0.7 to 4.2 percent below its first, so the difference is inside the drift and the move to `prmt.b32` shows no cost these runs resolve.
+Qwen3-30B-A3B Q4_K_M timing, `bench --p 512 --n 128 --r 3` and the reference runtime's CUDA `llama-bench -ngl 99 -fa 1 -r 3` on the same card, ABAB twice in S9, tok/s:
+
+| Arm | pp512 | tg128 |
+| --- | --- | --- |
+| llmx int8 | 1175.65, 1159.86 | 122.51, 121.54 |
+| llmx f16 | 649.76, 637.10 | 98.46, 96.03 |
+| reference | 1867.79, 1828.00 | 85.16, 83.82 |
+
+Decode leads the reference by 44 percent at int8 and prompts trail it at 63 percent, an open gate step 2b's routed tensor-core tiles own.
+S8 measured 2112 and 177 tok/s at int8 and 1200 and 150 at f16 on its 280 W card; the two sessions differ in card, driver and power limit, so their figures are separate results and no regression or gain is read between them.
+
+## The int8 prompt tile on other cards
+
+Every int8 K tile runs one tensor-core body (`k_mma`, docs/src/backends-gpu.md) at 64 outputs, or for Q4_K, Q5_K and Q6_K at 128 where `tile_rows_for` picks it from the device's units.
+A 128-output block holds 33,792 bytes of shared memory and a 64-output block 22,528; with two blocks an SM (`LLMX_TILE8_BOUNDS`, 128 registers) that is 67,584 bytes, inside sm_86's and sm_89's 100 KB and sm_80's and sm_90's 164 and 228 KB, so registers and not shared memory set the blocks an SM on every target; Q6_K's builds keep one block an SM.
+On one RTX A6000 the change took int8 pp512 from 702 to 935 tok/s on Qwen3.6-27B Q4_K_M and from 3436 to 4035 on Qwen3-30B-A3B Q4_K_M, against the reference's 1281 and 4123 on the same card, with decode level (docs/STATUS.md, CUDA prompt gap, change 3, second part).
+At 128 outputs the dense guard bounds the 32-bit weight offsets to about 31.5 million inputs, half the 64-output tile's.
+Each IMMA's per-32 fold costs about 16 FP32 instructions, fixed by the formats' scales and the CPU's bits; Ada and Hopper double the IMMA rate an SM, so there the fold takes as many issue slots as the IMMA and the tile caps near 50 to 60 percent of the integer peak rather than Ampere's 35 to 45, and fewer issues a fold, not a wider integer sum, is the next lever there.
+ROCm does not build the tensor-core body (`GPU_IMMA8`), so MI300X's int8 tile stays on four-way dots, with MFMA int8 its own lever.
 
 ## Open questions
 

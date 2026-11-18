@@ -554,6 +554,17 @@ Ten MI50s, DeepSeek-V4.1-Flash MXFP4, ROCm int8: the 8-bit dispatch is the one m
 - **Rebase (DSDEV229):** onto land68-stack, main's DeepSeek decode router commit had given `llmx_sparse_softmax` its launch bounds; the branch removes that kernel and `llmx_sparse_columns`, so the rebase keeps main's kernel table with the few-row builds in their place, and no kernel source of either pair changed.
 - **Landing:** the landing record names the backend-rocm CTest (`sparse_tile_pair`) and the suite's `deepseek4` component on rocm:0, both run at the binary that lands.
 
+## cuda-sass lists the Q4_0, Q4_1 and sparse scores spills (2026-11-16, CUDA45, branch fix/cuda-sass-spills on main 929f042c6, its own commit on the CUDA chain)
+
+- main 929f042c6 fails `cuda-sass` (QWEN47, CUDA 12.9.1): 11 Q4_0 and Q4_1 builds from the Q4_0/Q4_1 landing spill on sm_80 to sm_120, and `llmx_sparse_scores_tile` from the sparse tile pair spills on sm_120; no kernel source changes here.
+- The Q4_0 and Q4_1 builds are the Q5_0 and Q5_1 templates without fifth bits, whose families are already listed at step 8, so they join that line; the scores tile joins the deepseek4 operations at step 8.
+- Spills are 4 to 44 bytes; inside a loop the two `quarter_routed16_g8` builds take 33 or 34 local loads and stores in a body of 1810 to 2471 instructions (1.4 to 1.9%), and the others under 1% of theirs.
+- Most sit at 128 registers, ptxas's own choice for two blocks of 256 threads a multiprocessor: `__launch_bounds__(kThreads, 1)` lifts them to up to 187 registers with no spill on sm_86 and sm_120, but halves those kernels' blocks a multiprocessor and makes `llmx_q4_k_rows8_16` and `llmx_q5_k_rows16_16` spill on sm_120, so it is left to step 8's measurement on a card.
+- The `rows8_16` builds are not under that cap: they sit at 255 registers on sm_80 to sm_90, and `llmx_q4_0_rows8_16` keeps 44 and 76 bytes of spill under a minimum of one block, so that is register pressure in the 16-column int8 row class, which step 8 trims in source (staging depth, from the `device_profile.hpp` numbers) and not by launch bounds.
+- Open follow-up, the A/B of default against `__launch_bounds__(kThreads, 1)`: the 12 spilling kernels plus `llmx_q4_k_rows8_16` and `llmx_q5_k_rows16_16`, which a minimum of one block makes spill, at the model's real shapes (0.6B and 4B Q4_0 and Q4_1 decode rows, the g8 routed shapes); it folds into the next CUDA rental rather than a rental of its own, and its result goes into step 8's record.
+- On the CUDA chain the list already held the Q4_0, Q4_1 and `llmx_sparse_` lines from step 8, so the fold only names the Q4_0 and Q4_1 builds as Q5_0 and Q5_1's twins and keeps the open follow-up below.
+- Checks: `cuda-sass` passes on main's fatbins with the new lines, `dead-code` and `docs` pass; the change is a test list and docs, so ROCm and CPU binaries are main's.
+
 ## Stage rounds (2026-11-16, castagna step 4, branch perf/stage-rounds on d11a66418, QSTG1 then QSTG2; lands by fast-forward with the stack land-20261117)
 
 **Goal.** Interleave a layer split's stages so a prompt's pipeline fills and drains in a third of a device's layers rather than all of them (docs/MULTI-DEVICE.md, Placement and balance), toward castagna-veloce's layer-4 pp2048 2615 tok/s on four MI50s from llmx's about 2094.
@@ -2533,6 +2544,222 @@ No slowdown on a path main has; the gain is on the 27B tensor group.
 
 **Gotchas.** The rebase conflicts were only the two `docs/TENSOR-SPLIT.md` lines that main's CUDA landing and this step both edit; both edits are kept.
 
+## CUDA prompt gap, change 3, second part: one tensor-core K tile body at 64 and 128 outputs (2026-11-17, CUDA78 to CUDA83, branch cuda/prompt-ktile, the top of the CUDA chain rebased by CUDA83 onto main a274cfd62)
+
+**Goal.** One-card prompt toward the reference: S8 (one RTX A6000, Qwen3.6-27B Q4_K_M pp512 int8) 738 tok/s against the reference's 1291, with `q4_k_tile8` and `q6_k_tile8` 646 of 774 ms device time in S13's profile.
+
+**Done.**
+- Card-free ranking, sm_86 SASS of the 64-output tiles at cffa97ea against the reference's MMQ kernels in its staged `libggml-cuda.so`, main loop from its back branch, instructions per 4096 MACs (one m16n8k32): `q4_k_tile8` 44 against 23, `q6_k_tile8` 69 against 25.
+- The per-32 fold, about 16 FP instructions per IMMA, is the same on both; the excess is integer and control around each IMMA (64-bit index math, per-step bounds and selects) and scalar fragment loads (6 LDS per IMMA against 1.4).
+- `k_mma` (kernels/int16.gpu, CUDA only) is the one tensor-core body of every int8 K tile, which `k_tile` takes for the 8-bit twin: 64 or 128 outputs (the tall slot, Q4_K, Q5_K and Q6_K), routed full and mid builds, every K type; `k_vec` keeps the vector body for the 16-bit twin; without tensor cores, as under HIP, `k_tile` is that body itself (`LLMX_KVEC`).
+- Eight warps, fragments by `ldsm_x4` from byte rows padded to 144 bytes, scales as float pairs, 32-bit offsets, one live mask a step; a thread decodes a row's sub-block through `KRaw` (`KStage`), or at 128 outputs Q4_K's, Q5_K's and Q6_K's shared-byte pairs (`KPair45`, `KPair6`).
+- Offset types (Q4_0, Q5_0, Q6_K) are staged less the offset (`less_offset`), so the tensor-core sum is `k_term`'s `isum - offset * xsum` exactly; every term is `k_term`'s in the same order, so outputs keep their bits.
+- A weight or twin row past the tile stages row 0 and is not stored, where the old tile staged zeros: an integer product of an unstored row or column reaches no stored output.
+- sm_86 ptxas and SASS at 16621a0d, main loop per 4096 multiply-adds (base cffa97ea; reference 23 and 25): `q4_k_tile8` 44 to 30.2, `q6_k_tile8` 69 to 43.5, `q4_k_tile8_tall` 25.8 at 127 registers, `q5_k_tile8_tall` 27.6, `q6_k_tile8_tall` 38.2 with a 48-byte spill at two blocks an SM, so it takes one (be2caa10); the other types' 64-output tiles 25 to 37.
+- cuda-sass at d28f267b, main loop per 4096 multiply-adds, most over sm_80 to sm_120: `q4_k_tile8_tall` 26.7, `q5_k_tile8_tall` 29.2, `q6_k_tile8_tall` 38.3, against targets of 24, 24 and 30.
+- tests/cuda_sass.py holds the tall loops to the most measured at toolkit 12.9 rounded up plus one, 28, 31 and 40 (F2DEV's ruling of 21:08 on item 6): over the fold's floors of about 18.5, 18.5 and 28.5, a fold regrowth (+4 or more) or a staging regrowth (+1) fails.
+- On sm_90 alone the Q4_K and Q5_K tall builds spill 4 and 8 bytes at two blocks an SM, a loop-invariant value reloaded once a step; cuda-sass lists them, and no H100 has measured one block an SM against it.
+- tests/twin_checks.hpp includes quant/fp4.hpp, which backend-cuda failed to build without.
+- The host takes the tall builds where the API has them (`int8_tensor_tiles`, false for ROCm), and HIP compiles the vector body as `k_tile`, with no call between: as `k_tile` calling `k_vec` it changed 62 tile kernels of int16 and int16dot, 45 of them in gfx906 instructions.
+- `imma_tile` takes two more edges: 256 values, too few blocks to split, at 200 outputs by 100 rows (the 64-wide build) and at the fewest outputs 128k - 56 by 72 rows that take the tall one; Q8_0, Q4_K, Q5_K and Q6_K must match the host fold unsplit at both widths, and every type must run a split call.
+- A split call is held bit for bit too (F2DEV's ruling of 21:08 on item 4): the host folds each part's blocks, `split_blocks`'s kper over the 64-output grid, and adds the parts from zero in part order as `llmx_tile_reduce` does, and the call must split exactly when that gives more than one part.
+- C1's one failure, `twin_types` on B ("a q4_k 6144->2560, int8 prompt of 320 rows runs the tile alone", and q5_k, q6_k), was the test's expectation, not the routing: 320 rows are 5 column tiles, 2560 outputs 20 tall groups, and 100 groups fill the A6000's 84 SMs, so `tile_rows_for` takes 128 outputs as it is meant to.
+- The same log holds the bits: `imma_tile` matches the host fold with 0 outputs off at both widths unsplit for Q4_K, Q5_K and Q6_K (nin 1024 nout 21504 and nin 256 nout 10696 tall, nin 256 nout 200 at 64), and the 320-row prompts are within 1e-6 of the double sum.
+- `twin_types` now takes the backend's tall rule (`tall`): under CUDA a K-type's 8-bit prompt expects `_tile8_tall` where `tile_rows_for` gives 128 outputs over the extent's column tiles, and ROCm, which has no tall K build, expects none.
+- Rebase onto main a274cfd62 (CUDA83): step 8's move of `sparse_tile_pair` to deepseek4_checks.hpp takes main's newer body (the few-row pair and the unit sweep), the caps through `caps_of` (`rocm_caps`, and `cuda_caps` beside `cuda_profile`); `twin_products` keeps main's launches argument; `k_vec` keeps main's MXFP4 whole-block staging (`WHOLE`); the tall rule passes main's `int8` to `tile_rows_for`.
+
+**C1, one RTX A6000 (300 W default, driver 580.173.02), 2026-11-17, A = 9940408c (llmx 0.1.0+g9940408c80d4), B = 1acd38de (0.1.0+g1acd38de81e4, this change before the rebase), the reference's llama-bench on the same card; int8, tok/s, two runs each in R A B A B R order.**
+
+| Model | Phase | A (before) | B (after) | B / A | Reference | B / reference |
+|---|---|---|---|---|---|---|
+| Qwen3.6-27B Q4_K_M | pp512 | 710.3, 693.9 | 941.1, 929.7 | +33.2% | 1303.6, 1257.7 | 0.73 |
+| Qwen3.6-27B Q4_K_M | tg128 | 32.84, 32.70 | 32.77, 32.64 | -0.2% | 30.02, 29.58 | 1.10 |
+| Qwen3-30B-A3B Q4_K_M | pp512 | 3448.1, 3423.3 | 4048.5, 4021.7 | +17.4% | 4146.9, 4099.0 | 0.98 |
+| Qwen3-30B-A3B Q4_K_M | tg128 | 167.20, 166.31 | 166.13, 166.04 | -0.4% | 100.16, 97.51 | 1.68 |
+
+- Greedy ids A = B on Qwen3-0.6B Q8_0, Qwen3.6-27B Q4_K_M and Qwen3-30B-A3B Q4_K_M.
+- nsys kernel sums, 27B pp512 (results k27-A, k27-B, k27-R; the llmx and reference profiles ran different pass counts, so compare shares and per call): A 2252.8 ms, `q4_k_tile8` 1335.1 ms in 768 calls (59.3%), `q6_k_tile8` 495.7 ms in 192 (22.0%); B 1701.7 ms, `q4_k_tile8_tall` 1003.4 ms in 744 (59.0%), `q6_k_tile8_tall` 271.1 ms in 168 (15.9%); reference 380.7 ms, its Q4_K MMQ 214.1 ms in 334 (56.2%), Q6_K 46.8 ms in 63 (12.3%).
+- backend-cuda bench at 512 rows, the 27B's widths, two runs each: Q4_K gate_up 4163.6 and 4276.1 us (A, `q4_k_tile8`) against 3396.2 and 3452.8 us (B, tall); Q6_K gate_up 7011.8 and 7201.0 against 4329.2 and 4384.3 us.
+- The tall K tile is still 75% of B's device time, so the tall loop is the bound the trim below goes after.
+- C1 on the rebased head (main a274cfd62 against the chain at fbdadac83, the same A6000): Qwen3.6-27B Q4_K_M pp512 702 to 935 tok/s and Qwen3-30B-A3B Q4_K_M pp512 3436 to 4035, greedy ids identical.
+- C2, one RTX 3090, 2026-11-18, at fbdadac83: `backend-cuda types` passes 39,664 checks with all three tall builds launched, and `backend-cuda moe` passes its 4.
+
+**Left.**
+- Trim the tall loops toward the fold's floors of about 18.5, 18.5 and 28.5 (Q4_K and Q5_K scale unpack by LOP3 and SHF, about 2.6 an IMMA), each ceiling dropping with its trim, and remove the sm_90 spills; measured before the stream moves on, not before this landing.
+- Q8_0's tile (`q8_0_tile`) keeps its scalar fragment loads; it follows into `k_mma` once C1 shows the K tiles' gain, as a `KStage` for Q8_0.
+- The hand check, since no hosted runner has a card: C2 ran backend-cuda types and moe at the rebased head (Gates, above) and C1 the rest (ids, ABAB, profile).
+
+**Gotchas.**
+- A call whose part starts off a multiple of four sub-blocks stages from the multiple below and skips the sub-blocks outside its part, so a pair never straddles a step and an added zero term never reaches a sum.
+
+## CUDA prompt gap, change 3, first part: the dense K tiles' sub-blocks decoded once, with biased tensor-core sums (2026-11-17, CUDA60, CUDA61, CUDA62 then CUDA69, branch cuda/step12b-coalesce on cuda/step12-ktile on cuda/step11-routedmma)
+
+**Goal.** Change 3 of the plan: cut the instructions the int8 K-quant tiles spend around each IMMA, which S13's profile of Qwen3.6-27B Q4_K_M at pp512 int8 puts first (`q4_k_tile8` 490 of 774 ms device time, `q6_k_tile8` 156).
+
+**Done.**
+- Under `MMA`, `k_tile` stages one weight row's sub-block a thread, so its scales decode once rather than four times and each thread issues half the global loads; a row's four lanes take its step's four sub-blocks (`wr = t / 4`, `ws = t % 4`).
+- The tensor-core sums of `k_tile` start from `kSumBias`, the bits of 1.5 * 2^23, and `sum_float<BIASED>` takes an add in place of the integer conversion, which sm_80 to sm_90 run at a quarter of the FP32 rate; the sum is exact below 2^22 and the tiles' sums stay below 2^20, so every output keeps its bits.
+- Under `MMA` a min-term type keeps its twin's sub-block sums as floats (`xh`), converted once a row.
+- SASS on sm_86 against change 4 (loop body, from its back branch): `q4_k_tile8` 829 to 701 instructions per 16 IMMA (51.8 to 43.8 per IMMA), I2F 104 to 0, LDG 36 to 24, 126 registers; `q6_k_tile8` 1130 to 1102 per 32 IMMA, 162 to 152 registers; `q8_0_tile8_tall` 508 to 544 per 16 IMMA (64 I2F to 64 FADD and 32 IMAD that set the bias); no local memory and no spill.
+- ROCm has no `GPU_IMMA8`, so its arithmetic is unchanged, and every ROCm code object (`f32`, `int16`, `int16dot`) is identical to change 4's.
+- CUDA build and the card-free CTests (5 of 5, `cuda-sass` included) pass.
+- Batch S3 on one RTX 3090, int8, three ABC rounds (`/opt/claude-work/cuda62/s3/results/20261117-0126-S3`): Qwen3.6-27B Q4_K_M pp512 274.55 tok/s mean against change 4's 253.52 (+8.3%) and step 12's 250.54, Qwen3-30B-A3B Q4_K_M 1719.63 against 1612.55 (+6.6%, spread +-100 to 160) and 1605.21, tg128 level.
+- In S3 greedy ids were identical to change 4's at int8 and f16 on Qwen3.6-27B, Qwen3-30B-A3B and Qwen3-0.6B Q8_0, where they also equal the CPU's, and `backend-cuda` default and moe had no failure line.
+- S3's host was slow: its card was power-capped at 180 W of a default 350 W and sat at the cap, on PCIe 3.0 x8 with 4 effective cores of a Threadripper 1900X, where S2's ran 350 W on PCIe 4.0 x16, so its absolute figures are not comparable with S2's and step 12's -13% did not reproduce there.
+
+**Null result, step 12 as first built (cuda/step12-ktile 4b623f27).**
+- It mapped `wr = t % 64`, `ws = t / 64`: the 32 lanes of a warp sat on 32 weight rows, `row_bytes` apart, so every 32-bit weight load touched 32 sectors in 32 lines, where change 4's four lanes a row touched 8.
+- Per block and step of `q4_k_tile8` (Q4_K, 5120 inputs), a model of the loads gives 1536 line requests for change 4, 3072 for that map and 1024 for four lanes a row on four sub-blocks; the shared stores go from conflict-free to 4-way, about 30 more store wavefronts a warp against 256 fewer line requests.
+- Batch S2 on one RTX 3090, int8, change 4 against it: Qwen3.6-27B Q4_K_M pp512 647.33 and 640.22 against 552.53 and 560.95 tok/s (-13%), Qwen3-30B-A3B Q4_K_M pp512 3153 and 3143 against 2780 and 2765 (-12%), tg128 level (37.5 and 183), greedy ids identical at int8 and f16.
+- So the fewer instructions per IMMA did not pay for loads spread over a row a lane; a tile's lanes keep a row's bytes together.
+
+**Measured on a 420 W host (S4, S5).**
+- Batch S4 on one RTX 3090 at 420 W, int8, two ABAB rounds (`/opt/claude-work/cuda63/s4/results/20261117-0251-S4`): Qwen3.6-27B Q4_K_M pp512 708.50 and 698.99 tok/s against change 4's 651.19 and 644.40 (+8.6%), Qwen3-30B-A3B Q4_K_M 3329.49 and 3511.39 against 3138.11 and 3101.83 (+9.6%), a gain in every pair, tg128 level, and ids identical to change 4's on Qwen3-30B-A3B at int8 and f16.
+- S4's arms, the binaries S3 also ran: change 4 reports `llmx 0.1.0+unknown numerics 6dd4b041d014f42b` (sha256 c554c78a617f65bd) and this branch `llmx 0.1.0+unknown numerics 71974ec2e2aa067b` (sha256 ec477f492ed881c9), neither built with Git metadata.
+- S4's Qwen3.6-27B generate cells failed in both arms with CUDA_ERROR_OUT_OF_MEMORY before loading, at the default context, where S3's host had loaded with 6.79 GB of KV; S3's 27B ids stand.
+- Batch S5 on one RTX 3090 at 420 W, int8, two ABAB rounds (`/opt/claude-work/cuda64/s5/results/20261117-0309-S5`), the same two binaries and `--version` strings as S4, run because `q8_0_tile8_tall` grew from 508 to 544 instructions and no batch had a Q8_0 prompt cell: Qwen3-0.6B Q8_0 pp512 25506.98 +- 153.03 and 25427.15 +- 163.07 tok/s against change 4's 25811.70 +- 74.78 and 25594.89 +- 126.67 (-0.9% of the means), tg128 596.49 +- 1.17 and 595.60 +- 0.20 against 598.91 +- 1.07 and 596.55 +- 0.82, level.
+- F2DEV's reading of S5: change 4's own two runs sit 0.85% apart and each run's spread is 0.3 to 0.6%, so a 0.9% step on a 0.6B prompt, where the tile is a small share of 25k tok/s, is within the layout band and not distinguishable from noise.
+- Decision then: `q8_0_tile` keeps the biased sum, as `k_tile` does.
+- Batch S6 on one RTX 3090 at 350 W, int8, ABAB, 5 runs a cell (`/opt/claude-work/cuda68/s6/results/20261117-0809-S6`): Qwen3-4B Q8_0 pp512 4977.46 and 4937.80 tok/s against change 4's 5219.96 and 5159.13 (-4.5%, spreads +-36 to 41), tg128 level (157.53 and 156.86 against 157.56 and 156.66).
+- So `q8_0_tile` returns to the unbiased sum (CUDA69) and is change 4's source again, and `k_tile` keeps the bias; batch S7 remeasures the 4B cell.
+- S5's generate cells exited 2 in both arms on `unknown flag: --ctx-size`, a harness error and not a result: `generate` has no context flag (`--ctx-size` belongs to `serve` and `perplexity`) and sizes its KV to the model context.
+- S3's ids, Qwen3-0.6B Q8_0 identical to change 4's and to the CPU's at int8 and f16, cover the cell, and the harness no longer passes the flag.
+
+**Left.**
+- Batch S7's Qwen3-4B Q8_0 pp512 int8 ABAB against change 4, which should be level now that `q8_0_tile` is change 4's.
+- Later parts of change 3: 32-bit index math in the load, `ldmatrix`, a 128-row tile, 16-byte weight loads.
+
+**Gotchas.**
+- The bias costs a register move per accumulator, so a tile with no conversion to save beyond one per sum (`q8_0_tile8_tall`) grows in instruction count while trading quarter-rate conversions for full-rate adds, and S6 measured that as a loss.
+- Instructions per IMMA are not time: check what a warp's loads touch before moving work between lanes.
+
+## CUDA prompt gap, change 1: the twin map read in place (2026-11-16, CUDA54, CUDA55 then CUDA56, branch cuda/step9-twinmap on cuda/step8-types 3b71eae1; plan /opt/claude-work/cuda54/plan-prompt.md with F2DEV's review of 14:57)
+
+**Goal.** Close CUDA's prompt gap to the reference (Qwen3.6-27B Q4_K_M pp512 int8 467 against 1358 tok/s, Qwen3-30B-A3B 1197 against 1868, one RTX 3090) by the plan's changes 1 to 5; this block is change 1.
+
+**Done.**
+- The twin producers taking a `TwinMap` by value passed its address on, so CUDA copied the 120-byte map to local memory in every thread (sm_86: `llmx_silu_mul_twin8_major` 120 bytes of stack and 47 local loads and stores, `llmx_rms_norm_32_twin8_major` 287, `llmx_gated_rms_norm` 49, `llmx_group_rms_norm` 83, `llmx_hc_collapse_norm` 355).
+- `LLMX_GRID_CONST` (port.h) is `const __grid_constant__` under CUDA, which reads the parameter in place, and empty under HIP; the 18 kernels taking a `TwinMap` use it: the twin, SiLU-product and RMS-norm `_major` builds, the attention vector `_major` builds and their merges, `gated_rms_norm`, `group_rms_norm`, `silu_scaled`, `mix_streams`, `sigmoid_mul` and `hc_collapse_norm`.
+- `cuda-sass` reads the takers from the compute_80 PTX, every kernel with a by-value parameter of `TwinMap`'s 120 bytes (pinned by backend_core.hpp's static_assert), requires every `_major` build among them, and on every target requires of each a stack frame no larger than its spill stores and no local load or store where it does not spill.
+  On 3b71eae1's fatbins all 18 fail on every target; on this change none does, and `llmx_hc_collapse_norm` keeps the 8-byte register spill on sm_120 that its listed family (`llmx_hc_`, step 8) already allows, its frame there down from 136 bytes to 8.
+- The arithmetic is unchanged, so every output keeps its bits; the ROCm code objects are identical to 3b71eae1's, and `backend-rocm` default, qwen35 and twins pass on an MI50.
+- Card batch S11, one RTX 3090 (sm_86, 300 W limit, driver 615.71.09, CUDA UMD 13.4; llmx built with CUDA 12.9.86), Qwen3-30B-A3B Q4_K_M: A is 3b71eae1 with the profile commit (dc44750b), B is A with this change (8aa54925).
+  Greedy ids of A and B are identical over 65 tokens at int8 and f16, on Qwen3-0.6B Q8_0 too.
+  `bench --p 512 --n 128 --r 5`, int8 ABAB twice and f16 AB once, and the reference runtime's CUDA `llama-bench -p 512 -n 128 -r 3 -ngl 99 -fa 1` twice on the same card, tok/s:
+
+  | Arm | pp512 int8 | tg128 int8 | pp512 f16 | tg128 f16 |
+  | --- | --- | --- | --- | --- |
+  | A, 3b71eae1 | 2133.5, 2129.4 | 177.5, 177.2 | 1214.2 | 149.5 |
+  | B, change 1 | 2588.1, 2578.8 | 176.7, 176.3 | 1344.2 | 149.2 |
+  | reference | 4036.6, 4041.6 | 115.0, 115.9 | | |
+
+  Prompts gain 21.2 percent at int8 and 10.7 percent at f16 with decode within 0.5 percent, and the int8 prompt is 64 percent of the reference's, from 53; decode leads it by 53 percent.
+  The device profile of pp512 int8 falls from 238.9 to 196.6 ms: `silu_mul_twin8_major` 26.2 to 2.4 ms, `twin8_major` 16.5 to 1.3, `rms_norm_16_twin8_major` 9.4 to 2.9.
+
+**Left.**
+- Qwen3.6-27B: S11's 50-minute wall ran the 30B-A3B section only, so its profile, timing and ids go to the next batch.
+- `bench --profile` on ROCm and CUDA (834154aa8) rode S11's two arms as a measurement commit only; it lands later on a branch of its own or is dropped.
+- Changes 2 to 5 of the plan; S11's B profile of the 30B-A3B at pp512 int8 ranks the routed tiles first (Q4_K 91.9 ms, 47 percent, and Q6_K 26.1 ms, 13 percent, change 4), then the dense `q4_k_tile8` (30.4 ms, 15 percent, changes 2 and 3), `attention_tile` (21.9 ms, 11 percent) and the twin producers (8.9 ms, 4.5 percent).
+
+**Gotchas.** `__grid_constant__` needs CUDA 11.7 or newer, sm_70 or newer and a const parameter; the build targets sm_80 on with toolkit 12.9, and HIP keeps the plain parameter so the ROCm code objects stay byte identical.
+
+## CUDA prompt gap, change 2: the twin's half sums stored by its producers (2026-11-16, CUDA57, branch cuda/step10-twinsums on cuda/step9-twinmap d9b33195)
+
+**Goal.** Change 2 of the plan: the K-quant tiles stop summing the twin's codes for the min and offset terms, which CUDA56's bound on one MI50 put at up to 11 to 16 percent of Qwen3.6-27B Q4_K_M's pp512 int8 device time (k_tile's dot by ones removed, wrong output, timing only: `q4_k_tile8` 1209.7 and 1155.1 to 1001.3 and 1001.2 ms).
+
+**Done.**
+- A twin slot holds three planes (`TwinPlanes`, backend_core.hpp, the one owner of the layout): the codes, the scales and each block's sums of its first and last 16 codes, two int16 for block-int8 and two ints for block-int16, indexed by twin block as the codes are, so the `TwinMap` that lays the codes out lays the sums out too.
+- The twin rule moves to kernels/quant.h (`block_amax`, `twin_value`, `twin_sums`, `twin_half`), the one copy both modules take; int16.gpu's duplicate `hc_twin8` goes, and its twins take twin_value over `twin_amax`, the same maximum on lane_xor.
+  `twin_sums` sums each half with `segment_sum` (port.h: the xor tree under HIP, one `redux.sync` under CUDA), and the lanes holding values 0 and 16 store their halves.
+- Every producer of a twin a tile reads writes the sums: the twin kernels, the held norms, `silu_mul`, the attention vector and its merge, the stream and gate ops, `group_rms_norm`'s four-value form and the delta step.
+  A twin laid out row after row has no prompt region, so its producer writes none (`twin_out` passes a null plane, which `twin_sums` takes as none): decode pays nothing, and the fused MoE step and the hyper-connection mix, which make decode twins only, are unchanged.
+- A kept twin records whether it holds the sums (`Kept::sums`), and a product whose runs take the tile asks for them, so a twin without them, a call of more regions than the map holds among them, is rebuilt rather than read.
+- `k_tile` (dense and routed, the dot build and CUDA's tensor-core build) and `routed_stream` read the sums through `TileCall::xs` in place of their dots by ones and shuffles; the row builds keep their own sums, since a lane holds part of a block.
+  The sums are exact integers, so every output keeps its bits.
+- `k_tile` holds a step's packed sum word until it stages it: holding the two halves put an `s_waitcnt vmcnt(4)` inside the next step's prefetch on gfx906, which cost most of the gain in the first build.
+- The block-int16 sums plane starts at the twin's total times 68 bytes, 8-aligned only for an even total, and the routed gate and up's flat map has an odd total where generated rows ahead of a tile region, whose pad is an odd multiple of 4, meet an odd block count a row, so `k_tile` reads a block's pair as two 4-byte loads, which CUDA requires and gfx906 did not (F2DEV's item 1); `experts_tile` (tests/moe_checks.hpp) reaches one through its existing mixed call, 3 generated rows ahead of a 253-row tile region of Q4_0 2080 values wide, 195 + 260*65 = 17095 blocks, held to its bits at the other extents.
+- Producers write the sums only where the last product with prompt tiles read them (`TwinKernels::tile_sums`, false for Q8_0, whose tile has no min or offset term): in r3 below the first build cost Qwen3-0.6B Q8_0 2.1 percent of pp512 for sums no tile read.
+  A twin made without them for a tile that reads them is rebuilt, as any kept twin lacking sums is, and `producer_twins` reads Q4_K after Q8_0's tiles for that case.
+- ROCm round r3, one MI50 (the first build, without the line above; A is d9b33195), every cell flagged contended by hostwait: greedy ids of Qwen3-0.6B Q8_0 at int8 and f16, Qwen3.6-27B Q4_K_M at int8 and f16 and Qwen3.6-35B-A3B Q4_K_M at int8 are A's, and the top-8 logits at 128 positions of the 27B and 256 of the 35B-A3B; `backend-rocm` default, moe, qwen35 and deepseek4 pass.
+  `bench --p 512 --n 128 --r 3`, ABAB, tok/s: 27B pp512 int8 289.8, 301.5 against 314.4, 313.7, f16 202.9 against 218.0; 35B-A3B pp512 int8 1565.9, 1562.8 against 1549.2, 1553.6; 0.6B Q8_0 pp512 int8 10907, 10896 against 10663, 10680.
+  The reference's ROCm `llama-bench` refuses the 27B file (vocabulary assert), so this round has no reference column.
+  The device profile of the 27B pp512 int8 gives `q4_k_tile8` 1174.6 to 1103.6 ms and `q6_k_tile8` 303.9 to 305.8: on gfx906 the Q6_K tile drops 640 to 512 `v_dot4` a loop at 111 to 114 VGPRs, two waves a SIMD in both, and gains nothing, so the dots by ones did not bind it there.
+- ROCm round r4, one MI50, on the final build (A d9b33195, B this change, both built the same way), every cell contended: bits as in r3 (Qwen3-0.6B Q8_0 ids at int8 and f16, 27B ids at int8, the 35B-A3B's top-8 logits at 256 positions).
+  pp512 int8, A against B, tok/s: 0.6B Q8_0 10833 against 10661 (B's slices 10288, 10832 and 10862, medians 10864 against 10832), 35B-A3B 1566.5 against 1554.5, 27B 307.5 against 319.1.
+  tg128 spread up to 159 tok/s on that host and r3 and r4 disagree in sign, so decode is left to the stacked head's timing round against main; on CUDA it is level.
+- Card batch S13, one RTX 3090 (350 W limit, driver 580.178.04; llmx built with CUDA 12.9.86): X is change 1 (8aa54925) with the profile commit, A is X with this change (the first build), built the same way; B is change 4 (its own block).
+  Greedy ids of X and A are identical over 65 tokens at int8 and f16 on Qwen3-30B-A3B, Qwen3.6-27B and Qwen3-0.6B Q8_0.
+  `bench --p 512 --n 128 --r 5`, int8 XAXA, f16 XA, and the reference runtime's CUDA `llama-bench -p 512 -n 128 -r 3 -ngl 99 -fa 1` on the same card, tok/s:
+
+  | Model, cell | X, change 1 | A, change 2 | reference |
+  | --- | --- | --- | --- |
+  | Qwen3.6-27B Q4_K_M pp512 int8 | 581.9, 569.6 | 657.1, 652.5 | 1364.0, 1363.6 |
+  | Qwen3.6-27B Q4_K_M tg128 int8 | 37.50, 37.39 | 37.38, 37.35 | 34.64, 34.27 |
+  | Qwen3.6-27B Q4_K_M pp512 f16 | 219.3 | 230.8 | |
+  | Qwen3-30B-A3B Q4_K_M pp512 int8 | 2801.8, 2786.5 | 2821.4, 2807.3 | 4291.1, 4377.9 |
+  | Qwen3-30B-A3B Q4_K_M tg128 int8 | 185.1, 184.3 | 184.1, 183.9 | 108.2, 109.2 |
+  | Qwen3-30B-A3B Q4_K_M pp512 f16 | 1466.7 | 1523.7 | |
+  | Qwen3-0.6B Q8_0 pp512 int8 | 25040, 24698 | 24623, 24448 | 24816 |
+
+  The 27B prompt gains 13.7 percent at int8, 48 percent of the reference's from 42, and 5.3 percent at f16; the 30B-A3B 0.7 and 3.9 percent; decode is level.
+  The 27B's pp512 int8 device time falls from 879.8 to 774.3 ms, `q4_k_tile8` 565.1 to 490.3 and `q6_k_tile8` 192.0 to 156.3.
+
+**Left.**
+- `q6_k_tile8` on gfx906: round r5's counters over Qwen3.6-27B Q4_K_M's pp512 int8 on one MI50 (128 dispatches, d9b33195 against this change) give 7.7 percent fewer VALU instructions, 13 percent more LDS instructions and 17 percent more vector-memory reads at the same wave count and a level kernel time, so the VALU does not bind it; the wait counters did not collect, so what does is open.
+- The 35B-A3B's prompt is 0.8 percent slower in r3 and r4 alike: r3's one profile a build gives the dense `q4_k_tile8` 76.2 to 71.8 ms but the routed builds, which read the sums their own twin build writes, slower (`q4_k_routed_stream8` 13.4 to 15.8, `routed_tile8` 49.6 to 50.6, `q6_k_routed_tile8` 13.5 to 14.4); the routed reads on gfx906 are the next step.
+- Changes 3 and 5 of the plan; change 4 has its own block.
+
+**Gotchas.** Whether a producer writes the sums follows the last tiled product, as the twin's class follows the last product (`want_twin_`), so a model mixing Q8_0 and K-quant tiles rebuilds the first K-quant twin after a Q8_0 tile; the rebuild keeps the bits.
+
+## CUDA prompt gap, change 4: the routed int8 tiles on the integer tensor cores (2026-11-16, CUDA57 then CUDA58, branch cuda/step11-routedmma on cuda/step10-twinsums)
+
+**Goal.** Change 4 of the plan: the routed K-quant tiles, which S11's profile of Qwen3-30B-A3B Q4_K_M at pp512 int8 put first (Q4_K 47 and Q6_K 13 percent of device time), take their int8 sums on the integer tensor cores as the dense tiles do.
+
+**Done.**
+- `k_tile` takes the tensor-core build wherever the twin is 8-bit (`MMA = sizeof(QT) == 1`), so the routed full and mid builds of every K-quant, Q4_0, Q4_1, Q5_0, Q5_1, IQ4_NL and MXFP4 stage their gathered rows as a prompt's and sum on `mma.sync`.
+- Since the rebase onto main, a type's 8-bit groups of 9 to 16 entries, and MXFP4's of 17 to 32, run in main's routed stream on four-way dots, which has no 8-bit narrow tile to take `mma.sync`; the pp512 figures below were taken with the narrow tile on `mma.sync` and S6 measures the rebased head.
+- Every tile kernel reads its `TileCall` and `TileGroups` in place through `LLMX_GRID_CONST`, which removed a 56-byte local copy from each; sm_86 routed tiles take 104 to 159 registers with no spill and no local object.
+- HIP has no `GPU_IMMA8`, so the ROCm code is unchanged.
+- `cuda-sass` requires IMMA in the routed int8 tiles of every type, full and, but for MXFP4, mid, and passes on the build.
+- Card batch S13 (the card, arms and runs of change 2's block): B is change 2 with this change.
+  Greedy ids of B are change 2's over 65 tokens at int8 and f16 on Qwen3-30B-A3B, Qwen3.6-27B and Qwen3-0.6B Q8_0, and `backend-cuda` types, moe and default pass with no FAIL line.
+  Qwen3-30B-A3B Q4_K_M pp512 int8 runs 3205.8 and 3200.9 tok/s against change 2's 2821.4 and 2807.3, 13.8 percent faster and 74 percent of the reference's 4291.1 and 4377.9, from 65; tg128 183.5 and 183.5 against 184.1 and 183.9, f16 pp512 1535.3 against 1523.7.
+  Its device time falls from 181.1 to 158.7 ms: `q4_k_routed_tile8` 50.4 to 39.1, `q6_k_routed_tile8` 15.1 to 11.7, `q4_k_routed_mid8` 12.6 to 10.0.
+  Qwen3.6-27B, whose products are dense, is level (pp512 int8 655.3 and 652.1 against 657.1 and 652.5), as is Qwen3-0.6B Q8_0 (24369 and 24360 against 24623 and 24448, within the runs' spread of 2 percent).
+
+**Left.**
+- The routed builds still take 75 ms of the 30B-A3B's 159 against a weight read of about 18 ms at the card's bandwidth; `routed_tile8` (groups of 33 to 64 entries) leads, then `routed_stream8` (12.3 ms) and `attention_tile` (19.9 ms) beside them.
+
+**Gotchas.** None beyond change 2's.
+
+## CUDA backend step 8: every weight type, the routed experts and DeepSeek-V4.1's ops on cuda:N (2026-11-16, CUDA48, branch cuda/step8-types on cuda/step5 c9969f6d6)
+
+**Goal.** Step 8 of docs/CUDA.md, Order of work, for what ROCm runs: Q4_0, Q4_1, Q5_0, Q5_1, IQ4_NL, MXFP4, F16 and BF16 weights, the routed experts of qwen3moe and qwen35moe, qwen4exp, and DeepSeek-V4.1's ops, held by per-family witnesses on a card, the tiny HF fixtures on `cuda:0` and the DeepSeek fixture.
+
+**Done.**
+- The shared core already gives CUDA every type and op ROCm has (`kTypes`, `implements`), so step 8 is witnesses first and port fixes where a card fails.
+- The routed experts' checks moved from `backend-rocm` to `tests/moe_checks.hpp` (`moe_checks::Moe`, the wave width, launches reader, routed-build filter and require a test passes), and `backend-cuda moe` runs them; `cuda_route_only` is CUDA's routed-build filter, as `rocm_route_only` is ROCm's.
+- The half tile, the Q8_0 and MXFP4 decode-row checks and the Q8_0 column check moved to `twin_checks::Bits` (with `f32_close`, `same`, `DoubleSums` and `exact_close`), `sparse_tile_pair` to `deepseek4_checks.hpp`; `backend-cuda types` runs them and lists every type ROCm runs, and `backend-cuda deepseek4` runs `ds4::check_ops` with ROCm's exact set and the sparse tile pair.
+- ROCm runs the same checks from their new owners; no kernel or core file changed, so ROCm code objects are untouched.
+- Card batch (RTX 3090, 2026-11-16, tables in docs/CUDA.md, Qualification so far): the types check passes for Q8_0, Q4_K, Q5_K, Q6_K, Q4_0, Q4_1, Q5_0, Q5_1 and IQ4_NL at f16 and int8, and the suite's `f32`, `moe`, `int8`, `q5-0`, `q5-1`, `iq4-nl`, `qwen35` and `deepseek4` pass on `cuda:0` at both; `--dtype bf16` runs f32 with the warning; Qwen3-30B-A3B Q4_K_M runs at pp512 1200 and tg128 150 tok/s f16, 2112 and 177 int8, with the same 96 greedy tokens at both.
+- Open from S8: MXFP4 failed the types, moe and suite `mxfp4` checks (HF error 4649), the F16 half tile threw `CUDA_ERROR_INVALID_HANDLE`, `backend-cuda moe` failed and `ds4::check_ops` failed in `model_format_qdq`; the reference arm did not start (`libnccl.so.2`).
+- Port fixes (CUDA51): CUDA's `__byte_perm` keeps three bits of a selector nibble, so MXFP4's sign selectors 8 to 11 were lost, and `port.h` takes `prmt.b32` through asm; the load loop skipped every kernel from `kMoeStepUpQ4K` on without a dot module, `kF16Tile` among them, and now skips only the step-up range; `llmx_model_format_qdq` stores a NaN code as it is, as the CPU does, rather than its product with the scale.
+  ROCm code objects differ only in `llmx_model_format_qdq`, and `backend-rocm types`, `moe` and `deepseek4` pass on an MI50.
+- Card batch S9 (RTX 3090, 180 W, 2026-11-16, tables in docs/CUDA.md, Qualification so far): `backend-cuda types`, `moe` and `deepseek4` pass with no FAIL line; the suite's `mxfp4`, `half-weights`, `drafters` and `qwen35` pass at f16, and `mxfp4`, `drafters` and `qwen35` at int8 (MXFP4 max logit error 0.054 against 0.079 at int8); Qwen3-30B-A3B Q4_K_M gives S8's 96 greedy tokens at both dtypes, and at int8 runs pp512 1176 and tg128 123 tok/s against the reference's 1868 and 85 on the same card.
+
+- Batch S10 (one RTX 3090 at a 180 W cap, as S9's; S8's card ran at 280 W, so A and B below ran on S10's card alone): the suite's `moe` and `deepseek4` pass at f16 and int8 on the fixed binary (eec57368), since the `model_format_qdq` fix is on the DeepSeek path, and on one MI50 on the fixed ROCm build (`llmx 0.1.0+geec573681d3a`) both pass at f16 and int8.
+  The byte permute: the fixes' timing, 4591a038 (A) against eec57368 (B) on Qwen3-30B-A3B Q4_K_M, `bench --p 512 --n 128 --r 3`, ABAB twice on that one card, medians of A against B in tok/s: int8 pp512 1226 against 1197 and tg128 124.7 against 124.0, f16 pp512 645 against 646 and tg128 98.4 against 97.2.
+  B ran after A in each pair and 0.1 to 2.8 percent below it, while each arm's second round ran 0.7 to 4.2 percent below its first, so the difference is inside the drift and the move to `prmt.b32` shows no cost these runs resolve.
+
+- After the rebase onto land68, `q8_decode_bits` failed on CUDA at rows of 18, 20 and 24 blocks, and `backend-cuda moe` at Q8_0 640->2560 int8: main's held build `q8_0_half_held` exchanged a block's scale by a full-warp `lane_xor` inside the branch that skips a span past the row, undefined on CUDA where a row's last span is partial.
+  It takes `pair_lane`, as `half_steps` does, which names the pair alone (CUDA69, batch S6 `/opt/claude-work/cuda68/s6/results/20261117-0809-S6`); on ROCm `pair_lane` is the same exchange, so ROCm code objects are unchanged.
+
+**Left.**
+- The 30B-A3B ids against the CPU's, and its prompt rate, 63 percent of the reference's at int8; then the spills `cuda-sass` lists under step 8 trimmed in source.
+- Routed int8 tiles on the tensor cores stay step 2b's.
+
+**Gotchas.** A moved check keeps its ROCm expectations; a break-even or build name that differs at warp 32 is read from the device's wave, never special-cased by vendor.
+
 ## CUDA int8 tiles of every type on the tensor cores (2026-11-15, CUDA30 to CUDA33, branch cuda/step2 on cuda/step5; F2DEV's review of 14:56; lands as one commit on cuda/step5)
 
 **Goal.** The int8 prompt tiles of the K-quants and of Q4_0, Q4_1, Q5_0, Q5_1, IQ4_NL and MXFP4 take their sub-block sums on the 8-bit integer tensor cores under CUDA, as the Q8_0 tile does, with the bits of the dot build.
@@ -2578,6 +2805,82 @@ These are hand checks: `cuda-sass` and the five card-free CTests run in the test
 - Vulkan on NVIDIA could take the same lever through cooperative matrices; no owner yet.
 
 **Gotchas.** A Q6_K tile held to 128 registers spills on sm_90; two blocks an SM is right for the others, measured on sm_86 only.
+
+## CUDA step 1a: the prompt attention tile at 256-wide heads on ROCm and CUDA (2026-11-15 and 16, CUDA29 to CUDA43, branch cuda/step1a-fold on c9969f6d6; the fold is a candidate, not the landed 1a)
+
+**Goal.** Prompt attention of 256-wide heads, the full-attention layers of Qwen3.5 and Qwen3.6, runs the shared GPU core's tile as 128-wide heads do, in place of the per-row `llmx_attention_vec256`, which held Qwen3.6-27B prompts at depth to a fraction of the reference on CUDA and ROCm.
+
+**Done.**
+- `llmx_attention_tile256` (`kernels/f32.gpu`) is the tile's design at 256 wide: eight lanes a row each hold 32 dimensions, K and V stage 8 tokens at a time (16 at 128 wide), so both widths take the same shared memory; `backend_core.hpp` sends 256-wide views at `attention_tile_rows` and above to it.
+  `llmx_attention_tile` is main's kernel, so 128-wide heads keep their bits; Vulkan already had both widths (`K_ATTENTION_TILE_D256`), so the change reaches every GPU backend, and the CPU has its own path.
+- Two query heads of a KV head a lane were built and dropped: on one MI50 they ran 1.3x to 2.3x slower than one head a lane at every shape measured (CUDA30, `/opt/claude-work/cuda29/r1`).
+- `tests/attention_tiles.hpp`, run by `backend-rocm` and `backend-cuda`: heads 128 and 256 wide, 40 rows after 0, 37 and 300 tokens, four heads over two KV heads, each width's build, within 1e-5 of the values' largest magnitude of a double softmax, each row alone its bits; `backend-rocm rates attention` times the KV head counts of Qwen3-0.6B and Qwen3.6-27B.
+- 256-wide prompt rows change from the per-row order to the tile's, an F32 numerics change; HF error, Qwen3.5-0.8B Q4_K_M raw and chat 16k against the F32 HF reference (`/opt/claude-work/cuda31/depth/ref-f32`), 512 positions each, exact / accepted tie / miss against the 0.1 margin:
+
+| capture | RTX 3090, step 5 | RTX 3090, step 1a | MI50, main | MI50, step 1a |
+|---|---|---|---|---|
+| raw, f32 | 512 / 0 / 0 | 512 / 0 / 0 | 512 / 0 / 0 | 512 / 0 / 0 |
+| chat, f32 | 512 / 0 / 0 | 512 / 0 / 0 | 512 / 0 / 0 | 512 / 0 / 0 |
+| raw, f16 | 511 / 1 / 0 | 511 / 1 / 0 | 512 / 0 / 0 | 511 / 1 / 0 |
+| chat, f16 | 512 / 0 / 0 | 512 / 0 / 0 | 512 / 0 / 0 | 512 / 0 / 0 |
+
+  The one tie is position 16465, HF's top two 0.0005 apart against the 0.1 margin; no capture misses.
+  The f16 captures are graded against the F32 reference, not an operation-matched one.
+  The qwen35 HF baseline on one MI50 passes on Qwen3.5-0.8B Q8_0 (59 checks) and Q4_K_M (114) at 512 and 4096-token windows for step 1a and main alike (`/opt/claude-work/cuda32/h1`).
+- Identity: Qwen3-0.6B Q8_0 greedy ids equal main's at f16 and int8 on one MI50 and on the RTX 3090 (128 wide, kernel unchanged); Qwen3.6-27B Q4_K_M int8 greedy ids are step 5's on the RTX 3090, a 13-token prompt below the tile, so the 16k captures above are what reach the 256-wide tile.
+- Timing on one RTX 3090 at default clocks (`/opt/claude-work/cuda33/s2/results/20261115-1830-S2`), step 5 with `bench --profile` (834154aa8) against these commits on it (1bcfa8646), `llmx bench`, Qwen3.6-27B Q4_K_M int8, tok/s:
+
+| cell | step 5 | step 1a | reference CUDA |
+|---|---|---|---|
+| pp512 | 421.0, 420.3 | 469.6, 469.5 | 1358.3 (CUDA33's session S) |
+| pp512 at depth 4096 | 264.8, 264.6, 264.6 | 412.5, 411.9, 412.7 | 1312.7 |
+| pp512 at depth 16384 | 113.7 | 301.9 | 1159.9 (session S) |
+| tg1 | 37.2, 37.4 | 37.3, 37.4 | |
+
+  At depth 4096 the profile moves attention from `llmx_attention_vec256_major`, 817.7 ms and 42% of the prompt's device time, to `llmx_attention_tile256`, 168.9 ms and 14%.
+- On one MI50 (`/opt/claude-work/cuda30/r2`, `backend-rocm rates attention`, us a call, main against step 1a on main): 27B's 24 heads over 4 KV heads, 512 rows at depth 16384, 369137 against 161215; 24 over 2 at 16384, 357468 against 169821; 24 over 8, 320964 against 150399; 128-wide cells level (16 over 8 at 16384, 23538 against 24031).
+- Timing on one MI50 at default clocks (`/opt/claude-work/cuda34/m2`), main 929f042c6 against these commits on main (`/opt/claude-work/cuda30/br6`), `llmx bench`, Qwen3.6-27B Q4_K_M int8, tok/s, ABAB at depth 0 and 4096, one pair at 16384:
+
+| cell | main | step 1a |
+|---|---|---|
+| pp512 | 300.7, 291.4 | 302.9, 301.3 |
+| pp512 at depth 4096 | 180.3, 176.5 | 223.9, 223.5 |
+| pp512 at depth 16384 | 62.5 | 126.6 |
+| tg16 | 30.0, 30.1 | 29.9, 30.0 |
+
+  The host's run-queue wait was not recorded for these runs.
+- The fold (CUDA42's diagnosis, CUDA43's branch): on Qwen3.6-27B's real inputs, layer 3 at 16384 tokens, f16 cache, 64 rows against an F64 softmax, one MI50, `llmx_attention_tile256` as first landed had rel RMS 4.37e-6, a one-sided drift of -6.03e-8 (-23.9 SE) and 144.69 ms a call; main's per-row path has 2e-7 and no drift.
+  Each row was one sequential F32 chain over its whole history.
+  Folding (m, l, acc) into a total every 256 tokens gives rel RMS 2.88e-7, drift +1.65e-9 (10.0 SE) and 137.26 ms a call; folding with the denominator taken token by token gave 3.64e-7, +1.12e-8 (53.1 SE) and 137.93 ms.
+  The remaining drift is 0.6 percent of the rms error and not isolated; the denominator's tree-then-chain order against the numerator's token chain is the candidate and was not shown (`/opt/claude-work/cuda42/three.txt`).
+  `tests/attention_tiles.hpp` `check_long` holds this at 4133 and 16384 tokens; it was written without a card and its bounds (1e-6 rms, 2e-8 drift) were set from those figures before any run, so the first device run is its calibration and a failure there reads the test first.
+  The 128-wide tile has the same long chain and is not changed here.
+- Tested tree: these commits on 834154aa8, step 5 with `bench --profile`; the landing commit sits on 618ed9f28 without it, which changes no kernel, and CUDA33's session S priced that delta at zero (step 2's D and F, 468 and 467 tok/s on the 27B's pp512).
+- Hand checks: `backend-cuda` and the model cells on a rented RTX 3090 and `backend-rocm` on an MI50, since no hosted job has the CUDA toolkit, ROCm or a card.
+
+**Left.**
+- Owner decisions: whether 1a with the fold takes a new pre-registered HF check (the first landed form failed rule 2d on point estimates, see F2DEV's ANSWER of 2026-11-16 04:31), and whether main's 128-wide tile takes the same fold, which changes main's prompt bits for 128-wide heads.
+- This branch has built on CPU and ROCm and run the CTest, `docs` and `dead-code`; `backend-rocm`, `backend-cuda`, the model cells and any HF check wait for a card and the owner's call; nothing was pushed to GitHub.
+- Qwen3.6-27B Q4_K_M int8 pp512 at depth 4096 is 412.5 against the reference's 1312.7 on the RTX 3090; the K-quant tiles hold 67% of its device time, owned by step 2 and step 2b (CUDA34), and the attention tile, F32 on the CUDA cores, 14%, which a tensor-core form would own (no owner yet).
+
+## CUDA backend step 6: layer split and tensor groups on cuda:N (2026-11-16, CUDA47, branch cuda/step6-split on the step 2, 4 and 5 stack head c9969f6d6)
+
+**Goal.** Step 6 of docs/CUDA.md, Order of work: layer splits and tensor groups on CUDA through the shared core's collective and handoffs, with the three transports of the collective design, held by the split check, the tensor-split suite components and group identity across forms and widths on a pair of cards.
+
+**Done (card-free).**
+- The layer split and the handoffs needed no CUDA code: `GpuHandoff` (counters in coherent host memory, `cuStreamWaitValue64` and `cuStreamWriteValue64`) and `GpuCollective` already instantiate over `CudaApi`.
+- Transport 2, host writes (`GroupTransport::host_writes`, `gpu/collective_core.hpp`): where peer access is refused, each member's signal block and staging slots are pinned host memory every member maps, and the peer-write kernels, forms, parity halves and armed bits run over them unchanged; no kernel changes, so the ROCm and CUDA code objects are c9969f6d6's.
+- `group_transport` probes peer writes, then host writes, then falls to pulls, and stderr names the transport with why the earlier probes failed; `member_order` times a set by its transport.
+- Under host writes the join also times pulls (`GpuSumForm::pulls`) beside the four forms, the copies landing in device memory of their own so the armed slots stay armed (F2DEV's review item 1), and prints the pinned host memory the collective holds (item 5).
+- Tests: `backend-rocm`'s join without peer access now sums by host writes, with a forced pulls collective beside it, and its sentinel sums run three arms, peer writes, host writes and pulls; `backend-cuda groups` checks the probe's transport, every form over each transport, member order, 600 sentinel sums an arm and three handoff rounds where two devices open.
+- Holds beyond the pair (COORD 06:53): NVLink and NVSwitch take peer writes unchanged and the form timing picks per size; a context reaches eight peers, so all-peer groups stop at nine cards and host writes are the fast transport past that; Hopper's asynchronous copies do not enter the collective; NCCL later is a fourth transport carrying bytes inside the two-shot and chain forms, never its all-reduce.
+
+**Left.**
+- The card session (cuda47/run.sh, READY-FOR-CARDS): `backend-cuda groups`, `llmx-split-check` one card against the 1x2 layer split on Qwen3-0.6B Q8_0 at f16 and int8, the suite's `split` and `tensor-split` at widths 2 and 1, greedy tokens on one card, the layer split and a 2-wide group for 0.6B and Qwen3.6-27B Q4_K_M, and pp512 and tg128 per mode beside the reference's one card, layer and row splits.
+- A bridgeless GeForce pair refuses peer access, so that session proves host writes and pulls only; peer writes on CUDA wait for the NVLink session.
+- `backend-rocm` on two MI50s for the three-arm sentinel sums and host writes on ROCm.
+
+**Gotchas.** A ROCm or CUDA test that refuses peer access to reach the conservative path now gets host writes; pulls are reached by forcing them (`rocm_collective` or `cuda_collective` with `GroupTransport::pulls`).
 
 ## CUDA backend step 5: the qwen35 operations on cuda:N (2026-11-14 and 15, CUDA23 to CUDA28, branch cuda/step5 on cuda/step4, rebased on main 929f042c6; step 4 lands first)
 

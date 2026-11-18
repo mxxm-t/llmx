@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <mutex>
 #include <string>
+#include <utility>
 #include <vector>
 
 // The kernel modules, linked in by llmx_embed_modules (cmake/embed_modules.cmake).
@@ -52,6 +53,7 @@ struct CudaApi {
     static constexpr Error kSuccess = CUDA_SUCCESS, kNotReady = CUDA_ERROR_NOT_READY, kPeerAlreadyEnabled = CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED;
     static constexpr CopyKind kToHost = 0, kToDevice = 0, kAnyCopy = 0;
     static constexpr const char* name = "cuda";
+    static constexpr bool int8_tensor_tiles = true;   // the module has the K-quants' tall tensor-core tiles (kernels/int16.gpu, k_mma at 128 outputs)
     static inline const std::string prefix = "cuda: ";
     static constexpr const unsigned char* f32_module = kF32Module;
     static constexpr const unsigned char* int16_module = kInt16Module;
@@ -155,5 +157,14 @@ using CudaBackend = GpuBackend<CudaApi>;
 BackendPtr make_cuda_backend(int device) { return std::make_shared<CudaBackend>(device); }
 
 std::map<std::string, size_t> cuda_take_launches(Backend& backend) { return dynamic_cast<CudaBackend&>(backend).take_launches(); }
+void cuda_route_only(Backend& backend, std::string build) { dynamic_cast<CudaBackend&>(backend).route_only(std::move(build)); }
+DeviceProfile& cuda_profile(Backend& backend) { return dynamic_cast<CudaBackend&>(backend).profile(); }
+DeviceCaps& cuda_caps(Backend& backend) { return dynamic_cast<CudaBackend&>(backend).caps(); }
+
+std::unique_ptr<Collective> cuda_collective(const std::vector<Backend*>& members, size_t rows, size_t width, GpuSumForm form, GroupTransport transport) {
+    std::vector<CudaBackend*> group;
+    for (Backend* b : members) group.push_back(&dynamic_cast<CudaBackend&>(*b));
+    return std::make_unique<GpuCollective<CudaApi>>(group, rows, width, transport, false, form);
+}
 
 } // namespace backend

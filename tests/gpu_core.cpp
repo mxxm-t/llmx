@@ -41,6 +41,7 @@ struct FakeApi {
     static constexpr int kRefused = 3;
     static constexpr CopyKind kToHost = 0, kToDevice = 0, kAnyCopy = 0;
     static constexpr const char* name = "fake";
+    static constexpr bool int8_tensor_tiles = false;
     static inline const std::string prefix = "fake: ";
     static constexpr const unsigned char f32_image[1] = {1}, int16_image[1] = {2};
     static constexpr const unsigned char* f32_module = f32_image;

@@ -33,7 +33,7 @@ constexpr size_t kOneShotBlocks = 16;     // the one-shot's most blocks
 constexpr size_t kChainBlocks = 16, kChainUnits = 4096;   // the kernel's chain blocks each way and float4 units a chunk
 constexpr unsigned kProbeTimeoutMs = 1000;   // how long a probe sum's member waits for its peers before the probe finds peer writes unseen
 constexpr size_t kTimedFloor = 4096, kTimedSums = 3;   // the least floats a form is timed at, and the sums of each timing after a first
-constexpr size_t kSumForms = 4;          // GpuSumForm's forms, each timed
+constexpr size_t kSumForms = 4;          // GpuSumForm's kernel forms, each timed; host writes also time pulls, the fifth
 constexpr double kOrderMargin = 0.04;    // how much faster than the groups it replaces a swap of devices must sum to be taken, so even links and noise keep the listing
 
 // A tensor group's ordered sum (docs/src/backends-gpu.md, the collective): each member's kernel, on its own stream, sends its partial rows to its peers in the form the sum's size takes and adds them in member order.
@@ -42,11 +42,12 @@ template <class Api>
 class GpuCollective final : public Collective {
 public:
     // A probe bounds its members' waits by kProbeTimeoutMs, where peer writes that never become visible are what it looks for; `force` takes one form for every fast sum.
-    GpuCollective(const std::vector<GpuBackend<Api>*>& members, size_t rows, size_t width, bool fast, bool probe = false, std::optional<GpuSumForm> force = std::nullopt)
-        : members_(members), rows_(rows), width_(width), cap_((size_mul(rows, width) + 3) / 4 * 4), fast_(fast), force_(force),
+    GpuCollective(const std::vector<GpuBackend<Api>*>& members, size_t rows, size_t width, GroupTransport transport, bool probe = false, std::optional<GpuSumForm> force = std::nullopt)
+        : members_(members), rows_(rows), width_(width), cap_((size_mul(rows, width) + 3) / 4 * 4), fast_(transport != GroupTransport::pulls), host_(transport == GroupTransport::host_writes), force_(force),
           area_(members.size(), nullptr), ready_(members.size(), nullptr), pulled_(members.size(), nullptr), timeout_(members.size(), 0), tick_(members.size(), 0),
           last_(members.size(), 0), before_(members.size(), 0) {
         const size_t W = members.size();
+        const bool fast = fast_;
         try {
             Api::check(Api::host_malloc((void**)&status_, (W + 1) * sizeof(unsigned), true), "host_malloc");
             for (size_t m = 0; m <= W; ++m) status_[m] = 0;
@@ -56,11 +57,15 @@ public:
                 Api::check(Api::set_device(b.dev_.index), "set_device");
                 // A fast collective keeps two parity halves of the slots, which the one-shot reads as signals (kernels/f32.gpu, llmx_group_sum).
                 const size_t bytes = size_add(kGroupSignalBytes, size_mul(size_mul(fast ? 2 * W : W, cap_), sizeof(float)));
-                // Peers' stores reach uncached memory without the fine-grain setting, which ordinary allocations do not (docs/ROCM.md, Collective design and proof).
-                if (fast) Api::check(Api::malloc_uncached(&area_[m], bytes), "malloc_uncached");
+                // Peers' stores reach uncached memory without the fine-grain setting, which ordinary allocations do not (docs/ROCM.md, Collective design and proof); coherent host memory every member maps needs no peer access.
+                if (host_) Api::check(Api::host_malloc(&area_[m], bytes, true), "host_malloc");
+                else if (fast) Api::check(Api::malloc_uncached(&area_[m], bytes), "malloc_uncached");
                 else Api::check(Api::malloc(&area_[m], bytes), "malloc");
-                b.hold_fill(area_[m], kGroupSignalBytes);
+                if (host_) std::memset(area_[m], 0, kGroupSignalBytes);
+                else b.hold_fill(area_[m], kGroupSignalBytes);
                 if (fast) b.group_arm(stage(m), size_mul(2 * W, cap_));
+                // Host writes also time pulls, which copy into device memory of their own, so the armed slots stay armed.
+                if (host_) pull_.push_back(b.alloc(size_mul(size_mul(W, cap_), sizeof(float)), Memory::device));
                 Api::check(Api::event_create(&ready_[m], false), "event_create");
                 Api::check(Api::event_create(&pulled_[m], false), "event_create");
                 int khz = 0;
@@ -68,18 +73,21 @@ public:
                 timeout_[m] = probe ? (unsigned long long)khz * kProbeTimeoutMs : 0;
                 tick_[m] = (unsigned long long)khz;
             }
-            for (size_t m = 0; m < W; ++m) {
-                GroupPeers p{};
-                for (size_t k = 0; k < W; ++k) {
-                    p.stage[k] = stage(k);
-                    p.signal[k] = (unsigned*)area_[k];
+            for (const bool pulls : {false, true}) {
+                if (pulls && !host_) break;
+                for (size_t m = 0; m < W; ++m) {
+                    GroupPeers p{};
+                    for (size_t k = 0; k < W; ++k) {
+                        p.stage[k] = pulls ? pull_stage(k) : stage(k);
+                        p.signal[k] = (unsigned*)area_[k];
+                    }
+                    p.status = status_;
+                    p.fault = members[m]->fault_;
+                    p.cancel = status_ + W;
+                    peers_.push_back(members[m]->alloc(sizeof(GroupPeers), Memory::device));
+                    members[m]->write(*peers_.back(), 0, &p, sizeof(GroupPeers));
+                    (pulls ? pull_table_ : peer_table_).push_back(as_gpu<Api>(*peers_.back()).data());
                 }
-                p.status = status_;
-                p.fault = members[m]->fault_;
-                p.cancel = status_ + W;
-                peers_.push_back(members[m]->alloc(sizeof(GroupPeers), Memory::device));
-                members[m]->write(*peers_.back(), 0, &p, sizeof(GroupPeers));
-                peer_table_.push_back(as_gpu<Api>(*peers_.back()).data());
             }
             // Every member's signals are zero and its slots armed before any peer may write them, which a fill still queued on its own stream would overwrite.
             for (GpuBackend<Api>* b : members) b->sync();
@@ -122,6 +130,10 @@ public:
 
     // Whether the sums still take the fast path; a test's witness.
     bool fast() const { return fast_; }
+    // The forms timed for this collective: the kernel forms, and pulls where the rows go through host memory.
+    size_t form_count() const { return host_ ? kSumForms + 1 : kSumForms; }
+    // The pinned host memory the collective holds, which a host's memory limit has to allow.
+    size_t pinned_bytes() const { return host_ ? size_mul(members_.size(), size_add(kGroupSignalBytes, size_mul(size_mul(2 * members_.size(), cap_), sizeof(float)))) : 0; }
 
     // Each fast sum's form by its size, kept by the group's first member.
     void use(const std::map<size_t, GpuSumForm>& forms) { forms_ = forms; }
@@ -147,19 +159,20 @@ public:
     // Each form timed at the reserved rows and halvings of them in whole rows down to one row, until the one-shot wins or n reaches what was timed before; the winner at each n goes into `forms`.
     // Returns the times as stderr reports them, empty where nothing was timed.
     std::string time_forms(std::map<size_t, GpuSumForm>& forms, size_t timed_before) {
-        static const char* const names[] = {"one-shot", "two shots", "chain", "wrap"};
+        static const char* const names[] = {"one-shot", "two shots", "chain", "wrap", "pulls"};
         std::string report;
         for (size_t r = rows_, n = size_mul(r, width_); fast_ && r && n > timed_before && n >= kTimedFloor; r /= 2, n = r * width_) {
-            double ms[kSumForms];
+            double ms[kSumForms + 1] = {0, 0, 0, 0, 1e30};
             size_t won = 0;
-            for (size_t f = 0; f < kSumForms; ++f) {
+            for (size_t f = 0; f < form_count(); ++f) {
                 ms[f] = timed((GpuSumForm)f, n);
                 if (ms[f] < ms[won]) won = f;
             }
             if (!fast_) break;
             forms[n] = (GpuSumForm)won;
             char line[160];
-            std::snprintf(line, sizeof line, "%s%zu floats %.3f %.3f %.3f %.3f %s", report.empty() ? "" : "; ", n, ms[0], ms[1], ms[2], ms[3], names[won]);
+            if (host_) std::snprintf(line, sizeof line, "%s%zu floats %.3f %.3f %.3f %.3f %.3f %s", report.empty() ? "" : "; ", n, ms[0], ms[1], ms[2], ms[3], ms[4], names[won]);
+            else std::snprintf(line, sizeof line, "%s%zu floats %.3f %.3f %.3f %.3f %s", report.empty() ? "" : "; ", n, ms[0], ms[1], ms[2], ms[3], names[won]);
             report += line;
             if (!won) break;
         }
@@ -206,7 +219,7 @@ private:
         };
         try {
             if (n) {
-                if (fast_) pushed(residual, n, replace);
+                if (fast_ && form_of(n) != GpuSumForm::pulls) pushed(residual, n, replace);
                 else pulled(residual, n, replace);
             }
             for (GpuBackend<Api>* b : members_) b->flush();
@@ -237,7 +250,7 @@ private:
         if (form == GpuSumForm::two_shots) blocks = std::min<size_t>(kGroupBlocks, ((units + W - 1) / W + kThreads - 1) / kThreads);
         else if (form == GpuSumForm::chain || form == GpuSumForm::wrap) blocks = 2 * std::min<size_t>(kChainBlocks, (units + kChainUnits - 1) / kChainUnits);
         int members = (int)W, rank = (int)m, flags = (replace ? 1 : 0) | (fast ? 2 | (int)half_ << 2 : 0) | (form == GpuSumForm::wrap ? 8 : 0);
-        const Args args(peer_table_[m], own, o, nn, cap, members, rank, flags, timeout, tick);
+        const Args args(fast || !host_ ? peer_table_[m] : pull_table_[m], own, o, nn, cap, members, rank, flags, timeout, tick);
         b.group_launch(form, (unsigned)blocks, args);
     }
 
@@ -257,7 +270,7 @@ private:
             for (size_t k = 0; k < W; ++k) {
                 if (k == m) continue;
                 Api::check(Api::stream_wait_event(b.stream_, ready_[k]), "stream_wait_event");
-                b.launch_check(Api::copy_async(stage(m) + k * cap_, GpuBackend<Api>::f32(CSlice(partial(k))), bytes, Api::kAnyCopy, b.stream_), "copy_async");
+                b.launch_check(Api::copy_async(pull_stage(m) + k * cap_, GpuBackend<Api>::f32(CSlice(partial(k))), bytes, Api::kAnyCopy, b.stream_), "copy_async");
             }
             Api::check(Api::event_record(pulled_[m], b.stream_), "event_record");
         }
@@ -287,15 +300,16 @@ private:
         std::fprintf(stderr, "%sa tensor group's sum was cancelled since a member's launch failed; the group's later sums take the conservative path\n", Api::prefix.c_str());
     }
 
-    // A member's staging slots, past its signal block.
+    // A member's staging slots, past its signal block, and the slots pulls copy into: under host writes device memory of their own, else the same.
     float* stage(size_t m) const { return (float*)((uint8_t*)area_[m] + kGroupSignalBytes); }
+    float* pull_stage(size_t m) const { return host_ ? GpuBackend<Api>::f32(Slice{pull_.at(m).get(), 0}) : stage(m); }
 
     // Every member drained first, so no kernel or copy still names what goes.
     void release() noexcept {
         for (GpuBackend<Api>* m : members_) m->sync();
         for (size_t m = 0; m < members_.size(); ++m) {
             (void)Api::set_device(members_[m]->dev_.index);
-            if (area_[m]) (void)Api::free(area_[m]);
+            if (area_[m]) (void)(host_ ? Api::host_free(area_[m]) : Api::free(area_[m]));
             if (ready_[m]) (void)Api::event_destroy(ready_[m]);
             if (pulled_[m]) (void)Api::event_destroy(pulled_[m]);
             area_[m] = ready_[m] = pulled_[m] = nullptr;
@@ -307,23 +321,25 @@ private:
     std::vector<GpuBackend<Api>*> members_;
     size_t rows_, width_, cap_;   // cap_: a staging slot's floats, the reserved rows rounded up to whole units of four
     bool fast_;
+    bool host_;   // the areas are pinned host memory (GroupTransport::host_writes)
     std::optional<GpuSumForm> force_;   // the form every fast sum takes, else by size from forms_
     unsigned half_ = 0;   // the parity half of the staging the next fast sum takes, flipped by each one-shot
     std::map<size_t, GpuSumForm> forms_;
     std::vector<BufferPtr> partial_;
-    std::vector<void*> area_;   // per member: its signal block, then a staging slot per member, twice on the fast path
+    std::vector<void*> area_;   // per member: its signal block, then a staging slot per member, twice on the fast path; device memory, or host memory under host_writes
     std::vector<typename Api::Event> ready_, pulled_;   // the conservative path's events, per member
     std::vector<unsigned long long> timeout_, tick_;   // per member in its wall-clock ticks: a probe's kProbeTimeoutMs, else 0 for none, and a millisecond
     std::vector<BufferPtr> peers_;   // per member, its GroupPeers in its device memory
     std::vector<void*> peer_table_;   // per member, peers_'s device address, the kernel's first argument
+    std::vector<BufferPtr> pull_;   // per member under host writes, the device memory pulls copy into
+    std::vector<void*> pull_table_;   // per member under host writes, its GroupPeers naming pull_, the pulls' first argument
     unsigned* status_ = nullptr;   // host memory, a word a member, set by a kernel that gave up, then the host's cancel word
     std::vector<Ticket> last_, before_;   // per member, the ticket holding the last sum and the sum before it
 };
 
-// Every directed pair reaches the other's memory, peer access enabled, every member's add leaves the one-shot's sanitized values invisible, and one fast sum of known rows gives their member-order sum; otherwise why not.
-// `enabled`, where given, gets each directed pair whose access this probe enabled, so a caller that does not keep the group can disable it.
+// Every directed pair of `ids` reaches the other's memory, its access enabled here where it was not, else why not; `enabled`, where given, gets each pair this call enabled.
 template <class Api>
-std::string group_probe(const std::vector<GpuBackend<Api>*>& group, const std::vector<int>& ids, std::vector<std::pair<int, int>>* enabled = nullptr) {
+std::string group_access(const std::vector<int>& ids, std::vector<std::pair<int, int>>* enabled) {
     for (int a : ids)
         for (int b : ids) {
             if (a == b) continue;
@@ -336,11 +352,22 @@ std::string group_probe(const std::vector<GpuBackend<Api>*>& group, const std::v
                 return "peer access from device " + std::to_string(a) + " to device " + std::to_string(b) + " failed with " + Api::error_name(e);
             if (e == Api::kSuccess && enabled) enabled->emplace_back(a, b);
         }
+    return {};
+}
+
+// Every directed pair reaches the other's memory under peer_writes, every member's add hides the one-shot's sanitized values, and a fast sum of known rows gives their member-order sum; otherwise why not.
+// `enabled`, where given, gets each directed pair whose access this probe enabled, so a caller that does not keep the group can disable it.
+template <class Api>
+std::string group_probe(const std::vector<GpuBackend<Api>*>& group, const std::vector<int>& ids, GroupTransport transport, std::vector<std::pair<int, int>>* enabled = nullptr) {
+    if (transport == GroupTransport::peer_writes) {
+        const std::string why = group_access<Api>(ids, enabled);
+        if (!why.empty()) return why;
+    }
     const std::string adds = GpuCollective<Api>::add_check(group, ids);
     if (!adds.empty()) return adds;
     try {
         const size_t n = 1027;   // a tail past whole units, over one block
-        GpuCollective<Api> c(group, 1, n, true, true);
+        GpuCollective<Api> c(group, 1, n, transport, true);
         std::vector<float> want(n, 0.0f);
         for (size_t m = 0; m < group.size(); ++m) {
             std::vector<float> rows(n);
@@ -362,6 +389,21 @@ std::string group_probe(const std::vector<GpuBackend<Api>*>& group, const std::v
         return std::string("a probe sum failed: ") + e.what();
     }
     return {};
+}
+
+// The first fast transport whose probe passes, peer writes then host writes, else pulls, with why each one tried failed.
+template <class Api>
+GroupPath group_transport(const std::vector<GpuBackend<Api>*>& group, const std::vector<int>& ids, std::vector<std::pair<int, int>>* enabled = nullptr) {
+    GroupPath path;
+    for (const GroupTransport t : {GroupTransport::peer_writes, GroupTransport::host_writes}) {
+        const std::string why = group_probe(group, ids, t, enabled);
+        if (why.empty()) {
+            path.transport = t;
+            return path;
+        }
+        path.why += (path.why.empty() ? "" : "; ") + why;
+    }
+    return path;
 }
 
 std::string device_list(const std::vector<int>& ids) {
@@ -392,9 +434,12 @@ template <class Api>
 GroupPath& GpuBackend<Api>::group_path(const std::vector<GpuBackend<Api>*>& group, const std::vector<int>& ids) {
     auto path = group_paths_.find(ids);
     if (path != group_paths_.end()) return path->second;
-    path = group_paths_.emplace(ids, GroupPath{group_probe(group, ids)}).first;
-    if (path->second.why.empty()) std::fprintf(stderr, "%stensor group of devices %s sums by peer writes\n", Api::prefix.c_str(), device_list(ids).c_str());
-    else std::fprintf(stderr, "%stensor group of devices %s sums by peer pulls, since %s\n", Api::prefix.c_str(), device_list(ids).c_str(), path->second.why.c_str());
+    path = group_paths_.emplace(ids, group_transport(group, ids)).first;
+    const GroupPath& p = path->second;
+    if (p.transport == GroupTransport::peer_writes) std::fprintf(stderr, "%stensor group of devices %s sums by peer writes\n", Api::prefix.c_str(), device_list(ids).c_str());
+    else
+        std::fprintf(stderr, "%stensor group of devices %s sums by %s, since %s\n", Api::prefix.c_str(), device_list(ids).c_str(), p.transport == GroupTransport::host_writes ? "host writes" : "peer pulls",
+                     p.why.c_str());
     return path->second;
 }
 
@@ -412,7 +457,7 @@ std::vector<size_t> GpuBackend<Api>::member_order(const std::vector<Backend*>& d
     if (cached != picks_.end()) return cached->second;
     const auto started = std::chrono::steady_clock::now();
     std::map<std::vector<size_t>, double> costs;
-    std::map<std::vector<int>, bool> slow;   // by its sorted device indices, a set whose probe found no peer writes
+    std::map<std::vector<int>, GroupTransport> sets;   // by its sorted device indices, the transport its probes gave
     const auto cost = [&](const std::vector<size_t>& members) {
         auto at = costs.find(members);
         if (at != costs.end()) return at->second;
@@ -430,12 +475,16 @@ std::vector<size_t> GpuBackend<Api>::member_order(const std::vector<Backend*>& d
             group = lead->group_of(listed, ids);
             std::vector<int> set = ids;
             std::sort(set.begin(), set.end());
-            if (!slow.count(set)) {
-                if (!group_probe(group, ids, &enabled).empty()) slow[set] = true;
-                else {
-                    GpuCollective<Api> c(group, rows, summed, true);
-                    for (size_t f = 0; f < kSumForms; ++f) ms = std::min(ms, c.timed((GpuSumForm)f, n));
-                }
+            const auto known = sets.find(set);
+            const GroupTransport t = known != sets.end() ? known->second : (sets[set] = group_transport(group, ids, &enabled).transport);
+            // A set probed in another order had its probe's access disabled once timed, so this order enables it again before its peer writes.
+            if (known != sets.end() && t == GroupTransport::peer_writes) {
+                const std::string why = group_access<Api>(ids, &enabled);
+                if (!why.empty()) throw std::runtime_error(why);
+            }
+            if (t != GroupTransport::pulls) {
+                GpuCollective<Api> c(group, rows, summed, t);
+                for (size_t f = 0; f < c.form_count(); ++f) ms = std::min(ms, c.timed((GpuSumForm)f, n));
             }
         } catch (const std::exception&) {
             ms = 1e30;
@@ -499,17 +548,20 @@ std::vector<size_t> GpuBackend<Api>::member_order(const std::vector<Backend*>& d
         }
         if (group.empty()) continue;
         GroupPath& path = lead->group_path(group, ids);
-        if (!path.why.empty() || path.timed >= n) continue;
+        if (path.transport == GroupTransport::pulls || path.timed >= n) continue;
         std::string times;
         try {
-            GpuCollective<Api> c(group, rows, summed, true);
+            GpuCollective<Api> c(group, rows, summed, path.transport);
             times = c.time_forms(path.forms, path.timed);
             if (c.fast()) path.timed = n;
         } catch (const std::exception& e) {
+            path.transport = GroupTransport::pulls;
             path.why = std::string("timing its sums failed: ") + e.what();
             std::fprintf(stderr, "%stensor group of devices %s sums by peer pulls, since %s\n", Api::prefix.c_str(), device_list(ids).c_str(), path.why.c_str());
         }
-        if (!times.empty()) std::fprintf(stderr, "%stensor group of devices %s timed its sums in place, ms one-shot, two shots, chain, wrap: %s\n", Api::prefix.c_str(), device_list(ids).c_str(), times.c_str());
+        if (!times.empty())
+            std::fprintf(stderr, "%stensor group of devices %s timed its sums in place, ms one-shot, two shots, chain, wrap%s: %s\n", Api::prefix.c_str(), device_list(ids).c_str(),
+                         path.transport == GroupTransport::host_writes ? ", pulls" : "", times.c_str());
     }
     return perm;
 }
@@ -521,22 +573,27 @@ std::unique_ptr<Collective> GpuBackend<Api>::join(const std::vector<Backend*>& m
     const std::vector<GpuBackend<Api>*> group = group_of(members, ids);
     const std::string names = device_list(ids);
     GroupPath& g = group_path(group, ids);
-    std::unique_ptr<GpuCollective<Api>> c = std::make_unique<GpuCollective<Api>>(group, rows, width, g.why.empty());
+    std::unique_ptr<GpuCollective<Api>> c = std::make_unique<GpuCollective<Api>>(group, rows, width, g.transport);
     // The forms are timed on the group's own cards at its first collective past the sizes timed so far, its members idle, so the topology picks them (docs/TENSOR-SPLIT.md, section 4.3).
     const size_t n = size_mul(rows, width);
-    if (g.why.empty() && group.size() > 1 && n > g.timed) {
+    if (g.transport != GroupTransport::pulls && group.size() > 1 && n > g.timed) {
         std::string times;
         try {
             times = c->time_forms(g.forms, g.timed);
         } catch (const std::exception& e) {
+            g.transport = GroupTransport::pulls;
             g.why = std::string("timing its sums failed: ") + e.what();
             std::fprintf(stderr, "%stensor group of devices %s sums by peer pulls, since %s\n", Api::prefix.c_str(), names.c_str(), g.why.c_str());
             c.reset();
-            return std::make_unique<GpuCollective<Api>>(group, rows, width, false);
+            return std::make_unique<GpuCollective<Api>>(group, rows, width, GroupTransport::pulls);
         }
         g.timed = n;
-        if (!times.empty()) std::fprintf(stderr, "%stensor group of devices %s timed its sums in place, ms one-shot, two shots, chain, wrap: %s\n", Api::prefix.c_str(), names.c_str(), times.c_str());
+        if (!times.empty())
+            std::fprintf(stderr, "%stensor group of devices %s timed its sums in place, ms one-shot, two shots, chain, wrap%s: %s\n", Api::prefix.c_str(), names.c_str(), c->form_count() > kSumForms ? ", pulls" : "",
+                         times.c_str());
     }
+    if (c->pinned_bytes())
+        std::fprintf(stderr, "%stensor group of devices %s holds %.1f MiB of pinned host memory for sums of %zu floats\n", Api::prefix.c_str(), names.c_str(), c->pinned_bytes() / 1048576.0, n);
     c->use(g.forms);
     return c;
 }

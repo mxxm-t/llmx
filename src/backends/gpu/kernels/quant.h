@@ -125,3 +125,48 @@ struct MXFP4 {
 };
 
 } // namespace rq
+
+// The activation twin's rule, which every producer of a twin in both modules takes (docs/src/backends-gpu.md).
+// The largest magnitude of the 32 lanes of a twin block, a value a lane.
+__device__ inline float block_amax(float v) {
+    float a = fabsf(v);
+    for (int o = 16; o > 0; o >>= 1) a = fmaxf(a, shuffle_xor(a, o, 32));
+    return a;
+}
+
+// Value v of a twin block whose 32 lanes give amax, at L levels: d the block's scale and q the value scaled to L (docs/STATUS.md, the twin's rule), L 32767 for block-int16 and 127 for block-int8; lane 0 writes d, and the code is returned.
+template <typename QT, int L>
+__device__ inline int twin_value(float v, float amax, QT* q, float* d, int lane) {
+    if (amax == 0.0f) {
+        *q = 0;
+        if (lane == 0) *d = 0.0f;
+        return 0;
+    }
+    int e = 0;
+    (void)frexpf(amax, &e);   // amax = m 2^e, m in [0.5, 1)
+    const int s = (amax >= 0x1p-100f && amax <= 0x1p100f) ? 0 : 1 - e;
+    const float an = ldexpf(amax, s), xn = ldexpf(v, s);
+    const float r = xn * ((float)L / an);
+    float t = floorf(fabsf(r) + 0.5f);
+    t = fminf(t, (float)L);
+    const QT c = (QT)(r < 0.0f ? -t : t);
+    *q = c;
+    if (lane == 0) *d = ldexpf(an / (float)L, -s);
+    return (int)c;
+}
+
+// Twin block b's two half sums, of its first 16 codes and its last 16, which the tiles' offset and min terms read in place of summing the codes: two int16 for block-int8 and two ints for block-int16, the first half's first.
+// The LANES lanes holding the block call it together, each with the sum c of its codes and `lane` its first value's place, so the lanes of values 0 and 16 write; a null s, a twin no tile reads, takes none.
+template <typename QT, int LANES>
+__device__ inline void twin_sums(int c, int lane, void* s, unsigned long long b) {
+    if (!s) return;
+    c = segment_sum<LANES / 2>(c);
+    if (lane % 16 == 0) {
+        if constexpr (sizeof(QT) == 1) ((short*)s)[2 * b + lane / 16] = (short)c;
+        else ((int*)s)[2 * b + lane / 16] = c;
+    }
+}
+
+// Half h of a twin block's two sums as twin_sums stores them, for block-int8 and block-int16.
+__device__ inline int twin_half(int w, int h) { return h ? w >> 16 : (int)(short)(w & 0xffff); }
+__device__ inline int twin_half(int2 w, int h) { return h ? w.y : w.x; }

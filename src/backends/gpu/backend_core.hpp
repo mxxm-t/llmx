@@ -57,24 +57,9 @@ inline unsigned host_exchange(unsigned* p, unsigned v) { return __atomic_exchang
 inline void host_store(unsigned* p, unsigned v) { __atomic_store_n(p, v, __ATOMIC_RELEASE); }
 #endif
 
-// Heads a block of the few-row sparse attention pair: from most, halved while the call's blocks of wide kept rows or columns leave a compute unit idle or half the heads would fill a block, down to least.
-// Twice most, the scores kernel's register-tiled build over kept rows twice as wide, once more than most heads give its blocks every compute unit.
-inline size_t sparse_few_heads(const DeviceCaps& caps, size_t rows, size_t heads, size_t named, size_t dim, size_t wide, size_t most, size_t least) {
-    const size_t units = std::max(1u, caps.compute_units);
-    if (heads > most && (named + 2 * wide - 1) / (2 * wide) * rows * ((heads + 2 * most - 1) / (2 * most)) >= units) return 2 * most;
-    const size_t tiles = std::max<size_t>(1, std::min((named + wide - 1) / wide, (dim + wide - 1) / wide)) * rows;
-    size_t th = most;
-    while (th > least && (th / 2 >= heads || tiles * ((heads + th - 1) / th) < units)) th /= 2;
-    return th;
-}
-
-// Whether the few-row values kernel takes two columns a lane: at `most` heads, once one-column blocks give each unit `per_unit`, half as many still fill the units.
-inline bool sparse_few_two(const DeviceCaps& caps, size_t rows, size_t heads, size_t dim, size_t wide, size_t th, size_t most, size_t per_unit) {
-    return th == most && (dim + wide - 1) / wide * rows * ((heads + th - 1) / th) >= per_unit * size_t(std::max(1u, caps.compute_units));
-}
-
-// What a tensor group's first member keeps of the group's probe: empty for fast sums, else why sums are conservative, and each fast sum's form by its size, timed up to `timed` floats.
+// What a tensor group's first member keeps of the group's probes: the transport the first passing probe gave, why each earlier one failed, and each fast sum's form by its size, timed up to `timed` floats.
 struct GroupPath {
+    GroupTransport transport = GroupTransport::pulls;
     std::string why;
     size_t timed = 0;
     std::map<size_t, GpuSumForm> forms;   // from each timed size up, the form that won there; below the least, the one-shot
@@ -307,9 +292,10 @@ public:
                                k == kRouted16 || k == kRouted8;
             const typename Api::Module m = k < kRows16x1 ? module_ : !plain && dot_module_ ? dot_module_ : int16_module_;
             // The fused moe_step's products are in the dot module alone; without it every step runs the base's ops.
-            if (k >= kMoeStepUpQ4K && !dot_module_) continue;
+            if (k >= kMoeStepUpQ4K && k <= kMoeStepUpQ5KW && !dot_module_) continue;
             // The integer index tile is built for the targets with the 8-bit dot alone (GPU_DOT4 in kernels/port.h), which the dot module marks.
             if (k == kIndexerScoresInt && !dev_.caps.integer_dot) continue;
+            if (k >= kTallQ4K8 && k <= kTallQ6K8 && !Api::int8_tensor_tiles) continue;
             Api::check(Api::module_function(&kernels_[k], m, kKernelNames[k]), "module_function");
         }
         for (size_t s = 0; s < kRingSlots; ++s) {
@@ -778,7 +764,7 @@ public:
         // In place it runs as one part, since a part's writes would reach another's sum.
         const size_t units = std::max(1u, dev_.caps.compute_units) / rows;
         const unsigned parts = overlaps(CSlice(dst), rows * stride, src, rows * stride) ? 1 : (unsigned)std::max<size_t>(1, std::min((n + kNormPart - 1) / kNormPart, units));
-        Args args(d, s, wp, in, st, eps, parts, q, td);
+        Args args(d, s, wp, in, st, eps, parts, q, td, t.s);
         if (build != k) args.put(map);
         launch_writing({{d, size_mul(rows, std::max<size_t>(n, stride))}}, build, (unsigned)rows, parts, args, 1, kNormThreads);
         keep(t, d, rows * n);
@@ -842,7 +828,7 @@ public:
         const float* g = f32(gate);
         unsigned long long nn = n, wd = width, dd = dim, gs = gate_stride, ghs = gate_head_stride;
         StreamTwin t = stream_twin(dst, rows, width, runs);
-        const Args args(d, xp, g, nn, wd, dd, gs, ghs, t.q, t.d, t.level, t.map, t.major);
+        const Args args(d, xp, g, nn, wd, dd, gs, ghs, t.q, t.d, t.s, t.level, t.map, t.major);
         launch_writing({{d, n}}, kSigmoidMul, (unsigned)((n + kThreads - 1) / kThreads), 1, args);
         keep(t.t, d, n);
     }
@@ -858,7 +844,7 @@ public:
         const float* wp = f32(w);
         int dm = (int)dim, sig = gate == NormGate::sigmoid;
         StreamTwin t = stream_twin(dst, rows, size_mul(heads, dim), runs, dim % 32 == 0);
-        const Args args(d, xp, zp, wp, dm, eps, sig, t.q, t.d, t.level, t.map, t.major);
+        const Args args(d, xp, zp, wp, dm, eps, sig, t.q, t.d, t.s, t.level, t.map, t.major);
         launch_writing({{d, n}}, kGatedRmsNorm, (unsigned)size_mul(rows, heads), 1, args);
         keep(t.t, d, n);
     }
@@ -970,14 +956,14 @@ public:
         const float* xd = nullptr;
         if (form == 2) {
             const RowRun whole[1] = {{rows, 1}};
-            const auto twin = twin_of(mixed, rows, nin, true, twin_map(runs.n ? runs : RowRuns{whole, 1}, rows, nin), true);
-            xq = twin.first, xd = twin.second;
+            const TwinPlanes twin = twin_of(mixed, rows, nin, true, twin_map(runs.n ? runs : RowRuns{whole, 1}, rows, nin), true, false);
+            xq = twin.q, xd = twin.d;
         }
         StreamTwin t = stream_twin(d.out, rows, V, runs, sh.v_dim % 32 == 0);
         const DeltaStepArgs A{f32(d.out), f32(d.qkv.out), f32(d.conv_w), f32(mixed), bytes(d.alpha.weight.data), bytes(d.beta.weight.data), f32(d.alpha.out),
                               f32(d.beta.out), f32(d.a), f32(d.dt_bias), f32(Slice{&ss.layer(layer), 0}), (const unsigned*)arg(tab.data(), tab.size() * sizeof(unsigned)),
                               f32(d.gate.out), f32(d.norm), (unsigned*)as_gpu<Api>(*delta_counter_).data(), (unsigned)C, (unsigned)sh.k_heads, (unsigned)Hv, (unsigned)nin,
-                              ss.slot_floats(layer), size_mul(Hv, sh.matrix_floats()), (float)(1.0 / std::sqrt((double)sh.k_dim)), kL2NormEps, d.eps, t.q, t.d, t.level,
+                              ss.slot_floats(layer), size_mul(Hv, sh.matrix_floats()), (float)(1.0 / std::sqrt((double)sh.k_dim)), kL2NormEps, d.eps, t.q, t.d, t.s, t.level,
                               t.major, t.map, (unsigned)sh.k_dim, (unsigned)sh.v_dim, (const int8_t*)xq, xd, (unsigned)form, d.norm_gate == NormGate::sigmoid ? 1u : 0u};
         launch_writing({{A.o, n}, {A.ao, size_mul(rows, Hv)}, {A.bo, size_mul(rows, Hv)}}, kDeltaStep, (unsigned)size_mul(n_views, Hv), 1, Args(A));
         keep(t.t, A.o, n);
@@ -1036,7 +1022,7 @@ public:
         StreamTwin t = stream_twin(dst, rows, width, runs, dim % 32 == 0);
         // Four values a thread only where every operand lies on 16 bytes, since a slice's offset may be any float.
         int four = dim % 4 == 0 && ((uintptr_t)d | (uintptr_t)s | (uintptr_t)wp) % 16 == 0;
-        const Args args(d, s, wp, g, dm, eps, t.q, t.d, t.level, t.map, t.major, four);
+        const Args args(d, s, wp, g, dm, eps, t.q, t.d, t.s, t.level, t.map, t.major, four);
         // Slices of a group, each repeating its reduction, up to what gives four blocks a compute unit (Vulkan's split, fc6f53415); one in place, where a slice's writes would meet another's reads.
         const size_t fill = (4 * size_t(std::max(1u, dev_.caps.compute_units)) + blocks - 1) / blocks;
         const size_t slices = dst.buffer == src.buffer && dst.offset == src.offset ? 1 : std::max<size_t>(1, std::min((dim + 1023) / 1024, fill));
@@ -1053,7 +1039,7 @@ public:
         const float* s = f32(src);
         unsigned long long nn = n;
         StreamTwin t = stream_twin(dst, rows, width, runs);
-        const Args args(d, s, nn, scale, t.q, t.d, t.level, t.map, t.major);
+        const Args args(d, s, nn, scale, t.q, t.d, t.s, t.level, t.map, t.major);
         launch_writing({{d, n}}, kSiluScaled, (unsigned)((n + kThreads - 1) / kThreads), 1, args);
         keep(t.t, d, n);
     }
@@ -1071,7 +1057,7 @@ public:
         unsigned long long nn = out_n;
         unsigned st = (unsigned)streams, dm = (unsigned)dim;
         StreamTwin t = stream_twin(dst, rows, dim, runs);
-        const Args args(d, s, g, nn, st, dm, t.q, t.d, t.level, t.map, t.major);
+        const Args args(d, s, g, nn, st, dm, t.q, t.d, t.s, t.level, t.map, t.major);
         launch_writing({{d, out_n}}, kMixStreams, (unsigned)((out_n + kThreads - 1) / kThreads), 1, args);
         keep(t.t, d, out_n);
     }
@@ -1484,7 +1470,7 @@ public:
         TwinMap map = t.map;
         const Kernel k = !t.q ? kSiluMul : t.int8 ? kSiluMulTwin8 : kSiluMulTwin16, build = twin_build(k, map);
         const int fm = form == GluForm::quick_gelu;
-        Args args(d, g, u, nn, limit, fm, q, td);
+        Args args(d, g, u, nn, limit, fm, q, td, t.s);
         if (build != k) args.put(map);
         launch_writing({{d, n}}, build, (unsigned)((n + kThreads - 1) / kThreads), 1, args);
         keep(t, d, n);
@@ -1629,7 +1615,7 @@ public:
         if (!n_views) return;
         GpuKVStorage<Api>& s = storage(views[0]);
         if ((size_t)head_dim != s.dim() || (size_t)n_head_kv != s.heads()) throw std::runtime_error(Api::prefix + "attention outside the KV view");
-        // Views of a prompt whose extent reaches the profile's attention_tile_rows, causal and of 128-wide heads, take the tile kernel, the rest the chunk kernel: by the view's extent, its row class, never by how many rows the call holds.
+        // Views of a prompt whose extent reaches the profile's attention_tile_rows, causal and of 128- or 256-wide heads, take the tile kernel, the rest the chunk kernel: by the view's extent, its row class, never by how many rows the call holds.
         const size_t tile_rows = dev_.profile.attention_tile_rows;
         std::vector<int32_t> table, firsts, ends, wide;
         std::vector<RowRun> runs;   // the views as the rows' runs, for the layout of the twin written beside the output
@@ -1642,7 +1628,7 @@ public:
             const int32_t first = (int32_t)table.size();
             table.insert(table.end(), view.blocks, view.blocks + used);
             const size_t extent = view.extent ? view.extent : view.nq;
-            const bool tiled = view.causal && extent >= tile_rows && head_dim == 128 && view.nq;
+            const bool tiled = view.causal && extent >= tile_rows && (head_dim == 128 || head_dim == 256) && view.nq;
             if (tiled) {
                 wide.insert(wide.end(), {row0, (int32_t)view.nq, (int32_t)view.length, first, tiles});
                 tiles += (int32_t)((view.nq + 31) / 32);
@@ -1679,7 +1665,7 @@ public:
             const int* wv = ep + rows;
             int nviews = (int)(wide.size() / 5);
             const Args args(q, o, kc, vc, tp, wv, nviews, n_head, n_head_kv, bt, kh, vh, scale);
-            launch(kAttentionTile, (unsigned)(tiles * n_head), 1, args);
+            launch(head_dim == 256 ? kAttentionTile256 : kAttentionTile, (unsigned)(tiles * n_head), 1, args);
         }
         // Each row's history in chunks of its own, merged in order (kernels/f32.gpu), so its bits do not depend on the call.
         const size_t need = attention_parts_bytes(rows, (size_t)n_head, kChunks, (size_t)head_dim);
@@ -1699,15 +1685,16 @@ public:
             const TwinOut t = wide.empty() ? twin_out(out, floats, twin_map({runs.data(), runs.size()}, rows, (size_t)n_head * head_dim)) : TwinOut{};
             void* tq = t.q;
             float* td = t.d;
+            void* ts = t.s;
             TwinMap map = t.map;
             int tl = !t.q ? 0 : t.int8 ? 2 : 1, none = 0;
             const Kernel k = head_dim == 256 ? kAttentionVec256 : kAttentionVec, build = twin_build(k, map);
-            Args args(q, o, kc, vc, tp, fp, ep, n_head, n_head_kv, bt, kh, vh, scale, nsplit, chunk, max_parts, vp, tq, td, nsplit > 1 ? none : tl);
+            Args args(q, o, kc, vc, tp, fp, ep, n_head, n_head_kv, bt, kh, vh, scale, nsplit, chunk, max_parts, vp, tq, td, ts, nsplit > 1 ? none : tl);
             if (build != k) args.put(map);
             launch(build, (unsigned)(rows * n_head * nsplit), 1, args);
             if (nsplit > 1) {
                 const Kernel mk = head_dim == 256 ? kAttentionVecMerge256 : kAttentionVecMerge, mbuild = twin_build(mk, map);
-                Args margs(vp, o, ep, n_head, nsplit, tq, td, tl);
+                Args margs(vp, o, ep, n_head, nsplit, tq, td, ts, tl);
                 if (mbuild != mk) margs.put(map);
                 launch(mbuild, (unsigned)(rows * n_head), 1, margs);
             }
@@ -1913,15 +1900,17 @@ public:
         const float* x = f32(h);
         // The twin of h unless kept, and the routed act's twin in the other slot, both kept as the base's products keep them.
         const TwinMap hm = twin_map({}, rows, nin), am = twin_map({}, entries, ff);
-        const bool h_kept = find_twin(x, rows * nin / 32, true, hm, twin_bytes(hm.total, true));
-        uint8_t* hq = (uint8_t*)as_gpu<Api>(*twin_[twin_slot_]).data();
-        float* hd = (float*)(hq + size_mul(hm.total, 32));
+        const bool h_kept = find_twin(x, rows * nin / 32, true, hm, false, twin_bytes(hm.total, true));
+        const TwinPlanes ht = twin_planes((uint8_t*)as_gpu<Api>(*twin_[twin_slot_]).data(), hm.total, true);
+        uint8_t* hq = ht.q;
+        float* hd = ht.d;
         if (!h_kept) keep_twin({x, rows * nin, true, hm, twin_slot_});
         float* act = f32(m.act);
         forget_written(act, entries * ff);
-        (void)find_twin(act, entries * ff / 32, true, am, twin_bytes(am.total, true));
-        uint8_t* aq = (uint8_t*)as_gpu<Api>(*twin_[twin_slot_]).data();
-        float* ad = (float*)(aq + size_mul(am.total, 32));
+        (void)find_twin(act, entries * ff / 32, true, am, false, twin_bytes(am.total, true));
+        const TwinPlanes at = twin_planes((uint8_t*)as_gpu<Api>(*twin_[twin_slot_]).data(), am.total, true);
+        uint8_t* aq = at.q;
+        float* ad = at.d;
         const size_t act_slot = twin_slot_;
         // The shared act's twin, which only the fused down reads, in a buffer of its own: no twin slot is written while the launch writing it reads them.
         uint8_t* sq = (uint8_t*)as_gpu<Api>(*step_twin_).data();
@@ -2027,7 +2016,7 @@ private:
     // The F32 module's kernels, then from kRows16x1 the int16 module's, which only read twins.
     enum Kernel { kAdd, kCopy, kSiluMul, kSiluMulTwin16, kSiluMulTwin8, kRmsNorm, kRmsNorm16, kRmsNorm16Twin16, kRmsNorm16Twin8, kRmsNorm32, kRmsNorm32Twin16,
                   kRmsNorm32Twin8, kNormRope, kNormRopeKv, kGather, kGatherQ8, kMatmul, kMatmulQ8, kMatmulQ4K, kGatherQ4K, kMatmulQ5K, kGatherQ5K, kMatmulQ6K,
-                  kGatherQ6K, kMatmulQ50, kGatherQ50, kMatmulQ40, kGatherQ40, kMatmulQ41, kGatherQ41, kMatmulQ51, kGatherQ51, kMatmulBF16, kGatherBF16, kMatmulF16, kGatherF16, kMatmulIQ4NL, kGatherIQ4NL, kMatmulMXFP4, kGatherMXFP4, kKvWrite, kAttentionChunk, kAttentionTile, kAttentionMerge, kAttentionVec,
+                  kGatherQ6K, kMatmulQ50, kGatherQ50, kMatmulQ40, kGatherQ40, kMatmulQ41, kGatherQ41, kMatmulQ51, kGatherQ51, kMatmulBF16, kGatherBF16, kMatmulF16, kGatherF16, kMatmulIQ4NL, kGatherIQ4NL, kMatmulMXFP4, kGatherMXFP4, kKvWrite, kAttentionChunk, kAttentionTile, kAttentionTile256, kAttentionMerge, kAttentionVec,
                   kAttentionVecMerge, kTwin16, kTwin8, kSiluMulTwin16Major, kSiluMulTwin8Major, kRmsNorm16Twin16Major, kRmsNorm16Twin8Major,
                   kRmsNorm32Twin16Major, kRmsNorm32Twin8Major, kAttentionVecMajor, kAttentionVecMergeMajor, kTwin16Major, kTwin8Major, kGroupSum, kGroupTwoShots, kGroupChain, kGroupArm, kGroupAddCheck, kSigmoidMul, kGatedRmsNorm, kNormRopeStreams, kCausalConvSilu, kGatedDeltaRule, kGatedDeltaRuleShort, kGroupRmsNorm, kSiluScaled, kMixStreams, kInjectStreams, kSignedSqrtGate, kDilatedConvSiluAdd, kKvIndexPool, kKvIndexScores, kKvIndexSelect, kKvIndexSelectWide, kSparseChunk, kSparseMerge, kSparseVec, kSparseVec256, kSparseVecMerge, kSparseVecMerge256,
                   kAttentionVec256, kAttentionVec256Major, kAttentionVecMerge256, kAttentionVecMerge256Major, kArgmaxSlices, kArgmaxMerge, kArgmaxPart, kArgmaxPick,
@@ -2041,7 +2030,7 @@ private:
                   kHalf8x1, kHalf8x1p, kHalf8x1r2, kHalf8x1s1, kHalf8x1r2s1, kHalf8x1r2s4, kHalf8x1h2, kHalf8x1h3, kHalf8x1h4, kHalf8x1h5, kHalf8x2, kHalf8x2r4, kHalf8x4, kHalf8x4r4, kHalf8x8, kHalf8x8r4, kHalf8x16, kHalf8x16r4, kHalf8x9, kHalf8x10, kHalf8x11, kHalf8x12, kHalf8x13, kHalf8x14, kHalf8x15, kTile16Tall, kTile8Tall, kRouted16, kRouted8, kRoutedHalf8, kRoutedHalf8s1, kGrouped16x2, kGrouped16x4, kGrouped16x8, kGrouped8x2, kGrouped8x4, kGrouped8x8, kGroupedHalf8x2, kGroupedHalf8x4, kGroupedHalf8x8, kRoutedTile16, kRoutedTile8, kRoutedNarrow16, kRoutedNarrow8, kRoutedStream8, kRoutedThinMXFP416,
                   kRowsQ4K16x1, kRowsQ4K16x2, kRowsQ4K16x4, kRowsQ4K16x8, kRowsQ4K16x16, kRowsQ4K8x1, kRowsQ4K8x2, kRowsQ4K8x4, kRowsQ4K8x8, kRowsQ4K8x16, kTileQ4K16, kTileQ4K8, kRoutedQ4K16, kRoutedQ4K8, kGroupedQ4K16x2, kGroupedQ4K16x4, kGroupedQ4K16x8, kGroupedQ4K8x2, kGroupedQ4K8x4, kGroupedQ4K8x8, kRoutedTileQ4K16, kRoutedTileQ4K8, kRoutedNarrowQ4K16, kRoutedStream16Q4K8, kRoutedStreamQ4K8, kRoutedMidQ4K16, kRoutedMidQ4K8, kRowsQ5K16x1, kRowsQ5K16x2, kRowsQ5K16x4, kRowsQ5K16x8, kRowsQ5K16x16, kRowsQ5K8x1, kRowsQ5K8x2, kRowsQ5K8x4, kRowsQ5K8x8, kRowsQ5K8x16, kTileQ5K16, kTileQ5K8, kRoutedQ5K16, kRoutedQ5K8, kGroupedQ5K16x2, kGroupedQ5K16x4, kGroupedQ5K16x8, kGroupedQ5K8x2, kGroupedQ5K8x4, kGroupedQ5K8x8, kRoutedTileQ5K16, kRoutedTileQ5K8, kRoutedNarrowQ5K16, kRoutedStream16Q5K8, kRoutedStreamQ5K8, kRoutedMidQ5K16, kRoutedMidQ5K8, kRowsQ6K16x1, kRowsQ6K16x2, kRowsQ6K16x4, kRowsQ6K16x8, kRowsQ6K16x16, kRowsQ6K8x1, kRowsQ6K8x2, kRowsQ6K8x4, kRowsQ6K8x8, kRowsQ6K8x16, kTileQ6K16, kTileQ6K8, kRoutedQ6K16, kRoutedQ6K8, kGroupedQ6K16x2, kGroupedQ6K16x4, kGroupedQ6K16x8, kGroupedQ6K8x2, kGroupedQ6K8x4, kGroupedQ6K8x8, kRoutedTileQ6K16, kRoutedTileQ6K8, kRoutedNarrowQ6K16, kRoutedStream16Q6K8, kRoutedStreamQ6K8, kRoutedMidQ6K16, kRoutedMidQ6K8,
                   kRowsQ5016x1, kRowsQ5016x2, kRowsQ5016x4, kRowsQ5016x8, kRowsQ5016x16, kRowsQ508x1, kRowsQ508x2, kRowsQ508x4, kRowsQ508x8, kRowsQ508x16, kTileQ5016, kTileQ508, kRoutedQ5016, kRoutedQ508, kGroupedQ5016x2, kGroupedQ5016x4, kGroupedQ5016x8, kGroupedQ508x2, kGroupedQ508x4, kGroupedQ508x8, kRoutedTileQ5016, kRoutedTileQ508, kRoutedNarrowQ5016, kRoutedStream16Q508, kRoutedStreamQ508, kRoutedMidQ5016, kRoutedMidQ508, kRowsQ4016x1, kRowsQ4016x2, kRowsQ4016x4, kRowsQ4016x8, kRowsQ4016x16, kRowsQ408x1, kRowsQ408x2, kRowsQ408x4, kRowsQ408x8, kRowsQ408x16, kTileQ4016, kTileQ408, kRoutedQ4016, kRoutedQ408, kGroupedQ4016x2, kGroupedQ4016x4, kGroupedQ4016x8, kGroupedQ408x2, kGroupedQ408x4, kGroupedQ408x8, kRoutedTileQ4016, kRoutedTileQ408, kRoutedNarrowQ4016, kRoutedStream16Q408, kRoutedStreamQ408, kRoutedMidQ4016, kRoutedMidQ408, kRowsQ4116x1, kRowsQ4116x2, kRowsQ4116x4, kRowsQ4116x8, kRowsQ4116x16, kRowsQ418x1, kRowsQ418x2, kRowsQ418x4, kRowsQ418x8, kRowsQ418x16, kTileQ4116, kTileQ418, kRoutedQ4116, kRoutedQ418, kGroupedQ4116x2, kGroupedQ4116x4, kGroupedQ4116x8, kGroupedQ418x2, kGroupedQ418x4, kGroupedQ418x8, kRoutedTileQ4116, kRoutedTileQ418, kRoutedNarrowQ4116, kRoutedStream16Q418, kRoutedStreamQ418, kRoutedMidQ4116, kRoutedMidQ418, kRowsQ5116x1, kRowsQ5116x2, kRowsQ5116x4, kRowsQ5116x8, kRowsQ5116x16, kRowsQ518x1, kRowsQ518x2, kRowsQ518x4, kRowsQ518x8, kRowsQ518x16, kTileQ5116, kTileQ518, kRoutedQ5116, kRoutedQ518, kGroupedQ5116x2, kGroupedQ5116x4, kGroupedQ5116x8, kGroupedQ518x2, kGroupedQ518x4, kGroupedQ518x8, kRoutedTileQ5116, kRoutedTileQ518, kRoutedNarrowQ5116, kRoutedStream16Q518, kRoutedStreamQ518, kRoutedMidQ5116, kRoutedMidQ518, kRowsIQ4NL16x1, kRowsIQ4NL16x2, kRowsIQ4NL16x4, kRowsIQ4NL16x8, kRowsIQ4NL16x16, kRowsIQ4NL8x1, kRowsIQ4NL8x2, kRowsIQ4NL8x4, kRowsIQ4NL8x8, kRowsIQ4NL8x16, kTileIQ4NL16, kTileIQ4NL8, kRoutedIQ4NL16, kRoutedIQ4NL8, kGroupedIQ4NL16x2, kGroupedIQ4NL16x4, kGroupedIQ4NL16x8, kGroupedIQ4NL8x2, kGroupedIQ4NL8x4, kGroupedIQ4NL8x8, kRoutedTileIQ4NL16, kRoutedTileIQ4NL8, kRoutedNarrowIQ4NL16, kRoutedStream16IQ4NL8, kRoutedStreamIQ4NL8, kRoutedMidIQ4NL16, kRoutedMidIQ4NL8, kRowsMXFP416x1, kRowsMXFP416x2, kRowsMXFP416x4, kRowsMXFP416x8, kRowsMXFP416x16, kRowsMXFP48x1, kRowsMXFP48x2, kRowsMXFP48x4, kRowsMXFP48x8, kRowsMXFP48x16, kTileMXFP416, kTileMXFP48, kRoutedMXFP416, kRoutedMXFP48, kGroupedMXFP416x2, kGroupedMXFP416x4, kGroupedMXFP416x8, kGroupedMXFP48x2, kGroupedMXFP48x4, kGroupedMXFP48x8, kRoutedTileMXFP416, kRoutedTileMXFP48, kRoutedNarrowMXFP416, kRoutedStream16MXFP48, kRoutedStreamMXFP48, kRoutedMidMXFP416, kRoutedStream32MXFP48, kQuadRowsMXFP48x1, kQuadRoutedMXFP48,
-                  kQuarterQ5016x1, kQuarterQ5016x2, kQuarterQ5016x4, kQuarterQ5016x8, kQuarterQ5016x16, kQuarterRoutedQ5016, kQuarterGroupedQ5016x2, kQuarterGroupedQ5016x4, kQuarterGroupedQ5016x8, kQuarterQ4016x1, kQuarterQ4016x2, kQuarterQ4016x4, kQuarterQ4016x8, kQuarterQ4016x16, kQuarterRoutedQ4016, kQuarterGroupedQ4016x2, kQuarterGroupedQ4016x4, kQuarterGroupedQ4016x8, kQuarterQ4116x1, kQuarterQ4116x2, kQuarterQ4116x4, kQuarterQ4116x8, kQuarterQ4116x16, kQuarterRoutedQ4116, kQuarterGroupedQ4116x2, kQuarterGroupedQ4116x4, kQuarterGroupedQ4116x8, kQuarterQ5116x1, kQuarterQ5116x2, kQuarterQ5116x4, kQuarterQ5116x8, kQuarterQ5116x16, kQuarterRoutedQ5116, kQuarterGroupedQ5116x2, kQuarterGroupedQ5116x4, kQuarterGroupedQ5116x8, kHcMix, kHcMix8, kMoeStepUpQ4K, kMoeStepUpQ5K, kMoeStepDownQ51, kMoeStepDownQ8, kMoeStepUpQ4KW, kMoeStepUpQ5KW, kF16Tile, kKernels };
+                  kQuarterQ5016x1, kQuarterQ5016x2, kQuarterQ5016x4, kQuarterQ5016x8, kQuarterQ5016x16, kQuarterRoutedQ5016, kQuarterGroupedQ5016x2, kQuarterGroupedQ5016x4, kQuarterGroupedQ5016x8, kQuarterQ4016x1, kQuarterQ4016x2, kQuarterQ4016x4, kQuarterQ4016x8, kQuarterQ4016x16, kQuarterRoutedQ4016, kQuarterGroupedQ4016x2, kQuarterGroupedQ4016x4, kQuarterGroupedQ4016x8, kQuarterQ4116x1, kQuarterQ4116x2, kQuarterQ4116x4, kQuarterQ4116x8, kQuarterQ4116x16, kQuarterRoutedQ4116, kQuarterGroupedQ4116x2, kQuarterGroupedQ4116x4, kQuarterGroupedQ4116x8, kQuarterQ5116x1, kQuarterQ5116x2, kQuarterQ5116x4, kQuarterQ5116x8, kQuarterQ5116x16, kQuarterRoutedQ5116, kQuarterGroupedQ5116x2, kQuarterGroupedQ5116x4, kQuarterGroupedQ5116x8, kHcMix, kHcMix8, kMoeStepUpQ4K, kMoeStepUpQ5K, kMoeStepDownQ51, kMoeStepDownQ8, kMoeStepUpQ4KW, kMoeStepUpQ5KW, kF16Tile, kTallQ4K8, kTallQ5K8, kTallQ6K8, kKernels };
     static constexpr size_t kHcColumns = 8;   // llmx_hc_mix8's columns, hc_mix<8> in kernels/int16.gpu, which backend-rocm twins holds at 2 to 16 rows
     // The build for n columns: one column's own, else the one of up to kHcColumns.
     static Kernel hc_build(size_t n) { return n == 1 ? kHcMix : kHcMix8; }
@@ -2055,7 +2044,7 @@ private:
                                                            "llmx_gather_q4_1", "llmx_matmul_q5_1", "llmx_gather_q5_1", "llmx_matmul_bf16", "llmx_gather_bf16",
                                                            "llmx_matmul_f16", "llmx_gather_f16",
                                                            "llmx_matmul_iq4_nl", "llmx_gather_iq4_nl", "llmx_matmul_mxfp4", "llmx_gather_mxfp4", "llmx_kv_write",
-                                                           "llmx_attention_chunk", "llmx_attention_tile", "llmx_attention_merge", "llmx_attention_vec", "llmx_attention_vec_merge",
+                                                           "llmx_attention_chunk", "llmx_attention_tile", "llmx_attention_tile256", "llmx_attention_merge", "llmx_attention_vec", "llmx_attention_vec_merge",
                                                            "llmx_twin16", "llmx_twin8", "llmx_silu_mul_twin16_major", "llmx_silu_mul_twin8_major",
                                                            "llmx_rms_norm_16_twin16_major", "llmx_rms_norm_16_twin8_major", "llmx_rms_norm_32_twin16_major",
                                                            "llmx_rms_norm_32_twin8_major", "llmx_attention_vec_major", "llmx_attention_vec_merge_major",
@@ -2070,7 +2059,7 @@ private:
                                                            "llmx_q4_k_rows16_1", "llmx_q4_k_rows16_2", "llmx_q4_k_rows16_4", "llmx_q4_k_rows16_8", "llmx_q4_k_rows16_16", "llmx_q4_k_rows8_1", "llmx_q4_k_rows8_2", "llmx_q4_k_rows8_4", "llmx_q4_k_rows8_8", "llmx_q4_k_rows8_16", "llmx_q4_k_tile16", "llmx_q4_k_tile8", "llmx_q4_k_routed16", "llmx_q4_k_routed8", "llmx_q4_k_routed16_g2", "llmx_q4_k_routed16_g4", "llmx_q4_k_routed16_g8", "llmx_q4_k_routed8_g2", "llmx_q4_k_routed8_g4", "llmx_q4_k_routed8_g8", "llmx_q4_k_routed_tile16", "llmx_q4_k_routed_tile8", "llmx_q4_k_routed_narrow16", "llmx_q4_k_routed_stream16_8", "llmx_q4_k_routed_stream8", "llmx_q4_k_routed_mid16", "llmx_q4_k_routed_mid8", "llmx_q5_k_rows16_1", "llmx_q5_k_rows16_2", "llmx_q5_k_rows16_4", "llmx_q5_k_rows16_8", "llmx_q5_k_rows16_16", "llmx_q5_k_rows8_1", "llmx_q5_k_rows8_2", "llmx_q5_k_rows8_4", "llmx_q5_k_rows8_8", "llmx_q5_k_rows8_16", "llmx_q5_k_tile16", "llmx_q5_k_tile8", "llmx_q5_k_routed16", "llmx_q5_k_routed8", "llmx_q5_k_routed16_g2", "llmx_q5_k_routed16_g4", "llmx_q5_k_routed16_g8", "llmx_q5_k_routed8_g2", "llmx_q5_k_routed8_g4", "llmx_q5_k_routed8_g8", "llmx_q5_k_routed_tile16", "llmx_q5_k_routed_tile8", "llmx_q5_k_routed_narrow16", "llmx_q5_k_routed_stream16_8", "llmx_q5_k_routed_stream8", "llmx_q5_k_routed_mid16", "llmx_q5_k_routed_mid8", "llmx_q6_k_rows16_1", "llmx_q6_k_rows16_2", "llmx_q6_k_rows16_4", "llmx_q6_k_rows16_8", "llmx_q6_k_rows16_16", "llmx_q6_k_rows8_1", "llmx_q6_k_rows8_2", "llmx_q6_k_rows8_4", "llmx_q6_k_rows8_8", "llmx_q6_k_rows8_16", "llmx_q6_k_tile16", "llmx_q6_k_tile8", "llmx_q6_k_routed16", "llmx_q6_k_routed8", "llmx_q6_k_routed16_g2", "llmx_q6_k_routed16_g4", "llmx_q6_k_routed16_g8", "llmx_q6_k_routed8_g2", "llmx_q6_k_routed8_g4", "llmx_q6_k_routed8_g8", "llmx_q6_k_routed_tile16", "llmx_q6_k_routed_tile8", "llmx_q6_k_routed_narrow16", "llmx_q6_k_routed_stream16_8", "llmx_q6_k_routed_stream8", "llmx_q6_k_routed_mid16", "llmx_q6_k_routed_mid8",
                                                            "llmx_q5_0_rows16_1", "llmx_q5_0_rows16_2", "llmx_q5_0_rows16_4", "llmx_q5_0_rows16_8", "llmx_q5_0_rows16_16", "llmx_q5_0_rows8_1", "llmx_q5_0_rows8_2", "llmx_q5_0_rows8_4", "llmx_q5_0_rows8_8", "llmx_q5_0_rows8_16", "llmx_q5_0_tile16", "llmx_q5_0_tile8", "llmx_q5_0_routed16", "llmx_q5_0_routed8", "llmx_q5_0_routed16_g2", "llmx_q5_0_routed16_g4", "llmx_q5_0_routed16_g8", "llmx_q5_0_routed8_g2", "llmx_q5_0_routed8_g4", "llmx_q5_0_routed8_g8", "llmx_q5_0_routed_tile16", "llmx_q5_0_routed_tile8", "llmx_q5_0_routed_narrow16", "llmx_q5_0_routed_stream16_8", "llmx_q5_0_routed_stream8", "llmx_q5_0_routed_mid16", "llmx_q5_0_routed_mid8", "llmx_q4_0_rows16_1", "llmx_q4_0_rows16_2", "llmx_q4_0_rows16_4", "llmx_q4_0_rows16_8", "llmx_q4_0_rows16_16", "llmx_q4_0_rows8_1", "llmx_q4_0_rows8_2", "llmx_q4_0_rows8_4", "llmx_q4_0_rows8_8", "llmx_q4_0_rows8_16", "llmx_q4_0_tile16", "llmx_q4_0_tile8", "llmx_q4_0_routed16", "llmx_q4_0_routed8", "llmx_q4_0_routed16_g2", "llmx_q4_0_routed16_g4", "llmx_q4_0_routed16_g8", "llmx_q4_0_routed8_g2", "llmx_q4_0_routed8_g4", "llmx_q4_0_routed8_g8", "llmx_q4_0_routed_tile16", "llmx_q4_0_routed_tile8", "llmx_q4_0_routed_narrow16", "llmx_q4_0_routed_stream16_8", "llmx_q4_0_routed_stream8", "llmx_q4_0_routed_mid16", "llmx_q4_0_routed_mid8", "llmx_q4_1_rows16_1", "llmx_q4_1_rows16_2", "llmx_q4_1_rows16_4", "llmx_q4_1_rows16_8", "llmx_q4_1_rows16_16", "llmx_q4_1_rows8_1", "llmx_q4_1_rows8_2", "llmx_q4_1_rows8_4", "llmx_q4_1_rows8_8", "llmx_q4_1_rows8_16", "llmx_q4_1_tile16", "llmx_q4_1_tile8", "llmx_q4_1_routed16", "llmx_q4_1_routed8", "llmx_q4_1_routed16_g2", "llmx_q4_1_routed16_g4", "llmx_q4_1_routed16_g8", "llmx_q4_1_routed8_g2", "llmx_q4_1_routed8_g4", "llmx_q4_1_routed8_g8", "llmx_q4_1_routed_tile16", "llmx_q4_1_routed_tile8", "llmx_q4_1_routed_narrow16", "llmx_q4_1_routed_stream16_8", "llmx_q4_1_routed_stream8", "llmx_q4_1_routed_mid16", "llmx_q4_1_routed_mid8", "llmx_q5_1_rows16_1", "llmx_q5_1_rows16_2", "llmx_q5_1_rows16_4", "llmx_q5_1_rows16_8", "llmx_q5_1_rows16_16", "llmx_q5_1_rows8_1", "llmx_q5_1_rows8_2", "llmx_q5_1_rows8_4", "llmx_q5_1_rows8_8", "llmx_q5_1_rows8_16", "llmx_q5_1_tile16", "llmx_q5_1_tile8", "llmx_q5_1_routed16", "llmx_q5_1_routed8", "llmx_q5_1_routed16_g2", "llmx_q5_1_routed16_g4", "llmx_q5_1_routed16_g8", "llmx_q5_1_routed8_g2", "llmx_q5_1_routed8_g4", "llmx_q5_1_routed8_g8", "llmx_q5_1_routed_tile16", "llmx_q5_1_routed_tile8", "llmx_q5_1_routed_narrow16", "llmx_q5_1_routed_stream16_8", "llmx_q5_1_routed_stream8", "llmx_q5_1_routed_mid16", "llmx_q5_1_routed_mid8",
                                                            "llmx_iq4_nl_rows16_1", "llmx_iq4_nl_rows16_2", "llmx_iq4_nl_rows16_4", "llmx_iq4_nl_rows16_8", "llmx_iq4_nl_rows16_16", "llmx_iq4_nl_rows8_1", "llmx_iq4_nl_rows8_2", "llmx_iq4_nl_rows8_4", "llmx_iq4_nl_rows8_8", "llmx_iq4_nl_rows8_16", "llmx_iq4_nl_tile16", "llmx_iq4_nl_tile8", "llmx_iq4_nl_routed16", "llmx_iq4_nl_routed8", "llmx_iq4_nl_routed16_g2", "llmx_iq4_nl_routed16_g4", "llmx_iq4_nl_routed16_g8", "llmx_iq4_nl_routed8_g2", "llmx_iq4_nl_routed8_g4", "llmx_iq4_nl_routed8_g8", "llmx_iq4_nl_routed_tile16", "llmx_iq4_nl_routed_tile8", "llmx_iq4_nl_routed_narrow16", "llmx_iq4_nl_routed_stream16_8", "llmx_iq4_nl_routed_stream8", "llmx_iq4_nl_routed_mid16", "llmx_iq4_nl_routed_mid8", "llmx_mxfp4_rows16_1", "llmx_mxfp4_rows16_2", "llmx_mxfp4_rows16_4", "llmx_mxfp4_rows16_8", "llmx_mxfp4_rows16_16", "llmx_mxfp4_rows8_1", "llmx_mxfp4_rows8_2", "llmx_mxfp4_rows8_4", "llmx_mxfp4_rows8_8", "llmx_mxfp4_rows8_16", "llmx_mxfp4_tile16", "llmx_mxfp4_tile8", "llmx_mxfp4_routed16", "llmx_mxfp4_routed8", "llmx_mxfp4_routed16_g2", "llmx_mxfp4_routed16_g4", "llmx_mxfp4_routed16_g8", "llmx_mxfp4_routed8_g2", "llmx_mxfp4_routed8_g4", "llmx_mxfp4_routed8_g8", "llmx_mxfp4_routed_tile16", "llmx_mxfp4_routed_tile8", "llmx_mxfp4_routed_narrow16", "llmx_mxfp4_routed_stream16_8", "llmx_mxfp4_routed_stream8", "llmx_mxfp4_routed_mid16", "llmx_mxfp4_routed_stream32_8", "llmx_mxfp4_quad_rows8_1", "llmx_mxfp4_quad_routed8",
-                                                           "llmx_q5_0_quarter_rows16_1", "llmx_q5_0_quarter_rows16_2", "llmx_q5_0_quarter_rows16_4", "llmx_q5_0_quarter_rows16_8", "llmx_q5_0_quarter_rows16_16", "llmx_q5_0_quarter_routed16", "llmx_q5_0_quarter_routed16_g2", "llmx_q5_0_quarter_routed16_g4", "llmx_q5_0_quarter_routed16_g8", "llmx_q4_0_quarter_rows16_1", "llmx_q4_0_quarter_rows16_2", "llmx_q4_0_quarter_rows16_4", "llmx_q4_0_quarter_rows16_8", "llmx_q4_0_quarter_rows16_16", "llmx_q4_0_quarter_routed16", "llmx_q4_0_quarter_routed16_g2", "llmx_q4_0_quarter_routed16_g4", "llmx_q4_0_quarter_routed16_g8", "llmx_q4_1_quarter_rows16_1", "llmx_q4_1_quarter_rows16_2", "llmx_q4_1_quarter_rows16_4", "llmx_q4_1_quarter_rows16_8", "llmx_q4_1_quarter_rows16_16", "llmx_q4_1_quarter_routed16", "llmx_q4_1_quarter_routed16_g2", "llmx_q4_1_quarter_routed16_g4", "llmx_q4_1_quarter_routed16_g8", "llmx_q5_1_quarter_rows16_1", "llmx_q5_1_quarter_rows16_2", "llmx_q5_1_quarter_rows16_4", "llmx_q5_1_quarter_rows16_8", "llmx_q5_1_quarter_rows16_16", "llmx_q5_1_quarter_routed16", "llmx_q5_1_quarter_routed16_g2", "llmx_q5_1_quarter_routed16_g4", "llmx_q5_1_quarter_routed16_g8", "llmx_hc_mix", "llmx_hc_mix8", "llmx_moe_step_up_q4_k", "llmx_moe_step_up_q5_k", "llmx_moe_step_down_q5_1", "llmx_moe_step_down_q8_0", "llmx_moe_step_up_q4_k_w", "llmx_moe_step_up_q5_k_w", "llmx_f16_tile"};
+                                                           "llmx_q5_0_quarter_rows16_1", "llmx_q5_0_quarter_rows16_2", "llmx_q5_0_quarter_rows16_4", "llmx_q5_0_quarter_rows16_8", "llmx_q5_0_quarter_rows16_16", "llmx_q5_0_quarter_routed16", "llmx_q5_0_quarter_routed16_g2", "llmx_q5_0_quarter_routed16_g4", "llmx_q5_0_quarter_routed16_g8", "llmx_q4_0_quarter_rows16_1", "llmx_q4_0_quarter_rows16_2", "llmx_q4_0_quarter_rows16_4", "llmx_q4_0_quarter_rows16_8", "llmx_q4_0_quarter_rows16_16", "llmx_q4_0_quarter_routed16", "llmx_q4_0_quarter_routed16_g2", "llmx_q4_0_quarter_routed16_g4", "llmx_q4_0_quarter_routed16_g8", "llmx_q4_1_quarter_rows16_1", "llmx_q4_1_quarter_rows16_2", "llmx_q4_1_quarter_rows16_4", "llmx_q4_1_quarter_rows16_8", "llmx_q4_1_quarter_rows16_16", "llmx_q4_1_quarter_routed16", "llmx_q4_1_quarter_routed16_g2", "llmx_q4_1_quarter_routed16_g4", "llmx_q4_1_quarter_routed16_g8", "llmx_q5_1_quarter_rows16_1", "llmx_q5_1_quarter_rows16_2", "llmx_q5_1_quarter_rows16_4", "llmx_q5_1_quarter_rows16_8", "llmx_q5_1_quarter_rows16_16", "llmx_q5_1_quarter_routed16", "llmx_q5_1_quarter_routed16_g2", "llmx_q5_1_quarter_routed16_g4", "llmx_q5_1_quarter_routed16_g8", "llmx_hc_mix", "llmx_hc_mix8", "llmx_moe_step_up_q4_k", "llmx_moe_step_up_q5_k", "llmx_moe_step_down_q5_1", "llmx_moe_step_down_q8_0", "llmx_moe_step_up_q4_k_w", "llmx_moe_step_up_q5_k_w", "llmx_f16_tile", "llmx_q4_k_tile8_tall", "llmx_q5_k_tile8_tall", "llmx_q6_k_tile8_tall"};
     // A type's twin kernels by form and columns, with its routed builds' break-evens and tile extents (docs/src/backends-gpu.md, weight types).
     // kKernels marks a build the type lacks.
     struct TwinKernels {
@@ -2090,6 +2079,7 @@ private:
         unsigned row_chains;   // the lane units a lane holds, each in an accumulator of its own: 2 for MXFP4 (kernels/int16.gpu, MXFP4Lane), else 1
         bool k45;              // Q4_K or Q5_K, whose rows take at most the profile's k45_row_lanes
         const TwinKernels* quarter;   // the quarter form's row, routed and grouped builds (kernels/int16.gpu, QuarterLane), which row_form may take instead
+        bool tile_sums;   // whether the prompt tiles read the twin's half sums: every type's but Q8_0's, whose tile has no min or offset term
         // Which of the 8-bit twin's routed_narrow and routed_mid are streams at 16 and 32 rows, a wave a block (kernels/int16.gpu, routed_stream), rather than tiles.
         enum class Ranges : uint8_t { tiles, narrow, both } ranges = Ranges::tiles;
         // Whether routed products of entries over n_expert take the grouped builds, whose break-even is group_from.
@@ -2117,7 +2107,8 @@ private:
                                          0,
                                          1,
                                          false,
-                                         nullptr};
+                                         nullptr,
+                                         false};
     // A K-type's twins from its first kernel, its set in LLMX_KTYPE's order (kernels/int16.gpu), which the static_assert below holds.
     static constexpr auto k_twins = [](Kernel first, float group_from16, float group_from8, size_t up_from16, size_t up_from8, size_t down_from16, size_t down_from8, size_t block_values, unsigned row_lanes, bool k45) {
         const auto k = [first](int i) { return static_cast<Kernel>(first + i); };
@@ -2140,6 +2131,7 @@ private:
                 1,
                 k45,
                 nullptr,
+                true,
                 TwinKernels::Ranges::narrow};
     };
     // The quarter form of a 32-value type from its first quarter build, in LLMX_KQUARTER's order (kernels/int16.gpu): four lanes a block in the F16 class alone, its tiles the type's own.
@@ -2155,7 +2147,11 @@ private:
         q.quarter = nullptr;
         return q;
     };
-    static constexpr TwinKernels kQ4KTwins = k_twins(kRowsQ4K16x1, 2.5f, 1.25f, 128, 32, 32, 32, 256, 8, true), kQ5KTwins = k_twins(kRowsQ5K16x1, 2.5f, 1.25f, 128, 32, 32, 32, 256, 8, true), kQ6KTwins = k_twins(kRowsQ6K16x1, 1.25f, 1.25f, 128, 32, 32, 32, 256, 16, false);
+    // The tall 8-bit build of the K-quants, the tensor-core tile that only the CUDA module has (kernels/int16.gpu, k_mma at 128 outputs).
+    static constexpr auto with_tall8 = [](TwinKernels t, Kernel k) { t.tall[1] = k; return t; };
+    static constexpr TwinKernels kQ4KTwins = with_tall8(k_twins(kRowsQ4K16x1, 2.5f, 1.25f, 128, 32, 32, 32, 256, 8, true), kTallQ4K8),
+                                 kQ5KTwins = with_tall8(k_twins(kRowsQ5K16x1, 2.5f, 1.25f, 128, 32, 32, 32, 256, 8, true), kTallQ5K8),
+                                 kQ6KTwins = with_tall8(k_twins(kRowsQ6K16x1, 1.25f, 1.25f, 128, 32, 32, 32, 256, 16, false), kTallQ6K8);
     static constexpr TwinKernels kQ50Base = k_twins(kRowsQ5016x1, 1.25f, 1.25f, 128, 32, 32, 32, 32, 1, false), kQ51Base = k_twins(kRowsQ5116x1, 5.0f, 1.25f, 128, 32, 32, 32, 32, 1, false), kIQ4NLTwins = k_twins(kRowsIQ4NL16x1, 0.3125f, 0.3125f, 32, 32, 32, 32, 32, 4, false), kMXFP4Base = k_twins(kRowsMXFP416x1, 0.3125f, 0.3125f, 32, 32, 32, 32, 32, 4, false);
     static constexpr TwinKernels kQ40Base = k_twins(kRowsQ4016x1, 5.0f, 5.0f, 128, 32, 128, 32, 32, 1, false), kQ41Base = k_twins(kRowsQ4116x1, 5.0f, 5.0f, 128, 32, 128, 32, 32, 1, false);
     static constexpr TwinKernels kQ40Quarter = quarter_twins(kQ40Base, kQuarterQ4016x1, 5.0f), kQ41Quarter = quarter_twins(kQ41Base, kQuarterQ4116x1, 2.5f);
@@ -2432,8 +2428,18 @@ private:
         const size_t slice = std::max<size_t>(1, std::min(dev_.profile.argmax_slice, n));
         return size_mul(size_mul(rows, (n + slice - 1) / slice), 2 * sizeof(float));
     }
-    // A twin of `blocks` blocks of 32 values: its codes, then a scale a block.
-    static size_t twin_bytes(size_t blocks, bool int8) { return size_add(size_mul(blocks, int8 ? 32 : 64), size_mul(blocks, sizeof(float))); }
+    // A twin of `blocks` blocks of 32 values: its codes, then a scale a block, then a block's two half sums (TwinPlanes).
+    static size_t twin_bytes(size_t blocks, bool int8) { return size_add(size_add(size_mul(blocks, int8 ? 32 : 64), size_mul(blocks, sizeof(float))), size_mul(blocks, int8 ? 4 : 8)); }
+    // Where a twin of `total` blocks lies from `base`, each plane indexed by twin block (TwinMap): the codes, the scales, and each block's two half sums as kernels/quant.h's twin_sums writes them.
+    struct TwinPlanes {
+        uint8_t* q;
+        float* d;
+        void* s;
+    };
+    static TwinPlanes twin_planes(uint8_t* base, size_t total, bool int8) {
+        float* d = (float*)(base + size_mul(total, int8 ? 32 : 64));
+        return {base, d, d + total};
+    }
     // The scratch buffers in one order, and what passes of widths `w` grow each to.
     static constexpr size_t kScratchBuffers = 15;
     using ScratchSizes = std::array<size_t, kScratchBuffers>;
@@ -2692,8 +2698,9 @@ private:
         unsigned kper, parts;
         float* partials;
         unsigned xrow, xblock;
+        const void* xs;
     };
-    static_assert(sizeof(TileCall) == 136 && offsetof(TileCall, nin) == 88 && offsetof(TileCall, partials) == 120 && offsetof(TileCall, xblock) == 132,
+    static_assert(sizeof(TileCall) == 144 && offsetof(TileCall, nin) == 88 && offsetof(TileCall, partials) == 120 && offsetof(TileCall, xblock) == 132 && offsetof(TileCall, xs) == 136,
                   "TileCall is the kernel's layout");
     // The host's copy of a routed tile call's groups (kernels/int16.gpu, TileGroups), field for field.
     struct TileGroups {
@@ -2837,6 +2844,7 @@ private:
         float scale, eps, neps;
         void* tq;
         float* td;
+        void* ts;
         int tlevel, major;
         TwinMap tm;
         unsigned kd, vd;
@@ -2844,8 +2852,8 @@ private:
         const float* xd;
         unsigned form, sig;
     };
-    static_assert(offsetof(DeltaStepArgs, slot) == 136 && offsetof(DeltaStepArgs, tq) == 168 && offsetof(DeltaStepArgs, tm) == 192 && offsetof(DeltaStepArgs, kd) == 312 &&
-                      offsetof(DeltaStepArgs, xq) == 320 && offsetof(DeltaStepArgs, form) == 336 && offsetof(DeltaStepArgs, sig) == 340 && sizeof(DeltaStepArgs) == 344,
+    static_assert(offsetof(DeltaStepArgs, slot) == 136 && offsetof(DeltaStepArgs, tq) == 168 && offsetof(DeltaStepArgs, tm) == 200 && offsetof(DeltaStepArgs, kd) == 320 &&
+                      offsetof(DeltaStepArgs, xq) == 328 && offsetof(DeltaStepArgs, form) == 344 && offsetof(DeltaStepArgs, sig) == 348 && sizeof(DeltaStepArgs) == 352,
                   "DeltaStepArgs is the kernel's layout");
     struct StepRoute {
         const uint8_t* w;
@@ -2966,7 +2974,7 @@ private:
             const bool int8 = dtype == Dtype::int8;
             const int form = !int8 ? 0 : nin / 32 % 2 ? 1 : 2;
             const TwinKernels& rk = row_form(*kinds.twin, nin, int8);
-            auto [q, d] = twin_of(X, xrows, nin, int8, twin_map({}, xrows, nin), true);
+            auto [q, d, xs] = twin_of(X, xrows, nin, int8, twin_map({}, xrows, nin), true, tile);
             RoutedCall c = routed_call(proj, nproj, nin, rk, ids, per, routing.n_expert);
             const size_t clusters = dev_.caps.subgroup_size / c.c.cluster;
             // A half-block call of at most one entry an expert takes the one-column build an entry, which needs no grouping, where that build fills its steps: one under two spans of blocks, kSteps from four (kernels/int16.gpu).
@@ -3001,6 +3009,7 @@ private:
                 t.parts = 1;
                 t.xrow = (unsigned)nblk;
                 t.xblock = 1;
+                t.xs = xs;
                 // Each group runs in one build by its entries: thin (16-bit) or stream (8-bit) up to 8, narrow up to 16, a K-type's mid up to 32, the 64-row tile past; a type's 8-bit narrow, or narrow and mid, builds are streams by its ranges.
                 // The other builds' workgroups return at once; the thin build takes four output tiles a workgroup, a thread an output.
                 const Kernel thin = int8 ? kKernels : kinds.twin->routed_thin;
@@ -3061,11 +3070,11 @@ private:
         }
         record_matrix_path(MatrixPath::f32);
     }
-    // Points twin_slot_ at the twin of x's `blocks` blocks under `map`: true where a kept twin holds it, which becomes the newer, false where a fresh slot waits for its build.
-    bool find_twin(const float* x, size_t blocks, bool int8, const TwinMap& map, size_t need) {
+    // Points twin_slot_ at the twin of x's `blocks` blocks under `map`, with its half sums where `sums` asks: true where a kept twin holds it, which becomes the newer, false where a fresh slot waits for its build.
+    bool find_twin(const float* x, size_t blocks, bool int8, const TwinMap& map, bool sums, size_t need) {
         want_twin_ = int8 ? 2 : 1;
         for (int i = 0; i < 2; ++i)
-            if (kept_[i].x == x && kept_[i].values == blocks * 32 && kept_[i].int8 == int8 && kept_[i].map == map) {
+            if (kept_[i].x == x && kept_[i].values == blocks * 32 && kept_[i].int8 == int8 && kept_[i].map == map && (kept_[i].sums || !sums)) {
                 if (i == 1) std::swap(kept_[0], kept_[1]);
                 twin_slot_ = kept_[0].slot;
                 return true;
@@ -3073,23 +3082,21 @@ private:
         twin_slot_ = take_twin_slot(need);
         return false;
     }
-    // The twin of X's `rows` rows laid out by `map` (block-int8 for the int8 class), built unless the kept twin holds it or `build` is false.
-    std::pair<const uint8_t*, const float*> twin_of(CSlice X, size_t rows, size_t nin, bool int8, TwinMap map, bool build) {
-        const size_t blocks = size_mul(rows, nin / 32), qbytes = size_mul(map.total, 32 * (int8 ? 1 : 2)), need = twin_bytes(map.total, int8);
+    // The twin of X's `rows` rows laid out by `map` (block-int8 for the int8 class), with its half sums where a tile reads it (`sums`), built unless the kept twin holds it or `build` is false.
+    TwinPlanes twin_of(CSlice X, size_t rows, size_t nin, bool int8, TwinMap map, bool build, bool sums) {
+        const size_t blocks = size_mul(rows, nin / 32), need = twin_bytes(map.total, int8);
         const float* x = f32(X);
-        if (build && !find_twin(x, blocks, int8, map, need)) {
-            uint8_t* q = (uint8_t*)as_gpu<Api>(*twin_[twin_slot_]).data();
-            float* d = (float*)(q + qbytes);
+        if (build && !find_twin(x, blocks, int8, map, sums, need)) {
+            const TwinPlanes t = twin_planes((uint8_t*)as_gpu<Api>(*twin_[twin_slot_]).data(), map.total, int8);
             unsigned long long nb = blocks;
             const Kernel k = int8 ? kTwin8 : kTwin16, build = twin_build(k, map);
-            Args args(x, q, d, nb);
+            Args args(x, t.q, t.d, sums ? t.s : nullptr, nb);
             if (build != k) args.put(map);
             launch_writing({}, build, (unsigned)((blocks + kThreads / 32 - 1) / (kThreads / 32)), 1, args);
             // Kept for the next product of the same activations, unless the host may write them in place.
-            if (!as_gpu<Api>(*X.buffer).host_ptr()) keep_twin({x, blocks * 32, int8, map, twin_slot_});
+            if (!as_gpu<Api>(*X.buffer).host_ptr()) keep_twin({x, blocks * 32, int8, map, twin_slot_, sums});
         }
-        const uint8_t* q0 = (const uint8_t*)as_gpu<Api>(*twin_[twin_slot_]).data();
-        return {q0, (const float*)(q0 + qbytes)};
+        return twin_planes((uint8_t*)as_gpu<Api>(*twin_[twin_slot_]).data(), map.total, int8);
     }
     // The row kernel's call for the group's projections from column `at`, their output rows one after another.
     RowCall row_call(const Proj* proj, size_t nproj, size_t at, const TwinKernels& rk, size_t nin) const {
@@ -3112,7 +3119,10 @@ private:
         const RowRun whole[1] = {{nbatch, nbatch == 1 ? size_t(1) : size_t(2)}};
         const RowRuns all = runs.n ? runs : RowRuns{whole, 1};
         TwinMap map = twin_map(all, nbatch, nin);
-        const auto [q0, d0] = twin_of(X, nbatch, nin, int8, map, twin);
+        bool tiles = false;
+        for (size_t r = 0; r < all.n; ++r) tiles = tiles || all.runs[r].extent != 1;
+        if (tiles) want_sums_ = tk.tile_sums;
+        const auto [q0, d0, s0] = twin_of(X, nbatch, nin, int8, map, twin, tiles && tk.tile_sums);
         unsigned long long ni = nin;
         int add = accumulate;
         size_t begin = 0;
@@ -3133,6 +3143,7 @@ private:
                 map.locate(at, first, xrow, xblock);
                 const uint8_t* q = q0 + first * 32 * qsize;
                 const float* d = d0 + first;
+                const void* xs = (const uint8_t*)s0 + first * 4 * qsize;
                 if (all.runs[r].extent == 1) {
                     // One launch for the group's projections, their output rows one after another.
                     const TwinKernels& rk = row_form(tk, nin, int8);
@@ -3163,7 +3174,7 @@ private:
                     launch(rb.kernel, (unsigned)((c.total + per - 1) / per), 1, args);
                 } else {
                     // The split follows the run's extent, its row class, never the rows this call holds.
-                    tile(tk, proj, nproj, q, d, xrow, xblock, at, rows, split_tiles_of(all.runs[r].extent), nin, add, int8);
+                    tile(tk, proj, nproj, q, d, xs, xrow, xblock, at, rows, split_tiles_of(all.runs[r].extent), nin, add, int8);
                 }
                 at += rows;
             }
@@ -3194,7 +3205,7 @@ private:
     }
     // One tile call over the projections' rows [at, at + rows): their output tiles side by side, the inner dimension split for `tiles` column tiles (a prompt's own), the parts added by the reduce kernel.
     // The twin's rows lie `xrow` blocks apart and a row's blocks `xblock` apart (TwinMap).
-    void tile(const TwinKernels& tk, const Proj* proj, size_t nproj, const uint8_t* q, const float* d, unsigned xrow, unsigned xblock, size_t at, size_t rows, size_t tiles, size_t nin,
+    void tile(const TwinKernels& tk, const Proj* proj, size_t nproj, const uint8_t* q, const float* d, const void* xs, unsigned xrow, unsigned xblock, size_t at, size_t rows, size_t tiles, size_t nin,
               int add, bool int8) {
         // The tall build where the profile's tile_rows_for takes the tallest height; the split stays the 64-output build's, so both builds give the same bits.
         size_t outputs = 0, gx64 = 0;
@@ -3203,7 +3214,7 @@ private:
             gx64 += (proj[pi].nout + kTileOut - 1) / kTileOut;
         }
         const size_t tall_from = int8 ? dev_.profile.qtile_tall_from_8bit : dev_.profile.qtile_tall_from;
-        const bool tall = tk.tall[int8] != kKernels && tile_rows_for(dev_.caps, dev_.profile, kTileOut, kTileOut, kTileOutTall, outputs, tiles, nin, tall_from, int8) == kTileOutTall;
+        const bool tall = tk.tall[int8] != kKernels && (tk.tall[int8] < kTallQ4K8 || Api::int8_tensor_tiles) && tile_rows_for(dev_.caps, dev_.profile, kTileOut, kTileOut, kTileOutTall, outputs, tiles, nin, tall_from, int8) == kTileOutTall;
         const size_t per = tall ? kTileOutTall : kTileOut;
         // The tile addresses a workgroup's weights and twin by 32-bit offsets off its first output and row, a Q8_0 block's 34 bytes bounding every twin type's bytes for 32 values.
         if ((nin / 32) * per * 34 + 64 > 0xffffffffull || (size_t(kTileRows) * xrow + (nin / 32) * xblock) * 32 * (int8 ? 1 : 2) > 0xffffffffull)
@@ -3223,6 +3234,7 @@ private:
         c.add = add;
         c.xrow = xrow;
         c.xblock = xblock;
+        c.xs = xs;
         const size_t nblk = nin / 32, kper = split_blocks(dev_.profile, dev_.caps, gx64 * tiles, nblk);
         c.kper = (unsigned)kper;
         c.parts = (unsigned)((nblk + kper - 1) / kper);
@@ -3256,18 +3268,18 @@ private:
     struct TwinOut {
         void* q = nullptr;
         float* d = nullptr;
+        void* s = nullptr;
         bool int8 = false;
         TwinMap map{};
         size_t slot = 0;
     };
-    // Its rows lie as `map` lays them out (TwinMap), the layout the product's own runs give.
+    // Its rows lie as `map` lays them out (TwinMap), the layout the product's own runs give; a map with a prompt's region takes the half sums too where the last tiled product read them.
     TwinOut twin_out(Slice dst, size_t values, const TwinMap& map) {
         if (!want_twin_ || values % 32 || as_gpu<Api>(*dst.buffer).host_ptr()) return {};
         const bool int8 = want_twin_ == 2;
-        const size_t qbytes = size_mul(map.total, int8 ? 32 : 64), need = twin_bytes(map.total, int8);
-        const size_t slot = take_twin_slot(need);
-        uint8_t* q = (uint8_t*)as_gpu<Api>(*twin_[slot]).data();
-        return {q, (float*)(q + qbytes), int8, map, slot};
+        const size_t slot = take_twin_slot(twin_bytes(map.total, int8));
+        const TwinPlanes t = twin_planes((uint8_t*)as_gpu<Api>(*twin_[slot]).data(), map.total, int8);
+        return {t.q, t.d, map.flat() || !want_sums_ ? nullptr : t.s, int8, map, slot};
     }
     // A twin producer's build for `m`: the map-free one where every row lies row after row or no twin is written, the one reading the map otherwise (kernels/f32.gpu, _major).
     // The callers pass the map as the last argument only to the build that declares it.
@@ -3320,25 +3332,26 @@ private:
         unsigned h = u32(hc), d = u32(dim), it = u32(iters), collapses = dst ? u32(rows) : 0u, blocks = u32((pre ? rows : 0) + collapses);
         // The output's twin beside it where a product reads one next, as rms_norm_rows writes it.
         StreamTwin t = dst ? stream_twin(*dst, rows, dim, {}, dim % 32 == 0) : StreamTwin{};
-        const Args args(a, b, c, m, x, sc, bs, it, hc_eps, o, p, wp, h, d, eps, t.q, t.d, t.level, t.map, t.major, collapses);
+        const Args args(a, b, c, m, x, sc, bs, it, hc_eps, o, p, wp, h, d, eps, t.q, t.d, t.s, t.level, t.map, t.major, collapses);
         if (dst) launch_writing({{o, dn}}, kHcCoeffsCollapse, blocks, 1, args, 1, 1024);   // kernels/f32.gpu, kCollapseThreads
         else launch(kHcCoeffsCollapse, blocks, 1, args);
         if (dst) keep(t.t, o, dn);
     }
     void keep(const TwinOut& t, const float* x, size_t values) {
-        if (t.q) keep_twin({x, values, t.int8, t.map, t.slot});
+        if (t.q) keep_twin({x, values, t.int8, t.map, t.slot, t.s != nullptr});
     }
     // A stream or gate op's twin of its `rows` rows `width` wide, written where a product reads one next and each row is whole blocks (kernels/f32.gpu, twin_at): where it goes, its level, its map and whether the map is read.
     struct StreamTwin {
         TwinOut t;
         void* q;
         float* d;
+        void* s;
         int level, major;
         TwinMap map;
     };
     StreamTwin stream_twin(Slice dst, size_t rows, size_t width, RowRuns runs, bool whole = true) {
         const TwinOut t = whole && width % 32 == 0 ? twin_out(dst, size_mul(rows, width), twin_map(runs, rows, width)) : TwinOut{};
-        return {t, t.q, t.d, !t.q ? 0 : t.int8 ? 2 : 1, t.q && t.map.regions && !t.map.flat() ? 1 : 0, t.map};
+        return {t, t.q, t.d, t.s, !t.q ? 0 : t.int8 ? 2 : 1, t.q && t.map.regions && !t.map.flat() ? 1 : 0, t.map};
     }
     // A twin kept in its slot, which a product of the same activations reads instead of making its own; a launch or copy writing its input, any other launch, a write or an allocation forgets it.
     struct Kept {
@@ -3347,6 +3360,7 @@ private:
         bool int8 = false;
         TwinMap map{};
         size_t slot = 0;
+        bool sums = false;   // whether it holds the half sums a tile reads
     };
     // The one owner of forgetting kept twins: forget_written drops each whose input the `n` floats written at y meet, keeping the newer first, and forget_twins drops both.
     void forget_written(const float* y, size_t n) {
@@ -3519,6 +3533,7 @@ private:
     int step_up_per_cu_[2] = {-1, -1};      // the wide gate+up builds' resident workgroups a compute unit, Q4_K then Q5_K, found at their first step
     BufferPtr moe_tab_;   // a grouped routed call's groups and entries (kernels/f32.gpu, llmx_moe_group)
     int want_twin_ = 0;   // the class of the last twin a product read, 1 block-int16 and 2 block-int8, which producers write; 0 before any
+    bool want_sums_ = true;   // whether the last product with prompt tiles read the half sums (TwinKernels::tile_sums), which producers then write
     BufferPtr staged_;   // a product bound for host memory, formed here first
     BufferPtr partials_;   // the parts of a split tile call, grown as calls need
     BufferPtr scores_;   // the indexer's scores of 16 rows at most, grown as calls need

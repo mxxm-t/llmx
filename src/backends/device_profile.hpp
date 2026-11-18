@@ -255,4 +255,20 @@ inline size_t split_partials_most(const DeviceProfile& p, const DeviceCaps& caps
     return most;
 }
 
+// Heads a block of the few-row sparse attention pair: from most, halved while the call's blocks of wide kept rows or columns leave a compute unit idle or half the heads would fill a block, down to least.
+// Twice most, the scores kernel's register-tiled build over kept rows twice as wide, once more than most heads give its blocks every compute unit.
+inline size_t sparse_few_heads(const DeviceCaps& caps, size_t rows, size_t heads, size_t named, size_t dim, size_t wide, size_t most, size_t least) {
+    const size_t units = std::max(1u, caps.compute_units);
+    if (heads > most && (named + 2 * wide - 1) / (2 * wide) * rows * ((heads + 2 * most - 1) / (2 * most)) >= units) return 2 * most;
+    const size_t tiles = std::max<size_t>(1, std::min((named + wide - 1) / wide, (dim + wide - 1) / wide)) * rows;
+    size_t th = most;
+    while (th > least && (th / 2 >= heads || tiles * ((heads + th - 1) / th) < units)) th /= 2;
+    return th;
+}
+
+// Whether the few-row values kernel takes two columns a lane: at `most` heads, once one-column blocks give each unit `per_unit`, half as many still fill the units.
+inline bool sparse_few_two(const DeviceCaps& caps, size_t rows, size_t heads, size_t dim, size_t wide, size_t th, size_t most, size_t per_unit) {
+    return th == most && (dim + wide - 1) / wide * rows * ((heads + th - 1) / th) >= per_unit * size_t(std::max(1u, caps.compute_units));
+}
+
 } // namespace backend

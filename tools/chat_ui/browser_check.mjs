@@ -1120,6 +1120,17 @@ try {
   await wait("!document.querySelector('#action-dialog').open && !document.querySelector('#workspace-editor').disabled && document.querySelector('.workspace-file-path').textContent==='Research'", 'new workspace file ready');
   await fill('#workspace-editor', 'first version\n'); await click('#workspace-save');
   await wait("document.querySelector('.workspace-file-name')?.textContent==='Research' && document.querySelector('#workspace-save').disabled", 'workspace file save');
+  const editorTabResults = [];
+  for (const [modifiers, target] of [[0, '[aria-label="Create checkpoint"]'], [8, '.workspace-editor-actions .danger']]) {
+    await evaluate("{const editor=document.querySelector('#workspace-editor');editor.focus();editor.setSelectionRange(0,5)}");
+    const tabKey = {key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers};
+    await cdp('Input.dispatchKeyEvent', {type: 'keyDown', ...tabKey});
+    await cdp('Input.dispatchKeyEvent', {type: 'keyUp', ...tabKey});
+    editorTabResults.push(await evaluate(`({focus:document.activeElement.matches(${JSON.stringify(target)}),
+      value:document.querySelector('#workspace-editor').value, clean:document.querySelector('#workspace-save').disabled})`));
+  }
+  assert.deepEqual(editorTabResults, Array(2).fill({focus: true, value: 'first version\n', clean: true}),
+    'Tab and Shift+Tab should move focus out of the Workspace editor without changing the saved buffer');
   await click('[aria-label="Create checkpoint"]');
   await wait("document.querySelector('#action-dialog').open", 'checkpoint label dialog');
   assert.equal(await evaluate("document.querySelector('#conversation-value').maxLength"), 120, 'checkpoint field exceeds server limit');

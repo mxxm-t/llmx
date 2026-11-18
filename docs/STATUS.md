@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Workspace editor keyboard navigation (2026-11-18, In progress)
+
+- **Goal:** Let keyboard users leave the Workspace file editor with Tab and Shift+Tab while preserving the file buffer.
+- **Done:** The editor keydown handler intercepts Tab in both directions and inserts spaces.
+- **Left:** Demonstrate the focus trap in Chrome, restore native focus movement and check both directions.
+- **Gotchas:** The Workspace save shortcut has a separate document handler.
+
 ## Landing stack land-20261117 (2026-11-17, LAND68 then LAND69, Done)
 
 **What lands.** The stack on main 3b88cfb3a, in this order: formats/quant-gptq (tests, then the change), formats/quant-compressed (tests, then the change), formats/quant-fp8 step 1 (tests, then the change) and its Vulkan step, perf/stage-rounds, feat/deepseek41-vision's image input, perf/ds4-decode-attn (DSDEV229's rebase), and the DeepSeek-V4.1-Flash prompt stack: dspp26/rope-form, dspp26/q8-tall, perf/sparse-pair-staging and perf/mxfp4-tile-staging.

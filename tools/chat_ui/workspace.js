@@ -154,7 +154,6 @@
     state.timer = setTimeout(async () => { try { const running = state.snapshot.jobs.filter(job => !terminal(job)); for (const job of running) { const result = await api('/workspace/jobs/' + encodeURIComponent(job.id)); const index = state.snapshot.jobs.findIndex(item => item.id === job.id); state.snapshot.jobs[index] = result.job; } renderJobs(); if (state.snapshot.jobs.every(terminal)) await load(); else scheduleJobs(); } catch (problem) { showError(problem); } }, 500);
   }
   editor.addEventListener('input', updateEditor); editor.addEventListener('keyup', updateEditor); editor.addEventListener('click', updateEditor); commandForm.addEventListener('submit', startJob);
-  editor.addEventListener('keydown', event => { if (event.key === 'Tab') { event.preventDefault(); editor.setRangeText('  ', editor.selectionStart, editor.selectionEnd, 'end'); updateEditor(); } });
   document.addEventListener('keydown', event => { if (document.querySelector('dialog[open]')) return; if (document.getElementById('app').dataset.view === 'workbench' && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); if (!save.disabled) saveFile().catch(showError); } });
   document.addEventListener('companion:view', event => { if (event.detail === 'workbench') load().catch(showError); else { clearTimeout(state.timer); state.timer = null; } });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && document.getElementById('app').dataset.view === 'workbench') load().catch(showError); });

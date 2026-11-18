@@ -65,6 +65,8 @@ temporary-chat exit and backup restore; cancel-without-request behavior, keyboar
 shortcuts while a dialog is open, focus return, async busy/error handling, and
 desktop/mobile dialog layout. A delayed workspace refresh must not hide a save
 that already reached the server or restore an older displayed revision.
+Tab and Shift+Tab must move focus out of the Workspace editor in both directions
+without replacing selected text or marking a saved file as edited.
 Its optional installed-browser check exercises the actual interface, theme toggles
 and persistence, and rendered light-mode monitor panel colors and text contrast.
 It reports when browser prerequisites are unavailable. These checks make no inference calls.

@@ -1,11 +1,11 @@
 # llmx - Development Status
 
-## Workspace editor keyboard navigation (2026-11-18, In progress)
+## Workspace editor keyboard navigation (2026-11-18, Ready for landing checks)
 
 - **Goal:** Let keyboard users leave the Workspace file editor with Tab and Shift+Tab while preserving the file buffer.
-- **Done:** The editor keydown handler intercepts Tab in both directions and inserts spaces.
-- **Left:** Demonstrate the focus trap in Chrome, restore native focus movement and check both directions.
-- **Gotchas:** The Workspace save shortcut has a separate document handler.
+- **Done:** Removed the editor's custom Tab indentation so focus follows the browser's tab order. The hosted browser fixture's regression failed before the fix in 43.962 s and passed with the fix in 50.834 s on Windows Chrome 157. It checked both directions, selected text, and the saved file's clean state. The fixture also exercises Ctrl+S and the existing responsive layouts. JavaScript syntax, whitespace and dead-code checks pass.
+- **Left:** Run the docs check with the current CLI at the final UI stack head. The available root CLI was stale and produced unrelated option and command findings. Full logs are in `scratch/keyboard/`.
+- **Gotchas:** The Workspace save shortcut has a separate document handler. The browser script holds this regression in the hosted Chat workspace workflow.
 
 ## Landing stack land-20261117 (2026-11-17, LAND68 then LAND69, Done)
 

@@ -195,6 +195,12 @@ must belong to the same conversation, and every message branch must be acyclic.
 Valid branches may be stored in any row order. A refused backup leaves the current
 conversations and event journal unchanged.
 
+## Workspace editor
+
+The file editor uses native Tab and Shift+Tab focus movement and preserves the
+buffer when focus leaves. Ctrl+S or Cmd+S invokes the Workspace Save action
+when available and no dialog is open.
+
 ## Workspace snapshots
 
 File reads belong to a selection generation owned by `workspace.js`. A newer

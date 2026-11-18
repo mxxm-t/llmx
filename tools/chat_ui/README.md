@@ -309,6 +309,8 @@ retained in memory. External scripts, packages and fonts are not loaded.
 Workspace tool results include an Open Workspace button to reach the saved files.
 Workspace owns managed UTF-8 project files, a source editor, unified diffs,
 command output and file checkpoints. It never opens arbitrary host paths.
+From the file editor, Tab moves focus to the next control and Shift+Tab moves
+it to the previous control. Use Ctrl+S or Cmd+S to save.
 Each file is limited to 1 MiB, the project to 8 MiB and 256 files. Revision checks
 refuse stale edits. You can keep typing while Save is pending; later edits stay
 marked Unsaved. One save runs at a time. Switching files does not let an older

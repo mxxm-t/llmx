@@ -1041,7 +1041,59 @@ try {
   await cdp('Emulation.setDeviceMetricsOverride', {width: 390, height: 844, deviceScaleFactor: 1, mobile: false});
   await wait("getComputedStyle(document.querySelector('.mobile-nav')).display!=='none'", 'narrow sidebar toggle');
   await click('#drawer-shade'); await wait("document.querySelector('#drawer-shade').hidden", 'narrow drawer shade closes');
-  await pointerClick('.mobile-nav'); await wait("document.querySelector('#app').classList.contains('sidebar-open')", 'narrow sidebar opens');
+  const drawerKey = async (key, code, modifiers = 0) => {
+    await cdp('Input.dispatchKeyEvent', {type:'keyDown', key, code:key, windowsVirtualKeyCode:code, modifiers, ...(key==='Enter'?{text:'\r'}:{})});
+    await cdp('Input.dispatchKeyEvent', {type:'keyUp', key, code:key, windowsVirtualKeyCode:code, modifiers});
+  };
+  const openKeyboardSidebar = async () => {
+    await evaluate("document.querySelector('.mobile-nav').focus()");
+    await drawerKey('Enter', 13);
+    await wait("document.querySelector('#app').classList.contains('sidebar-open')", 'narrow sidebar opens');
+  };
+  const sidebarFocusHome = "document.activeElement===document.querySelector('#sidebar [data-action=close-drawers]')";
+  const mainIsInert = "document.querySelector('main').inert && document.querySelector('.skip-link').inert";
+  await openKeyboardSidebar();
+  assert.equal(await evaluate(sidebarFocusHome+" && "+mainIsInert+" && document.querySelector('#sidebar').getAttribute('aria-modal')==='true'"), true, 'keyboard sidebar opening must move focus into a modal drawer and make the background inert');
+  assert.equal(await evaluate("document.querySelector('#draft').focus();"+sidebarFocusHome), true, 'programmatic focus escaped the sidebar');
+  await drawerKey('Tab', 9, 8);
+  assert.equal(await evaluate("document.activeElement.id"), 'logout-button', 'sidebar backward Tab did not wrap to the last control');
+  await drawerKey('Tab', 9);
+  assert.equal(await evaluate(sidebarFocusHome), true, 'sidebar forward Tab did not wrap');
+  await wait("document.querySelector('#sidebar').getBoundingClientRect().left>=0", 'sidebar settles before pointer checks');
+  await pointerClick(targetMenu);
+  assert.equal(await evaluate("document.querySelector('#sidebar').contains(document.activeElement) && document.querySelector('#action-menu').matches(':popover-open')"), true, 'open sidebar menu leaves the modal drawer');
+  await drawerKey('Escape', 27);
+  assert.equal(await evaluate("document.querySelector('#app').classList.contains('sidebar-open') && document.activeElement.dataset.id==="+JSON.stringify(sidebarTarget)), true, 'Escape closed the drawer instead of only its menu');
+  await pointerClick(targetMenu);
+  await click('#action-menu [data-action="rename"]');
+  await wait("document.querySelector('#action-dialog').open && document.activeElement.id==='conversation-value'", 'native dialog over the sidebar');
+  await drawerKey('Escape', 27);
+  await wait("!document.querySelector('#action-dialog').open && document.activeElement.dataset.id==="+JSON.stringify(sidebarTarget), 'dialog returns to sidebar row');
+  await drawerKey('Escape', 27);
+  assert.equal(await evaluate("document.activeElement.matches('.mobile-nav') && !document.querySelector('main').inert && document.querySelector('#drawer-shade').hidden"), true, 'Escape did not close the sidebar and restore its opener');
+  for (const view of ['monitor', 'workbench', 'preferences']) {
+    await openKeyboardSidebar();
+    await evaluate("document.querySelector('.global-nav [data-view="+view+"]').focus()");
+    await drawerKey('Enter', 13);
+    assert.equal(await evaluate("document.querySelector('#app').dataset.view==="+JSON.stringify(view)+" && document.activeElement.id==='shell-title' && !document.querySelector('main').inert && document.querySelector('#drawer-shade').hidden"), true, view+' navigation did not release modal state and focus the destination heading');
+  }
+  await openKeyboardSidebar();
+  await evaluate("document.querySelector('.global-nav [data-view=chat]').focus()");
+  await drawerKey('Enter', 13);
+  assert.equal(await evaluate("document.querySelector('#app').dataset.view==='chat' && document.activeElement.id==='chat-title'"), true, 'return to Chat did not focus its title');
+  await evaluate("document.querySelector('.composer-toolbar [data-action=settings]').focus()");
+  await drawerKey('Enter', 13);
+  assert.equal(await evaluate("document.activeElement.id==='tab-settings' && document.querySelector('#inspector').getAttribute('aria-modal')==='true' && "+mainIsInert), true, 'composer Settings did not focus the selected tab in a modal Details drawer');
+  await drawerKey('Escape', 27);
+  assert.equal(await evaluate("document.activeElement.matches('.composer-toolbar [data-action=settings]') && !document.querySelector('main').inert"), true, 'Details did not return focus to its Settings opener');
+  await evaluate("document.querySelector('#details-toggle').focus()");
+  await drawerKey('Enter', 13);
+  assert.equal(await evaluate("document.activeElement.id==='tab-settings' && document.querySelector('#details-toggle').getAttribute('aria-expanded')==='true'"), true, 'header Details did not focus its current tab');
+  await drawerKey('Tab', 9, 8);
+  assert.equal(await evaluate("document.activeElement.matches('#inspector [aria-label=\"Close details\"]')"), true, 'Details backward Tab visited a roving inactive tab');
+  await drawerKey('Escape', 27);
+  assert.equal(await evaluate("document.activeElement.id==='details-toggle' && document.querySelector('#drawer-shade').hidden"), true, 'Details Escape did not restore the header opener');
+  await openKeyboardSidebar();
   await evaluate(`document.querySelector(${JSON.stringify(targetMenu)}).scrollIntoView({block:'center'});document.querySelector(${JSON.stringify(targetMenu)}).focus({focusVisible:true})`);
   for (const theme of ['light', 'dark']) {
     await evaluate(`document.documentElement.dataset.theme=${JSON.stringify(theme)}`);
@@ -1051,6 +1103,10 @@ try {
   await click('#drawer-shade');
   await cdp('Emulation.setDeviceMetricsOverride', {width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false});
   await wait("document.documentElement.dataset.compact==='false' && getComputedStyle(document.querySelector('.sidebar')).visibility==='visible'", 'wide sidebar restored');
+  await evaluate("if(document.querySelector('#app').classList.contains('inspector-closed')) document.querySelector('#details-toggle').click(); document.querySelector('#draft').focus()");
+  assert.equal(await evaluate("!document.querySelector('main').inert && !document.querySelector('#inspector').hasAttribute('aria-modal') && document.activeElement.id==='draft'"), true, 'docked Details trapped desktop focus');
+  await evaluate("document.querySelector('#details-toggle').click()");
+
   await pointerClick(targetMenu);
   assert.equal(await evaluate("document.querySelector('#action-menu-title').textContent"), 'Sidebar target');
   await click('#action-menu [data-action="rename"]');

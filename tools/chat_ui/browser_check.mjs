@@ -43,7 +43,8 @@ const apiMutations = [];
 async function cdp(method, params = {}) {
   const id = ++nextId;
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => { pending.delete(id); reject(new Error('CDP timed out: ' + method)); }, 12000);
+    const timeoutError = new Error('CDP timed out: ' + method);
+    const timeout = setTimeout(() => { pending.delete(id); reject(timeoutError); }, 12000);
     pending.set(id, {resolve, reject, timeout});
     socket.send(JSON.stringify({id, method, params}));
   });
@@ -60,6 +61,9 @@ async function wait(expression, description, timeout = 12000) {
   if (description === 'saved theme after reload') {
     try { detail = '\nTheme state: ' + JSON.stringify(await evaluate("({url:location.href,readyState:document.readyState,theme:document.documentElement.dataset.theme,storedTheme:localStorage.getItem('llmx-theme')})")); } catch {}
   }
+  try {
+    detail += '\nFocus state: ' + JSON.stringify(await evaluate("(()=>{const active=document.activeElement;return {focused:document.hasFocus(),visibility:document.visibilityState,view:document.querySelector('#app')?.dataset.view,compact:document.documentElement.dataset.compact,active:active?{tag:active.tagName,id:active.id,className:active.className,action:active.dataset.action,describedBy:active.getAttribute('aria-describedby'),inert:Boolean(active.closest('[inert]'))}:null,dialog:document.querySelector('dialog[open]')?.id,drawer:document.querySelector('aside[aria-modal=true]')?.id};})()"));
+  } catch { /* Retain the original failure if the browser no longer responds. */ }
   throw new Error('Timed out waiting for ' + description + '\n' + await evaluate('document.body.innerText') + detail);
 }
 async function documentIdentity() {

@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## Companion browser failure evidence (2026-11-18, In progress)
+
+- **Goal:** Identify the browser operation that stalls and retain fixture screenshots from failed hosted runs.
+- **Done:** Ubuntu run 44313960618 failed with a Runtime.evaluate protocol timeout after an 11.682 second Chrome launch. The log lacks the caller and has no uploaded screenshots. Cause remains unknown.
+- **Done:** Timeout caller-stack probe failed on main and passed with call-site Error capture. The browser check passed in 70.127 seconds. Failure-only focus diagnostics and hosted screenshot upload are prepared. The latest main hosted run also failed Windows protocol evaluation and Ubuntu keyboard tooltip focus; both failures are retained.
+- **Left:** Run the hosted diagnostic branch, identify the original failures and finish the focused tooling checks.
+- **Gotchas:** This is test diagnostics only. Do not raise timeouts, retry failures away or claim the original cause is fixed.
+
 ## Companion wording cleanup (2026-11-18, Done)
 
 - **Goal:** Use direct labels for current functionality and remove repeated welcome and branding copy.

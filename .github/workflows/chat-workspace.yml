@@ -48,3 +48,11 @@ jobs:
         run: python -X utf8 -m unittest discover -s tools/chat_ui -v
       - name: Existing dashboard tests
         run: python -X utf8 -m unittest discover -s tools/health_dashboard -v
+      - name: Retain browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: chat-browser-failure-${{ matrix.os }}
+          path: scratch/chat-ui-browser/
+          if-no-files-found: ignore
+          retention-days: 7

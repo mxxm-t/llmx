@@ -1926,6 +1926,48 @@ try {
   assert.equal(await evaluate("document.querySelector('#setting-temperature').value"), '0.4');
   assert((await evaluate("document.querySelector('#attachments').innerText")).includes('notes.txt'));
   await evaluate("window.restoreCatalogueFetch();delete window.restoreCatalogueFetch");
+  const searchChat = await evaluate(`fetch('/api/import',{method:'POST',headers:{'Content-Type':'application/json','X-Chat-Request':'1'},body:JSON.stringify({version:1,chat:{title:'Unopened search fixture',active_leaf:'search-message'},messages:[{id:'search-message',role:'assistant',content:'unopened assistant witness'}]})}).then(r=>r.json()).then(chat=>chat.id)`);
+  await reloadDocument();
+  await wait("!document.querySelector('#login-dialog').open && !document.querySelector('[data-action=new]').disabled", 'reloaded chat search');
+  const searchRow = `.chat-row:has([data-chat="${searchChat}"])`;
+  const searchResults = condition => wait(condition, 'saved conversation search', 7000);
+  await fill('#search', 'UNOPENED ASSISTANT');
+  await searchResults(`document.querySelector(${JSON.stringify(searchRow)})!==null && document.querySelectorAll('#chat-list .chat-row').length===1`);
+  assert.notEqual(await evaluate("localStorage.getItem('llmx-chat')"), searchChat, 'search opened an unopened conversation');
+  await click(searchRow+' .chat-row-menu'); await click('#action-menu [data-action=archive]');
+  await searchResults("document.querySelector('#chat-list').innerText.includes('No matching conversations.')");
+  await click('[data-action=archive-view]');
+  await searchResults(`document.querySelector(${JSON.stringify(searchRow)})!==null`);
+  await evaluate(`{
+    const fetchSearch = window.fetch;
+    window.searchRequests = [];
+    window.fetch = async (url, options) => {
+      const path = new URL(url, location.href).pathname;
+      if (path !== '/api/chats/search') return fetchSearch(url, options);
+      const query = JSON.parse(options.body).query;
+      window.searchRequests.push(query);
+      if (query === 'force failure') return new Response(JSON.stringify({error:'Fixture search failed'}), {status:503});
+      const response = await fetchSearch(url, options);
+      if (query === 'unopened assistant') return new Promise(resolve => { window.releaseSearch = () => resolve(response); });
+      return response;
+    };
+  }`);
+  await fill('#search', 'unopened assistant');
+  await searchResults("typeof window.releaseSearch==='function'");
+  await fill('#search', 'obsolete query');
+  await fill('#search', 'force failure');
+  assert.deepEqual(await evaluate('window.searchRequests'), ['unopened assistant'], 'search allowed overlapping requests');
+  await evaluate('window.releaseSearch()');
+  await searchResults("document.querySelector('#chat-list').innerText.includes('Fixture search failed')");
+  assert.deepEqual(await evaluate('window.searchRequests'), ['unopened assistant','force failure'], 'search queued an obsolete query');
+  await evaluate('delete window.releaseSearch');
+  await fill('#search', 'unopened assistant');
+  await searchResults("typeof window.releaseSearch==='function'");
+  await fill('#search', '');
+  await searchResults(`document.querySelector(${JSON.stringify(searchRow)})!==null`);
+  await evaluate('window.releaseSearch()');
+  await click('[data-action=archive-view]');
+  await searchResults(`!document.querySelector(${JSON.stringify(searchRow)}) && document.querySelector('#chat-list .chat-row')!==null`);
   if(originalDashboard){await navigateDocument(originalDashboard);await wait("document.querySelector('main')!==null",'original dashboard');await screenshot('original-dashboard-1440x1000.png');}
   assert.deepEqual(errors, [], 'uncaught browser exceptions');
   assert.deepEqual(nativeDialogs, [], 'native JavaScript dialog was used instead of the shared accessible dialog');

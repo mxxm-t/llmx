@@ -2,7 +2,10 @@ import json
 import os
 import sqlite3
 import tempfile
+import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from unittest import mock
 
 from store import SCHEMA_VERSION, Store
 
@@ -51,6 +54,77 @@ class StorePersistenceTests(unittest.TestCase):
         store.publish(run["id"], "metrics", {"message_id": answer["id"], "usage": {"total_tokens": 3}})
         store.publish(run["id"], "state", dict(store.run(run["id"]), status="completed"))
         return store, chat["id"], run["id"]
+
+    def test_search_saved_content_and_current_metadata(self):
+        store = Store(self.path("search"))
+        try:
+            chat = store.import_chat({"version": 1, "chat": {"title": "Saved title", "folder": "Project folder",
+                                      "active_leaf": "visible", "settings": {"system": "private-setting"}}, "messages": [
+                {"id": "prompt", "role": "user", "content": "Stra\u00dfe %_ prompt",
+                 "attachments": [{"name": "private-file", "text": "private-attachment"}]},
+                {"id": "visible", "parent_id": "prompt", "role": "assistant", "content": "visible answer"},
+                {"id": "branch", "parent_id": "prompt", "role": "assistant", "content": "alternate answer",
+                 "reasoning": "private-reasoning", "tool_calls": [{"id": "invocation", "name": "private-name",
+                 "arguments": "private-arguments", "result": "private-result", "status": "completed"}]},
+                {"id": "tool", "parent_id": "branch", "role": "tool", "content": "private-tool-message", "tool_call_id": "invocation"},
+            ]})
+            cid = chat["id"]
+            for query in ("saved title", "project folder", "STRASSE %_", "visible answer", "alternate answer"):
+                with self.subTest(query=query):
+                    [summary] = store.search_chats(query, False)
+                    self.assertEqual(summary["id"], cid)
+                    self.assertEqual(set(summary), {"id", "title", "folder", "pinned", "archived", "updated"})
+            self.assertEqual(store.search_chats("private-", False), [])
+            self.assertEqual(store.search_chats("%x", False), [])
+            store.update_chat(cid, {"title": "Renamed", "archived": True})
+            self.assertEqual(store.search_chats("Saved title", True), [])
+            self.assertEqual(store.search_chats("visible answer", False), [])
+            self.assertEqual(store.search_chats("renamed", True)[0]["id"], cid)
+            run = store.start(cid, {"content": "new turn"}, self.settings())
+            store.publish(run["id"], "delta", {"message_id": run["message_id"], "content": "freshly persisted answer"})
+            self.assertEqual(store.search_chats("freshly persisted", True)[0]["id"], cid)
+            self.assertEqual(store.search_chats("delta", True), [])
+            store.publish(run["id"], "state", {"status": "completed"})
+            store.delete_chat(cid)
+            self.assertEqual(store.search_chats("alternate answer", True), [])
+        finally:
+            store.close()
+
+    def test_search_reader_gates_restore_and_reopens_replaced_database(self):
+        active_path, backup_path = self.path("active-search"), self.path("restore-search")
+        active, original_id, _ = self.populated(active_path, "original searchable")
+        backup, restored_id, _ = self.populated(backup_path, "restored searchable")
+        backup.close()
+        opened, release = threading.Event(), threading.Event()
+        connect = sqlite3.connect
+
+        def hold_reader(database, *args, **kwargs):
+            db = connect(database, *args, **kwargs)
+            if "active-search.sqlite?mode=ro" in str(database):
+                opened.set()
+                if not release.wait(5):
+                    db.close()
+                    raise TimeoutError("Reader was not released")
+            return db
+
+        try:
+            with ThreadPoolExecutor(max_workers=2) as pool, mock.patch("store.sqlite3.connect", side_effect=hold_reader):
+                scan = pool.submit(active.search_chats, "original", False)
+                try:
+                    self.assertTrue(opened.wait(2), "search did not open its read-only connection")
+                    with self.assertRaises(BlockingIOError):
+                        active.search_chats("another query", False)
+                    restore = pool.submit(active.restore, backup_path)
+                    with self.assertRaises(TimeoutError):
+                        restore.result(timeout=0.1)
+                finally:
+                    release.set()
+                self.assertEqual(scan.result(timeout=5)[0]["id"], original_id)
+                restore.result(timeout=5)
+            self.assertEqual(active.search_chats("original", False), [])
+            self.assertEqual(active.search_chats("restored", False)[0]["id"], restored_id)
+        finally:
+            active.close()
 
     def test_unversioned_database_migrates_without_losing_data(self):
         path = self.path("legacy")

@@ -315,6 +315,28 @@ class RouteTests(unittest.TestCase):
         self.assertIn("SameSite=Strict", set_cookie)
         return set_cookie.split(";", 1)[0]
 
+    def test_search_route_is_authenticated_bounded_and_saved_only(self):
+        path = "/api/chats/search"
+        query = {"query": " search witness ", "archived": False}
+        self.assertEqual(self.request("POST", path, query)[0], 401)
+        cookie = self.login()
+        created = self.app.store.create_chat({"title": "Search witness", "settings": {"system": "hidden"}})
+        temporary = self.app.temporary.create({"title": "Search witness temporary"})
+        temporary_store, _ = self.app.temporary.access(temporary["id"])
+        temporary_store.start(temporary["id"], {"content": "Search witness temporary text"}, {})
+        result = self.request("POST", path, query, cookie)
+        self.assertEqual(result[0], 200)
+        self.assertEqual(self.json_body(result), {"chats": [{key: created[key] for key in
+                ("id", "title", "folder", "pinned", "archived", "updated")}]})
+        self.assertIn(("Cache-Control", "no-store"), result[1])
+        self.assertEqual(self.request("POST", path, query, cookie, {"X-Chat-Request": "0"})[0], 403)
+        for body in ({}, {"query": "", "archived": False}, {"query": "x" * 257, "archived": False},
+                     {"query": "x", "archived": 0}, {"query": "x", "archived": False, "extra": True}):
+            with self.subTest(body=body):
+                self.assertEqual(self.request("POST", path, body, cookie)[0], 400)
+        with self.app.store.search_lock:
+            self.assertEqual(self.request("POST", path, query, cookie)[0], 429)
+
     def test_tool_connection_routes_require_auth_and_only_probe_the_named_server(self):
         from test_tools import FakeMCP
         from tools import ToolRegistry

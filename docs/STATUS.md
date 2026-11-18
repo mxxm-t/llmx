@@ -15,6 +15,12 @@
 - **Landing:** Three commits, the separate wording change then the settings regression and fix, fast-forward over `80f8cb5f5` after final docs/dead-code qualification and a fresh main check. JavaScript syntax, whitespace and independent integration review pass. The unchanged native/build inputs permit the shared docs CLI from `chat-ui-landing-20261118`. Final static receipts, combined browser logs and publication identity are in `scratch/settings-landing/`. No inference, service API or storage schema changed, so unrelated numerical gates do not apply.
 - **Docs review:** The Markdown inventory and references to settings persistence, new-chat defaults, labels and request admission were checked. Companion README, CONTRACT and TESTS describe the current behavior. Historical CLI and runtime records stay unchanged. An early worker docs run with an old root executable failed unrelated CLI-help claims; the matched run had zero findings and 29 planted faults.
 - **Gotchas:** Unsaved settings reset on conversation selection or reload. Separate browser tabs retain the existing server write ordering. Search and drawer keyboard behavior remain separate audit items.
+## Saved conversation search (2026-11-18, In progress)
+
+- **Goal:** Search titles, folders and visible user or assistant text in every saved conversation in the selected archive view.
+- **Done:** The disposable WAL probe measured up to 246 ms with the writer lock held. A read-only snapshot kept the same probe's delta writes below 1.35 ms at 5,000 messages.
+- **Left:** Add failing route, store and browser checks, then implement store-owned matching, coordinated reader lifetime and debounced results.
+- **Gotchas:** Restore must wait for readers before taking the writer lock and replacing the file. Search never reads the temporary store or returns transcripts. Browser state must discard old query responses and preserve the normal chat catalogue.
 
 ## Companion UI reliability and clarity landing (2026-11-18, Done)
 

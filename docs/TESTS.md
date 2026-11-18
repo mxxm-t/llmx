@@ -27,6 +27,12 @@ selection.
 Retry also covers leaving and returning before the server admits the request:
 the visible conversation receives its new reply without refreshing the page.
 HTTP checks cover authentication, origin checks, attachments and import/export.
+Saved-chat search checks cover case-folded literal matching across branches,
+metadata-only responses, archived and temporary isolation, excluded payloads,
+freshly persisted deltas, request validation and restore during an open reader.
+The Chrome fixture searches an unopened chat after reload, uses its archived
+row actions and verifies that a delayed response cannot supersede the current
+input or the cleared search. Search errors appear separately from no matches.
 Model-selection checks replace the upstream catalogue after configuration was
 cached, refuse stale sends and retries without storing messages or runs, and
 cover an unavailable upstream, explicit valid choices and default-model calls.

@@ -90,6 +90,21 @@ class StorePersistenceTests(unittest.TestCase):
         finally:
             store.close()
 
+    def test_search_accepts_restored_nontext_folder(self):
+        source, chat_id, _ = self.populated(self.path("legacy-source"), "Legacy chat")
+        target = Store(self.path("legacy-target"))
+        try:
+            source.update_chat(chat_id, {"folder": {"legacy": True}})
+            source.backup(self.path("legacy-backup"))
+            target.restore(self.path("legacy-backup"))
+            self.assertEqual(target.chat(chat_id)["folder"], {"legacy": True})
+            [match] = target.search_chats("question", False)
+            self.assertEqual(match["id"], chat_id)
+            self.assertEqual(match["folder"], "")
+        finally:
+            target.close()
+            source.close()
+
     def test_search_reader_gates_restore_and_reopens_replaced_database(self):
         active_path, backup_path = self.path("active-search"), self.path("restore-search")
         active, original_id, _ = self.populated(active_path, "original searchable")
@@ -98,20 +113,25 @@ class StorePersistenceTests(unittest.TestCase):
         opened, release = threading.Event(), threading.Event()
         connect = sqlite3.connect
 
+        class HeldSearchConnection(sqlite3.Connection):
+            def execute(self, sql, *args):
+                rows = super().execute(sql, *args)
+                if sql == "SELECT data FROM chats":
+                    opened.set()
+                    if not release.wait(5):
+                        raise TimeoutError("Read snapshot was not released")
+                return rows
+
         def hold_reader(database, *args, **kwargs):
-            db = connect(database, *args, **kwargs)
             if "active-search.sqlite?mode=ro" in str(database):
-                opened.set()
-                if not release.wait(5):
-                    db.close()
-                    raise TimeoutError("Reader was not released")
-            return db
+                kwargs["factory"] = HeldSearchConnection
+            return connect(database, *args, **kwargs)
 
         try:
             with ThreadPoolExecutor(max_workers=2) as pool, mock.patch("store.sqlite3.connect", side_effect=hold_reader):
                 scan = pool.submit(active.search_chats, "original", False)
                 try:
-                    self.assertTrue(opened.wait(2), "search did not open its read-only connection")
+                    self.assertTrue(opened.wait(2), "search did not start its read transaction")
                     with self.assertRaises(BlockingIOError):
                         active.search_chats("another query", False)
                     restore = pool.submit(active.restore, backup_path)
@@ -121,8 +141,21 @@ class StorePersistenceTests(unittest.TestCase):
                     release.set()
                 self.assertEqual(scan.result(timeout=5)[0]["id"], original_id)
                 restore.result(timeout=5)
-            self.assertEqual(active.search_chats("original", False), [])
-            self.assertEqual(active.search_chats("restored", False)[0]["id"], restored_id)
+                self.assertEqual(active.search_chats("original", False), [])
+                opened.clear()
+                release.clear()
+                scan = pool.submit(active.search_chats, "restored", False)
+                try:
+                    self.assertTrue(opened.wait(2), "replacement reader did not start a transaction")
+                    close = pool.submit(active.close)
+                    with self.assertRaises(TimeoutError):
+                        close.result(timeout=0.1)
+                finally:
+                    release.set()
+                self.assertEqual(scan.result(timeout=5)[0]["id"], restored_id)
+                close.result(timeout=5)
+            with self.assertRaisesRegex(ValueError, "open saved conversation database"):
+                active.search_chats("restored", False)
         finally:
             active.close()
 

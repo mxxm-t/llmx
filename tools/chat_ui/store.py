@@ -8,6 +8,7 @@ import threading
 import time
 from urllib.parse import quote
 import uuid
+from contextlib import closing
 
 
 SCHEMA_VERSION = 1
@@ -21,9 +22,15 @@ def encoded(value):
     return json.dumps(value, ensure_ascii=True, separators=(",", ":"), allow_nan=False)
 
 
+def chat_order(chat):
+    return not chat["pinned"], -chat["updated"]
+
+
 class Store:
     def __init__(self, path, id_prefix=""):
         self.lock = threading.RLock()
+        self.search_lock = threading.Lock()
+        self._closed = False
         self.changed = threading.Condition(self.lock)
         self.database_path = os.fspath(path)
         self.id_prefix = id_prefix
@@ -232,7 +239,7 @@ class Store:
             raise ValueError("Restore source is not a valid chat database.") from exc
 
         try:
-            with self.lock:
+            with self.search_lock, self.lock:
                 if self._has_active_runs():
                     raise ValueError("Stop active replies before restoring a database.")
                 rollback = self._temporary_path(directory)
@@ -275,8 +282,10 @@ class Store:
                    for row in self.db.execute("SELECT data FROM runs"))
 
     def close(self):
-        with self.lock:
-            self.db.close()
+        with self.search_lock, self.lock:
+            if not self._closed:
+                self.db.close()
+                self._closed = True
 
     def _get(self, table, key):
         row = self.db.execute(f"SELECT data FROM {table} WHERE id=?", (key,)).fetchone()
@@ -299,7 +308,38 @@ class Store:
     def chats(self):
         with self.lock:
             return sorted((json.loads(r[0]) for r in self.db.execute("SELECT data FROM chats")),
-                          key=lambda c: (not c["pinned"], -c["updated"]))
+                          key=chat_order)
+
+    def search_chats(self, query, archived):
+        if not self.search_lock.acquire(blocking=False):
+            raise BlockingIOError("Conversation search is busy. Try again.")
+        try:
+            if self.file_path is None or self._closed:
+                raise ValueError("Search requires an open saved conversation database.")
+            uri_path = quote(self.file_path.replace("\\", "/"), safe="/:")
+            needle = query.casefold()
+            results = []
+            with closing(sqlite3.connect("file:" + uri_path + "?mode=ro", uri=True)) as db:
+                db.execute("BEGIN")
+                for raw, in db.execute("SELECT data FROM chats"):
+                    chat = json.loads(raw)
+                    if bool(chat.get("archived")) != archived:
+                        continue
+                    chat["archived"] = archived
+                    chat["folder"] = chat.get("folder") if isinstance(chat.get("folder"), str) else ""
+                    if needle in chat["title"].casefold() or needle in chat["folder"].casefold():
+                        results.append(chat)
+                        continue
+                    with closing(db.execute("SELECT data FROM messages WHERE chat=?", (chat["id"],))) as rows:
+                        for raw_message, in rows:
+                            message = json.loads(raw_message)
+                            if message["role"] in ("user", "assistant") and needle in message["content"].casefold():
+                                results.append(chat)
+                                break
+            results.sort(key=chat_order)
+            return [{key: chat[key] for key in ("id", "title", "folder", "pinned", "archived", "updated")} for chat in results]
+        finally:
+            self.search_lock.release()
 
     def create_chat(self, values):
         now = time.time()

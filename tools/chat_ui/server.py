@@ -489,6 +489,20 @@ class Handler(BaseHTTPRequestHandler):
                     self.app.previews.pop(next(iter(self.app.previews)))
                 self.app.previews[token] = (time.monotonic(), html.encode())
             return self._json({"url": "/preview/" + token})
+        if path == "/api/chats/search" and method == "POST":
+            body = self._body(4096)
+            query = body.get("query")
+            archived = body.get("archived")
+            if set(body) != {"query", "archived"} or not isinstance(query, str) or not isinstance(archived, bool):
+                raise ValueError("Search requires a query and an archive selection.")
+            query = query.strip()
+            if not 1 <= len(query) <= 256:
+                raise ValueError("Search requires between 1 and 256 characters.")
+            try:
+                matches = self.app.store.search_chats(query, archived)
+            except BlockingIOError as exc:
+                return self._json({"error": str(exc)}, 429)
+            return self._json({"chats": matches})
         if path == "/api/chats":
             if method == "GET":
                 return self._json({"chats": self.app.store.chats()})

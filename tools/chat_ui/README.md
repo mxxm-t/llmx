@@ -120,8 +120,11 @@ It does not lock the upstream model or control later server restarts.
 - Each sidebar row has a compact anchored actions menu for rename, pin/unpin,
   move to folder, duplicate, archive/restore, export and delete. Actions target
   that row without opening it. Rename, folder and delete use accessible dialogs.
-  The sidebar also supports search. Export and import
-  preserve messages and their branches. Imported chats do not restart runs.
+  Sidebar search matches titles, folders and visible user and assistant text in
+  every saved conversation in the current Chats or Archive view, including
+  alternate branches. It matches literal text without regard to case. Temporary
+  chats, reasoning, attachments and tool payloads are excluded. Export and
+  import preserve messages and their branches. Imported chats do not restart runs.
 - Send and Retry use the current conversation settings. Acceptance saves them
   for this chat and captures them for all model calls in that reply, including
   those after tool results. **Save for this chat** saves without starting a

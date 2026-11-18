@@ -1929,6 +1929,14 @@ try {
   const searchChat = await evaluate(`fetch('/api/import',{method:'POST',headers:{'Content-Type':'application/json','X-Chat-Request':'1'},body:JSON.stringify({version:1,chat:{title:'Unopened search fixture',active_leaf:'search-message'},messages:[{id:'search-message',role:'assistant',content:'unopened assistant witness'}]})}).then(r=>r.json()).then(chat=>chat.id)`);
   await reloadDocument();
   await wait("!document.querySelector('#login-dialog').open && !document.querySelector('[data-action=new]').disabled", 'reloaded chat search');
+  await evaluate(`{
+    const fetch = window.fetch;
+    window.searchTranscriptRequests = 0;
+    window.fetch = (url, options) => {
+      if (new URL(url, location.href).pathname === '/api/chats/' + ${JSON.stringify(searchChat)} && (options?.method || 'GET') === 'GET') window.searchTranscriptRequests++;
+      return fetch(url, options);
+    };
+  }`);
   const searchRow = `.chat-row:has([data-chat="${searchChat}"])`;
   const searchResults = condition => wait(condition, 'saved conversation search', 7000);
   await fill('#search', 'UNOPENED ASSISTANT');
@@ -1968,6 +1976,13 @@ try {
   await evaluate('window.releaseSearch()');
   await click('[data-action=archive-view]');
   await searchResults(`!document.querySelector(${JSON.stringify(searchRow)}) && document.querySelector('#chat-list .chat-row')!==null`);
+  await click('[data-action=archive-view]');
+  await fill('#search', 'UNOPENED ASSISTANT');
+  await searchResults(`document.querySelector(${JSON.stringify(searchRow)})!==null`);
+  assert.equal(await evaluate('window.searchTranscriptRequests'), 0, 'search downloaded an unopened transcript');
+  await click(searchRow+' .chat-item');
+  await searchResults("document.querySelector('#messages').innerText.includes('unopened assistant witness')");
+  assert.equal(await evaluate('window.searchTranscriptRequests'), 1, 'opening a result did not load its transcript once');
   if(originalDashboard){await navigateDocument(originalDashboard);await wait("document.querySelector('main')!==null",'original dashboard');await screenshot('original-dashboard-1440x1000.png');}
   assert.deepEqual(errors, [], 'uncaught browser exceptions');
   assert.deepEqual(nativeDialogs, [], 'native JavaScript dialog was used instead of the shared accessible dialog');

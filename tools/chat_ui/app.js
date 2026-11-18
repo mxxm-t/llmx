@@ -25,8 +25,9 @@
   }
   systemTheme.addEventListener('change', event => { if (!themeChosen) setTheme(event.matches ? 'light' : 'dark'); });
   const terminal = status => ['completed', 'failed', 'cancelled', 'interrupted'].includes(status);
-  const S = {chats: [], chat: null, messages: [], runs: [], config: {models: [], tools: []}, attachments: [], edit: null, stream: null, cursor: 0, archive: false, tab: 'activity', scheduled: false, fingerprint: new Map(), searchText: new Map(), inspectorKey: '', generation: 0, busy: false};
+  const S = {chats: [], chat: null, messages: [], runs: [], config: {models: [], tools: []}, attachments: [], edit: null, stream: null, cursor: 0, archive: false, tab: 'activity', scheduled: false, fingerprint: new Map(), inspectorKey: '', generation: 0, busy: false};
   let toastTimer, creatingChat = false, menuId = null, composerRevision = 0;
+  const chatSearch = {request: null, timer: null, running: false, chats: [], notice: ''};
   const drafts = new Map(), changedDrafts = new Set(), volatileDrafts = new Set(), draftPrefix = 'llmx-draft:';
   const admissions = new Map(), settingsWrites = new Map();
   let draftTimer, draftReady = false;
@@ -256,11 +257,35 @@
     renderToolSelections(selected);
     snapshotBanner();
   });
-  async function refreshChats() { const data = await api('/chats'); S.chats = data.chats || []; renderSidebar(); }
+  async function refreshChats() { const data = await api('/chats'); S.chats = data.chats || []; queueChatSearch(); }
+  function queueChatSearch() {
+    const query = $('search').value.trim();
+    chatSearch.request = query ? {query, archived: S.archive} : null;
+    chatSearch.chats = [];
+    chatSearch.notice = query ? 'Searching conversations...' : '';
+    clearTimeout(chatSearch.timer);
+    chatSearch.timer = query ? setTimeout(searchChats, 250) : null;
+    renderSidebar();
+  }
+  async function searchChats() {
+    chatSearch.timer = null;
+    const request = chatSearch.request;
+    if (chatSearch.running || !request) return;
+    chatSearch.running = true;
+    try {
+      const data = await api('/chats/search', 'POST', request);
+      if (request === chatSearch.request) { chatSearch.chats = data.chats; chatSearch.notice = ''; }
+    } catch (error) {
+      if (request === chatSearch.request) chatSearch.notice = 'Search failed. ' + error.message;
+    } finally {
+      chatSearch.running = false;
+      if (request === chatSearch.request) renderSidebar();
+      else if (chatSearch.request && chatSearch.timer === null) searchChats();
+    }
+  }
   function renderSidebar() {
-    const search = $('search').value.trim().toLowerCase();
-    const chats = S.chats.filter(c => Boolean(c.archived) === S.archive && (!search || (c.title + ' ' + (c.folder || '') + ' ' + (S.searchText.get(c.id) || '')).toLowerCase().includes(search)));
-    chats.sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || (String(b.updated).localeCompare(String(a.updated))));
+    const chats = chatSearch.request ? chatSearch.chats : S.chats.filter(c => Boolean(c.archived) === S.archive);
+    if (!chatSearch.request) chats.sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || (String(b.updated).localeCompare(String(a.updated))));
     const groups = new Map();
     chats.forEach(chat => { const group = chat.pinned ? 'Pinned' : chat.folder || 'Recent conversations'; if (!groups.has(group)) groups.set(group, []); groups.get(group).push(chat); });
     const out = $('chat-list'); out.replaceChildren();
@@ -277,7 +302,7 @@
         row.append(button, menu); out.append(row);
       });
     });
-    if (!chats.length) out.append(node('p', 'empty-history', search ? 'No matching conversations.' : S.archive ? 'Your archive is empty.' : 'Your next good idea starts here. Create a conversation to get going.'));
+    if (!chats.length) out.append(node('p', 'empty-history', chatSearch.notice || (chatSearch.request ? 'No matching conversations.' : S.archive ? 'Your archive is empty.' : 'Your next good idea starts here. Create a conversation to get going.')));
     $('archive-toggle').textContent = S.archive ? 'Back to chats' : 'Show archive';
   }
   async function openChat(id, snapshot = null) {
@@ -290,7 +315,6 @@
     closeStream();
     S.chat = data.chat; S.messages = data.messages || []; S.runs = data.runs || []; S.edit = null; S.fingerprint.clear(); S.inspectorKey = '';
     snapshotBanner();
-    S.searchText.set(id, S.messages.map(m => m.content || '').join(' '));
     restoreDraft();
     if (S.chat.temporary) sessionStorage.setItem('llmx-temporary-chat', id); else localStorage.setItem('llmx-chat', id);
     loadSettings(); renderSidebar(); render(); closeDrawers();
@@ -322,7 +346,6 @@
     hideReplyStats();
     const old = S.chat; forgetDraft(draftKey()); draftReady = false; closeStream(); ++S.generation;
     if (old?.temporary) sessionStorage.removeItem('llmx-temporary-chat'); else localStorage.removeItem('llmx-chat');
-    if (old) S.searchText.delete(old.id);
     S.chat = null; S.messages = []; S.runs = []; S.edit = null; S.attachments = []; S.fingerprint.clear(); S.inspectorKey = '';
     restoreDraft(); loadSettings(); render();
   }
@@ -354,8 +377,9 @@
       await openChat(chat.id, {chat, messages: [], runs: []}); $('draft').focus();
     } finally { chatCreating(false); }
   }
+  function sidebarChat(id) { return chatSearch.chats.find(chat => chat.id === id) || S.chats.find(chat => chat.id === id) || (S.chat?.id === id ? S.chat : null); }
   function showChatMenu(id, anchor) {
-    const chat = S.chats.find(item => item.id === id) || (S.chat?.id === id ? S.chat : null);
+    const chat = sidebarChat(id);
     if (!chat) throw new Error('Create a conversation to manage it.');
     menuId = chat.id;
     const items = chat.temporary ? [] : [
@@ -1004,7 +1028,7 @@
       updateShade(); return;
     }
     if (name === 'theme') { setTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light', true); return; }
-    if (name === 'archive-view') { S.archive = !S.archive; renderSidebar(); return; }
+    if (name === 'archive-view') { S.archive = !S.archive; queueChatSearch(); return; }
     if (name === 'attach') return $('file-input').click();
     if (name === 'remove-attachment') { S.attachments.splice(Number(el.dataset.id), 1); composerRevision++; renderAttachments(); return; }
     if (name === 'bottom') return bottom();
@@ -1015,7 +1039,7 @@
     if (name === 'chat-menu') return showChatMenu(el.dataset.id || S.chat?.id, el);
     if (['rename', 'pin', 'archive', 'folder', 'delete', 'export', 'duplicate'].includes(name)) {
       const id = el.dataset.id || (name === 'rename' ? S.chat?.id : menuId);
-      const chat = S.chats.find(item => item.id === id) || (S.chat?.id === id ? S.chat : null);
+      const chat = sidebarChat(id);
       if (!chat) throw new Error('This conversation is no longer available.');
       if (name === 'rename') return window.ChatShell.conversationForm({title: 'Rename conversation', label: 'Conversation name', value: chat.title}, title => patchChat({title}, chat.id));
       if (name === 'pin') await patchChat({pinned: !chat.pinned}, chat.id);
@@ -1025,7 +1049,7 @@
         if (chat.temporary) return leaveTemporary();
         return window.ChatShell.conversationForm({title: 'Delete conversation?', description: 'Delete "' + chat.title + '" and all its branches permanently. This cannot be undone.', destructive: true, submit: 'Delete'}, async () => {
           await api('/chats/' + encodeURIComponent(chat.id), 'DELETE');
-          S.searchText.delete(chat.id); forgetDraft(chat.id); if (S.chat?.id === chat.id) clearChat(); await refreshChats();
+          forgetDraft(chat.id); if (S.chat?.id === chat.id) clearChat(); await refreshChats();
         });
       }
       if (name === 'duplicate') {
@@ -1088,7 +1112,7 @@
   $('draft').addEventListener('paste', event => { const files = Array.from(event.clipboardData?.files || []); if (files.length) { event.preventDefault(); attach(files).catch(error => toast(error.message)); } });
   $('file-input').addEventListener('change', event => { attach(Array.from(event.target.files)).catch(error => toast(error.message)); event.target.value = ''; });
   $('import-input').addEventListener('change', async event => { const file = event.target.files[0]; event.target.value = ''; if (!file) return; try { if (file.size > 32 * 1024 * 1024) throw new Error('Import must be smaller than 32 MB.'); const chat = await api('/import', 'POST', JSON.parse(await file.text())); await refreshChats(); await openChat(chat.id || chat.chat?.id); toast('Conversation imported.'); } catch (error) { toast('Import failed: ' + error.message); } });
-  $('search').addEventListener('input', renderSidebar);
+  $('search').addEventListener('input', queueChatSearch);
   $('scroll-region').addEventListener('scroll', () => { const el = $('scroll-region'); $('jump-bottom').hidden = el.scrollHeight - el.scrollTop - el.clientHeight < 180; }, {passive: true});
   $('login-dialog').addEventListener('cancel', event => event.preventDefault());
   $('login-form').addEventListener('submit', async event => { event.preventDefault(); const submit = event.target.querySelector('button'); submit.disabled = true; try { await api('/login', 'POST', {password: $('password').value}); $('password').value = ''; $('login-error').textContent = ''; $('login-dialog').close(); await initialize(); } catch (error) { $('login-error').textContent = error.message; } finally { submit.disabled = false; } });

@@ -408,10 +408,13 @@
     if (call.duration_ms !== undefined) body.append(node('small', 'muted', number(call.duration_ms, ' ms')));
     detail.append(summary, body); wrap.append(detail);
     if (call.status === 'approval') {
-      const approval = node('div', 'approval', 'This tool is requesting permission to run.'); const actions = node('div', 'approval-actions');
-      const allow = button('Allow', 'approve', call.id, 'primary-button'); const deny = button('Deny', 'deny', call.id, 'secondary-button');
+      detail.open = true;
+      const approval = node('div', 'approval', 'Review the requested arguments above.'); const actions = node('div', 'approval-actions');
+      const allow = button('Allow once', 'approve', call.id, 'primary-button'); const deny = button('Deny this call', 'deny', call.id, 'secondary-button');
       allow.dataset.run = message.run_id; deny.dataset.run = message.run_id;
-      const label = node('label'); const remember = node('input'); remember.type = 'checkbox'; remember.className = 'remember-approval'; label.append(remember, document.createTextNode(' For this run'));
+      const label = node('label'); const remember = node('input'); remember.type = 'checkbox'; remember.className = 'remember-approval';
+      label.append(remember, document.createTextNode(' Also allow later calls to this tool in this reply, even with different arguments.'));
+      remember.addEventListener('change', () => { allow.textContent = remember.checked ? 'Allow for this reply' : 'Allow once'; });
       actions.append(allow, deny, label); approval.append(actions); wrap.append(approval);
     }
     return wrap;
@@ -470,9 +473,13 @@
       const fingerprint = JSON.stringify(messageKey(message, true)) + S.messages.filter(m => m.parent_id === message.parent_id && m.role === message.role).map(m => m.id).join();
       let old = container.querySelector('[data-message="' + CSS.escape(message.id) + '"]');
       if (S.fingerprint.get(message.id) !== fingerprint || !old) {
-        const open = new Map(old ? Array.from(old.querySelectorAll('details[data-disclosure]'), detail => [detail.dataset.disclosure, detail.open]) : []);
+        const disclosures = new Map(old ? Array.from(old.querySelectorAll('details[data-disclosure]'), detail => [detail.dataset.disclosure, detail]) : []);
         const replacement = messageView(message);
-        replacement.querySelectorAll('details[data-disclosure]').forEach(detail => { detail.open = open.get(detail.dataset.disclosure) || false; });
+        replacement.querySelectorAll('details[data-disclosure]').forEach(detail => {
+          const previous = disclosures.get(detail.dataset.disclosure);
+          const enteringApproval = detail.open && !previous?.parentElement.querySelector('.approval');
+          if (previous && !enteringApproval) detail.open = previous.open;
+        });
         if (old) {
           const preserved = [];
           const content = old.querySelector(':scope > .markdown'), nextContent = replacement.querySelector(':scope > .markdown');
@@ -488,6 +495,7 @@
             const nextSummary = next?.querySelector(':scope > summary'); const summary = keepDetail.querySelector(':scope > summary');
             if (nextWrap && body && nextSummary && summary) {
               keepDetail.querySelector(':scope > .tool-body')?.replaceWith(body);
+              keepDetail.open = next.open;
               summary.children[1].textContent = nextSummary.children[1].textContent;
               summary.children[2].textContent = nextSummary.children[2].textContent;
               summary.children[2].classList.toggle('error', nextSummary.children[2].classList.contains('error'));
@@ -977,7 +985,12 @@
     if (name === 'edit') { if (currentRun()) throw new Error('Stop the current response before editing.'); const message = S.messages.find(m => m.id === el.dataset.id); S.edit = message; $('draft').value = message.content || ''; S.attachments = [...(message.attachments || [])]; composerRevision++; renderAttachments(); $('edit-note').hidden = false; resizeDraft(); $('draft').focus(); }
     if (name === 'retry') await retry(el.dataset.id);
     if (name === 'branch') await branch(el.dataset.id);
-    if (name === 'approve' || name === 'deny') { await api('/runs/' + encodeURIComponent(el.dataset.run || currentRun()?.id) + '/approve', 'POST', {call_id: el.dataset.id, allow: name === 'approve', remember: el.closest('.approval').querySelector('.remember-approval').checked}); el.closest('.approval').querySelectorAll('button').forEach(b => { b.disabled = true; }); }
+    if (name === 'approve' || name === 'deny') {
+      const approval = el.closest('.approval'); const allow = name === 'approve';
+      const remember = allow && approval.querySelector('.remember-approval').checked;
+      await api('/runs/' + encodeURIComponent(el.dataset.run || currentRun()?.id) + '/approve', 'POST', {call_id: el.dataset.id, allow, remember});
+      approval.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    }
   }
   async function initialize() {
     chatCreating(true);

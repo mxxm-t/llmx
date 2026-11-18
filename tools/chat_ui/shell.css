@@ -255,6 +255,7 @@
   margin-bottom: 5px;
 }
 .connected-tool span {
+  display: block;
   color: var(--muted);
   line-height: 1.6;
 }

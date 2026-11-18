@@ -254,9 +254,13 @@ requires restarting the companion before discovering renamed tools.
 
 A model call that requests tools ends before those tools execute. Each call
 has separate arguments, status, duration and results. Activity entries open the
-matching call's existing arguments and result in the conversation. Approval is required by
-default. Remembering approval applies only to the named tool for the current
-run. An operator's `approval: false` allows its selected tools automatically.
+matching call's existing arguments and result in the conversation. Pending
+approval opens the arguments for review. **Allow once** approves the displayed
+call. The optional checkbox changes the action to **Allow for this reply**,
+which also allows later calls to the same tool with potentially different
+arguments. **Deny this call** declines just the displayed call. Approval is
+required by default. An operator's `approval: false` allows its selected tools
+automatically.
 Approvals expire after 30 minutes. Up to four calls from one model reply can
 execute concurrently; at most 16 tool calls per model reply and 16 model/tool
 rounds per run are accepted. The companion permits at most eight saved-chat

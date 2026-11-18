@@ -17,7 +17,7 @@ The Python standard-library service owns persisted conversations, branches, runs
 - `POST /api/chats/{id}/runs` with `{content,attachments:[],parent_id,settings}` adds a user message then starts a run. Parent may be null for a root branch. With `{regenerate:true,parent_id: USER_MESSAGE_ID,settings}`, reuse that user message and start an alternative response. Returns `{run}`.
 - `GET /api/runs/{id}/events?after=N`: SSE with monotonically increasing `id`, `event: update`, and JSON `{seq,kind,data,time}`. Reconnect sends `Last-Event-ID`. Persisted events replay after the cursor. The stream closes after its terminal state has been delivered. A browser disconnect does not cancel generation.
 - `POST /api/runs/{id}/cancel` requests cancellation. It does not promise to undo an external tool action.
-- `POST /api/runs/{id}/approve` with `{call_id,allow,remember:false}` resolves a pending tool call. Remember applies only to this run and tool.
+- `POST /api/runs/{id}/approve` with `{call_id,allow,remember:false}` resolves a pending tool call. Remembered allowance covers later calls to the same tool in this run, including different arguments. Denial resolves the specified call.
 - `POST /api/tokenize` with `{text}` returns the upstream response, for optional draft estimates only.
 
 An SSE `delta` carries `message_id` and appended `content`/`reasoning` text. It may
@@ -143,9 +143,10 @@ Attachment: `{name,type,text}` for UTF-8 text, or `{name,type,data}` for PNG/JPE
 
 Message: `{id,chat_id,parent_id,role,content,reasoning,attachments,tool_calls,tool_call_id,run_id,status,created,usage,timings,context,request}`. Optional fields may be absent. Tool call records have `{id,name,arguments,status,result,duration_ms,error}`. Status can be `pending`, `approval`, `running`, `completed`, `denied`, `failed`, `cancelled` or `interrupted`. Tool outputs remain independent messages for model history.
 
-When a streamed tool update changes a focused call, the renderer keeps its
-details and summary connected while reconciling approval controls to the new
-state. Completed calls do not retain stale Allow or Deny controls.
+The renderer opens tool arguments when the call first requires approval or a
+pending approval is loaded. When a streamed tool update changes a focused call,
+the renderer keeps its details and summary connected while reconciling approval
+controls to the new state. Completion removes the approval controls.
 
 Run: `{id,chat_id,status,message_id,created,updated,error,last_seq}`. Run statuses are `running`, `approval`, `completed`, `cancelled`, `failed` and `interrupted`.
 

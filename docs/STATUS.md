@@ -18,11 +18,13 @@
 
 **Gotchas.** Accepted sends must clear only their own unchanged draft. New typing during a request must survive. Temporary chat content stays in memory. Browser storage may be unavailable or full, so navigation must preserve the in-memory copy and reload limitations must be visible.
 ## Tool approval clarity (2026-11-18, In progress)
+## Tool approval clarity (2026-11-18, Ready for landing checks)
 
 - **Goal:** Show the pending tool arguments and make the scope of each approval decision clear. Separate tool descriptions and policy labels in Settings.
-- **Done:** Confirmed that approval controls can render below a collapsed disclosure and that the engine remembers an allow by tool name for the current reply. Settings renders adjacent policy and description spans without spacing.
-- **Left:** Add a Chrome regression and check the browser changes in the existing fixture.
-- **Gotchas:** A preparing call has no approval controls. Approval for a later call to the same tool can cover different arguments, and denial applies to the current call.
+- **Done:** Pending calls open their arguments on transition into approval and after reload. The focused summary remains connected. The unchecked checkbox defaults to Allow once and explains how remembered approval covers later calls to this tool, even with different arguments, during the same reply. Deny this call submits a denial with `remember: false`. Settings displays the tool policy and description on separate lines.
+- **Checks:** The new regression failed in 21.921 s before the fix and the full deterministic browser fixture passed in 50.332 s on Windows Chrome 157. JavaScript syntax and whitespace pass. Evidence is in `scratch/approval-clarity/`.
+- **Left:** Combined browser, docs and dead-code checks at the final UI stack head.
+- **Gotchas:** Preparing calls expose no approval controls. The existing engine still owns the lifetime and scope of approvals.
 
 ## Landing stack land-20261117 (2026-11-17, LAND68 then LAND69, Done)
 

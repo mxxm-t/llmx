@@ -917,7 +917,26 @@ try {
   assert.equal(await evaluate("document.querySelectorAll('.message').length"), beforeImageRefusal, 'rejected image created a message');
   assert.equal(await evaluate("document.querySelector('#stop').hidden"), true, 'rejected image started generation');
   await send('Read the attachment.');
-  await wait("document.querySelector('#stop').hidden && document.querySelector('#messages').innerText.includes('The attached file is readable.')", 'attachment response');
+  await wait("!document.querySelector('#stop').hidden && document.querySelector('#messages').innerText.includes('The attached file is readable.')", 'attachment text before metrics');
+  const attachmentStats = ".message.assistant:last-of-type [data-action=reply-stats]:not([hidden])";
+  await evaluate("document.querySelector("+JSON.stringify(attachmentStats)+").focus({preventScroll:true})");
+  await wait("document.querySelector('#reply-statistics .stat-row strong')?.textContent==='Unavailable'", 'attachment statistics before metrics');
+  await cdp('Input.dispatchKeyEvent', {type:'keyDown', key:'Escape', code:'Escape', windowsVirtualKeyCode:27});
+  await cdp('Input.dispatchKeyEvent', {type:'keyUp', key:'Escape', code:'Escape', windowsVirtualKeyCode:27});
+  await evaluate("document.activeElement.blur()");
+  await evaluate(`(() => {
+    const target='/api/chats/'+localStorage.getItem('llmx-chat'), original=window.fetch;
+    window.releaseTerminalTooltipSnapshot=null;
+    window.fetch=async (...args)=>{
+      const response=await original(...args);
+      if(args[0]!==target || args[1]?.method!=='GET') return response;
+      window.fetch=original;
+      return new Promise(resolve=>window.releaseTerminalTooltipSnapshot=()=>resolve(response));
+    };
+  })()`);
+  await cdp('Input.dispatchMouseEvent', {type:'mouseMoved', x:10, y:90});
+  assert.equal((await fetch(upstreamFixture + '/browser-step')).status, 204);
+  await wait("document.querySelector('#stop').hidden && typeof window.releaseTerminalTooltipSnapshot==='function'", 'terminal snapshot held while actions are visible');
   await click('[data-tab="stats"]');
   await click('#panel-stats .conversation-totals > summary');
   assert((await evaluate("document.querySelector('#panel-stats').innerText")).includes('960'), 'all-branch totals omitted retries');
@@ -928,6 +947,22 @@ try {
   await cdp('Input.dispatchKeyEvent', {type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9});
   await wait("document.activeElement?.getAttribute('aria-describedby')?.startsWith('message-action-tooltip-')", 'keyboard focus tooltip');
   assert.equal(await evaluate("{const b=document.activeElement,t=document.getElementById(b.getAttribute('aria-describedby'));b.closest('.message-actions')!==null && getComputedStyle(b).outlineStyle==='solid' && getComputedStyle(b).outlineWidth==='2px' && t?.getAttribute('role')==='tooltip'}"), true, 'message action keyboard focus or tooltip is not visible');
+  await evaluate(`(() => {
+    const button=document.activeElement;
+    window.snapshotRetryButton=button; window.tooltipSnapshotRendered=false;
+    if(button.dataset.action!=='retry') throw new Error('Tab did not focus Retry before snapshot');
+    const article=button.closest('.message');
+    const observer=new MutationObserver(()=>{window.tooltipSnapshotRendered=true;observer.disconnect();});
+    observer.observe(article,{childList:true});
+    window.releaseTerminalTooltipSnapshot();
+  })()`);
+  await wait("window.tooltipSnapshotRendered", 'held terminal snapshot reconciled the focused message');
+  const snapshotFocus = await evaluate("({connected:window.snapshotRetryButton.isConnected,focused:document.activeElement===window.snapshotRetryButton,active:document.activeElement.dataset.action||document.activeElement.tagName,tooltip:document.querySelector('.message-action-tooltip')?.textContent||null,statsOpen:!!document.querySelector('#reply-statistics')})");
+  assert.deepEqual(snapshotFocus,{connected:true,focused:true,active:'retry',tooltip:'Retry response',statsOpen:false}, 'terminal snapshot must preserve the keyboard-focused Retry control and tooltip');
+  await evaluate("document.querySelector("+JSON.stringify(attachmentStats)+").focus({preventScroll:true})");
+  await wait("document.querySelector('#reply-statistics .stat-row strong')?.textContent==='120'", 'attachment statistics refresh when reopened after metrics');
+  await cdp('Input.dispatchKeyEvent', {type:'keyDown', key:'Escape', code:'Escape', windowsVirtualKeyCode:27});
+  await cdp('Input.dispatchKeyEvent', {type:'keyUp', key:'Escape', code:'Escape', windowsVirtualKeyCode:27});
   await evaluate("document.activeElement.blur()");
   const retryPoint = await actionHoverPoint('.message.assistant [data-action=retry]');
   assert(retryPoint.hit, 'Retry hover target is obscured: ' + JSON.stringify(retryPoint));

@@ -16,6 +16,12 @@
 - **Timing:** On the disposable 500-chat fixture plus one live run, latest run JSON totals 50.08 MB. The actual status projection copy takes 0.078 ms median and 0.105 ms maximum. The delta scheduled 1 ms after the poll starts completes in 1.157 ms median and 2.156 ms maximum. The indexed projection rebuild takes 72.047 ms median and 81.933 ms maximum after fixture warm-up. The paired WAL query costs 82.209 ms median per poll. The separate writer-lock prototype held delta writes for 77.183 ms median. Raw samples and query plans are retained. System and probe CPU were captured, with no disk, GPU or per-background-process counters.
 - **Left:** Integrate with current main and run the applicable combined companion and static checks.
 - **Gotchas:** The cue refers to the newest run inserted for a saved conversation, including when an older branch is selected. The browser polls only during visible signed-in Chat, cancels requests when leaving and expires a request and its snapshot at nine seconds. It updates the cue inside existing buttons to preserve row geometry and focus.
+## Companion message action focus during refresh (2026-11-18, In progress)
+
+- **Goal**. Retain keyboard focus through message updates when the same action remains available.
+- **Done**. A held terminal snapshot removed the focused Retry button and its tooltip in Chromium.
+- **Left**. Preserve the connected action through reconciliation and verify refreshed measurements.
+- **Gotchas**. A terminal stream close and its snapshot are separate. New or changed actions still need to update. The observed hosted failure showed an open statistics preview, and this reproduction does not identify every hosted failure.
 
 ## Companion wording cleanup (2026-11-18, Done)
 

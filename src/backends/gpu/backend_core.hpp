@@ -287,7 +287,11 @@ public:
         *fault_ = 0;
         for (auto* set : {&events_, &starts_})
             for (auto& e : *set) Api::check(Api::event_create(&e, true), "event_create");
-        Api::check(Api::module_load(&module_, Api::f32_module), "module_load");
+        // A device whose architecture the build left out finds no code object in the modules.
+        const typename Api::Error loaded = Api::module_load(&module_, Api::f32_module);
+        if (Api::no_binary(loaded))
+            throw std::runtime_error(Api::prefix + "this build has no kernels for " + dev_.arch + ": rebuild with it in " + Api::arch_option + " (docs/BUILD.md)");
+        Api::check(loaded, "module_load");
         Api::check(Api::module_load(&int16_module_, Api::int16_module), "module_load");
         // The dot module loads only where the build compiled it for this device: that is the capability flag, read from the code object rather than from the device's name.
         dev_.caps.integer_dot = Api::module_load(&dot_module_, Api::int16_dot_module) == Api::kSuccess;

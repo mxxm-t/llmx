@@ -395,6 +395,31 @@ endif()
 # The shared GPU kernels (docs/src/backends-gpu.md), compiled by each GPU backend's own compiler.
 set(LLMX_GPU_KERNEL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/gpu/kernels)
 include(cmake/embed_modules.cmake)
+# The memory the build may take, in GiB: the machine's, or a container's lower limit, which sets how many GPU targets compile at once (docs/BUILD.md, GPU architectures).
+cmake_host_system_information(RESULT LLMX_BUILD_MEMORY_MIB QUERY TOTAL_PHYSICAL_MEMORY)
+foreach(limit_file /sys/fs/cgroup/memory.max /sys/fs/cgroup/memory/memory.limit_in_bytes)
+    if(EXISTS ${limit_file})
+        file(READ ${limit_file} limit)
+        string(STRIP "${limit}" limit)
+        if(limit MATCHES "^[0-9]+$" AND limit LESS 1099511627776)
+            math(EXPR limit "${limit} / 1048576")
+            if(limit LESS LLMX_BUILD_MEMORY_MIB)
+                set(LLMX_BUILD_MEMORY_MIB ${limit})
+            endif()
+        endif()
+    endif()
+endforeach()
+math(EXPR LLMX_BUILD_MEMORY_GIB "${LLMX_BUILD_MEMORY_MIB} / 1024")
+# How many targets of one kernel file compile at once: one each, as far as the memory holds jobs of GIB_PER_JOB while both kernel files compile.
+function(llmx_gpu_jobs out count gib_per_job)
+    math(EXPR jobs "${LLMX_BUILD_MEMORY_GIB} / (2 * ${gib_per_job})")
+    if(jobs LESS 1)
+        set(jobs 1)
+    elseif(jobs GREATER count)
+        set(jobs ${count})
+    endif()
+    set(${out} ${jobs} PARENT_SCOPE)
+endfunction()
 
 # The ROCm backend (docs/ROCM.md): the SDK supplies the headers and the compiler at build time and the HIP runtime is opened at run time, so nothing links against libamdhip64.
 if(LLMX_HAS_BACKEND_ROCM)
@@ -406,7 +431,16 @@ if(LLMX_HAS_BACKEND_ROCM)
     if(NOT LLMX_HIP_INCLUDE_DIR OR NOT LLMX_HIP_CLANG)
         message(FATAL_ERROR "LLMX_HAS_BACKEND_ROCM needs hip/hip_runtime_api.h and the ROCm clang++: install the ROCm SDK, or set ROCM_PATH")
     endif()
-    # Kernels are HIP in the tree, compiled to a code object for each target and linked in as bytes (llmx_embed_modules); gfx942 (MI300X) and gfx1151 are not gated on hardware (docs/ROCM.md).
+    # Kernels are HIP in the tree, compiled to a code object for each listed target and linked in as bytes (llmx_embed_modules); only gfx906 is gated on hardware (docs/BUILD.md).
+    set(LLMX_ROCM_ARCHS "gfx906;gfx908;gfx90a;gfx942;gfx950;gfx1030;gfx1100;gfx1101;gfx1102;gfx1150;gfx1151;gfx1200;gfx1201" CACHE STRING "AMD GPU architectures the ROCm kernels are compiled for (docs/BUILD.md)")
+    if(NOT LLMX_ROCM_ARCHS)
+        message(FATAL_ERROR "LLMX_ROCM_ARCHS names no architecture")
+    endif()
+    list(TRANSFORM LLMX_ROCM_ARCHS PREPEND --offload-arch= OUTPUT_VARIABLE LLMX_ROCM_ARCH_FLAGS)
+    # A target of the int16 kernels compiles in about 0.6 GB.
+    list(LENGTH LLMX_ROCM_ARCHS LLMX_ROCM_ARCH_COUNT)
+    llmx_gpu_jobs(LLMX_ROCM_JOBS ${LLMX_ROCM_ARCH_COUNT} 1)
+    list(APPEND LLMX_ROCM_ARCH_FLAGS -parallel-jobs=${LLMX_ROCM_JOBS})
     # The compiler reads the SDK it was found with, never another HIP installed beside it.
     get_filename_component(LLMX_ROCM_ROOT ${LLMX_HIP_INCLUDE_DIR} DIRECTORY)
     set(LLMX_ROCM_KERNELS f32 int16)
@@ -417,28 +451,34 @@ if(LLMX_HAS_BACKEND_ROCM)
         set(bundle ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm/${kernel}.hipfb)
         add_custom_command(OUTPUT ${bundle}
             COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm
-            COMMAND ${LLMX_HIP_CLANG} ${LLMX_HIP_FLAGS} --offload-arch=gfx906 --offload-arch=gfx942 --offload-arch=gfx1151
+            COMMAND ${LLMX_HIP_CLANG} ${LLMX_HIP_FLAGS} ${LLMX_ROCM_ARCH_FLAGS}
                     -I${CMAKE_CURRENT_SOURCE_DIR}/src -c ${LLMX_GPU_KERNEL_DIR}/${kernel}.gpu -o ${bundle}
             DEPENDS ${LLMX_GPU_KERNEL_DIR}/${kernel}.gpu ${LLMX_GPU_KERNEL_DIR}/quant.h ${LLMX_GPU_KERNEL_DIR}/port.h ${LLMX_GPU_KERNEL_DIR}/shapes.h ${LLMX_GPU_KERNEL_DIR}/group.h ${LLMX_GPU_KERNEL_DIR}/rows.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp
             COMMENT "hip ${kernel}"
             VERBATIM)
         list(APPEND LLMX_ROCM_OBJECTS ${bundle})
     endforeach()
-    # The int16 kernels again, their products on the 16-bit integer dot, for the targets that have the instruction; a device whose code object is missing from it runs the plain module (docs/src/backends-gpu.md).
-    set(bundle ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm/int16dot.hipfb)
-    add_custom_command(OUTPUT ${bundle}
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm
-        COMMAND ${LLMX_HIP_CLANG} ${LLMX_HIP_FLAGS} --offload-arch=gfx906 -DLLMX_DOT16
-                -I${CMAKE_CURRENT_SOURCE_DIR}/src -c ${LLMX_GPU_KERNEL_DIR}/int16.gpu -o ${bundle}
-        DEPENDS ${LLMX_GPU_KERNEL_DIR}/int16.gpu ${LLMX_GPU_KERNEL_DIR}/quant.h ${LLMX_GPU_KERNEL_DIR}/port.h ${LLMX_GPU_KERNEL_DIR}/shapes.h ${LLMX_GPU_KERNEL_DIR}/group.h ${LLMX_GPU_KERNEL_DIR}/rows.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp
-        COMMENT "hip int16dot"
-        VERBATIM)
-    list(APPEND LLMX_ROCM_OBJECTS ${bundle})
+    # The int16 kernels again, their products on the 16-bit integer dot, for gfx906 alone, the one target that has run them; a build without gfx906 has no such module, and a device it holds no code object for runs the plain module (docs/src/backends-gpu.md).
+    set(LLMX_ROCM_MODULES llmx_rocm_f32_module ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm/f32.hipfb llmx_rocm_int16_module ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm/int16.hipfb)
+    if("gfx906" IN_LIST LLMX_ROCM_ARCHS)
+        set(bundle ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm/int16dot.hipfb)
+        add_custom_command(OUTPUT ${bundle}
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm
+            COMMAND ${LLMX_HIP_CLANG} ${LLMX_HIP_FLAGS} --offload-arch=gfx906 -DLLMX_DOT16
+                    -I${CMAKE_CURRENT_SOURCE_DIR}/src -c ${LLMX_GPU_KERNEL_DIR}/int16.gpu -o ${bundle}
+            DEPENDS ${LLMX_GPU_KERNEL_DIR}/int16.gpu ${LLMX_GPU_KERNEL_DIR}/quant.h ${LLMX_GPU_KERNEL_DIR}/port.h ${LLMX_GPU_KERNEL_DIR}/shapes.h ${LLMX_GPU_KERNEL_DIR}/group.h ${LLMX_GPU_KERNEL_DIR}/rows.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp
+            COMMENT "hip int16dot"
+            VERBATIM)
+        list(APPEND LLMX_ROCM_OBJECTS ${bundle})
+        list(APPEND LLMX_ROCM_MODULES llmx_rocm_int16dot_module ${bundle})
+    endif()
     add_custom_target(llmx-rocm-kernels DEPENDS ${LLMX_ROCM_OBJECTS})
     add_library(llmx-rocm STATIC src/backends/rocm/rocm_backend.cpp)
     add_dependencies(llmx-rocm llmx-rocm-kernels)
-    llmx_embed_modules(llmx-rocm rocm llmx_rocm_f32_module ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm/f32.hipfb llmx_rocm_int16_module ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm/int16.hipfb
-                       llmx_rocm_int16dot_module ${bundle})
+    llmx_embed_modules(llmx-rocm rocm ${LLMX_ROCM_MODULES})
+    if("gfx906" IN_LIST LLMX_ROCM_ARCHS)
+        target_compile_definitions(llmx-rocm PRIVATE LLMX_ROCM_DOT_MODULE)
+    endif()
     # The generated directory comes first, so the backend reads the build's config.hpp and its embedded kernels.
     target_include_directories(llmx-rocm
         PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/generated ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -458,8 +498,41 @@ if(LLMX_HAS_BACKEND_CUDA)
     if(NOT LLMX_NVCC OR NOT LLMX_CUDA_INCLUDE_DIR)
         message(FATAL_ERROR "LLMX_HAS_BACKEND_CUDA needs nvcc and cuda.h: install the CUDA toolkit 12.8 or newer, or set CUDA_PATH")
     endif()
-    # SASS for every target the backend claims and PTX for later ones; 12.8 is the first toolkit with sm_120.
-    set(LLMX_CUDA_ARCHS 80 86 89 90 120)
+    # SASS for every listed target; 12.8 is the first toolkit with sm_120, and 13.0 the first without sm_70, which the default then leaves out (docs/BUILD.md).
+    execute_process(COMMAND ${LLMX_NVCC} --version OUTPUT_VARIABLE LLMX_NVCC_VERSION)
+    string(REGEX MATCH "release ([0-9]+)[.]([0-9]+)" LLMX_NVCC_VERSION "${LLMX_NVCC_VERSION}")
+    if(CMAKE_MATCH_1 LESS 12 OR (CMAKE_MATCH_1 EQUAL 12 AND CMAKE_MATCH_2 LESS 8))
+        message(FATAL_ERROR "LLMX_HAS_BACKEND_CUDA needs the CUDA toolkit 12.8 or newer, found ${LLMX_NVCC_VERSION}")
+    endif()
+    if(CMAKE_MATCH_1 LESS 13)
+        set(LLMX_CUDA_DEFAULT_ARCHS "70;75;80;86;89;90;100;120")
+    else()
+        set(LLMX_CUDA_DEFAULT_ARCHS "75;80;86;89;90;100;120")
+    endif()
+    set(LLMX_CUDA_ARCHS "${LLMX_CUDA_DEFAULT_ARCHS}" CACHE STRING "NVIDIA compute capabilities the CUDA kernels are compiled for, as 86 for sm_86 (docs/BUILD.md)")
+    # PTX of the lowest listed target with the integer tensor cores (sm_80), else of the lowest, which later GPUs compile at load.
+    set(LLMX_CUDA_PTX)
+    set(LLMX_CUDA_PTX_TENSOR)
+    foreach(a IN LISTS LLMX_CUDA_ARCHS)
+        if(NOT a MATCHES "^[0-9]+$")
+            message(FATAL_ERROR "LLMX_CUDA_ARCHS takes compute capabilities as numbers, such as 86 for sm_86, not ${a}")
+        endif()
+        if(NOT LLMX_CUDA_PTX OR a LESS LLMX_CUDA_PTX)
+            set(LLMX_CUDA_PTX ${a})
+        endif()
+        if(a GREATER_EQUAL 80 AND (NOT LLMX_CUDA_PTX_TENSOR OR a LESS LLMX_CUDA_PTX_TENSOR))
+            set(LLMX_CUDA_PTX_TENSOR ${a})
+        endif()
+    endforeach()
+    if(LLMX_CUDA_PTX_TENSOR)
+        set(LLMX_CUDA_PTX ${LLMX_CUDA_PTX_TENSOR})
+    endif()
+    # ptxas takes about 2.4 GB for a target of the int16 kernels.
+    list(LENGTH LLMX_CUDA_ARCHS LLMX_CUDA_ARCH_COUNT)
+    llmx_gpu_jobs(LLMX_CUDA_JOBS ${LLMX_CUDA_ARCH_COUNT} 3)
+    if(NOT LLMX_CUDA_PTX)
+        message(FATAL_ERROR "LLMX_CUDA_ARCHS names no compute capability")
+    endif()
     set(LLMX_CUDA_OBJECTS)
     foreach(kernel f32 int16)
         set(fatbin ${CMAKE_CURRENT_BINARY_DIR}/generated/cuda/${kernel}.fatbin)
@@ -467,7 +540,7 @@ if(LLMX_HAS_BACKEND_CUDA)
             COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/cuda
             COMMAND ${CMAKE_COMMAND} -DNVCC=${LLMX_NVCC} -DSRC=${LLMX_GPU_KERNEL_DIR}/${kernel}.gpu -DOUT=${fatbin}
                     -DREPORT=${CMAKE_CURRENT_BINARY_DIR}/generated/cuda/${kernel}.ptxas -DINCLUDE=${CMAKE_CURRENT_SOURCE_DIR}/src
-                    "-DARCHS=${LLMX_CUDA_ARCHS}" -DPTX=80 -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/nvcc.cmake
+                    "-DARCHS=${LLMX_CUDA_ARCHS}" -DPTX=${LLMX_CUDA_PTX} -DJOBS=${LLMX_CUDA_JOBS} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/nvcc.cmake
             DEPENDS ${LLMX_GPU_KERNEL_DIR}/${kernel}.gpu ${LLMX_GPU_KERNEL_DIR}/quant.h ${LLMX_GPU_KERNEL_DIR}/port.h ${LLMX_GPU_KERNEL_DIR}/shapes.h ${LLMX_GPU_KERNEL_DIR}/group.h ${LLMX_GPU_KERNEL_DIR}/rows.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp
                     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/nvcc.cmake
             COMMENT "nvcc ${kernel}"

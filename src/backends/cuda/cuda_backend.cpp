@@ -56,6 +56,7 @@ struct CudaApi {
     using CopyKind = int;   // the driver infers the direction from unified addresses
     using Device = CudaDevice;
     static constexpr Error kSuccess = CUDA_SUCCESS, kNotReady = CUDA_ERROR_NOT_READY, kPeerAlreadyEnabled = CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED;
+    static bool no_binary(Error e) { return e == CUDA_ERROR_NO_BINARY_FOR_GPU; }
     static constexpr CopyKind kToHost = 0, kToDevice = 0, kAnyCopy = 0;
     static constexpr const char* name = "cuda";
     static constexpr bool int8_tensor_tiles = true;   // the module has the K-quants' tall tensor-core tiles (kernels/int16.gpu, k_mma at 128 outputs)
@@ -64,6 +65,7 @@ struct CudaApi {
     static constexpr bool shared_block_cap = true;    // caps.shared_bytes is a block's 48 KiB static cap, and every target's SM holds two such blocks
     static constexpr bool dot4_everywhere = true;     // every CUDA target compiles GPU_DOT4 (kernels/port.h), so the f32 module has the integer index tile
     static inline const std::string prefix = "cuda: ";
+    static constexpr const char* arch_option = "LLMX_CUDA_ARCHS";
     static constexpr const unsigned char* f32_module = kF32Module;
     static constexpr const unsigned char* int16_module = kInt16Module;
     // No integer-dot module yet: its builds come with the F16 class (docs/CUDA.md, Order of work), and the core runs the plain module.

@@ -20,7 +20,7 @@ Cards older than Ampere are not a target; nothing in the design rules them out, 
 
 The backend links against nothing from the toolkit.
 It opens the driver library (`libcuda.so.1`) at run time into one call table, as the ROCm backend does for HIP, so a CPU-only run starts where no driver is installed and a missing driver, call or device is reported as a missing device.
-Kernels are compiled ahead of time to a fatbin, SASS for sm_80, sm_86, sm_89, sm_90 and sm_120 plus PTX for compute_80, embedded in the binary and loaded through the driver.
+Kernels are compiled ahead of time to a fatbin, SASS for each architecture in `LLMX_CUDA_ARCHS` (by default sm_70, sm_75, sm_80, sm_86, sm_89, sm_90, sm_100 and sm_120, without sm_70 from CUDA 13) plus PTX for the lowest from sm_80 on, embedded in the binary and loaded through the driver (docs/BUILD.md, GPU architectures).
 There is no runtime library, no runtime compiler and no vendor BLAS in the first delivery; a vendor GEMM stays admissible only under the per-kernel rule of [ROADMAP](ROADMAP.md), 4b.
 The toolkit is pinned at 12.8 or newer, the first with sm_120 SASS, in the build image and the hosted job.
 

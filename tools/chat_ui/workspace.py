@@ -1,5 +1,6 @@
 """Managed project files, checkpoints and bounded container execution."""
 
+from copy import deepcopy
 import difflib
 import io
 import json
@@ -15,6 +16,13 @@ MAX_FILE = 1024 * 1024
 MAX_FILES = 256
 MAX_PROJECT = 8 * MAX_FILE
 MAX_OUTPUT = 128 * 1024
+MAX_PROJECT_DEFINITIONS = 32
+MAX_PROJECT_PATHS = 8
+MAX_PROJECT_INSTRUCTIONS = 16 * 1024
+
+
+class ProjectConflict(ValueError):
+    pass
 
 
 def file_path(value):
@@ -186,17 +194,19 @@ class Workspace:
         self.runner = runner or (DockerRunner(image, docker_host) if image else None)
         self.image = image
         self.control = None
-        self.state = dict(revision=0, files={}, checkpoints=[], jobs=[])
+        self.state = dict(revision=0, files={}, checkpoints=[], jobs=[], projects={})
         if self.file.exists():
             self.state = json.loads(self.file.read_text(encoding="utf-8"))
             checked_files(self.state["files"])
+            self.state.setdefault("projects", {})
+            self._validate_projects(self.state["projects"])
             for job in self.state["jobs"]:
                 if job["status"] == "running":
                     job.update(status="failed", error="Workspace service restarted. Files remain at the saved checkpoint.")
 
-    def _save(self):
+    def _save(self, state=None):
         temporary = self.file.with_suffix(".tmp")
-        temporary.write_text(json.dumps(self.state, ensure_ascii=True), encoding="utf-8")
+        temporary.write_text(json.dumps(self.state if state is None else state, ensure_ascii=True), encoding="utf-8")
         temporary.replace(self.file)
 
     def snapshot(self):
@@ -216,6 +226,89 @@ class Workspace:
     def preview_snapshot(self):
         with self.lock:
             return self.state["revision"], dict(self.state["files"])
+
+    @staticmethod
+    def _project_values(values):
+        if set(values) - {"name", "instructions", "paths"}:
+            raise ValueError("Unsupported Workspace project field")
+        name, instructions, paths = values.get("name"), values.get("instructions", ""), values.get("paths")
+        name = name.strip() if isinstance(name, str) else ""
+        if not 1 <= len(name) <= 120 or any(ord(c) < 32 for c in name):
+            raise ValueError("Use a project name of 1 to 120 characters")
+        name.encode()
+        if not isinstance(instructions, str) or "\0" in instructions or len(instructions.encode()) > MAX_PROJECT_INSTRUCTIONS:
+            raise ValueError("Project instructions must be UTF-8 text of at most 16 KiB")
+        if not isinstance(paths, list) or len(paths) > MAX_PROJECT_PATHS:
+            raise ValueError("Choose up to eight saved Workspace files")
+        paths = [file_path(path) for path in paths]
+        if len(paths) != len(set(paths)):
+            raise ValueError("Select each Workspace file only once")
+        return dict(name=name, instructions=instructions, paths=paths)
+
+    @classmethod
+    def _validate_projects(cls, projects):
+        if not isinstance(projects, dict) or len(projects) > MAX_PROJECT_DEFINITIONS:
+            raise ValueError("Invalid saved Workspace projects")
+        for key, project in projects.items():
+            if (not isinstance(project, dict) or set(project) != {"id", "version", "name", "instructions", "paths"}
+                    or project["id"] != key or type(project["version"]) is not int or project["version"] < 1):
+                raise ValueError("Invalid saved Workspace project")
+            cls._project_values({name: project[name] for name in ("name", "instructions", "paths")})
+
+    def projects(self):
+        with self.lock:
+            return deepcopy(list(self.state["projects"].values()))
+
+    def _require_project_files(self, paths):
+        missing = [path for path in paths if path not in self.state["files"]]
+        if missing:
+            raise ProjectConflict("Missing saved Workspace files: " + ", ".join(missing) + ". Save them or remove them from the project.")
+
+    def _project_at_version(self, project_id, version):
+        if type(version) is not int or version < 1:
+            raise ValueError("Expected a positive Workspace project version")
+        project = self.state["projects"][project_id]
+        if project["version"] != version:
+            raise ProjectConflict("Workspace project changed. Reload it before saving or deleting.")
+        return project
+
+    def _save_projects(self, projects):
+        state = dict(self.state, projects=projects)
+        self._save(state)
+        self.state = state
+
+    def save_project(self, body, project_id=None):
+        values = dict(body)
+        version = values.pop("version", None) if project_id is not None else None
+        values = self._project_values(values)
+        with self.lock:
+            projects = dict(self.state["projects"])
+            if project_id is None:
+                if len(projects) >= MAX_PROJECT_DEFINITIONS:
+                    raise ValueError("Workspace holds up to 32 project definitions")
+                project_id, next_version = uuid.uuid4().hex, 1
+            else:
+                next_version = self._project_at_version(project_id, version)["version"] + 1
+            self._require_project_files(values["paths"])
+            project = dict(id=project_id, version=next_version, **values)
+            projects[project_id] = project
+            self._save_projects(projects)
+            return deepcopy(project)
+
+    def delete_project(self, project_id, version):
+        with self.lock:
+            self._project_at_version(project_id, version)
+            projects = dict(self.state["projects"])
+            del projects[project_id]
+            self._save_projects(projects)
+
+    def project_context(self, project_id):
+        with self.lock:
+            project = self.state["projects"][project_id]
+            paths = project["paths"]
+            self._require_project_files(paths)
+            return dict(project=deepcopy(project), revision=self.state["revision"],
+                        files=[dict(path=path, text=self.state["files"][path]) for path in paths])
 
     def _editable(self, revision):
         if self.control is not None:

@@ -5,11 +5,12 @@
   const {api} = window.ChatShell;
   const view = document.getElementById('view-workbench');
   const state = {snapshot: null, path: '', original: '', revision: 0, activeJob: null, timer: null, loading: null, isNew: false, selection: 0, saving: false, attaching: false, jobSelection: 0};
+  const projectState = {items: null, loading: false, editing: null, saving: false, files: []};
   let viewLoad;
   const terminal = job => ['completed', 'failed', 'cancelled'].includes(job.status);
   function control(label, cls, listener) { const button = node('button', cls || 'secondary-button', label); button.type = 'button'; if (listener) button.addEventListener('click', () => Promise.resolve().then(listener).catch(showError)); return button; }
   const toolbar = node('div', 'view-toolbar'); const back = control('Back to Chat', 'text-button workspace-back', returnToChat);
-  const headingActions = node('div', 'workspace-actions'); const revisionLabel = node('span', 'workspace-revision', 'Not loaded'); const refresh = control('Refresh', '', () => load()); const newFile = control('New file', 'primary-button', createFile); headingActions.append(revisionLabel, refresh, newFile); toolbar.append(back, headingActions);
+  const headingActions = node('div', 'workspace-actions'); const revisionLabel = node('span', 'workspace-revision', 'Not loaded'); const refresh = control('Refresh', '', refreshWorkspace); const newFile = control('New file', 'primary-button', createFile); headingActions.append(revisionLabel, refresh, newFile); toolbar.append(back, headingActions);
   const error = node('div', 'view-notice workspace-error'); error.setAttribute('role', 'alert'); error.tabIndex = -1; error.hidden = true;
   const limits = node('details', 'workspace-limits'), limitsText = node('p');
   limits.append(node('summary', '', 'Workspace limits'), limitsText); limits.hidden = true;
@@ -21,6 +22,31 @@
   const editor = node('textarea', 'workspace-code-editor'); editor.id = 'workspace-editor'; editor.spellcheck = false; editor.autocomplete = 'off'; editor.wrap = 'off'; editor.setAttribute('aria-label', 'File content'); editor.placeholder = 'Create a file or select one from the workspace.'; editor.disabled = true;
   const editorFooter = node('div', 'workspace-editor-footer'); const editorPosition = node('span', '', 'UTF-8'); const saveHint = node('span', '', 'Ctrl / Cmd + S to save'); editorFooter.append(editorPosition, saveHint); editorPanel.append(editorHeading, editor, editorFooter);
   layout.append(filePanel, editorPanel);
+  const projects = node('details', 'workspace-projects'); projects.id = 'workspace-projects';
+  const projectsSummary = node('summary', '', 'Projects');
+  const projectsPanel = node('div', 'workspace-projects-panel');
+  const projectStatus = node('p', 'workspace-project-status'); projectStatus.setAttribute('role', 'status'); projectStatus.hidden = true;
+  const projectList = node('ul', 'workspace-project-list'); projectList.setAttribute('aria-label', 'Saved projects');
+  const projectNew = control('New project', '', () => editProject(null)); projectNew.id = 'workspace-project-new'; projectNew.disabled = true;
+  const projectForm = node('form', 'workspace-project-form'); projectForm.id = 'workspace-project-form'; projectForm.hidden = true;
+  const projectTitle = node('h3'); projectTitle.id = 'workspace-project-title'; projectForm.setAttribute('aria-labelledby', projectTitle.id);
+  const projectFields = node('fieldset', 'workspace-project-fields');
+  const projectName = node('input'); projectName.id = 'workspace-project-name'; projectName.required = true; projectName.maxLength = 240;
+  const projectInstructions = node('textarea'); projectInstructions.id = 'workspace-project-instructions'; projectInstructions.rows = 3; projectInstructions.maxLength = 16 * 1024;
+  const projectNameLabel = node('label', 'field', 'Project name'); projectNameLabel.append(projectName);
+  const projectInstructionsLabel = node('label', 'field', 'Instructions (optional)'); projectInstructionsLabel.append(projectInstructions);
+  const projectPaths = node('fieldset', 'workspace-project-paths'); projectPaths.id = 'workspace-project-paths';
+  const projectPathCount = node('legend'); const projectPathChoices = node('div', 'workspace-project-path-choices');
+  projectPaths.append(projectPathCount, projectPathChoices);
+  projectFields.append(projectNameLabel, projectInstructionsLabel, projectPaths);
+  const projectError = node('p', 'error-text'); projectError.id = 'workspace-project-error'; projectError.setAttribute('role', 'alert'); projectError.hidden = true;
+  const projectActions = node('div', 'workspace-project-actions');
+  const projectCancel = control('Cancel', '', () => closeProjectEditor()); projectCancel.id = 'workspace-project-cancel';
+  const projectDelete = control('Delete project', 'secondary-button danger', deleteProject); projectDelete.id = 'workspace-project-delete';
+  const projectSave = node('button', 'primary-button', 'Save project'); projectSave.id = 'workspace-project-save'; projectSave.type = 'submit';
+  projectActions.append(projectCancel, projectDelete, projectSave);
+  projectForm.append(projectTitle, projectFields, projectError, projectActions);
+  projectsPanel.append(projectStatus, projectList, projectNew, projectForm); projects.append(projectsSummary, projectsPanel);
   const historyPanel = node('section', 'workspace-checkpoints'); historyPanel.setAttribute('aria-label', 'Checkpoints');
   const checkpointAdd = control('Create checkpoint', '', createCheckpoint); const history = node('details'); const historySummary = node('summary', '', 'Checkpoint history'); const checkpoints = node('div', 'workspace-checkpoint-list');
   history.append(historySummary, checkpoints); historyPanel.append(checkpointAdd, history);
@@ -31,13 +57,121 @@
   const run = node('button', 'primary-button', 'Run command'); run.type = 'submit'; run.id = 'workspace-run'; const cancel = control('Stop', 'secondary-button', cancelJob); cancel.hidden = true; commandForm.append(node('span', 'terminal-prompt', '>_'), command, run, cancel);
   const jobTabs = node('div', 'workspace-job-tabs'); jobTabs.setAttribute('aria-label', 'Command history');
   const output = node('pre', 'workspace-output', 'Command output appears here.'); output.id = 'workspace-output'; output.setAttribute('aria-label', 'Command output'); output.tabIndex = 0; const jobStatus = node('div', 'workspace-job-status'); jobStatus.setAttribute('role', 'status'); terminalPanel.append(terminalHeading, executionNote, commandForm, jobTabs, output, jobStatus);
-  view.append(toolbar, error, layout, historyPanel, terminalPanel, limits);
+  view.append(toolbar, error, layout, historyPanel, projects, terminalPanel, limits);
   function returnToChat(focusId = 'chat-title') {
     window.ChatShell.show('chat');
     document.getElementById(focusId).focus();
   }
   function showError(problem) { error.textContent = problem.message || String(problem); error.hidden = false; }
   function clearError() { error.hidden = true; error.textContent = ''; }
+  function setProjectError(message = '') { projectError.textContent = message; projectError.hidden = !message; }
+  function setProjectStatus(message = '', failed = false) {
+    projectStatus.textContent = message; projectStatus.hidden = !message; projectStatus.classList.toggle('error-text', failed);
+  }
+  function updateProjectControls() {
+    const available = Boolean(state.snapshot && projectState.items && !projectState.loading);
+    projectNew.disabled = !available;
+    projectList.querySelectorAll('button').forEach(button => { button.disabled = !available; });
+  }
+  function renderProjects() {
+    projectList.replaceChildren();
+    for (const project of [...(projectState.items || [])].sort((a, b) => a.name.localeCompare(b.name))) {
+      const row = node('li'); const button = control('', 'workspace-project-row', () => editProject(project));
+      button.dataset.project = project.id;
+      button.append(node('strong', '', project.name), node('span', 'muted', number(project.paths.length) + (project.paths.length === 1 ? ' path' : ' paths')));
+      row.append(button); projectList.append(row);
+    }
+    updateProjectControls();
+  }
+  async function loadProjects() {
+    if (projectState.loading || projectState.editing) return;
+    projectState.loading = true; updateProjectControls(); setProjectStatus('Loading projects...');
+    try {
+      const result = await api('/workspace/projects');
+      projectState.items = result.projects; renderProjects();
+      setProjectStatus(result.projects.length ? '' : 'No projects yet.');
+    } catch (problem) { projectState.items = null; renderProjects(); setProjectStatus(problem.message, true); }
+    finally { projectState.loading = false; updateProjectControls(); }
+  }
+  async function refreshWorkspace() {
+    await load();
+    if (projects.open) await loadProjects();
+  }
+  function renderProjectPaths() {
+    const selection = projectState.editing.paths;
+    const active = projectPathChoices.contains(document.activeElement) ? document.activeElement.value : null;
+    const available = new Set(projectState.files);
+    const paths = new Set([...selection, ...available]);
+    projectPathChoices.replaceChildren();
+    let focus;
+    for (const path of paths) {
+      const missing = !available.has(path);
+      const field = node('label', 'workspace-project-path');
+      const check = node('input'); check.type = 'checkbox'; check.checked = selection.has(path); check.value = path;
+      if (active === path) focus = check;
+      const label = node('span', '', path);
+      if (missing) label.append(node('span', 'error-text', ' (missing)'));
+      check.addEventListener('change', () => {
+        if (check.checked && selection.size >= 8) { check.checked = false; setProjectError('Select up to 8 saved files.'); return; }
+        if (check.checked) selection.add(path); else selection.delete(path);
+        projectPathCount.textContent = 'Saved files (' + number(selection.size) + ' of 8)';
+        setProjectError();
+      });
+      field.append(check, label); projectPathChoices.append(field);
+    }
+    if (!paths.size) projectPathChoices.append(node('p', 'muted', 'No saved files available.'));
+    projectPathCount.textContent = 'Saved files (' + number(selection.size) + ' of 8)';
+    if (focus && !projectFields.disabled) focus.focus({preventScroll: true});
+  }
+  function editProject(project) {
+    if (projectState.editing || projectNew.disabled) return;
+    projectState.editing = {project, paths: new Set(project?.paths || []), origin: document.activeElement};
+    projectTitle.textContent = project ? 'Edit project' : 'New project';
+    projectName.value = project?.name || ''; projectInstructions.value = project?.instructions || '';
+    projectDelete.hidden = !project; projectForm.hidden = false; projectList.hidden = true; projectNew.hidden = true;
+    setProjectStatus(); setProjectError(); renderProjectPaths(); projectName.focus();
+  }
+  function closeProjectEditor(savedId) {
+    const origin = projectState.editing?.origin;
+    const restoreFocus = projects.open && !view.hidden && (projectForm.contains(document.activeElement) || document.activeElement === document.body);
+    projectState.editing = null; projectForm.hidden = true; projectList.hidden = false; projectNew.hidden = false;
+    setProjectError(); setProjectStatus(projectState.items.length ? '' : 'No projects yet.');
+    const saved = savedId && projectList.querySelector('[data-project="' + CSS.escape(savedId) + '"]');
+    if (restoreFocus) (saved || (origin?.isConnected && projects.contains(origin) ? origin : projectNew)).focus();
+  }
+  async function saveProject(event) {
+    event.preventDefault();
+    const editing = projectState.editing;
+    if (!editing || projectState.saving) return;
+    const name = projectName.value.trim(); const instructions = projectInstructions.value; const paths = [...editing.paths];
+    if (!name || [...name].length > 120) { setProjectError('Enter a project name with 1 to 120 characters.'); projectName.focus(); return; }
+    if (new TextEncoder().encode(instructions).byteLength > 16 * 1024) { setProjectError('Project instructions must fit within 16 KiB.'); projectInstructions.focus(); return; }
+    if (paths.some(path => !projectState.files.includes(path))) { setProjectError('Remove missing files before saving this project.'); return; }
+    const project = editing.project; const route = '/workspace/projects' + (project ? '/' + encodeURIComponent(project.id) : '');
+    setProjectError(); projectState.saving = true; projectFields.disabled = true; projectCancel.disabled = true; projectDelete.disabled = true; projectSave.disabled = true; projectSave.setAttribute('aria-busy', 'true');
+    let saved;
+    try {
+      const result = await api(route, project ? 'PATCH' : 'POST', {name, instructions, paths, ...(project ? {version: project.version} : {})});
+      saved = result.project;
+      projectState.items = [...projectState.items.filter(item => item.id !== saved.id), saved];
+      renderProjects(); closeProjectEditor(saved.id);
+    } catch (problem) { setProjectError(problem.message); }
+    finally {
+      projectState.saving = false; projectFields.disabled = false; projectCancel.disabled = false; projectDelete.disabled = false; projectSave.disabled = false;
+      projectSave.removeAttribute('aria-busy');
+      if (!saved && projects.open && !view.hidden && (projectForm.contains(document.activeElement) || document.activeElement === document.body)) projectSave.focus({preventScroll: true});
+    }
+  }
+  async function deleteProject() {
+    const project = projectState.editing?.project;
+    if (!project || projectState.saving) return;
+    const removed = await window.ChatShell.conversationForm({title: 'Delete project?', description: 'Delete "' + project.name + '"? Its saved files will remain in Workspace.', destructive: true, submit: 'Delete'}, async () => {
+      await api('/workspace/projects/' + encodeURIComponent(project.id), 'DELETE', {version: project.version});
+    });
+    if (removed !== true) return;
+    projectState.items = projectState.items.filter(item => item.id !== project.id);
+    renderProjects(); closeProjectEditor();
+  }
   function bytes(value) { const units = ['B', 'KiB', 'MiB', 'GiB']; let index = 0; while (value >= 1024 && index < units.length - 1) { value /= 1024; index++; } return number(value) + ' ' + units[index]; }
   function seconds(value) { return value >= 60 && value % 60 === 0 ? number(value / 60) + ' min' : number(value) + ' s'; }
   function dirty() { return !editor.disabled && (state.isNew || editor.value !== state.original); }
@@ -88,6 +222,12 @@
     for (const [key, label, suffix] of [['file_bytes', 'Per file', ''], ['project_bytes', 'Workspace', ''], ['files', 'Files', ''], ['command_seconds', 'Command time', ''], ['output_chars', 'Retained output', ' characters'], ['checkpoints', 'Checkpoints', '']]) if (typeof policy[key] === 'number') parts.push(label + ': ' + (key.endsWith('_bytes') ? bytes(policy[key]) : key === 'command_seconds' ? seconds(policy[key]) : number(policy[key], suffix)));
     limitsText.textContent = parts.join(' / '); limits.hidden = !parts.length;
     renderFiles(); renderCheckpoints(); renderJobs(); scheduleJobs();
+    const projectFiles = (snapshot.files || []).map(file => file.path);
+    if (projectFiles.length !== projectState.files.length || projectFiles.some((path, index) => projectState.files[index] !== path)) {
+      projectState.files = projectFiles;
+      if (projectState.editing) renderProjectPaths();
+    }
+    updateProjectControls();
   }
   async function load() {
     while (state.loading) {
@@ -161,7 +301,7 @@
     clearError(); state.attaching = true; updateEditor();
     try {
       if (/[:\\]/.test(state.path)) throw new Error('Use a Workspace path with forward slashes and no colons to attach this file.');
-      const name = state.path.replaceAll('/', ':');
+      const name = window.ChatComposer.workspaceName(state.path);
       await window.ChatComposer.attach([new File([editor.value], name, {type: 'text/plain'})]);
       if (isCurrent()) returnToChat('draft');
     } catch (problem) {
@@ -200,6 +340,8 @@
     state.timer = setTimeout(async () => { try { const running = state.snapshot.jobs.filter(job => !terminal(job)); for (const job of running) { const result = await api('/workspace/jobs/' + encodeURIComponent(job.id)); const index = state.snapshot.jobs.findIndex(item => item.id === job.id); state.snapshot.jobs[index] = result.job; } renderJobs(); if (state.snapshot.jobs.every(terminal)) await load(); else scheduleJobs(); } catch (problem) { showError(problem); } }, 500);
   }
   editor.addEventListener('input', updateEditor); editor.addEventListener('keyup', updateEditor); editor.addEventListener('click', updateEditor); commandForm.addEventListener('submit', startJob);
+  projects.addEventListener('toggle', () => { if (projects.open) loadProjects(); });
+  projectForm.addEventListener('submit', saveProject);
   document.addEventListener('keydown', event => { if (document.querySelector('dialog[open]')) return; if (document.getElementById('app').dataset.view === 'workbench' && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); if (!save.disabled) saveFile().catch(showError); } });
   document.addEventListener('companion:view', event => {
     if (event.detail === 'workbench') { viewLoad = load(); viewLoad.catch(showError); }

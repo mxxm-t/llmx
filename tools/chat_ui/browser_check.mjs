@@ -1982,6 +1982,30 @@ try {
   assert.deepEqual(await evaluate("({view:document.querySelector('#app').dataset.view,focus:document.activeElement.id,count:document.querySelectorAll('#attachments .attachment-pill').length})"), {view:'workbench',focus:'workspace-editor',count:1}, 'held attachment navigated away from the newer file or attached twice');
   await pointerClick('.workspace-back');
   await click('[aria-label="Remove src:index.js"]');
+  await showRefreshedWorkspace();
+  await pointerClick('#workspace-projects summary');
+  await wait("!document.querySelector('#workspace-project-new').disabled", 'Workspace project list is ready');
+  await pointerClick('#workspace-project-new');
+  await fill('#workspace-project-name', 'Browser project');
+  await fill('#workspace-project-instructions', 'Use the selected browser fixtures.');
+  await click('#workspace-project-paths input[value="src/index.js"]');
+  await click('#workspace-project-paths input[value="tests/index.js"]');
+  await pointerClick('#workspace-project-save');
+  await wait("document.querySelector('.workspace-project-row')?.textContent.includes('Browser project')", 'created named Workspace project');
+  await pointerClick('#workspace-projects summary');
+  await pointerClick('.workspace-back');
+  async function reviewProject() {
+    await pointerClick('.composer [data-action="settings"]');
+    await pointerClick('#use-workspace-project');
+    await wait("document.querySelector('#project-context-dialog').open && !document.querySelector('#project-context-apply').disabled", 'saved project ready in Chat');
+    assert.equal(await evaluate("document.querySelector('#project-context-files').children.length"), 2, 'project file review count');
+    assert((await evaluate("document.querySelector('#project-context-status').textContent")).includes('Workspace revision'));
+  }
+  async function applyProject() {
+    await pointerClick('#project-context-copy');
+    await pointerClick('#project-context-apply');
+    await wait("!document.querySelector('#project-context-dialog').open && document.activeElement.id==='draft'", 'project returned to draft');
+  }
   for (const [width,height] of [[320,720],[360,800],[390,844],[768,1024],[1024,768],[1440,1000],[844,390],[720,500]]) {
     await cdp('Emulation.setDeviceMetricsOverride', {width, height, deviceScaleFactor: width===720 ? 2 : 1, mobile: width<=390});
     await evaluate("window.dispatchEvent(new Event('resize'))");
@@ -2047,6 +2071,11 @@ try {
   await fill('#workspace-editor', 'Saved tests/index.js');
   await pointerClick('.workspace-back');
   await holdHistoryRefresh();
+  const savedDrafts = "Object.fromEntries(Object.keys(sessionStorage).filter(key=>key.startsWith('llmx-draft:')).map(key=>[key,sessionStorage.getItem(key)]))";
+  const beforeTemporaryProject = await evaluate(savedDrafts);
+  await reviewProject();
+  await applyProject();
+  assert.deepEqual(await evaluate(savedDrafts), beforeTemporaryProject, 'applying a project in temporary chat wrote a saved draft');
   await send('Temporary browser privacy check');
   await wait("typeof releaseChatHistory==='function' && !document.querySelector('#stop').hidden && document.querySelector('#messages').innerText.includes('Temporary response.')", 'streaming before send admission finishes');
   assert.equal(await evaluate("document.querySelector('#send').disabled"), true, 'delayed history did not hold the send busy state');
@@ -2132,6 +2161,25 @@ try {
     restoredOpen:true,rememberedClosed:true,settingsOpened:true,closedAfterSettings:true}, 'docked conversation details preference');
   assert(chatHeader.every(({viewport,titleWidth,width,height})=>viewport===1440 || titleWidth>=viewport-240 && width>=40 && height>=40), 'compact mode toggle crowds the title or is too small');
   assert(replyLayout.every(({width,actionTarget,actionGap,gap})=>actionTarget>=(width===1440?32:40) && actionGap<=8 && gap<=8), 'within-reply spacing or action target');
+  await evaluate("window.ChatComposer.attach([new File(['Earlier draft version'], 'src:index.js', {type:'text/plain'})])");
+  await fill('#setting-system', 'Keep until I choose to replace it.');
+  await reviewProject();
+  assert.equal(await evaluate("document.querySelector('#project-context-copy').checked"), false);
+  await pointerClick('#project-context-copy');
+  await pointerClick('#project-context-apply');
+  await wait("document.querySelector('#project-context-error').textContent.includes('Remove the existing src:index.js')", 'conflicting draft file is identified');
+  assert.deepEqual(await evaluate("({count:document.querySelectorAll('#attachments .attachment-pill').length,system:document.querySelector('#setting-system').value})"),
+    {count:1,system:'Keep until I choose to replace it.'}, 'refusal changed files or instructions');
+  await pointerClick('#project-context-cancel');
+  await pointerClick('#details-close');
+  await wait("document.querySelector('#app').classList.contains('inspector-closed') && !document.querySelector('.composer').closest('[inert]')", 'return from settings to edit the draft');
+  await pointerClick('[aria-label="Remove src:index.js"]');
+  await reviewProject();
+  await applyProject();
+  await reviewProject();
+  await pointerClick('#project-context-apply');
+  await wait("!document.querySelector('#project-context-dialog').open", 'reapplied the named project');
+  assert.equal(await evaluate("document.querySelectorAll('#attachments .attachment-pill').length"), 2, 'reapplying the same project duplicated attachments');
   await send('Normal browser persistence check');
   await idle();
   await wait("fetch('/api/chats').then(r=>r.json()).then(d=>d.chats.length===" + (savedBeforeTemporary + 1) + ")", 'normal message appears in saved history');
@@ -2145,6 +2193,13 @@ try {
   await wait("window.ChatShell?.config!=null && document.querySelector('#connection').textContent!=='Connecting' && sessionStorage.getItem('llmx-temporary-chat')===null && !document.querySelector('[data-action=\"new\"]').disabled", 'missing temporary chat handled after reload');
   assert.equal(await evaluate("document.querySelector('#temporary-notice').hidden"), true);
   const submittedChat = await evaluate("localStorage.getItem('llmx-chat')");
+  const sentProjectFiles = await evaluate(`(async () => {
+    const {revision} = await window.ChatShell.api('/workspace');
+    await window.ChatShell.api('/workspace/file', 'POST', {path:'src/index.js', content:'Later saved contents', revision});
+    const snapshot = await window.ChatShell.api('/chats/' + ${JSON.stringify(submittedChat)});
+    return snapshot.messages.find(item=>item.content==='Normal browser persistence check').attachments.map(file=>file.text);
+  })()`);
+  assert.deepEqual(sentProjectFiles, ['Saved src/index.js','Saved tests/index.js'], 'a Workspace edit changed sent project attachments');
   const chatSettings = await evaluate("fetch('/api/chats/'+"+JSON.stringify(submittedChat)+").then(r=>r.json()).then(d=>d.chat.settings)");
   const otherChat = await evaluate("fetch('/api/chats',{method:'POST',headers:{'Content-Type':'application/json','X-Chat-Request':'1'},body:JSON.stringify({settings:"+JSON.stringify(chatSettings)+"})}).then(r=>r.json()).then(d=>d.id)");
   await reloadDocument();

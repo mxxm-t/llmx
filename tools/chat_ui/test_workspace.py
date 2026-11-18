@@ -8,8 +8,8 @@ import time
 import unittest
 from unittest.mock import patch
 
-from workspace import (MAX_FILE, MAX_FILES, MAX_OUTPUT, DockerRunner, Workspace,
-                       WorkspaceTools, checked_files, file_path)
+from workspace import (MAX_FILE, MAX_FILES, MAX_OUTPUT, MAX_PROJECT_DEFINITIONS, MAX_PROJECT_INSTRUCTIONS,
+                       DockerRunner, ProjectConflict, Workspace, WorkspaceTools, checked_files, file_path)
 
 
 def archive(entries):
@@ -136,6 +136,58 @@ class WorkspaceTests(unittest.TestCase):
             workspace.read("README.md")
         self.assertEqual(restored["revision"], 4)
         self.assertEqual(restored["checkpoints"][-1]["label"], "Before restore")
+
+    def test_project_definitions_load_legacy_state_and_persist_separately(self):
+        old = dict(revision=5, files={"notes.md": "old", "src/main.py": "first"}, checkpoints=[], jobs=[])
+        with open(os.path.join(self.temp.name, "workspace.json"), "w", encoding="utf-8") as saved:
+            json.dump(old, saved)
+        workspace = Workspace(self.temp.name)
+        self.assertEqual(workspace.projects(), [])
+        before = workspace.snapshot()
+        project = workspace.save_project(dict(name="  Release prep  ", instructions="Check imports.\n",
+                                              paths=["src/main.py", "notes.md"]))
+        self.assertEqual(project["name"], "Release prep")
+        self.assertEqual(project["version"], 1)
+        self.assertEqual(workspace.snapshot(), before)
+        self.assertEqual(Workspace(self.temp.name).projects(), [project])
+        context = workspace.project_context(project["id"])
+        self.assertEqual(context["revision"], 5)
+        self.assertEqual(context["files"], [dict(path="src/main.py", text="first"), dict(path="notes.md", text="old")])
+        workspace.write("src/main.py", "next", 5)
+        self.assertEqual(context["files"][0]["text"], "first")
+        self.assertEqual(workspace.project_context(project["id"])["files"][0]["text"], "next")
+        workspace.write("notes.md", None, 6, delete=True)
+        missing = Workspace(self.temp.name)
+        self.assertEqual(missing.projects(), [project])
+        with self.assertRaisesRegex(ProjectConflict, "notes.md"):
+            missing.project_context(project["id"])
+
+    def test_project_definition_validation_bounds_and_failed_save(self):
+        workspace = Workspace(self.temp.name)
+        workspace.write("notes.md", "", 0)
+        malformed = [
+            (dict(name=" ", paths=[]), "project name"),
+            (dict(name="x" * 121, paths=[]), "project name"),
+            (dict(name="Project", instructions="\0", paths=[]), "16 KiB"),
+            (dict(name="Project", instructions="\u00e9" * (MAX_PROJECT_INSTRUCTIONS // 2 + 1), paths=[]), "16 KiB"),
+            (dict(name="Project", paths=["notes.md"] * 9), "up to eight"),
+            (dict(name="Project", paths=["notes.md", "notes.md"]), "only once"),
+            (dict(name="Project", paths=["../escape"]), "stay inside"),
+            (dict(name="Project", paths=["missing.md"]), "Missing saved"),
+        ]
+        for body, message in malformed:
+            with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
+                workspace.save_project(body)
+        with patch.object(workspace, "_save", side_effect=OSError("disk error")):
+            with self.assertRaisesRegex(OSError, "disk error"):
+                workspace.save_project(dict(name="Failed save", paths=[]))
+        self.assertEqual(workspace.projects(), [])
+        self.assertEqual(Workspace(self.temp.name).projects(), [])
+        for index in range(MAX_PROJECT_DEFINITIONS):
+            workspace.save_project(dict(name=f"Project {index}", paths=[]))
+        with self.assertRaisesRegex(ValueError, "up to 32"):
+            workspace.save_project(dict(name="Extra", paths=[]))
+        self.assertEqual(len(workspace.projects()), MAX_PROJECT_DEFINITIONS)
 
     def test_fake_runner_updates_files_and_caps_output(self):
         runner = FakeRunner(updated={"result.txt": "generated"}, output="x" * (MAX_OUTPUT * 2))

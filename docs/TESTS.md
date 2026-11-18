@@ -14,7 +14,11 @@ throughput readouts, held active rates, historical selection, disconnected
 gaps and the independently buffered chart timeline.
 
 The standalone [chat companion](../tools/chat_ui/README.md) is checked with
-`python -X utf8 -m unittest discover -s tools/chat_ui -v`. Temporary local HTTP
+`python -X utf8 -m unittest discover -s tools/chat_ui -v`. The Workspace checks
+cover named project persistence, version conflicts, missing files and coherent
+file snapshots. Chrome creates a project and applies it to saved and temporary
+chats. The test inspects the instructions and attachments received by its model
+fixture and checks that reapplying a project avoids duplicate attachments. Temporary local HTTP
 fixtures exercise stream accumulation and usage, approval and denial, tool
 execution, replay, conversation branches, cancellation and restart recovery.
 The browser keeps a focused tool summary connected across approval completion

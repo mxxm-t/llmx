@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## Named project context in the companion (2026-11-18)
+
+- **Goal:** Reuse a named set of saved Workspace files and optional instructions in more than one conversation. A person reviews the selection before anything enters the draft.
+- **Done:** Workspace owns reusable project definitions and their selected file paths. Chats review one saved revision before adding its files through the attachment owner. Copying project instructions requires an explicit selection.
+- **Checks:** All 22 Workspace unit and HTTP tests passed. A focused Chrome check on Windows covered create, edit, stale versions, missing files, deletion and editor focus at 320 and 1440 pixels in both themes. The integration fixture checks the system instructions and selected file text in the model requests from saved and temporary chats.
+- **Landing:** This standalone companion change lands by fast-forward after the combined Chrome, docs, dead-code and hosted Windows/Linux companion checks pass.
+- **Gotchas:** Project definitions hold paths and instructions. A draft receives a copy at an identified file revision. Applying a project never sends a message or grants tools. Instructions replace existing conversation instructions only by explicit choice. Missing files and limit refusals leave the draft intact.
+
 ## Workspace project preview (2026-11-18)
 
 - **Goal:** Preview the current HTML editor buffer with saved relative CSS and classic JavaScript from one Workspace revision, inside the existing sealed browser preview.

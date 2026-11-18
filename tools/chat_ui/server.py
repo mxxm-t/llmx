@@ -24,7 +24,7 @@ from tools import ToolRegistry
 from upstream import Connection
 from monitor import ASSETS, Monitor
 from project_preview import MAX_PREVIEW_BYTES, assemble
-from workspace import Workspace, WorkspaceTools
+from workspace import ProjectConflict, Workspace, WorkspaceTools
 
 
 ROOT = Path(__file__).resolve().parent
@@ -370,6 +370,9 @@ class Handler(BaseHTTPRequestHandler):
         except KeyError:
             self.close_connection = True
             self._json({"error": "Not found"}, 404)
+        except ProjectConflict as exc:
+            self.close_connection = True
+            self._json({"error": str(exc)}, 409)
         except (ValueError, TypeError, UnicodeError) as exc:
             self.close_connection = True
             self._json({"error": str(exc)[:1000]}, 400)
@@ -415,7 +418,7 @@ class Handler(BaseHTTPRequestHandler):
                 data, mime = self.app.monitor.asset(path[1:])
                 self._headers(200, mime, len(data))
                 return self.wfile.write(data)
-            if method != "GET" or path not in ("/", "/index.html", "/app.js", "/render.js", "/app.css", "/shell.js", "/shell.css", "/artifacts.js", "/monitor.css", "/workspace.js"):
+            if method != "GET" or path not in ("/", "/index.html", "/app.js", "/render.js", "/app.css", "/shell.js", "/shell.css", "/artifacts.js", "/monitor.css", "/workspace.js", "/project_context.js"):
                 raise KeyError()
             name = "index.html" if path == "/" else path[1:]
             file = ROOT / name
@@ -471,7 +474,7 @@ class Handler(BaseHTTPRequestHandler):
                         raise ValueError("Wait for active replies before restoring")
                     self.app.store.restore(source)
             return self._json({"ok": True})
-        if path.startswith("/api/workspace"):
+        if path == "/api/workspace" or path.startswith("/api/workspace/"):
             return self._workspace(path, method, parsed.query)
         if path == "/api/monitor/history" and method == "GET":
             query = parse_qs(parsed.query, keep_blank_values=True, strict_parsing=True)
@@ -623,6 +626,21 @@ class Handler(BaseHTTPRequestHandler):
         parts = path.split("/")[3:]
         if not parts and method == "GET":
             return self._json(workspace.snapshot())
+        if parts and parts[0] == "projects" and not query:
+            if len(parts) == 1 and method == "GET":
+                return self._json({"projects": workspace.projects()})
+            if len(parts) == 1 and method == "POST":
+                return self._json({"project": workspace.save_project(self._body(128 * 1024))}, 201)
+            if len(parts) == 2 and method == "PATCH":
+                return self._json({"project": workspace.save_project(self._body(128 * 1024), parts[1])})
+            if len(parts) == 2 and method == "DELETE":
+                body = self._body(128)
+                if set(body) != {"version"}:
+                    raise ValueError("Expected a Workspace project version")
+                workspace.delete_project(parts[1], body["version"])
+                return self._json({"ok": True})
+            if len(parts) == 3 and parts[2] == "context" and method == "GET":
+                return self._json(workspace.project_context(parts[1]))
         if parts == ["file"] and method == "GET":
             params = parse_qs(query, keep_blank_values=True, strict_parsing=True)
             if set(params) != {"path"} or len(params["path"]) != 1:

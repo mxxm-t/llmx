@@ -213,6 +213,64 @@ class WorkspaceHTTPTests(unittest.TestCase):
                                {"path": "src/main.py", "revision": current + 2}, self.cookie)
         self.assertEqual(removed[0], 200)
 
+    def test_projects_routes_auth_round_trip_and_version_conflicts(self):
+        route = "/api/workspace/projects"
+        self.assertEqual(self.request("GET", route)[0], 401)
+        self.cookie = self.login()
+        self.assertEqual(self.json_body(self.request("GET", route, cookie=self.cookie)), {"projects": []})
+        self.app.workspace.write("src/index.js", "source", 0)
+        self.app.workspace.write("tests/index.js", "test", 1)
+        values = dict(name="Release", instructions="Use short examples.", paths=["tests/index.js", "src/index.js"])
+        self.assertEqual(self.request("POST", route, values, self.cookie, {"X-Chat-Request": "0"})[0], 403)
+        self.assertEqual(self.request("POST", route, values, self.cookie, {"Origin": "https://other.invalid"})[0], 403)
+        created = self.request("POST", route, values, self.cookie)
+        self.assertEqual(created[0], 201, created[2])
+        project = self.json_body(created)["project"]
+        project_route = route + "/" + project["id"]
+        self.assertEqual(project, dict(id=project["id"], version=1, **values))
+        read = self.request("GET", project_route + "/context", cookie=self.cookie)
+        self.assertEqual(read[0], 200, read[2])
+        self.assertEqual(self.json_body(read), {
+            "project": project, "revision": 2,
+            "files": [{"path": "tests/index.js", "text": "test"}, {"path": "src/index.js", "text": "source"}],
+        })
+        revised = dict(name="Release checks", paths=["src/index.js"], version=1)
+        edited = self.request("PATCH", project_route, revised, self.cookie)
+        self.assertEqual(edited[0], 200, edited[2])
+        updated = self.json_body(edited)["project"]
+        self.assertEqual(updated, dict(id=project["id"], version=2, name="Release checks", instructions="", paths=["src/index.js"]))
+        self.assertEqual(self.request("PATCH", project_route, revised, self.cookie)[0], 409)
+        self.assertEqual(self.request("DELETE", project_route, {"version": 1}, self.cookie)[0], 409)
+        self.assertEqual(self.request("DELETE", project_route, {"version": True}, self.cookie)[0], 400)
+        self.assertEqual(self.json_body(self.request("GET", route, cookie=self.cookie)), {"projects": [updated]})
+        deleted = self.request("DELETE", project_route, {"version": 2}, self.cookie)
+        self.assertEqual(deleted[0], 200, deleted[2])
+        self.assertEqual(self.json_body(deleted), {"ok": True})
+        self.assertEqual(self.request("GET", project_route + "/context", cookie=self.cookie)[0], 404)
+        self.assertEqual(self.app.workspace.snapshot()["revision"], 2)
+
+    def test_projects_context_refuses_missing_paths_atomically(self):
+        self.cookie = self.login()
+        base = "/api/workspace/projects"
+        self.app.workspace.write("kept.md", "keep", 0)
+        self.app.workspace.write("deleted.md", "remove", 1)
+        body = dict(name="Docs", paths=["kept.md", "deleted.md"])
+        project = self.json_body(self.request("POST", base, body, self.cookie))["project"]
+        path = base + "/" + project["id"]
+        self.app.workspace.write("deleted.md", None, 2, delete=True)
+        absent = self.request("GET", path + "/context", cookie=self.cookie)
+        self.assertEqual(absent[0], 409, absent[2])
+        self.assertEqual(set(self.json_body(absent)), {"error"})
+        self.assertIn("deleted.md", self.json_body(absent)["error"])
+        self.assertEqual(self.request("POST", base, body, self.cookie)[0], 409)
+        self.assertEqual(self.request("PATCH", path, dict(body, version=1), self.cookie)[0], 409)
+        self.assertEqual(self.json_body(self.request("GET", base, cookie=self.cookie)), {"projects": [project]})
+        repaired = self.request("PATCH", path, dict(name="Docs", paths=["kept.md"], version=1), self.cookie)
+        self.assertEqual(repaired[0], 200, repaired[2])
+        current = self.json_body(self.request("GET", path + "/context", cookie=self.cookie))
+        self.assertEqual(current["revision"], 3)
+        self.assertEqual(current["files"], [{"path": "kept.md", "text": "keep"}])
+
     def test_job_routes_use_fake_runner_and_cancel_without_applying_files(self):
         self.cookie = self.login()
         runner = FakeRunner()

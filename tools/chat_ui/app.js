@@ -1081,13 +1081,34 @@
       throw new Error(chatId !== S.chat?.id || generation !== S.generation
         ? 'Attachment read cancelled because the selected conversation changed.'
         : 'The draft changed while the attachment was being read. Attach the file again.');
+    appendAttachments(pending);
+    if ($('app').dataset.view === 'chat') $('draft').focus();
+  }
+  function appendAttachments(pending) {
     if (S.attachments.length + pending.length > 8) throw new Error('Attach up to 8 files per message.');
     const total = S.attachments.reduce((sum, attachment) => sum + attachmentBytes(attachment), 0) + pending.reduce((sum, attachment) => sum + attachmentBytes(attachment), 0);
     if (total > 10 * 1024 * 1024) throw new Error('Attachments exceed 10 MiB. Remove a file before adding more.');
     S.attachments.push(...pending); composerRevision++; renderAttachments();
-    if ($('app').dataset.view === 'chat') $('draft').focus();
   }
-  window.ChatComposer = {attach};
+  function workspaceName(path) { return path.replaceAll('/', ':'); }
+  function projectDraft() {
+    const chat = S.chat?.id, generation = S.generation, revision = composerRevision, system = $('setting-system').value;
+    return {system, apply(context, copyInstructions) {
+      if (chat !== S.chat?.id || generation !== S.generation || revision !== composerRevision || system !== $('setting-system').value || $('app').dataset.view !== 'chat')
+        throw new Error('The conversation or draft changed. Open the project again.');
+      const pending = [];
+      for (const {path, text} of context.files) {
+        const name = workspaceName(path);
+        const existing = S.attachments.filter(file => file.name === name);
+        if (existing.some(file => file.text !== text)) throw new Error('Remove the existing ' + name + ' attachment to use this version.');
+        if (!existing.length) pending.push({name, type: 'text/plain', text});
+      }
+      appendAttachments(pending);
+      if (copyInstructions) $('setting-system').value = context.project.instructions;
+      closeDrawers(false);
+    }};
+  }
+  window.ChatComposer = {attach, workspaceName, projectDraft, formatAttachmentSize};
   function bottom() { const region = $('scroll-region'); region.scrollTop = region.scrollHeight; $('jump-bottom').hidden = true; }
   function resizeDraft() { const el = $('draft'); el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 220) + 'px'; rememberDraft(); }
   function showTab(name) { S.tab = name; document.querySelectorAll('[data-tab]').forEach(el => { el.setAttribute('aria-selected', String(el.dataset.tab === name)); el.tabIndex = el.dataset.tab === name ? 0 : -1; }); for (const tab of ['activity', 'stats', 'settings']) $('panel-' + tab).hidden = tab !== name; syncLiveMetrics(); renderContextLimits(); }

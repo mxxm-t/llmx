@@ -28,6 +28,21 @@ before sending. A path such as `src/index.js` appears as `src:index.js` to
 distinguish it from another file with the same basename. The normal text
 attachment limits and temporary chat behavior apply.
 
+To reuse files in another chat, open **Projects** in Workspace. Give the
+project a name, select up to eight saved files and optionally enter instructions.
+In Chat, open **Settings** and select **Use a Workspace project**. Review the
+file paths, sizes and saved revision. Check the instructions box if you want
+them to replace this conversation's system instructions, then choose **Add
+to draft**. You can remove attachments before sending.
+
+Each use takes a snapshot. Editing a saved file later affects the next use.
+The draft and previously sent messages retain their copies. Applying the same
+files twice keeps one copy. If the draft already contains a different version
+of a selected file, remove that attachment before adding the new version.
+Temporary chats can use a project explicitly. Their drafts stay in memory.
+Project definitions live with Workspace files in the companion data directory.
+The conversation database backup covers the copies in saved conversations.
+
 Create checkpoint captures saved workspace files. Open Checkpoint history to
 review differences or restore a checkpoint. The command runner starts from
 saved workspace files and creates a checkpoint before a command runs. Back to

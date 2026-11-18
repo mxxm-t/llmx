@@ -204,6 +204,14 @@ class BrowserTests(unittest.TestCase):
                         str(text_raw_over), str(text_bom_max), str(text_race_a), str(text_race_b)],
                         capture_output=True, text=True, timeout=300)
                     self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    for prompt in ("Temporary browser privacy check", "Normal browser persistence check"):
+                        with self.subTest(project_prompt=prompt):
+                            expected = [{"type": "text", "text": text} for text in
+                                        (prompt, "\nFile: src:index.js\nSaved src/index.js", "\nFile: tests:index.js\nSaved tests/index.js")]
+                            matches = [request for request in BrowserUpstream.requests
+                                       if request["messages"][-1].get("content") == expected]
+                            self.assertGreaterEqual(len(matches), 1)
+                            self.assertEqual(matches[0]["messages"][0], {"role": "system", "content": "Use the selected browser fixtures."})
                     self.assertGreaterEqual(len(tools.calls), 1)
                     print(result.stdout.strip())
                 finally:

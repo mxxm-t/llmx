@@ -126,6 +126,16 @@ These routes share the chat session and mutation-header rules.
 - `GET /api/workspace`: `{revision,files:[{path,size}],checkpoints:[{id,label,created}],jobs:[...],execution:{enabled,image,description,limits}}`. Execution enabled means configured, not a successful Docker health check. A failed container start is reported as a failed job.
 - `GET /api/workspace/file?path=PATH`: `{path,content,revision}`.
 - `POST /api/workspace/file` with `{path,content,revision}` or `/api/workspace/delete` with `{path,revision}`: revision-checked edit returning the new snapshot.
+- `GET /api/workspace/projects`: `{projects:[{id,name,instructions,paths,version}]}`.
+- `POST /api/workspace/projects` with `{name,instructions?,paths}`: creates a
+  definition and returns `{project}` with status 201. `PATCH /api/workspace/projects/ID`
+  replaces the definition using the same fields and its current positive integer
+  `version`. It returns `{project}` with the same ID and incremented version.
+  `DELETE /api/workspace/projects/ID` with `{version}` returns `{ok:true}`.
+- `GET /api/workspace/projects/ID/context`: `{project,revision,files:[{path,text}]}`
+  in the saved path order. Resolution reads one locked file revision. If any
+  selected path is missing, it returns 409 with the missing paths and no file
+  texts. Create and update require every selected path to exist at save time.
 - `POST /api/workspace/checkpoints` with `{label}`: checkpoint and return snapshot. `POST /api/workspace/checkpoints/ID/restore` with `{revision}` restores after first checkpointing the current files.
 - `GET /api/workspace/diff?checkpoint=ID`: `{diff}` with a unified text diff.
 - `POST /api/workspace/jobs` with `{command}`: `{job}`. `GET /api/workspace/jobs/ID` reads it; `POST /api/workspace/jobs/ID/cancel` with `{}` requests cancellation.
@@ -137,6 +147,18 @@ job is active and the Workspace view is open. One command runs at a time per
 managed workspace. It blocks file edits until its files return or it is cancelled.
 Container files return only after all entries pass validation. Cancellation or
 an invalid returned file leaves the saved project unchanged.
+
+Project definitions use the same owner authentication and mutation request
+header as other Workspace routes. Workspace holds up to 32 definitions.
+Names are trimmed and may contain 1 to 120 characters. Instructions default
+to empty text and have a 16 KiB UTF-8 limit. Each definition has up to eight
+distinct managed file paths in the selected order. Version conflicts return
+409 and unknown IDs return 404. Definitions are stored with Workspace files
+and stay outside the chat database backup. Creating, editing or deleting a
+definition leaves the file revision, commands and checkpoints unchanged.
+Deleting a file can leave a reference unavailable until the file is saved
+again or the definition is edited. A temporary chat can use owner-selected
+file text through the same explicit draft attachment action.
 
 ## Data
 

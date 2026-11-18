@@ -1199,6 +1199,19 @@ kbd {
 .danger {
   color:var(--danger)
 }
+#project-context-dialog {
+  width: min(28rem, calc(100% - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+}
+#project-context-files {
+  margin: 0;
+  padding-inline-start: 1.25rem;
+  overflow-wrap: anywhere;
+}
+#project-context-instructions textarea {
+  width: 100%;
+}
 dialog {
   color:var(--text);
   border:1px solid var(--border);

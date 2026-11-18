@@ -527,6 +527,116 @@
   color: var(--faint);
   border-top: 1px solid var(--border);
 }
+.workspace-projects {
+  min-width: 0;
+  margin-top: 15px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--panel);
+}
+.workspace-projects > summary {
+  cursor: pointer;
+  padding: 12px 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 550;
+}
+.workspace-projects-panel {
+  padding-bottom: 14px;
+}
+.workspace-project-list {
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 2px;
+  margin: 0;
+}
+.workspace-project-list:not(:empty) {
+  margin-bottom: 10px;
+}
+.workspace-project-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+  text-align: left;
+}
+.workspace-project-row:hover {
+  background: var(--surface);
+}
+.workspace-project-row strong,
+.workspace-project-path span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.workspace-project-row > span {
+  white-space: nowrap;
+}
+.workspace-project-status,
+.workspace-project-form p {
+  margin: 0 0 10px;
+  font-size: 12px;
+}
+.workspace-project-form {
+  max-width: 620px;
+}
+.workspace-project-form h3 {
+  margin: 0 0 13px;
+  font-size: 14px;
+}
+.workspace-project-form .field {
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+.workspace-project-fields,
+.workspace-project-paths {
+  min-width: 0;
+  margin: 0 0 12px;
+}
+.workspace-project-fields {
+  padding: 0;
+  border: 0;
+}
+.workspace-project-paths {
+  padding: 4px 8px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+.workspace-project-paths legend {
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.workspace-project-path-choices {
+  max-height: 190px;
+  overflow-y: auto;
+  padding: 2px;
+}
+.workspace-project-path {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.workspace-project-path input {
+  accent-color: var(--accent);
+}
+.workspace-project-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
 .workspace-checkpoints {
   display: flex;
   align-items: flex-start;

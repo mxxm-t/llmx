@@ -538,7 +538,7 @@
   }
   function toolRow(call, message) {
     const wrap = node('div', 'tool-call'); wrap.dataset.toolCall = call.id || ''; const detail = node('details'); const summary = node('summary'); summary.tabIndex = 0;
-    summary.append(node('span', '', '>_'), node('span', '', call.name || 'Tool call'), node('span', 'badge' + (call.error ? ' error' : ''), call.status || 'pending'));
+    summary.append(node('span', 'tool-summary-kind', 'Tool'), node('span', 'tool-name', call.name || 'Call'), node('span', 'badge' + (call.error ? ' error' : ''), call.status || 'pending'));
     const body = node('div', 'tool-body'); body.append(node('div', 'section-label', 'ARGUMENTS'), node('pre', '', json(call.arguments ?? {})));
     if (call.result !== undefined) {
       body.append(node('div', 'section-label', 'RESULT'));

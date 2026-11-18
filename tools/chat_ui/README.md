@@ -156,8 +156,11 @@ keyboard focus keeps its visible outline.
   saved settings. You can keep editing while Save or a reply request is
   pending. Wait for that request to finish before submitting another change
   for the same chat.
-- Consecutive model calls in one tool-assisted reply share a visual header and
-  closer spacing. Each call keeps its own actions and details. One statistics icon covers the reply, including its tool-related model calls.
+- Prompts have a **You** label and a tinted bubble. Assistant prose uses shorter
+  lines on wide screens, while code and tables retain the space they need.
+  Consecutive model calls in a tool-assisted reply share a heading and a side
+  rule. Each call keeps its own actions and expandable details. One statistics
+  icon covers the reply, including its tool-related model calls.
 - Reasoning is displayed only when the upstream supplies `reasoning_content`.
   You can open or close it while the reply is being generated. Reloading
   reconnects to the same reply without cancelling or restarting generation.

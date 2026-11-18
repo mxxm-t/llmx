@@ -14,6 +14,14 @@
 - **Checks:** JavaScript syntax, whitespace, docs and dead-code passed. Only static companion assets, the browser fixture and their documentation changed.
 - **Left:** Land the reviewed branch by fast-forward.
 - **Gotchas:** Workspace editor buffers are in-memory. Save conflicts, file replacement guards, preview isolation and command admission stay in their current owners. The failed mobile fixture assertions assumed history remained open across reload. The final case checks the disclosure from its actual default-closed state.
+## Chat transcript readability (2026-11-18, Ready for integration)
+
+- **Goal:** Make speakers, the main reply and the boundaries between turns easier to scan on desktop and touch layouts.
+- **Done:** User prompts show a compact speaker header and a tinted, borderless bubble. Assistant prose uses 15-pixel text and shorter lines on desktop. A quiet rule joins tool-assisted reply segments. Action buttons keep a visible surface and 32-pixel desktop and 40-pixel touch targets. Reasoning and tool disclosures are quieter, and tool summaries identify their purpose and show the open or closed state.
+- **Visual checks:** Matched realistic captures at 1440, 390 and 320 pixels in both themes show no page overflow. Expanded tool body height drops from 195 to 123 pixels at 1440, 212 to 157 at 390, and 229 to 174 at 320. At 320 pixels a 64-character tool name wraps across three lines without crowding its approval badge. The Tool label stays on one line, approval controls and long reasoning remain visible, and long code scrolls inside its block. Captures, measurements and raw logs are in `scratch/chat-transcript-readability-20261118/`.
+- **Checks:** The full Windows Chrome fixture passed in 91.697 s, covering streaming, keyboard and touch actions, tool approvals, and disclosure continuity. JavaScript syntax and whitespace checks pass. Docs found zero findings in 37.3 s. Dead-code matched 17 expected findings in 47.6 s.
+- **Left:** Integrate and qualify the combined landing head.
+- **Gotchas:** Two preliminary fixture runs caught the established borderless prompt and visible action surface expectations. Both assertions are preserved. Consecutive assistant segments use the existing run identity, and disclosure, approval and action handling keep their existing owners.
 
 ## Companion audit follow-ups (2026-11-18, Done)
 

@@ -731,6 +731,23 @@ kbd {
 .message.assistant:has(+ .message.assistant.continuation) {
   padding-bottom:6px
 }
+.message.assistant:is(.continuation,:has(+ .message.assistant.continuation)) {
+  padding-inline-start:12px
+}
+.message.assistant:is(.continuation,:has(+ .message.assistant.continuation))::before {
+  content:"";
+  position:absolute;
+  inset-block:0;
+  inset-inline-start:0;
+  border-inline-start:2px solid var(--border);
+  pointer-events:none
+}
+.message.assistant:has(+ .message.assistant.continuation):not(.continuation)::before {
+  inset-block-start:15px
+}
+.message.assistant.continuation:not(:has(+ .message.assistant.continuation))::before {
+  inset-block-end:24px
+}
 .message.assistant.continuation {
   padding-top:0
 }
@@ -738,14 +755,17 @@ kbd {
   display:none
 }
 .message.user {
-  padding-left:50px;
+  padding:12px 0 16px 50px;
   display:flex;
   flex-direction:column;
   align-items:flex-end;
   margin-bottom:10px
 }
+.message.assistant + .message.user {
+  border-top:1px solid var(--border)
+}
 .message.user:has(+ .message.assistant) {
-  padding-bottom:12px;
+  padding-bottom:8px;
   margin-bottom:0
 }
 .message-header {
@@ -754,7 +774,7 @@ kbd {
   gap:9px;
   margin-bottom:14px;
   font-size:11px;
-  font-weight:500
+  font-weight:600
 }
 .message.assistant>.message-header {
   margin-bottom:10px
@@ -775,16 +795,19 @@ kbd {
   font-size:9px;
   font-weight:400
 }
-.message.user .message-header {
+.message.user>.message-header {
+  margin-bottom:5px
+}
+.message.user .message-avatar {
   display:none
 }
 .message.user>.markdown {
   border:0;
-  background:color-mix(in srgb,var(--surface) 58%,var(--bg));
-  border-radius:16px;
-  padding:13px 18px;
+  background:color-mix(in srgb,var(--accent) 10%,var(--surface));
+  border-radius:14px;
+  padding:11px 16px;
   max-width:100%;
-  font-size:13px
+  font-size:14px
 }
 .markdown {
   font-size:14px;
@@ -794,6 +817,13 @@ kbd {
 }
 .message.user>.markdown {
   width:auto
+}
+.message.assistant>.markdown {
+  font-size:15px;
+  line-height:1.65
+}
+.message.assistant>.markdown>:is(p,ul,ol,blockquote) {
+  max-width:70ch
 }
 .markdown>:first-child {
   margin-top:0
@@ -898,13 +928,14 @@ kbd {
 .message-actions {
   display:flex;
   align-items:center;
-  gap:7px;
-  margin-top:11px;
+  gap:4px;
+  margin-top:5px;
   color:var(--muted);
   font-size:12px
 }
-.message.assistant>.message-actions {
-  margin-top:7px
+.message.assistant:has(+ .message.assistant.continuation)>.message-actions {
+  justify-content:flex-end;
+  margin-top:2px
 }
 .message-actions button {
   display:inline-grid;
@@ -913,9 +944,9 @@ kbd {
   min-width:32px;
   min-height:32px;
   padding:0;
-  border:1px solid var(--border);
+  border:1px solid color-mix(in srgb,var(--border) 55%,transparent);
   border-radius:7px;
-  background:var(--surface);
+  background:color-mix(in srgb,var(--surface) 55%,var(--bg));
   color:var(--muted);
   font-size:12px;
   line-height:18px;
@@ -927,8 +958,8 @@ kbd {
   height:16px
 }
 .message-actions button:hover {
-  border-color:var(--muted);
-  background:var(--bg);
+  border-color:var(--border);
+  background:var(--hover);
   color:var(--text)
 }
 .branch-switch {
@@ -958,48 +989,80 @@ kbd {
   pointer-events:none
 }
 .reasoning {
-  border:1px solid var(--border);
-  border-radius:8px;
-  margin:0 0 12px;
+  border-inline-start:2px solid var(--border);
+  margin:0 0 9px;
   color:var(--muted)
 }
 .reasoning summary {
-  padding:10px 13px;
+  min-height:40px;
+  padding:10px 11px;
   cursor:pointer;
   font-size:12px
 }
 .reasoning .markdown {
-  padding:0 13px 13px;
+  padding:0 11px 9px;
   font-size:12px
 }
 .tool-call {
   border:1px solid var(--border);
   border-radius:8px;
-  margin:8px 0;
-  background:var(--surface);
+  margin:6px 0;
   width:100%
 }
-.tool-call summary {
+.tool-call:has(>details[open]) {
+  background:var(--surface)
+}
+.tool-call:has(>.approval) {
+  border-color:color-mix(in srgb,var(--accent) 35%,var(--border))
+}
+.tool-call>details>summary {
   display:flex;
   align-items:center;
-  gap:9px;
+  gap:7px;
   cursor:pointer;
   font-size:12px;
-  padding:12px
+  min-height:40px;
+  padding:7px 11px
+}
+.tool-call>details>summary::before {
+  content:"";
+  width:6px;
+  height:6px;
+  flex-shrink:0;
+  border:solid currentColor;
+  border-width:0 1px 1px 0;
+  margin-inline:1px 3px;
+  transform:rotate(-45deg)
+}
+.tool-call>details[open]>summary::before {
+  transform:rotate(45deg)
+}
+.tool-call summary .tool-summary-kind {
+  flex-shrink:0;
+  color:var(--muted)
+}
+.tool-call summary .tool-name {
+  min-width:0;
+  overflow-wrap:anywhere
 }
 .tool-call summary .badge {
-  margin-left:auto
+  margin-left:auto;
+  flex-shrink:0
 }
 .tool-body {
-  padding:0 12px 12px;
+  padding:0 11px 9px;
   font-size:11px
 }
+.tool-body>.section-label {
+  margin:7px 0 3px
+}
 .tool-body pre {
-  font-size:10px;
+  font-size:11px;
+  margin:0 0 7px;
   white-space:pre-wrap;
   max-height:320px;
   overflow:auto;
-  line-height:1.7
+  line-height:1.55
 }
 .approval {
   padding:13px;
@@ -1378,9 +1441,6 @@ dialog::backdrop {
   }
   .markdown {
     font-size:13px
-  }
-  .message-actions {
-    gap:7px
   }
   .composer-caption>span:last-child {
     white-space:nowrap

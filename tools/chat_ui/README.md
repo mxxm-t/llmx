@@ -13,6 +13,21 @@ Preparing a call does not run it: approval and execution begin only after the
 model stream completes. An interrupted call keeps its partial arguments and is
 not retried automatically.
 
+## Work on files
+
+Successful Workspace tool results can open their file or command output
+directly. Select a file in Workspace to edit it, or create one with New file.
+Preview HTML renders the current document in an isolated browser frame,
+including unsaved edits. Inline CSS and scripts can run in that document.
+Workspace sibling files remain in the editor and command runner. Other files
+offer View source. Close the viewer to return to the editor.
+
+Create checkpoint captures saved workspace files. Open Checkpoint history to
+review differences or restore a checkpoint. The command runner starts from
+saved workspace files and creates a checkpoint before a command runs. Back to
+Chat returns to the current conversation and keeps the editor buffer for the
+current page.
+
 ## Run
 
 Start llmx's server first, then run from the repository root:

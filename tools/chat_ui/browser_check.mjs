@@ -791,6 +791,7 @@ try {
   await click('.code-actions button:last-child');
   await wait("document.querySelector('#artifact-dialog').open", 'code artifact viewer');
   assert((await evaluate("document.querySelector('.artifact-source').textContent")).includes("print('hello')"));
+  assert.equal(await evaluate("document.querySelector('.artifact-toolbar-actions button:first-child').hidden"), false, 'Chat artifact should still offer Edit in workspace');
   assert.equal(await evaluate("document.querySelectorAll('.code-block .syntax-string').length>0"), true, 'code syntax colors missing');
   await click('#artifact-dialog [aria-label="Close artifact"]');
   await click('.message.assistant [data-action="retry"]');
@@ -1515,8 +1516,9 @@ try {
   await wait("!document.querySelector('#action-dialog').open && !document.querySelector('#workspace-editor').disabled && document.querySelector('.workspace-file-path').textContent==='Research'", 'new workspace file ready');
   await fill('#workspace-editor', 'first version\n'); await click('#workspace-save');
   await wait("document.querySelector('.workspace-file-name')?.textContent==='Research' && document.querySelector('#workspace-save').disabled", 'workspace file save');
+  assert.equal(await evaluate("document.querySelector('.workspace-checkpoints details').open"), false, 'checkpoint history should start collapsed');
   const editorTabResults = [];
-  for (const [modifiers, target] of [[0, '[aria-label="Create checkpoint"]'], [8, '.workspace-editor-actions .danger']]) {
+  for (const [modifiers, target] of [[0, '.workspace-checkpoints button'], [8, '.workspace-editor-actions .danger']]) {
     await evaluate("{const editor=document.querySelector('#workspace-editor');editor.focus();editor.setSelectionRange(0,5)}");
     const tabKey = {key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers};
     await cdp('Input.dispatchKeyEvent', {type: 'keyDown', ...tabKey});
@@ -1526,15 +1528,15 @@ try {
   }
   assert.deepEqual(editorTabResults, Array(2).fill({focus: true, value: 'first version\n', clean: true}),
     'Tab and Shift+Tab should move focus out of the Workspace editor without changing the saved buffer');
-  await click('[aria-label="Create checkpoint"]');
+  await click('.workspace-checkpoints button');
   await wait("document.querySelector('#action-dialog').open", 'checkpoint label dialog');
   assert.equal(await evaluate("document.querySelector('#conversation-value').maxLength"), 120, 'checkpoint field exceeds server limit');
   const checkpointMutations = apiMutations.filter(item => item.url.endsWith('/api/workspace/checkpoints')).length;
   await closeAction('#conversation-cancel');
   assert.equal(apiMutations.filter(item => item.url.endsWith('/api/workspace/checkpoints')).length, checkpointMutations, 'cancelled checkpoint creation sent a request');
-  await click('[aria-label="Create checkpoint"]'); await wait("document.querySelector('#action-dialog').open", 'reopened checkpoint label dialog');
+  await click('.workspace-checkpoints button'); await wait("document.querySelector('#action-dialog').open", 'reopened checkpoint label dialog');
   await fill('#conversation-value', 'Workspace checkpoint'); await closeAction('#conversation-submit');
-  await wait("document.querySelectorAll('.workspace-checkpoint').length===1", 'checkpoint creation');
+  await wait("document.querySelector('.workspace-checkpoints details').open && document.querySelectorAll('.workspace-checkpoint').length===1", 'created checkpoint appears in history');
   const fileWritesBeforeArtifactCancel = apiMutations.filter(item => item.url.endsWith('/api/workspace/file')).length;
   await evaluate("document.dispatchEvent(new CustomEvent('companion:artifact-edit',{detail:{name:'generated.py',source:'print(1)'}}))");
   await wait("document.querySelector('#action-dialog').open", 'generated-file edit dialog');
@@ -1606,6 +1608,7 @@ try {
   await click('.workspace-file'); await wait("document.querySelector('#action-dialog').open", 'reopened unsaved edit confirmation');
   await closeAction('#conversation-submit');
   await wait("document.querySelector('#workspace-editor').value==='first version\\n'", 'reload after conflict');
+  assert((await evaluate("document.querySelector('.execution-description').textContent")).includes('Commands use saved workspace files.'), 'command runner should distinguish saved files from the editor buffer');
   await fill('#workspace-command', 'printf browser-job');
   await evaluate("document.querySelector('.workspace-command').requestSubmit()");
   await wait("document.querySelector('.workspace-job-status').textContent.includes('completed')", 'isolated fixture job completion');
@@ -1855,8 +1858,20 @@ try {
   await evaluate("document.documentElement.dataset.theme="+JSON.stringify(linkTheme)+"; window.ChatShell.show('workbench')");
   await cdp('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
   const previewSource = '<!doctype html><html><body><h1>Isolated preview</h1><script>console.log("preview-ready");try{parent.document.body.dataset.previewTouched="yes"}catch(e){console.log("parent-blocked")}fetch("/api/session").then(()=>console.error("network-allowed")).catch(()=>console.log("network-blocked"));setTimeout(()=>{throw new Error("preview-error")},20)</script></body></html>';
-  await evaluate(`window.ChatArtifacts.open({name:'preview.html',language:'html',source:${JSON.stringify(previewSource)}})`);
-  await click('#artifact-preview-tab');
+  await pointerClick('.workspace-actions .primary-button');
+  await wait("document.querySelector('#action-dialog').open", 'new HTML file dialog');
+  await fill('#conversation-value', 'preview.html'); await closeAction('#conversation-submit');
+  await wait("document.querySelector('.workspace-file-path').textContent==='preview.html'", 'HTML editor');
+  await fill('#workspace-editor', previewSource);
+  const activeChat = await evaluate("document.querySelector('.chat-item.active')?.dataset.chat");
+  const writesBeforeReturn = apiMutations.filter(item=>item.url.endsWith('/api/workspace/file')).length;
+  await pointerClick('.workspace-back');
+  assert.deepEqual(await evaluate("({view:document.querySelector('#app').dataset.view, focus:document.activeElement.id, chat:document.querySelector('.chat-item.active')?.dataset.chat})"),
+    {view: 'chat', focus: 'chat-title', chat: activeChat}, 'Workspace return should focus the current conversation');
+  await click('.global-nav [data-view="workbench"]');
+  assert.equal(await evaluate("document.querySelector('#workspace-editor').value"), previewSource, 'return to Chat discarded the unsaved HTML buffer');
+  await pointerClick('.workspace-editor-actions button:first-child');
+  assert.equal(await evaluate("document.querySelector('#artifact-preview-tab').getAttribute('aria-selected')==='true' && document.querySelector('.artifact-toolbar-actions button:first-child').hidden"), true, 'Workspace HTML should open in Preview without Edit in workspace');
   await wait("document.querySelector('.artifact-console-output').textContent.includes('preview-ready') && document.querySelector('.artifact-console-output').textContent.includes('network-blocked')", 'isolated preview and console bridge');
   assert.equal(await evaluate("document.querySelector('.artifact-frame').getAttribute('sandbox')"), 'allow-scripts');
   assert.equal(await evaluate("document.body.dataset.previewTouched"), undefined, 'preview accessed parent document');
@@ -1867,8 +1882,14 @@ try {
   await screenshot('studio-artifact-preview.png');
   await click('#artifact-source-tab');
   assert.equal(await evaluate("document.querySelector('.artifact-frame')===null"), true, 'source toggle left preview running');
-  await click('#artifact-dialog [aria-label="Close artifact"]');
-  for (const [width,height] of [[360,800],[390,844],[768,1024],[1024,768],[1440,1000],[844,390],[720,500]]) {
+  await pointerClick('#artifact-dialog [aria-label="Close artifact"]');
+  await wait("!document.querySelector('#artifact-dialog').open && document.activeElement.matches('.workspace-editor-actions button:first-child')", 'return focus to the Workspace viewer opener');
+  assert.equal(apiMutations.filter(item=>item.url.endsWith('/api/workspace/file')).length, writesBeforeReturn, 'viewing or leaving Workspace saved the editor');
+  await pointerClick('.workspace-file');
+  await wait("document.querySelector('#action-dialog').open", 'leave unsaved preview fixture');
+  await closeAction('#conversation-submit');
+  await wait("document.querySelector('.workspace-file-path').textContent!=='preview.html'", 'return to a saved file');
+  for (const [width,height] of [[320,720],[360,800],[390,844],[768,1024],[1024,768],[1440,1000],[844,390],[720,500]]) {
     await cdp('Emulation.setDeviceMetricsOverride', {width, height, deviceScaleFactor: width===720 ? 2 : 1, mobile: width<=390});
     await evaluate("window.dispatchEvent(new Event('resize'))");
     for (const section of ['chat','monitor','workbench','preferences']) {
@@ -1877,6 +1898,18 @@ try {
       if(section==='chat')assert.equal(await evaluate("document.querySelector('.composer').getBoundingClientRect().bottom<=innerHeight"), true, 'composer clipped at '+width+'x'+height);
     }
     await screenshot('studio-settings-'+width+'x'+height+'.png');
+    if(width===320){
+      await evaluate("window.ChatShell.show('workbench')");
+      const checkpointsFit = await evaluate("document.querySelector('.workspace-checkpoints').scrollWidth<=document.querySelector('.workspace-checkpoints').clientWidth");
+      assert(checkpointsFit, 'checkpoint controls overflow at 320px');
+      assert.equal(await evaluate("document.querySelector('.workspace-checkpoints details').open"), false, 'a reload should start with checkpoint history collapsed');
+      await evaluate("document.querySelector('.workspace-checkpoints summary').scrollIntoView({block:'center',behavior:'instant'})");
+      await pointerClick('.workspace-checkpoints summary');
+      await wait("document.querySelector('.workspace-checkpoints details').open && document.querySelector('.workspace-checkpoint').checkVisibility()", 'open checkpoint history on mobile');
+      await pointerClick('.workspace-checkpoints summary');
+      await wait("!document.querySelector('.workspace-checkpoints details').open", 'collapse checkpoint history on mobile');
+      await screenshot('workspace-checkpoints-mobile.png');
+    }
     if(width===390){await evaluate("window.ChatShell.show('workbench')");await click('.workbench-view .primary-button');await wait("document.querySelector('#action-dialog').open",'mobile new-file dialog');await screenshot('studio-new-file-dialog-mobile.png');await closeAction('#conversation-cancel');}
     if(width===390 || width===768 || width===1024){await evaluate("window.ChatShell.show('workbench')");await screenshot('studio-workspace-'+width+'x'+height+'.png');}
   }

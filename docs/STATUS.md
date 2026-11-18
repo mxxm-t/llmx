@@ -6,6 +6,14 @@
 - **Done:** Aligned search with New conversation and used the sidebar control radius, border and accent focus ring. A line icon replaces the font glyph.
 - **Checks:** Chrome verified alignment, a visible focus ring and a 38 pixel field without horizontal overflow at 320, 360, 390 and 1440 pixels in both themes. The existing browser fixture covers saved-content filtering and returning focus to Search.
 - **Gotchas:** Preserve the native search input, keyboard focus and saved-content filtering.
+## Companion Workspace workflow (2026-11-18)
+
+- **Goal:** Make the path from a Chat result through file editing and preview back to Chat clear, with saved-file checkpoint and command context.
+- **Done:** Back to Chat keeps the current editor buffer. The existing isolated viewer previews the HTML buffer directly. Checkpoint history is a disclosure below the editor with a separate Create checkpoint action. The command runner identifies saved files as its input.
+- **Checks:** The Chrome fixture passed in 91.046 seconds. It covered the unsaved HTML preview, return focus and buffer preservation, isolated resource access, checkpoint history and responsive geometry from 320 to 1440 pixels. Receipts and failure diagnostics are under `scratch/workspace-flow/` in the feature worktree.
+- **Checks:** JavaScript syntax, whitespace, docs and dead-code passed. Only static companion assets, the browser fixture and their documentation changed.
+- **Left:** Land the reviewed branch by fast-forward.
+- **Gotchas:** Workspace editor buffers are in-memory. Save conflicts, file replacement guards, preview isolation and command admission stay in their current owners. The failed mobile fixture assertions assumed history remained open across reload. The final case checks the disclosure from its actual default-closed state.
 
 ## Companion audit follow-ups (2026-11-18, Done)
 

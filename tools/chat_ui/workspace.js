@@ -8,8 +8,8 @@
   let viewLoad;
   const terminal = job => ['completed', 'failed', 'cancelled'].includes(job.status);
   function control(label, cls, listener) { const button = node('button', cls || 'secondary-button', label); button.type = 'button'; if (listener) button.addEventListener('click', () => Promise.resolve().then(listener).catch(showError)); return button; }
-  const toolbar = node('div', 'view-toolbar'); const heading = node('div'); heading.append(node('h2', '', 'Managed workspace'), node('p', '', 'Files, checkpoints and isolated command execution.'));
-  const headingActions = node('div', 'workspace-actions'); const revisionLabel = node('span', 'workspace-revision', 'Not loaded'); const refresh = control('Refresh', '', () => load()); const newFile = control('+ New file', 'primary-button', createFile); headingActions.append(revisionLabel, refresh, newFile); toolbar.append(heading, headingActions);
+  const toolbar = node('div', 'view-toolbar'); const back = control('Back to Chat', 'text-button workspace-back', returnToChat);
+  const headingActions = node('div', 'workspace-actions'); const revisionLabel = node('span', 'workspace-revision', 'Not loaded'); const refresh = control('Refresh', '', () => load()); const newFile = control('New file', 'primary-button', createFile); headingActions.append(revisionLabel, refresh, newFile); toolbar.append(back, headingActions);
   const error = node('div', 'view-notice workspace-error'); error.setAttribute('role', 'alert'); error.tabIndex = -1; error.hidden = true;
   const limits = node('details', 'workspace-limits'), limitsText = node('p');
   limits.append(node('summary', '', 'Workspace limits'), limitsText); limits.hidden = true;
@@ -17,11 +17,13 @@
   const filePanel = node('section', 'workspace-files'); filePanel.setAttribute('aria-label', 'Workspace files'); const fileHeading = node('div', 'workspace-section-heading'); fileHeading.append(node('h3', '', 'Files')); const fileCount = node('span', 'muted', '0'); fileHeading.append(fileCount); const fileList = node('nav', 'workspace-file-list'); fileList.setAttribute('aria-label', 'Files'); filePanel.append(fileHeading, fileList);
   const editorPanel = node('section', 'workspace-editor'); editorPanel.setAttribute('aria-label', 'File editor');
   const editorHeading = node('div', 'workspace-editor-heading'); const fileLabel = node('span', 'workspace-file-path', 'Select a file'); const dirtyLabel = node('span', 'unsaved-indicator', 'Unsaved'); dirtyLabel.hidden = true;
-  const fileActions = node('div', 'workspace-editor-actions'); const preview = control('Open viewer', '', openArtifact); const download = control('Download', '', () => window.ChatArtifacts.download(editor.value, state.path, fileLanguage(state.path))); const save = control('Save', 'primary-button', saveFile); save.id = 'workspace-save'; const remove = control('Delete', 'text-button danger', deleteFile); fileActions.append(preview, download, remove, save); editorHeading.append(fileLabel, dirtyLabel, fileActions);
+  const fileActions = node('div', 'workspace-editor-actions'); const preview = control('View source', '', openArtifact); const download = control('Download', '', () => window.ChatArtifacts.download(editor.value, state.path, fileLanguage(state.path))); const save = control('Save', 'primary-button', saveFile); save.id = 'workspace-save'; const remove = control('Delete', 'text-button danger', deleteFile); fileActions.append(preview, download, remove, save); editorHeading.append(fileLabel, dirtyLabel, fileActions);
   const editor = node('textarea', 'workspace-code-editor'); editor.id = 'workspace-editor'; editor.spellcheck = false; editor.autocomplete = 'off'; editor.wrap = 'off'; editor.setAttribute('aria-label', 'File content'); editor.placeholder = 'Create a file or select one from the workspace.'; editor.disabled = true;
   const editorFooter = node('div', 'workspace-editor-footer'); const editorPosition = node('span', '', 'UTF-8'); const saveHint = node('span', '', 'Ctrl / Cmd + S to save'); editorFooter.append(editorPosition, saveHint); editorPanel.append(editorHeading, editor, editorFooter);
-  const historyPanel = node('section', 'workspace-checkpoints'); historyPanel.setAttribute('aria-label', 'Checkpoints'); const checkpointHeading = node('div', 'workspace-section-heading'); checkpointHeading.append(node('h3', '', 'Checkpoints')); const checkpointAdd = control('+', 'icon', createCheckpoint); checkpointAdd.setAttribute('aria-label', 'Create checkpoint'); checkpointHeading.append(checkpointAdd); const checkpoints = node('div', 'workspace-checkpoint-list'); historyPanel.append(checkpointHeading, checkpoints);
-  layout.append(filePanel, editorPanel, historyPanel);
+  layout.append(filePanel, editorPanel);
+  const historyPanel = node('section', 'workspace-checkpoints'); historyPanel.setAttribute('aria-label', 'Checkpoints');
+  const checkpointAdd = control('Create checkpoint', '', createCheckpoint); const history = node('details'); const historySummary = node('summary', '', 'Checkpoint history'); const checkpoints = node('div', 'workspace-checkpoint-list');
+  history.append(historySummary, checkpoints); historyPanel.append(checkpointAdd, history);
   const terminalPanel = node('section', 'workspace-terminal'); terminalPanel.setAttribute('aria-label', 'Isolated execution');
   const terminalHeading = node('div', 'workspace-section-heading'); terminalHeading.append(node('h3', '', 'Command runner')); const executionBadge = node('span', 'badge', 'Checking execution'); terminalHeading.append(executionBadge);
   const executionNote = node('p', 'execution-description', 'Loading execution configuration.');
@@ -29,7 +31,11 @@
   const run = node('button', 'primary-button', 'Run command'); run.type = 'submit'; run.id = 'workspace-run'; const cancel = control('Stop', 'secondary-button', cancelJob); cancel.hidden = true; commandForm.append(node('span', 'terminal-prompt', '>_'), command, run, cancel);
   const jobTabs = node('div', 'workspace-job-tabs'); jobTabs.setAttribute('aria-label', 'Command history');
   const output = node('pre', 'workspace-output', 'Command output appears here.'); output.id = 'workspace-output'; output.setAttribute('aria-label', 'Command output'); output.tabIndex = 0; const jobStatus = node('div', 'workspace-job-status'); jobStatus.setAttribute('role', 'status'); terminalPanel.append(terminalHeading, executionNote, commandForm, jobTabs, output, jobStatus);
-  view.append(toolbar, error, limits, layout, terminalPanel);
+  view.append(toolbar, error, layout, historyPanel, terminalPanel, limits);
+  function returnToChat() {
+    window.ChatShell.show('chat');
+    document.getElementById('chat-title').focus();
+  }
   function showError(problem) { error.textContent = problem.message || String(problem); error.hidden = false; }
   function clearError() { error.hidden = true; error.textContent = ''; }
   function bytes(value) { const units = ['B', 'KiB', 'MiB', 'GiB']; let index = 0; while (value >= 1024 && index < units.length - 1) { value /= 1024; index++; } return number(value) + ' ' + units[index]; }
@@ -39,6 +45,7 @@
   function fileLanguage(path) { const ext = path.split('.').pop().toLowerCase(); return ({htm: 'html', py: 'python', js: 'javascript', ts: 'typescript', sh: 'bash', rs: 'rust', md: 'markdown', patch: 'diff'})[ext] || ext; }
   function updateEditor() {
     dirtyLabel.hidden = !dirty(); const enabled = Boolean(state.path); for (const button of [preview, download, save, remove]) button.disabled = !enabled; save.disabled = !enabled || !dirty() || state.saving; save.setAttribute('aria-busy', String(state.saving));
+    preview.textContent = fileLanguage(state.path) === 'html' ? 'Preview HTML' : 'View source';
     fileLabel.textContent = state.path || 'Select a file';
     const before = editor.value.slice(0, editor.selectionStart); const rows = before.split('\n'); editorPosition.textContent = enabled ? fileLanguage(state.path).toUpperCase() + ' / Ln ' + rows.length + ', Col ' + (rows.at(-1).length + 1) + ' / UTF-8' : 'UTF-8';
   }
@@ -49,6 +56,7 @@
   }
   function renderCheckpoints() {
     checkpoints.replaceChildren(); const list = state.snapshot?.checkpoints || [];
+    historySummary.textContent = 'Checkpoint history (' + number(list.length) + ')';
     list.slice().reverse().forEach(checkpoint => {
       const card = node('div', 'workspace-checkpoint'); const created = new Date(typeof checkpoint.created === 'number' ? checkpoint.created * 1000 : checkpoint.created);
       card.append(node('strong', '', checkpoint.label || 'Checkpoint'), node('small', '', isNaN(created) ? checkpoint.id.slice(0, 10) : created.toLocaleString([], {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'})));
@@ -73,7 +81,8 @@
   function applySnapshot(snapshot) {
     state.snapshot = snapshot; revisionLabel.textContent = 'Revision ' + snapshot.revision;
     executionBadge.textContent = snapshot.execution?.enabled ? 'Isolated container' : 'Execution unavailable'; executionBadge.classList.toggle('error', !snapshot.execution?.enabled);
-    executionNote.textContent = snapshot.execution?.description || (snapshot.execution?.enabled ? 'Commands use a disposable container with networking disabled and no host directory mounts.' : 'Configure a sandbox image to enable isolated command execution. File editing and checkpoints remain available.');
+    const executionDescription = snapshot.execution?.description || (snapshot.execution?.enabled ? 'Commands use a disposable container with networking disabled and no host directory mounts.' : 'Configure a sandbox image to enable isolated command execution. File editing and checkpoints remain available.');
+    executionNote.textContent = snapshot.execution?.enabled ? 'Commands use saved workspace files. ' + executionDescription : executionDescription;
     const policy = snapshot.execution?.limits || {}; const parts = [];
     for (const [key, label, suffix] of [['file_bytes', 'Per file', ''], ['project_bytes', 'Workspace', ''], ['files', 'Files', ''], ['command_seconds', 'Command time', ''], ['output_chars', 'Retained output', ' characters'], ['checkpoints', 'Checkpoints', '']]) if (typeof policy[key] === 'number') parts.push(label + ': ' + (key.endsWith('_bytes') ? bytes(policy[key]) : key === 'command_seconds' ? seconds(policy[key]) : number(policy[key], suffix)));
     limitsText.textContent = parts.join(' / '); limits.hidden = !parts.length;
@@ -139,13 +148,17 @@
       await load(); updateEditor();
     });
   }
-  function openArtifact() { if (state.path) window.ChatArtifacts.open({name: state.path, source: editor.value, language: fileLanguage(state.path)}); }
+  function openArtifact() {
+    if (!state.path) return;
+    const language = fileLanguage(state.path);
+    window.ChatArtifacts.open({name: state.path, source: editor.value, language}, {initialPreview: language === 'html', allowWorkspaceEdit: false});
+  }
   async function createCheckpoint() {
     await window.ChatShell.conversationForm({title: 'Create checkpoint', description: 'Save a named checkpoint of the current saved files.', label: 'Checkpoint name', maxLength: 120, value: 'Workspace checkpoint', submit: 'Create'}, async label => {
-      await api('/workspace/checkpoints', 'POST', {label}); await load();
+      await api('/workspace/checkpoints', 'POST', {label}); await load(); history.open = true;
     });
   }
-  async function viewDiff(checkpoint) { const result = await api('/workspace/diff?checkpoint=' + encodeURIComponent(checkpoint.id)); window.ChatArtifacts.open({name: checkpoint.label + '.diff', source: result.diff || 'No differences from the current saved files.\n', language: 'diff'}); }
+  async function viewDiff(checkpoint) { const result = await api('/workspace/diff?checkpoint=' + encodeURIComponent(checkpoint.id)); window.ChatArtifacts.open({name: checkpoint.label + '.diff', source: result.diff || 'No differences from the current saved files.\n', language: 'diff'}, {allowWorkspaceEdit: false}); }
   async function restoreCheckpoint(checkpoint) {
     const revision = state.snapshot.revision, selection = ++state.selection;
     await window.ChatShell.conversationForm({title: 'Restore checkpoint?', description: 'Restore "' + checkpoint.label + '"? This replaces the managed workspace files and discards unsaved editor changes.', destructive: true, submit: 'Restore'}, async () => {

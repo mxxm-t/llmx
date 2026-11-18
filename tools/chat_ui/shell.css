@@ -53,7 +53,7 @@
   color: var(--muted);
   font-size: 11px;
   line-height: 1.8;
-  margin: -5px 0 20px;
+  margin: 12px 0 0;
 }
 .workspace-limits > summary { cursor: pointer; }
 .workspace-limits > p { margin: 4px 0 0; }
@@ -380,13 +380,21 @@
   color: var(--faint);
   white-space: nowrap;
 }
+.workbench-view > .view-toolbar {
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+.workspace-back {
+  min-height: 36px;
+}
 .workspace-error {
   margin-bottom: 20px;
   color: var(--danger);
 }
 .workbench-layout {
   display: grid;
-  grid-template-columns: 190px minmax(0, 1fr) 195px;
+  grid-template-columns: 190px minmax(0, 1fr);
   min-height: 440px;
   border: 1px solid var(--border);
   border-radius: 11px;
@@ -468,8 +476,9 @@
   padding: 10px 14px;
 }
 .workspace-file-path {
-  color: var(--muted);
+  color: var(--text);
   font-size: 12px;
+  font-weight: 550;
   overflow-wrap: anywhere;
 }
 .unsaved-indicator {
@@ -519,16 +528,38 @@
   border-top: 1px solid var(--border);
 }
 .workspace-checkpoints {
-  border-left: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 15px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--panel);
+}
+.workspace-checkpoints details {
+  flex: 1 1 125px;
   min-width: 0;
 }
+.workspace-checkpoints summary {
+  cursor: pointer;
+  padding: 9px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
 .workspace-checkpoint-list {
-  max-height: 470px;
+  display: flex;
+  flex-wrap: wrap;
+  max-height: 230px;
   overflow-y: auto;
 }
 .workspace-checkpoint {
   margin: 0 14px;
   padding: 17px 0;
+  min-width: 0;
+  flex: 1 1 150px;
+  max-width: 240px;
   border-bottom: 1px solid var(--border);
 }
 .workspace-checkpoint strong,
@@ -552,7 +583,7 @@
   margin-top: 13px;
 }
 .workspace-terminal {
-  margin-top: 22px;
+  margin-top: 15px;
   border: 1px solid var(--border);
   border-radius: 11px;
   background: var(--panel);
@@ -633,20 +664,6 @@
   .workbench-layout {
     grid-template-columns: 175px minmax(0, 1fr);
   }
-  .workspace-checkpoints {
-    grid-column: 1 / -1;
-    border-top: 1px solid var(--border);
-    border-left: 0;
-  }
-  .workspace-checkpoint-list {
-    display: flex;
-    flex-wrap: wrap;
-    max-height: 230px;
-  }
-  .workspace-checkpoint {
-    min-width: 150px;
-    max-width: 240px;
-  }
   .workspace-editor-actions {
     width: 100%;
     margin-left: 0;
@@ -656,11 +673,6 @@
   .workspace-actions {
     flex-wrap: wrap;
     justify-content: flex-start;
-  }
-  .workbench-view > .view-toolbar {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 16px;
   }
   .workbench-layout {
     grid-template-columns: minmax(0, 1fr);
@@ -920,11 +932,6 @@
 :root[data-compact=true] .workbench-layout {
   grid-template-columns: minmax(0, 1fr);
 }
-:root[data-compact=true] .workspace-checkpoints {
-  grid-column: 1;
-  border-left: 0;
-  border-top: 1px solid var(--line);
-}
 :root[data-compact=true] .workspace-files {
   border-right: 0;
   border-bottom: 1px solid var(--line);
@@ -947,10 +954,6 @@
 }
 :root[data-compact=true] .artifact-toolbar-actions {
   flex-wrap: wrap;
-}
-:root[data-compact=true] .workbench-view > .view-toolbar {
-  flex-direction: column;
-  align-items: flex-start;
 }
 :root .workspace,
 :root .artifact-dialog {

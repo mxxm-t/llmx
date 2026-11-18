@@ -67,11 +67,14 @@ window.ChatArtifacts = (() => {
       frame.addEventListener('load', () => { if (version === previewVersion) { status.hidden = true; } }); previewPanel.insertBefore(frame, consolePanel);
     } catch (error) { if (version === previewVersion) { status.textContent = error.message; status.hidden = false; } }
   }
-  function open(artifact) {
+  function open(artifact, {initialPreview = false, allowWorkspaceEdit = true} = {}) {
     current = {name: filename(artifact.name, artifact.language), language: language(artifact.language), source: String(artifact.source ?? '')};
     showSource(); title.textContent = current.name; subtitle.textContent = current.language.toUpperCase() + ' / ' + new Intl.NumberFormat().format(new TextEncoder().encode(current.source).length) + ' bytes';
     code.replaceChildren(highlight(current.source, current.language)); previewButton.hidden = current.language !== 'html' && !/\.html?$/i.test(current.name); copy.textContent = 'Copy';
-    if (!dialog.open) dialog.showModal(); sourceButton.focus();
+    edit.hidden = !allowWorkspaceEdit;
+    if (!dialog.open) dialog.showModal();
+    if (initialPreview && !previewButton.hidden) { previewButton.focus(); showPreview(); }
+    else sourceButton.focus();
   }
   close.addEventListener('click', () => dialog.close()); dialog.addEventListener('close', stopPreview); sourceButton.addEventListener('click', showSource); previewButton.addEventListener('click', showPreview);
   modes.addEventListener('keydown', event => { if (['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); event.stopPropagation(); if (!previewButton.hidden && event.target === sourceButton) { previewButton.focus(); showPreview(); } else { sourceButton.focus(); showSource(); } } });

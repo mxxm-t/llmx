@@ -221,7 +221,11 @@ the returned job ID. The file owner still controls selection and discard
 confirmation. Leaving Workspace invalidates pending result-link navigation.
 Job navigation uses the current Workspace snapshot and leaves a newer job
 selection in place. Missing targets show an unavailable notice.
-Workspace limits are in a native disclosure.
+Back to Chat keeps the editor buffer and focuses the current conversation.
+Workspace HTML preview uses the current unsaved or saved buffer with the
+existing isolated viewer. The viewer from Workspace leaves editing in the
+existing editor. Checkpoint history and Workspace limits are native
+disclosures. Checkpoints and command starts use saved files.
 
 ## Workspace snapshots
 

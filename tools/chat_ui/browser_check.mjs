@@ -1037,29 +1037,47 @@ try {
     await assertSidebarFocusPaint('Desktop ' + theme);
     if (theme === 'light') await screenshot('sidebar-chat-row-focus-desktop.png');
   }
-  await evaluate('document.activeElement.blur()');
-  await cdp('Emulation.setDeviceMetricsOverride', {width: 390, height: 844, deviceScaleFactor: 1, mobile: false});
-  await wait("getComputedStyle(document.querySelector('.mobile-nav')).display!=='none'", 'narrow sidebar toggle');
-  await click('#drawer-shade'); await wait("document.querySelector('#drawer-shade').hidden", 'narrow drawer shade closes');
   const drawerKey = async (key, code, modifiers = 0) => {
     await cdp('Input.dispatchKeyEvent', {type:'keyDown', key, code:key, windowsVirtualKeyCode:code, modifiers, ...(key==='Enter'?{text:'\r'}:{})});
     await cdp('Input.dispatchKeyEvent', {type:'keyUp', key, code:key, windowsVirtualKeyCode:code, modifiers});
   };
+  await pointerClick(targetMenu);
+  await click('#action-menu [data-action="rename"]');
+  await wait("document.querySelector('#action-dialog').open", 'desktop rename dialog before resize');
+  await evaluate("window.desktopRenameClosed=false;document.querySelector('#action-dialog').addEventListener('close',()=>window.desktopRenameClosed=true,{once:true})");
+  await cdp('Emulation.setDeviceMetricsOverride', {width: 390, height: 844, deviceScaleFactor: 1, mobile: false});
+  await wait("document.documentElement.dataset.compact==='true' && getComputedStyle(document.querySelector('#sidebar')).visibility==='hidden'", 'resize hides the desktop dialog origin');
+  await drawerKey('Escape', 27);
+  await wait("window.desktopRenameClosed", 'desktop rename closes after resize');
+  assert.equal(await evaluate("document.activeElement.id"), 'sidebar-toggle', 'closing Rename after resize must focus the visible sidebar opener');
+  await click('#drawer-shade'); await wait("document.querySelector('#drawer-shade').hidden", 'narrow drawer shade closes');
   const openKeyboardSidebar = async () => {
     await evaluate("document.querySelector('.mobile-nav').focus()");
     await drawerKey('Enter', 13);
-    await wait("document.querySelector('#app').classList.contains('sidebar-open')", 'narrow sidebar opens');
+    await wait("document.querySelector('#app').classList.contains('sidebar-open') && document.querySelector('#sidebar').getBoundingClientRect().left>=0", 'narrow sidebar opens and finishes sliding');
   };
+  await evaluate(`(() => {
+    window.drawerTrace = [];
+    const describe = el => el ? [el.id, el.dataset?.action, el.dataset?.view, el.dataset?.id].filter(Boolean).join('/') || el.tagName : '';
+    const types=['keydown', 'keypress', 'keyup', 'click', 'focusin', 'close'];
+    const record=event=>{
+      drawerTrace.push({type:event.type, key:event.key, target:describe(event.target), active:describe(document.activeElement),
+        view:document.querySelector('#app').dataset.view, modal:document.querySelector('aside[aria-modal=true]')?.id,
+        menu:document.querySelector('#action-menu').matches(':popover-open')});
+      if (drawerTrace.length>24) drawerTrace.shift();
+    };
+    for (const type of types) document.addEventListener(type, record, true);
+    window.stopDrawerTrace=()=>{for (const type of types) document.removeEventListener(type, record, true);};
+  })()`);
   const sidebarFocusHome = "document.activeElement===document.querySelector('#sidebar [data-action=close-drawers]')";
   const mainIsInert = "document.querySelector('main').inert && document.querySelector('.skip-link').inert";
   await openKeyboardSidebar();
-  assert.equal(await evaluate(sidebarFocusHome+" && "+mainIsInert+" && document.querySelector('#sidebar').getAttribute('aria-modal')==='true'"), true, 'keyboard sidebar opening must move focus into a modal drawer and make the background inert');
+  assert.deepEqual(await evaluate("({focus:"+sidebarFocusHome+", inert:"+mainIsInert+", modal:document.querySelector('#sidebar').getAttribute('aria-modal'), compact:document.documentElement.dataset.compact})"), {focus:true, inert:true, modal:'true', compact:'true'}, 'keyboard sidebar opening must move focus into a modal drawer and make the background inert');
   assert.equal(await evaluate("document.querySelector('#draft').focus();"+sidebarFocusHome), true, 'programmatic focus escaped the sidebar');
   await drawerKey('Tab', 9, 8);
   assert.equal(await evaluate("document.activeElement.id"), 'logout-button', 'sidebar backward Tab did not wrap to the last control');
   await drawerKey('Tab', 9);
   assert.equal(await evaluate(sidebarFocusHome), true, 'sidebar forward Tab did not wrap');
-  await wait("document.querySelector('#sidebar').getBoundingClientRect().left>=0", 'sidebar settles before pointer checks');
   await pointerClick(targetMenu);
   assert.equal(await evaluate("document.querySelector('#sidebar').contains(document.activeElement) && document.querySelector('#action-menu').matches(':popover-open')"), true, 'open sidebar menu leaves the modal drawer');
   await drawerKey('Escape', 27);
@@ -1067,18 +1085,42 @@ try {
   await pointerClick(targetMenu);
   await click('#action-menu [data-action="rename"]');
   await wait("document.querySelector('#action-dialog').open && document.activeElement.id==='conversation-value'", 'native dialog over the sidebar');
+  await evaluate(`(() => {
+    const dialog=document.querySelector('#action-dialog'), close=dialog.onclose;
+    window.finishDrawerDialogClose=null;
+    dialog.onclose=()=>{dialog.onclose=close;window.finishDrawerDialogClose=close;};
+  })()`);
   await drawerKey('Escape', 27);
-  await wait("!document.querySelector('#action-dialog').open && document.activeElement.dataset.id==="+JSON.stringify(sidebarTarget), 'dialog returns to sidebar row');
+  await wait("!document.querySelector('#action-dialog').open && document.activeElement.dataset.id==="+JSON.stringify(sidebarTarget)+" && typeof window.finishDrawerDialogClose==='function'", 'native dialog returns to sidebar row before delayed close callback');
+  assert.deepEqual(await evaluate(`(() => {
+    document.querySelector('.global-nav [data-view=workbench]').focus();
+    const before=document.activeElement.dataset.view;
+    window.finishDrawerDialogClose();
+    return {before, after:document.activeElement.dataset.view};
+  })()`), {before:'workbench', after:'workbench'}, 'late dialog close callback stole focus from Workspace');
   await drawerKey('Escape', 27);
   assert.equal(await evaluate("document.activeElement.matches('.mobile-nav') && !document.querySelector('main').inert && document.querySelector('#drawer-shade').hidden"), true, 'Escape did not close the sidebar and restore its opener');
   for (const view of ['monitor', 'workbench', 'preferences']) {
     await openKeyboardSidebar();
-    await evaluate("document.querySelector('.global-nav [data-view="+view+"]').focus()");
+    const selector = JSON.stringify('.global-nav [data-view='+view+']');
+    await evaluate("document.querySelector("+selector+").focus({preventScroll:true})");
+    assert.equal(await evaluate("document.activeElement.matches("+selector+")"), true, view+' navigation did not receive focus');
     await drawerKey('Enter', 13);
-    assert.equal(await evaluate("document.querySelector('#app').dataset.view==="+JSON.stringify(view)+" && document.activeElement.id==='shell-title' && !document.querySelector('main').inert && document.querySelector('#drawer-shade').hidden"), true, view+' navigation did not release modal state and focus the destination heading');
+    try { await wait("document.querySelector('#app').dataset.view==="+JSON.stringify(view), view+' navigation'); }
+    catch (error) { throw new Error(error.message + '\nDrawer events: ' + JSON.stringify(await evaluate('drawerTrace'))); }
+    assert.deepEqual(await evaluate("({focus:document.activeElement.id || document.activeElement.outerHTML.slice(0,160), inert:document.querySelector('main').inert, shade:document.querySelector('#drawer-shade').hidden})"), {focus:'shell-title', inert:false, shade:true}, view+' navigation did not release modal state and focus the destination heading');
   }
   await openKeyboardSidebar();
-  await evaluate("document.querySelector('.global-nav [data-view=chat]').focus()");
+  await fill('#search', 'Sidebar target');
+  await wait("document.querySelector("+JSON.stringify(targetMenu)+")!==null", 'sidebar search finds menu row');
+  await pointerClick(targetMenu);
+  await fill('#search', 'no matching sidebar chat');
+  assert.equal(await evaluate("!document.querySelector("+JSON.stringify(targetMenu)+") && document.querySelector('#action-menu').matches(':popover-open')"), true, 'search refresh did not remove the open menu anchor');
+  await drawerKey('Escape', 27);
+  assert.deepEqual(await evaluate("({focus:document.activeElement.id, modal:document.querySelector('aside[aria-modal=true]')?.id, menu:document.querySelector('#action-menu').matches(':popover-open')})"), {focus:'search', modal:'sidebar', menu:false}, 'sidebar menu Escape must focus Search when the original row is gone');
+  await fill('#search', '');
+  await evaluate("window.stopDrawerTrace(); document.querySelector('.global-nav [data-view=chat]').focus()");
+
   await drawerKey('Enter', 13);
   assert.equal(await evaluate("document.querySelector('#app').dataset.view==='chat' && document.activeElement.id==='chat-title'"), true, 'return to Chat did not focus its title');
   await evaluate("document.querySelector('.composer-toolbar [data-action=settings]').focus()");
@@ -1094,18 +1136,29 @@ try {
   await drawerKey('Escape', 27);
   assert.equal(await evaluate("document.activeElement.id==='details-toggle' && document.querySelector('#drawer-shade').hidden"), true, 'Details Escape did not restore the header opener');
   await openKeyboardSidebar();
+  await cdp('Input.dispatchMouseEvent', {type:'mousePressed', x:380, y:420, button:'left', clickCount:1});
+  await cdp('Input.dispatchMouseEvent', {type:'mouseReleased', x:380, y:420, button:'left', clickCount:1});
+  assert.equal(await evaluate("document.activeElement.id==='sidebar-toggle' && document.querySelector('#drawer-shade').hidden && !document.querySelector('main').inert"), true, 'pointer backdrop did not return focus and release modality');
+  await openKeyboardSidebar();
   await evaluate(`document.querySelector(${JSON.stringify(targetMenu)}).scrollIntoView({block:'center'});document.querySelector(${JSON.stringify(targetMenu)}).focus({focusVisible:true})`);
   for (const theme of ['light', 'dark']) {
     await evaluate(`document.documentElement.dataset.theme=${JSON.stringify(theme)}`);
     await assertSidebarFocusPaint('Mobile ' + theme);
     if (theme === 'light') await screenshot('sidebar-chat-row-focus-mobile.png');
   }
-  await click('#drawer-shade');
   await cdp('Emulation.setDeviceMetricsOverride', {width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false});
   await wait("document.documentElement.dataset.compact==='false' && getComputedStyle(document.querySelector('.sidebar')).visibility==='visible'", 'wide sidebar restored');
+  assert.equal(await evaluate("document.activeElement.dataset.id==="+JSON.stringify(sidebarTarget)+" && !document.querySelector('#sidebar').hasAttribute('aria-modal') && document.querySelector('#drawer-shade').hidden"), true, 'resizing an open sidebar lost focus or retained modal state');
   await evaluate("if(document.querySelector('#app').classList.contains('inspector-closed')) document.querySelector('#details-toggle').click(); document.querySelector('#draft').focus()");
   assert.equal(await evaluate("!document.querySelector('main').inert && !document.querySelector('#inspector').hasAttribute('aria-modal') && document.activeElement.id==='draft'"), true, 'docked Details trapped desktop focus');
-  await evaluate("document.querySelector('#details-toggle').click()");
+  await evaluate("document.querySelector('#setting-system').focus()");
+  assert.equal(await evaluate("document.activeElement.id"), 'setting-system', 'docked system instructions did not receive focus');
+  await cdp('Emulation.setDeviceMetricsOverride', {width:390, height:844, deviceScaleFactor:1, mobile:false});
+  await wait("document.documentElement.dataset.compact==='true'", 'docked Details becomes a drawer');
+  assert.equal(await evaluate("document.activeElement.id==='details-toggle' && document.querySelector('#drawer-shade').hidden"), true, 'narrowing a docked panel left focus on a hidden control');
+  await cdp('Emulation.setDeviceMetricsOverride', {width:1440, height:1000, deviceScaleFactor:1, mobile:false});
+  await wait("document.documentElement.dataset.compact==='false'", 'restore wide Details preference');
+  await evaluate("if(!document.querySelector('#app').classList.contains('inspector-closed')) document.querySelector('#details-toggle').click()");
 
   await pointerClick(targetMenu);
   assert.equal(await evaluate("document.querySelector('#action-menu-title').textContent"), 'Sidebar target');

@@ -40,7 +40,6 @@ window.ChatShell = (() => {
     for (const name of ['monitor', 'workbench', 'preferences']) $('view-' + name).hidden = view !== name;
     $('shell-title').textContent = labels[view]; $('shell-eyebrow').textContent = view === 'monitor' ? 'RUNTIME' : view === 'workbench' ? 'WORKSPACE' : 'LLMX';
     document.querySelector('.shell-heading').hidden = view === 'chat';
-    $('app').classList.remove('sidebar-open'); $('drawer-shade').hidden = true;
     document.title = 'llmx / ' + labels[view];
     if (view === 'monitor') loadMonitor();
     document.dispatchEvent(new CustomEvent('companion:view', {detail: view}));
@@ -136,18 +135,28 @@ window.ChatShell = (() => {
   let menuAnchor = null;
   let actionFormOpen = false;
   function restoreMenuFocus(origin) {
-    const target = origin?.isConnected ? origin : origin?.dataset.id ? document.querySelector('.chat-row-menu[data-id="' + CSS.escape(origin.dataset.id) + '"]') : null;
-    (target || document.querySelector('.topbar [data-action="chat-menu"]'))?.focus();
+    const rowId = origin?.matches('.chat-row-menu') ? origin.dataset.id : null;
+    const candidates = [origin];
+    if (rowId) candidates.push(document.querySelector('.chat-row-menu[data-id="' + CSS.escape(rowId) + '"]'), $('search'), $('sidebar-toggle'));
+    else candidates.push(document.querySelector('.topbar [data-action="chat-menu"]'));
+    for (const target of candidates) {
+      if (!target?.isConnected) continue;
+      target.focus();
+      if (document.activeElement === target) return;
+    }
   }
   function closeMenu(restore = true) {
     const menu = $('action-menu');
     if (!menu.matches(':popover-open')) return;
     menu.hidePopover(); menuAnchor?.setAttribute('aria-expanded', 'false');
+    if (menu.parentElement !== document.body) document.body.append(menu);
     if (restore) restoreMenuFocus(menuAnchor);
   }
   function menu(anchor, title, items, select) {
     closeMenu(false); menuAnchor = anchor;
-    const panel = $('action-menu'); panel.replaceChildren(node('div', 'conversation-menu-title', title)); panel.firstChild.id = 'action-menu-title';
+    const panel = $('action-menu'), drawer = anchor.closest('aside[aria-modal=true]');
+    if (drawer) drawer.append(panel);
+    panel.replaceChildren(node('div', 'conversation-menu-title', title)); panel.firstChild.id = 'action-menu-title';
     items.forEach(item => {
       if (item.separator) { const line = node('div', 'conversation-menu-divider'); line.setAttribute('role', 'separator'); panel.append(line); }
       const control = node('button', item.danger ? 'danger' : ''); control.type = 'button'; control.setAttribute('role', 'menuitem');
@@ -189,7 +198,11 @@ window.ChatShell = (() => {
     dialog.oncancel = event => { if (confirm.disabled) event.preventDefault(); };
     let result;
     return new Promise(resolve => {
-      dialog.onclose = () => { restoreMenuFocus(origin); actionFormOpen = false; resolve(result); };
+      dialog.onclose = () => {
+        const focused = document.activeElement;
+        if (focused === document.body || dialog.contains(focused)) restoreMenuFocus(origin);
+        actionFormOpen = false; resolve(result);
+      };
       cancel.onclick = () => dialog.close();
       $('conversation-form').onsubmit = async event => {
         event.preventDefault(); if (input.required && !input.value.trim()) { input.setCustomValidity('Enter a value for this field.'); input.reportValidity(); return; }

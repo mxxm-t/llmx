@@ -24,7 +24,7 @@
       <aside class="sidebar" id="sidebar" aria-label="Conversations">
         <div class="brand">
           <span class="brand-wordmark" role="img" aria-label="llmx"></span>
-          <button class="icon mobile-only" data-action="close-drawers" aria-label="Close navigation">x</button>
+          <button id="sidebar-close" class="icon mobile-only" data-action="close-drawers" aria-label="Close navigation">x</button>
         </div>
         <nav class="global-nav" aria-label="Main navigation">
           <button data-view="chat" aria-current="page">
@@ -86,7 +86,7 @@
       </aside>
       <main class="main">
         <header class="topbar">
-          <button class="icon mobile-nav" data-action="sidebar" aria-label="Open conversations">
+          <button id="sidebar-toggle" class="icon mobile-nav" data-action="sidebar" aria-label="Open conversations" aria-controls="sidebar" aria-expanded="false">
             <svg viewBox="0 0 24 24">
               <path d="M4 6h16M4 12h16M4 18h16"/>
             </svg>
@@ -97,7 +97,7 @@
           </div>
           <div class="shell-heading" hidden>
             <span class="eyebrow" id="shell-eyebrow">LLMX</span>
-            <h1 id="shell-title">Monitor</h1>
+            <h1 id="shell-title" tabindex="-1">Monitor</h1>
           </div>
           <div class="topbar-actions">
             <button id="monitor-reload" class="secondary-button" aria-label="Reconnect runtime monitor">Reconnect</button>
@@ -240,7 +240,7 @@
       <aside id="inspector" class="inspector" aria-label="Conversation details">
         <div class="inspector-heading">
           <span>Conversation details</span>
-          <button class="icon" data-action="inspector" aria-label="Close details">x</button>
+          <button id="details-close" class="icon" data-action="inspector" aria-label="Close details">x</button>
         </div>
         <div class="tabs" role="tablist" aria-label="Details">
           <button role="tab" id="tab-activity" data-tab="activity" aria-selected="true">Activity</button>

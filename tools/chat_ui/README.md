@@ -184,6 +184,11 @@ Use the Conversation details button in the header to open or close Activity,
 Stats and Settings. On wide screens the panel starts closed and the browser
 remembers your docked-panel choice. On narrow screens, Details opens as a drawer
 when needed. The composer's Settings shortcut opens directly to Settings.
+On narrow screens, opening either drawer moves focus inside and disables
+background controls. Tab and Shift+Tab stay inside the drawer. Escape, Close
+or selecting the shade returns focus to the opener. Navigation moves focus to
+the destination instead. The docked Details panel leaves the page keyboard
+order available.
 
 Hover over a reply's statistics icon to preview reported token counts and timings.
 Click the icon, or use Enter or Space, to keep the panel open for text selection

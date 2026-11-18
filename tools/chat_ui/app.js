@@ -16,7 +16,7 @@
   const systemTheme = window.matchMedia('(prefers-color-scheme: light)');
   const storedTheme = localStorage.getItem('llmx-theme');
   let dockedDetailsOpen = localStorage.getItem('llmx-conversation-details') === 'open';
-  let detailsInDrawer = usesDetailsDrawer();
+  let detailsInDrawer = usesDetailsDrawer(), modalDrawer = null, drawerOpener = null;
   let themeChosen = storedTheme === 'light' || storedTheme === 'dark';
   function setTheme(theme, save = false) {
     document.documentElement.dataset.theme = theme;
@@ -125,7 +125,7 @@
   }
   function currentRun() { return S.runs.find(r => !terminal(r.status)); }
   function closeStream() { if (S.stream) S.stream.close(); S.stream = null; }
-  document.addEventListener('companion:unauthorized', closeStream);
+  document.addEventListener('companion:unauthorized', () => { closeStream(); closeDrawers(false); });
   function connection(text, offline = false) { const el = $('connection'); el.replaceChildren(node('span', 'status-dot'), document.createTextNode(text)); el.classList.toggle('offline', offline); document.querySelector('.inspector-bottom').replaceChildren(node('span', 'status-dot'), document.createTextNode(offline ? text : 'Connected to the model server')); }
   function settings() {
     const value = {model: $('model').value, system: $('setting-system').value};
@@ -983,18 +983,47 @@
   function resizeDraft() { const el = $('draft'); el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 220) + 'px'; rememberDraft(); }
   function showTab(name) { S.tab = name; document.querySelectorAll('[data-tab]').forEach(el => { el.setAttribute('aria-selected', String(el.dataset.tab === name)); el.tabIndex = el.dataset.tab === name ? 0 : -1; }); for (const tab of ['activity', 'stats', 'settings']) $('panel-' + tab).hidden = tab !== name; syncLiveMetrics(); renderContextLimits(); }
   function usesDetailsDrawer() { return document.documentElement.dataset.compact === 'true' || window.innerWidth <= 1200; }
-  function updateShade() {
-    const app = $('app'); const detailsOpen = !app.classList.contains('inspector-closed');
-    $('details-toggle').setAttribute('aria-expanded', String(detailsOpen));
+  function canFocusDrawerControl(el) {
+    return el && !el.matches(':disabled') && !el.closest('[inert]') && el.checkVisibility({visibilityProperty: true});
+  }
+  function viewHeading() { return $('app').dataset.view === 'chat' ? $('chat-title') : $('shell-title'); }
+  function updateShade(opener, destination) {
+    const app = $('app'), sidebar = $('sidebar'), details = $('inspector');
+    const detailsOpen = app.dataset.view === 'chat' && !app.classList.contains('inspector-closed');
     const sidebarOpen = document.documentElement.dataset.compact === 'true' && app.classList.contains('sidebar-open');
-    $('drawer-shade').hidden = !(sidebarOpen || usesDetailsDrawer() && app.dataset.view === 'chat' && detailsOpen);
+    const next = sidebarOpen ? sidebar : detailsOpen && usesDetailsDrawer() ? details : null;
+    $('sidebar-toggle').setAttribute('aria-expanded', String(sidebarOpen));
+    $('details-toggle').setAttribute('aria-expanded', String(detailsOpen));
+    $('drawer-shade').hidden = !next;
+    if (next !== modalDrawer) {
+      const previous = modalDrawer, returnTo = drawerOpener;
+      if (previous) {
+        window.ChatShell.closeMenu(false);
+        previous.removeAttribute('role'); previous.removeAttribute('aria-modal');
+      }
+      modalDrawer = next; drawerOpener = next ? opener || document.activeElement : null;
+      document.querySelector('main').inert = Boolean(next);
+      document.querySelector('.skip-link').inert = Boolean(next);
+      sidebar.inert = next === details; details.inert = next === sidebar;
+      if (next) {
+        hideReplyStats();
+        next.setAttribute('role', 'dialog'); next.setAttribute('aria-modal', 'true');
+        (next === sidebar ? $('sidebar-close') : $('tab-' + S.tab)).focus({preventScroll: true});
+      } else if (destination !== false && !document.querySelector('dialog[open]')) {
+        (destination || (canFocusDrawerControl(returnTo) ? returnTo : viewHeading())).focus({preventScroll: true});
+      }
+    }
     syncLiveMetrics(); renderContextLimits();
   }
-  function closeDrawers() { $('app').classList.remove('sidebar-open'); if (usesDetailsDrawer()) $('app').classList.add('inspector-closed'); updateShade(); }
+  function closeDrawers(destination) {
+    $('app').classList.remove('sidebar-open');
+    if (usesDetailsDrawer()) $('app').classList.add('inspector-closed');
+    updateShade(null, destination);
+  }
   function showToolCall(messageId, callId) {
     const message = path().find(item => item.id === messageId && item.role === 'assistant');
     if (!message || !(message.tool_calls || []).some(call => call.id === callId)) throw new Error('This tool call is no longer on the selected branch.');
-    if (usesDetailsDrawer()) closeDrawers();
+    if (usesDetailsDrawer()) closeDrawers(false);
     const article = $('messages').querySelector('[data-message="' + CSS.escape(messageId) + '"]');
     const wrap = Array.from(article?.querySelectorAll('.tool-call') || []).find(item => item.dataset.toolCall === callId);
     const detail = wrap?.querySelector(':scope > details'); const summary = detail?.querySelector(':scope > summary');
@@ -1011,11 +1040,17 @@
     if (name === 'new') return newChat();
     if (name === 'temporary') return temporaryChat();
     if (name === 'end-temporary') return leaveTemporary();
-    if (name === 'reply-detail') { const target = $('messages').querySelector('[data-message="' + CSS.escape(el.dataset.id) + '"]'); if (target) { closeDrawers(); target.tabIndex = -1; target.focus({preventScroll: true}); target.scrollIntoView({block: 'center', behavior: 'smooth'}); } return; }
+    if (name === 'reply-detail') { const target = $('messages').querySelector('[data-message="' + CSS.escape(el.dataset.id) + '"]'); if (target) { closeDrawers(false); target.tabIndex = -1; target.focus({preventScroll: true}); target.scrollIntoView({block: 'center', behavior: 'smooth'}); } return; }
     if (name === 'tool-detail') return showToolCall(el.dataset.message, el.dataset.call);
-    if (name === 'sidebar') { $('app').classList.toggle('sidebar-open'); updateShade(); return; }
+    if (name === 'sidebar') {
+      if ($('app').classList.contains('sidebar-open')) return closeDrawers();
+      $('app').classList.add('sidebar-open');
+      if (usesDetailsDrawer()) $('app').classList.add('inspector-closed');
+      updateShade(el); return;
+    }
     if (name === 'close-drawers') return closeDrawers();
     if (name === 'inspector' || name === 'settings') {
+      $('app').classList.remove('sidebar-open');
       if (name === 'settings') {
         $('app').classList.remove('inspector-closed'); showTab('settings');
       } else {
@@ -1023,9 +1058,10 @@
         if (!usesDetailsDrawer()) {
           dockedDetailsOpen = !closed;
           localStorage.setItem('llmx-conversation-details', closed ? 'closed' : 'open');
+          if (closed && el.id === 'details-close') $('details-toggle').focus({preventScroll: true});
         }
       }
-      updateShade(); return;
+      updateShade(el); return;
     }
     if (name === 'theme') { setTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light', true); return; }
     if (name === 'archive-view') { S.archive = !S.archive; queueChatSearch(); return; }
@@ -1117,25 +1153,38 @@
   $('login-dialog').addEventListener('cancel', event => event.preventDefault());
   $('login-form').addEventListener('submit', async event => { event.preventDefault(); const submit = event.target.querySelector('button'); submit.disabled = true; try { await api('/login', 'POST', {password: $('password').value}); $('password').value = ''; $('login-error').textContent = ''; $('login-dialog').close(); await initialize(); } catch (error) { $('login-error').textContent = error.message; } finally { submit.disabled = false; } });
   document.addEventListener('keydown', event => {
-    if (document.querySelector('dialog[open]')) return;
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); newChat().catch(error => toast(error.message)); }
-    if (event.key === 'Escape') closeDrawers();
-    if (event.key === 'Tab' && !$('drawer-shade').hidden) {
-      const drawer = $('app').dataset.view === 'chat' && !$('app').classList.contains('inspector-closed') ? $('inspector') : $('sidebar');
-      const controls = Array.from(drawer.querySelectorAll('button,input,textarea,select,[href]')).filter(el => !el.disabled && el.getClientRects().length);
-      if (controls.length && (!drawer.contains(document.activeElement) || event.shiftKey && document.activeElement === controls[0] || !event.shiftKey && document.activeElement === controls.at(-1))) { event.preventDefault(); (event.shiftKey ? controls.at(-1) : controls[0]).focus(); }
+    if (event.defaultPrevented || document.querySelector('dialog[open]')) return;
+    if (modalDrawer && event.key === 'Escape') { event.preventDefault(); closeDrawers(); return; }
+    if (modalDrawer && event.key === 'Tab') {
+      const controls = Array.from(modalDrawer.querySelectorAll('a[href],button,input,textarea,select,details > summary:first-child,[tabindex]'))
+        .filter(el => (!el.hasAttribute('tabindex') || el.tabIndex >= 0) && canFocusDrawerControl(el));
+      const active = document.activeElement, first = controls[0], last = controls.at(-1);
+      if (first && (!modalDrawer.contains(active) || active === (event.shiftKey ? first : last))) {
+        event.preventDefault(); (event.shiftKey ? last : first).focus();
+      }
     }
+    if (modalDrawer !== $('inspector') && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); newChat().catch(error => toast(error.message)); }
     if (event.target.matches('[role=tab]') && ['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); const tabs = ['activity', 'stats', 'settings']; const index = (tabs.indexOf(S.tab) + (event.key === 'ArrowRight' ? 1 : 2)) % 3; showTab(tabs[index]); $('tab-' + tabs[index]).focus(); }
   });
   window.addEventListener('resize', () => {
+    const focused = document.activeElement, previousModal = modalDrawer;
     const drawer = usesDetailsDrawer();
     if (drawer !== detailsInDrawer) {
       detailsInDrawer = drawer;
       $('app').classList.toggle('inspector-closed', drawer || !dockedDetailsOpen);
     }
-    updateShade();
+    if (document.documentElement.dataset.compact !== 'true') $('app').classList.remove('sidebar-open');
+    updateShade(null, previousModal?.contains(focused) && canFocusDrawerControl(focused) ? false : undefined);
+    if (!previousModal && !modalDrawer && !canFocusDrawerControl(focused) && !document.querySelector('dialog[open]')) {
+      if ($('inspector').contains(focused)) $('details-toggle').focus({preventScroll: true});
+      if ($('sidebar').contains(focused)) $('sidebar-toggle').focus({preventScroll: true});
+    }
   });
-  document.addEventListener('companion:view', () => { syncLiveMetrics(); renderLiveMetrics(); });
+  document.addEventListener('companion:view', event => {
+    if (modalDrawer && (modalDrawer === $('sidebar') || event.detail !== 'chat')) closeDrawers(viewHeading());
+    else updateShade();
+    renderLiveMetrics();
+  });
   document.addEventListener('visibilitychange', () => { syncLiveMetrics(); renderLiveMetrics(); });
   window.addEventListener('pagehide', () => { rememberDraft(); flushDrafts(); liveMetrics.stream?.close(); liveMetrics.stream = null; liveMetrics.id = null; });
   window.addEventListener('pageshow', syncLiveMetrics);

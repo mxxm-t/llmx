@@ -1,12 +1,5 @@
 # llmx - Development Status
 
-## Companion drawer keyboard access (2026-11-18, In progress)
-
-- **Goal**. Make the narrow sidebar and Details drawers keyboard-accessible while preserving docked desktop behavior.
-- **Done**. Identified split drawer ownership and missing focus entry, return and background inertness.
-- **Left**. Reproduce in the browser, consolidate drawer state, and verify navigation, menus and native dialogs.
-- **Gotchas**. Sidebar actions use the existing manual menu. Activity links need to close Details and focus their transcript destination. Native dialogs retain their own top-layer focus and Escape handling.
-
 ## Companion wording cleanup (2026-11-18, Done)
 
 - **Goal:** Use direct labels for current functionality and remove repeated welcome and branding copy.
@@ -10462,6 +10455,7 @@ Step 6, the head split, was measured on 2, 3, 4 and 8 cards and not merged (the 
 
 | Feature                                  | Status   |
 |------------------------------------------|----------|
+| [Companion drawer keyboard access](benchmarks/chat-drawer-keyboard-20261118.md) | Done |
 | Companion compose-state preservation and Retry return | Done |
 | Workspace pending Save/Open ownership and keyboard exit | Done |
 | Tool approval scope and argument visibility | Done |

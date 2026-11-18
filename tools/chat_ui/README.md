@@ -389,7 +389,10 @@ health endpoint into a push endpoint. Missing measurements stay unavailable.
 
 ## Code and workspace
 
-Code blocks offer highlighting, copy, download and a source viewer. HTML previews
+Code blocks offer highlighting, copy, download and a source viewer. To show
+a Markdown example that contains a triple-backtick block, wrap the example
+in four backticks or use a tilde fence. The inner fence stays in the copied
+source. HTML previews
 run only after an explicit Preview action in an opaque-origin sandboxed frame.
 They cannot access the workspace cookie or parent DOM. The preview response's
 CSP refuses network resource fetches, nested frames and forms; browser previews

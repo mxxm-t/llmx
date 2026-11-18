@@ -47,6 +47,15 @@ window.ChatRender = (() => {
     }
     return ' '.repeat(Math.max(0, width - count)) + line.slice(offset);
   }
+  function openingFence(line) {
+    const match = /^( {0,3})(`{3,}|~{3,})(.*)$/.exec(line);
+    if (!match || (match[2][0] === '`' && match[3].includes('`'))) return null;
+    return {indent: match[1].length, marker: match[2], language: match[3].trim().split(/\s+/, 1)[0]};
+  }
+  function closesFence(line, marker) {
+    const match = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(line);
+    return match && match[1][0] === marker[0] && match[1].length >= marker.length;
+  }
   function codeBlock(source, language) {
     const wrap = node('div', 'code-block');
     const label = node('span', '', language || 'code'); label.dataset.language = language;
@@ -78,13 +87,13 @@ window.ChatRender = (() => {
     while (i < lines.length) {
       start = i;
       const line = lines[i];
-      if (/^\s*```/.test(line)) {
-        const language = line.replace(/^\s*```/, '').trim();
+      const fence = openingFence(line);
+      if (fence) {
         const code = [];
         i++;
-        while (i < lines.length && !/^\s*```/.test(lines[i])) code.push(lines[i++]);
+        while (i < lines.length && !closesFence(lines[i], fence.marker)) code.push(removeIndent(lines[i++], fence.indent));
         if (i < lines.length) i++;
-        const wrap = codeBlock(code.join('\n'), language); appendBlock(out, wrap, start, i); continue;
+        const wrap = codeBlock(code.join('\n'), fence.language); appendBlock(out, wrap, start, i); continue;
       }
       if (!line.trim()) { i++; continue; }
       if (i + 1 < lines.length && line.includes('|') && /^\s*\|?\s*:?-{3,}/.test(lines[i + 1])) {
@@ -119,7 +128,7 @@ window.ChatRender = (() => {
             if (columns(next.match(/^[ \t]*/)[0]) >= item.contentIndent) {
               body.push(removeIndent(next, item.contentIndent)); blank = false; i++; continue;
             }
-            if (!blank && !listItem(next) && !/^\s*(?:```|#|>|([-*_])(?:\s*\1){2,}\s*$)/.test(next)) {
+            if (!blank && !listItem(next) && !openingFence(next) && !/^\s*(?:#|>|([-*_])(?:\s*\1){2,}\s*$)/.test(next)) {
               body.push(next.trimStart()); i++; continue;
             }
             break;
@@ -136,7 +145,7 @@ window.ChatRender = (() => {
         appendBlock(out, list, start, i); continue;
       }
       const p = node('p'); inline(line, p); i++;
-      while (i < lines.length && lines[i].trim() && !/^\s*(?:```|#|>|[-+*]\s|\d+[.)]\s)/.test(lines[i]) && !(i + 1 < lines.length && /^\s*\|?\s*:?-{3,}/.test(lines[i + 1]))) { p.append(node('br')); inline(lines[i++], p); }
+      while (i < lines.length && lines[i].trim() && !openingFence(lines[i]) && !/^\s*(?:#|>|[-+*]\s|\d+[.)]\s)/.test(lines[i]) && !(i + 1 < lines.length && /^\s*\|?\s*:?-{3,}/.test(lines[i + 1]))) { p.append(node('br')); inline(lines[i++], p); }
       appendBlock(out, p, start, i);
     }
     return out;

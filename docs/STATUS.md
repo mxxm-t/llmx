@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Fenced code in Chat replies (2026-11-18)
+
+- **Goal:** Preserve the full source of chat code examples when their contents include a shorter fence or text after a fence marker.
+- **Done:** The transcript recognizes backtick and tilde fences. A closing fence uses the opening character, is at least as long, and has only optional trailing whitespace. A shorter or mixed-character fence inside the example remains part of its source.
+- **Checks:** Chrome split the four-backtick example into three blocks on main. The corrected renderer preserves its exact clipboard and viewer text, nested tilde examples and incomplete streamed blocks. The static companion change lands by fast-forward after the combined browser, docs, dead-code and hosted companion checks pass.
+- **Gotchas:** Keep list indentation and completed Markdown blocks stable. Model output stays text in the transcript.
+
 ## First project from the chat picker (2026-11-18)
 
 - **Goal:** Let someone with no saved projects reach Workspace project setup from the empty Chat picker while preserving the open draft.

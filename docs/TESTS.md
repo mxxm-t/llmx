@@ -32,6 +32,8 @@ after navigating away and back. Delayed navigation cannot override a newer
 selection.
 Retry also covers leaving and returning before the server admits the request:
 the visible conversation receives its new reply without refreshing the page.
+The Markdown browser checks exercise code fences around Markdown examples,
+including incomplete streamed examples and the source used by code actions.
 HTTP checks cover authentication, origin checks, attachments and import/export.
 Chrome confirms the native attachment chooser opens in multiple-file mode
 with common accepted source extensions. It exercises the Attach hint with a

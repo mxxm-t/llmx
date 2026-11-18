@@ -54,7 +54,7 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   for one, its roles all `Part::draft`, which run on the head's device, and
   `draft_x`, the arena slot of a draft step's residual rows, which a tensor group sums into, and
   `draft_h`, the arena slot its context rows leave the target's
-  final-normed rows in, 0 for a drafter whose context rows read no row of the target before each row, and `draft_block`, the most drafts one of its calls gives, 0 for one).
+  final-normed rows in, 0 for a drafter whose context rows read no row of the target before each row, `draft_block`, the most drafts one of its calls gives, 0 for one, and `draft_window`, the positions before a history's end whose context rows a draft reads, 0 for all of them).
   `carries_row(plan)` holds where the drafter carries each sequence's last normed row from one pass to the next (`draft_h` nonzero), which decides the runtime's carried row, zero row, saved rows and the fit's count of them; `draft_calls(plan, k)` gives the calls that make k drafts.
   The drafter's cache is KV, or a state slot where its `LayerPlan` keeps entries.
   - A `RoleKind` says how a role's tensor is checked and whether the fit

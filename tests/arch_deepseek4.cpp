@@ -1,6 +1,7 @@
 // The deepseek41 module (model/arch/deepseek4/) on the tiny fork-layout file built in memory from the step 2 golden's arguments and Engram constants.
 // Every refused key and tensor with its text, the per-layer table, the plan, the footprint, the Engram norm product, and the refusal of the architecture by name.
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -1751,6 +1752,90 @@ void dspark_served(const std::string& trunk, const gguf::GGUFModel& joined, cons
     }
 }
 
+// Counts the rows of the matmuls of main_proj's shape, the first matmul of a pass's drafter context rows (Architecture::draft_rows) and the trunk's of that shape, on a CPU recorded on its own stage thread.
+struct ContextCpu : ThreadedCpu {
+    std::atomic<size_t>* rows = nullptr;
+    size_t nin = 0, nout = 0;
+    void matmul(backend::WeightView w, backend::CSlice x, backend::Slice y, size_t in, size_t out, size_t n, backend::RowRuns runs = {},
+                backend::Dtype dtype = backend::Dtype::f16) override {
+        if (in == nin && out == nout) *rows += n;
+        ThreadedCpu::matmul(w, x, y, in, out, n, runs, dtype);
+    }
+};
+
+// A prompt's slices that end more than the window before its end or its kept state leave DSpark's context rows out (ModelPlan::draft_window), over stages apart on stage threads.
+// The drafts after it, and after a retract to its kept state, are those of the same prompt in one pass bit for bit (docs/TESTS.md, arch-deepseek4).
+void dspark_window(const gguf::GGUFModel& joined, size_t taps, size_t B) {
+    // The fixture's context of 256 cannot hold a state kept a window and two slices in and a window and two slices before a prompt's end.
+    gguf::GGUFModel longer = joined;
+    put(longer, P + "context_length", scalar(gguf::V_UINT32, 1024));
+    const infer::ModelWeights jw = infer::gguf_weights(longer);
+    const size_t V = golden["vocab_size"], W = golden["window_size"], E = golden["dim"], L = 198, ubatch = 16;
+    const std::vector<uint64_t> wide = wholes(field(golden.root, "sequence"));
+    // The golden's ids again and again, as long as a kept state a window and more before the end needs.
+    std::vector<uint32_t> text;
+    for (size_t i = 0; text.size() < 4 * W + 4 * ubatch; ++i) text.push_back(uint32_t(wide[i % wide.size()]));
+    require(wide.size() > L + 1 && L > W + 2 * ubatch, "the golden sequence is long enough for slices before the window");
+    std::atomic<size_t> rows{0};
+    const auto build = [&](bool drafter) {
+        std::vector<backend::BackendPtr> devices;
+        for (size_t i = 0; i < 3; ++i) {
+            auto cpu = std::make_shared<ContextCpu>();
+            cpu->rows = &rows;
+            cpu->nin = taps * E;
+            cpu->nout = E;
+            devices.push_back(cpu);
+        }
+        infer::Placement placement;
+        placement.mixer_device = placement.ffn_device = {0, 0, 0, 1, 1, 1, 2, 2};
+        placement.output_device = 2;
+        if (drafter) placement.draft_device = {0, 1, 2};
+        infer::ModelOptions options;
+        options.dtype = backend::Dtype::f32;
+        options.kv_k = options.kv_v = backend::KVType::f32;
+        options.checkpoint_slots = 2;
+        return std::make_unique<infer::Model>(jw, infer::plan_model(jw, drafter), std::move(devices), placement, options);
+    };
+    const auto same = [](const std::vector<float>& a, const std::vector<float>& b) { return a.size() == b.size() && !std::memcmp(a.data(), b.data(), a.size() * sizeof(float)); };
+    // Prefill `n` tokens in slices of `slice`, keeping the state at `at` and retracting to it where given, then a step and a block of drafts.
+    // The rows counted are the drafter's: the trunk's rows of that shape, the same however a prompt is sliced, are counted without the drafter and taken off.
+    const auto run = [&](size_t n, size_t slice, size_t at, std::vector<float>& logits) {
+        const std::vector<uint32_t> prompt(text.begin(), text.begin() + std::ptrdiff_t(n));
+        rows = 0;
+        build(false)->prefill(prompt);
+        const size_t trunk = rows;
+        std::unique_ptr<infer::Model> model = build(true);
+        model->set_ubatch(int(slice));
+        rows = 0;
+        model->prefill(prompt, at);
+        const size_t counted = rows - trunk;
+        const size_t end = at ? at : n;
+        if (at) require(model->retract(at) == at, "a retract reaches the kept state at " + std::to_string(at));
+        model->step(&text[end], 1);
+        std::vector<uint32_t> out;
+        model->draft(text[end + 1], B, out);
+        require(out.size() == B, "a block of drafts after the prompt");
+        logits.clear();
+        for (size_t j = 0; j < B; ++j) logits.insert(logits.end(), model->draft_logits(j), model->draft_logits(j) + V);
+        return std::make_pair(counted, out);
+    };
+    std::vector<float> want, got;
+    const auto one = run(L, L, 0, want);
+    require(one.first == L, "a prompt in one pass computes the context rows of all its " + std::to_string(L) + " rows, " + std::to_string(one.first) + " counted");
+    const auto sliced = run(L, ubatch, 0, got);
+    std::cout << "arch-deepseek4: DSpark's context rows of a " << L << "-token prompt in slices of " << ubatch << ": " << sliced.first << " computed, window " << W << "\n";
+    require(sliced.first >= W && sliced.first < W + ubatch, "slices of " + std::to_string(ubatch) + " compute the context rows of the window's slices alone, " + std::to_string(sliced.first));
+    require(sliced.second == one.second && same(got, want), "slices that leave out the context rows before the window give one pass's drafts and draft logits");
+    // A whole-block state past a window and two slices, and a prompt ending a window and two slices after it, so slices before each window leave their rows out.
+    const size_t bt = build(true)->kv_block_tokens(), keep = (W + 2 * ubatch + bt - 1) / bt * bt, n = keep + W + 2 * ubatch;
+    require(n + 1 < text.size(), "the prompt's text holds the kept state's prompt");
+    const auto kept_one = run(keep, keep, 0, want);
+    const auto kept = run(n, ubatch, keep, got);
+    std::cout << "arch-deepseek4: DSpark with a state kept at " << keep << " of " << n << " tokens (blocks of " << bt << "): " << kept.first << " context rows computed for two windows of " << W << "\n";
+    require(kept.first >= 2 * W && kept.first < 2 * W + 2 * ubatch, "slices before the windows of the kept state and the end leave their context rows out, " + std::to_string(kept.first));
+    require(kept.second == kept_one.second && same(got, want), "a retract to the kept state gives the drafts and draft logits of its prefix in one pass");
+}
+
 // DSpark on the tiny trunk and sidecar against DeepSeek's forward_spec, a block of drafts after each token, ids to a row whose top two logits lie within twice the bound and logits within 2e-5 (docs/TESTS.md, arch-deepseek4).
 // Two layer cuts, a tensor group and stages forced apart from the head give the one CPU's or the group's drafts and draft logits bit for bit, the group the reference's by the same rule.
 void dspark(const std::string& trunk, const std::string& sidecar) {
@@ -1901,6 +1986,7 @@ void dspark(const std::string& trunk, const std::string& sidecar) {
     require(most <= 2e-5, "the DSpark draft logits within 2e-5 of the reference's, " + std::to_string(most) + " at " + where + coded);
     require(group_most <= 2e-5, "a group's DSpark draft logits within 2e-5 of the reference's, " + std::to_string(group_most) + " at " + group_where + coded);
     dspark_served(trunk, joined, jw);
+    dspark_window(joined, field(field(d, "args"), "dspark_target_layer_ids").asArray().size(), B);
 }
 
 int main(int argc, char** argv) {

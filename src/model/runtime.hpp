@@ -253,6 +253,8 @@ struct BatchEntry {
     // Its rows are read only as the id of their largest logit, as a greedy draw reads them (ExecContext::argmax_id): with want_logits.
     // A pass all of whose wanting entries say so keeps their logits on the output device and copies only the ids to the host.
     bool argmax = false;
+    // An embedded drafter computes the entry's context rows (Architecture::draft_rows); a prompt's slice that no later draft reads leaves them out, and a pass of such slices alone runs none (ModelPlan::draft_window).
+    bool context = true;
 };
 
 // What a pass's stages read as they are recorded: its entries, its rows and their positions, the rows the head reads, and each storage's cache views once its stage has reserved them.
@@ -1321,6 +1323,9 @@ public:
                 BatchEntry entry{&seq_, ids.data() + i, n, i + n == ids.size()};
                 entry.extent = start + ids.size();
                 entry.keep = cut && i + n == cut;
+                // Under a window-reading drafter, only slices reaching the last draft_window positions before the end or the kept state carry its context rows.
+                const size_t W = plan_.draft_window, end = ids.size();
+                entry.context = !W || i + n + W > end || (cut && i < cut && i + n + W > cut);
                 return entry;
             };
             if (!pipelined_) {

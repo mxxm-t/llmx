@@ -1035,6 +1035,10 @@ inline void Model::stage_commit(Pass& p, size_t s) {
 inline void Model::draft_context(ExecContext& ctx, Pass& p, size_t s) {
     const size_t E = plan_.residual, n = p.entries.size(), o = (size_t)place_.output_device;
     const bool carries = carries_row(plan_);
+    if (std::none_of(p.entries.begin(), p.entries.end(), [](const BatchEntry& e) { return e.context; })) {
+        p.draft_tickets.clear();
+        return;
+    }
     const backend::RowRuns all{p.runs.data(), p.runs.size()};
     ctx.carry.resize(n);
     // Part `phase` on member m of the group at device d.

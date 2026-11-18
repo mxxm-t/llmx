@@ -485,6 +485,44 @@ try {
   await evaluate("localStorage.removeItem('llmx-chat')");
   await reloadDocument();
   await wait("window.ChatShell.config && !document.querySelector('[data-action=new]').disabled", 'compose fixture cleaned');
+  const fencedMarkdown = ['Before the inner example', '```js', 'const value = 1;', '```', '~~~~', '```` still source', 'After the inner example'].join('\n');
+  const fencedTilde = ['~~~', '```', '~~~~ still source', 'Nested code'].join('\n');
+  const partialFence = '````markdown\n' + fencedMarkdown;
+  const completeFence = partialFence + '\n````` \t\nOrdinary closing text';
+  const nestedFence = '- Parent\n  - Child\n' + ['~~~~text', fencedTilde, '~~~~', '', 'After nested fence'].join('\n').replace(/^(.+)/gm, '    $1');
+  const fenceShapes = await evaluate(`(() => {
+    const partial = ChatRender.markdown(${JSON.stringify(partialFence)});
+    const complete = ChatRender.markdown(${JSON.stringify(completeFence)});
+    const nested = ChatRender.markdown(${JSON.stringify(nestedFence)}).querySelector('ul > li > ul > li');
+    function shape(root) {
+      const block = root?.querySelector('.code-block');
+      return {blocks: root?.querySelectorAll('.code-block').length, source: block?.querySelector('code').textContent,
+        language: block?.querySelector('[data-language]').dataset.language, following: block?.nextElementSibling?.textContent,
+        actions: Array.from(block?.querySelectorAll('.code-actions button') || [], button => button.textContent)};
+    }
+    const streamed = shape(partial), completeShape = shape(complete);
+    ChatRender.reconcileMarkdown(partial, complete);
+    return {streamed, complete: completeShape, reconciled: shape(partial), nested: shape(nested)};
+  })()`);
+  const fencedShape = (source, language, following) => ({blocks:1,source,language,
+    ...(following ? {following} : {}), actions:['Copy code','Download','Open']});
+  const completedShape = fencedShape(fencedMarkdown, 'markdown', 'Ordinary closing text');
+  assert.deepEqual(fenceShapes, {streamed:fencedShape(fencedMarkdown, 'markdown'), complete:completedShape,
+    reconciled:completedShape, nested:fencedShape(fencedTilde, 'text', 'After nested fence')},
+    'a fence closed on a mixed, short or annotated marker, lost source or split its actions');
+  assert.equal(await evaluate(`(async () => {
+    const fixture = ChatRender.markdown(${JSON.stringify(completeFence)});
+    const [copy,,open] = fixture.querySelectorAll('.code-actions button');
+    const clipboard = navigator.clipboard, writeText = clipboard.writeText;
+    let copied;
+    clipboard.writeText = async text => { copied = text; };
+    try { copy.click(); await Promise.resolve(); } finally { clipboard.writeText = writeText; }
+    open.click();
+    return copied;
+  })()`), fencedMarkdown, 'Copy code changed the fenced source');
+  await wait("document.querySelector('#artifact-dialog').open", 'long-fence source viewer');
+  assert.equal(await evaluate("document.querySelector('.artifact-source code').textContent"), fencedMarkdown, 'source viewer changed the fenced source');
+  await click('#artifact-dialog [aria-label="Close artifact"]');
   const nestedListSource = '3. First\n   - Child\n     7. Leaf\n        Wrapped line\n\n        ```js\n        const value = 1;\n        ```\n4. Second\n\nAfter\n\n- Root\n  - Nested **text**\n- Next';
   const nestedListShape = await evaluate(`(() => {
     const rendered = ChatRender.markdown(${JSON.stringify(nestedListSource)});

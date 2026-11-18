@@ -2040,7 +2040,8 @@ public:
         if (!n_views && (entry_k || entry_ids_s.buffer)) throw std::runtime_error("backend: sparse attention entries without views");
         if (!rows) return;
         const size_t kv_words = format_words(kv_format, dim), entry_words = format_words(entry_format, dim);
-        const size_t qn = size_mul(rows, size_mul(heads, dim)), kvn = size_mul(kv_rows, kv_words), idn = size_mul(rows, k), en = size_mul(rows, entry_k);
+        const size_t qn = size_mul(rows, size_mul(heads, dim)), kvn = size_mul(kv_rows, kv_words), idn = size_mul(rows, k);
+        const size_t en = entry_ids_s.buffer ? size_mul(rows, entry_k) : 0;
         validate_float_slice(out_s, qn);
         validate_float_slice(q_s, qn);
         validate_float_slice(kv_s, kvn);
@@ -2058,10 +2059,15 @@ public:
         }
         PooledRows pooled;
         const float* entries = en ? at(entry_ids_s) : nullptr;
+        std::vector<size_t> visible_of(entries ? 0 : rows);
         if (n_views) {
             pooled = pooled_rows(layer, views, n_views, rows, entry_words, "sparse attention");
-            for (size_t r = 0; r < rows && entries; ++r) {
+            for (size_t r = 0; r < rows; ++r) {
                 const size_t visible = (pooled.position[r] + 1) / static_cast<const CpuKVStorage*>(pooled.view[r]->storage)->auxiliary_pool(layer);
+                if (!entries) {
+                    visible_of[r] = visible;
+                    continue;
+                }
                 for (size_t t = 0; t < entry_k; ++t) {
                     const uint32_t id = u32_at(entries, r * entry_k + t);
                     if (id != UINT32_MAX && id >= visible) throw std::runtime_error("backend: sparse attention id past its kv rows");
@@ -2087,7 +2093,7 @@ public:
             // The kv rows first, then the entries, as model.py concatenates the window before the compressed rows.
             spread(size_mul(n, named), [&](size_t i) {
                 const size_t r = r0 + i / named, t = i % named;
-                const uint32_t j = t < k ? u32_at(ids + r * k, t) : u32_at(entries, r * entry_k + t - k);
+                const uint32_t j = t < k ? u32_at(ids + r * k, t) : entries ? u32_at(entries, r * entry_k + t - k) : t - k < visible_of[r] ? uint32_t(t - k) : UINT32_MAX;
                 if (j == UINT32_MAX) return;
                 float* to = packed ? decoded.data() + i * dim : nullptr;
                 if (t < k) named_rows[i] = stored_row(kv + size_t(j) * kv_words, dim, kv_format, to);

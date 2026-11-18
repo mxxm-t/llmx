@@ -1361,6 +1361,79 @@ struct FailingExpand : backend::CpuBackend {
     }
 };
 
+// A CPU backend counting topk_rows calls, one an index layer's selection.
+struct CountingTopk : backend::CpuBackend {
+    CountingTopk() { set_threads(1); }
+    size_t calls = 0;
+    void topk_rows(backend::Slice ids, backend::CSlice scores, backend::CSlice lens, size_t rows, size_t n, size_t k, uint32_t offset) override {
+        ++calls;
+        CpuBackend::topk_rows(ids, scores, lens, rows, n, k, offset);
+    }
+};
+
+// The indexer skipped while a pass sees at most its top-k entries (DeepSeek41::picks_all): a sequence decoded across each ratio's edge alone, against its rows beside one past every edge.
+// Each step's logits bit for bit and the index layers' selections counted, at the file's candidate blocks and at one block, whose edge of 8 entries then binds before the top-k's 16.
+void short_context(const std::string& path) {
+    const size_t top_k = golden["index_topk"], block = golden["candidate_block_size"], V = golden["vocab_size"], prompt = 5, end = 40, other = 60;
+    std::vector<uint32_t> ids;
+    for (uint32_t i = 0; i < end + other; ++i) ids.push_back(uint32_t((i * 2654435761u >> 11) % V));
+    for (const size_t blocks : {size_t(golden["candidate_topk_blocks"]), size_t(1)}) {
+        gguf::GGUFModel file = gguf::read_gguf(path);
+        gguf::map_payload(file);
+        put(file, P + "context_length", scalar(gguf::V_UINT32, 1024));
+        put(file, P + "attention.candidate_topk_blocks", scalar(gguf::V_UINT32, blocks));
+        const infer::ModelWeights w = infer::gguf_weights(file);
+        infer::ModelOptions o;
+        o.dtype = backend::Dtype::f32;
+        o.kv_tokens = 2048;
+        o.state_slots = 2;
+        const std::string at = " at " + std::to_string(blocks) + " candidate blocks";
+        // Index sources 2 and 4 at ratio 2, 5 and 7 at ratio 1, the candidates' ratio: each pair selects unless its rows see at most top-k entries and, at ratio 1, at most the blocks' entries.
+        const auto selections = [&](size_t length) {
+            return (length / 2 > top_k ? 2u : 0u) + (length > top_k || (length + block - 1) / block > blocks ? 2u : 0u);
+        };
+        std::vector<std::vector<float>> alone(end + 1);
+        {
+            auto cpu = std::make_shared<CountingTopk>();
+            infer::Model model(w, cpu, o);
+            infer::Sequence seq = model.make_sequence();
+            infer::ExecContext ctx;
+            infer::BatchEntry head{&seq, ids.data(), prompt, false};
+            head.extent = prompt;
+            model.forward(ctx, &head, 1);
+            require(cpu->calls == selections(prompt), "a prompt of " + std::to_string(prompt) + " tokens selects at no index layer" + at);
+            for (size_t p = prompt; p < end; ++p) {
+                cpu->calls = 0;
+                infer::BatchEntry step{&seq, &ids[p], 1, true};
+                step.extent = 1;
+                model.forward(ctx, &step, 1);
+                require(cpu->calls == selections(p + 1), "a decode step at length " + std::to_string(p + 1) + " selects at " + std::to_string(selections(p + 1)) + " index layers" + at);
+                alone[p + 1] = std::vector<float>(ctx.logits(0), ctx.logits(0) + V);
+            }
+        }
+        auto cpu = std::make_shared<CountingTopk>();
+        infer::Model model(w, cpu, o);
+        infer::Sequence a = model.make_sequence(), b = model.make_sequence();
+        infer::ExecContext ctx;
+        infer::BatchEntry past{&b, ids.data() + end, other, false};
+        past.extent = other;
+        model.forward(ctx, &past, 1);
+        size_t differ = 0;
+        for (size_t p = prompt - 1, q = end + other; p < end; ++p, ++q) {
+            const bool first = p + 1 == prompt;
+            infer::BatchEntry pair[2] = {{&a, first ? ids.data() : &ids[p], first ? prompt : 1, !first}, {&b, &ids[q % ids.size()], 1, true}};
+            pair[0].extent = first ? prompt : 1;
+            pair[1].extent = 1;
+            cpu->calls = 0;
+            model.forward(ctx, pair, 2);
+            require(cpu->calls == 4, "a pass beside a sequence past every edge selects at all four index layers" + at);
+            if (!first) differ += std::memcmp(ctx.logits(0), alone[p + 1].data(), V * sizeof(float)) != 0;
+        }
+        require(differ == 0, std::to_string(differ) + " rows differ from the same rows beside a sequence past every edge" + at);
+        std::cout << "arch-deepseek4: lengths " << prompt << " to " << end << at << ": selections skipped at and below each edge, run past it, every row bit for bit beside a sequence that runs them\n";
+    }
+}
+
 // Rollback by length (docs/DEEPSEEK4.md, section 4.3): verifies of 2 to 17 drafts after a mark, the text's tokens up to the kept count and other ids after it, each retracted to that count, then a decode step.
 // Every kept row and each step's row must be a fresh sequence's decode-step bits, on one CPU, after a fork and on two CPUs with passes failing after the first stage committed (docs/TESTS.md).
 void rollback(const std::string& path) {
@@ -2028,6 +2101,7 @@ int main(int argc, char** argv) {
             prefill_then_decode(argv[3]);
             native_cache(argv[3]);
             rollback(argv[3]);
+            short_context(argv[3]);
             early_reads(argv[3]);
         } else {
             removed_keys();

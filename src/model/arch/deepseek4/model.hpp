@@ -594,7 +594,7 @@ private:
         }
         move_rings(s, r, at.ring, at.alone);
         s.b.write(*s.arena, s.offsets[window_ids], s.indices, backend::size_mul(rows, reads) * sizeof(uint32_t));
-        const size_t picked = squeezed ? compressed(s, cos, sin) : 0;
+        const Picked picked = squeezed ? compressed(s, cos, sin) : Picked{};
         const float scale = float(1.0 / std::sqrt(double(D)));
         std::vector<backend::KVView> run;
         const auto attend_rows = [&](size_t first, size_t end) {
@@ -602,7 +602,7 @@ private:
             const backend::Slice out = s.slot(attn), qs = s.slot(query), ids = s.slot(window_ids), entries = s.slot(index_picks);
             s.b.sparse_attention_sink({out.buffer, out.offset + first * HD}, {qs.buffer, qs.offset + first * HD}, {r.kv, 0}, {ids.buffer, ids.offset + first * reads},
                                       w[attn_sinks].slice(), end - first, H, D, kv_rows, reads, scale, s.kv_layer, squeezed ? run.data() : nullptr,
-                                      squeezed ? run.size() : 0, picked ? backend::CSlice{entries.buffer, entries.offset + first * picked} : backend::CSlice{}, picked,
+                                      squeezed ? run.size() : 0, picked.listed ? backend::CSlice{entries.buffer, entries.offset + first * picked.k} : backend::CSlice{}, picked.k,
                                       s.native ? backend::ModelFormat::fp8_power : backend::ModelFormat::f32,
                                       s.native ? backend::ModelFormat::fp4_e4m3 : backend::ModelFormat::f32);
             run.clear();
@@ -638,9 +638,24 @@ private:
                    s.dtype);
     }
 
+    // The entries a compressed layer's rows read: k of them a row, listed in index_picks, or the first k in order when every visible entry is picked.
+    struct Picked {
+        size_t k = 0;
+        bool listed = false;
+    };
+
+    // Whether a pass whose rows see at most `visible` entries at `ratio` picks them all: at most the indexer's top-k, and on the candidates' ratio at most their blocks.
+    // topk_rows then writes each row's entries in ascending order before UINT32_MAX, so the indexer is skipped; every reader of its picks or candidates sits at its ratio.
+    bool picks_all(size_t visible, size_t ratio) const {
+        const Config& c = cfg_;
+        if (visible > size_t(c.index_top_k)) return false;
+        const bool candidates = c.candidate_source >= 0 && ratio == size_t(c.compress_ratios.at(size_t(c.candidate_source)));
+        return !candidates || (visible + size_t(c.candidate_block) - 1) / size_t(c.candidate_block) <= size_t(c.candidate_top_k);
+    }
+
     // A compressed layer's entries and picks before its attention reads them (model.py:729-764 at e5decd76), returning the picks each row reads.
     // A KV source stores each group its rows complete as one pooled row, the entry then its index key; an index source then scores the visible entries and keeps the best.
-    size_t compressed(const Step& s, backend::CSlice cos, backend::CSlice sin) const {
+    Picked compressed(const Step& s, backend::CSlice cos, backend::CSlice sin) const {
         const Config& c = cfg_;
         const Weight* w = s.w;
         const size_t D = size_t(c.head_dim), ID = size_t(c.index_head_dim), IH = size_t(c.index_heads), rd = size_t(c.rope_dim), W = size_t(c.window);
@@ -716,7 +731,8 @@ private:
         size_t visible = 0;
         for (size_t e = 0; e < s.n_views; ++e) visible = std::max(visible, (s.views[e].length + s.views[e].nq) / ratio);
         const size_t k = std::min(size_t(c.index_top_k), visible);
-        if (!(s.kind & runs_indexer) || !k) return k;
+        const Picked picked{k, k && !picks_all(visible, ratio)};
+        if (!(s.kind & runs_indexer) || !picked.listed) return picked;
         // The indexer (model.py:552-581): the query from the attention's low-rank row turned at each row's position in the index keys' FP4, and each head's weight scaled by ID^-1/2 heads^-1/2.
         const Weight &wq = w[index_q_b], &wp = w[index_proj];
         s.b.matmul(wq.operand(), s.slot(q_lora), s.slot(index_query), wq.nin, wq.nout, rows, s.runs, s.dtype);
@@ -735,7 +751,7 @@ private:
         const backend::CSlice lens{s.arena, s.offsets[index_lens] / sizeof(float) + at * rows};
         if (s.kind & picks_candidates) s.b.candidate_blocks(s.slot(candidate_ids), s.slot(index_scores), lens, rows, visible, block, blocks);
         s.b.topk_rows(s.slot(index_picks), s.slot(index_scores), lens, rows, visible, k, 0);
-        return k;
+        return picked;
     }
 
     Config cfg_;

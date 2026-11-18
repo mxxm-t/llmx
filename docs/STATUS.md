@@ -51,6 +51,27 @@
 - **Forced-path check:** `kv-selection` gains `identity_rows`: views of 1, 2, 3, 17, 19 and 20 rows at visible = whole - 1, whole and whole + 1, one- and two-view calls, with exact `llmx_kv_index_all` and `llmx_kv_index_scores` launch counts and the ids of the select path. It passes on the candidate (916908 checks, rocm:0, gfx906 build) and fails on main sources with the same test: `views of 1 rows seeing 2050 to 2050 tokens, 2051 the most a row takes whole: llmx_kv_index_all ran 0 times, not 1` (/opt/claude-work/revive2/qsa.log).
 - **Left:** it lands with the landing stack land-20261129, whose gates are recorded there (Landing stack land-20261129, below); Vulkan's select_kv is not checked for the same loop and is recorded as left work.
 - **Gotchas:** the identity arm must keep `pool_view` before it; later above-budget rows read the pooled history.
+## Short-context indexer skip (2026-11-18, DSDEV235 to DSDEV240, revived 2026-11-23 by REVIVE1, branch perf/ds4-short-skip on main bfb7f517; lands by fast-forward as one commit)
+
+- **Goal:** DeepSeek-V4.1's decode skips the indexer while every visible compressed entry would be picked anyway, with the indexer's bits; a step of the route to 50 tok/s decode on ten MI50s.
+- **Done:** while a pass's rows see at most top-k entries at a ratio, and at the candidate source's ratio at most its blocks' entries (`picks_all`), the index sources of that ratio skip the indexer's launches (about seven an index layer each step) and the attention takes no entry ids (`Picked::listed` false).
+  `sparse_attention_sink` without entry ids names ids 0 to entry_k - 1 of every row, those a row cannot see yet naming nothing, on the CPU, the GPU core and Vulkan (`sparse_softmax.comp` views 2).
+  `ds4::check_sparse_implicit` holds that call to the same call over `topk_rows`' picks bit for bit on each backend, and `arch-deepseek4`'s short_context counts the `topk_rows` calls and requires a sequence's rows alone to equal its rows beside a longer one.
+- **Measured, ten MI50s, DeepSeek-V4.1-Flash MXFP4, ROCm int8** (`bench --p 128 --n 128 --r 5`, `--lookup-storage file --ubatch 256`, default clocks, so every step is short context; /opt/claude-work/dsdev236/ten41): the stack below (`llmx 0.1.0+g11ae264bda1f numerics c4673174ca6c120b`) against this change (`llmx 0.1.0+g11ae264bda1f.dirty numerics 8e643e912b1573bc`, built at 01:03 from the d7ce972a tree committed at 01:01, no source newer than the binary).
+  The 10 cells ran interleaved in one ten-card hold after a host gate; hostwait marked no cell contended (0 to 11 ms of run-queue wait).
+
+| tg128 (tok/s) | run 1 | run 2 | run 3 | mean | change |
+|---|---|---|---|---|---|
+| 5x2, stack | 34.72 | 32.05 | 34.54 | 33.77 | |
+| 5x2, skip | 34.88 | 35.39 | 35.07 | 35.11 | +4.0% |
+| layer split, stack | 28.49 | 28.10 | | 28.30 | |
+| layer split, skip | 29.05 | 28.85 | | 28.95 | +2.3% |
+
+Round by round the skip gains +0.5% and +1.5% at 5x2 in rounds 1 and 3; the stack's round 2 cell (32.05, uncontended, kept) is the low one that lifts the mean to +4.0%, so +0.5% to +1.5% is the plainer reading at 5x2, and +2.0% and +2.7% on the layer split.
+Greedy ids of 48 tokens after a 2649-token prompt equal main's and the stack's on the layer split and 5x2 (md5 of the ids line 4b91cd6a in all six cells, /opt/claude-work/dsdev240/tenid2/progress).
+- **Gates:** on d7ce972a, `arch-deepseek4` golden 788 and `--gguf` fixture 7199 checks passed, `deepseek4-ops` 3442080 checks, `backend-rocm` deepseek4 PASS on one MI50, `backend-vulkan --deepseek4` on one MI50 (it names the device, `AMD Instinct MI60 / MI50 (RADV VEGA20)`) 56068682 values, 16220160 of them sparse attention values without entry ids equal to the listed picks (/opt/claude-work/dsdev240/vc/vk.txt), the CUDA build and its 4 CTest tests (/opt/claude-work/dsdev235/t3, /opt/claude-work/dsdev236/cu41); `dead-code` and `docs` PASS (Linux, docs 0 findings).
+- **Left:** rebased onto main bfb7f517 without its two superseded parents, so the timings above are from the old stack and are not main's; to land: the focused CPU checks (`arch-deepseek4`, `deepseek4-ops`) and `backend-rocm` and `backend-vulkan --deepseek4` on the rebased head, greedy identity to main across the top-k crossing and at 16k raw and chat, byte identity against main on the CPU and a device, the Radeon VII check (it edits `sparse_softmax.comp`), one timing round against main with both arms built alike, and the hosted run; check `picks_all` for DSpark's drafted rows and after a rollback, and the image rows of the -vl path; README unchanged (kernel speed only).
+- **Gotchas:** the skip ends at the first pass that sees more than top-k entries at a ratio, so long-context decode keeps every indexer launch.
 
 ## A chat reply read again with the reasoning its client sends back
 

@@ -1621,7 +1621,7 @@ public:
         if (size_add(k, entry_k) > 1024) throw std::runtime_error(Api::prefix + "sparse attention names at most 1024 rows a row");
         if (!rows) return;
         const size_t kw = format_words(kv_format, dim), ew = format_words(entry_format, dim);
-        const size_t qn = size_mul(rows, size_mul(heads, dim)), kvn = size_mul(kv_rows, kw), idn = size_mul(rows, k), en = size_mul(rows, entry_k);
+        const size_t qn = size_mul(rows, size_mul(heads, dim)), kvn = size_mul(kv_rows, kw), idn = size_mul(rows, k), en = entry_ids.buffer ? size_mul(rows, entry_k) : 0;
         for (const auto& [s, count] : {std::pair<CSlice, size_t>{out, qn}, {q, qn}, {kv, kvn}, {ids, idn}, {sink, heads}}) floats(s, count);
         if (en) floats(entry_ids, en);
         if (overlaps(out, qn, q, qn) || overlaps(out, qn, kv, kvn) || overlaps(out, qn, ids, idn) || overlaps(out, qn, sink, heads) || (en && overlaps(out, qn, entry_ids, en)))

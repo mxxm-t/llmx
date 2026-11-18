@@ -485,7 +485,7 @@ inline void VulkanBackend::sparse_attention_sink(Slice out, CSlice q, CSlice kv,
     if (size_add(k, entry_k) > 1024) throw std::runtime_error("vulkan: sparse attention names at most 1024 rows a row");
     if (!rows) return;
     const size_t kw = format_words(kv_format, dim), ew = format_words(entry_format, dim);
-    const size_t qn = size_mul(rows, size_mul(heads, dim)), kvn = size_mul(kv_rows, kw), idn = size_mul(rows, k), en = size_mul(rows, entry_k);
+    const size_t qn = size_mul(rows, size_mul(heads, dim)), kvn = size_mul(kv_rows, kw), idn = size_mul(rows, k), en = entry_ids.buffer ? size_mul(rows, entry_k) : 0;
     if (floats_from(out) < qn || floats_from(q) < qn || floats_from(kv) < kvn || floats_from(ids) < idn || floats_from(sink) < heads || (en && floats_from(entry_ids) < en))
         throw std::runtime_error("vulkan: sparse attention operand outside its allocation");
     if (overlaps(CSlice(out), qn, q, qn) || overlaps(CSlice(out), qn, kv, kvn) || overlaps(CSlice(out), qn, ids, idn) || overlaps(CSlice(out), qn, sink, heads) ||
@@ -513,7 +513,7 @@ inline void VulkanBackend::sparse_attention_sink(Slice out, CSlice q, CSlice kv,
         const size_t n = std::min(chunk, rows - first);
         const struct { uint32_t rows, heads, dim, k, entry_k; float scale; uint32_t views, tokens, bt, block_floats, rows_floats, width, kv_rows, kv_format, entry_format, kv_words,
                        first_row, den_at, kept_at, counts_at; }
-            pc{u32(rows), u32(heads), u32(dim), u32(k), u32(entry_k), scale, n_views ? 1u : 0u, pooled.tokens, pooled.plane.bt, pooled.plane.block_floats,
+            pc{u32(rows), u32(heads), u32(dim), u32(k), u32(entry_k), scale, n_views ? en ? 1u : 2u : 0u, pooled.tokens, pooled.plane.bt, pooled.plane.block_floats,
                pooled.plane.rows_floats, pooled.width, u32(kv_rows), uint32_t(kv_format), uint32_t(entry_format), u32(kw), u32(first), u32(den_at), u32(kept_at), u32(counts_at)};
         dispatch(K_SPARSE_SOFTMAX, {sc, bind(q), bind(kv), bind(ids), bind(sink), aux, tab, en ? bind(entry_ids) : bind(ids)}, &pc, sizeof(pc), u32(size_mul(n, heads)));
         const struct { uint32_t heads, dim, named, kv_format, entry_format, first_row, den_at, kept_at, counts_at; }

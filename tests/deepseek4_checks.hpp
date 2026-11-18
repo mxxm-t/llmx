@@ -896,6 +896,84 @@ size_t check_taps(Pair& p, const Exact& exact) {
     return meet(exact, "mix_rows", r.first, r.second, 1e-6, "mix_rows of the DSpark tap differs beyond 1e-6");
 }
 
+// sparse_attention_sink without entry ids, as a pass whose rows see at most the indexer's top-k entries calls it, against the picks topk_rows writes at k = visible on the same backend.
+// Bit for bit on each backend at 1 to 4 rows, 7 and 8 rows each side of the wide kernels and 140 rows, rows of one call seeing different counts, and the device held to the CPU as the listed form is.
+size_t check_sparse_implicit(Pair& p, const Exact& exact) {
+    using backend::ModelFormat;
+    struct Case {
+        size_t ratio, length, rows;
+        ModelFormat kv_format, entry_format;
+    };
+    const Case cases[] = {{1, 9, 1, ModelFormat::fp8_power, ModelFormat::fp4_e4m3},   {1, 9, 2, ModelFormat::fp8_power, ModelFormat::fp4_e4m3},
+                          {2, 37, 3, ModelFormat::fp8_power, ModelFormat::fp4_e4m3},  {2, 37, 4, ModelFormat::f32, ModelFormat::f32},
+                          {1, 300, 7, ModelFormat::fp8_power, ModelFormat::fp4_e4m3}, {2, 1000, 8, ModelFormat::fp8_power, ModelFormat::fp4_e4m3},
+                          {1, 200, 140, ModelFormat::fp8_power, ModelFormat::fp4_e4m3}};
+    const size_t heads = 64, dim = 512, k = 128, kv_rows = 256;
+    size_t values = 0;
+    uint32_t seed = 707;
+    for (const Case& c : cases) {
+        const size_t kw = backend::format_words(c.kv_format, dim), ew = backend::format_words(c.entry_format, dim), positions = c.length + c.rows;
+        const size_t groups = positions / c.ratio, entry_k = groups;
+        const std::string at = std::to_string(c.rows) + " rows at ratio " + std::to_string(c.ratio) + " after " + std::to_string(c.length) + " positions";
+        const auto rows_of = [&](ModelFormat f, size_t n, size_t words) {
+            const std::vector<float> x = uniform(n * dim, seed++, -2.0f, 2.0f);
+            Pair::Out o = p.out(n * words);
+            if (f == ModelFormat::f32) {
+                p.cpu.write(*o.c, 0, x.data(), x.size() * 4);
+                p.dev.write(*o.v, 0, x.data(), x.size() * 4);
+            } else {
+                Pair::In xi = held(p, x);
+                p.cpu.model_format_pack(o.cs(), words, xi.cs(), n, dim, f);
+                p.dev.model_format_pack(o.vs(), words, xi.vs(), n, dim, f);
+            }
+            return o;
+        };
+        Pair::Out kv = rows_of(c.kv_format, kv_rows, kw), pooled = rows_of(c.entry_format, groups, ew);
+        auto cs = p.cpu.kv_alloc(1, 0, 0, positions, backend::KVType::f32, backend::KVType::f32, {0}, {{c.ratio, ew}});
+        auto vs = p.dev.kv_alloc(1, 0, 0, positions, backend::KVType::f32, backend::KVType::f32, {0}, {{c.ratio, ew}});
+        std::vector<int32_t> tables[2];
+        for (int dev = 0; dev < 2; ++dev) {
+            const size_t bt = (dev ? p.dev : static_cast<backend::Backend&>(p.cpu)).kv_layout().block_tokens;
+            for (size_t i = 0, nb = (positions + bt - 1) / bt; i < nb; ++i) tables[dev].push_back(int32_t(nb - 1 - i));
+        }
+        const auto view = [&](bool dev, size_t from, size_t nq) { return backend::KVView{dev ? vs.get() : cs.get(), tables[dev].data(), tables[dev].size(), from, nq}; };
+        const backend::KVView cw = view(false, 0, positions), vw = view(true, 0, positions), cr = view(false, c.length, c.rows), vr = view(true, c.length, c.rows);
+        p.cpu.pool_write(0, &cw, 1, pooled.cs());
+        p.dev.pool_write(0, &vw, 1, pooled.vs());
+        // The window's ids as the model forms them, and each row's picks from topk_rows over its own length at k = visible, which list 0 to the length then UINT32_MAX.
+        std::vector<uint32_t> ids(c.rows * k, kNone), lens(c.rows);
+        for (size_t r = 0; r < c.rows; ++r) {
+            lens[r] = uint32_t((c.length + r + 1) / c.ratio);
+            for (size_t t = 0; t < k && t <= c.length + r; ++t) ids[r * k + t] = uint32_t((c.length + r - t) % kv_rows);
+        }
+        Pair::In si_scores = held(p, uniform(c.rows * groups, seed++)), li = held(p, as_floats(lens));
+        Pair::Out picks = p.out(c.rows * entry_k);
+        p.cpu.topk_rows(picks.cs(), si_scores.cs(), li.cs(), c.rows, groups, entry_k, 0);
+        p.dev.topk_rows(picks.vs(), si_scores.vs(), li.vs(), c.rows, groups, entry_k, 0);
+        const auto listed = p.results(picks);
+        for (size_t r = 0; r < c.rows; ++r)
+            for (size_t t = 0; t < entry_k; ++t) {
+                const uint32_t want = t < lens[r] ? uint32_t(t) : kNone;
+                uint32_t got[2];
+                std::memcpy(&got[0], &listed.first[r * entry_k + t], 4);
+                std::memcpy(&got[1], &listed.second[r * entry_k + t], 4);
+                require(got[0] == want && got[1] == want, ("topk_rows at k = visible lists each row's entries in order then none at " + at).c_str());
+            }
+        Pair::In qi = held(p, uniform(c.rows * heads * dim, seed++)), ii = held(p, as_floats(ids)), si = held(p, uniform(heads, seed++, -1.0f, 1.0f));
+        const float scale = 1.0f / std::sqrt(float(dim));
+        Pair::Out a = p.out(c.rows * heads * dim), b = p.out(c.rows * heads * dim);
+        p.cpu.sparse_attention_sink(a.cs(), qi.cs(), kv.cs(), ii.cs(), si.cs(), c.rows, heads, dim, kv_rows, k, scale, 0, &cr, 1, picks.cs(), entry_k, c.kv_format, c.entry_format);
+        p.dev.sparse_attention_sink(a.vs(), qi.vs(), kv.vs(), ii.vs(), si.vs(), c.rows, heads, dim, kv_rows, k, scale, 0, &vr, 1, picks.vs(), entry_k, c.kv_format, c.entry_format);
+        p.cpu.sparse_attention_sink(b.cs(), qi.cs(), kv.cs(), ii.cs(), si.cs(), c.rows, heads, dim, kv_rows, k, scale, 0, &cr, 1, {}, entry_k, c.kv_format, c.entry_format);
+        p.dev.sparse_attention_sink(b.vs(), qi.vs(), kv.vs(), ii.vs(), si.vs(), c.rows, heads, dim, kv_rows, k, scale, 0, &vr, 1, {}, entry_k, c.kv_format, c.entry_format);
+        const auto ra = p.results(a), rb = p.results(b);
+        values += same(ra.first, rb.first, "sparse_attention_sink without entry ids differs from its listed picks on the CPU at " + at);
+        values += same(ra.second, rb.second, "sparse_attention_sink without entry ids differs from its listed picks on the device at " + at);
+        values += meet(exact, "sparse_attention_sink", rb.first, rb.second, 1e-5, "sparse_attention_sink without entry ids differs beyond 1e-5 at " + at);
+    }
+    return values;
+}
+
 // Every DeepSeek-V4.1 op against the CPU, the ops named in `exact` bit for bit; a device whose backend does not implement the format op is reported and passed over.
 size_t check_ops(Pair& p, const Exact& exact = {}) {
     size_t values = check_mhc(p, exact);
@@ -913,7 +991,12 @@ size_t check_ops(Pair& p, const Exact& exact = {}) {
     values += check_pooled(p, exact);
     values += check_index_tile(p, exact, 32);
     if (p.dev.implements(backend::Op::model_format_qdq) && p.dev.implements(backend::Op::model_format_pack)) values += check_index_tile(p, exact, 128);
-    if (p.dev.implements(backend::Op::model_format_pack)) values += check_sparse_shapes(p, exact);
+    if (p.dev.implements(backend::Op::model_format_pack)) {
+        values += check_sparse_shapes(p, exact);
+        const size_t implicit = check_sparse_implicit(p, exact);
+        std::printf("deepseek4: %zu sparse attention values without entry ids equal to the listed picks\n", implicit);
+        values += implicit;
+    }
     values += check_rows_alone(p);
     values += check_taps(p, exact);
     return values;

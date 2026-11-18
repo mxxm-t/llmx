@@ -5697,6 +5697,7 @@ int main(int argc, char** argv) {
         }
         if (deepseek_only) {
             Pair p(*b);
+            std::cout << "backend-vulkan: " << backend::vulkan_device_name(*b) << "\n";
             std::cout << "backend-vulkan: " << ds4::check_ops(p) << " deepseek4 op values against the CPU\n";
             return 0;
         }

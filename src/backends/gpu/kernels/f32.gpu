@@ -4193,7 +4193,7 @@ __device__ inline void sparse_scores_few(float* pt, float* tmax, const float** k
 #pragma unroll
     for (unsigned i = 0; i < kPer; ++i) {
         const unsigned t = t0 + i;
-        jj[i] = i < per && t < named ? (t < k ? ids[(unsigned long long)r * k + t] : entries[(unsigned long long)r * entry_k + t - k]) : ~0u;
+        jj[i] = i < per && t < named ? (t < k ? ids[(unsigned long long)r * k + t] : entries ? entries[(unsigned long long)r * entry_k + t - k] : t - k) : ~0u;
     }
     const float* mine[kPer];
     unsigned n = 0, nk = 0;
@@ -4451,7 +4451,7 @@ __device__ inline void sparse_scores_tile(float* pt, float* tmax, const float** 
         const unsigned t = t0 + i;
         const float* row = nullptr;
         if (t < named) {
-            const unsigned j = t < k ? ids[(unsigned long long)r * k + t] : entries[(unsigned long long)r * entry_k + t - k];
+            const unsigned j = t < k ? ids[(unsigned long long)r * k + t] : entries ? entries[(unsigned long long)r * entry_k + t - k] : t - k;
             if (t < k && j < kv_rows) row = kv + (unsigned long long)j * kv_words;
             else if (t >= k && j < visible) row = aux + pooled_at(rows, r, j, tokens, bt, block_floats, rows_floats, width);
         }

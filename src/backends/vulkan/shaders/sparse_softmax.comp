@@ -61,7 +61,7 @@ void main() {
     // A thread a named row t, its dot where the row exists.
     float peak = -1e30;
     for (uint t = lid; t < named; t += 256u) {
-        uint j = t < p.k ? ids[r * p.k + t] : entry_ids[r * p.entry_k + t - p.k];
+        uint j = t < p.k ? ids[r * p.k + t] : p.views == 2u ? t - p.k : entry_ids[r * p.entry_k + t - p.k];
         uint where = NONE;
         bool pooled = false;
         if (t < p.k && j < p.kv_rows) where = j * p.kv_words_n;

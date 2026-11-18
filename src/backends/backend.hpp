@@ -1196,7 +1196,7 @@ public:
     }
 
     // Attention of each query head over the kv rows its row's k U32 ids name, UINT32_MAX naming none, one row of dim values in kv_format serving as K and V (docs/DEEPSEEK4.md, section 4.2).
-    // With views, each row's entry_k entry ids also name the first dim values, in entry_format, of its view's pooled rows of `layer`, below (p + 1) / tokens, under one softmax with a sink.
+    // With views, each row's entry_k entry ids, or without entry_ids the ids 0 to entry_k - 1, also name the first dim values, in entry_format, of its view's pooled rows of `layer`, below (p + 1) / tokens, under one softmax with a sink.
     virtual void sparse_attention_sink(Slice /*out*/, CSlice /*q*/, CSlice /*kv*/, CSlice /*ids*/, CSlice /*sink*/, size_t /*rows*/, size_t /*heads*/,
                                        size_t /*dim*/, size_t /*kv_rows*/, size_t /*k*/, float /*scale*/, size_t /*layer*/, const KVView* /*views*/,
                                        size_t /*n_views*/, CSlice /*entry_ids*/, size_t /*entry_k*/, ModelFormat /*kv_format*/, ModelFormat /*entry_format*/) {

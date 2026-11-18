@@ -64,15 +64,15 @@ This is the current model-weight support matrix. The [storage metadata page](doc
 | `Q6_K` | Supported | Supported | Supported | No |
 | `Q8_0` | Supported | Supported | Supported | `Q8_0` |
 | `IQ1_S`, `IQ1_M` | Supported | Supported | Planned | No |
-| `IQ2_XXS`, `IQ2_XS`, `IQ2_S` | Supported | Supported | Planned | No |
-| `IQ3_XXS`, `IQ3_S` | Supported | Supported | Planned | No |
+| `IQ2_XXS`, `IQ2_XS`, `IQ2_S` | Supported | Supported | Supported | No |
+| `IQ3_XXS`, `IQ3_S` | Supported | Supported | Supported | No |
 | `IQ4_NL`, `IQ4_XS` | Supported | Supported | Supported | No |
 | `TQ1_0`, `TQ2_0` | Supported | Supported | Planned | No |
 | `F8_E4M3` | Supported | Supported | Planned | No |
 
 The current Vulkan `MXFP4` kernels require support for preserving small and special floating-point values and for double-precision intermediate calculations. A tensor assigned to a device that cannot process its format, such as a format the ROCm column does not list, is rejected; llmx does not move it to the CPU automatically.
 
-`NVFP4` is read-only and uses software decoding. Vulkan may use F16-rounded tile inputs on capable devices and falls back to F32 inputs otherwise. ROCm runs `NVFP4`, `Q2_K`, `Q3_K` and `IQ4_XS` at exact F32 for every `--dtype`.
+`NVFP4` is read-only and uses software decoding. Vulkan may use F16-rounded tile inputs on capable devices and falls back to F32 inputs otherwise. ROCm runs `NVFP4`, `Q2_K`, `Q3_K`, `IQ4_XS` and the `IQ2` and `IQ3` types at exact F32 for every `--dtype`.
 
 GGUF metadata can recognize layouts without an inference decoder; `info`, `tokenize` and `detokenize` accept those known layouts. `Q8_1` and `Q8_K` are auxiliary formats. See the [storage type list](docs/src/quant-types.md); metadata recognition alone does not make a weight executable.
 

@@ -418,7 +418,7 @@ machine without the ROCm runtime or the device, says so the same way.
 `--device cuda:N` runs it on CUDA device `N`, the driver's ordinal, in a Linux
 build configured with `-DLLMX_HAS_BACKEND_CUDA=ON` (`docs/CUDA.md`), which is in
 development: the suite's synthetic dense qwen3 models ran on an RTX 3060 at `--dtype f32` within the HF bounds, and no released model, other dtype or qwen35 model has run on CUDA yet. The
-ROCm backend reads F32, F16, BF16, Q8_0, Q4_0, Q4_1, Q4_K, Q5_K, Q6_K, Q5_0, Q5_1, IQ4_NL, MXFP4, NVFP4, Q2_K, Q3_K and IQ4_XS weights, and every other weight type is refused as the model loads. `generate`, `chat`, `logits`, `perplexity`,
+ROCm backend reads F32, F16, BF16, Q8_0, Q4_0, Q4_1, Q4_K, Q5_K, Q6_K, Q5_0, Q5_1, IQ4_NL, MXFP4, NVFP4, Q2_K, Q3_K, IQ4_XS, IQ2_XXS, IQ2_XS, IQ2_S, IQ3_XXS and IQ3_S weights, and every other weight type is refused as the model loads. `generate`, `chat`, `logits`, `perplexity`,
 `serve` and `bench` take the flag. A model whose layers need an op the
 device's backend lacks is refused as it loads, naming the op; every op the
 `qwen3` and `qwen35` files need runs on a Vulkan device, and every op the

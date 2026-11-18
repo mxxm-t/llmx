@@ -5,6 +5,11 @@
 #include "backends/gpu/kernels/port.h"
 
 #include "quant/fp4.hpp"
+#include "quant/iq2_s.hpp"
+#include "quant/iq2_xs.hpp"
+#include "quant/iq2_xxs.hpp"
+#include "quant/iq3_s.hpp"
+#include "quant/iq3_xxs.hpp"
 #include "quant/types.hpp"
 
 namespace rq {
@@ -147,6 +152,73 @@ struct IQ4_XS {
         const unsigned char* qs = b + 8 + 16 * g;
         const int q = l < 16 ? qs[l] & 15 : qs[l - 16] >> 4;
         return half_at(b) * (float)sc * (float)GPU_TABLE(quant::IQ4_NL_VALUES)[q];
+    }
+};
+
+// Seven stored sign bits and an eighth that gives the byte even parity, as quant::iq_even_parity_signs sets it.
+__device__ inline unsigned parity_signs(unsigned code) { return code | ((__popc(code) & 1u) << 7); }
+
+// Eight 32-value groups of four grid bytes and a word of four sign codes and a scale nibble (quant::dequantize_row_iq2_xxs).
+struct IQ2_XXS {
+    static constexpr unsigned values = quant::IQ2_XXS_BLOCK, bytes = quant::IQ2_XXS_TYPESIZE;
+    __device__ static float value(const unsigned char* b, int j) {
+        const int v = (j >> 3) & 3, lane = j & 7;
+        const unsigned char* f = b + 2 + 8 * (j >> 5);
+        const unsigned word = f[4] | (f[5] << 8) | (f[6] << 16) | ((unsigned)f[7] << 24);
+        const float scale = half_at(b) * (0.5f + (float)(word >> 28)) * 0.25f;
+        const float value = scale * (float)((GPU_TABLE(quant::IQ2_XXS_GRID)[f[v]] >> (8 * lane)) & 255u);
+        return (parity_signs((word >> (7 * v)) & 127u) >> lane) & 1u ? -value : value;
+    }
+};
+
+// 16-bit words of a 9-bit grid index and a 7-bit sign code, a scale nibble each 16 values (quant::dequantize_row_iq2_xs).
+struct IQ2_XS {
+    static constexpr unsigned values = quant::IQ2_XS_BLOCK, bytes = quant::IQ2_XS_TYPESIZE;
+    __device__ static float value(const unsigned char* b, int j) {
+        const int g = j >> 5, v = (j >> 3) & 3, lane = j & 7, at = 2 + 8 * g + 2 * v;
+        const unsigned word = b[at] | (b[at + 1] << 8);
+        const float scale = half_at(b) * (0.5f + (float)((b[66 + g] >> (4 * (v / 2))) & 15u)) * 0.25f;
+        const float value = scale * (float)((GPU_TABLE(quant::IQ2_XS_GRID)[word & 511u] >> (8 * lane)) & 255u);
+        return (parity_signs(word >> 9) >> lane) & 1u ? -value : value;
+    }
+};
+
+// A 10-bit grid index each eight values, a sign bit each value, an odd multiplier over eight each 16 values (quant::dequantize_row_iq2_s).
+struct IQ2_S {
+    static constexpr unsigned values = quant::IQ2_S_BLOCK, bytes = quant::IQ2_S_TYPESIZE;
+    __device__ static float value(const unsigned char* b, int j) {
+        const int g = j >> 3, lane = j & 7;
+        const unsigned index = b[2 + g] | (((b[66 + g / 4] >> (2 * (g % 4))) & 3u) << 8);
+        const unsigned scale = (b[74 + g / 4] >> (4 * ((g / 2) % 2))) & 15u;
+        const float scaled = half_at(b) * (float)(1 + 2 * scale) * 0.125f;
+        const float value = scaled * (float)((GPU_TABLE(quant::IQ2_S_GRID)[index] >> (8 * lane)) & 255u);
+        return (b[34 + g] >> lane) & 1 ? -value : value;
+    }
+};
+
+// Eight 32-value groups of eight grid bytes, four values each, under a word of four sign codes and an odd multiplier over four (quant::dequantize_row_iq3_xxs).
+struct IQ3_XXS {
+    static constexpr unsigned values = quant::IQ3_XXS_BLOCK, bytes = quant::IQ3_XXS_TYPESIZE;
+    __device__ static float value(const unsigned char* b, int j) {
+        const int g = j >> 5, v = (j >> 2) & 7, lane = j & 3;
+        const unsigned char* f = b + 66 + 4 * g;
+        const unsigned word = f[0] | (f[1] << 8) | (f[2] << 16) | ((unsigned)f[3] << 24);
+        const float scaled = half_at(b) * (float)(1 + 2 * (word >> 28)) * 0.25f;
+        const float value = scaled * (float)((GPU_TABLE(quant::IQ3_XXS_GRID)[b[2 + 8 * g + v]] >> (8 * lane)) & 255u);
+        return (parity_signs((word >> (7 * (v / 2))) & 127u) >> (4 * (v % 2) + lane)) & 1u ? -value : value;
+    }
+};
+
+// A 9-bit grid index each four values, a sign bit each value, an odd multiplier each 32 values (quant::dequantize_row_iq3_s).
+struct IQ3_S {
+    static constexpr unsigned values = quant::IQ3_S_BLOCK, bytes = quant::IQ3_S_TYPESIZE;
+    __device__ static float value(const unsigned char* b, int j) {
+        const int g = j >> 2, lane = j & 3;
+        const unsigned index = b[2 + g] | (((b[66 + g / 8] >> (g % 8)) & 1u) << 8);
+        const unsigned scale = (b[106 + g / 16] >> (4 * ((g / 8) % 2))) & 15u;
+        const float scaled = half_at(b) * (float)(1 + 2 * scale);
+        const float value = scaled * (float)((GPU_TABLE(quant::IQ3_S_GRID)[index] >> (8 * lane)) & 255u);
+        return (b[74 + j / 8] >> (j % 8)) & 1 ? -value : value;
     }
 };
 

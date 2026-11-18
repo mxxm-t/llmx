@@ -487,7 +487,7 @@ try {
   await evaluate("localStorage.removeItem('llmx-chat')");
   await reloadDocument();
   await wait("window.ChatShell.config && !document.querySelector('[data-action=new]').disabled", 'compose fixture cleaned');
-  const imageLink = '![Lake](https://example.invalid/photo.jpg)';
+  const imageLink = '![Lake](https://example.invalid/photo_(lake).jpg)';
   const imageLinkSource = [imageLink + ' ![](https://example.invalid/other.jpg) [Source](https://example.invalid/source)',
     '`' + imageLink + '`', '```markdown\n' + imageLink + '\n```', '![Unsafe](javascript:alert%281%29)'].join('\n\n');
   const imageLinkShape = await evaluate(`(async () => {
@@ -503,7 +503,7 @@ try {
     } finally { rendered.remove(); }
   })()`);
   assert.deepEqual(imageLinkShape, {text:'Lake Open image Source', links:[
-    ['Lake','https://example.invalid/photo.jpg','_blank','noopener noreferrer'],
+    ['Lake','https://example.invalid/photo_(lake).jpg','_blank','noopener noreferrer'],
     ['Open image','https://example.invalid/other.jpg','_blank','noopener noreferrer'],
     ['Source','https://example.invalid/source','_blank','noopener noreferrer']],
     images:0, code:[imageLink,imageLink], unsafe:0}, 'Markdown image links lost labels, changed code, or created unsafe markup');

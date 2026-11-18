@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Image search links in Chat replies (2026-11-18)
+
+- **Goal:** Provide a readable link to a Markdown image in a reply, including images with no description.
+- **Done:** The inline renderer shows the description or Open image as a link. HTTP and HTTPS destinations open in a new tab. No image is loaded while a reply is displayed.
+- **Checks:** Main displayed a stray exclamation mark and printed empty-description image markup literally. Chrome checks link names, parentheses in destinations, literal code, inert unsafe URLs and network activity. The change lands by fast-forward after the combined browser, docs, dead-code and hosted companion checks pass.
+- **Gotchas:** Preserve ordinary source links, literal code and the companion's existing restrictions on remote resources.
+
 ## Fenced code in Chat replies (2026-11-18)
 
 - **Goal:** Preserve the full source of chat code examples when their contents include a shorter fence or text after a fence marker.

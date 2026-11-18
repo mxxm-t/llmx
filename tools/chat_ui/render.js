@@ -9,7 +9,7 @@ window.ChatRender = (() => {
     return el;
   }
   function inline(text, target) {
-    const re = /(`[^`\n]+`|\*\*[^*\n]+\*\*|\*[^*\n]+\*|\[[^\]\n]+\]\([^\s)]+\))/g;
+    const re = /`[^`\n]+`|\*\*[^*\n]+\*\*|\*[^*\n]+\*|(!?)\[([^\]\n]*)\]\(((?:[^\s()]|\([^\s()]*\))+)\)/g;
     let pos = 0;
     for (const match of text.matchAll(re)) {
       target.append(document.createTextNode(text.slice(pos, match.index)));
@@ -18,13 +18,19 @@ window.ChatRender = (() => {
       else if (token.startsWith('**')) target.append(node('strong', '', token.slice(2, -2)));
       else if (token[0] === '*') target.append(node('em', '', token.slice(1, -1)));
       else {
-        const parts = token.match(/^\[([^\]]+)\]\((.*)\)$/);
-        const a = node('a', '', parts[1]);
-        try {
-          const url = new URL(parts[2], location.href);
-          if (['http:', 'https:', 'mailto:'].includes(url.protocol)) { a.href = url.href; a.target = '_blank'; a.rel = 'noopener noreferrer'; }
-        } catch (_) { /* Invalid links remain plain text. */ }
-        target.append(a);
+        const [, image, label, destination] = match;
+        let content = document.createTextNode(image ? label.trim() || 'Open image' : label || token);
+        if (image || label) {
+          try {
+            const url = new URL(destination, location.href);
+            if (url.protocol === 'http:' || url.protocol === 'https:' || (!image && url.protocol === 'mailto:')) {
+              const a = node('a');
+              a.href = url.href; a.target = '_blank'; a.rel = 'noopener noreferrer';
+              a.append(content); content = a;
+            }
+          } catch (_) { /* Keep the text for invalid links. */ }
+        }
+        target.append(content);
       }
       pos = match.index + token.length;
     }

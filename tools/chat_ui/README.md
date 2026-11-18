@@ -188,7 +188,9 @@ keyboard focus keeps its visible outline.
   You can open or close it while the reply is being generated. Reloading
   reconnects to the same reply without cancelling or restarting generation.
   The renderer supports basic Markdown, nested lists with preserved starting
-  numbers, code blocks, tables and safe links. Indented paragraphs and code stay
+  numbers, code blocks, tables and safe links. An image in a Markdown reply
+  appears as a link with its description, or **Open image** if empty. Open the
+  link to view the image in a new tab. Indented paragraphs and code stay
   inside their list item. List nesting is bounded at eight levels; deeper text
   remains visible as literal content. Unchanged leading Markdown blocks remain
   connected during streaming, preserving their selection and code controls.

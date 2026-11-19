@@ -156,11 +156,17 @@ struct GGUFModel {
     }
     // Where `bytes` at `offset` among `offsets` lie in their file: a composite's part, found by offset, since a part has no index of its own.
     format::FileSpan part_span(size_t offset, size_t bytes) const {
-        auto it = std::upper_bound(segments.begin(), segments.end(), offset, [](size_t o, const Segment& s) { return o < s.base; });
-        if (it == segments.begin() || offset - (it - 1)->base > (it - 1)->size || bytes > (it - 1)->size - (offset - (it - 1)->base))
-            throw std::logic_error("GGUF part outside the payload");
-        --it;
-        return {it->path, uint64_t(it->start + (offset - it->base)), bytes};
+        const Segment& s = part_segment(offset, bytes);
+        return {s.path, uint64_t(s.start + (offset - s.base)), bytes};
+    }
+    // A composite's part's bytes where its file is mapped, or null while it is not.
+    const uint8_t* part_data(size_t offset, size_t bytes) const {
+        const Segment& s = part_segment(offset, bytes);
+        return s.file ? s.file->data() + s.start + (offset - s.base) : nullptr;
+    }
+    // A part read for the last time: its mapped pages leave the host's working set first (MappedFile::drop), and nothing happens while its file is not mapped.
+    void drop_part(size_t offset, size_t bytes) const {
+        if (const uint8_t* p = part_data(offset, bytes)) part_segment(offset, bytes).file->drop(p, bytes);
     }
     // Drop the tensors `drop` (ascending) from the table; each file keeps the tensors it still holds, and a file left with none and holding no composite's part is no longer a segment.
     void erase_tensors(const std::vector<size_t>& drop) {
@@ -216,6 +222,13 @@ private:
     const Segment& segment_of(size_t i) const {
         auto it = std::upper_bound(segments.begin(), segments.end(), i, [](size_t t, const Segment& s) { return t < s.first; });
         return *(it == segments.begin() ? it : it - 1);
+    }
+    // The segment holding `bytes` at `offset` among `offsets`, found by offset, since a part has no index of its own.
+    const Segment& part_segment(size_t offset, size_t bytes) const {
+        auto it = std::upper_bound(segments.begin(), segments.end(), offset, [](size_t o, const Segment& s) { return o < s.base; });
+        if (it == segments.begin() || offset - (it - 1)->base > (it - 1)->size || bytes > (it - 1)->size - (offset - (it - 1)->base))
+            throw std::logic_error("GGUF part outside the payload");
+        return *(it - 1);
     }
 };
 

@@ -267,6 +267,27 @@ Follow-ups, each on a branch of its own later: a test change that holds the writ
 The stack's own docs were reviewed by its branches and by LAND84, and the docs component, its readme check included, passes on the head.
 README: the stack's branches changed their own rows, and the landing adds no README change.
 The head lands by fast-forward of gitea main and GitHub main.
+## A host's directory tensors made side by side after the build (2026-11-20, VLLM27, branch perf/load-transform-parallel on land/20261119 cc1e880f3; formats/qwen35-dirs stacks on it)
+
+- **Goal:** a Hugging Face directory's composites (tensors made at load, `format/hf_quant.hpp`, and on formats/qwen35-dirs `hf::transform`) that a host reads in place cost about what the GGUF's construct does: Qwen3.5-4B's directory took 5.4 to 6.7 s of CPU construct against 0.17 s for a GGUF, its 2 GB of moved V-side linears made one at a time inside the build, each into a zero-filled vector, its parts read by `pread` although the payload was mapped.
+- **Done:** one owner, `src/inference/load.hpp`: `planning_adopt`'s `make(i, now)` gives a composite its storage (`core::HostPages`, not zeroed) and fills it at once only for a copy that wants the bytes then (a mapped load's copy, a shard written at once); a host does not read a weight inside `adopt` (`Backend::adopt`), so the composites a host takes are made after `place_model` returns, side by side on a `core::JobThreads` of the host backend's thread count, largest first, inside the `construct` time.
+  `make_composite` takes its parts from the mapping when asked and the payload is mapped (`GGUFModel::part_data`), dropping their pages after (`GGUFModel::drop_part`); the stream's readers keep reading parts through their readers, so a device's path is main's.
+  `load-progress`'s directory twins gain a layer split over the CPU and a copying backend in every mode, the CPU's half made after the build and the device's copied, each linear's bytes the twin's.
+  Fable reviewed the code (a62d8a33): a three-sentence comment, stale callers in `core-job_threads.md` and TESTS.md, mapped parts left in the working set, a mapped read on the stream's path and a long comment line, each rechecked and fixed; its reading found no read of a host's composite before the fill.
+- **Measured** on the Linux host, one container of 6 CPUs, `generate -n 1` on Qwen/Qwen3.5-4B's directory, warm-up then four alternating pairs, before = formats/qwen35-dirs on land/20261119 (llmx 0.1.0+g2ba2ee674265, sha256 79b8c3d0b905c48b), after = the same over this branch (0.1.0+g3fd15f68e67d, cc534bb5ebad8e6b), ROCm builds of both; the runs saw 6.7 s (CPU) and 132 s (ROCm) of run-queue wait over the window (`hostwait.sh`, contended):
+
+  | Device | before construct, s | after construct, s | before wall, s | after wall, s |
+  |---|---|---|---|---|
+  | CPU, 6 threads | 3.03, 3.13, 3.10, 2.89 | 0.41, 0.39, 0.39, 0.41 | 5.57, 5.67, 5.87, 5.52 | 2.97, 2.87, 3.02, 3.17 |
+  | ROCm, one MI50 | 0.02 each | 0.02 each | 6.27, 6.35, 6.14, 6.82 | 6.25, 6.48, 6.38, 6.65 |
+
+  unsloth's Qwen3.5-4B-BF16 GGUF on the after build: CPU wall 2.24 s warm, ROCm 5.04 to 5.63 s, as a record (not the directory's bytes).
+  The logits of a 1,500-byte prompt's last 32 positions (top 32) on the 4B directory are byte-identical before and after in `auto`, `mapped` and `direct`, on the CPU and on one MI50.
+  CTest of this branch alone (CPU build): `load-progress`, `model-validation`, `model-weight-scales`, `placement`, `safetensors` and `job-threads`, 6 of 6.
+  At the stacked head (formats/qwen35-dirs on this branch) the suite's `safetensors`, `qwen35` and `dead-code` PASS on the CPU and `safetensors` and `qwen35` on `--device rocm:0` with the tools beside the executable; `docs` failed on a 304-character comment line in `src/core/job_threads.hpp`, fixed after the run (a comment, no code).
+- **Left:** the landing gates of a loader change at the head that lands (AGENTS.md, Merge gates); lands as one commit before formats/qwen35-dirs.
+- **Gotchas:** no fixture reaches a host composite that a copy then wants at once (a routed layer's stream copy in a mapped load); Fable read that branch as correct.
+  The fill reads non-mapped parts only in `direct`, which a file system without direct reads leaves out of `load-progress`.
 
 ## bench --profile on ROCm and CUDA (2026-11-19, CUDA95 then CUDA97, branch cuda97/profile on fix/tile256-denominator af07396ff; F2DEV's approval of cuda/profile 434ca4546 with items 1 and 2)
 

@@ -1,5 +1,5 @@
 #pragma once
-// Threads that sleep until a caller hands them a job over indices and take indices beside it: the scheduler's sampling threads (docs/SERVER.md, Sampling) and a Vulkan tensor group's member threads (docs/TENSOR-SPLIT.md, section 4.3).
+// Threads that sleep until a caller hands them a job over indices and take indices beside it; its callers are named in docs/src/core-job_threads.md.
 #include <condition_variable>
 #include <cstddef>
 #include <exception>

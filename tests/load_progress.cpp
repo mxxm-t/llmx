@@ -380,8 +380,8 @@ template <class T> std::vector<uint8_t> bytes_of(const std::vector<T>& v) {
     return b;
 }
 
-// Quantized directory `dir` loads in each mode on the CPU and on copying backends to the logits of `twin`, written at `path`, whose `linears` repacked tensors it holds in their target type.
-// The CPU keeps each repacked tensor in the loader's buffer as the twin's bytes, and a copying backend keeps none.
+// Quantized directory `dir` loads in each mode on the CPU, on copying backends and split over the CPU and a copying backend to the logits of `twin`, written at `path`, whose `linears` repacked tensors it holds in their target type.
+// The CPU keeps each repacked tensor it reads in the loader's buffer as the twin's bytes, made after the build, and a copying backend keeps none.
 void twin_checks(const std::filesystem::path& dir, const std::string& path, const gguf::GGUFModel& twin, size_t linears, const std::string& label) {
     const std::vector<uint32_t> ids = {0, 1, 2, 3, 4};
     const std::vector<float> expected = infer::Model(infer::gguf_weights(twin), backend::make_cpu_backend()).prefill(ids);
@@ -390,21 +390,29 @@ void twin_checks(const std::filesystem::path& dir, const std::string& path, cons
             (label + " did not read as its twin's tensors, each linear one made of its parts").c_str());
     gguf::write_gguf(twin, path);
     for (const infer::LoadMode mode : load_modes(path)) {
-        for (const int arm : {0, 1, 2}) {
+        for (const int arm : {0, 1, 2, 3}) {
             const auto copier = std::make_shared<CopyingBackend>();
             copier->wraps = arm == 1;
-            const backend::BackendPtr b = arm ? backend::BackendPtr(copier) : backend::make_cpu_backend();
+            const backend::BackendPtr b = arm == 1 || arm == 2 ? backend::BackendPtr(copier) : backend::make_cpu_backend();
             infer::PlacementRequest request;
             request.names = {"cpu"};
-            const auto loaded = infer::load_model(dir.u8string(), {b}, request, {}, {}, mode);
-            if (arm == 0) {
-                bool same = loaded->made.size() == linears;
+            std::vector<backend::BackendPtr> backends = {b};
+            if (arm == 3) {
+                // The CPU's layer is made for it after the build and the device's copies made as they are wanted, each linear once where it goes.
+                request.names = {"cpu", "cpu"};
+                request.shares = {1, 1};
+                backends.push_back(copier);
+            }
+            const auto loaded = infer::load_model(dir.u8string(), backends, request, {}, {}, mode);
+            if (arm == 0 || arm == 3) {
+                bool same = arm == 0 ? loaded->made.size() == linears : !loaded->made.empty() && loaded->made.size() < linears;
                 for (const auto& [i, bytes] : loaded->made) {
                     const std::string& name = loaded->file.tensors[i].name;
                     const auto t = size_t(std::find_if(twin.tensors.begin(), twin.tensors.end(), [&](const gguf::TensorInfo& x) { return x.name == name; }) - twin.tensors.begin());
-                    same = same && t < twin.tensors.size() && bytes.size() == twin.tensor_bytes(t) && std::memcmp(bytes.data(), twin.tensor_data(t), bytes.size()) == 0;
+                    same = same && t < twin.tensors.size() && bytes.size() >= twin.tensor_bytes(t) && std::memcmp(bytes.data(), twin.tensor_data(t), twin.tensor_bytes(t)) == 0;
                 }
                 require(same, (label + " on the CPU did not keep its twin's bytes in the loader's buffer").c_str());
+                if (arm == 3 && mode != infer::LoadMode::mapped) require(holds_tensors(copier->weights, twin), (label + "'s device half is not its twin's bytes").c_str());
             } else {
                 // A streamed load makes each linear on the stream's readers into the weights it allocated; a mapped one copies what it made at adoption.
                 require(loaded->made.empty() && (mode == infer::LoadMode::mapped ? copier->weights.empty() : holds_tensors(copier->weights, twin)),

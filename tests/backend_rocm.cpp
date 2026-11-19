@@ -3293,6 +3293,104 @@ void sixteen_ranks() {
     std::cout << "backend-rocm: " << W << " ranks of the fast sum on one device in each form, into and in place, each the oracle's bits\n";
 }
 
+// Two shots with a peer whose totals land after its meeting word: rank 0 is the kernel and the host plays rank 1, its second sum raising the mid meeting before the totals it orders.
+// A read must wait for its data, so rank 0 sums the late totals and not the first sum's still in the slot, which a write passing another on the way to a peer would give (docs/TESTS.md).
+void late_totals() {
+    HipFn& f = hip();
+    const size_t W = 2, n = 2048, cap = n, half = n / 2, signal = 8192;
+    hip_check(f.hipSetDevice(0), "hipSetDevice");
+    hipModule_t module = nullptr;
+    hipFunction_t sum = nullptr, arm = nullptr;
+    hip_check(f.hipModuleLoadData(&module, kF32Module), "hipModuleLoadData");
+    hip_check(f.hipModuleGetFunction(&sum, module, "llmx_group_two_shots"), "hipModuleGetFunction");
+    hip_check(f.hipModuleGetFunction(&arm, module, "llmx_group_arm"), "hipModuleGetFunction");
+    int khz = 0;
+    hip_check(f.hipDeviceGetAttribute(&khz, hipDeviceAttributeWallClockRate, 0), "hipDeviceGetAttribute");
+    unsigned long long timeout = (unsigned long long)khz * 2000, tick = (unsigned long long)khz;
+    std::vector<void*> area(W);
+    void *own = nullptr, *out = nullptr, *table = nullptr;
+    hipStream_t run = nullptr, peer = nullptr;
+    hip_check(f.hipStreamCreateWithFlags(&run, 1), "hipStreamCreateWithFlags");
+    hip_check(f.hipStreamCreateWithFlags(&peer, 1), "hipStreamCreateWithFlags");
+    unsigned *status = nullptr, *fault = nullptr, *cancel = nullptr, *word = nullptr;
+    float* staged = nullptr;
+    hip_check(f.hipHostMalloc((void**)&status, W * sizeof(unsigned), hipHostMallocCoherent), "hipHostMalloc");
+    hip_check(f.hipHostMalloc((void**)&fault, sizeof(unsigned), hipHostMallocCoherent), "hipHostMalloc");
+    hip_check(f.hipHostMalloc((void**)&cancel, sizeof(unsigned), hipHostMallocCoherent), "hipHostMalloc");
+    hip_check(f.hipHostMalloc((void**)&word, sizeof(unsigned), hipHostMallocCoherent), "hipHostMalloc");
+    hip_check(f.hipHostMalloc((void**)&staged, 2 * half * sizeof(float), hipHostMallocCoherent), "hipHostMalloc");
+    std::memset(status, 0, W * sizeof(unsigned));
+    *fault = 0;
+    *cancel = 0;
+    for (size_t k = 0; k < W; ++k) {
+        hip_check(f.hipExtMallocWithFlags(&area[k], signal + 2 * W * cap * sizeof(float), hipDeviceMallocUncached), "hipExtMallocWithFlags");
+        hip_check(f.hipMemsetAsync(area[k], 0, signal, run), "hipMemsetAsync");
+        void* slots = (uint8_t*)area[k] + signal;
+        unsigned long long words = 2 * W * cap;
+        void* arm_args[] = {&slots, &words};
+        hip_check(f.hipModuleLaunchKernel(arm, 256, 1, 1, 256, 1, 1, 0, run, arm_args, nullptr), "hipModuleLaunchKernel");
+    }
+    hip_check(f.hipMalloc(&own, n * sizeof(float)), "hipMalloc");
+    hip_check(f.hipMalloc(&out, n * sizeof(float)), "hipMalloc");
+    SixteenPeers peers{};
+    for (size_t k = 0; k < W; ++k) {
+        peers.stage[k] = (float*)((uint8_t*)area[k] + signal);
+        peers.signal[k] = (unsigned*)area[k];
+    }
+    peers.status = status;
+    peers.fault = fault;
+    peers.cancel = cancel;
+    hip_check(f.hipMalloc(&table, sizeof(SixteenPeers)), "hipMalloc");
+    hip_check(f.hipMemcpyAsync(table, &peers, sizeof(SixteenPeers), hipMemcpyHostToDevice, run), "hipMemcpyAsync");
+    hip_check(f.hipStreamSynchronize(run), "hipStreamSynchronize");
+    // GroupSignal's words of block 0 from sender 1 (kernels/f32.gpu): start, mid and done after the 32 epochs and the abort word, 32 blocks of 16 senders each.
+    const auto meeting = [&](int which) { return (uint8_t*)area[0] + 33 * sizeof(unsigned) + (size_t)which * 32 * 16 * sizeof(unsigned) + sizeof(unsigned); };
+    const auto put = [&](void* to, const void* from, size_t bytes) {
+        hip_check(f.hipMemcpyAsync(to, from, bytes, hipMemcpyHostToDevice, peer), "hipMemcpyAsync");
+        hip_check(f.hipStreamSynchronize(peer), "hipStreamSynchronize");
+    };
+    float* slot0 = peers.stage[0];   // rank 0's staging in parity half 0: sender 1's share at cap, its totals in rank 0's own slot at 0
+    for (unsigned epoch = 1; epoch <= 2; ++epoch) {
+        const group_sums::Case c = group_sums::make(W, n, 1700 + epoch);
+        const std::vector<float> want = group_sums::oracle(c, true);
+        hip_check(f.hipMemcpyAsync(own, c.partial[0].data(), n * sizeof(float), hipMemcpyHostToDevice, run), "hipMemcpyAsync");
+        hip_check(f.hipStreamSynchronize(run), "hipStreamSynchronize");
+        const float* o = (const float*)own;
+        float* x = (float*)out;
+        unsigned long long nn = n, cc = cap;
+        int members = (int)W, rank = 0, flags = 2 | 1;
+        void* args[] = {&table, &o, &x, &nn, &cc, &members, &rank, &flags, &timeout, &tick};
+        hip_check(f.hipModuleLaunchKernel(sum, 1, 1, 1, 256, 1, 1, 0, run, args, nullptr), "hipModuleLaunchKernel");
+        std::memcpy(staged, c.partial[1].data(), half * sizeof(float));
+        std::memcpy(staged + half, want.data() + half, half * sizeof(float));
+        *word = epoch;
+        put(slot0 + cap, staged, half * sizeof(float));
+        put(meeting(0), word, sizeof(unsigned));
+        if (epoch == 1) put(slot0 + half, staged + half, half * sizeof(float));
+        put(meeting(1), word, sizeof(unsigned));
+        if (epoch == 2) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            put(slot0 + half, staged + half, half * sizeof(float));
+        }
+        put(meeting(2), word, sizeof(unsigned));
+        hip_check(f.hipStreamSynchronize(run), "hipStreamSynchronize");
+        require(!*fault && !status[0], "two shots gave up on a peer whose totals came late in sum " + std::to_string(epoch));
+        std::vector<float> got(n);
+        hip_check(f.hipMemcpyAsync(got.data(), out, n * sizeof(float), hipMemcpyDeviceToHost, run), "hipMemcpyAsync");
+        hip_check(f.hipStreamSynchronize(run), "hipStreamSynchronize");
+        require(same(got, want), "two shots summed a peer's earlier totals where its totals landed after its meeting word, sum " + std::to_string(epoch));
+    }
+    (void)f.hipStreamDestroy(run);
+    (void)f.hipStreamDestroy(peer);
+    for (void* a : area) (void)f.hipFree(a);
+    (void)f.hipFree(own);
+    (void)f.hipFree(out);
+    (void)f.hipFree(table);
+    for (void* h : {(void*)status, (void*)fault, (void*)cancel, (void*)word, (void*)staged}) (void)f.hipHostFree(h);
+    (void)f.hipModuleUnload(module);
+    std::cout << "backend-rocm: two shots wait for a peer's totals that land after its meeting word\n";
+}
+
 // The one-launch sqrt_softplus router (backend_core.hpp moe_router) against the base's matmul and route_experts on the same device, scores, picks and weights bit for bit.
 // Expert pairs share a weight row and a bias, so their scores tie and the lower id must win; widths that are not a multiple of 64 and the 512-expert edge are covered, and a two-row call takes the base.
 void ds4_router(Backend& g) {
@@ -3369,6 +3467,7 @@ int main(int argc, char** argv) {
     try {
         if (sixteen) {
             sixteen_ranks();
+            late_totals();
             sum_forms();
             std::cout << (failures ? "backend-rocm: FAIL\n" : "backend-rocm: PASS\n");
             return failures ? 1 : 0;

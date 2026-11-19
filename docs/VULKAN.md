@@ -805,7 +805,7 @@ Their reference inputs use the same rounding; independent HF gates measure the r
 - **kv_write**: a scatter of `[rows, n_head_kv, head_dim]` into blocks,
   one lane per float.
 - **norm_rope_partial**: one workgroup per (row, head): the head's sum of
-  squares in a tree through shared memory, then the rotation of its first
+  squares in the tree of `tree_sum.glsl`, then the rotation of its first
   `rope_dim` values reading the table at the row's position, the heads read
   at their strides and written contiguously. It is the partial rope of the
   qwen35 layers; Qwen3's rope, the op at the full width in place, runs in

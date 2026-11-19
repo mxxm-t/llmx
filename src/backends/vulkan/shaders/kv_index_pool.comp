@@ -1,4 +1,6 @@
 #version 450
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
 // One workgroup pools a complete group of raw auxiliary keys, then normalizes and rotates it at its first token's position, into the group's pooled row of the same blocks.
 // With `streams` positions a group (a pass holding an image's rows), a pair turns by the group's position its stream map names, else at the first token's index.
 layout(local_size_x = 256) in;
@@ -13,6 +15,7 @@ layout(set = 0, binding = 6) readonly buffer O { uint of_pair[]; };
 #include "views.glsl"
 shared float values[256];
 shared float red[256];
+#include "tree_sum.glsl"
 void main() {
     uint g = p.first + gl_WorkGroupID.x, lid = gl_LocalInvocationID.x;
     uint start = g * p.compression;
@@ -28,11 +31,8 @@ void main() {
     values[lid] = value;
     red[lid] = value * value;
     barrier();
-    for (uint k = 128u; k > 0u; k >>= 1u) {
-        if (lid < k) red[lid] += red[lid + k];
-        barrier();
-    }
-    float scale = 1.0 / sqrt(red[0] / float(p.dim) + p.eps);
+    float total = tree_sum();
+    float scale = 1.0 / sqrt(total / float(p.dim) + p.eps);
     if (lid < p.dim) {
         float result = value * scale * w[lid];
         if (lid < 2u * p.half_dim) {

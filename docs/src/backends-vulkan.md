@@ -332,7 +332,7 @@ The real-device `vulkan-lifetime` check uses its existing private test friend to
   The merge reads each part's maximum and sum once into shared memory, forms its weight once, and loads eight parts' column values before summing them in part order. The profile keeps the number of parts at most 256, the merge's workgroup width.
   Heads 128 wide take `shaders/attention_vec.comp`, which reads a token's row in 16 lanes, one 16-byte load a lane for an f16 side and two for f32, and several tokens a subgroup, and heads 256 wide its `_d256` builds, 32 lanes a token; other widths keep `attention.comp`.
 - `kv_variant` picks the shader module for a storage's K and V types.
-- `norm_rope_partial`: one workgroup per (row, head) (`shaders/norm_rope_partial.comp`), the head's sum of squares a tree through shared memory, reading the heads at their strides and writing them contiguously; Qwen3 does not reach it on this backend, whose fused `norm_rope_kv` has the same arithmetic per head at the full width.
+- `norm_rope_partial`: one workgroup per (row, head) (`shaders/norm_rope_partial.comp`), the head's sum of squares the tree of `tree_sum.glsl`, reading the heads at their strides and writing them contiguously; Qwen3 does not reach it on this backend, whose fused `norm_rope_kv` has the same arithmetic per head at the full width.
   Several position streams a row, or no norm, take its `norm_rope_partial_streams` build, the streams table (`RopeStreams::of`) and the positions going up through the argument arena; one stream with a norm keeps the plain build.
 - The vision encoder's ops (docs/VISION.md, section 3): `add_bias` (`shaders/add_bias.comp`), `gelu` in both forms (`shaders/gelu.comp`) and `mix_rows` (`shaders/mix_rows.comp`, its taps' ids and weights through the argument arena) stride over their elements from at most a full x dimension of workgroups, and `layer_norm_rows` (`shaders/layer_norm_rows.comp`) takes one workgroup a row.
   `attention` through non-causal views, every row reading its view's whole history, takes the flash kernel's `attention_full_tile_d64` and `attention_full_tile_d72` builds (`shaders/attention_flash.comp`) at heads 64 and 72 wide, a vision encoder's, and `attention.comp`'s `attention_full` build at any other width the per-row kernel takes.
@@ -598,7 +598,7 @@ From the comment at line 2:
 From the comment at line 2:
 
 - One workgroup per (row, head): dst = x * rsqrt(mean(x^2) + eps) * w * gate(z) over the head's dim values, w shared by every head. The uniform `NormGate` selector chooses SiLU (default) or sigmoid in the same dispatch and activation-copy path.
-- The sum of squares is a lane's fused multiply-adds, then a tree through shared memory in a fixed order, so a head computes the same in every build and beside any other rows.
+- The sum of squares is a lane's fused multiply-adds, then the fixed-order tree of `tree_sum.glsl`, so a head computes the same in every build and beside any other rows.
 - With `quant` 1, dim is a multiple of 32 and the output's 16-bit twin is written beside it (xquant.glsl); with `quant` 2 the integer-dot tile reads the rows next, and a lane writes four values of the twin at a time.
 - dst may be x: every value is read for the sum before the barrier, and after it each lane reads and writes only its own values.
 
@@ -796,7 +796,7 @@ From the comment at line 2:
 
 ### `src/backends/vulkan/shaders/layer_norm_rows.comp`
 
-- One workgroup a row: the mean, then the biased variance about it, each a fixed-order tree sum through shared memory, then (x - mean) / sqrt(var + eps) * w + b; dst may be src.
+- One workgroup a row: the mean, then the biased variance about it, each the fixed-order tree sum of `tree_sum.glsl`, then (x - mean) / sqrt(var + eps) * w + b; dst may be src.
 
 ### `src/backends/vulkan/shaders/mix_rows.comp`
 
@@ -807,7 +807,7 @@ From the comment at line 2:
 From the comment at line 2:
 
 - dst[i] = src[i] * rsqrt(mean(src^2) + eps) * w[i], per row, over `chunks` workgroups a row.
-- The sum of squares is a tree, through shared memory down to one subgroup's width and then through that subgroup's shuffles in the same order; a subgroup reduction adds in another order and moved an HF gate result (docs/STATUS-2026-09.md, Vulkan backend, sub-step 1), so the tree stays.
+- The sum of squares is the fixed tree of `tree_sum.glsl`; a subgroup reduction adds in another order and moved an HF gate result (docs/STATUS-2026-09.md, Vulkan backend, sub-step 1), so the tree stays.
 - With `quant` set the rows are dense and a multiple of 32 wide and the output's twin is written beside it (xquant.glsl); with `quant` 2 the integer-dot tile reads the rows next, and a lane writes four values of the twin at a time.
 - With one chunk dst and src may be the same buffer: every element is read before the barrier and written after it by its own lane.
 
@@ -825,6 +825,12 @@ From the comment at line 2:
 - A sparse row's selection slots for `attention.comp` and `attention_vec.comp` built with `LLMX_SPARSE` (Op::sparse_attention_blocks): slot t is position t mod 2^id_shift of the block its id names, a row's ids group-major by KV head, and a padding id names no position.
 - An id past the row's visible blocks names no position, checked before the shift, so an id at or above 2^(32 - id_shift) does not wrap into the history as a 32-bit shift would; the CPU's ids widen to size_t instead.
 - At id_shift 0 and one group a slot is its id, the chain qwen4exp and DeepSeek run; MiniMax-M3.1 runs 4 groups of blocks of 128 (docs/MINIMAX.md). The host refuses a block size that is not a power of two.
+
+### `src/backends/vulkan/shaders/tree_sum.glsl`
+
+- The one sum tree of a 256-lane workgroup's partials in `red`, which the norm shaders and the other single-row sums (`signed_sqrt_gate`, `compress_pool`, `kv_index_pool`, `hc_coeffs`, `hc_collapse_norm`) take: the halving levels red[i] + red[i + k] for k from 128 down to 1, every lane of every subgroup returning lane 0's total.
+- Each subgroup reads its lane's 256 / width partials and adds the levels at or above its width in registers, then the levels below by xor shuffles, each step the pair a shared-memory level would add; the caller's barrier after it writes `red` is the tree's only one, and on a 64-lane subgroup a sum that took a barrier at each of eight levels, or at two down to the subgroup width, takes none of its own.
+- The caller declares `red` and requires the subgroup basic and shuffle extensions, and puts a barrier between a sum and its next write to `red`; the device check refuses subgroups narrower than 32 lanes, the eight partials `u` holds.
 
 ### `src/backends/vulkan/shaders/views.glsl`
 
@@ -856,7 +862,7 @@ Q5_0 reuses those families through `LLMX_Q50` builds, with a 22-byte block and n
 ### `src/backends/vulkan/shaders/group_rms_norm.comp`
 
 Each row's group is normalized with that group's weight slice by one or more workgroups, the slices of the dispatch's second axis; slice s of S writes the group's 1024-value chunks s, s + S, ..., a lane four consecutive values.
-Every slice computes the group's whole sum of squares itself, each of 256 lanes summing its values lid, lid + 256, ... in order, eight loaded at a time, then the same 256-lane tree (shared-memory steps down to the subgroup width, shuffles below it), so every slice takes the same rms bits and the output is the single-workgroup kernel's, bit for bit.
+Every slice computes the group's whole sum of squares itself, each of 256 lanes summing its values lid, lid + 256, ... in order, eight loaded at a time, then the same 256-lane tree (`tree_sum.glsl`), so every slice takes the same rms bits and the output is the single-workgroup kernel's, bit for bit.
 The host gives a group as many slices as fill four workgroups a compute unit, at most one per chunk, as `rms_norm_rows` does, and one slice when the call is exactly in place, where a slice's writes would meet another's reads; on Qwen3.8-Flash-Next's stream norm (4 groups of 2560) decode takes three slices a group.
 Each slice's first chunk is loaded before the reduction so its latency overlaps it.
 Groups aligned to 32 values also produce the activation twin for a later matrix consumer through the word writer (`xquant_word`), in the tile's layout where the tile reads it next and otherwise in the lane writer's; other widths leave packing to the consumer.

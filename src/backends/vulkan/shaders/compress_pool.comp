@@ -1,4 +1,6 @@
 #version 450
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
 // One workgroup a group: each channel the kv values weighted by the softmax of their scores over the group's rows in the CPU's order, then the RMSNorm of the pooled row with w after a tree sum of its squares.
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P { uint groups; uint ratio; uint dim; float eps; } p;
@@ -7,6 +9,7 @@ layout(set = 0, binding = 1) readonly buffer K { float kv[]; };
 layout(set = 0, binding = 2) readonly buffer S { float score[]; };
 layout(set = 0, binding = 3) readonly buffer W { float w[]; };
 shared float red[256];
+#include "tree_sum.glsl"
 void main() {
     uint g = gl_WorkGroupID.x, lid = gl_LocalInvocationID.x;
     uint base = g * p.ratio * p.dim;
@@ -23,10 +26,7 @@ void main() {
     }
     red[lid] = squares;
     barrier();
-    for (uint k = 128u; k > 0u; k >>= 1u) {
-        if (lid < k) red[lid] += red[lid + k];
-        barrier();
-    }
-    float scale = 1.0 / sqrt(red[0] / float(p.dim) + p.eps);
+    float total = tree_sum();
+    float scale = 1.0 / sqrt(total / float(p.dim) + p.eps);
     for (uint d = lid; d < p.dim; d += 256u) outv[g * p.dim + d] = outv[g * p.dim + d] * scale * w[d];
 }

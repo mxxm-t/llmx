@@ -11,6 +11,7 @@ layout(set = 0, binding = 2) readonly buffer W { float w[]; };
 layout(set = 0, binding = 3) writeonly buffer Q { uint xq[]; };
 #include "xquant.glsl"
 shared float red[256];
+#include "tree_sum.glsl"
 
 // The four values from `first` and their weights, at indices clamped to the group so no load leaves it; four consecutive loads where the group is whole words.
 void load4(uint base, uint wb, uint first, out vec4 xv, out vec4 wv) {
@@ -52,15 +53,7 @@ void main() {
     }
     red[lid] = s;
     barrier();
-    uint k = 128u;
-    for (; k >= gl_SubgroupSize; k >>= 1u) {
-        if (lid < k) red[lid] += red[lid + k];
-        barrier();
-    }
-    // The tree's steps within a subgroup add the same pairs in the same order by shuffles, every subgroup from the first gl_SubgroupSize partials.
-    float t = red[gl_SubgroupInvocationID];
-    for (; k > 0u; k >>= 1u) t += subgroupShuffleXor(t, k);
-    float r = 1.0 / sqrt(subgroupShuffle(t, 0u) / float(p.dim) + p.eps);
+    float r = 1.0 / sqrt(tree_sum() / float(p.dim) + p.eps);
     for (uint c = slice; c * 1024u < p.dim; c += slices) {
         uint first = c * 1024u + 4u * lid;
         if (c != slice) load4(base, wb, first, xv, wv);

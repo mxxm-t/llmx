@@ -184,6 +184,8 @@ whose model matches the selection. It presents model capacity and request
 capacity separately, and does not use stale metadata to clamp saved values.
 No extra upstream health fetch is added to model admission or configuration.
 
+On a tool continuation, a native llmx HTTP 413 specifying that the prompt leaves positive reply room can trigger one retry with `max_tokens` set to that room. The companion retains the full request messages and tools and uses the saved explicit cap as an upper bound. Only the retried call uses this cap. Stream failures and other HTTP refusals retain their usual handling.
+
 Attachment: `{name,type,text}` for UTF-8 text, or `{name,type,data}` for PNG/JPEG base64 data URLs. The browser accepts text up to 2 MiB, images up to 8 MiB and 10 MiB total across at most eight files. It shows each file size and the combined size before send. The service validates the same decoded byte limits and stores attachments in the message. Other formats are refused explicitly. No URL fetching or hidden retrieval occurs.
 
 For an operator-installed PDF reader the browser stages the reviewed pages as

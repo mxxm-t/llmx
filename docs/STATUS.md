@@ -17,9 +17,10 @@
 ## Reply budget after a Chat tool result (2026-11-19)
 
 - **Goal:** Continue a tool turn when the full prompt fits and the upstream refused only the requested reply room.
-- **Done:** Native admission reports the measured prompt length and the running server's request limit. The observed continuation used 4,108 prompt tokens and asked for 4,096 reply tokens in an 8,192-token request.
-- **Left:** Reproduce the refusal, implement a bounded retry in the companion transport and verify that prompts, tools, cancellation and explicit smaller caps keep their existing behavior.
-- **Gotchas:** Preserve conversation messages and tool results. A partial stream or an unrelated HTTP 413 is outside this recovery.
+- **Done:** A native admission refusal after a tool result allows one retry using the measured reply room with the same prompt. The fixture reduces the observed 4,096-token reply request to 4,084 beside a 4,108-token prompt in the running server's 8,192-token limit. A supplied cap remains an upper bound and the saved setting is retained.
+- **Checks:** The regression fails on the existing engine and passes with the retry. All 27 engine and 32 companion server tests passed on Windows, including full payload preservation, one tool execution, unchanged successful smaller caps and reporting partial output and exhausted context.
+- **Landing:** The integrated tree includes file-bound approvals and the prompt spacing adjustment. It lands by fast-forward after the Windows and Linux companion checks pass.
+- **Gotchas:** Exact native HTTP 413 budget refusals occur before any generation events. The retry adds no context truncation, tool re-execution or change to server configuration.
 
 ## Repeated writes to saved files (2026-11-19)
 

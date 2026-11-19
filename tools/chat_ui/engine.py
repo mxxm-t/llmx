@@ -3,14 +3,22 @@
 from concurrent.futures import ThreadPoolExecutor
 import json
 import http.client
+import re
 import threading
 import time
 
 from store import Store, encoded, identity
-from upstream import Cancelled, Connection
+from upstream import Cancelled, Connection, UpstreamHTTPError
 
 
 TERMINAL = {"completed", "cancelled", "failed", "interrupted"}
+CAPPED_PROMPT_REFUSAL = re.compile(
+    r"the prompt is ([0-9]+) tokens and asks for ([0-9]+) more, and a request may hold ([0-9]+)"
+)
+UNCAPPED_PROMPT_REFUSAL = re.compile(
+    r"the prompt is ([0-9]+) tokens and leaves ([0-9]+) for its reply, fewer than the ([0-9]+) "
+    r"a request without max_tokens is given, of the ([0-9]+) a request may hold"
+)
 
 
 class Control:
@@ -158,14 +166,47 @@ class Engine:
                                 "description": t["description"], "parameters": t["inputSchema"]}} for t in selected]
         return payload
 
+    @staticmethod
+    def _continuation_cap(payload, error):
+        messages = payload["messages"]
+        if error.status != 413 or not messages or messages[-1]["role"] != "tool":
+            return None
+        detail = error.detail.partition(";")[0]
+        requested = payload.get("max_tokens")
+        if requested is None:
+            match = UNCAPPED_PROMPT_REFUSAL.fullmatch(detail)
+            if match:
+                prompt, remaining, reserve, limit = map(int, match.groups())
+                if remaining == limit - prompt and 0 < remaining < reserve:
+                    return remaining
+        else:
+            match = CAPPED_PROMPT_REFUSAL.fullmatch(detail)
+            if match:
+                prompt, rejected, limit = map(int, match.groups())
+                remaining = limit - prompt
+                if rejected == requested and 0 < remaining < requested:
+                    return remaining
+        return None
+
+    def _model_events(self, payload, control):
+        for retried in (False, True):
+            conn = Connection(self.upstream, timeout=120, key=self.key)
+            with control.changed:
+                control.connection = conn
+            if control.cancel.is_set():
+                conn.cancel()
+                raise Cancelled()
+            try:
+                yield from conn.events(payload)
+                return
+            except UpstreamHTTPError as error:
+                cap = None if retried else self._continuation_cap(payload, error)
+                if cap is None:
+                    raise
+                payload = dict(payload, max_tokens=cap)
+
     def _model(self, rid, message, settings, available, control):
         payload = self._payload(self._history(message["parent_id"], settings.get("system", "")), settings, available)
-        conn = Connection(self.upstream, timeout=120, key=self.key)
-        with control.changed:
-            control.connection = conn
-        if control.cancel.is_set():
-            conn.cancel()
-            raise Cancelled()
         calls, fragments, chunks, thought = {}, {}, [], []
         last, chars, first = time.monotonic(), 0, True
         opening = True
@@ -183,7 +224,7 @@ class Engine:
                 last = time.monotonic()
 
         try:
-            for event in conn.events(payload):
+            for event in self._model_events(payload, control):
                 if control.cancel.is_set():
                     raise Cancelled()
                 metrics = {k: event[k] for k in ("usage", "timings", "context") if isinstance(event.get(k), dict)}

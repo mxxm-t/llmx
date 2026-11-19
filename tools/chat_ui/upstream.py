@@ -13,6 +13,13 @@ class Cancelled(Exception):
     pass
 
 
+class UpstreamHTTPError(ValueError):
+    def __init__(self, status, detail):
+        self.status = status
+        self.detail = detail[:1000]
+        super().__init__(f"llmx returned HTTP {status}: {self.detail}")
+
+
 class _Reader(io.RawIOBase):
     def __init__(self, sock, cancelled, timeout):
         self.sock, self.cancelled, self.timeout = sock, cancelled, timeout
@@ -84,7 +91,7 @@ class Connection:
                 detail = error.get("message", "Upstream request failed") if isinstance(error, dict) else str(error)
             except (ValueError, AttributeError):
                 detail = "Upstream request failed"
-            raise ValueError(f"llmx returned HTTP {self.response.status}: {detail[:1000]}")
+            raise UpstreamHTTPError(self.response.status, detail)
         return self.response
 
     def json(self, path, body=None):

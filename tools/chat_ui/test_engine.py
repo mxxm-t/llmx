@@ -420,6 +420,7 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(self.wait_run(run["id"], {"completed", "failed"})["status"], "completed")
         self.assertEqual(self.tools.calls, [("echo", {"text": "hello"})])
         self.assertEqual(len(FakeUpstream.requests), 2)
+        self.assertEqual([request["max_tokens"] for request in FakeUpstream.requests], [32, 32])
         second_history = FakeUpstream.requests[1]["messages"]
         self.assertEqual(second_history[-1]["role"], "tool")
         self.assertIn("hello", second_history[-1]["content"])

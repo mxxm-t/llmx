@@ -284,6 +284,8 @@ request capacity. Choose Custom token limit to set a positive output-token cap.
 Reasoning tokens count toward output. Existing saved numeric caps remain in
 place until changed. Changing reply mode does not resize the server's context.
 
+After a tool result, llmx can refuse a continuation whose full prompt fits but whose reply reservation exceeds the request limit. The companion then retries once with exactly the remaining reply room, keeping the prompt and tool results intact and retaining the saved reply setting for future calls. If the prompt leaves no room or the upstream has already streamed output, the failure is reported normally.
+
 The settings panel distinguishes the model's advertised context from the
 running server's request limit. Conversation history, tool results and the reply
 share the request limit; these capacities are not a count of remaining tokens.

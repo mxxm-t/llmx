@@ -542,29 +542,84 @@
     try { return JSON.parse(value); } catch (_) { return value; }
   }
   function workspaceToolTarget(call, result, parts) {
+    if (call.name === 'workspace_write') {
+      const path = toolJson(call.arguments)?.path;
+      if (typeof path !== 'string' || !path || [...path].length > 240 || /[:\\\x00-\x1f]/.test(path) || path.split('/').some(part => !part || part === '.' || part === '..')) return null;
+      const error = call.error || (result?.isError && parts.length === 1 && parts[0]?.type === 'text' && parts[0].text);
+      const conflict = typeof error === 'string' && (error === 'Workspace changed. Reload before saving'
+        || error === 'Wait for the active command to finish or cancel it' || /^Workspace revision is \d+\./.test(error));
+      if (call.status === 'failed' && conflict) return {path, savedCopy: true};
+      if (call.status !== 'completed' || result?.isError || parts.length !== 1 || parts[0]?.type !== 'text') return null;
+      const value = toolJson(parts[0].text);
+      return Array.isArray(value?.files) && value.files.some(file => file?.path === path) ? {path} : null;
+    }
     if (parts.length !== 1 || parts[0]?.type !== 'text') return null;
     const value = toolJson(parts[0].text);
     if (call.name === 'workspace_run' && typeof value?.id === 'string' && /^[0-9a-f]{32}$/.test(value.id)) return {jobId: value.id};
     if (result.isError) return null;
     if (call.name === 'workspace_read' && typeof value?.path === 'string' && value.path) return {path: value.path};
-    if (call.name === 'workspace_write') {
-      const path = toolJson(call.arguments)?.path;
-      if (typeof path === 'string' && path && Array.isArray(value?.files) && value.files.some(file => file?.path === path)) return {path};
-    }
     return null;
+  }
+  let workspaceFileRead;
+  function workspaceWriteFile(target, wrap) {
+    const row = node('div', 'workspace-tool-file');
+    const name = node('code', '', target.path);
+    const label = target.savedCopy ? 'Open saved copy' : 'Open file';
+    const open = node('button', 'secondary-button workspace-tool-view-file', label);
+    open.type = 'button'; open.setAttribute('aria-label', label + ' ' + target.path);
+    const error = node('p', 'error-text workspace-tool-file-error');
+    error.setAttribute('role', 'alert'); error.hidden = true;
+    row.append(name, open, error);
+    open.addEventListener('click', async () => {
+      if (open.getAttribute('aria-busy') === 'true') return;
+      workspaceFileRead?.abort();
+      const request = new AbortController(), generation = S.generation;
+      workspaceFileRead = request; error.hidden = true;
+      open.setAttribute('aria-busy', 'true'); open.setAttribute('aria-disabled', 'true');
+      const leave = event => { if (event.detail !== 'chat') request.abort(); };
+      const expire = () => request.abort();
+      document.addEventListener('companion:view', leave);
+      document.addEventListener('companion:unauthorized', expire, {once: true});
+      const isCurrent = () => !request.signal.aborted && S.generation === generation && wrap.isConnected
+        && $('app').dataset.view === 'chat' && !document.querySelector('dialog[open]');
+      try {
+        const signal = AbortSignal.any([request.signal, AbortSignal.timeout(10000)]);
+        const file = await api('/workspace/file?path=' + encodeURIComponent(target.path), 'GET', undefined, signal);
+        if (!isCurrent()) return;
+        if (file.path !== target.path || typeof file.content !== 'string') throw new Error('Invalid saved file response.');
+        const basename = target.path.split('/').at(-1), html = /\.html?$/i.test(basename);
+        const language = html ? 'html' : basename.match(/\.([^.]+)$/)?.[1];
+        window.ChatArtifacts.open({name: basename, source: file.content, language}, {
+          initialPreview: html, allowWorkspaceEdit: false, workspacePath: html ? target.path : ''
+        });
+      } catch (problem) {
+        if (isCurrent()) {
+          error.textContent = problem.status === 404 ? 'This saved file is no longer available.'
+            : problem.name === 'TimeoutError' ? 'Opening the saved file timed out. Try again.' : 'Could not open the saved file.';
+          error.hidden = false;
+        }
+      } finally {
+        document.removeEventListener('companion:view', leave);
+        document.removeEventListener('companion:unauthorized', expire);
+        if (workspaceFileRead === request) workspaceFileRead = null;
+        open.removeAttribute('aria-busy'); open.removeAttribute('aria-disabled');
+      }
+    });
+    return row;
   }
   function toolRow(call, message) {
     const wrap = node('div', 'tool-call'); wrap.dataset.toolCall = call.id || ''; const detail = node('details'); const summary = node('summary'); summary.tabIndex = 0;
     summary.append(node('span', 'tool-summary-kind', 'Tool'), node('span', 'tool-name', call.name || 'Call'), node('span', 'badge' + (call.error ? ' error' : ''), call.status || 'pending'));
     const body = node('div', 'tool-body'); body.append(node('div', 'section-label', 'ARGUMENTS'), node('pre', '', json(call.arguments ?? {})));
+    const result = toolJson(call.result), parts = Array.isArray(result?.content) ? result.content : [];
+    const write = call.name === 'workspace_write' ? workspaceToolTarget(call, result, parts) : null;
     if (call.result !== undefined) {
       body.append(node('div', 'section-label', 'RESULT'));
-      const result = toolJson(call.result), parts = Array.isArray(result?.content) ? result.content : [];
       const full = json(result); const readable = parts.filter(part => part?.type === 'text' && typeof part.text === 'string').map(part => part.text).join('\n\n');
       const preview = readable || full; body.append(node('pre', '', preview.slice(0, 16384) + (preview.length > 16384 ? '\n[Preview truncated]' : '')));
       const structured = node('details'); structured.append(node('summary', '', 'Structured result'), node('pre', '', full.slice(0, 16384) + (full.length > 16384 ? '\n[Preview truncated]' : ''))); body.append(structured);
       if (full.length > 16384 || preview.length > 16384) { const download = node('button', 'secondary-button', 'Download full result'); download.type = 'button'; download.addEventListener('click', () => { const url = URL.createObjectURL(new Blob([full], {type: 'application/json'})); const link = node('a'); link.href = url; link.download = 'tool-result.json'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }); body.append(download); }
-      if (['workspace_list', 'workspace_read', 'workspace_write', 'workspace_run'].includes(call.name)) {
+      if (['workspace_list', 'workspace_read', 'workspace_run'].includes(call.name)) {
         const target = workspaceToolTarget(call, result, parts);
         const label = target?.path ? 'Open file' : target?.jobId ? 'Open job output' : 'Open saved files';
         const open = node('button', 'secondary-button workspace-tool-open', label);
@@ -573,6 +628,11 @@
     }
     if (call.error) body.append(node('p', 'error-text', json(call.error)));
     if (call.duration_ms !== undefined) body.append(node('small', 'muted', number(call.duration_ms, ' ms')));
+    if (write) {
+      wrap.append(workspaceWriteFile(write, wrap));
+      const edit = node('button', 'secondary-button workspace-tool-open', 'Open in Workspace');
+      edit.type = 'button'; edit.addEventListener('click', () => window.ChatWorkspace.openToolResult(write)); body.append(edit);
+    }
     detail.append(summary, body); wrap.append(detail);
     if (call.status === 'approval') {
       detail.open = true;

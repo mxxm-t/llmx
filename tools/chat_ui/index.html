@@ -273,10 +273,11 @@
           <p class="muted fine-print" id="attachment-help">UTF-8 text and code, PNG, and JPEG. Up to 8 files per message, with
             2 MiB per text file, 8 MiB per image and 10 MiB total decoded. Images require support from the connected model and server.
             <span id="pdf-help" hidden>For PDFs, review the text from selected pages before attaching it.</span></p>
+          <button type="button" id="details-saved-files" data-action="attach-files" class="secondary-button">Browse saved files</button>
           <h3 class="section-label">TOOLS FOR THIS CONVERSATION</h3>
           <div id="tool-settings"></div>
           <button id="save-conversation-settings" class="secondary-button full" data-action="save-settings" aria-describedby="conversation-settings-help" hidden disabled>Save for this chat</button>
-          <p class="muted fine-print">Operator approval policy is configured outside the browser. Where approval is required, each requested call needs approval. Remembering applies only to this run.</p>
+          <p class="muted fine-print">Enabling a tool lets the model request it. For tools marked Approval required, you review the arguments before they run. Allow once approves one call. Allow for this reply also approves later calls to the same tool during this reply.</p>
         </div>
         <div class="inspector-bottom"><span class="status-dot"></span>Checking connection</div>
       </aside>

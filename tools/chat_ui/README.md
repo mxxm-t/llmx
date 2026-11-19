@@ -16,11 +16,17 @@ not retried automatically.
 
 ## Work on files
 
+When a tool saves a file, its name and **Open file** appear in the conversation.
+HTML opens in Preview. Choose Source to read the saved text, or Download to keep a copy.
+If a write hits a revision conflict, **Open saved copy** opens the version currently in the workspace.
+If that path has no saved file, the conversation shows a message beside the filename.
+
 In Chat, open **Attach** and choose **From this device**, **Saved files** or
 **Saved project**. You can find files by name or folder and select several at
 once. Adding them keeps you in the current draft. Sending the message shares
 a copy of their saved text.
 
+Use **Browse saved files** in the conversation settings to open the same file picker.
 Open **Saved files** in the sidebar for a working copy you can edit and reuse
 across conversations. This is the companion's workspace.
 For example, save a generated web page there, edit it, preview it with its

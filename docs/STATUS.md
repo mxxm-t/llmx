@@ -6,6 +6,12 @@
 - **Done:** An identical retry returns the current revision and already_saved. A stale edit with different content points to workspace_read or workspace_list. A real edit and its checkpoint are persisted together.
 - **Checks:** The tool regression covers matching and stale revisions, malformed revisions, rejected edits and a successful change. The branch lands by fast-forward after the companion checks.
 - **Gotchas:** A retry must not overwrite, advance the revision or create another checkpoint.
+## Open files from a Chat tool result (2026-11-19)
+
+- **Goal:** View the saved output where a write appears in Chat and make the right panel easier to scan.
+- **Done:** File actions in the transcript open the saved text or HTML preview. Revision conflicts offer the current saved copy. The tools panel explains approvals and the inspector uses single separators.
+- **Checks:** Chrome opened the saved content from completed and failed calls, checked missing files and made no background file reads. Layout checks covered 320, 390 and 1440 px.
+- **Gotchas:** A failed write may have no saved file. Explicitly fetch the saved copy on request and keep the draft intact.
 
 ## Chat home and Workspace workflow (2026-11-19)
 

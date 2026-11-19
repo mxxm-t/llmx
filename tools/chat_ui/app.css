@@ -502,7 +502,6 @@ kbd {
 }
 .inspector {
   background:var(--panel);
-  border-left:1px solid var(--border);
   display:flex;
   flex-direction:column;
   min-width:0
@@ -522,7 +521,6 @@ kbd {
 .tabs {
   display:flex;
   gap:21px;
-  border-bottom:1px solid var(--border);
   padding:0 20px
 }
 .tabs button {
@@ -539,7 +537,8 @@ kbd {
   padding:24px 20px;
   overflow-y:auto;
   flex:1;
-  scrollbar-width:thin
+  scrollbar-width:thin;
+  scrollbar-color:color-mix(in srgb,var(--muted) 45%,var(--panel)) transparent
 }
 .inspector-bottom {
   padding:17px 20px;
@@ -580,7 +579,6 @@ kbd {
 }
 .activity-card {
   padding:14px 0;
-  border-bottom:1px solid var(--border);
   font-size:11px
 }
 .activity-card .activity-title {
@@ -644,8 +642,10 @@ kbd {
   gap:15px;
   padding:10px 0;
   font-size:10px;
-  border-bottom:1px solid var(--border);
   line-height:1.5
+}
+.inspector-panel .stat-row+.stat-row {
+  border-top:1px solid var(--border)
 }
 .stat-row span {
   color:var(--muted)
@@ -1073,6 +1073,27 @@ kbd {
   max-height:320px;
   overflow:auto;
   line-height:1.55
+}
+.workspace-tool-file {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:8px;
+  padding:10px 11px
+}
+.workspace-tool-file code {
+  flex:1 1 12rem;
+  min-width:0;
+  overflow-wrap:anywhere;
+  font-size:12px
+}
+.workspace-tool-file-error {
+  flex:1 0 100%;
+  margin:0
+}
+.workspace-tool-view-file[aria-busy=true] {
+  cursor:wait;
+  opacity:.65
 }
 .approval {
   padding:13px;
@@ -1634,10 +1655,10 @@ body {
   margin:8px 0
 }
 .activity-history .activity-card {
-  padding:10px 0;
-  border:0;
-  border-bottom:1px solid var(--border);
-  background:transparent
+  padding:10px 0
+}
+.activity-history .activity-card+.activity-card {
+  border-top:1px solid var(--border)
 }
 .activity-history .activity-title {
   cursor:pointer

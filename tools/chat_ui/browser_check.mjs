@@ -264,6 +264,57 @@ async function checkSentSource(name, source, exportName) {
   assert.deepEqual(browserRequests.slice(beforeOpen).filter(request => request.method !== 'GET' ||
     new URL(request.url).pathname !== '/api/chats/run-status'), [], 'opening sent source made a network request');
 }
+function workspaceWriteCases(path, missing, revision, files) {
+  const call = (id, target) => ({id:'linked-'+id, name:'workspace_write', arguments:JSON.stringify({path:target,content:'Unapplied write proposal.',revision:revision-1})});
+  const stale = (id, target) => ({...call(id,target), status:'failed', error:'Workspace revision is '+revision+'. Reload before saving.'});
+  return [
+    {...call('write',path), status:'completed', result:{content:[{type:'text',text:JSON.stringify({revision,files})}]}},
+    stale('stale-write',path), stale('missing-write',missing), stale('unsafe-write','../outside.txt'),
+  ];
+}
+async function checkChatSavedWriteActions(filename, source) {
+  const currentChat = () => evaluate("({view:document.querySelector('#app').dataset.view,chat:document.querySelector('.chat-item.active')?.dataset.chat,draft:document.querySelector('#draft').value})");
+  const original = await currentChat();
+  assert.equal(original.view, 'chat');
+  assert(original.chat);
+  const expected = {...original,draft:'Unsent Chat draft while viewing the saved file.'};
+  await fill('#draft', expected.draft);
+  const mutations = apiMutations.length, streams = runStreams.length;
+  const action = id => `[data-tool-call="linked-${id}"] .workspace-tool-view-file`;
+  for (const [id,label] of [['write','Open file'], ['stale-write','Open saved copy']]) {
+    const selector = action(id);
+    await wait(`document.querySelector(${JSON.stringify(selector)})?.checkVisibility()`, label + ' for ' + id);
+    assert.equal(await evaluate(`document.querySelector(${JSON.stringify(selector)}).textContent`), label);
+    assert.equal(await evaluate(`document.querySelector(${JSON.stringify(selector)}).getAttribute('aria-label')`), label + ' ' + filename);
+    await pointerClick(selector);
+    await wait("document.querySelector('#artifact-dialog').open", label + ' in Chat');
+    assert.deepEqual(await evaluate("(() => {const dialog=document.querySelector('#artifact-dialog');return {name:dialog.querySelector('h2').textContent,text:dialog.querySelector('.artifact-source code').textContent,preview:dialog.querySelector('#artifact-preview-tab').checkVisibility()};})()"), {name:filename.split('/').at(-1),text:source,preview:false});
+    assert.deepEqual(await currentChat(), expected, 'opening a tool file changed the active conversation or draft');
+    await pointerClick('#artifact-dialog [aria-label="Close artifact"]');
+    await wait("!document.querySelector('#artifact-dialog').open", 'close saved source');
+  }
+  await pointerClick(action('missing-write'));
+  await wait("document.querySelector('[data-tool-call=linked-missing-write] .workspace-tool-file-error')?.checkVisibility() && /no longer available/.test(document.querySelector('[data-tool-call=linked-missing-write] .workspace-tool-file-error').textContent)", 'missing saved-file write feedback');
+  assert.equal(await evaluate("!document.querySelector('[data-tool-call=linked-unsafe-write] :is(.workspace-tool-open,.workspace-tool-view-file)') && !document.querySelector('#artifact-dialog').open"), true, 'an invalid or unavailable path opened a file');
+
+  const inspectorOpened = await evaluate("document.querySelector('#inspector').checkVisibility()");
+  const initialTab = await evaluate("document.querySelector('#inspector [role=tab][aria-selected=true]')?.id");
+  if (!inspectorOpened) await pointerClick('#details-toggle');
+  await pointerClick('#tab-settings');
+  await wait("document.querySelector('#details-saved-files')?.checkVisibility()", 'Browse saved files in Chat details');
+  assert.equal(await evaluate("document.querySelector('#details-saved-files').textContent.trim()"), 'Browse saved files');
+  await pointerClick('#details-saved-files[data-action=attach-files]');
+  const savedOption = `#saved-file-dialog input[type=checkbox][value=${JSON.stringify(filename)}]`;
+  await wait(`document.querySelector('#saved-file-dialog').open && document.querySelector(${JSON.stringify(savedOption)})?.checkVisibility()`, 'saved file picker from Chat details');
+  await pointerClick('#saved-file-cancel');
+  await wait("!document.querySelector('#saved-file-dialog').open", 'cancel details file picker');
+  assert.deepEqual(await currentChat(), expected, 'details file picker changed the active conversation or draft');
+  assert.equal(apiMutations.length, mutations, 'reading saved files sent or mutated server state');
+  assert.equal(runStreams.length, streams, 'reading saved files started a model run');
+  if (initialTab && initialTab !== 'tab-settings') await pointerClick('#'+initialTab);
+  if (!inspectorOpened) await pointerClick('#details-toggle');
+  await fill('#draft', original.draft);
+}
 async function checkHomeLanding() {
   const selected = await evaluate("document.querySelector('.chat-item.active')?.dataset.chat");
   assert(selected, 'home landing check requires a saved conversation');
@@ -672,7 +723,23 @@ try {
   await cdp('Emulation.setDeviceMetricsOverride', {width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false});
   await cdp('Emulation.setEmulatedMedia', {features: [{name: 'prefers-color-scheme', value: 'dark'}]});
   await navigateDocument(url);
-  if (process.argv.includes('--workflow-only')) {
+  if (process.argv.includes('--write-file-actions-only')) {
+    await signIn();
+    const filename = 'nested/saved & exact.txt', source = 'Saved bytes \u00e9\n';
+    const chat = await evaluate(`(async () => {
+      const {revision}=await ChatShell.api('/workspace');
+      const state=await ChatShell.api('/workspace/file','POST',{revision,path:${JSON.stringify(filename)},content:${JSON.stringify(source)}});
+      const tool_calls=(${workspaceWriteCases})(${JSON.stringify(filename)},'missing.txt',state.revision,state.files);
+      return ChatShell.api('/import','POST',{version:1,chat:{title:'Saved write file actions',active_leaf:'saved-write-message'},messages:[{id:'saved-write-message',parent_id:null,role:'assistant',content:'Saved write outcomes.',tool_calls}]});
+    })()`);
+    await reloadDocument();
+    await wait(`document.querySelector('[data-chat="${chat.id}"]')`, 'saved write actions fixture');
+    await pointerClick(`[data-chat="${chat.id}"]`);
+    await wait("document.querySelector('[data-tool-call=linked-write]')", 'saved write outcomes');
+    await checkChatSavedWriteActions(filename, source);
+    assert.deepEqual(errors, [], 'saved write action browser exceptions');
+    console.log('PASS: completed and stale write read saved text in Chat, safe missing and invalid paths, and Attachments inspector opens saved file picker');
+  } else if (process.argv.includes('--workflow-only')) {
     await signIn();
     await send('Browser workflow prompt');
     await idle();
@@ -1940,7 +2007,8 @@ try {
   const workspaceChat = await evaluate(`fetch('/api/import',{method:'POST',headers:{'Content-Type':'application/json','X-Chat-Request':'1'},body:JSON.stringify({version:1,chat:{title:'Workspace tool results',active_leaf:'workspace-message'},messages:[{id:'workspace-message',parent_id:null,role:'assistant',content:'Workspace changes are ready.',tool_calls:['list','read','write','run'].map((name,index)=>({id:'workspace-'+index,name:'workspace_'+name,arguments:'{}',result:{content:[]},status:'completed'}))}]})}).then(r=>r.json()).then(c=>c.id)`);
   await reloadDocument(); await wait(`document.querySelector('[data-chat="${workspaceChat}"]')!==null`, 'imported workspace result cards');
   await click(`[data-chat="${workspaceChat}"]`);
-  await wait("document.querySelectorAll('.workspace-tool-open').length===4", 'workspace tool navigation buttons');
+  await wait("document.querySelectorAll('.workspace-tool-open').length===3", 'Workspace navigation for list, read and run');
+  assert.equal(await evaluate("Boolean(document.querySelector('[data-tool-call=workspace-2] .workspace-tool-open, [data-tool-call=workspace-2] .workspace-tool-view-file'))"), false, 'write without file metadata exposed a file action');
   await pointerClick('.workspace-tool-open');
   assert.equal(await evaluate("document.querySelector('#app').dataset.view"), 'workbench', 'workspace result button did not open workspace');
   const monitorBlock = new URL('/fixture-monitor-load', url).href;
@@ -2328,7 +2396,7 @@ try {
     const call=(id,name,args,metadata)=>({id,name:'workspace_'+name,arguments:JSON.stringify(args),result:{content:[{type:'text',text:JSON.stringify(metadata)}]},status:'completed'});
     const tool_calls=[
       call('linked-read','read',{path:safePath},await ChatShell.api('/workspace/file?path='+encodeURIComponent(safePath))),
-      call('linked-write','write',{path:'external.txt'},{revision:workspace.revision,files:workspace.files}),
+      ...(${workspaceWriteCases})('external.txt',removedPath,workspace.revision,workspace.files),
       call('linked-run','run',{command:job.command},job),
       call('linked-removed','read',{path:removedPath},prior),
       call('linked-pruned','run',{command:'old command'},{id:'00000000000000000000000000000000',command:'old command',status:'completed'}),
@@ -2345,6 +2413,12 @@ try {
   assert.equal(await evaluate("document.querySelector("+JSON.stringify(link('read'))+").textContent"), 'Open file', 'Workspace read result needs a direct file action');
   assert.equal(await evaluate("document.querySelector("+JSON.stringify(link('malformed'))+").textContent"), 'Open saved files', 'malformed result keeps the general saved-files action');
   const linkMutations = apiMutations.filter(item=>item.url.includes('/api/workspace/')).length;
+  await checkChatSavedWriteActions('external.txt', 'Follow-up after refresh failure');
+  const openWriteEditor = async () => {
+    const summary = '[data-tool-call="linked-write"] details:has(.workspace-tool-open) > summary';
+    if (!await evaluate(`document.querySelector(${JSON.stringify(link('write'))})?.checkVisibility()`)) await pointerClick(summary);
+    await pointerClick(link('write'));
+  };
   // Let the newly opened chat finish its scheduled scroll before targeting a tool button.
   await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
   await pointerClick(link('read'));
@@ -2352,12 +2426,12 @@ try {
   assert.equal(await evaluate("document.querySelector('.workspace-file-path').textContent"), linkedWorkspace.safePath);
   await fill('#workspace-editor', 'Keep this dirty buffer.');
   await click('.global-nav [data-view="chat"]');
-  await pointerClick(link('write'));
+  await openWriteEditor();
   await wait("document.querySelector('#action-dialog').open", 'discard guard for linked file');
   await closeAction('#conversation-cancel');
   assert.equal(await evaluate("document.querySelector('#workspace-editor').value"), 'Keep this dirty buffer.', 'cancelled link discarded the active buffer');
   await click('.global-nav [data-view="chat"]');
-  await pointerClick(link('write'));
+  await openWriteEditor();
   await wait("document.querySelector('#action-dialog').open", 'reopen discard guard for linked file');
   await closeAction('#conversation-submit');
   await wait("document.querySelector('.workspace-file-path').textContent==='external.txt' && document.querySelector('#workspace-editor').value==='Follow-up after refresh failure'", 'write action opens requested file');

@@ -34,7 +34,7 @@ def device():
 
 
 def probe(tool, model, directory, fixture, devices=None, width=1):
-    """The tool's run of `fixture` on the configured device, or on `devices`, which with a `width` above 1 form one tensor group."""
+    """The tool's run of `fixture` on the configured device, or on `devices`, which with a `width` above 1 form tensor groups of that width."""
     path = os.path.join(directory, "fixture.json")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(fixture, f)

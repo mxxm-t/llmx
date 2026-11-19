@@ -165,10 +165,12 @@ class Server:
 def check_request_identity(directory):
     """An opening chat chunk identifies its exact live health row, across concurrent requests and server restarts."""
     model = os.path.join(directory, "identity.gguf")
+    # The tensor-split fixtures' heads and vocabulary, which a group of two splits whole, since run_group runs this check under a tensor width too.
     config = dict(f32.CONFIG, embedding_length=64, feed_forward_length=128, context_length=8192)
-    config["attention.key_length"] = 32
+    config.update({"attention.key_length": 32, "attention.head_count": tensor_split.CONFIG["attention.head_count"],
+                   "attention.head_count_kv": tensor_split.CONFIG["attention.head_count_kv"]})
     template = "{% for m in messages %}{{ m.content }}{% endfor %}"
-    f32.write_model(model, f32.tensors(False, config=config), template, config=config)
+    f32.write_model(model, f32.tensors(False, config=config, vocab=tensor_split.VOCAB), template, config=config, tokens=tensor_split.TOKENS)
     previous_ids = set()
     for restart in range(2):
         srv = Server(model, "--threads", "1", "--ubatch", "1", "--max-seqs", "2", "--kv-tokens", "16384")

@@ -1349,9 +1349,13 @@ extern "C" __global__ void llmx_gather_f8_e4m3(float* dst, const unsigned char* 
     const unsigned long long i = blockIdx.y, j = (unsigned long long)blockIdx.x * kThreads + threadIdx.x;
     if (j >= width) return;
     const unsigned id = ids[i];
-    dst[i * width + j] = id >= nrows ? 0.0f
-                                     : rq::F8_E4M3::value(table + (unsigned long long)id * width + j, 0) *
-                                           grid[((unsigned long long)id >> shift) * (width / quant::F8_E4M3_SCALE_INPUTS) + j / quant::F8_E4M3_SCALE_INPUTS];
+    if (id >= nrows) {
+        dst[i * width + j] = 0.0f;
+        return;
+    }
+    // A NaN code keeps the CPUs quiet NaN, since a CUDA multiply returns its own canonical NaN, not the inputs.
+    const float v = rq::F8_E4M3::value(table + (unsigned long long)id * width + j, 0);
+    dst[i * width + j] = isnan(v) ? v : v * grid[((unsigned long long)id >> shift) * (width / quant::F8_E4M3_SCALE_INPUTS) + j / quant::F8_E4M3_SCALE_INPUTS];
 }
 
 extern "C" __global__ void llmx_gather_q8_0(float* dst, const unsigned char* table, const unsigned* ids, unsigned long long width, unsigned nrows) {

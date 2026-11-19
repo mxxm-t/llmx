@@ -1,5 +1,26 @@
 # llmx - Development Status
 
+## Two shots and the chain wait for their data (2026-11-19, DRAFT84 to DRAFT88, branch fix/draft-divergence on land/20261118 57a932e49)
+
+- Goal: a tensor group's two-shot and chain sums never read a peer's slot before its data has landed. Under PCIe relaxed ordering, which is on for every MI50 and every port on the paths of the four-card test set, a meeting word or count can reach a reader before the stores it follows; two shots' gathered totals and the chain's ahead input then gave the previous sum's values at that offset with no error.
+- Done: every read in two shots and in both directions of the chain goes through `group_take`, as the one-shot's did: it waits until no float of the unit holds the armed bits and arms the slot again, and raw rows are sent through `group_sane` so a value with the armed bits cannot hang a reader. `backend-rocm-sixteen`'s `late_totals` lands the peer's totals after its meeting word: it fails on the unfixed code (sum 2 returns the previous totals) and passes with the fix; docs/TESTS.md and docs/src/backends-gpu.md say so.
+- Gates on renderD132 to renderD135 (MI50, ROCm 7.2.1), base llmx 0.1.0+gc7d1fee7f26d against fix llmx 0.1.0+g66a998d4a075, both clean worktree builds: `backend-rocm-sixteen` and the full `backend-rocm` PASS with the fix; Qwen3.8-Flash-Next UD-Q4_K_XL ROCm 2x2 int8, easy drafting prompt, 64 greedy ids equal.
+- Cost, medians, interleaved b f f b b f f b, host wait 0 to 11 ms (none contended):
+
+| Cell | base | fix | change |
+|---|---|---|---|
+| Flash-Next 2x2 int8 tg128 | 62.97 tok/s | 62.77 tok/s | -0.3% |
+| Flash-Next 2x2 int8 pp512 | 1531 tok/s | 1601 tok/s | bimodal in both arms (1338 to 1603), no change read |
+| Qwen3-0.6B Q8_0 width 2 pp512 | 10443 tok/s | 10384 tok/s | -0.6% |
+| Qwen3-0.6B Q8_0 width 2 tg128 | 351.7 tok/s | 342.5 tok/s | -2.6%, decode sums take the unchanged one-shot; run spread 337 to 363 in both arms |
+| Two shots at join, 1310720 floats, W=2 | 0.437 to 0.442 ms | 0.443 to 0.444 ms | +0.5% |
+| Two shots at join, 655360 floats, W=2 | 0.237 to 0.239 ms | 0.237 to 0.238 ms | 0 |
+
+- Sums cells (the vendor comparison tool of sums/shares, with its timing mode patched into both test builds, 3 cycles, us): sizes the one-shot takes are unchanged; at the two-shot sizes the fix costs 1.6 to 2.7% at W=2 (163840: 98.4 to 100.4, 655360: 338.8 to 348.0, 2621440: 1325.5 to 1348.0), 1.6 to 2.1% at W=3 and 0.8 to 3.2% at W=4 up to 655360, -0.3% at W=4 2621440. RCCL wins 20 of 33 cells in both arms; that gate belongs to sums/shares.
+- Left: lands with the landing stack land/20261119 by fast-forward; on that stack llmx_hc_entry moved the group signals into kernels/group.h, so `group_sane4` sits there beside `group_sane`, and the rest is as tested. sums/shares drops two shots for its shares form, which already reads through `group_take`, and keeps the chain, so that branch takes this change's chain part when it rebases.
+- Stress, a test-only mode (both 2-wide groups of the four cards at once, sizes of 1, 13, 185 and 512 rows of 2560 through two shots, the chain and the timed forms, one member made late by up to three 64 MiB copies queued before its partial, every member's result against the member-order oracle): 160000 sums with the fix and 160000 on the base, 0 bad on both, so the hazard does not fire on healthy links and the test that holds the fix is `late_totals`.
+- Gotchas: the one bad drafting run of 2026-11-19 (Qwen3.8-Flash-Next 2x2 int8, easy prompt, the drafter run) is not shown to come from this hazard: injected stale totals, zeroed hand-off rows and zeroed KV rows of the damaged prompt rows do not reproduce its tokens past index 21.
+
 ## Vulkan decode attention takes exact head-group builds (2026-11-19, ATTN1 then ATTN2, branch perf/decode-head-groups-2 on main 57a932e49)
 
 - Goal: decode attention that takes the query heads of a KV head together does so in a build of the group's own size, and chooses the grouping by each view's own history, so a short row beside a long one keeps one head a workgroup.

@@ -32,6 +32,9 @@ __device__ inline unsigned group_sane(float v) {
     const unsigned x = __float_as_uint(v);
     return x == kGroupArmed ? kGroupQuiet : x;
 }
+__device__ inline float4 group_sane4(float4 v) {
+    return make_float4(__uint_as_float(group_sane(v.x)), __uint_as_float(group_sane(v.y)), __uint_as_float(group_sane(v.z)), __uint_as_float(group_sane(v.w)));
+}
 
 // Whether a wait gives up: a member set abort, or, read once a tick, the host set cancel or a probe's deadline passed.
 __device__ inline bool group_stop(const GroupPeers* p, GroupSignal* self, unsigned long long deadline, unsigned long long tick, unsigned long long* next, int* failed) {

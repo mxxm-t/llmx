@@ -3092,7 +3092,7 @@ inline uint64_t Cache::start_stream(const std::vector<std::shared_ptr<Request>>&
     try {
         // The read's views of its slots (Backend::wrap_host) and its copies are made on the stages' threads, ahead of the history's passes there.
         s.into = std::make_unique<infer::RestoreInto>(model_.restore_into(length, defer_));
-        s.read = disk_->stream(model_, path, *s.into, s.id, defer_);
+        s.read = disk_->stream(model_, path, *s.into, s.id);
     } catch (const std::exception& e) {
         if (s.into) model_.reset(s.into->seq);
         return refused(e.what());
@@ -3138,7 +3138,7 @@ inline void Cache::stream_round(const Lines& lines) {
     };
     for (size_t i = 0; i < streams_.size();) {
         Streaming& s = streams_[i];
-        // The stages are held only to send full slots; giving slots back and asking the state take no hold.
+        // Sending, giving slots back and asking the state take no hold; a deferred read's copies take their device's recording lock on its stage's thread (RestoreInto::defer).
         StreamedRead::State state = s.read->poll();
         if (state == StreamedRead::State::running && s.read->ready()) {
             s.read->send();
@@ -3148,7 +3148,7 @@ inline void Cache::stream_round(const Lines& lines) {
             ++i;
             continue;
         }
-        if (state == StreamedRead::State::done) {
+        if (state == StreamedRead::State::done && !s.ended) {
             model_.restored(*s.into, s.read->last());
             record(s, true);
             restoring_ = s.restore;
@@ -3165,10 +3165,10 @@ inline void Cache::stream_round(const Lines& lines) {
             disk_->end_stream(s.id, 0);
             moved(Move::read_done, "server: a history of %zu tokens read from disk into the devices, %.1f MiB in %.0f ms\n", d.seq.length(), (double)s.read->bytes() / (1 << 20), ms_since(s.started));
             donors_.push_back(std::move(d));
-            const uint64_t id = s.id;
-            streams_.erase(streams_.begin() + (std::ptrdiff_t)i);
-            wake_readers(lines, id);
-            continue;
+            // The stream stays until idle, its views of the ring's slots going on their stages' threads (StreamedRead::idle).
+            s.ended = true;
+            s.released = true;
+            wake_readers(lines, s.id);
         }
         if (!s.ended) {
             s.ended = true;

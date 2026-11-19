@@ -228,7 +228,8 @@ struct RestoreInto {
     size_t length = 0;
     std::vector<std::vector<Run>> runs;
     std::vector<backend::Backend*> backends;   // per device, the backend its runs are copied on
-    std::vector<size_t> stages;                // per device, the stage whose thread records on it (Model::StageItem)
+    // Runs work on device d's stage's thread under its recording lock (Model::Recording); empty where the restore is not deferred, and the caller records on the devices itself.
+    std::function<void(size_t, std::function<void()>)> defer;
 };
 
 // A stretch of a host history on one device: `bytes` at `offset` of that device's slabs taken end to end.

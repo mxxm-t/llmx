@@ -203,6 +203,22 @@ This test-only correction lands by fast-forward with the companion workflow.
 - **Checks:** The independent Chrome regression failed in 59.797 seconds before the fix and passed in 54.855 seconds after it. The combined browser fixture over public main `2ea30d410` passed in 66.845 seconds, including both themes at 1440, 390 and 320 pixels and 200 percent CSS zoom. Desktop preference, transient Settings access, mobile drawer state and toggle geometry passed. JavaScript syntax, whitespace and independent integration review passed. Dead-code passed with 17 expected findings and 20 planted faults in 34.8 seconds; docs passed with zero findings and 29 planted faults in 31.8 seconds and runs once more after this record.
 - **Landing:** Fast-forward from `2ea30d410` after final documentation validation and a fresh main check. This is static presentation only, with no server, runtime, API or numerical changes. The existing docs CLI remains applicable because native source and build inputs are unchanged. Full Markdown review checks references to details, temporary labels and layout; the companion README and TESTS own the updated behavior. Receipts are in `scratch/reading-landing/`, with independent matched screenshots in the main workspace's `scratch/chat-reading-layout/`.
 - **Gotchas:** Composer Settings and the narrow drawer are transient. Only explicit docked Details actions save the preference. Long titles can still truncate. Chrome emulation does not establish physical phone or Safari coverage. Settings semantics and history search remain separate audit work.
+## Streamed views dropped on their stages' threads (2026-11-19, REUSE3, branch fix/wrap-host-view-drop on land/20261118 57a932e49; F2DEV's finding of 2026-11-18 04:42)
+
+**Goal.** A streamed read's views of its ring's slots (`StreamedRead::views_`, made with `Backend::wrap_host`) go on the thread that records on their device, since dropping a GPU backend's view flushes its graves and records there.
+**Done.**
+- The read went with its views on the scheduler's thread when it was done, where `~GpuBuffer` of a registered view called `GpuBackend::flush` beside a stage's thread recording on the same device.
+- `StreamedRead::idle` now gives each device's views to its stage's thread once every copy has retired and is idle only after they have gone, and `stream_round` keeps a done stream, ended, until then.
+- `Model::restore_into` with a `Defer` gives `RestoreInto::defer`, which runs work on a device's stage's thread under its recording lock (`Model::Recording`), and the read's view items, copies and drops go through it, so where a device runs several stages or a drafter's stages sit apart they record there one thread at a time, as the history's own copy items do; `RestoreInto::stages` goes, since nothing else read it.
+- Fable's review of the locking found no deadlock and two faults the parent already had, both fixed here: a deferred read that fails past its first device's view items, whose queued items hold it, now fails as it goes rather than leaving those items a freed read, while a failure at the first still refuses the read as `server-resume`'s stream failing as it is set up requires; and a device whose `wrap_host` throws on its stage's thread drops the views it made there and writes its chunks, where it kept a partial list that a copy indexed past its end.
+- The review's other way out, starting the readers before the view items so nothing after them throws, was taken back: the readers wake the cache under its lock, which the caller holds, so a read refused after they start could wait forever joining them.
+- Test commit first: `server-resume`'s history larger than the host tier behind its boundary also runs on four CPUs that say they are devices, and requires every view the stream makes to be dropped on the thread that made it.
+
+**Gates.** The test fails on its parent (9 of 12 views dropped on another thread than their stage's) and passes with the fix, its comment since moved beside the enum it describes.
+The stack's shared gates, at a1baaf417 and on four MI50s at 620b7fc46, are those of Idle host growth a step at a time (below): CTest, identity, the suite, the server component on one MI50 and TSan pass.
+
+**Left.** Landing by fast-forward.
+
 ## GCC and Clang builds without implicit contraction (2026-11-12, DSDEV134, DSDEV140 then DSDEV143, branch dsdev140/fp-contract on main a8d33bfa8; F2DEV's review of 2026-11-11 23:41; lands by fast-forward as two commits, the failing test and then the fix)
 
 **Goal:** a multiply-add fuses only where the code writes an FMA, on every compiler, so no build's bits rest on what its compiler version fuses.
@@ -492,7 +508,7 @@ Gates at a045e37f3 (llmx 0.1.0+ga045e37f3088), test commit 56a8df849 before it: 
 The change touches no kernel and no numerics, so no HF record applies; the landing stack's Flash-Next timing round records MTP decode with the fix beside main; it lands by fast-forward.
 
 **Left.** The hosted run and the landing stack's Flash-Next MTP decode timing round, then landing by fast-forward.
-- A view of registered host memory dropped on another thread (`~GpuBuffer` of `wrap_host`) also calls `GpuBackend::flush` under the graves lock only, which a recording thread does not take; the CPU test cannot see it, and nothing has shown it causes a crash. Owner: the REUSE stream.
+- A view of registered host memory dropped on another thread (`~GpuBuffer` of `wrap_host`) also called `GpuBackend::flush` under the graves lock only; branch fix/wrap-host-view-drop drops a stream's views on their stages' threads (Streamed views dropped on their stages' threads, above).
 - Two servers with the same flags listed a tensor group's devices in a different order in their host layout, so the second did not adopt the kept disk directory. Owner: the REUSE stream.
 
 ## ROCm image input (2026-11-17, ROCVIS1 then ROCVIS2, branch feat/rocm-vision on main a274cfd62; F2DEV reviews)

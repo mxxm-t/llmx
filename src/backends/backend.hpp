@@ -1061,7 +1061,7 @@ public:
         Slice normed, low, gates, inject_gates;
     };
     // The learned mix of a row's streams: the grouped norm, its down product (and the inject gates' product beside it), silu scaled by 1 / streams, the up product, and mix_streams into out.
-    // A backend may run the steps as one launch, with each value's bits as the steps give them.
+    // A backend may run the steps as one launch with the steps' bits, and a generated int8 row right after its inject_streams may run both as one launch under the entry rule (docs/PRECISION.md, What each part computes in).
     virtual void hyper_mix(Slice out, CSlice x, const HyperMix& m, size_t rows, size_t streams, size_t dim, size_t low_rank, float eps, RowRuns runs, Dtype dtype) {
         const size_t width = streams * dim;
         const bool inject = m.inject.data.buffer != nullptr;

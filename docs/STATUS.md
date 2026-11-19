@@ -2363,6 +2363,40 @@ The Windows zip and the workflow itself are not run yet.
 
 **Gotchas:** the workflow runs only on a tag, so its Windows SDK install, image pushes and signing steps are first exercised by the release itself; a tag pushed to a fork or a test repository exercises it without a release, and gives the Linux job's hosted time, which its 180-minute limit only estimates.
 
+## Qwen3.8-Flash-Next sublayer entry as one launch (2026-11-16, QDEV30, QDEV31, QDEV32, QDEV37, QDEV39, QDEV40, QDEV41 then QDEV43, branch feat/qwen4exp-hc-entry rebased onto main 3b88cfb3a; castagna plan step 1, F2DEV's review of 20:38 with QDEV31's design v2)
+
+**Goal:** a generated row's join (the group's sum and the inject) and the next part's hyper-connection mix run as one launch, llmx_hc_entry, with one grid barrier, so the Flash-Next 2x2 decode closes on the castagna gate; model and runtime unchanged.
+
+**Done:** the prototype outside the tree gives one set of bits at widths 1 and 2 and 25.2 us a step against 32.8 for inject and llmx_hc_mix on one MI50; its first phase waited for the whole HC down stream because the take loop put a full memory wait before every element, and two fixes are built (the take compiled out at width 1, and the take read once before the weights).
+llmx_hc_entry is in kernels/int16.gpu over runtime streams, dim and low rank, at 118 VGPRs, no spills and 2 waves a SIMD on gfx906.
+GpuBackend holds a generated row's join as its pending slot (a sum's take, the inject, or both), issued at the top of hold() and flush(), and hyper_mix takes it into one llmx_hc_entry launch where the shape fits.
+At width 2 a generated row's sum in place pushes alone (llmx_group_push, the one-shot's first half) and each member holds the take, which llmx_hc_entry or, issued alone, llmx_group_take finishes; llmx_group_sum runs the same two halves as before.
+A flush that drops a held take sets its member's status word, so the group's next sum turns conservative, since only the take arms those slots again.
+backend-rocm hc_entry checks the entry against a host golden of the rule at widths 1 and 2, the flush paths, a refused entry launch and the launch witness (the llmx_hc_entry launch count).
+The 8-bit twin's 32-lane maximum in kernels/int16.gpu (twin_amax, for llmx_hc_mix and llmx_hc_entry) runs on lane_xor, DPP for xor 1 and 2 and swizzles for 4 to 16, in place of permutes; a maximum is order-free, so the bits are unchanged, and the prototype's form of it read 23.4 us a step against 24.5 with the same three hashes (QDEV36 rb3).
+The entry takes the pending join before it allocates its scratch, since the allocation's held fill issued the join first and a backend's first entry ran the chain.
+A sum in place folds its take only on members whose generated-row mix fits the entry (GpuBackend::entry_mixes_, set by the first such mix), so a model without hyper connections keeps main's one llmx_group_sum launch, which backend-rocm hc_entry checks on a pair before its first mix (F2DEV's fix 4 of 03:49, in place of a Qwen3.6-27B cell).
+backend-rocm hc_entry bounds low and the output from expf's documented error, not from a run: the device's expf is within 1 ulp (HIP's math table) and the host's within 0.502, so e = expf(-v) is at most 1 ulp apart, 1 + e 1 ulp, and each rounded quotient 2^-22 of itself; the output adds that per stream over H fmaf steps, each a rounding of at most 2^-23 of the stream terms' magnitudes apart, so (2 + H) 2^-23 of their sum over H; on an MI50 pair (317702a8 with the counter below) low read 2 ulp at 0.566 of its bound and the output 2 ulp at 0.176 of its bound.
+The group sums' launches (llmx_group_sum, two shots, chain, push) now count in the launch witness, which they never did, so the earlier no-llmx_group_sum checks held nothing.
+
+**Gate cells** (QDEV41 and QDEV43, 2026-11-17, branch bdd6816c `llmx 0.1.0+gbdd6816cb970 numerics baba726c1f6c55f6` against main 3b88cfb3a `llmx 0.1.0+g3b88cfb3aee2 numerics e03cf4ecadc2301f`, both built the same way; 948af37a differs from bdd6816c in docs/STATUS.md alone; Flash-Next UD-Q4_K_XL int8 on four MI50s, every Flash-Next timing cell contended by hostwait at host load 20 to 30; logs in /opt/claude-work/qdev41/out and /opt/claude-work/qdev43/out):
+- Launch witness over 8 tokens on the branch: llmx_hc_entry 1488 at 2x2 and 728 at layer-4; llmx_group_push 1536 and llmx_group_sum 378 at 2x2.
+- Greedy ids over 64 tokens: at 2x2 equal to main; at layer-4 the branch leaves main at token 31, where main's top two are 4598 over 13 by 0.0028 nats and the branch's 13 over 4598 by 0.1433, a near-tie; main is the same at both layouts.
+- Top-1 logprob shift, main to branch, over tokens 1 to 31: at most 0.0673 at layer-4 against 0.0882 on the 2x2 cell where the ids are equal, both at token 31 (F2DEV's criterion of 2026-11-17 04:47).
+- Mean NLL over 2044 tokens of wiki.test.raw at ctx 512: per-token 1.059031213 main and 1.055885725 branch at 2x2, 1.060023032 and 1.056018931 at layer-4; batched equal to main at both (1.054336486 and 1.055363407).
+- tg128 tok/s, main/branch, four ABAB pairs: 2x2 61.40/59.71, 64.59/70.75, 66.15/68.13, 64.74/70.59 (medians 64.67/69.36, +7.3%); layer-4 34.06/57.60, 55.32/56.51, 52.56/49.01, 50.51/44.96 (medians 51.54/52.76, inside the spread, so not a proven gain).
+- pp512 tok/s medians, main/branch: 2x2 1203.5/1260.5, layer-4 1271.8/1275.3; layer-4 pair 1's main tg 34.06 and pair 4's branch tg 44.96 (hostwait 6149 ms) are contention outliers, kept.
+- Qwen3-0.6B Q8_0 int8 on one MI50: greedy ids over 64 tokens equal to main (d143fe728501865d); pp512 medians 10907/10879, tg128 398.7/410.9 over three pairs, within noise.
+
+**Left:** the CUDA build with hc_entry at 0 spills.
+The HF record runs once on the landing head (COORD's decision of 2026-11-17 04:47): one cell reads the Flash-Next Q8_0 in place from the backup, read only, main and branch per-token NLL against the frozen means of QWEN38-FLASH.md section 6, in a window with no other card job reading weights.
+Step 2's open gate is 20 us a step (W1 reads about 23.4 now); its floor is serial latency inside the phases at 1.3 waves a SIMD, one grid barrier of 2 us and LDS syncs of 0.1 us, not the phase count.
+Step 2's moves, F2DEV's ranking, each in the prototype first: M1 the twin maximum by DPP (in step 1, -1 us); M2 down's 8 row sums as interleaved chains on the DPP tree (-2 to -2.5 us, bit-exact only if sum32 is the ascending xor butterfly); M3 twice the waves (-2 to -3 us); M4 at width 2, the push issued after the operand and weight loads, since gfx9's one in-order vmcnt puts its write acks on the critical path (width 2 reads 3.6 us over width 1).
+Before step 2 (D0): read the ISA between the first operand use and stamp 1, the vmcnt arguments and the code bytes, since ENT_DBG's stamp behind vmcnt(0) confounds phase A's attribution.
+
+**Gotchas:** a launch between the join and the mix (a stage round boundary) materializes the pending join and the fold is lost without error, which the llmx_hc_entry launch count shows; the fused path's bits follow the new rule, not the chain's, so its check compares against a host golden for int8 generated rows, exact for the streams and inject gates and within expf's last bits for low and the output, whose up product starts from the device's low.
+A tensor-width-2 sum in place of one row whose width is a multiple of 1280 pushes and takes as two launches only on members whose generated-row mixes fit the entry (GpuBackend::entry_mixes_, set by the first such mix), so a model without hyper connections, Qwen3.6-27B's 5120 among them, keeps main's one llmx_group_sum launch; on Flash-Next a sum no mix follows, or one before the first generated mix, still takes two.
+
 ## The fit prices each buffer as the device takes it (2026-11-17, MOEOFF45 to MOEOFF49, branch fix/fit-buffers-as-taken-r1 on main 3b88cfb3a; F2DEV's reviews of 13:21 and 18:52)
 
 **Goal.** A fit to a device's room leaves every buffer a built model and its first pass take room on the device, and `generate` backs the KV its prompt and reply take rather than the model's context.

@@ -1285,7 +1285,8 @@ void hyper_mix_bits(Backend& g, Backend* other = nullptr) {
         size_t streams, dim, low;
         bool inject;
     };
-    const Shape shapes[] = {{4, 2560, 320, true}, {4, 2560, 320, false}, {2, 512, 64, true}, {2, 256, 64, true}};
+    // Widths of a multiple of 1280 mix under the entry rule (hc_entry_rows), so the widest shapes here sit just beside it.
+    const Shape shapes[] = {{4, 2304, 320, true}, {4, 2304, 320, false}, {2, 512, 64, true}, {2, 256, 64, true}};
     for (const Shape& sh : shapes)
         for (size_t rows : {1, 2, 3, 4, 5, 8, 9, 13, 16}) {
             const size_t width = sh.streams * sh.dim, nout = 64;
@@ -2334,6 +2335,337 @@ void sentinel_sums() {
     }
 }
 
+// The host golden of the hyper mix's entry rule (Backend::hyper_mix, docs/PRECISION.md) for one generated row, from the injected streams x.
+// Its sums follow the rule's orders exactly; low and out pass through expf, whose last bit the host and the device may round apart, so the up product starts from the device's low.
+struct EntryGolden {
+    std::vector<float> rr, low, injg, out;
+    std::vector<double> mag;   // per output, the sum of its stream terms' magnitudes
+};
+void entry_twin(const float* v, int8_t* q, float* d) {
+    float amax = 0.0f;
+    for (int i = 0; i < 32; ++i) amax = std::fmax(amax, std::fabs(v[i]));
+    if (amax == 0.0f) {
+        std::fill(q, q + 32, int8_t(0));
+        *d = 0.0f;
+        return;
+    }
+    int e = 0;
+    (void)std::frexp(amax, &e);
+    const int s = (amax >= 0x1p-100f && amax <= 0x1p100f) ? 0 : 1 - e;
+    const float an = std::ldexp(amax, s);
+    for (int i = 0; i < 32; ++i) {
+        const float r = std::ldexp(v[i], s) * (127.0f / an);
+        const float t = std::fmin(std::floor(std::fabs(r) + 0.5f), 127.0f);
+        q[i] = (int8_t)(r < 0.0f ? -t : t);
+    }
+    *d = std::ldexp(an / 127.0f, -s);
+}
+// Blocks 2p and 2p + 1 of a Q8_0 row against the twin's: fmaf(d1 xd1, i1, (d0 xd0) i0).
+float entry_pair(const uint8_t* w, const int8_t* q, const float* qd) {
+    int s[2] = {0, 0};
+    float d[2];
+    for (int k = 0; k < 2; ++k) {
+        uint16_t h;
+        std::memcpy(&h, w + 34 * k, 2);
+        d[k] = f16_to_f32(h);
+        for (int i = 0; i < 32; ++i) s[k] += (int)(int8_t)w[34 * k + 2 + i] * (int)q[32 * k + i];
+    }
+    return std::fma(d[1] * qd[1], (float)s[1], (d[0] * qd[0]) * (float)s[0]);
+}
+// The pairwise tree of n values, n a power of two: a[i] += a[i + s] for s = n / 2 down to 1.
+float entry_tree(std::vector<float> a) {
+    for (size_t s = a.size() / 2; s; s >>= 1)
+        for (size_t i = 0; i < s; ++i) a[i] += a[i + s];
+    return a[0];
+}
+EntryGolden entry_golden(const std::vector<float>& x, const std::vector<float>& nw, const std::vector<uint8_t>& down, const std::vector<uint8_t>& up, const std::vector<float>* inj,
+                         const std::vector<float>& dev_low, size_t H, size_t E, size_t L, float eps) {
+    const size_t G = 1280, KG = E / G, R = H * E, drow = R / 32 * 34, urow = L / 32 * 34;
+    EntryGolden o;
+    std::vector<float> pss(H * KG), pdown(H * KG * L), pinj(H * KG * H);
+    for (size_t kg = 0; kg < H * KG; ++kg) {
+        const size_t gb = kg * G;
+        std::vector<float> y(G), qd(G / 32), ss(256, 0.0f);
+        std::vector<int8_t> q(G);
+        for (size_t i = 0; i < G; ++i) y[i] = x[gb + i] * nw[gb + i];
+        for (size_t b = 0; b < G / 32; ++b) entry_twin(&y[b * 32], &q[b * 32], &qd[b]);
+        for (size_t k = 0; k < G / 256; ++k)
+            for (size_t t = 0; t < 256; ++t) ss[t] = std::fma(x[gb + t + k * 256], x[gb + t + k * 256], ss[t]);
+        pss[kg] = entry_tree(ss);
+        for (size_t r = 0; inj && r < H; ++r) {
+            std::vector<float> ip(256, 0.0f);
+            for (size_t k = 0; k < G / 256; ++k)
+                for (size_t t = 0; t < 256; ++t) ip[t] = std::fma((*inj)[r * R + gb + t + k * 256], y[t + k * 256], ip[t]);
+            pinj[kg * H + r] = entry_tree(ip);
+        }
+        for (size_t row = 0; row < L; ++row) {
+            std::vector<float> v(32, 0.0f);
+            for (size_t p = 0; p < G / 64; ++p) v[p] = entry_pair(&down[row * drow + (gb / 32 + 2 * p) * 34], &q[64 * p], &qd[2 * p]);
+            pdown[kg * L + row] = entry_tree(v);
+        }
+    }
+    const auto across = [&](const float* part, size_t stride, size_t at) {
+        float v = 0.0f;
+        for (size_t h = 0; h < H; ++h) {
+            float ts = part[(h * KG) * stride + at];
+            for (size_t g = 1; g < KG; ++g) ts = ts + part[(h * KG + g) * stride + at];
+            v = h ? std::fma(o.rr[h], ts, v) : o.rr[h] * ts;
+        }
+        return v;
+    };
+    for (size_t h = 0; h < H; ++h) {
+        float sum = pss[h * KG];
+        for (size_t g = 1; g < KG; ++g) sum = sum + pss[h * KG + g];
+        o.rr.push_back(1.0f / std::sqrt(sum / (float)E + eps));
+    }
+    for (size_t r = 0; inj && r < H; ++r) o.injg.push_back(across(pinj.data(), H, r));
+    for (size_t row = 0; row < L; ++row) {
+        const float v = across(pdown.data(), L, row) * (1.0f / float(H));
+        o.low.push_back(v / (1.0f + std::exp(-v)));
+    }
+    std::vector<int8_t> uq(L);
+    std::vector<float> ud(L / 32);
+    for (size_t b = 0; b < L / 32; ++b) entry_twin(&dev_low[b * 32], &uq[b * 32], &ud[b]);
+    for (size_t d = 0; d < E; ++d) {
+        float sum = 0.0f;
+        double mag = 0.0;
+        for (size_t h = 0; h < H; ++h) {
+            const uint8_t* w = &up[(h * E + d) * urow];
+            float g = entry_pair(w, &uq[0], &ud[0]);
+            for (size_t p = 1; p < L / 64; ++p) g += entry_pair(w + p * 68, &uq[64 * p], &ud[2 * p]);
+            const float c = x[h * E + d] * (o.rr[h] * nw[h * E + d]), s = 1.0f / (1.0f + std::exp(-g));
+            sum = std::fma(c, s, sum);
+            mag += std::fabs((double)c * s);
+        }
+        o.out.push_back(sum / (float)H);
+        o.mag.push_back(mag);
+    }
+    return o;
+}
+// The largest distance in units in the last place between two runs of floats of one sign.
+uint32_t max_ulp(const std::vector<float>& a, const std::vector<float>& b) {
+    uint32_t m = 0;
+    for (size_t i = 0; i < a.size() && i < b.size(); ++i) {
+        int32_t x, y;
+        std::memcpy(&x, &a[i], 4);
+        std::memcpy(&y, &b[i], 4);
+        m = std::max<uint32_t>(m, (uint32_t)std::abs((long long)x - (long long)y));
+    }
+    return m;
+}
+
+// Batch invariance of the entry rule: 1 to 9 generated rows injected and mixed in one call give each row the bytes it gets alone as a decode row, one llmx_hc_entry launch.
+// Rows past one run llmx_hc_entry8, up to 8 rows a launch, so 9 rows take two launches.
+void hc_entry_rows(Backend& g, bool with_inj) {
+    const size_t H = 4, E = 2560, L = 320, R = H * E, kMax = 9;
+    const float eps = 1e-6f;
+    const std::vector<uint8_t> down = q8_matrix(R, L, 171), up = q8_matrix(L, R, 172);
+    const std::vector<float> nw = row_classes::values(R, 173), inj = row_classes::values(H * R, 174), xs = row_classes::values(kMax * R, 175), blks = row_classes::values(kMax * E, 176),
+                             gins = row_classes::values(kMax * H, 177);
+    auto db = g.adopt(down.data(), down.size()), ub = g.adopt(up.data(), up.size()), wb = g.adopt(nw.data(), nw.size() * 4), ib = g.adopt(inj.data(), inj.size() * 4);
+    struct Run {
+        std::vector<float> x, out, low, injg;
+        std::map<std::string, size_t> ran;
+    };
+    // Rows first to first + n, injected and mixed as one call, n generated rows unless runs are given.
+    const auto run = [&](size_t first, size_t n, std::vector<RowRun> runs = {}) {
+        auto xb = g.alloc(n * R * 4), bb = g.alloc(n * E * 4), gb = g.alloc(n * H * 4), out = g.alloc(n * E * 4), normed = g.alloc(n * R * 4), low = g.alloc(n * L * 4),
+             gates = g.alloc(n * R * 4), injg = g.alloc(n * H * 4);
+        g.write(*xb, 0, xs.data() + first * R, n * R * 4);
+        g.write(*bb, 0, blks.data() + first * E, n * E * 4);
+        g.write(*gb, 0, gins.data() + first * H, n * H * 4);
+        g.sync();
+        const Backend::HyperMix m{{wb.get(), 0}, {quant::GGML_TYPE_Q8_0, {db.get(), 0}}, {quant::GGML_TYPE_Q8_0, {ub.get(), 0}},
+                                  with_inj ? WeightView{quant::GGML_TYPE_F32, {ib.get(), 0}} : WeightView{}, {normed.get(), 0}, {low.get(), 0}, {gates.get(), 0}, {injg.get(), 0}};
+        std::vector<RowRun> gen(n);
+        for (size_t r = 0; r < n; ++r) gen[r] = {r + 1, 1};
+        if (!runs.empty()) gen = runs;
+        rocm_take_launches(g);
+        g.inject_streams({xb.get(), 0}, {bb.get(), 0}, {gb.get(), 0}, n, H, E);
+        g.hyper_mix({out.get(), 0}, {xb.get(), 0}, m, n, H, E, L, eps, {gen.data(), gen.size()}, Dtype::int8);
+        Run r{read(g, *xb, n * R), read(g, *out, n * E), read(g, *low, n * L), read(g, *injg, n * H), {}};
+        r.ran = rocm_take_launches(g);
+        return r;
+    };
+    const auto part = [](const std::vector<float>& v, size_t at, size_t n) { return std::vector<float>(v.begin() + at * n, v.begin() + (at + 1) * n); };
+    std::vector<Run> alone;
+    for (size_t r = 0; r < kMax; ++r) alone.push_back(run(r, 1));
+    for (size_t r = 0; r < kMax; ++r)
+        require(alone[r].ran.count("llmx_hc_entry") && alone[r].ran.at("llmx_hc_entry") == 1, "a decode row's inject and mix are one llmx_hc_entry launch, row " + std::to_string(r));
+    for (size_t n : {size_t(1), size_t(2), size_t(3), size_t(4), size_t(8), size_t(9)}) {
+        const Run b = run(0, n);
+        bool exact = true;
+        for (size_t r = 0; r < n; ++r)
+            exact = exact && same(part(b.x, r, R), alone[r].x) && same(part(b.out, r, E), alone[r].out) && same(part(b.low, r, L), alone[r].low) &&
+                    same(part(b.injg, r, H), alone[r].injg);
+        const std::string at = std::to_string(n) + " generated rows" + (with_inj ? " with inject gates" : "");
+        require(exact, at + " in one call give each row its decode bytes");
+        const char* k = n == 1 ? "llmx_hc_entry" : "llmx_hc_entry8";
+        require(b.ran.count(k) && b.ran.at(k) == (n + 7) / 8 && !b.ran.count("llmx_hc_mix") && !b.ran.count("llmx_hc_mix8"), at + " mix as one llmx_hc_entry for a row, else llmx_hc_entry8 launches of 8 rows at most");
+    }
+    // Generated rows beside another request's prompt run of 3 rows, as a server pass batches them, keep their bytes.
+    const Run mixed = run(0, 5, {{1, 1}, {4, 3}, {5, 1}});
+    require(same(part(mixed.out, 0, E), alone[0].out) && same(part(mixed.low, 0, L), alone[0].low) && same(part(mixed.out, 4, E), alone[4].out) &&
+                same(part(mixed.low, 4, L), alone[4].low) && same(part(mixed.injg, 4, H), alone[4].injg),
+            std::string("generated rows beside a prompt run keep their decode bytes") + (with_inj ? " with inject gates" : ""));
+    std::cout << "backend-rocm: 1, 2, 3, 4, 8 and 9 generated rows in one call" << (with_inj ? " with inject gates" : "") << " give each row the bytes llmx_hc_entry gives it alone, and beside a prompt run too\n";
+}
+
+// llmx_hc_entry, a generated row's inject and mix as one launch, at widths 1 and 2 against the host golden of the entry rule, with the flush paths between them giving the entry's bytes.
+// A refused entry launch throws and turns its group conservative, and a sum on members no entry mix reached stays one llmx_group_sum launch.
+void hc_entry() {
+    real_launch = hip().hipModuleLaunchKernel;
+    std::vector<BackendPtr> d = rocm_devices(2);
+    const size_t H = 4, E = 2560, L = 320, R = H * E;
+    const float eps = 1e-6f;
+    const std::vector<uint8_t> down = q8_matrix(R, L, 161), up = q8_matrix(L, R, 162);
+    const std::vector<float> x0 = row_classes::values(R, 163), nw = row_classes::values(R, 164), inj = row_classes::values(H * R, 165), p0 = row_classes::values(E, 166),
+                             p1 = row_classes::values(E, 167), gin = row_classes::values(H, 168);
+    std::vector<float> blk(E);
+    for (size_t i = 0; i < E; ++i) blk[i] = p0[i] + p1[i];
+    struct Run {
+        std::vector<float> x, out, low, injg;
+        std::map<std::string, size_t> ran;
+    };
+    // A member's operands, made and written before any sum, since a write issues a pending join.
+    struct Ops {
+        BufferPtr db, ub, wb, ib, xb, gb, out, normed, low, gates, injg;
+    };
+    const auto prepare = [&](Backend& g) {
+        auto db = g.adopt(down.data(), down.size()), ub = g.adopt(up.data(), up.size()), wb = g.adopt(nw.data(), nw.size() * 4), ib = g.adopt(inj.data(), inj.size() * 4);
+        auto xb = g.alloc(R * 4), gb = g.alloc(H * 4), out = g.alloc(E * 4), normed = g.alloc(R * 4), low = g.alloc(L * 4), gates = g.alloc(R * 4), injg = g.alloc(H * 4);
+        g.write(*xb, 0, x0.data(), R * 4);
+        g.write(*gb, 0, gin.data(), H * 4);
+        g.sync();
+        return Ops{db, ub, wb, ib, xb, gb, out, normed, low, gates, injg};
+    };
+    // One member's inject and mix; `between` runs on the backend after the inject.
+    const auto go = [&](Backend& g, Ops& o, CSlice block, const std::function<void(Backend&)>& between, bool chain) {
+        const Backend::HyperMix m{{o.wb.get(), 0}, {quant::GGML_TYPE_Q8_0, {o.db.get(), 0}}, {quant::GGML_TYPE_Q8_0, {o.ub.get(), 0}},
+                                  WeightView{quant::GGML_TYPE_F32, {o.ib.get(), 0}}, {o.normed.get(), 0}, {o.low.get(), 0}, {o.gates.get(), 0}, {o.injg.get(), 0}};
+        const RowRun gen[1] = {{1, 1}};
+        rocm_take_launches(g);
+        g.inject_streams({o.xb.get(), 0}, block, {o.gb.get(), 0}, 1, H, E);
+        if (between) between(g);
+        if (chain) g.Backend::hyper_mix({o.out.get(), 0}, {o.xb.get(), 0}, m, 1, H, E, L, eps, {gen, 1}, Dtype::int8);
+        else g.hyper_mix({o.out.get(), 0}, {o.xb.get(), 0}, m, 1, H, E, L, eps, {gen, 1}, Dtype::int8);
+        Run r{read(g, *o.xb, R), read(g, *o.out, E), read(g, *o.low, L), read(g, *o.injg, H), {}};
+        r.ran = rocm_take_launches(g);
+        return r;
+    };
+    const auto run = [&](Backend& g, CSlice block, const std::function<void(Backend&)>& between, bool chain) {
+        Ops o = prepare(g);
+        return go(g, o, block, between, chain);
+    };
+    const auto launched = [](const Run& r, const char* k) { return r.ran.count(k) ? r.ran.at(k) : size_t(0); };
+    Backend& g = *d[0];
+    auto bb = g.adopt(blk.data(), E * 4);
+    const Run chain = run(g, {bb.get(), 0}, nullptr, true), one = run(g, {bb.get(), 0}, nullptr, false);
+    require(launched(one, "llmx_hc_entry") == 1 && one.ran.size() == 1, "a generated row's inject and mix are one llmx_hc_entry launch at width 1");
+    require(same(one.x, chain.x), "llmx_hc_entry's injected streams are inject_streams' bits");
+    const EntryGolden want = entry_golden(one.x, nw, down, up, &inj, one.low, H, E, L, eps);
+    require(same(one.injg, want.injg), "llmx_hc_entry's inject gates are the entry rule's bits");
+    // The device's expf is within 1 ulp (HIP's math table) and the host's within 0.502, so e = expf(-v) differs by at most 1 ulp, 1 + e by 1 ulp and each rounded quotient by 2^-22 of itself.
+    // The output adds that per stream over H fmaf steps, each a rounding of at most 2^-23 of the terms' magnitudes apart, then divides by H (exact for a power of two, another 2^-23 otherwise).
+    const double kLow = 0x1p-22 * (1 + 0x1p-20), kOut = (2.0 + H) * 0x1p-23 * (1 + 0x1p-20) / H, tiny = 0x1p-148;
+    double hl = 0.0, ho = 0.0;
+    bool inside = one.low.size() == L && one.out.size() == E;
+    for (size_t i = 0; inside && i < L; ++i) {
+        const double bound = kLow * std::fabs(want.low[i]) + tiny, e = std::fabs((double)one.low[i] - want.low[i]);
+        inside = e <= bound;
+        hl = std::max(hl, e / bound);
+    }
+    for (size_t i = 0; inside && i < E; ++i) {
+        const double bound = kOut * want.mag[i] + ((H & (H - 1)) ? 0x1p-23 * std::fabs(want.out[i]) : 0.0) + tiny, e = std::fabs((double)one.out[i] - want.out[i]);
+        inside = e <= bound;
+        ho = std::max(ho, e / bound);
+    }
+    const uint32_t ul = max_ulp(one.low, want.low), uo = max_ulp(one.out, want.out);
+    require(inside, "llmx_hc_entry's low and output are the entry rule's within the bounds expf's error gives");
+    std::cout << "backend-rocm: llmx_hc_entry at width 1 is the entry rule: streams and inject gates exact, low within " << ul << " ulp (" << hl << " of its bound) and output within " << uo
+              << " ulp (" << ho << " of its bound) of the host golden\n";
+    hc_entry_rows(g, true);
+    hc_entry_rows(g, false);
+    // Any operation between the inject and the mix issues the inject first, and the mix of the injected row is llmx_hc_entry8's, with the entry's bytes.
+    auto other = g.alloc(64 * 4), other2 = g.alloc(64 * 4), x2 = g.alloc(R * 4);
+    const std::pair<const char*, std::function<void(Backend&)>> paths[] = {
+        {"a launch", [&](Backend& b) { b.inject_streams({x2.get(), 0}, {bb.get(), 0}, {other.get(), 0}, 1, 1, 640); }},
+        {"a read", [&](Backend& b) { (void)read(b, *other, 64); }},
+        {"a copy", [&](Backend& b) { b.copy(*other2, 0, *other, 0, 64 * 4); }},
+        {"a second inject", [&](Backend& b) { b.inject_streams({x2.get(), 0}, {bb.get(), 0}, {other.get(), 0}, 1, 4, 640); }}};
+    for (const auto& [what, between] : paths) {
+        const Run r = run(g, {bb.get(), 0}, between, false);
+        require(launched(r, "llmx_hc_entry") == 0 && launched(r, "llmx_hc_entry8") == 1, std::string("llmx_hc_entry8 and no llmx_hc_entry with ") + what + " between the inject and the mix");
+        require(same(r.x, one.x) && same(r.out, one.out) && same(r.low, one.low) && same(r.injg, one.injg), std::string("with ") + what + " between the inject and the mix, the entry's bytes");
+    }
+    std::cout << "backend-rocm: a launch, a read, a copy or a second inject between the inject and the mix gives llmx_hc_entry8 with the entry's bytes\n";
+    if (d.size() < 2) {
+        std::cout << "backend-rocm: one device, so no llmx_hc_entry at width 2\n";
+        return;
+    }
+    // Width 2: the sum in place pushes, each member's entry takes its peer's partial; the bytes are width 1's with the summed block.
+    std::unique_ptr<Collective> c = d[0]->join(raw(d, 2), 1, E);
+    require(c != nullptr, "two ROCm devices joined no collective");
+    if (!c) return;
+    // Member 1 has run no mix, so the group's sum is main's one launch; member 1's first mix then takes the summed block as a width-1 entry.
+    for (size_t m = 0; m < 2; ++m) d[m]->write(*c->partial(m).buffer, c->partial(m).offset * 4, (m ? p1 : p0).data(), E * 4);
+    (void)rocm_take_launches(*d[0]);
+    (void)rocm_take_launches(*d[1]);
+    c->sum_in_place(1, E);
+    for (size_t m = 0; m < 2; ++m) {
+        const std::map<std::string, size_t> k = rocm_take_launches(*d[m]);
+        require(k.count("llmx_group_sum") && k.at("llmx_group_sum") == 1 && !k.count("llmx_group_push"), "a sum on members no entry mix reached is one llmx_group_sum launch on member " + std::to_string(m));
+    }
+    const Run first = run(*d[1], CSlice(c->partial(1)), nullptr, false);
+    require(launched(first, "llmx_hc_entry") == 1 && same(first.out, one.out), "member 1's first mix is a width-1 entry with width 1's bytes");
+    const auto summed = [&](const std::function<void(Backend&)>& between, bool fail0) {
+        for (size_t m = 0; m < 2; ++m) d[m]->write(*c->partial(m).buffer, c->partial(m).offset * 4, (m ? p1 : p0).data(), E * 4);
+        Ops ops[2] = {prepare(*d[0]), prepare(*d[1])};
+        c->sum_in_place(1, E);
+        std::vector<Run> rs;
+        for (size_t m = 0; m < 2; ++m) {
+            HipFn& f = hip();
+            if (fail0 && !m) {
+                group_calls.launches = 0;
+                group_calls.fail = 1;
+                f.hipModuleLaunchKernel = counted_launch;
+            }
+            bool threw = false;
+            try {
+                rs.push_back(go(*d[m], ops[m], CSlice(c->partial(m)), between, false));
+            } catch (const std::exception&) {
+                threw = true;
+                rs.push_back({});
+            }
+            f.hipModuleLaunchKernel = real_launch;
+            group_calls.fail = 0;
+            require(threw == (fail0 && !m), "a member's refused entry launch throws there alone");
+        }
+        return rs;
+    };
+    const std::vector<Run> two = summed(nullptr, false);
+    for (size_t m = 0; m < 2; ++m) {
+        const std::string at = " on member " + std::to_string(m);
+        require(launched(two[m], "llmx_hc_entry") == 1 && launched(two[m], "llmx_group_take") == 0 && launched(two[m], "llmx_group_sum") == 0, "the sum's take and the mix are one llmx_hc_entry launch" + at);
+        require(same(two[m].x, one.x) && same(two[m].out, one.out) && same(two[m].low, one.low) && same(two[m].injg, one.injg), "llmx_hc_entry at width 2 gives width 1's bytes" + at);
+    }
+    const std::vector<Run> took = summed([&](Backend& b) { (void)read(b, *other, 64); }, false);
+    for (size_t m = 0; m < 2; ++m)
+        require(launched(took[m], "llmx_group_take") == 1 && launched(took[m], "llmx_hc_entry") == 0 && same(took[m].x, one.x) && same(took[m].out, one.out),
+                "a read between the sum and the mix takes the sum alone and gives the entry's bytes on member " + std::to_string(m));
+    std::cout << "backend-rocm: llmx_hc_entry at width 2 takes the peer's partial and gives width 1's bytes; a read before the mix takes the sum alone, the entry's bytes\n";
+    // A refused entry launch: it throws on its member, the peer's entry is exact, and the group's next sums are conservative and exact.
+    const std::vector<Run> failed = summed(nullptr, true);
+    require(same(failed[1].out, one.out), "the peer of a member whose entry launch was refused gives width 1's bytes");
+    const std::vector<Run> after = summed(nullptr, false);
+    for (size_t m = 0; m < 2; ++m)
+        require(launched(after[m], "llmx_hc_entry") == 1 && launched(after[m], "llmx_group_take") == 0 && same(after[m].out, one.out),
+                "after a refused entry launch the group sums conservatively and the inject and mix still run as one launch, width 1's bytes, on member " + std::to_string(m));
+    const Run again = run(g, {bb.get(), 0}, nullptr, false);
+    require(launched(again, "llmx_hc_entry") == 1 && same(again.out, one.out), "a member whose entry launch was refused runs llmx_hc_entry again with the same bytes");
+    std::cout << "backend-rocm: a refused llmx_hc_entry launch throws on its member, its peer's entry is exact, and the group's later sums are conservative and exact\n";
+}
+
 // The collective over 2 up to kMaxTensorWidth devices where they open, fast and conservative, a sum that gives up and the epochs' wrap (docs/TESTS.md, backend-rocm).
 void collective() {
     HipFn& f = hip();
@@ -3063,6 +3395,12 @@ int main(int argc, char** argv) {
             return failures ? 1 : 0;
         }
         // `collective` runs only the tensor group's collective checks over every visible device.
+        // `hc_entry` runs only llmx_hc_entry's checks, on one device and on a pair where two are visible.
+        if (argc > 1 && std::string(argv[1]) == "hc_entry") {
+            hc_entry();
+            std::cout << (failures ? "backend-rocm hc_entry: FAIL\n" : "backend-rocm hc_entry: PASS\n");
+            return failures ? 1 : 0;
+        }
         if (argc > 1 && std::string(argv[1]) == "collective") {
             collective();
             sentinel_sums();
@@ -3190,6 +3528,7 @@ int main(int argc, char** argv) {
         records();
         failure();
         collective();
+        hc_entry();
         sentinel_sums();
         handoffs();
         busy_times();

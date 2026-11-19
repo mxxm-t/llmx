@@ -119,13 +119,14 @@ public:
         summed(residual, size_mul(rows, width), false);
     }
 
-    // Each member's own partial rows are its residual, which the sum replaces.
+    // Each member's own partial rows are its residual, which the sum replaces; a generated row's sum folds its take into the next mix only on members whose mixes take the entry.
     void sum_in_place(size_t rows, size_t width) override {
         const size_t n = size_mul(rows, width);
         if (n > size_mul(rows_, width_)) throw std::logic_error("backend: a sum past the rows its collective was made for");
         std::vector<Slice> own;
         for (size_t m = 0; m < members_.size(); ++m) own.push_back(partial(m));
-        summed(own, n, true);
+        const bool mixes = std::all_of(members_.begin(), members_.end(), [](const GpuBackend<Api>* b) { return b->entry_mixes_; });
+        summed(own, n, true, rows == 1 && width % GpuBackend<Api>::kEntryGroup == 0 && mixes);
     }
 
     // Whether the sums still take the fast path; a test's witness.
@@ -204,7 +205,8 @@ public:
     }
 
 private:
-    void summed(const std::vector<Slice>& residual, size_t n, bool replace) {
+    // fold: a generated row's sum in place whose take each member holds as its pending join, which the mix after its inject may take into one launch (GpuBackend::entry).
+    void summed(const std::vector<Slice>& residual, size_t n, bool replace, bool fold = false) {
         const size_t W = members_.size();
         for (size_t m = 0; m < W; ++m) span(*residual[m].buffer, residual[m].offset * sizeof(float), size_mul(n, sizeof(float)));
         settle();
@@ -218,11 +220,13 @@ private:
             for (size_t m = 0; m < W; ++m) last_[m] = members_[m]->tickets_.last() + 1;
         };
         try {
+            std::vector<typename GpuBackend<Api>::TakeDesc> takes;
             if (n) {
-                if (fast_ && form_of(n) != GpuSumForm::pulls) pushed(residual, n, replace);
+                if (fast_ && form_of(n) != GpuSumForm::pulls) pushed(residual, n, replace, fold && replace && members_.size() == 2 ? &takes : nullptr);
                 else pulled(residual, n, replace);
             }
             for (GpuBackend<Api>* b : members_) b->flush();
+            for (size_t m = 0; m < takes.size(); ++m) members_[m]->pend_take(takes[m]);
         } catch (...) {
             cancel();
             issued();
@@ -239,7 +243,8 @@ private:
     }
 
     // The blocks of every member's launch follow from n and the form alone, so every member's block b meets its peers' block b.
-    void launch(size_t m, const Slice& out, size_t n, bool replace, bool fast, GpuSumForm form) {
+    // takes, where given, gets the one-shot's take and the member launches its push alone.
+    void launch(size_t m, const Slice& out, size_t n, bool replace, bool fast, GpuSumForm form, std::vector<typename GpuBackend<Api>::TakeDesc>* takes = nullptr) {
         GpuBackend<Api>& b = *members_[m];
         const float* own = GpuBackend<Api>::f32(CSlice(partial(m)));
         float* o = GpuBackend<Api>::f32(out);
@@ -251,13 +256,18 @@ private:
         else if (form == GpuSumForm::chain || form == GpuSumForm::wrap) blocks = 2 * std::min<size_t>(kChainBlocks, (units + kChainUnits - 1) / kChainUnits);
         int members = (int)W, rank = (int)m, flags = (replace ? 1 : 0) | (fast ? 2 | (int)half_ << 2 : 0) | (form == GpuSumForm::wrap ? 8 : 0);
         const Args args(fast || !host_ ? peer_table_[m] : pull_table_[m], own, o, nn, cap, members, rank, flags, timeout, tick);
+        if (takes && form == GpuSumForm::one_shot) {
+            b.group_push((unsigned)blocks, args);
+            takes->push_back({peer_table_[m], own, o, nn, cap, (unsigned long long)half_ * W * cap_, timeout, tick, members, rank, flags, (unsigned)blocks, &status_[m]});
+            return;
+        }
         b.group_launch(form, (unsigned)blocks, args);
     }
 
     // Every fast sum takes the half the next one-shot takes, which every peer finished reading at the one-shot before the last (docs/src/backends-gpu.md, the collective).
-    void pushed(const std::vector<Slice>& residual, size_t n, bool replace) {
+    void pushed(const std::vector<Slice>& residual, size_t n, bool replace, std::vector<typename GpuBackend<Api>::TakeDesc>* takes) {
         const GpuSumForm f = form_of(n);
-        for (size_t m = 0; m < members_.size(); ++m) launch(m, residual[m], n, replace, true, f);
+        for (size_t m = 0; m < members_.size(); ++m) launch(m, residual[m], n, replace, true, f, f == GpuSumForm::one_shot ? takes : nullptr);
         if (f == GpuSumForm::one_shot) half_ ^= 1u;
     }
 

@@ -23,6 +23,8 @@
 #define GPU_IMMA8 0
 // The launch bounds of the dense int8 tiles, which HIP leaves at the block size so gfx9 keeps its code.
 #define LLMX_TILE8_BOUNDS(blocks) __launch_bounds__(kThreads)
+// The one-shot group sum at five waves a SIMD, so the 16 blocks each of a 16-rank group stay resident together on one 60-compute-unit gfx906 (docs/src/backends-gpu.md).
+#define LLMX_ONE_SHOT_BOUNDS __launch_bounds__(kThreads) __attribute__((amdgpu_waves_per_eu(5)))
 // A kernel's by-value struct parameter, which HIP leaves as it is so gfx9 keeps its code.
 #define LLMX_GRID_CONST
 
@@ -100,6 +102,30 @@ template <typename P, typename V> __device__ __forceinline__ void atomic_store_r
 __device__ __forceinline__ void fence_acquire_device() { __builtin_amdgcn_fence(__ATOMIC_ACQUIRE, "agent"); }
 // An acquire fence at system scope.
 __device__ __forceinline__ void fence_acquire_system() { __atomic_thread_fence(__ATOMIC_ACQUIRE); }
+// A grid barrier of resident blocks in three steps, each called by every thread: stores_sync before the arrive, grid_arrive and grid_wait by the whole first wave, acquire_sync after.
+// On gfx9 before gfx940 the barriers wait on LDS alone and the counter goes on the scalar path; elsewhere they are __syncthreads and device-scope atomics (docs/src/backends-gpu.md, port.h).
+#if defined(__GFX9__) && !defined(__gfx940__) && !defined(__gfx941__) && !defined(__gfx942__) && !defined(__gfx950__)
+__device__ __forceinline__ void lds_sync() { asm volatile("s_waitcnt lgkmcnt(0)\n\ts_barrier" ::: "memory"); }
+__device__ __forceinline__ void stores_sync() { asm volatile("s_waitcnt vmcnt(0) lgkmcnt(0)\n\ts_barrier" ::: "memory"); }
+__device__ __forceinline__ void grid_arrive(unsigned* bar) {
+    unsigned one = 1u;
+    asm volatile("s_atomic_add %0, %1, 0x0 glc\n\ts_waitcnt lgkmcnt(0)" : "+s"(one) : "s"(bar) : "memory");
+}
+__device__ __forceinline__ void grid_wait(unsigned* bar, unsigned target) {
+    unsigned cur;
+    do asm volatile("s_load_dword %0, %1, 0x0 glc\n\ts_waitcnt lgkmcnt(0)" : "=s"(cur) : "s"(bar) : "memory");
+    while (cur < target);
+}
+__device__ __forceinline__ void acquire_sync() { asm volatile("s_waitcnt lgkmcnt(0)\n\ts_barrier\n\tbuffer_wbinvl1_vol" ::: "memory"); }
+#else
+__device__ __forceinline__ void lds_sync() { __syncthreads(); }
+__device__ __forceinline__ void stores_sync() { __threadfence(); __syncthreads(); }
+__device__ __forceinline__ void grid_arrive(unsigned* bar) { if (threadIdx.x == 0) atomicAdd(bar, 1u); }
+__device__ __forceinline__ void grid_wait(unsigned* bar, unsigned target) {
+    if (threadIdx.x == 0) while (atomic_load_acquire_device(bar) < target) spin_pause();
+}
+__device__ __forceinline__ void acquire_sync() { __syncthreads(); fence_acquire_device(); }
+#endif
 // The device library's tanhf.
 __device__ __forceinline__ float gpu_tanhf(float x) { return tanhf(x); }
 // A constexpr host table read in device code, which HIP reads in place.
@@ -212,6 +238,7 @@ __device__ __forceinline__ float dot2_f16(unsigned a, unsigned b, float s) {
 #define GPU_IMMA8 1
 // The dense int8 tiles' blocks an SM: two hold a tile to 128 registers, which the tensor-core fragments pass otherwise (docs/STATUS.md, CUDA int8 tiles of every type on the tensor cores).
 #define LLMX_TILE8_BOUNDS(blocks) __launch_bounds__(kThreads, blocks)
+#define LLMX_ONE_SHOT_BOUNDS __launch_bounds__(kThreads)
 // A kernel's by-value struct parameter read in place, since a kernel taking its address otherwise copies it to local memory (docs/STATUS.md, CUDA prompt gap).
 #define LLMX_GRID_CONST const __grid_constant__
 // d += the 16 by 8 product of a (16 rows by 32 signed bytes) and b (32 signed bytes by 8 columns), exact in wrapping int32 (mma m16n8k32 s8).
@@ -270,6 +297,14 @@ LLMX_PTX_STORE(atomic_store_release_system, "st.release.sys")
 #undef LLMX_PTX_STORE
 __device__ __forceinline__ void fence_acquire_device() { asm volatile("fence.acq_rel.gpu;" ::: "memory"); }
 __device__ __forceinline__ void fence_acquire_system() { asm volatile("fence.acq_rel.sys;" ::: "memory"); }
+// The grid barrier's steps (the HIP section has their contract).
+__device__ __forceinline__ void lds_sync() { __syncthreads(); }
+__device__ __forceinline__ void stores_sync() { __threadfence(); __syncthreads(); }
+__device__ __forceinline__ void grid_arrive(unsigned* bar) { if (threadIdx.x == 0) atomicAdd(bar, 1u); }
+__device__ __forceinline__ void grid_wait(unsigned* bar, unsigned target) {
+    if (threadIdx.x == 0) while (atomic_load_acquire_device(bar) < target) spin_pause();
+}
+__device__ __forceinline__ void acquire_sync() { __syncthreads(); fence_acquire_device(); }
 // CUDA reads no host array in device code, so each table read there is a device copy made from it at compile time.
 template <typename T, unsigned N> struct gpu_table_of { T v[N]; };
 template <typename T, unsigned N> constexpr gpu_table_of<T, N> gpu_table_copy(const T (&a)[N]) {

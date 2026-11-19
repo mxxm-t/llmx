@@ -1,6 +1,6 @@
 #version 450
 // Causal GQA for rows that attend one at a time (decode and short prompts), as attention.comp computes it, for heads 128 wide, or 256 wide in the LLMX_D256 build.
-// One workgroup per (batch row, block of heads, split), a block being up to four query heads (LLMX_G4) or one head that read one KV head; the history splits by the row's length alone, so a row computes the same beside any others.
+// One workgroup per (batch row, block of HG heads of one KV head, split); the history splits by the row's length alone, so a row computes the same beside any others.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 #extension GL_EXT_shader_16bit_storage : require
@@ -11,13 +11,30 @@ layout(push_constant) uniform P {
     uint rows; uint n_head; uint n_head_kv; uint dim; uint bt; float scale; uint nsplit; uint chunk; uint quant; uint max_parts; uint hg;
 #ifdef LLMX_SPARSE
     uint selected_stride; uint id_shift; uint id_groups;
+#else
+    // Unread here: the place attention.comp's non-causal build keeps its first workgroup.
+    uint wg0;
+    // The rows of the whole call, whose twin this dispatch's rows are written into; a call's narrow rows may take one dispatch for each grouping.
+    uint xrows;
 #endif
 } p;
-#ifdef LLMX_G4
-#define HG 4u
+// A sparse build writes no twin, so its call's rows are its own.
+#ifdef LLMX_SPARSE
+#define XROWS p.rows
 #else
-#define HG 1u
+#define XROWS p.xrows
 #endif
+// Each group size is a build of its own, so no build carries a larger group's registers.
+#if defined(LLMX_G4)
+#define GROUP 4
+#elif defined(LLMX_G3)
+#define GROUP 3
+#elif defined(LLMX_G2)
+#define GROUP 2
+#else
+#define GROUP 1
+#endif
+const uint HG = GROUP;
 layout(set = 0, binding = 0) readonly buffer Q { float q[]; };
 layout(set = 0, binding = 1) writeonly buffer O { float o[]; };
 layout(set = 0, binding = 6) writeonly buffer XQ { uint xq[]; };
@@ -67,14 +84,14 @@ void main() {
     #ifdef LLMX_SPARSE
     uint split = 0u;
     uint rb = gl_WorkGroupID.x + gl_WorkGroupID.y * gl_NumWorkGroups.x;
-    if (rb >= p.rows * (p.n_head / p.hg)) return;
+    if (rb >= p.rows * (p.n_head / HG)) return;
 #else
     uint split = gl_WorkGroupID.x % p.nsplit;
     uint rb = gl_WorkGroupID.x / p.nsplit;
 #endif
-    uint blocks = p.n_head / p.hg;
+    uint blocks = p.n_head / HG;
     uint g = rb / blocks;
-    uint h0 = (rb - g * blocks) * p.hg;
+    uint h0 = (rb - g * blocks) * HG;
     uint v, b;
     view_of_row(g, v, b);
     uint kvh = h0 / (p.n_head / p.n_head_kv);
@@ -90,7 +107,7 @@ void main() {
     uint qstride = p.n_head * p.dim;
     uint qrow = (view_row0(v) + b) * qstride;
     [[unroll]] for (uint j = 0u; j < HG; ++j)
-        if (j < p.hg && lid < p.dim) qs[j][lid] = q[qrow + (h0 + j) * p.dim + lid];
+        if (lid < p.dim) qs[j][lid] = q[qrow + (h0 + j) * p.dim + lid];
     barrier();
     #ifdef LLMX_SPARSE
     uint visible = view_hist(v) + b + 1u;
@@ -103,7 +120,7 @@ void main() {
     uint end = min(len, start + chunk);
 #endif
     uint bf = p.n_head_kv * p.bt * p.dim;
-    // Four heads' queries stay in shared memory, read per token, so the registers go to the accumulations and more subgroups fit a SIMD; one head's stay in registers, where they cost little.
+    // A group's queries stay in shared memory, read per token, so the registers go to the accumulations and more subgroups fit a SIMD; one head's stay in registers, where they cost little.
     // The sparse builds switch between one head and a group of heads by the rows a call holds, so their sums are precise: a driver may contract them differently in each build.
 #ifdef LLMX_SPARSE
 #define EXACT precise
@@ -112,7 +129,7 @@ void main() {
 #endif
     EXACT float acc[HG][8], l[HG];
     float m[HG];
-#ifndef LLMX_G4
+#if GROUP == 1
     float qv[HG][8];
 #endif
     [[unroll]] for (uint j = 0u; j < HG; ++j) {
@@ -120,20 +137,19 @@ void main() {
         l[j] = 0.0;
         [[unroll]] for (uint e = 0u; e < 8u; ++e) {
             acc[j][e] = 0.0;
-#ifndef LLMX_G4
+#if GROUP == 1
             qv[j][e] = qs[j][d0 + e];
 #endif
         }
     }
     // A token's scores and online softmax update for every head of the block, from its key and value values.
-#ifdef LLMX_G4
+#if GROUP > 1
 #define QDOT(j, e) qs[j][d0 + e]
 #else
 #define QDOT(j, e) qv[j][e]
 #endif
 #define ABSORB(kx, vx)                                                                                  \
     [[unroll]] for (uint j = 0u; j < HG; ++j) {                                                         \
-        if (j >= p.hg) continue;                                                                        \
         EXACT float part = 0.0;                                                                         \
         [[unroll]] for (uint e = 0u; e < 8u; ++e) part += QDOT(j, e) * kx[e];                           \
         [[unroll]] for (uint o = lanes / 2u; o > 0u; o /= 2u) part += subgroupShuffleXor(part, o);      \
@@ -144,7 +160,7 @@ void main() {
         [[unroll]] for (uint e = 0u; e < 8u; ++e) acc[j][e] = acc[j][e] * corr + w * vx[e];              \
         m[j] = mn;                                                                                      \
     }
-    // In the four-head build a group takes its tokens two at a time, both loads issued before either is used, so twice the bytes are in flight; the order a group sees its tokens is unchanged.
+    // In a grouped build a stream takes its tokens two at a time, both loads issued before either is used, so twice the bytes are in flight; the order a group sees its tokens is unchanged.
     // The token's lanes are an aligned run of `lanes`, a power of two, so exchanging across bit o stays inside it.
     uint t = start + stream;
 #ifdef LLMX_SPARSE
@@ -162,7 +178,7 @@ void main() {
             if (sel[u] < visible) { ABSORB(kq[u], vq[u]) }
     }
 #endif
-#ifdef LLMX_G4
+#if GROUP > 1
     for (; t + streams < end; t += 2u * streams) {
         uint t1 = t + streams;
 #ifdef LLMX_SPARSE
@@ -210,7 +226,6 @@ void main() {
         [[unroll]] for (uint j = 0u; j < HG; ++j) { ms[j][stream] = m[j]; ls[j][stream] = l[j]; }
     // The streams merge one head at a time through the same shared accumulation, in stream order.
     [[unroll]] for (uint j = 0u; j < HG; ++j) {
-        if (j >= p.hg) continue;
         [[unroll]] for (uint e = 0u; e < 8u; ++e) accs[stream * p.dim + d0 + e] = acc[j][e];
         barrier();
         if (lid < p.dim) {
@@ -232,7 +247,7 @@ void main() {
                 float r = A / L;
 #endif
                 o[qbase + lid] = r;
-                if (p.quant != 0u) xquant_block(qbase + lid, r, p.rows * qstride);
+                if (p.quant != 0u) xquant_block(qbase + lid, r, XROWS * qstride);
             } else {
                 uint sbase = (rh * p.nsplit + split) * (p.dim + 2u);
                 scratch[sbase + 2u + lid] = A;

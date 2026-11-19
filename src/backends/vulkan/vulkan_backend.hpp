@@ -38,6 +38,9 @@ DeviceCaps vulkan_device_caps(const Backend& backend);
 // It is called before the backend's first matmul, so the test reaches on any such device the kernels an integer-dot profile picks.
 bool vulkan_prefer_integer_dot(Backend& backend);
 
+// Has a test's backend group a KV head's query heads from a history of `tokens`, as a profile with that attention_group_from would; 0 groups every causal decode row, SIZE_MAX none.
+void vulkan_attention_group_from(Backend& backend, size_t tokens);
+
 // Whether the device may flush a subnormal F32 result of a matrix module to zero, having no guaranteed 32-bit denormal preservation; false for another backend.
 bool vulkan_may_flush_float32(const Backend& backend);
 

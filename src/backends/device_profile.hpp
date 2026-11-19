@@ -83,6 +83,8 @@ struct DeviceProfile {
     size_t moe_tile_from = 32, moe_tile_from_q4 = 96, moe_tile_from_q4k = 64, moe_tile_from_q5k = 48;
     // Splitting a row's attention history across workgroups: parts of this many tokens, the part doubling until at most this many cover the row, for heads 128 wide and narrower and for 256 wide (docs/STATUS.md), each at most 256.
     size_t attention_split_chunk = 32, attention_split_max = 64, attention_split_max_wide = 64;
+    // A view's history, in tokens, from which its decode rows take a KV head's query heads a workgroup rather than one; below it one head a workgroup keeps more workgroups (docs/VULKAN.md).
+    size_t attention_group_from = 2048;
     // Selected ids a split of the per-row sparse attention takes, the split doubling until the merge's 256 splits cover the stride; 256 was best on an MI50 at Flash-Next's 2051 ids (docs/STATUS.md).
     size_t sparse_split_ids = 256;
     // Workgroups per compute unit below which the integer-dot tile splits a call's inner dimension, for rows at least tile_narrow_nin wide and narrower, and the fewest quant blocks of 32 a part may sum.

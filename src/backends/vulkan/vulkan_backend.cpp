@@ -943,6 +943,8 @@ public:
         return true;
     }
 
+    void attention_group_from(size_t tokens) { dev_->profile.attention_group_from = tokens; }
+
     // The driver's statistics for every kernel compiled so far, one line each: on AMD the vector and scalar register counts, scratch, shared memory and occupancy.
     // Empty when the device does not report them.
     std::string kernel_statistics() const {
@@ -2356,6 +2358,9 @@ public:
         PlaneShape plane{};
     };
     PooledPlane pooled_plane(size_t layer, const KVView* views, size_t n_views, size_t dim, bool writing, const char* op);
+    // The per-row attention over the narrow views taken `hg` query heads a workgroup, with its merge; `rows` is the call's, whose twin `xq` holds where `quant`.
+    void narrow_attention(CSlice Q, size_t layer, const std::vector<Placed>& views, Slice out, int n_head, int n_head_kv, int head_dim, uint32_t hg,
+                          VkDescriptorBufferInfo xq, bool quant, size_t rows);
     // The tiled prompt attention over the wide views, split over history at depth (shaders/attention_tile.comp).
     void wide_attention(CSlice Q, size_t layer, const std::vector<Placed>& views, Slice out, int n_head, int n_head_kv, int head_dim,
                         VkDescriptorBufferInfo xq, bool quant, uint32_t major, size_t rows);
@@ -2681,6 +2686,10 @@ bool vulkan_row_reads_float(const Backend& backend, uint32_t type, Dtype dtype) 
 bool vulkan_prefer_integer_dot(Backend& backend) {
     auto* v = dynamic_cast<VulkanBackend*>(&backend);
     return v && v->prefer_integer_dot();
+}
+
+void vulkan_attention_group_from(Backend& backend, size_t tokens) {
+    if (auto* v = dynamic_cast<VulkanBackend*>(&backend)) v->attention_group_from(tokens);
 }
 
 std::string vulkan_kernel_statistics(const Backend& backend) {

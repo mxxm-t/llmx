@@ -554,7 +554,7 @@ void grouped_heads(Backend& device, const std::string& name, backend::KVType k_t
             const size_t heads = per_kv * kv_heads;
             const std::string label = name + " d256/K" + backend::kv_type_name(k_type) + "/V" + backend::kv_type_name(v_type) + ", " + std::to_string(heads) +
                                       " query heads, stride " + std::to_string(stride);
-            // Rows double until the device takes the grouped build, where it says which kernels ran.
+            // Rows double until the device takes the build of the group's own size, where it says which kernels ran.
             for (size_t rows = 256;; rows *= 2) {
                 const size_t total = length + rows;
                 auto storage = device.kv_alloc(1, kv_heads, dim, backend::blocks_for(total, bt) * bt, k_type, v_type);
@@ -586,7 +586,7 @@ void grouped_heads(Backend& device, const std::string& name, backend::KVType k_t
                 device.sparse_attention({q.get(), 0}, 0, &view, 1, {idbuf.get(), 0}, stride, {out.get(), 0}, int(heads), int(kv_heads), int(dim));
                 device.sync();
                 const auto batch_kernels = timed_kernels(device);
-                const bool grouped = std::any_of(batch_kernels.begin(), batch_kernels.end(), [](const std::string& k) { return k.find("_g4") != std::string::npos; });
+                const bool grouped = std::any_of(batch_kernels.begin(), batch_kernels.end(), [&](const std::string& k) { return k.find("_g" + std::to_string(per_kv)) != std::string::npos; });
                 timed = timed || !batch_kernels.empty();
                 if (!batch_kernels.empty() && !grouped && rows < 8192) continue;
                 require(batch_kernels.empty() || grouped, label + ": the grouped build was not reached at " + std::to_string(rows) + " rows");
@@ -599,7 +599,7 @@ void grouped_heads(Backend& device, const std::string& name, backend::KVType k_t
                     device.sync();
                     if (r == 0) {
                         const auto one_kernels = timed_kernels(device);
-                        alone_grouped = alone_grouped || std::any_of(one_kernels.begin(), one_kernels.end(), [](const std::string& k) { return k.find("_g4") != std::string::npos; });
+                        alone_grouped = alone_grouped || std::any_of(one_kernels.begin(), one_kernels.end(), [&](const std::string& k) { return k.find("_g" + std::to_string(per_kv)) != std::string::npos; });
                     }
                     const auto got = read<float>(device, *alone, 0, width);
                     require(std::memcmp(got.data(), batch.data() + r * width, width * sizeof(float)) == 0,

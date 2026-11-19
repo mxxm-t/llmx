@@ -1285,6 +1285,44 @@ template <> struct KRaw<rq::IQ3_S> {
         dmin = 0.0f;
     }
 };
+// IQ2_S: an 82-byte block, 2-byte aligned, its scale, the lane's grid index byte, its two high bits, its sign byte and the sub-block's scale byte, whose nibble changes every 16 values, so the tile takes two halves.
+template <> struct KRaw<rq::IQ2_S> {
+    static constexpr int offset = 0, halves = 2;
+    using Lane = QuarterLane<rq::IQ2_S>;
+    unsigned short d;
+    unsigned char qs, qh, sg, sc;
+    __device__ void load(const unsigned char* b, unsigned sub, unsigned part) {
+        d = *(const unsigned short*)b;
+        qs = b[2 + 4 * sub + part], sg = b[34 + 4 * sub + part], qh = b[66 + sub], sc = b[74 + sub];
+    }
+    __device__ void decode(unsigned, unsigned part, unsigned (&v)[2], float& ds, float& dmin) const {
+        const unsigned long long g = GPU_TABLE(quant::IQ2_S_GRID)[(unsigned)qs | ((((unsigned)qh >> (2 * part)) & 3u) << 8)];
+        v[0] = signed_bytes((unsigned)g, sg & 15u);
+        v[1] = signed_bytes((unsigned)(g >> 32), (unsigned)sg >> 4);
+        ds = __half2float(__ushort_as_half(d)) * (0.5f + (float)((sc >> (4 * (part >> 1))) & 15u)) * 0.25f;
+        dmin = 0.0f;
+    }
+};
+// IQ3_XXS: a 98-byte block, 2-byte aligned, its scale, the lane's two grid bytes and the sub-block's sign and scale word as 16-bit loads; each four values a grid word under parity-completed signs.
+template <> struct KRaw<rq::IQ3_XXS> {
+    static constexpr int offset = 0, halves = 1;
+    using Lane = QuarterLane<rq::IQ3_XXS>;
+    unsigned short d, qs;
+    unsigned word;
+    __device__ void load(const unsigned char* b, unsigned sub, unsigned part) {
+        const unsigned short* w = (const unsigned short*)(b + 66 + 4 * sub);
+        d = *(const unsigned short*)b;
+        qs = *(const unsigned short*)(b + 2 + 8 * sub + 2 * part);
+        word = w[0] | ((unsigned)w[1] << 16);
+    }
+    __device__ void decode(unsigned, unsigned part, unsigned (&v)[2], float& ds, float& dmin) const {
+        const unsigned s = rq::parity_signs((word >> (7 * part)) & 127u);
+        v[0] = signed_bytes(GPU_TABLE(quant::IQ3_XXS_GRID)[qs & 0xffu], s & 15u);
+        v[1] = signed_bytes(GPU_TABLE(quant::IQ3_XXS_GRID)[(unsigned)qs >> 8], s >> 4);
+        ds = __half2float(__ushort_as_half(d)) * (0.5f + (float)(word >> 28)) * 0.5f;
+        dmin = 0.0f;
+    }
+};
 // Four MXFP4 nibbles, one a byte, as their doubled E2M1 values in signed bytes: byte selects of the table held in registers, positive and negated, picked by each nibble's sign bit through a byte select of bit 3.
 __device__ inline unsigned mx_signed(unsigned x) {
     const unsigned idx = x & 0x07070707u, y = x << 4, neg = byte_perm(y, y << 8, 0x0B090A08u);
@@ -1362,7 +1400,7 @@ template <> struct KRaw<rq::NVFP4> {
     }
 };
 // The quarter form: four lanes a 32-value sub-block, lane t its sub-block t / 4's values 8 (t % 4) to 8 (t % 4) + 7 through the type's KRaw, the tile's loads and arithmetic.
-// IQ4_NL's, IQ4_XS's, IQ2_XXS's, IQ2_XS's and IQ3_S's rows take it alone; a Q4_0, Q4_1, Q5_0 or Q5_1 row in the F16 class takes it or one lane a block by row_form (backend_core.hpp), and in the int8 class one lane a block.
+// IQ4_NL's, IQ4_XS's and the IQ2 and IQ3 types' rows take it alone; a Q4_0, Q4_1, Q5_0 or Q5_1 row in the F16 class takes it or one lane a block by row_form (backend_core.hpp), and in the int8 class one lane a block.
 template <typename KT> struct QuarterLane {
     static constexpr int lanes = 4 * (KT::values / 32), segments = 1, values = 8;
     KRaw<KT> raw;
@@ -1384,6 +1422,8 @@ template <> struct KSigned<rq::MXFP4> { static constexpr bool value = true; };
 template <> struct KSigned<rq::IQ2_XXS> { static constexpr bool value = true; };
 template <> struct KSigned<rq::IQ2_XS> { static constexpr bool value = true; };
 template <> struct KSigned<rq::IQ3_S> { static constexpr bool value = true; };
+template <> struct KSigned<rq::IQ2_S> { static constexpr bool value = true; };
+template <> struct KSigned<rq::IQ3_XXS> { static constexpr bool value = true; };
 template <> struct KSigned<rq::NVFP4> { static constexpr bool value = true; };
 // Whether a type's decode sets no min, so a term is ds * isum, which is fmaf(ds, isum, -(0 * xsum))'s value, and the twin sum is not needed.
 template <typename KT> struct KNoMin { static constexpr bool value = false; };
@@ -1663,7 +1703,7 @@ template <typename KT, typename QT, bool ROUTED, int ROWS>
 __device__ void k_vec(const TileCall& c, const QT* q, const float* dx, const TileGroups& tg);
 
 // The prompt K tile on the tensor-core builds: the 8-bit twin in k_mma, at 64 or 128 outputs, the 16-bit twin in k_vec at 64.
-// k_mma takes two halves only in the offset form, so Q2_K's and IQ2_XS's 8-bit twins stay on k_vec too.
+// k_mma takes two halves only in the offset form, so Q2_K's, IQ2_XS's and IQ2_S's 8-bit twins stay on k_vec too.
 template <typename KT, typename QT, bool ROUTED = false, int ROWS = kTileRows, int OUTS = kTileOut>
 __device__ void k_tile(const TileCall& c, const QT* q, const float* dx, const TileGroups& tg = TileGroups{}) {
     static_assert(sizeof(QT) == 1 || OUTS == kTileOut, "only the tensor-core tile has a tall build");
@@ -2604,6 +2644,7 @@ template <> constexpr int tile8_blocks<rq::Q6_K>() { return 1; }
 template <> constexpr int tile8_blocks<rq::Q3_K>() { return 1; }
 template <> constexpr int tile8_blocks<rq::Q2_K>() { return 1; }
 template <> constexpr int tile8_blocks<rq::IQ2_XS>() { return 1; }
+template <> constexpr int tile8_blocks<rq::IQ2_S>() { return 1; }
 #define LLMX_KTILE(name, KT, QT, BOUNDS) \
     extern "C" __global__ void BOUNDS name(LLMX_GRID_CONST TileCall c, const QT* q, const float* dx) { k_tile<KT, QT>(c, q, dx); }
 #define LLMX_KTILE_ROUTED(name, KT, QT, ROWS) \
@@ -2698,6 +2739,8 @@ LLMX_KTYPE(iq4_xs, rq::IQ4_XS, tiles)
 LLMX_KTYPE(iq2_xxs, rq::IQ2_XXS, tiles)
 LLMX_KTYPE(iq2_xs, rq::IQ2_XS, tiles)
 LLMX_KTYPE(iq3_s, rq::IQ3_S, tiles)
+LLMX_KTYPE(iq2_s, rq::IQ2_S, tiles)
+LLMX_KTYPE(iq3_xxs, rq::IQ3_XXS, tiles)
 LLMX_KTYPE(nvfp4, rq::NVFP4, tiles)
 LLMX_KTYPE(mxfp4, rq::MXFP4, streams)
 #if GPU_IMMA8

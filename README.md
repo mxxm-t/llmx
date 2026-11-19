@@ -72,7 +72,7 @@ This is the current model-weight support matrix. The [storage metadata page](doc
 
 The current Vulkan `MXFP4` kernels require support for preserving small and special floating-point values and for double-precision intermediate calculations. A tensor assigned to a device that cannot process its format, such as a format the ROCm column does not list, is rejected; llmx does not move it to the CPU automatically.
 
-`NVFP4` is read-only and uses software decoding. Vulkan may use F16-rounded tile inputs on capable devices and falls back to F32 inputs otherwise. ROCm runs `Q1_0`, `Q2_0`, `IQ2_S`, `IQ3_XXS` and the `IQ1` and `TQ` types at exact F32 for every `--dtype`.
+`NVFP4` is read-only and uses software decoding. Vulkan may use F16-rounded tile inputs on capable devices and falls back to F32 inputs otherwise. ROCm runs `Q1_0`, `Q2_0` and the `IQ1` and `TQ` types at exact F32 for every `--dtype`.
 
 GGUF metadata can recognize layouts without an inference decoder; `info`, `tokenize` and `detokenize` accept those known layouts. `Q8_1` and `Q8_K` are auxiliary formats. See the [storage type list](docs/src/quant-types.md); metadata recognition alone does not make a weight executable.
 
@@ -87,7 +87,7 @@ A device that lacks the requested dtype runs the nearest wider form the table gi
 |---|---|---|---|---|
 | `auto` | `f16` | `f16` | `f16` | `f16` |
 | `f32` | Native | Native | Native | Native |
-| `f16` | Native: 16-bit integer blocks where a kernel has them, F32 products elsewhere | Native: 16-bit integer blocks on most types, F32 products for the `Q1_0`, `Q2_0`, `Q2_K` and `Q3_K` rows of devices without the integer dot and for some `IQ` and `TQ` types | Native: 16-bit integer blocks for `Q8_0`, `Q4_0`, `Q4_1`, `Q4_K`, `Q5_K`, `Q6_K`, `Q5_0`, `Q5_1`, `Q2_K`, `Q3_K`, `IQ4_NL`, `IQ4_XS`, `IQ2_XXS`, `IQ2_XS`, `IQ3_S`, `MXFP4` and `NVFP4`, binary16 inputs for `F16` weights' prompt tiles, F32 products for `F32` and `BF16` weights and `F16` weights' generated rows | Native, in ROCm's forms |
+| `f16` | Native: 16-bit integer blocks where a kernel has them, F32 products elsewhere | Native: 16-bit integer blocks on most types, F32 products for the `Q1_0`, `Q2_0`, `Q2_K` and `Q3_K` rows of devices without the integer dot and for some `IQ` and `TQ` types | Native: 16-bit integer blocks for `Q8_0`, `Q4_0`, `Q4_1`, `Q4_K`, `Q5_K`, `Q6_K`, `Q5_0`, `Q5_1`, `Q2_K`, `Q3_K`, `IQ4_NL`, `IQ4_XS`, `IQ2_XXS`, `IQ2_XS`, `IQ2_S`, `IQ3_XXS`, `IQ3_S`, `MXFP4` and `NVFP4`, binary16 inputs for `F16` weights' prompt tiles, F32 products for `F32` and `BF16` weights and `F16` weights' generated rows | Native, in ROCm's forms |
 | `bf16` | Emulated: inputs rounded to BF16, F32 arithmetic | Emulated on devices that keep F32 denormals, signed zeros, infinities and NaNs; others run `f32` with a warning | Runs `f32` with a warning | Runs `f32` with a warning |
 | `int8` | Runs `f16` with a warning | Native on devices that prefer the integer dot product, today the MI50 under Mesa; others run `f16` with a warning | Native: 8-bit integer blocks for the types with 16-bit integer blocks above, `F16` weights as under `f16`, F32 products for `F32` and `BF16` weights | Native: 8-bit integer rows on the four-way dot and prompt tiles on the integer tensor cores; routed tiles on the four-way dot |
 

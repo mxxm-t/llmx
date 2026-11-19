@@ -281,6 +281,9 @@ class BrowserTests(unittest.TestCase):
                 [text_event("The returning retry completed."), metrics],
                 [text_event("The round trip submission completed."), metrics],
                 [text_event("The stale snapshot submission completed."), metrics],
+                [tool_event()],
+                [text_event(reasoning="The tool returned a result, but no answer followed."), "WAIT",
+                 {"choices": [{"delta": {}, "finish_reason": "stop"}]}, metrics],
                 [text_event("Preparing a background tool."), "WAIT", tool_event()],
                 [text_event("A background reply failed."), "TRUNCATE"]]
             BrowserUpstream.requests = []

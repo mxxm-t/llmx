@@ -59,7 +59,8 @@ def write_moe_q8(path, context=None):
 
 
 QWEN35MOE = dict(QWEN35, name="split-moe", moe={"expert_count": 4, "expert_used_count": 2, "expert_feed_forward_length": 8, "expert_shared_feed_forward_length": 8})
-WIDTHS = ((2, "cpu,cpu"), (4, "cpu,cpu,cpu,cpu"))
+# Two groups of two as well, the listing a device run takes when it lists four devices at width 2.
+WIDTHS = ((2, "cpu,cpu"), (4, "cpu,cpu,cpu,cpu"), (2, "cpu,cpu,cpu,cpu"))
 
 
 def groups():
@@ -201,8 +202,8 @@ def run(require=False):
             one_meta, one = capture(tool, model, ids, prefix + "-1", single, 1)
             held_to_hf("%s, one device" % name, one_meta, one, fixture)
             for width, devices in widths:
-                meta, rows = capture(tool, model, ids, "%s-%d" % (prefix, width), devices, width)
-                logit, nll = held_to_hf("%s, width %d" % (name, width), meta, rows, fixture)
+                meta, rows = capture(tool, model, ids, "%s-%d-%d" % (prefix, width, devices.count(",") + 1), devices, width)
+                logit, nll = held_to_hf("%s, %s as width %d" % (name, devices, width), meta, rows, fixture)
                 worst_logit, worst_nll = max(worst_logit, logit), max(worst_nll, nll)
                 for phase in ("batched", "decode"):
                     common.check_device_rows(one[phase], rows[phase], list(f32.TEXTS[-1].encode("ascii")))

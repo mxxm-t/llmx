@@ -1,5 +1,18 @@
 # llmx - Development Status
 
+## A waiting read-ahead job says it waits for spare room once (2026-11-19, BACKLOG1, branch fix/job-wait-line on land/20261118 57a932e49)
+
+- **Why:** production's log repeated "a job of N ids waits for spare room" every one to four seconds for each conversation whose reply was being written (2026-10-17): every follow-up of the reply's ids, each 32 generated tokens, replaced the waiting job with a new one, which said the line again.
+  The scheduler rewrite moved the jobs into `cache.hpp` and kept the replacement, which copies the rooms the old job gave way to but not `no_room_`, so the line still repeats on land/20261118.
+- **The change:** a job replacing a waiting job of the same conversation keeps its having said so (`Request::no_room_`), so the line comes once until the job starts; a job that started and gave way says it again when it waits again.
+- **Tests:** `server` with the Q8_0 fixture: a second conversation's 600-token reply beside the first's donor on a pool of 2304 tokens, its job waiting throughout, must say the line once. The first commit adds the check, failing on the base.
+- **Gates:** built from this tree at 440276e6 and land 57a932e49 in one container on the rig with the same compiler.
+  The focused check on rocm:0 (one MI50) fails on land, the line said for jobs of 576 and 640 ids again and again, and passes on the branch, said once; the `server` component passes on rocm:0 and on the CPU.
+  Qwen3-0.6B Q8_0 greedy 128 tokens on the CPU is byte-identical to land.
+  CPU CTest 89/90 in its first run: `server-resume` failed once, its take-back case reporting "nothing paused" with B sitting out 34 passes instead of being paused, then passed 4 of 4 reruns interleaved with land's 4 of 4.
+  It is land's: the case keeps no host memory and no disk tier, so no read-ahead job exists for the change to touch, and whether a growing request pauses or sits out depends on which requests are in flight when it grows (`make_room`'s wait), which the host's load moves; a probe forcing 30 ms between a wave's submits on land passed every case, so the first pass starting on part of a wave is not the cause.
+- **Left:** the landing stack's hosted run; README unchanged (a log line no table names).
+
 ## A kept disk cache across tensor group picks (2026-11-19, CRASH5, BACKLOG1 to BACKLOG3, branch backlog2/disk-cache-device-order on land/20261118 57a932e49)
 
 - **Goal:** a server restarted with the same flags adopts the kept disk directory of the one before on a tensor split, whichever cards its timed pick gives the members (docs/DISK-TIER.md).

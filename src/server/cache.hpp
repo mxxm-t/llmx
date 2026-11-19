@@ -956,9 +956,10 @@ public:
                 n->media_.push_back(std::move(m));
             }
             n->encode_ = f.of->encode_;
-            // A newer read of the same conversation keeps what the one it replaces gave way to.
+            // A newer read of the same conversation keeps what the one it replaces gave way to, and a waiting one's having said it waits for spare room.
             if (j) {
                 n->rooms_ = j->rooms_;
+                n->no_room_ = at.second != npos && j->no_room_;
             }
             // A job per conversation: one waiting that the new one's ids extend, or that reads for the same request, is that conversation's older read, and goes; at most max_seqs wait, the oldest dropped.
             stale(n->prompt_, n->of_.get(), "a newer job of the same conversation replaces it");

@@ -2692,7 +2692,7 @@ extern "C" __global__ void __launch_bounds__(kThreads, 2) llmx_hc_mix8(HcMix a) 
 // Block b is K group b / (low / 32) and 32 down rows of it, sharing the group's 8-bit twin of y = x * norm_w; the inject, squares and HC down precede one grid barrier, then roots, low, gates, HC up and the mix.
 namespace {
 constexpr unsigned kEntGroup = 1280, kEntA = kEntGroup / kThreads, kEntPairs = kEntGroup / 64, kEntTile = 32, kEntRowsWave = kEntTile / 4, kEntJ = kEntRowsWave / 2;
-constexpr unsigned kEntMaxStreams = 8, kEntMaxLow = 512, kEntMixRows = 512, kEntChunkRows = kEntMaxStreams * 32, kEntUpHeld = 2;
+constexpr unsigned kEntCols = 8, kEntMaxStreams = 8, kEntMaxLow = 512, kEntMixRows = 512, kEntChunkRows = kEntMaxStreams * 32, kEntUpHeld = 2;
 static_assert(kEntGroup % kThreads == 0 && kEntPairs <= 32 && kThreads == 256, "a K group is whole threads and a half wave of block pairs");
 struct HcEntry {
     float* x;                    // streams * dim, injected in place
@@ -2711,7 +2711,7 @@ struct HcEntry {
     unsigned* bar;               // the barrier counter and the exit counter, zero between launches
     const GroupPeers* peers;     // the tensor group whose pending one-shot this launch takes, or null at width 1
     unsigned long long half_at, cap, timeout, tick;
-    unsigned streams, dim, lowr, members, rank;
+    unsigned streams, dim, lowr, members, rank, cols;   // cols: a C > 1 launch's rows
     float eps, scale;
 };
 
@@ -2778,41 +2778,51 @@ __device__ inline float ent_take(EntTake& k, unsigned first, unsigned i, float o
     return own + __uint_as_float(u);
 }
 
+// C = 1 is the fused entry of one row: the pending join (the take and the inject) and the mix.
+// C > 1 mixes a.cols rows the inject already ran on, each with the C = 1 launch's bits: every phase repeats per row on the weights the block holds.
+template <unsigned C>
 __device__ inline void hc_entry(const HcEntry& a) {
 #if GPU_WAVE == 64
+    constexpr bool F = C == 1;
     __shared__ __attribute__((aligned(16))) signed char lq[kEntGroup];
     __shared__ float ld[kEntGroup / 32];
-    __shared__ __attribute__((aligned(16))) signed char uq[kEntMaxLow];
-    __shared__ float ud[kEntMaxLow / 32];
+    __shared__ __attribute__((aligned(16))) signed char uq[C][kEntMaxLow];
+    __shared__ float ud[C][kEntMaxLow / 32];
     __shared__ float red[kThreads];
-    __shared__ float rr[kEntMaxStreams];
+    __shared__ float rr[C][kEntMaxStreams];
     __shared__ float upart[kEntChunkRows][kEntMaxLow / 64];
     __shared__ float gate[kEntChunkRows];
-    __shared__ float xm[kEntMixRows];
+    __shared__ float xm[F ? kEntMixRows : 1];
     __shared__ int failed;
-    const unsigned H = a.streams, E = a.dim, L = a.lowr, R = H * E, KG = E / kEntGroup, NG = H * KG, RGN = L / kEntTile, NB = gridDim.x;
+    const unsigned H = a.streams, E = a.dim, L = a.lowr, R = H * E, KG = E / kEntGroup, NG = H * KG, RGN = L / kEntTile, NB = gridDim.x, N = F ? 1 : a.cols;
     const unsigned UPP = L / 64, CROWS = H * 32, CITEMS = CROWS * UPP, NC = E / 32, urow = L / 32 * 34, drow = R / 32 * 34;
     const unsigned b = blockIdx.x, t = threadIdx.x, lane = t % 64, wave = t / 64;
     const unsigned kg = b / RGN, rg = b % RGN, s = kg / KG, dbase = (kg % KG) * kEntGroup, gbase = kg * kEntGroup;
+    // Every row's NG * L down partials, then every row's NG sums of squares, then every row's NG * H inject partials.
     float* pdown = a.part;
-    float* pss = a.part + NG * L;
-    float* pinj = pss + NG;
+    float* pss = a.part + N * NG * L;
+    float* pinj = pss + N * NG;
     if (t == 0) failed = 0;
     const unsigned long long now = (unsigned long long)wall_clock();
     EntTake tk{a.peers ? a.peers->stage[a.rank] + a.half_at + (1u - a.rank) * a.cap : nullptr, a.peers, a.peers ? (GroupSignal*)a.peers->signal[a.rank] : nullptr,
                a.timeout ? now + a.timeout : ~0ull, a.tick, now + a.tick, &failed};
     // A's operands and the take's first reads, then the tile's down rows, which stream while A computes: a wave's loads return in issue order.
-    const float wgt = 2.0f * (1.0f / (1.0f + expf(-(a.gin[s] / (float)H))));
     const bool injr = a.inj && rg >= 1 && rg <= H;
-    float bva[kEntA], xa[kEntA], wa[kEntA];
+    float bva[kEntA], xa[kEntA], wa[kEntA], xk[kEntA], wgt = 0.0f;
     unsigned ta[kEntA];
+    if constexpr (F) {
+        wgt = 2.0f * (1.0f / (1.0f + expf(-(a.gin[s] / (float)H))));
 #pragma unroll
-    for (unsigned k = 0; k < kEntA; ++k) {
-        const unsigned i = t + k * kThreads, gi = gbase + i;
-        bva[k] = a.blk[dbase + i];
-        xa[k] = a.x[gi];
-        wa[k] = a.nw[gi];
-        ta[k] = ent_take_issue(tk, dbase + i);
+        for (unsigned k = 0; k < kEntA; ++k) {
+            const unsigned i = t + k * kThreads, gi = gbase + i;
+            bva[k] = a.blk[dbase + i];
+            xa[k] = a.x[gi];
+            wa[k] = a.nw[gi];
+            ta[k] = ent_take_issue(tk, dbase + i);
+        }
+    } else {
+#pragma unroll
+        for (unsigned k = 0; k < kEntA; ++k) wa[k] = a.nw[gbase + t + k * kThreads];
     }
     // The mix rows this block owns: chunks c = b, b + NB, ... of 32 values, row h * 32 + j of a chunk its value j of stream h.
     const unsigned mine = b < NC ? (NC - b + NB - 1) / NB : 0, mrows = mine * CROWS;
@@ -2823,39 +2833,45 @@ __device__ inline void hc_entry(const HcEntry& a) {
         const unsigned row = rg * kEntTile + wave * kEntRowsWave + 2 * j + lane / 32;
         ent_load17(wd[j], a.down + (unsigned long long)row * drow + (unsigned long long)(gbase / 32 + 2 * pp) * 34);
     }
-    // A: inject the group slice, its twin of y = x w in LDS, its sum of squares (a chain a thread, then the block tree) and the next inject's partial.
-    float ss = 0.0f, ip = 0.0f, xk[kEntA];
+    // A, a row at a time: inject the group slice (C = 1), its twin of y = x w in LDS, its sum of squares (a chain a thread, then the block tree) and the next inject's partial.
+    // Then the down tile, each half wave a row, its 32-lane sum the K group's partial.
+#pragma unroll 1
+    for (unsigned c = 0; c < N; ++c) {
+        float ss = 0.0f, ip = 0.0f;
 #pragma unroll
-    for (unsigned k = 0; k < kEntA; ++k) {
-        const unsigned i = t + k * kThreads;
-        const float xn = fmaf(ent_take(tk, ta[k], dbase + i, bva[k]), wgt, xa[k]);
-        xk[k] = xn;
-        const float y = xn * wa[k];
-        (void)twin_value<signed char, 127>(y, twin_amax(y), lq + i, ld + i / 32, (int)(i % 32));
-        ss = fmaf(xn, xn, ss);
-        if (injr) ip = fmaf(a.inj[(unsigned long long)(rg - 1) * R + gbase + i], y, ip);
-    }
-    if (rg == 0) {
-        const float v = ent_block_sum(ss, red);
-        if (t == 0) pss[kg] = v;
-    }
-    if (injr) {
-        const float v = ent_block_sum(ip, red);
-        if (t == 0) pinj[kg * H + rg - 1] = v;
-    }
-    // The mix's slice of the injected streams, made before the barrier, since each group's first block writes x after it.
-    for (unsigned m = t; m < mrows; m += kThreads) {
-        const unsigned r = m % CROWS, h = r / 32, d = (b + m / CROWS * NB) * 32 + r % 32;
-        const float bv = ent_take(tk, ent_take_issue(tk, d), d, a.blk[d]);
-        xm[m] = fmaf(bv, 2.0f * (1.0f / (1.0f + expf(-(a.gin[h] / (float)H)))), a.x[h * E + d]);
-    }
-    lds_sync();
-    // Down: each half wave a row of the tile, its 32-lane sum the K group's partial.
+        for (unsigned k = 0; k < kEntA; ++k) {
+            const unsigned i = t + k * kThreads;
+            const float xn = F ? fmaf(ent_take(tk, ta[k], dbase + i, bva[k]), wgt, xa[k]) : a.x[(unsigned long long)c * R + gbase + i];
+            xk[k] = xn;
+            const float y = xn * wa[k];
+            (void)twin_value<signed char, 127>(y, twin_amax(y), lq + i, ld + i / 32, (int)(i % 32));
+            ss = fmaf(xn, xn, ss);
+            if (injr) ip = fmaf(a.inj[(unsigned long long)(rg - 1) * R + gbase + i], y, ip);
+        }
+        if (rg == 0) {
+            const float v = ent_block_sum(ss, red);
+            if (t == 0) pss[c * NG + kg] = v;
+        }
+        if (injr) {
+            const float v = ent_block_sum(ip, red);
+            if (t == 0) pinj[(c * NG + kg) * H + rg - 1] = v;
+        }
+        // The mix's slice of the injected streams, made before the barrier, since each group's first block writes x after it.
+        if constexpr (F)
+            for (unsigned m = t; m < mrows; m += kThreads) {
+                const unsigned r = m % CROWS, h = r / 32, d = (b + m / CROWS * NB) * 32 + r % 32;
+                const float bv = ent_take(tk, ent_take_issue(tk, d), d, a.blk[d]);
+                xm[m] = fmaf(bv, 2.0f * (1.0f / (1.0f + expf(-(a.gin[h] / (float)H)))), a.x[h * E + d]);
+            }
+        lds_sync();
 #pragma unroll
-    for (unsigned j = 0; j < kEntJ; ++j) {
-        const unsigned row = rg * kEntTile + wave * kEntRowsWave + 2 * j + lane / 32;
-        const float v = ent_sum32(lane % 32 < kEntPairs ? ent_pair_dot(wd[j], (const int*)(lq + 64 * pp), ld + 2 * pp) : 0.0f);
-        if (lane % 32 == 0) pdown[kg * L + row] = v;
+        for (unsigned j = 0; j < kEntJ; ++j) {
+            const unsigned row = rg * kEntTile + wave * kEntRowsWave + 2 * j + lane / 32;
+            const float v = ent_sum32(lane % 32 < kEntPairs ? ent_pair_dot(wd[j], (const int*)(lq + 64 * pp), ld + 2 * pp) : 0.0f);
+            if (lane % 32 == 0) pdown[(c * NG + kg) * L + row] = v;
+        }
+        // The next row's twin overwrites lq.
+        if (!F && c + 1 < N) lds_sync();
     }
     // The barrier: this block's stores done, the arrive, and the first chunk's up rows loading while the grid arrives.
     stores_sync();
@@ -2869,78 +2885,87 @@ __device__ inline void hc_entry(const HcEntry& a) {
     }
     if (first) grid_wait(a.bar, NB);
     acquire_sync();
-    // Every block of the group has read x, so its first block writes the injected slice; every block has read the take, so each arms its chunks again for the sum after next.
-    if (rg == 0)
+    if constexpr (F) {
+        // Every block of the group has read x, so its first block writes the injected slice; every block has read the take, so each arms its chunks again for the sum after next.
+        if (rg == 0)
 #pragma unroll
-        for (unsigned k = 0; k < kEntA; ++k) a.x[gbase + t + k * kThreads] = xk[k];
-    if (tk.slot)
-        for (unsigned m = t; m < mine * 32; m += kThreads) ((unsigned*)tk.slot)[(b + m / 32 * NB) * 32 + m % 32] = kGroupArmed;
-    // The roots, low and its twin, and the inject gates.
-    if (t < H) {
+            for (unsigned k = 0; k < kEntA; ++k) a.x[gbase + t + k * kThreads] = xk[k];
+        if (tk.slot)
+            for (unsigned m = t; m < mine * 32; m += kThreads) ((unsigned*)tk.slot)[(b + m / 32 * NB) * 32 + m % 32] = kGroupArmed;
+    }
+    // Every row's roots, low and its twin, and inject gates.
+    if (t < N * H) {
+        const unsigned c = F ? 0 : t / H, h = F ? t : t % H;
         float sum = 0.0f;
-        for (unsigned g = 0; g < KG; ++g) sum = g ? sum + pss[t * KG + g] : pss[t * KG];
-        rr[t] = 1.0f / sqrtf(sum / (float)E + a.eps);
+        for (unsigned g = 0; g < KG; ++g) sum = g ? sum + pss[c * NG + h * KG + g] : pss[c * NG + h * KG];
+        rr[c][h] = 1.0f / sqrtf(sum / (float)E + a.eps);
     }
     lds_sync();
-    for (unsigned o = t; o < L; o += kThreads) {
+    for (unsigned i = t; i < N * L; i += kThreads) {
+        const unsigned c = F ? 0 : i / L, o = F ? i : i % L;
         float v = 0.0f;
         for (unsigned h = 0; h < H; ++h) {
             float ts = 0.0f;
-            for (unsigned g = 0; g < KG; ++g) ts = g ? ts + pdown[(h * KG + g) * L + o] : pdown[(h * KG) * L + o];
-            v = h ? fmaf(rr[h], ts, v) : rr[h] * ts;
+            for (unsigned g = 0; g < KG; ++g) ts = g ? ts + pdown[(c * NG + h * KG + g) * L + o] : pdown[(c * NG + h * KG) * L + o];
+            v = h ? fmaf(rr[c][h], ts, v) : rr[c][h] * ts;
         }
         v = v * a.scale;
         const float y = v / (1.0f + expf(-v));
-        if (b == 0) a.low[o] = y;
-        (void)twin_value<signed char, 127>(y, twin_amax(y), uq + o, ud + o / 32, (int)(o % 32));
+        if (b == 0) a.low[c * L + o] = y;
+        (void)twin_value<signed char, 127>(y, twin_amax(y), uq[c] + o, ud[c] + o / 32, (int)(o % 32));
     }
-    if (a.inj && b == 0 && t < H) {
+    if (a.inj && b == 0 && t < N * H) {
+        const unsigned c = F ? 0 : t / H, r = F ? t : t % H;
         float v = 0.0f;
         for (unsigned h = 0; h < H; ++h) {
             float ts = 0.0f;
-            for (unsigned g = 0; g < KG; ++g) ts = g ? ts + pinj[(h * KG + g) * H + t] : pinj[(h * KG) * H + t];
-            v = h ? fmaf(rr[h], ts, v) : rr[h] * ts;
+            for (unsigned g = 0; g < KG; ++g) ts = g ? ts + pinj[(c * NG + h * KG + g) * H + r] : pinj[(c * NG + h * KG) * H + r];
+            v = h ? fmaf(rr[c][h], ts, v) : rr[c][h] * ts;
         }
-        a.injg[t] = v;
+        a.injg[c * H + r] = v;
     }
     lds_sync();
-    // Up and mix a chunk at a time: (row, pair) items, each row's pairs added in order, then each value's streams in order.
+    // Up and mix a chunk at a time, a row at a time: (row, pair) items, each row's pairs added in order, then each value's streams in order.
     for (unsigned ci = 0; ci < mine; ++ci) {
-        const unsigned c = b + ci * NB;
+        const unsigned ch = b + ci * NB;
+#pragma unroll 1
+        for (unsigned c = 0; c < N; ++c) {
 #pragma unroll
-        for (unsigned u = 0; u < kEntUpHeld; ++u) {
-            const unsigned it = t + kThreads * u;
-            if (it < CITEMS) {
+            for (unsigned u = 0; u < kEntUpHeld; ++u) {
+                const unsigned it = t + kThreads * u;
+                if (it < CITEMS) {
+                    const unsigned r = it / UPP, p = it % UPP;
+                    if (ci && !c) ent_load17(wu[u], a.up + ((unsigned long long)(r / 32) * E + ch * 32 + r % 32) * urow + p * 68);
+                    upart[r][p] = ent_pair_dot(wu[u], (const int*)(uq[c] + 64 * p), ud[c] + 2 * p);
+                }
+            }
+            for (unsigned it = t + kThreads * kEntUpHeld; it < CITEMS; it += kThreads) {
                 const unsigned r = it / UPP, p = it % UPP;
-                if (ci) ent_load17(wu[u], a.up + ((unsigned long long)(r / 32) * E + c * 32 + r % 32) * urow + p * 68);
-                upart[r][p] = ent_pair_dot(wu[u], (const int*)(uq + 64 * p), ud + 2 * p);
+                unsigned w[17];
+                ent_load17(w, a.up + ((unsigned long long)(r / 32) * E + ch * 32 + r % 32) * urow + p * 68);
+                upart[r][p] = ent_pair_dot(w, (const int*)(uq[c] + 64 * p), ud[c] + 2 * p);
             }
-        }
-        for (unsigned it = t + kThreads * kEntUpHeld; it < CITEMS; it += kThreads) {
-            const unsigned r = it / UPP, p = it % UPP;
-            unsigned w[17];
-            ent_load17(w, a.up + ((unsigned long long)(r / 32) * E + c * 32 + r % 32) * urow + p * 68);
-            upart[r][p] = ent_pair_dot(w, (const int*)(uq + 64 * p), ud + 2 * p);
-        }
-        lds_sync();
-        if (t < CROWS) {
-            float g = upart[t][0];
-            for (unsigned p = 1; p < UPP; ++p) g += upart[t][p];
-            gate[t] = g;
-        }
-        lds_sync();
-        if (t < 32) {
-            const unsigned d = c * 32 + t;
-            float sum = 0.0f;
-            for (unsigned h = 0; h < H; ++h) {
-                const float nrm = xm[ci * CROWS + h * 32 + t] * (rr[h] * a.nw[h * E + d]);
-                sum = fmaf(nrm, 1.0f / (1.0f + expf(-gate[h * 32 + t])), sum);
+            lds_sync();
+            if (t < CROWS) {
+                float g = upart[t][0];
+                for (unsigned p = 1; p < UPP; ++p) g += upart[t][p];
+                gate[t] = g;
             }
-            const float v = sum / (float)H;
-            a.out[d] = v;
-            if (a.oq) (void)twin_value<signed char, 127>(v, twin_amax(v), a.oq + d, a.od + d / 32, (int)t);
+            lds_sync();
+            if (t < 32) {
+                const unsigned d = ch * 32 + t;
+                float sum = 0.0f;
+                for (unsigned h = 0; h < H; ++h) {
+                    const float xv = F ? xm[ci * CROWS + h * 32 + t] : a.x[(unsigned long long)c * R + h * E + d];
+                    const float nrm = xv * (rr[c][h] * a.nw[h * E + d]);
+                    sum = fmaf(nrm, 1.0f / (1.0f + expf(-gate[h * 32 + t])), sum);
+                }
+                const float v = sum / (float)H;
+                a.out[c * E + d] = v;
+                if (a.oq) (void)twin_value<signed char, 127>(v, twin_amax(v), a.oq + c * E + d, a.od + (c * E + d) / 32, (int)t);
+            }
+            lds_sync();
         }
-        lds_sync();
     }
     // A failed take turns the group to its failure path, and the last block out zeroes both counters.
     __syncthreads();
@@ -2953,7 +2978,8 @@ __device__ inline void hc_entry(const HcEntry& a) {
 }
 } // namespace
 // Two blocks a compute unit, at most 128 registers a lane on gfx906, so a grid of up to twice the units is resident.
-extern "C" __global__ void __launch_bounds__(kThreads, 2) llmx_hc_entry(HcEntry a) { hc_entry(a); }
+extern "C" __global__ void __launch_bounds__(kThreads, 2) llmx_hc_entry(HcEntry a) { hc_entry<1>(a); }
+extern "C" __global__ void __launch_bounds__(kThreads, 2) llmx_hc_entry8(HcEntry a) { hc_entry<kEntCols>(a); }
 
 // The fused decode moe_step's products, on the dot module alone: they take 64-lane waves and the int8 dot.
 #ifdef LLMX_DOT16

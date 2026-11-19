@@ -1863,6 +1863,8 @@ try {
   assert.equal(await evaluate("document.querySelector("+JSON.stringify(link('read'))+").textContent"), 'Open file', 'Workspace read result needs a direct file action');
   assert.equal(await evaluate("document.querySelector("+JSON.stringify(link('malformed'))+").textContent"), 'Open Workspace', 'malformed result keeps the general Workspace action');
   const linkMutations = apiMutations.filter(item=>item.url.includes('/api/workspace/')).length;
+  // Let the newly opened chat finish its scheduled scroll before targeting a tool button.
+  await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
   await pointerClick(link('read'));
   await wait("document.querySelector('#workspace-editor').value==='Encoded Workspace path.' && document.activeElement.id==='workspace-editor'", 'open exact escaped file path');
   assert.equal(await evaluate("document.querySelector('.workspace-file-path').textContent"), linkedWorkspace.safePath);

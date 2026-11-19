@@ -735,6 +735,10 @@ kbd {
   position:relative;
   overflow-wrap:anywhere
 }
+.message.assistant {
+  --reply-action-gap:8px;
+  padding-bottom:var(--reply-action-gap)
+}
 .message.assistant:has(+ .message.assistant.continuation) {
   padding-bottom:6px
 }
@@ -753,7 +757,7 @@ kbd {
   inset-block-start:15px
 }
 .message.assistant.continuation:not(:has(+ .message.assistant.continuation))::before {
-  inset-block-end:24px
+  inset-block-end:var(--reply-action-gap)
 }
 .message.assistant.continuation {
   padding-top:0
@@ -935,10 +939,13 @@ kbd {
 .message-actions {
   display:flex;
   align-items:center;
-  gap:4px;
-  margin-top:5px;
+  gap:8px;
+  margin-top:9px;
   color:var(--muted);
   font-size:12px
+}
+.message.assistant>.message-actions {
+  margin-top:var(--reply-action-gap)
 }
 .message.assistant:has(+ .message.assistant.continuation)>.message-actions {
   justify-content:flex-end;
@@ -951,9 +958,9 @@ kbd {
   min-width:32px;
   min-height:32px;
   padding:0;
-  border:1px solid color-mix(in srgb,var(--border) 55%,transparent);
+  border:1px solid transparent;
   border-radius:7px;
-  background:color-mix(in srgb,var(--surface) 55%,var(--bg));
+  background:transparent;
   color:var(--muted);
   font-size:12px;
   line-height:18px;
@@ -964,20 +971,7 @@ kbd {
   width:16px;
   height:16px
 }
-.message-actions button:hover {
-  border-color:var(--border);
-  background:var(--hover);
-  color:var(--text)
-}
-.message.user>.message-actions {
-  column-gap:8px;
-  margin-top:9px
-}
-.message.user>.message-actions>.message-icon-action {
-  border-color:transparent;
-  background:transparent
-}
-.message.user>.message-actions>.message-icon-action:is(:hover,:focus-visible) {
+.message-actions button:is(:hover,:focus-visible,[aria-expanded=true]) {
   border-color:var(--border);
   background:var(--hover);
   color:var(--text)
@@ -987,11 +981,6 @@ kbd {
   align-items:center;
   gap:5px;
   font-variant-numeric:tabular-nums
-}
-.branch-switch button {
-  width:32px;
-  min-width:32px;
-  min-height:32px
 }
 .message-action-tooltip {
   position:fixed;
@@ -1562,19 +1551,9 @@ body {
     height:40px
   }
   .message-actions button {
-    width:40px;
-    min-width:40px;
-    min-height:40px;
-    padding:0
-  }
-  .message.user>.message-actions>.message-icon-action {
     width:44px;
     min-width:44px;
     min-height:44px
-  }
-  .branch-switch button {
-    min-width:40px;
-    min-height:40px
   }
 }
 .tool-body details>summary {

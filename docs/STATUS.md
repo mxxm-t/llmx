@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Chat message actions (2026-11-19)
+
+- **Goal:** Use one treatment for the controls under user and assistant messages.
+- **Done:** Found that the user selector overrode the shared toolbar background, border and touch target.
+- **Spacing:** A completed assistant reply had 9 px from text to actions and 24 px from actions to the next divider. Both now share an 8 px gap.
+- **Checks:** Chrome verified the shared idle, hover, focus and pinned states in light and dark themes at 1440, 390 and 320 px. The 32 px desktop and 44 px touch controls kept their positions during interaction. The branch lands by fast-forward after the companion checks.
+
 ## Show when a completed reply has no answer (2026-11-19)
 
 - **Goal:** Explain why the last assistant message shows reasoning and no answer.

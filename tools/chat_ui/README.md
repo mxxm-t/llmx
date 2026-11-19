@@ -238,7 +238,9 @@ keyboard focus keeps its visible outline.
   pending. Wait for that request to finish before submitting another change
   for the same chat.
 - Prompts have a **You** label and a tinted bubble. Copy and Edit sit below
-  the prompt, with larger touch targets and visible keyboard focus.
+  the prompt. Their icons share the styling, keyboard focus and touch targets
+  used by Retry, Statistics and the branch arrows under a reply. Statistics
+  stays highlighted while its panel is open.
   Assistant prose uses shorter lines on wide screens, while code and tables
   retain the space they need.
   Consecutive model calls in a tool-assisted reply share a heading and a side

@@ -1561,10 +1561,12 @@ try {
           details:details.open,actions:actions.getBoundingClientRect().height,
           actionTarget:Math.min(...Array.from(actions.querySelectorAll('button:not([hidden])'),button=>button.getBoundingClientRect().height)),
           actionGap:parseFloat(getComputedStyle(actions).marginTop),
+          bottomGap:parseFloat(getComputedStyle(answer).paddingBottom),
           toolHeight:tool.getBoundingClientRect().height,answerHeight:answer.getBoundingClientRect().height,
           overflow:document.documentElement.scrollWidth>innerWidth};
       })()`);
       replyLayout.push({width, theme, ...geometry});
+      assert.equal(geometry.actionGap, geometry.bottomGap, 'completed reply has uneven space around its action row');
       assert(geometry.gap<=16, 'one reply still has full inter-message spacing');
       assert.equal(geometry.details, true, 'grouping collapsed the open tool details');
       assert(geometry.actions>=32, 'grouping hid the reply actions');
@@ -1637,7 +1639,16 @@ try {
   await click('#panel-stats .conversation-totals > summary');
   assert((await evaluate("document.querySelector('#panel-stats').innerText")).includes('960'), 'all-branch totals omitted retries');
   assert.equal(await evaluate("document.querySelectorAll('.attachment-image').length"), 1, 'image attachment missing');
-  assert.equal(await evaluate("{const b=document.querySelector('.message.assistant [data-action=retry]'),s=getComputedStyle(b),r=b.getBoundingClientRect(); b.getAttribute('aria-label')==='Retry response' && b.querySelector('svg[aria-hidden=true]') && !b.textContent.trim() && s.backgroundColor!=='rgba(0, 0, 0, 0)' && s.borderTopWidth==='1px' && r.width>=32 && r.height>=30}"), true, 'message actions lack an accessible icon, visible surface or minimum target size');
+  assert.equal(await evaluate(`(() => {
+    const retry = document.querySelector('.message.assistant [data-action=retry]');
+    const edit = document.querySelector('.message.user [data-action=edit]');
+    return retry.getAttribute('aria-label') === 'Retry response' && [retry, edit].every(button => {
+      const style = getComputedStyle(button), rect = button.getBoundingClientRect();
+      return button.querySelector('svg[aria-hidden=true]') && !button.textContent.trim()
+        && style.backgroundColor === 'rgba(0, 0, 0, 0)' && style.borderTopColor === 'rgba(0, 0, 0, 0)'
+        && rect.width >= 32 && rect.height >= 32;
+    });
+  })()`), true, 'idle user and assistant actions use accessible, borderless icons and full hit targets');
   await evaluate("{const b=document.querySelector('.message.assistant [data-action=copy]');b.blur();b.focus({preventScroll:true})}");
   await cdp('Input.dispatchKeyEvent', {type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9});
   await cdp('Input.dispatchKeyEvent', {type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9});

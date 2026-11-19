@@ -590,6 +590,19 @@ A prefill whose busy times are uniformly inflated (a contending job, a clock dro
 **Gotchas.**
 - The bits of every 256-wide prompt attention row change on ROCm and CUDA (Qwen3.5, Qwen3.6 and Qwen3.8 attention layers at `attention_tile_rows` and above); 128-wide heads (Qwen3) are unchanged.
 - build/gpu-arch-options-land2 is build/gpu-arch-options-land 67340f65f rebased onto this branch without the change; it lands after it.
+## K tile paired sub-block staging (2026-11-19, KEFF2 then KEFF3, branch perf/k-tile-pairs on land-20261118 57a932e49)
+
+- **Goal:** the prompt K tile (`k_tile`'s vector body in `kernels/int16.gpu`, the HIP 16-bit and 8-bit twins) stages its weights with fewer loads, since staging costs 10 to 18 percent of its time.
+- **Done:** a step's sub-blocks 2j and 2j + 1 lie in one block, so the odd one takes the even one's words (`KRaw::pair`): Q4_K and Q5_K copy them whole, Q6_K reads only its low nibbles and sub-scale.
+  A part's blocks start and end even (`split_blocks`, or a whole row) and a step is even, which a `static_assert` pins.
+- **Kernel rates (one MI50, ROCm 7.2.1, gfx906 builds, both arms built the same way):** `rates ktile` (the bench commit of exp/k-tile-rates) on Qwen3.6-27B's five dense shapes at 512 rows, two ABAB runs, output hashes equal to base in every cell.
+  Q4_K f16 +1.6 to +3.7%, int8 +3.4 to +7.6%; Q5_K f16 +1.9 to +4.5%, int8 +4.7 to +6.6%; Q6_K f16 +1.5 to +5.5%, int8 +1.8 to +3.0%; a second run gave the same picture. VGPRs q4_k_tile16 98 to 92, q6_k_tile16 103 to 100.
+- **Full model:** Qwen3.6-27B Q4_K_M `bench --p 512 --n 1 --r 3`, three ABAB rounds on one MI50: f16 228.88, 198.34, 227.60 against 233.27, 233.23, 233.25 tok/s; int8 332.67, 332.28, 298.59 against 343.58, 343.46, 343.43 tok/s.
+  The base's 198 and 298 rounds are outliers on a host at load average near 40, which was not monitored per run.
+- **Identity:** greedy generate of a 1207-token prompt, 48 tokens, byte identical to base for Qwen3.6-27B Q4_K_M at f16 and int8, Qwen3.5-0.8B Q4_K_M at f16 and int8 and Qwen3-0.6B Q8_0, all on ROCm.
+- **Rejected, bits equal throughout:** branch-free scale, min and twin staging (-1.5 to +3%, noise); 32-bit weight offsets (-1.7 to +2%: the loop's loads already take a scalar base, and the 64-bit adds are the epilogue's stores); a 4 x 8 thread tile of 64 outputs by 128 rows (155 to 160 VGPRs, one wave a SIMD, -15 to -32% at f16), and the same with a thread's rows in two halves of four (201 to 237 VGPRs, not run).
+- **Left:** CTest and the device suite at the landing head, the timing round against main on a quiet host, and the hosted run.
+- **Gotchas:** the pairing needs every part to start at an even block; a split rule that gives odd parts must drop it.
 
 ## Landing stack land-20261118 (2026-11-18 to 2026-11-19, LAND79 to LAND82, Done)
 

@@ -1005,6 +1005,8 @@ template <bool Q5> struct K45Raw {
         q[0] = w[qo / 4], q[1] = w[qo / 4 + 1];
         if constexpr (Q5) h[0] = w[4 + 2 * part], h[1] = w[5 + 2 * part];
     }
+    // Sub-block 2j + 1 reads the same words as sub-block 2j, its nibbles the high ones.
+    __device__ void pair(const K45Raw& e, const unsigned char*, unsigned, unsigned) { *this = e; }
     __device__ void decode(unsigned sub, unsigned, unsigned (&v)[2], float& ds, float& dmin) const {
         unsigned s, m;
         k45_scale_min(sc, sub, s, m);
@@ -1035,6 +1037,15 @@ template <> struct KRaw<rq::Q6_K> {
         for (int i = 0; i < 4; ++i) lo[i] = l[i], hi[i] = h[i];
         sc = ((const signed char*)b)[192 + 8 * n + (part >> 1) + 2 * quarter];
         d = *(const unsigned short*)(b + 208);
+    }
+    // Sub-block 2j + 1 shares sub-block 2j's high bits and block scale, so only its low nibbles and sub-scale are read.
+    __device__ void pair(const KRaw& e, const unsigned char* b, unsigned sub, unsigned part) {
+        const unsigned n = sub >> 2, quarter = sub & 3;
+        const unsigned short* l = (const unsigned short*)(b + 64 * n + 32 * (quarter & 1) + 8 * part);
+#pragma unroll
+        for (int i = 0; i < 4; ++i) lo[i] = l[i], hi[i] = e.hi[i];
+        sc = ((const signed char*)b)[192 + 8 * n + (part >> 1) + 2 * quarter];
+        d = e.d;
     }
     __device__ void decode(unsigned sub, unsigned, unsigned (&v)[2], float& ds, float& dmin) const {
         const unsigned quarter = sub & 3, ls = 4 * (quarter >> 1), hs = 2 * quarter;
@@ -1521,6 +1532,8 @@ template <typename KT> __device__ inline float k_out(float v, const float* f) {
     if constexpr (KFactor<KT>::value) return f ? v * *f : v;
     else return v;
 }
+// The K-quants, whose sub-blocks 2j and 2j + 1 lie in one block and share words, which KRaw::pair takes from the even one's.
+template <typename KT> struct KPairs { static constexpr bool value = __is_same(KT, rq::Q4_K) || __is_same(KT, rq::Q5_K) || __is_same(KT, rq::Q6_K); };
 // The eight byte values as the twin's words: two words of four bytes, or four of two 16-bit values.
 template <typename QT> struct KWords { static constexpr int n = sizeof(QT) == 2 ? 4 : 2; };
 template <typename QT, typename KT>
@@ -1860,7 +1873,12 @@ LLMX_KVEC {
             xok[s] = k < kend && b < nrows;
             wok[s] = k < kend && o < nout;
             const unsigned long long kk = wok[s] ? k : 0;
-            if constexpr (!WHOLE) raw[s].load(wrow + (kk / (KT::values / 32)) * KT::bytes, (unsigned)(kk % (KT::values / 32)), ws);
+            // A part's blocks start and end even (split_blocks, or a whole row of nin / 32) and a step is even, so an odd s is the second sub-block of s - 1's block.
+            if constexpr (!WHOLE && KPairs<KT>::value) {
+                static_assert(STEP % 2 == 0 && KT::values % 64 == 0, "a step takes whole sub-block pairs");
+                if (s % 2 == 1) raw[s].pair(raw[s - 1], wrow + (kk / (KT::values / 32)) * KT::bytes, (unsigned)(kk % (KT::values / 32)), ws);
+                else raw[s].load(wrow + (kk / (KT::values / 32)) * KT::bytes, (unsigned)(kk % (KT::values / 32)), ws);
+            } else if constexpr (!WHOLE) raw[s].load(wrow + (kk / (KT::values / 32)) * KT::bytes, (unsigned)(kk % (KT::values / 32)), ws);
             else if (s == 0) {
                 const unsigned long long kw = k0 + ws;
                 wok1 = kw < kend && o < nout;

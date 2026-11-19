@@ -280,6 +280,38 @@ class WorkspaceTests(unittest.TestCase):
             self.assertEqual([tool["name"] for tool in tools],
                              ["workspace_list", "workspace_read", "workspace_write"])
 
+    def test_reply_binds_writes_to_target_file_before_generation(self):
+        workspace = Workspace(self.temp.name)
+        workspace.write("site.html", "old", 0)
+        tools = WorkspaceTools(FakeRemote(), workspace)
+        spec = next(t for t in tools.list_tools() if t["name"] == "workspace_write")
+        self.assertEqual(set(spec["inputSchema"]["properties"]), {"path", "content"})
+        reply = tools.bind_reply({"workspace_write"})
+        first = reply()
+        def write(invoke, path, content, **extra):
+            result = invoke("workspace_write", dict(path=path, content=content, **extra))
+            return json.loads(result["content"][0]["text"])
+        workspace.write("notes.txt", "unrelated", 1)
+        self.assertEqual(write(first, "site.html", "new", revision=6)["status"], "saved")
+        with self.assertRaisesRegex(ValueError, "workspace_read"):
+            write(first, "site.html", "competing")
+        self.assertEqual(write(first, "site.html", "new")["status"], "already_saved")
+        self.assertEqual(write(first, "more.txt", "other")["status"], "saved")
+        second = reply()
+        workspace.write("site.html", "human edit", workspace.files()["revision"])
+        with self.assertRaisesRegex(ValueError, "workspace_read"):
+            write(second, "site.html", "overwrite")
+        with self.assertRaisesRegex(ValueError, "workspace_read"):
+            write(reply(), "site.html", "blind retry")
+        second("workspace_read", {"path": "site.html"})
+        self.assertEqual(write(reply(), "site.html", "reviewed")["status"], "saved")
+        third = reply()
+        workspace.write("site.html", "", workspace.files()["revision"], delete=True)
+        with self.assertRaisesRegex(ValueError, "workspace_list"):
+            write(third, "site.html", "resurrect")
+        third("workspace_list", {})
+        self.assertEqual(write(reply(), "site.html", "recreated")["status"], "saved")
+
     def test_repeated_agent_write_preserves_revision_and_checkpoints(self):
         workspace = Workspace(self.temp.name)
         tools = WorkspaceTools(FakeRemote(), workspace)

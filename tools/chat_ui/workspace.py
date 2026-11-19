@@ -17,7 +17,7 @@ MAX_FILES = 256
 MAX_PROJECT = 8 * MAX_FILE
 MAX_OUTPUT = 128 * 1024
 MAX_PROJECT_DEFINITIONS = 32
-MAX_PROJECT_PATHS = 8
+MAX_SELECTED_FILES = 8
 MAX_PROJECT_INSTRUCTIONS = 16 * 1024
 
 
@@ -32,6 +32,15 @@ def file_path(value):
     if path.is_absolute() or any(p in ("", ".", "..") for p in value.split("/")) or ":" in value or "\\" in value or any(ord(c) < 32 for c in value):
         raise ValueError("File paths must stay inside the workspace")
     return str(path)
+
+
+def _selected_paths(paths):
+    if not isinstance(paths, list) or len(paths) > MAX_SELECTED_FILES:
+        raise ValueError("Choose up to eight saved Workspace files")
+    paths = [file_path(path) for path in paths]
+    if len(paths) != len(set(paths)):
+        raise ValueError("Select each Workspace file only once")
+    return paths
 
 
 def checked_files(files):
@@ -211,12 +220,27 @@ class Workspace:
 
     def snapshot(self):
         with self.lock:
-            return dict(revision=self.state["revision"], files=[dict(path=k, size=len(v.encode())) for k, v in sorted(self.state["files"].items())],
+            return dict(self.files(),
                         checkpoints=[{k: v for k, v in point.items() if k != "files"} for point in self.state["checkpoints"]],
                         jobs=[dict(job) for job in self.state["jobs"]],
                         execution=dict(enabled=self.runner is not None, image=self.image,
                                        limits=dict(file_bytes=MAX_FILE, project_bytes=MAX_PROJECT, files=MAX_FILES, command_seconds=120, output_chars=MAX_OUTPUT, checkpoints=20),
                                        description="Isolated container, network disabled, no host mounts, 120 second command limit" if self.runner else "Configure --sandbox-image to enable isolated execution"))
+
+    def files(self, paths=None):
+        if paths is not None:
+            paths = _selected_paths(paths)
+            if not paths:
+                raise ValueError("Choose at least one saved Workspace file")
+        with self.lock:
+            if paths is not None:
+                return self._read_files(paths)
+            return dict(revision=self.state["revision"],
+                        files=[dict(path=path, size=len(text.encode())) for path, text in sorted(self.state["files"].items())])
+
+    def _read_files(self, paths):
+        return dict(revision=self.state["revision"],
+                    files=[dict(path=path, text=self.state["files"][path]) for path in paths])
 
     def read(self, path):
         with self.lock:
@@ -238,12 +262,7 @@ class Workspace:
         name.encode()
         if not isinstance(instructions, str) or "\0" in instructions or len(instructions.encode()) > MAX_PROJECT_INSTRUCTIONS:
             raise ValueError("Project instructions must be UTF-8 text of at most 16 KiB")
-        if not isinstance(paths, list) or len(paths) > MAX_PROJECT_PATHS:
-            raise ValueError("Choose up to eight saved Workspace files")
-        paths = [file_path(path) for path in paths]
-        if len(paths) != len(set(paths)):
-            raise ValueError("Select each Workspace file only once")
-        return dict(name=name, instructions=instructions, paths=paths)
+        return dict(name=name, instructions=instructions, paths=_selected_paths(paths))
 
     @classmethod
     def _validate_projects(cls, projects):
@@ -307,8 +326,7 @@ class Workspace:
             project = self.state["projects"][project_id]
             paths = project["paths"]
             self._require_project_files(paths)
-            return dict(project=deepcopy(project), revision=self.state["revision"],
-                        files=[dict(path=path, text=self.state["files"][path]) for path in paths])
+            return dict(self._read_files(paths), project=deepcopy(project))
 
     def _editable(self, revision):
         if self.control is not None:
@@ -463,8 +481,7 @@ class WorkspaceTools:
         if cancel_event is not None and cancel_event.is_set():
             raise ValueError("Cancelled")
         if name == "workspace_list":
-            state = self.workspace.snapshot()
-            result = {"revision": state["revision"], "files": state["files"]}
+            result = self.workspace.files()
         elif name == "workspace_read":
             result = self.workspace.read(arguments.get("path"))
             offset, limit = arguments.get("offset", 0), arguments.get("limit", 200)

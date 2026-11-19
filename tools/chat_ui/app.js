@@ -390,16 +390,22 @@
   }
   function chatCreating(value) {
     creatingChat = value;
-    document.querySelectorAll('[data-action="new"],[data-action="temporary"]').forEach(control => { control.disabled = value; control.setAttribute('aria-busy', String(value)); });
+    document.querySelectorAll('[data-action="home"],[data-action="new"],[data-action="temporary"]').forEach(control => { control.disabled = value; control.setAttribute('aria-busy', String(value)); });
   }
-  async function newChat() {
+  async function newChat({landing = false} = {}) {
     if (creatingChat || S.busy) return;
-    if (S.chat && !S.chat.temporary && !S.chat.archived && !S.messages.length && !S.runs.length) {
+    if (!landing && S.chat && !S.chat.temporary && !S.chat.archived && !S.messages.length && !S.runs.length) {
       closeDrawers(); $('draft').focus(); return;
     }
     chatCreating(true);
     try {
       if (S.chat?.temporary && !await leaveTemporary()) return;
+      if (landing) {
+        if (S.chat) { clearChat({keepDraft: true}); renderSidebar(); }
+        if ($('app').dataset.view !== 'chat') window.ChatShell.show('chat');
+        closeDrawers(false); $('draft').focus();
+        return;
+      }
       const generation = S.generation, selectedChat = S.chat?.id;
       const chat = await api('/chats', 'POST', {settings: selectedChat ? S.config.settings_defaults : settings()}); await refreshChats();
       if (!selectedChat && S.generation === generation && !S.chat) {
@@ -409,10 +415,12 @@
       if (generation === S.generation && selectedChat === S.chat?.id) { await openChat(chat.id, {chat, messages: [], runs: []}); if (!selectedChat && S.chat?.id === chat.id) forgetDraft('new'); $('draft').focus(); }
     } finally { chatCreating(false); }
   }
-  function clearChat() {
+  function clearChat({keepDraft = false} = {}) {
     hideReplyStats();
     pdfSelection?.abort();
-    const old = S.chat; forgetDraft(draftKey()); draftReady = false; closeStream(); ++S.generation;
+    const old = S.chat;
+    if (keepDraft) { rememberDraft(); flushDrafts(); } else forgetDraft(draftKey());
+    draftReady = false; closeStream(); ++S.generation;
     if (old?.temporary) sessionStorage.removeItem('llmx-temporary-chat'); else localStorage.removeItem('llmx-chat');
     S.chat = null; S.messages = []; S.runs = []; S.edit = null; S.attachments = []; S.fingerprint.clear(); S.inspectorKey = '';
     restoreDraft(); loadSettings(); render();
@@ -558,7 +566,7 @@
       if (full.length > 16384 || preview.length > 16384) { const download = node('button', 'secondary-button', 'Download full result'); download.type = 'button'; download.addEventListener('click', () => { const url = URL.createObjectURL(new Blob([full], {type: 'application/json'})); const link = node('a'); link.href = url; link.download = 'tool-result.json'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }); body.append(download); }
       if (['workspace_list', 'workspace_read', 'workspace_write', 'workspace_run'].includes(call.name)) {
         const target = workspaceToolTarget(call, result, parts);
-        const label = target?.path ? 'Open file' : target?.jobId ? 'Open job output' : 'Open Workspace';
+        const label = target?.path ? 'Open file' : target?.jobId ? 'Open job output' : 'Open saved files';
         const open = node('button', 'secondary-button workspace-tool-open', label);
         open.type = 'button'; open.addEventListener('click', () => window.ChatWorkspace.openToolResult(target)); wrap.append(open);
       }
@@ -863,7 +871,10 @@
   document.addEventListener('keydown', event => { if (event.key === 'Escape' && replyStats) { event.preventDefault(); event.stopPropagation(); hideReplyStats(true); } }, true);
   document.addEventListener('scroll', event => { if (replyStats && !replyStats.panel.contains(event.target)) positionReplyStats(); }, true);
   window.addEventListener('resize', positionReplyStats);
-  document.addEventListener('companion:view', () => hideReplyStats());
+  document.addEventListener('companion:view', event => {
+    hideReplyStats();
+    if (event.detail !== 'chat' && $('attach-source').getAttribute('aria-expanded') === 'true') window.ChatShell.closeMenu(false);
+  });
   function renderInspector() {
     const selected = path(), calls = selected.filter(m => m.role === 'assistant'), groups = replyGroups();
     const inspectorKey = JSON.stringify([S.chat?.id, S.messages.map(m => messageKey(m)), selected.map(m => m.id), S.runs.map(r => [r.id, r.status, r.error])]);
@@ -1117,7 +1128,7 @@
     const chat = S.chat?.id, generation = S.generation, revision = composerRevision, system = $('setting-system').value;
     return {system, apply(context, copyInstructions) {
       if (chat !== S.chat?.id || generation !== S.generation || revision !== composerRevision || system !== $('setting-system').value || $('app').dataset.view !== 'chat')
-        throw new Error('The conversation or draft changed. Open the project again.');
+        throw new Error('The conversation or draft changed. Open the picker again.');
       const pending = [];
       for (const {path, text} of context.files) {
         const name = workspaceName(path);
@@ -1185,11 +1196,21 @@
     summary.scrollIntoView({block: 'center', behavior: 'instant'});
   }
   async function action(name, el) {
+    if (name === 'attach') {
+      if (el.getAttribute('aria-expanded') === 'true') return window.ChatShell.closeMenu();
+      const sources = [
+        {action: 'attach-device', label: 'From this device'},
+        {action: 'attach-files', label: 'Saved files'},
+        {action: 'attach-project', label: 'Saved project'}
+      ];
+      return window.ChatShell.menu(el, 'Attach', sources, choice => action(choice, el).catch(error => toast(error.message)), {above: true});
+    }
     if (name !== 'chat-menu') window.ChatShell.closeMenu();
     if (name === 'reply-stats') return showReplyStats(el, true);
     if (name === 'close-stats') return hideReplyStats(true);
     if (name === 'copy-stats') { if (replyStats) { await navigator.clipboard.writeText(replyStats.panel.dataset.copy); toast('Statistics copied.'); } return; }
     if (name === 'new') return newChat();
+    if (name === 'home') return newChat({landing: true});
     if (name === 'temporary') return temporaryChat();
     if (name === 'end-temporary') return leaveTemporary();
     if (name === 'reply-detail') { const target = $('messages').querySelector('[data-message="' + CSS.escape(el.dataset.id) + '"]'); if (target) { closeDrawers(false); target.tabIndex = -1; target.focus({preventScroll: true}); target.scrollIntoView({block: 'center', behavior: 'smooth'}); } return; }
@@ -1217,7 +1238,9 @@
     }
     if (name === 'theme') { setTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light', true); return; }
     if (name === 'archive-view') { S.archive = !S.archive; queueChatSearch(); return; }
-    if (name === 'attach') return $('file-input').click();
+    if (name === 'attach-device') return $('file-input').click();
+    if (name === 'attach-files') return window.ChatProjectContext.openFiles();
+    if (name === 'attach-project') return window.ChatProjectContext.openProjects();
     if (name === 'remove-attachment') { S.attachments.splice(Number(el.dataset.id), 1); composerRevision++; renderAttachments(); return; }
     if (name === 'bottom') return bottom();
     if (name === 'import') return $('import-input').click();
@@ -1270,9 +1293,9 @@
     S.config.pdf_reader = enabled;
     $('file-input').accept = baseFileTypes + (enabled ? ',application/pdf,.pdf' : '');
     $('pdf-help').hidden = !enabled;
-    const button = document.querySelector('[data-action="attach"]');
-    button.setAttribute('aria-label', enabled ? 'Attach text, image or PDF' : 'Attach text or image');
-    button.dataset.tooltip = enabled ? 'Attach text, images or selected PDF pages. See Settings for limits.' : 'Attach UTF-8 text or code, PNG or JPEG. See Settings for limits.';
+    $('attach-source').dataset.tooltip = enabled
+      ? 'Choose a source. Device: UTF-8 text or code, PNG, JPEG or selected PDF pages. See Settings for limits.'
+      : 'Choose a source. Device: UTF-8 text or code, PNG or JPEG. See Settings for limits.';
   }
   document.addEventListener('companion:features', event => {
     const pdf = event.detail.features.find(feature => feature.id === 'pdf-reader');

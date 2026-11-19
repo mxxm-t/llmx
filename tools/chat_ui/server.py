@@ -8,6 +8,7 @@ import json
 import math
 import mimetypes
 from pathlib import Path
+import re
 import secrets
 import sys
 import threading
@@ -26,7 +27,7 @@ from monitor import ASSETS, Monitor
 from optional_features import OptionalFeatures
 import pdf_reader
 from project_preview import MAX_PREVIEW_BYTES, assemble
-from workspace import ProjectConflict, Workspace, WorkspaceTools
+from workspace import MAX_SELECTED_FILES, ProjectConflict, Workspace, WorkspaceTools
 
 
 ROOT = Path(__file__).resolve().parent
@@ -647,6 +648,15 @@ class Handler(BaseHTTPRequestHandler):
         parts = path.split("/")[3:]
         if not parts and method == "GET":
             return self._json(workspace.snapshot())
+        if parts == ["files"] and method == "GET":
+            if not query:
+                return self._json(workspace.files())
+            if re.search(r"%(?![0-9a-fA-F]{2})", query):
+                raise ValueError("Invalid Workspace file query")
+            params = parse_qs(query, keep_blank_values=True, strict_parsing=True, errors="strict", max_num_fields=MAX_SELECTED_FILES)
+            if set(params) != {"path"}:
+                raise ValueError("Expected saved Workspace file paths")
+            return self._json(workspace.files(params["path"]))
         if parts and parts[0] == "projects" and not query:
             if len(parts) == 1 and method == "GET":
                 return self._json({"projects": workspace.projects()})

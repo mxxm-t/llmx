@@ -44,6 +44,7 @@ let attachmentChooser = null;
 const nativeDialogs = [];
 const apiMutations = [];
 const imageLinkRequests = [];
+const savedFileReads = [];
 const browserRequests = [];
 const pdfWorkers = [];
 async function cdp(method, params = {}, sessionId) {
@@ -150,6 +151,69 @@ async function idle() { await wait("document.querySelector('#stop').hidden && !d
 async function upload(selector, filename) { const root = await cdp('DOM.getDocument'); const target = await cdp('DOM.querySelector', {nodeId: root.root.nodeId, selector}); await cdp('DOM.setFileInputFiles', {nodeId: target.nodeId, files: [filename]}); }
 async function uploadMany(selector, files) { const root = await cdp('DOM.getDocument'); const target = await cdp('DOM.querySelector', {nodeId: root.root.nodeId, selector}); await cdp('DOM.setFileInputFiles', {nodeId: target.nodeId, files}); }
 async function screenshot(name) { await delay(240); const result = await cdp('Page.captureScreenshot', {format: 'png', captureBeyondViewport: false}); await writeFile(path.join(artifacts, name), Buffer.from(result.data, 'base64')); }
+async function attachmentSource(source) {
+  const item = `#action-menu [data-action="attach-${source}"]`;
+  await pointerClick('[data-action=attach]');
+  await wait(`document.querySelector(${JSON.stringify(item)})?.checkVisibility()`, 'Attach menu source ' + source);
+  await pointerClick(item);
+}
+async function checkSavedFilesFromChat(files) {
+  const chat = await evaluate("document.querySelector('.chat-item.active')?.dataset.chat");
+  assert(chat, 'saved-file check requires an existing conversation');
+  const beforeDraft = await evaluate("document.querySelector('#draft').value");
+  const beforeMutations = apiMutations.length;
+  const selected = files.map(([path,text])=>({path,text,name:path.replaceAll('/', ':')}));
+  const currentDraft = "JSON.parse(sessionStorage.getItem('llmx-draft:'+localStorage.getItem('llmx-chat'))||'{}')";
+  const marker = 'Keep this existing draft while choosing a saved file.';
+  const remove = selected.map(({name})=>`[aria-label=${JSON.stringify('Remove ' + name)}]`);
+  const modal = '#saved-file-dialog';
+  const counts = () => evaluate(`${JSON.stringify(remove)}.map(selector=>document.querySelectorAll(selector).length)`);
+  const select = async () => {
+    await attachmentSource('files');
+    await wait(`document.querySelector('${modal}')?.open`, 'saved files modal in Chat');
+    for (const {path} of selected) {
+      const option = `${modal} input[type=checkbox][value=${JSON.stringify(path)}]`;
+      await fill('#saved-file-filter', path);
+      await wait(`document.querySelector(${JSON.stringify(option)})?.checkVisibility()`, 'filtered saved file ' + path);
+      await pointerClick(option);
+      await wait(`document.querySelector(${JSON.stringify(option)}).checked && !document.querySelector('#saved-file-add').disabled`, 'saved file selected');
+    }
+  };
+  const closed = async () => wait(`!document.querySelector('${modal}')?.open`, 'saved-file picker closed');
+  const currentChatAndDraft = () => evaluate("({view:document.querySelector('#app').dataset.view,chat:document.querySelector('.chat-item.active')?.dataset.chat,draft:document.querySelector('#draft').value})");
+  const expected = {view:'chat',chat,draft:marker};
+  const noFiles = selected.map(()=>0), onceEach = selected.map(()=>1);
+  const initialReads = savedFileReads.length;
+  assert.deepEqual(await counts(), noFiles, 'saved file already exists in the test draft');
+  await fill('#draft', marker);
+
+  await select();
+  const bounds = await evaluate(`(() => {const dialog=document.querySelector('${modal}');const r=dialog.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&dialog.scrollWidth<=dialog.clientWidth;})()`);
+  assert.equal(bounds, true, 'saved-file picker overflows the viewport');
+  await cdp('Input.dispatchKeyEvent', {type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+  await cdp('Input.dispatchKeyEvent', {type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+  await closed();
+  assert.deepEqual(await counts(), noFiles, 'cancelling the saved-file picker attached a file');
+  assert.deepEqual(await currentChatAndDraft(), expected, 'cancelling changed the active draft');
+  assert(savedFileReads.length > initialReads, 'saved-file picker did not load a metadata list');
+  assert(savedFileReads.slice(initialReads).every(query=>!query.length), 'opening or cancelling fetched file contents');
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await select();
+    await pointerClick('#saved-file-add');
+    await closed();
+    assert.deepEqual(await counts(), onceEach, 'a selected saved file was missing or attached twice');
+    assert.deepEqual(await currentChatAndDraft(), expected, 'adding a saved file changed the current conversation or draft');
+  }
+  await wait(`${JSON.stringify(selected)}.every(({name,text})=>(${currentDraft}).attachments?.some(file=>file.name===name&&file.text===text))`, 'exact saved text for all selected files in the draft');
+  const reads = savedFileReads.slice(initialReads).filter(query=>query.length);
+  const expectedPaths = selected.map(file=>file.path).sort();
+  assert(reads.length >= 1, 'confirmation did not fetch saved files');
+  for (const query of reads) assert.deepEqual(query.sort(), expectedPaths, 'selected files were not fetched together');
+  assert.equal(apiMutations.length, beforeMutations, 'choosing a saved file sent or changed server data');
+  for (const button of remove) await click(button);
+  await fill('#draft', beforeDraft);
+}
 function pdfAssetRequests() {
   return browserRequests.filter(request => {
     const pathname = new URL(request.url).pathname;
@@ -199,6 +263,109 @@ async function checkSentSource(name, source, exportName) {
   await wait(`!document.querySelector('#artifact-dialog').open && document.activeElement===${button}`, 'source viewer Escape restores attachment focus');
   assert.deepEqual(browserRequests.slice(beforeOpen).filter(request => request.method !== 'GET' ||
     new URL(request.url).pathname !== '/api/chats/run-status'), [], 'opening sent source made a network request');
+}
+async function checkHomeLanding() {
+  const selected = await evaluate("document.querySelector('.chat-item.active')?.dataset.chat");
+  assert(selected, 'home landing check requires a saved conversation');
+  const draft = await evaluate("document.querySelector('#draft').value");
+  const history = () => evaluate("Array.from(document.querySelectorAll('#chat-list .chat-item')).map(chat=>chat.dataset.chat).sort()");
+  const creates = () => apiMutations.filter(request=>request.method==='POST' && new URL(request.url).pathname==='/api/chats').length;
+  const ids = await history();
+  const originalCreates = creates();
+  for (const view of ['chat', 'workbench', 'preferences', 'monitor']) {
+    const marker = 'Unsent home navigation draft from ' + view;
+    await fill('#draft', marker);
+    if (view !== 'chat') await pointerClick(`.global-nav [data-view="${view}"]`);
+    await wait(`document.querySelector('#app').dataset.view===${JSON.stringify(view)}`, view + ' before logo navigation');
+    assert.equal(await evaluate("(() => {const home=document.querySelector('#chat-home');home?.focus();return home?.tagName==='BUTTON' && home.tabIndex>=0 && document.activeElement===home;})()"), true, 'logo is not keyboard focusable in ' + view);
+    await cdp('Input.dispatchKeyEvent', {type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,text:'\r'});
+    await cdp('Input.dispatchKeyEvent', {type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
+    await wait("document.querySelector('#app').dataset.view==='chat' && !document.querySelector('#welcome').hidden && !document.querySelector('.message') && !document.querySelector('.chat-item.active') && document.activeElement.id==='draft'", 'fresh Chat landing from ' + view);
+    assert.deepEqual(await history(), ids, 'home changed the history from ' + view);
+    assert.equal(creates(), originalCreates, 'home created an empty saved conversation from ' + view);
+    await pointerClick(`.chat-item[data-chat="${selected}"]`);
+    await wait(`document.querySelector('.chat-item.active')?.dataset.chat===${JSON.stringify(selected)} && document.querySelector('#draft').value===${JSON.stringify(marker)} && document.querySelector('.message.assistant')`, 'restore saved transcript and draft after leaving ' + view);
+  }
+  await fill('#draft', draft);
+}
+async function selectWorkspaceSection(section) {
+  const selector = `#workspace-sections [data-section="${section}"]`;
+  await pointerClick(selector);
+  await wait(`document.querySelector(${JSON.stringify(selector)}).getAttribute('aria-pressed')==='true'`, 'Workspace ' + section + ' section');
+  assert.equal(await evaluate("document.querySelectorAll('#workspace-sections [aria-pressed=true]').length"), 1, 'Workspace selected more than one section');
+}
+async function workspaceScreenshots(name) {
+  await cdp('Input.dispatchMouseEvent', {type:'mouseMoved', x:1, y:1});
+  await screenshot(`workflow-${name}-1440x1000.png`);
+  await cdp('Emulation.setDeviceMetricsOverride', {width:320,height:800,deviceScaleFactor:1,mobile:true});
+  await wait("document.documentElement.dataset.compact==='true' && innerWidth===320", 'narrow Workspace screenshot');
+  await screenshot(`workflow-${name}-320x800.png`);
+  await cdp('Emulation.setDeviceMetricsOverride', {width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+  await wait("document.documentElement.dataset.compact==='false'", 'return to desktop after Workspace screenshot');
+}
+async function checkEmptyWorkspace(capture = false) {
+  await wait("document.querySelector('#workspace-start')?.checkVisibility() && document.querySelector('.workspace-actions .primary-button:enabled')", 'loaded Workspace empty guidance');
+  const guidance = await evaluate("document.querySelector('#workspace-start').textContent");
+  assert.match(guidance, /files/i);
+  assert.match(guidance, /saved|project/i);
+  assert.equal(await evaluate("document.querySelector('#workspace-sections [data-section=files]').getAttribute('aria-pressed')"), 'true');
+  if (capture) await workspaceScreenshots('empty');
+  await pointerClick('.workspace-actions .primary-button');
+  await wait("document.querySelector('#action-dialog').open && document.activeElement.id==='conversation-value'", 'new file from empty Workspace');
+}
+async function checkWorkspaceFlow() {
+  await pointerClick('.global-nav [data-view="workbench"]');
+  await checkEmptyWorkspace(true);
+  const filename = 'notes/first-workspace-file.html';
+  await fill('#conversation-value', filename);
+  await closeAction('#conversation-submit');
+  await wait("document.querySelector('#workspace-editor').checkVisibility() && !document.querySelector('#workspace-editor').disabled", 'first file editor');
+  const source = '<h1>Browser Workspace file</h1>';
+  await fill('#workspace-editor', source);
+  await pointerClick('#workspace-save');
+  await wait("document.querySelector('.workspace-file[title=\"notes/first-workspace-file.html\"]')?.checkVisibility() && document.querySelector('#workspace-save').disabled", 'saved first file in Workspace');
+  assert.equal(await evaluate("document.querySelector('#workspace-start').checkVisibility()"), false, 'empty Workspace persists after creating a file');
+  await workspaceScreenshots('editor');
+  await pointerClick('.workspace-editor-actions button:first-child');
+  await wait("document.querySelector('#artifact-dialog').open && document.querySelector('.artifact-frame')", 'preview first Workspace file');
+  await click('#artifact-source-tab');
+  assert.equal(await evaluate("document.querySelector('.artifact-source code').textContent"), source);
+  await pointerClick('#artifact-dialog [aria-label="Close artifact"]');
+  const panels = ['#workspace-editor', '#workspace-projects', '.workspace-terminal', '.workspace-checkpoints'];
+  for (const [index, section] of ['projects', 'commands', 'history'].entries()) {
+    await selectWorkspaceSection(section);
+    const visible = panels.map((_, panel) => panel === index + 1);
+    assert.deepEqual(await evaluate(`${JSON.stringify(panels)}.map(selector=>document.querySelector(selector).checkVisibility())`), visible, 'Workspace utilities are visible outside their section');
+    if (section === 'commands') await workspaceScreenshots('commands');
+  }
+  await selectWorkspaceSection('files');
+  assert.equal(await evaluate("document.querySelector('#workspace-editor').value"), source);
+  const beforeAttach = apiMutations.length;
+  await pointerClick('#workspace-attach');
+  await wait("document.querySelector('#app').dataset.view==='chat' && document.querySelector('[aria-label=\"Remove notes:first-workspace-file.html\"]')", 'attach first Workspace file to Chat');
+  assert.equal(apiMutations.length, beforeAttach, 'attaching from Workspace wrote to the server');
+  await click('[aria-label="Remove notes:first-workspace-file.html"]');
+  const siblingName = 'examples/first-workspace-file.html';
+  const siblingText = '<h1>Second saved copy \u00e9</h1>\n';
+  await evaluate(`(async () => {
+    const {revision}=await ChatShell.api('/workspace');
+    await ChatShell.api('/workspace/file','POST',{revision,path:${JSON.stringify(siblingName)},content:${JSON.stringify(siblingText)}});
+  })()`);
+  await cdp('Emulation.setDeviceMetricsOverride', {width:320,height:800,deviceScaleFactor:1,mobile:true});
+  await wait("document.documentElement.dataset.compact==='true' && innerWidth===320", 'narrow Chat Attach menu');
+  await evaluate("document.querySelector('[data-action=attach]').focus()");
+  for (const [key, keyCode, focus] of [['Enter',13,'attach-device'], ['ArrowDown',40,'attach-files'], ['Escape',27,'attach']]) {
+    const action = {key,code:key,windowsVirtualKeyCode:keyCode};
+    await cdp('Input.dispatchKeyEvent', {type:'keyDown', ...action, ...(key==='Enter' ? {text:'\r'} : {})});
+    await cdp('Input.dispatchKeyEvent', {type:'keyUp', ...action});
+    await wait(`document.activeElement.dataset.action===${JSON.stringify(focus)}`, 'Attach menu focus after ' + key);
+  }
+  assert.equal(await evaluate("document.querySelector('#action-menu').matches(':popover-open')"), false, 'Escape did not close Attach menu');
+  await checkSavedFilesFromChat([[filename,source],[siblingName,siblingText]]);
+  await attachmentSource('project');
+  await wait("document.querySelector('#project-context-dialog').open", 'saved project entry from the Attach menu');
+  await pointerClick('#project-context-cancel');
+  await wait("!document.querySelector('#project-context-dialog').open && document.querySelector('#app').dataset.view==='chat'", 'close project picker in the same Chat');
 }
 async function checkOptionalFeatures() {
   const workerFixture = process.argv.find(arg => arg.startsWith('--fixture-upstream=')).slice('--fixture-upstream='.length);
@@ -266,7 +433,7 @@ async function checkOptionalFeatures() {
   assert.equal(await evaluate("document.querySelector('#draft').value"), draft);
   assert.deepEqual(await evaluate("Array.from(document.querySelectorAll('#attachments .attachment-pill')).map(pill=>pill.firstChild.textContent)"), ['notes.txt']);
   await cdp('Page.setInterceptFileChooserDialog', {enabled:true});
-  await pointerClick('[data-action=attach]');
+  await attachmentSource('device');
   await wait(() => attachmentChooser !== null, 'live native file chooser after installation');
   await cdp('Page.setInterceptFileChooserDialog', {enabled:false});
   const {node} = await cdp('DOM.describeNode', {backendNodeId:attachmentChooser.backendNodeId});
@@ -477,6 +644,9 @@ try {
     if (data.method === 'Network.requestWillBeSent' && /\/api\/runs\/[^/]+\/events(?:\?|$)/.test(data.params.request.url)) runStreams.push(data.params.request.url);
     if (data.method === 'Network.requestWillBeSent' && data.params.request.method !== 'GET') apiMutations.push({url: data.params.request.url, method: data.params.request.method});
     if (data.method === 'Network.requestWillBeSent' && data.params.request.url.startsWith('https://example.invalid/')) imageLinkRequests.push(data.params.request.url);
+    if (data.method === 'Network.requestWillBeSent' && new URL(data.params.request.url).pathname === '/api/workspace/files') {
+      savedFileReads.push(new URL(data.params.request.url).searchParams.getAll('path'));
+    }
     if ((pdfMode || featuresMode) && data.method === 'Network.requestWillBeSent') browserRequests.push(data.params.request);
     if (pdfMode && data.method === 'Target.attachedToTarget') {
       const {sessionId, targetInfo} = data.params;
@@ -502,7 +672,15 @@ try {
   await cdp('Emulation.setDeviceMetricsOverride', {width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false});
   await cdp('Emulation.setEmulatedMedia', {features: [{name: 'prefers-color-scheme', value: 'dark'}]});
   await navigateDocument(url);
-  if (featuresMode) {
+  if (process.argv.includes('--workflow-only')) {
+    await signIn();
+    await send('Browser workflow prompt');
+    await idle();
+    await checkHomeLanding();
+    await checkWorkspaceFlow();
+    assert.deepEqual(errors, [], 'workflow browser exceptions');
+    console.log('PASS: keyboard Home, Workspace Sections, narrow Attach menu, saved file confirmation and deduplication, and saved project entry from Chat');
+  } else if (featuresMode) {
     await signIn();
     await checkOptionalFeatures();
   } else if (pdfMode) {
@@ -525,7 +703,7 @@ try {
       await evaluate("document.querySelector('[data-action=\"close-drawers\"]').click();window.ChatShell.show('monitor')");
       await screenshot('live-monitor-'+width+'x'+height+'.png');
       await evaluate("window.ChatShell.show('workbench')");
-      await wait("document.querySelector('.workspace-revision').textContent!=='Not loaded'",'live workspace');
+      await wait("/^Revision \\d+$/.test(document.querySelector('.workspace-revision').textContent)",'live workspace');
       await screenshot('live-workspace-'+width+'x'+height+'.png');
       console.log('PASS actual sidebar pointer clicks: '+width+'x'+height);
     }
@@ -541,7 +719,7 @@ try {
   await wait("document.querySelector('#login-error').textContent.includes('Incorrect')", 'invalid-password error');
   await signIn();
   await cdp('Page.setInterceptFileChooserDialog', {enabled: true});
-  await pointerClick('[data-action=attach]');
+  await attachmentSource('device');
   await wait(() => attachmentChooser !== null, 'native attachment chooser');
   await cdp('Page.setInterceptFileChooserDialog', {enabled: false});
   const {node: chooserInput} = await cdp('DOM.describeNode', {backendNodeId: attachmentChooser.backendNodeId});
@@ -1103,6 +1281,7 @@ try {
   await reloadDocument();
   await wait("document.querySelectorAll('.message.assistant').length===1 && document.querySelector('#stop').hidden", 'refresh and persisted stream completion');
   assert.equal(await evaluate("document.querySelector('.message.assistant').textContent.split('A practical plan.').length-1"), 1, 'snapshot replay duplicated output');
+  await checkHomeLanding();
   assert.equal(await evaluate('window.injected===true'), false, 'model HTML executed');
   assert.equal(await evaluate("document.querySelectorAll('.message.assistant table').length"), 1);
   await click('[data-tab="stats"]');
@@ -1853,8 +2032,7 @@ try {
   await wait("document.querySelector('.workspace-revision').textContent==='Revision 0'", 'workspace load');
   const modalOwner = await evaluate("(async()=>{const first=window.ChatShell.conversationForm({title:'Dialog owner probe',label:'Name',value:'first'});document.querySelector('#action-dialog').close();const second=window.ChatShell.conversationForm({title:'Overlapping form',label:'Name',value:'second'});await first;return {settled:true,secondAccepted:(await second)!==undefined};})()");
   assert.deepEqual(modalOwner, {settled: true, secondAccepted: false}, 'shared dialog allowed overlapping ownership');
-  await click('.workbench-view .primary-button');
-  await wait("document.querySelector('#action-dialog').open", 'accessible new-file dialog', 700);
+  await checkEmptyWorkspace();
   assert.equal(await evaluate("document.querySelector('#action-dialog-title').textContent"), 'New workspace file');
   assert.equal(await evaluate("document.activeElement.id"), 'conversation-value', 'new-file dialog did not focus its field');
   await screenshot('studio-new-file-dialog-desktop.png');
@@ -1874,18 +2052,20 @@ try {
   await wait("!document.querySelector('#action-dialog').open && !document.querySelector('#workspace-editor').disabled && document.querySelector('.workspace-file-path').textContent==='Research'", 'new workspace file ready');
   await fill('#workspace-editor', 'first version\n'); await click('#workspace-save');
   await wait("document.querySelector('.workspace-file-name')?.textContent==='Research' && document.querySelector('#workspace-save').disabled", 'workspace file save');
+  assert.equal(await evaluate("document.querySelector('.workspace-checkpoints').checkVisibility()"), false, 'checkpoint history should start outside Files');
   assert.equal(await evaluate("document.querySelector('.workspace-checkpoints details').open"), false, 'checkpoint history should start collapsed');
   const editorTabResults = [];
-  for (const [modifiers, target] of [[0, '.workspace-checkpoints button'], [8, '.workspace-editor-actions .danger']]) {
+  for (const [modifiers, movedFocus] of [[0, "!document.activeElement.matches('#workspace-editor')"], [8, "document.activeElement.matches('.workspace-editor-actions .danger')"]]) {
     await evaluate("{const editor=document.querySelector('#workspace-editor');editor.focus();editor.setSelectionRange(0,5)}");
     const tabKey = {key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers};
     await cdp('Input.dispatchKeyEvent', {type: 'keyDown', ...tabKey});
     await cdp('Input.dispatchKeyEvent', {type: 'keyUp', ...tabKey});
-    editorTabResults.push(await evaluate(`({focus:document.activeElement.matches(${JSON.stringify(target)}),
+    editorTabResults.push(await evaluate(`({focus:${movedFocus},
       value:document.querySelector('#workspace-editor').value, clean:document.querySelector('#workspace-save').disabled})`));
   }
   assert.deepEqual(editorTabResults, Array(2).fill({focus: true, value: 'first version\n', clean: true}),
     'Tab and Shift+Tab should move focus out of the Workspace editor without changing the saved buffer');
+  await selectWorkspaceSection('history');
   await click('.workspace-checkpoints button');
   await wait("document.querySelector('#action-dialog').open", 'checkpoint label dialog');
   assert.equal(await evaluate("document.querySelector('#conversation-value').maxLength"), 120, 'checkpoint field exceeds server limit');
@@ -1894,7 +2074,7 @@ try {
   assert.equal(apiMutations.filter(item => item.url.endsWith('/api/workspace/checkpoints')).length, checkpointMutations, 'cancelled checkpoint creation sent a request');
   await click('.workspace-checkpoints button'); await wait("document.querySelector('#action-dialog').open", 'reopened checkpoint label dialog');
   await fill('#conversation-value', 'Workspace checkpoint'); await closeAction('#conversation-submit');
-  await wait("document.querySelector('.workspace-checkpoints details').open && document.querySelectorAll('.workspace-checkpoint').length===1", 'created checkpoint appears in history');
+  await wait("document.querySelector('.workspace-checkpoints details').open && document.querySelectorAll('.workspace-checkpoint').length===1 && document.querySelector('.workspace-checkpoint').checkVisibility()", 'created checkpoint appears in history');
   const fileWritesBeforeArtifactCancel = apiMutations.filter(item => item.url.endsWith('/api/workspace/file')).length;
   await evaluate("document.dispatchEvent(new CustomEvent('companion:artifact-edit',{detail:{name:'generated.py',source:'print(1)'}}))");
   await wait("document.querySelector('#action-dialog').open", 'generated-file edit dialog');
@@ -1903,6 +2083,7 @@ try {
   await closeAction('#conversation-cancel');
   assert.equal(apiMutations.filter(item => item.url.endsWith('/api/workspace/file')).length, fileWritesBeforeArtifactCancel, 'cancelled generated-file edit wrote a file');
   assert.equal(await evaluate("document.querySelector('.workspace-file-path').textContent"), 'Research', 'cancelled generated-file edit changed the selected file');
+  await selectWorkspaceSection('files');
   for (const [failed, revision] of [[false, 2], [true, 3]]) {
     await evaluate(`{
       const originalFetch=window.fetch;
@@ -1925,6 +2106,7 @@ try {
     await evaluate("window.releaseWorkspaceRefresh()");
     await wait(`document.querySelector('.workspace-revision').textContent==='Revision ${revision}' && document.querySelector('.workspace-error').hidden`, failed ? 'saved revision survives failed refresh' : 'saved revision survives delayed refresh');
   }
+  await selectWorkspaceSection('history');
   await click('.checkpoint-actions button:first-child');
   await wait("document.querySelector('#artifact-dialog').open", 'checkpoint diff');
   assert((await evaluate("document.querySelector('.artifact-source').textContent")).includes('+third version'));
@@ -1943,6 +2125,7 @@ try {
   await wait("document.querySelector('#action-dialog').open", 'reopened checkpoint restore dialog');
   await closeAction('#conversation-submit');
   await wait("document.querySelector('#workspace-editor').value==='first version\\n'", 'checkpoint restore');
+  await selectWorkspaceSection('files');
   await fill('#workspace-editor', 'unsaved local edit');
   await evaluate("fetch('/api/workspace').then(r=>r.json()).then(s=>fetch('/api/workspace/file',{method:'POST',headers:{'Content-Type':'application/json','X-Chat-Request':'1'},body:JSON.stringify({path:'external.txt',content:'Concurrent change',revision:s.revision})}))");
   await click('#workspace-save');
@@ -1967,6 +2150,7 @@ try {
   await click('.workspace-file'); await wait("document.querySelector('#action-dialog').open", 'reopened unsaved edit confirmation');
   await closeAction('#conversation-submit');
   await wait("document.querySelector('#workspace-editor').value==='first version\\n'", 'reload after conflict');
+  await selectWorkspaceSection('commands');
   assert((await evaluate("document.querySelector('.execution-description').textContent")).includes('Commands use saved workspace files.'), 'command runner should distinguish saved files from the editor buffer');
   await fill('#workspace-command', 'printf browser-job');
   await evaluate("document.querySelector('.workspace-command').requestSubmit()");
@@ -1978,6 +2162,7 @@ try {
   await wait("document.querySelector('.workspace-job-status').textContent==='running'", 'cancellable container fixture');
   await evaluate("Array.from(document.querySelectorAll('.workspace-command button')).find(b=>b.textContent==='Stop').click()");
   await wait("document.querySelector('.workspace-job-status').textContent.includes('cancelled')", 'cancelled container fixture');
+  await selectWorkspaceSection('files');
   await click('#view-workbench .workspace-editor-actions .danger');
   await wait("document.querySelector('#action-dialog').open", 'workspace delete dialog');
   const deletesBeforeCancel = apiMutations.filter(item => item.url.endsWith('/api/workspace/delete')).length;
@@ -2158,7 +2343,7 @@ try {
   const link = id => '[data-tool-call="linked-'+id+'"] .workspace-tool-open';
   await wait("document.querySelector("+JSON.stringify(link('read'))+")!==null", 'direct file result action rendered');
   assert.equal(await evaluate("document.querySelector("+JSON.stringify(link('read'))+").textContent"), 'Open file', 'Workspace read result needs a direct file action');
-  assert.equal(await evaluate("document.querySelector("+JSON.stringify(link('malformed'))+").textContent"), 'Open Workspace', 'malformed result keeps the general Workspace action');
+  assert.equal(await evaluate("document.querySelector("+JSON.stringify(link('malformed'))+").textContent"), 'Open saved files', 'malformed result keeps the general saved-files action');
   const linkMutations = apiMutations.filter(item=>item.url.includes('/api/workspace/')).length;
   // Let the newly opened chat finish its scheduled scroll before targeting a tool button.
   await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
@@ -2196,6 +2381,7 @@ try {
   await evaluate("document.querySelector("+JSON.stringify(link('run'))+").focus()");
   await drawerKey('Enter', 13);
   await wait("document.querySelector('.workspace-job.active')?.title==='printf browser-job' && document.querySelector('#workspace-output').textContent.includes('browser-job complete') && document.activeElement.id==='workspace-output'", 'keyboard opens retained job output');
+  assert.equal(await evaluate("document.querySelector('#workspace-sections [data-section=commands]').getAttribute('aria-pressed')"), 'true', 'retained job did not open the Commands section');
   assert.equal(await evaluate("Array.from(document.querySelectorAll('.workspace-job')).filter(button=>button.title==='printf browser-job').at(-1).classList.contains('active')"), true, 'job link did not select the older job with the same command');
   for (const [id, reason] of [['removed','file is no longer available'],['pruned','job is no longer available']]) {
     await click('.global-nav [data-view="chat"]');
@@ -2218,6 +2404,7 @@ try {
   }
   await evaluate("document.documentElement.dataset.theme="+JSON.stringify(linkTheme)+"; window.ChatShell.show('workbench')");
   await cdp('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+  await selectWorkspaceSection('files');
   const previewFiles = {
     'site/styles/site.css': 'h1 { color: rgb(12, 34, 56); }',
     'site/pages/boot.js': 'const title = document.querySelector("h1"); console.log("project-ready", document.compatMode, getComputedStyle(title).color, title.textContent);'
@@ -2277,6 +2464,7 @@ try {
     }
   })()`);
   await pointerClick('.workspace-back');
+  await checkSavedFilesFromChat([['src/index.js','Saved src/index.js'], ['tests/index.js','Saved tests/index.js']]);
   const originalDraft = await evaluate("document.querySelector('#draft').value");
   await fill('#draft', 'Keep this draft while attaching Workspace files');
   const bridgeMutations = apiMutations.length;
@@ -2348,16 +2536,19 @@ try {
   const draftBeforeProjectSetup = await evaluate("document.querySelector('#draft').value");
   await fill('#draft', 'Unsent draft before first project');
   const mutationsBeforeProjectSetup = apiMutations.length;
-  const openEmptyProjectPicker = async () => {
-    await pointerClick('.composer [data-action="settings"]');
-    await pointerClick('#use-workspace-project');
+  const openEmptyProjectPicker = async (fromAttach = false) => {
+    if (fromAttach) await attachmentSource('project');
+    else {
+      await pointerClick('.composer [data-action="settings"]');
+      await pointerClick('#use-workspace-project');
+    }
     await wait("document.querySelector('#project-context-status').textContent.includes('Create a project')", 'empty project list');
   };
-  await openEmptyProjectPicker();
+  await openEmptyProjectPicker(true);
   assert.equal(await evaluate("document.querySelector('#project-context-open-workspace')?.checkVisibility()"), true, 'empty Chat project picker must offer a direct Workspace action');
   assert.equal(await evaluate("document.querySelector('#project-context-select').checkVisibility() || document.querySelector('#project-context-apply').checkVisibility()"), false, 'empty picker still shows unavailable actions');
   await pointerClick('#project-context-open-workspace');
-  await wait("document.querySelector('#app').dataset.view==='workbench' && document.querySelector('#workspace-projects').open && document.activeElement.id==='workspace-project-new'", 'first project setup with focus on New project');
+  await wait("document.querySelector('#app').dataset.view==='workbench' && document.querySelector('#workspace-sections [data-section=projects]').getAttribute('aria-pressed')==='true' && document.activeElement.id==='workspace-project-new'", 'first project setup with focus on New project');
   assert.equal(await evaluate("document.querySelector('#project-context-dialog').open"), false);
   assert.equal(await evaluate("document.querySelector('#workspace-editor').value"), 'Unsaved file before first project');
   assert.equal(await evaluate("document.querySelector('#draft').value"), 'Unsent draft before first project');
@@ -2376,9 +2567,10 @@ try {
   await wait("typeof window.releaseProjectSetup==='function'", 'held project list in Workspace');
   await pointerClick('.workspace-back');
   await pointerClick('.global-nav [data-view="workbench"]');
-  await evaluate("document.querySelector('#workspace-projects summary').focus(); window.releaseProjectSetup(); delete window.releaseProjectSetup;");
+  await selectWorkspaceSection('projects');
+  await evaluate("document.querySelector('#workspace-sections [data-section=projects]').focus(); window.releaseProjectSetup(); delete window.releaseProjectSetup;");
   await wait("!document.querySelector('#workspace-project-new').disabled", 'released project list');
-  assert.equal(await evaluate("document.activeElement.matches('#workspace-projects summary')"), true, 'older navigation stole focus from a newer Workspace visit');
+  assert.equal(await evaluate("document.activeElement.matches('#workspace-sections [data-section=projects]')"), true, 'older navigation stole focus from a newer Workspace visit');
   assert.equal(apiMutations.length, mutationsBeforeProjectSetup, 'opening first project setup wrote to the API');
   await fill('#draft', draftBeforeProjectSetup);
   await fill('#workspace-editor', 'Saved tests/index.js');
@@ -2389,7 +2581,7 @@ try {
   await click('#workspace-project-paths input[value="tests/index.js"]');
   await pointerClick('#workspace-project-save');
   await wait("document.querySelector('.workspace-project-row')?.textContent.includes('Browser project')", 'created named Workspace project');
-  await pointerClick('#workspace-projects summary');
+  await selectWorkspaceSection('files');
   await pointerClick('.workspace-back');
   async function reviewProject() {
     await pointerClick('.composer [data-action="settings"]');
@@ -2414,18 +2606,21 @@ try {
     await screenshot('studio-settings-'+width+'x'+height+'.png');
     if(width===320){
       await evaluate("window.ChatShell.show('workbench')");
-      const checkpointsFit = await evaluate("document.querySelector('.workspace-checkpoints').scrollWidth<=document.querySelector('.workspace-checkpoints').clientWidth");
-      assert(checkpointsFit, 'checkpoint controls overflow at 320px');
+      await selectWorkspaceSection('files');
       await evaluate("document.querySelector('#workspace-attach').scrollIntoView({block:'center',behavior:'instant'})");
       assert.equal(await evaluate("{const button=document.querySelector('#workspace-attach'),box=button.getBoundingClientRect(),parent=button.closest('.workspace-editor').getBoundingClientRect();box.left>=parent.left&&box.right<=parent.right&&button.contains(document.elementFromPoint(box.x+box.width/2,box.y+box.height/2))}"), true, 'Workspace attachment target is clipped or blocked at 320px');
       await screenshot('workspace-attach-mobile.png');
+      assert.equal(await evaluate("document.querySelector('.workspace-checkpoints').checkVisibility()"), false, 'checkpoint history appears in Files');
+      await selectWorkspaceSection('history');
       assert.equal(await evaluate("document.querySelector('.workspace-checkpoints details').open"), false, 'a reload should start with checkpoint history collapsed');
       await evaluate("document.querySelector('.workspace-checkpoints summary').scrollIntoView({block:'center',behavior:'instant'})");
       await pointerClick('.workspace-checkpoints summary');
-      await wait("document.querySelector('.workspace-checkpoints details').open && document.querySelector('.workspace-checkpoint').checkVisibility()", 'open checkpoint history on mobile');
+      await wait("document.querySelector('.workspace-checkpoint').checkVisibility()", 'open checkpoint history on mobile');
+      assert.equal(await evaluate("document.querySelector('.workspace-checkpoints').scrollWidth<=document.querySelector('.workspace-checkpoints').clientWidth"), true, 'checkpoint controls overflow at 320px');
+      await screenshot('workspace-checkpoints-mobile.png');
       await pointerClick('.workspace-checkpoints summary');
       await wait("!document.querySelector('.workspace-checkpoints details').open", 'collapse checkpoint history on mobile');
-      await screenshot('workspace-checkpoints-mobile.png');
+      await selectWorkspaceSection('files');
     }
     if(width===390){await evaluate("window.ChatShell.show('workbench')");await click('.workbench-view .primary-button');await wait("document.querySelector('#action-dialog').open",'mobile new-file dialog');await screenshot('studio-new-file-dialog-mobile.png');await closeAction('#conversation-cancel');}
     if(width===390 || width===768 || width===1024){await evaluate("window.ChatShell.show('workbench')");await screenshot('studio-workspace-'+width+'x'+height+'.png');}

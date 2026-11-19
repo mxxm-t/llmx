@@ -24,8 +24,8 @@
     <div id="app" class="workspace inspector-closed" data-view="chat">
       <aside class="sidebar" id="sidebar" aria-label="Conversations">
         <div class="brand">
-          <span class="brand-wordmark" role="img" aria-label="llmx"></span>
           <button id="sidebar-close" class="icon mobile-only" data-action="close-drawers" aria-label="Close navigation">x</button>
+          <button id="chat-home" class="brand-home" type="button" data-action="home" aria-label="llmx Chat home" title="Chat home"><span class="brand-wordmark" aria-hidden="true"></span></button>
         </div>
         <nav class="global-nav" aria-label="Main navigation">
           <button data-view="chat" aria-current="page">
@@ -34,18 +34,18 @@
             </svg>
             <span>Chat</span>
           </button>
-          <button data-view="monitor">
-            <svg viewBox="0 0 24 24">
-              <path d="M3 12h4l3-8 4 16 3-8h4"/>
-            </svg>
-            <span>Monitor</span>
-          </button>
           <button data-view="workbench">
             <svg viewBox="0 0 24 24">
               <path d="M3 7h7l2-3h9v16H3Z"/>
               <path d="m8 12-3 3 3 3m8-6 3 3-3 3"/>
             </svg>
-            <span>Workspace</span>
+            <span>Saved files</span>
+          </button>
+          <button data-view="monitor">
+            <svg viewBox="0 0 24 24">
+              <path d="M3 12h4l3-8 4 16 3-8h4"/>
+            </svg>
+            <span>Monitor</span>
           </button>
           <button data-view="preferences">
             <svg viewBox="0 0 24 24">
@@ -157,7 +157,7 @@
             <textarea id="draft" rows="1" aria-label="Message" placeholder="Message your model..." maxlength="1000000"></textarea>
             <div class="composer-toolbar">
               <div class="composer-left">
-                <button type="button" class="icon" data-action="attach" aria-label="Attach text or image" data-tooltip="Attach UTF-8 text or code, PNG or JPEG. See Settings for limits.">
+                <button id="attach-source" type="button" class="icon" data-action="attach" aria-label="Attach files" aria-haspopup="menu" aria-controls="action-menu" aria-expanded="false" data-tooltip="Choose a source. Device: UTF-8 text or code, PNG or JPEG. See Settings for limits.">
                   <svg viewBox="0 0 24 24">
                     <path d="m8 12 6-6a4 4 0 0 1 6 6L10 22a6 6 0 0 1-8-8L12 4M6 16l10-10"/>
                   </svg>
@@ -188,7 +188,7 @@
           <div id="monitor-notice" class="view-notice" role="status" hidden></div>
           <iframe id="monitor-frame" title="llmx runtime monitor" class="monitor-frame" hidden></iframe>
         </section>
-        <section id="view-workbench" class="studio-view workbench-view" aria-label="Workspace" hidden></section>
+        <section id="view-workbench" class="studio-view workbench-view" aria-label="Saved files" hidden></section>
         <section id="view-preferences" class="studio-view preferences-view" aria-label="Settings" hidden>
           <div class="view-introduction">
             <h2>App settings</h2>
@@ -254,7 +254,7 @@
         <div id="panel-settings" class="inspector-panel" role="tabpanel" aria-labelledby="tab-settings" hidden>
           <p id="conversation-settings-help" class="panel-intro" role="status">Send a message to save these settings with your first reply.</p>
           <p id="conversation-settings-unsaved" class="muted fine-print" hidden>Unsaved changes reset when you switch conversations or reload.</p>
-          <button id="use-workspace-project" class="secondary-button" type="button">Use a Workspace project</button>
+          <button id="use-workspace-project" class="secondary-button" type="button">Use a saved project</button>
           <label class="field">System instructions<textarea id="setting-system" rows="5" placeholder="How should the model respond?"></textarea></label>
           <div class="field-grid">
             <label class="field">Temperature<input id="setting-temperature" type="number" min="0" max="5" step="0.05"></label>
@@ -298,9 +298,24 @@
     <div id="action-menu" class="conversation-menu" popover="manual" role="menu" aria-labelledby="action-menu-title">
       <div id="action-menu-title" class="conversation-menu-title"></div>
     </div>
+    <dialog id="saved-file-dialog" aria-labelledby="saved-file-title">
+      <form class="dialog-content" id="saved-file-form">
+        <h2 id="saved-file-title">Attach saved files</h2>
+        <p class="muted fine-print">Add a copy to this draft. Later edits to the saved file stay separate.</p>
+        <label class="field" id="saved-file-search" hidden>Find a file<input id="saved-file-filter" type="search" autocomplete="off" placeholder="Search by name or folder"></label>
+        <fieldset id="saved-file-list" aria-label="Saved files" hidden></fieldset>
+        <p id="saved-file-status" role="status"></p>
+        <p id="saved-file-error" class="error-text" role="alert" hidden></p>
+        <div class="dialog-actions">
+          <button type="button" id="saved-file-cancel" class="secondary-button">Cancel</button>
+          <button type="button" id="saved-file-open" class="secondary-button" hidden>Open file editor</button>
+          <button type="submit" id="saved-file-add" class="primary-button" disabled>Add to draft</button>
+        </div>
+      </form>
+    </dialog>
     <dialog id="project-context-dialog" aria-labelledby="project-context-title">
       <form class="dialog-content" id="project-context-form">
-        <h2 id="project-context-title">Use a Workspace project</h2>
+        <h2 id="project-context-title">Use a saved project</h2>
         <label class="field" id="project-context-field">Project<select id="project-context-select"></select></label>
         <p id="project-context-status" role="status"></p>
         <ul id="project-context-files" hidden></ul>
@@ -312,7 +327,7 @@
         <div class="conversation-form-actions">
           <button type="button" id="project-context-cancel" class="secondary-button">Cancel</button>
           <button type="submit" id="project-context-apply" class="primary-button" disabled>Add to draft</button>
-          <button type="button" id="project-context-open-workspace" class="primary-button" hidden>Open Workspace projects</button>
+          <button type="button" id="project-context-open-workspace" class="primary-button" hidden>Manage saved projects</button>
         </div>
       </form>
     </dialog>

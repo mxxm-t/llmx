@@ -86,5 +86,76 @@
     dialog.close();
     window.ChatWorkspace.openProjects();
   });
+  const picker = byId('saved-file-dialog'), list = byId('saved-file-list'), search = byId('saved-file-filter');
+  const add = byId('saved-file-add'), message = byId('saved-file-status'), problem = byId('saved-file-error');
+  let fileDraft, fileRequest;
+
+  function filterFiles() {
+    const term = search.value.trim().toLowerCase();
+    let count = 0;
+    for (const label of list.children) {
+      label.hidden = !label.querySelector('input').value.toLowerCase().includes(term);
+      if (!label.hidden) count++;
+    }
+    const checked = list.querySelectorAll(':checked').length;
+    add.disabled = !checked || checked > 8;
+    message.textContent = checked > 8 ? 'Choose up to 8 files.' : !count ? 'No matching files.' : checked ? checked + ' selected' : '';
+  }
+  async function openFiles() {
+    if (picker.open) return;
+    const controller = new AbortController();
+    fileRequest?.abort(); fileRequest = controller;
+    fileDraft = window.ChatComposer.projectDraft();
+    list.replaceChildren(); list.hidden = true; list.disabled = false; search.disabled = false;
+    byId('saved-file-search').hidden = true; search.value = '';
+    byId('saved-file-open').hidden = true; problem.hidden = true;
+    add.disabled = true; add.hidden = false; message.textContent = 'Loading saved files...'; picker.showModal();
+    try {
+      const data = await api('/workspace/files', 'GET', undefined, controller.signal);
+      if (controller.signal.aborted || !picker.open) return;
+      if (!data.files.length) {
+        message.textContent = 'No saved files yet. Create one in the file editor or attach a file from your device.';
+        byId('saved-file-open').hidden = false; add.hidden = true; return;
+      }
+      for (const file of data.files) {
+        const label = document.createElement('label'), checkbox = document.createElement('input');
+        checkbox.type = 'checkbox'; checkbox.value = file.path;
+        const name = document.createElement('span'); name.textContent = file.path;
+        const size = document.createElement('small'); size.textContent = window.ChatComposer.formatAttachmentSize(file.size);
+        label.append(checkbox, name, size); list.append(label);
+      }
+      list.hidden = false; byId('saved-file-search').hidden = false; filterFiles();
+      if (document.activeElement === byId('saved-file-cancel') || document.activeElement === picker) search.focus();
+    } catch (error) {
+      if (controller.signal.aborted || !picker.open) return;
+      message.textContent = ''; problem.textContent = error.message; problem.hidden = false;
+    }
+  }
+  search.addEventListener('input', filterFiles);
+  list.addEventListener('change', filterFiles);
+  byId('saved-file-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    if (add.disabled || list.disabled) return;
+    const controller = fileRequest, query = new URLSearchParams();
+    for (const input of list.querySelectorAll(':checked')) query.append('path', input.value);
+    list.disabled = true; search.disabled = true; add.disabled = true; problem.hidden = true;
+    message.textContent = 'Reading selected files...';
+    try {
+      const data = await api('/workspace/files?' + query, 'GET', undefined, controller.signal);
+      if (controller.signal.aborted || !picker.open) return;
+      fileDraft.apply(data, false); picker.close(); byId('draft').focus();
+    } catch (error) {
+      if (controller.signal.aborted || !picker.open) return;
+      list.disabled = false; filterFiles(); problem.textContent = error.message; problem.hidden = false;
+    } finally { if (fileRequest === controller) search.disabled = false; }
+  });
+  picker.addEventListener('close', () => {
+    if (picker.open) return;
+    fileRequest?.abort(); fileRequest = null; fileDraft = null; search.disabled = false; list.replaceChildren();
+  });
+  document.addEventListener('companion:unauthorized', () => { if (picker.open) picker.close(); });
+  byId('saved-file-cancel').addEventListener('click', () => picker.close());
+  byId('saved-file-open').addEventListener('click', () => { picker.close(); window.ChatWorkspace.openFiles(); });
+  window.ChatProjectContext = {openFiles, openProjects: open};
   byId('use-workspace-project').addEventListener('click', open);
 })();

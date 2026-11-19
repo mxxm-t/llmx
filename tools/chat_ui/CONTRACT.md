@@ -132,6 +132,11 @@ These routes share the chat session and mutation-header rules.
 - `GET /api/backup`: online SQLite chat backup download. It does not include workspace files.
 - `POST /api/restore` with a binary SQLite body and `Content-Type: application/vnd.sqlite3`: validates and replaces the idle chat database. The upload is streamed to a temporary file and limited to 256 MiB, advertised as `config.backup_max_bytes`. The caller reloads its view afterward. This binary route still requires the normal mutation header.
 - `GET /api/workspace`: `{revision,files:[{path,size}],checkpoints:[{id,label,created}],jobs:[...],execution:{enabled,image,description,limits}}`. Execution enabled means configured, not a successful Docker health check. A failed container start is reported as a failed job.
+- `GET /api/workspace/files` returns `{revision,files:[{path,size}]}` with saved
+  file metadata only. With one to eight distinct `path` parameters it instead
+  returns `{revision,files:[{path,text}]}` in request order and from one locked
+  saved revision. Invalid selections return 400. A missing file returns 404
+  without any file texts.
 - `GET /api/workspace/file?path=PATH`: `{path,content,revision}`.
 - `POST /api/workspace/file` with `{path,content,revision}` or `/api/workspace/delete` with `{path,revision}`: revision-checked edit returning the new snapshot.
 - `GET /api/workspace/projects`: `{projects:[{id,name,instructions,paths,version}]}`.

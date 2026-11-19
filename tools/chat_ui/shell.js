@@ -3,7 +3,7 @@ window.ChatShell = (() => {
   'use strict';
   const {node} = window.ChatRender;
   const $ = id => document.getElementById(id);
-  const labels = {chat: 'Chat', monitor: 'Monitor', workbench: 'Workspace', preferences: 'Settings'};
+  const labels = {chat: 'Chat', monitor: 'Monitor', workbench: 'Saved files', preferences: 'Settings'};
   let config = null;
   const toolTestErrors = new Map();
   function fitViewport() {
@@ -165,7 +165,8 @@ window.ChatShell = (() => {
     $('app').dataset.view = view;
     document.querySelectorAll('.global-nav [data-view]').forEach(button => { if (button.dataset.view === view) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); });
     for (const name of ['monitor', 'workbench', 'preferences']) $('view-' + name).hidden = view !== name;
-    $('shell-title').textContent = labels[view]; $('shell-eyebrow').textContent = view === 'monitor' ? 'RUNTIME' : view === 'workbench' ? 'WORKSPACE' : 'LLMX';
+    $('shell-title').textContent = labels[view]; $('shell-eyebrow').hidden = view === 'workbench';
+    $('shell-eyebrow').textContent = view === 'monitor' ? 'RUNTIME' : 'LLMX';
     document.querySelector('.shell-heading').hidden = view === 'chat';
     document.title = 'llmx / ' + labels[view];
     if (view === 'monitor') loadMonitor();
@@ -279,7 +280,7 @@ window.ChatShell = (() => {
     if (menu.parentElement !== document.body) document.body.append(menu);
     if (restore) restoreMenuFocus(menuAnchor);
   }
-  function menu(anchor, title, items, select) {
+  function menu(anchor, title, items, select, {above = false} = {}) {
     closeMenu(false); menuAnchor = anchor;
     const panel = $('action-menu'), drawer = anchor.closest('aside[aria-modal=true]');
     if (drawer) drawer.append(panel);
@@ -288,7 +289,8 @@ window.ChatShell = (() => {
       if (item.separator) { const line = node('div', 'conversation-menu-divider'); line.setAttribute('role', 'separator'); panel.append(line); }
       const control = node('button', item.danger ? 'danger' : ''); control.type = 'button'; control.setAttribute('role', 'menuitem');
       control.dataset.action = item.action; control.disabled = Boolean(item.disabled); control.tabIndex = -1;
-      const paths = {rename: 'm16 3 5 5-12 12-6 1 1-6Z M14 5l5 5', pin: 'm9 3 6 0-1 6 4 4H6l4-4Z M12 13v8', folder: 'M3 6h7l2 2h9v12H3Z', duplicate: 'M8 8h13v13H8Z M16 8V3H3v13h5', archive: 'M3 3h18v5H3Z M5 8v13h14V8 M9 12h6', export: 'M12 3v12 M7 10l5 5 5-5 M4 16v5h16v-5', delete: 'M3 6h18 M9 6V3h6v3 M5 6l1 15h12l1-15 M10 10v7 M14 10v7'};
+      const paths = {rename: 'm16 3 5 5-12 12-6 1 1-6Z M14 5l5 5', pin: 'm9 3 6 0-1 6 4 4H6l4-4Z M12 13v8', folder: 'M3 6h7l2 2h9v12H3Z', duplicate: 'M8 8h13v13H8Z M16 8V3H3v13h5', archive: 'M3 3h18v5H3Z M5 8v13h14V8 M9 12h6', export: 'M12 3v12 M7 10l5 5 5-5 M4 16v5h16v-5', delete: 'M3 6h18 M9 6V3h6v3 M5 6l1 15h12l1-15 M10 10v7 M14 10v7',
+        'attach-device': 'M3 4h18v12H3Z M8 21h8 M12 16v5', 'attach-files': 'M6 3h8l4 4v14H6Z M14 3v5h4 M9 13h6 M9 16h6', 'attach-project': 'M3 6h7l2 2h9v12H3Z'};
       const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); icon.classList.add('conversation-menu-icon'); icon.setAttribute('viewBox', '0 0 24 24'); icon.setAttribute('fill', 'none'); icon.setAttribute('stroke', 'currentColor'); icon.setAttribute('stroke-width', '1.6'); icon.setAttribute('stroke-linecap', 'round'); icon.setAttribute('stroke-linejoin', 'round'); icon.setAttribute('aria-hidden', 'true');
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('d', paths[item.action]); icon.append(path); control.append(icon, node('span', '', item.label));
       control.addEventListener('click', event => { event.stopPropagation(); closeMenu(); select(item.action); }); panel.append(control);
@@ -297,8 +299,10 @@ window.ChatShell = (() => {
     const zoom = Number.parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
     const box = anchor.getBoundingClientRect(), bounds = panel.getBoundingClientRect();
     const width = innerWidth / zoom, height = innerHeight / zoom;
-    panel.style.left = Math.max(8, Math.min(box.right / zoom - bounds.width / zoom, width - bounds.width / zoom - 8)) + 'px';
-    panel.style.top = Math.max(8, Math.min(box.bottom / zoom + 6, height - bounds.height / zoom - 8)) + 'px';
+    const left = above ? box.left / zoom : (box.right - bounds.width) / zoom;
+    const top = above ? (box.top - bounds.height) / zoom - 6 : box.bottom / zoom + 6;
+    panel.style.left = Math.max(8, Math.min(left, width - bounds.width / zoom - 8)) + 'px';
+    panel.style.top = Math.max(8, Math.min(top, height - bounds.height / zoom - 8)) + 'px';
     panel.querySelector('button:not(:disabled)')?.focus();
   }
   $('action-menu').addEventListener('toggle', event => { if (event.newState === 'closed' && !$('action-menu').matches(':popover-open')) menuAnchor?.setAttribute('aria-expanded', 'false'); });

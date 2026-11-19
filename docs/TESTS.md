@@ -1,5 +1,7 @@
 # Tests
 
+The Chat browser checks cover returning home with the wordmark and working from an empty Workspace through editing, preview and attachment. The saved-file picker checks cover nested filenames, selection and cancellation, duplicate attachments and keyboard navigation from the composer. Its HTTP test verifies metadata-only listing and ordered reads of up to eight files at a single revision.
+
 The chat companion's PDF tests check the pinned installer, failed and repeated
 installs, authenticated asset routes and picker availability. Chrome checks
 startup and plain chat for zero PDF requests, then inspects the browser and

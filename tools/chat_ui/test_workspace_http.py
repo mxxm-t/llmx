@@ -213,6 +213,37 @@ class WorkspaceHTTPTests(unittest.TestCase):
                                {"path": "src/main.py", "revision": current + 2}, self.cookie)
         self.assertEqual(removed[0], 200)
 
+    def test_saved_workspace_file_picker_lists_metadata_and_reads_ordered_batches(self):
+        route = "/api/workspace/files"
+        self.assertEqual(self.request("GET", route)[0], 401)
+        self.cookie = self.login()
+        decoded = self.json_body(self.request("GET", route, cookie=self.cookie))
+        self.assertEqual(decoded, {"revision": 0, "files": []})
+        self.app.workspace.write("src/index.js", "source", 0)
+        self.app.workspace.write("docs/notes+facts.md", "facts \u00e9", 1)
+        self.app.workspace.checkpoint("Reference")
+        self.assertEqual(self.request("GET", route, cookie=self.cookie, headers={"Origin": "https://other.invalid"})[0], 403)
+        listing = self.request("GET", route, cookie=self.cookie)
+        self.assertEqual(listing[0], 200)
+        self.assertEqual(self.json_body(listing), {"revision": 2,
+                         "files": [{"path": "docs/notes+facts.md", "size": 8}, {"path": "src/index.js", "size": 6}]})
+        batch = route + "?path=src%2Findex.js&path=docs%2Fnotes%2Bfacts.md"
+        selected = self.request("GET", batch, cookie=self.cookie)
+        self.assertEqual(selected[0], 200)
+        self.assertEqual(self.json_body(selected), {"revision": 2,
+                         "files": [{"path": "src/index.js", "text": "source"}, {"path": "docs/notes+facts.md", "text": "facts \u00e9"}]})
+        self.app.workspace.write("src/index.js", "revised", 2)
+        updated = self.json_body(self.request("GET", batch, cookie=self.cookie))
+        self.assertEqual(updated["revision"], 3)
+        self.assertEqual(updated["files"][0], {"path": "src/index.js", "text": "revised"})
+        for query in ("path", "path=", "path=%GG", "path=%FF", "other=one", "path=%2E%2E%2Fescape",
+                      "path=src%2Findex.js&path=src/index.js", "&".join(["path=src/index.js"] * 9)):
+            with self.subTest(query=query):
+                self.assertEqual(self.request("GET", route + "?" + query, cookie=self.cookie)[0], 400)
+        missing = self.request("GET", route + "?path=src/index.js&path=missing.txt", cookie=self.cookie)
+        self.assertEqual(missing[0], 404)
+        self.assertEqual(set(self.json_body(missing)), {"error"})
+
     def test_projects_routes_auth_round_trip_and_version_conflicts(self):
         route = "/api/workspace/projects"
         self.assertEqual(self.request("GET", route)[0], 401)

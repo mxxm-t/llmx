@@ -74,6 +74,13 @@ input,textarea,select {
   font-size:22px;
   letter-spacing:-.8px
 }
+.brand-home {
+  order:-1;
+  border-radius:6px
+}
+.brand-home:hover .brand-wordmark {
+  background:var(--accent)
+}
 .new-chat {
   display:flex;
   align-items:center;
@@ -993,6 +1000,9 @@ kbd {
   margin:0 0 9px;
   color:var(--muted)
 }
+.message.assistant:is(.continuation,:has(+ .message.assistant.continuation))>.reasoning {
+  border-inline-start:0
+}
 .reasoning summary {
   min-height:40px;
   padding:10px 11px;
@@ -1205,7 +1215,19 @@ button.attachment-pill:hover { border-color:var(--muted) }
 .danger {
   color:var(--danger)
 }
-#project-context-dialog {
+#saved-file-list {
+  display: grid; border: 0; padding: 0; margin: 0;
+  max-height: min(40vh, 20rem); overflow: auto;
+}
+#saved-file-list label {
+  display: flex; align-items: center; gap: 10px; min-height: 38px;
+  padding: 6px; cursor: pointer; overflow-wrap: anywhere;
+}
+#saved-file-list input { flex: none; width: auto; }
+#saved-file-list small { margin-inline-start: auto; color: var(--muted); white-space: nowrap; }
+#saved-file-list label:hover, #saved-file-list label:focus-within { background: var(--hover); }
+#saved-file-status:empty { display: none; }
+#saved-file-dialog, #project-context-dialog {
   width: min(28rem, calc(100% - 2rem));
   max-height: calc(100dvh - 2rem);
   overflow: auto;

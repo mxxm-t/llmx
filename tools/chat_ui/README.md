@@ -16,6 +16,21 @@ not retried automatically.
 
 ## Work on files
 
+In Chat, open **Attach** and choose **From this device**, **Saved files** or
+**Saved project**. You can find files by name or folder and select several at
+once. Adding them keeps you in the current draft. Sending the message shares
+a copy of their saved text.
+
+Open **Saved files** in the sidebar for a working copy you can edit and reuse
+across conversations. This is the companion's workspace.
+For example, save a generated web page there, edit it, preview it with its
+saved stylesheet, then attach the edited HTML to a draft.
+
+Start in **Files** to create or edit a file. Use **Projects** to group files
+with instructions, **Commands** to run against saved files in a configured
+sandbox, or **History** to compare and restore checkpoints.
+Switching between these sections keeps the current editor buffer.
+
 Successful Workspace tool results can open their file or command output
 directly. Select a file in Workspace to edit it, or create one with New file.
 Preview HTML renders the current editor buffer, including unsaved edits, in an
@@ -31,8 +46,8 @@ attachment limits and temporary chat behavior apply.
 
 To reuse files in another chat, open **Projects** in Workspace. Give the
 project a name, select up to eight saved files and optionally enter instructions.
-In Chat, open **Settings** and select **Use a Workspace project**. If the
-picker is empty, choose **Open Workspace projects** to reach **New project**
+In Chat, choose **Attach > Saved project**. If the
+picker is empty, choose **Manage saved projects** to reach **New project**
 with your draft and editor intact. For a saved project, review the file paths,
 sizes and saved revision. Check the instructions box if you want them to
 replace this conversation's system instructions, then choose **Add to draft**.
@@ -162,6 +177,10 @@ adds one upstream `/models` request per explicit-model run, including retries.
 It does not lock the upstream model or control later server restarts.
 
 ## Conversations
+
+Select the llmx wordmark to return to the Chat landing page. This keeps the
+draft of the conversation you left and adds no empty row to chat history.
+Ending a temporary chat still uses its existing confirmation.
 
 Main navigation highlights the selected section. Hover uses a lighter fill, and
 keyboard focus keeps its visible outline.

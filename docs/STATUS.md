@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Chat home and Workspace workflow (2026-11-19)
+
+- **Goal:** Attach files or projects directly in Chat, make the saved-file editor actionable on its first visit and return home through the llmx logo.
+- **Done:** Chat's Attach menu accepts device uploads, saved files or a named project. The saved-file picker lists only file metadata and copies selected text from one revision. The sidebar editor starts in Files and puts Projects, Commands and History in separate sections. The wordmark returns to the Chat landing page. Grouped reasoning uses one leading rule.
+- **Checks:** Exercise keyboard home navigation, retained drafts, the empty file workflow and deep links in Chrome. Verify narrow and desktop reasoning layouts, docs and dead-code before fast-forward.
+- **Gotchas:** Preserve drafts, files, sandbox settings and existing conversations when returning home.
+
 ## Read sent source attachments in Chat (2026-11-19)
 
 - **Goal:** Reopen the exact text attached to a message and trace selected PDF pages to their source filename.

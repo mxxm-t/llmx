@@ -203,6 +203,38 @@ This test-only correction lands by fast-forward with the companion workflow.
 - **Checks:** The independent Chrome regression failed in 59.797 seconds before the fix and passed in 54.855 seconds after it. The combined browser fixture over public main `2ea30d410` passed in 66.845 seconds, including both themes at 1440, 390 and 320 pixels and 200 percent CSS zoom. Desktop preference, transient Settings access, mobile drawer state and toggle geometry passed. JavaScript syntax, whitespace and independent integration review passed. Dead-code passed with 17 expected findings and 20 planted faults in 34.8 seconds; docs passed with zero findings and 29 planted faults in 31.8 seconds and runs once more after this record.
 - **Landing:** Fast-forward from `2ea30d410` after final documentation validation and a fresh main check. This is static presentation only, with no server, runtime, API or numerical changes. The existing docs CLI remains applicable because native source and build inputs are unchanged. Full Markdown review checks references to details, temporary labels and layout; the companion README and TESTS own the updated behavior. Receipts are in `scratch/reading-landing/`, with independent matched screenshots in the main workspace's `scratch/chat-reading-layout/`.
 - **Gotchas:** Composer Settings and the narrow drawer are transient. Only explicit docked Details actions save the preference. Long titles can still truncate. Chrome emulation does not establish physical phone or Safari coverage. Settings semantics and history search remain separate audit work.
+## Landing stack land-20261118 (2026-11-18 to 2026-11-19, LAND79 to LAND82, Done)
+
+**What lands.** The stack on main a274cfd62, in this order: fix/shift-while-generating (the failing test, then the fix), feat/gfx942-default-target, perf/vulkan-queue-plan, the metadata-only GGUF shard reads (test, then the fix), the vulkan-lifetime hold timing check, the Flash-Next file reference's image, feat/rope-owner (YaRN), feat/qwen27-delta-q8, the fit's prompt and page budgets (test, then the change), the drafting set, feat/rocm-vision, the CUDA chain (step 8 and its fixes, ported), fix/dspark-prompt-context, fix/disk-tier-drafter-race (test, then the fix), fix/safetensors-rocm-fp8 and the attention-follows-dtype proposal in `docs/PRECISION.md`.
+The hosted Windows f32 failure of run 44405698001 (the component read a CRLF in stderr as text) is fixed in `tests/f32.py`, folded into the YaRN commit.
+
+**hc_entry stays out.** feat/qwen4exp-hc-entry's commit a1458edd left the stack: `backend_core.hpp` holds the inject and takes llmx_hc_entry only when rows == 1, so on Qwen3.8-Flash-Next UD-Q4_K_XL ROCm 2x2 int8 the drafting set's greedy ids with drafts differed from those without on the hard, medium and easy prompts, where main's are equal, and prompt logits over 72 positions differed from main's at 5 top-1 positions, max |dlogit| 2.48.
+The CUDA chain's two commits that touched it were ported without it (63b75392 to 9a1f1aa0, the kernel list; 69ffbae6 to 59dd1a5c, no hc_entry kernel, push, take or grid barrier, and the CUDA rule's group.h dependency removed).
+The commit and its fix plan, batch invariance at rows == 1, stay on gitea feat/qwen4exp-hc-entry b0f11b067, whose STATUS block records the evidence (Qwen3.8-Flash-Next sublayer entry as one launch, Left).
+
+**Tested revision.** Every binary below was built from land81-stack 32eae3e30; the landing head differs from it in `tests/f32.py` (the CRLF fix, two lines) and this record alone, neither of which a binary or a card cell reads.
+
+| Check | Result | Tree |
+|---|---|---|
+| Builds R, V and C (ROCm 7.2.1, Vulkan, CPU) | 0 errors | 32eae3e30 |
+| CUDA 12.9.1 compile and CTest cuda-sass, gpu-core, gpu-port | 0 errors, 3/3 | 32eae3e30 |
+| llmx_group_sum on gfx906 | 47 VGPRs, no spills, private 0 | 32eae3e30 |
+| CTest CPU; ROCm and Vulkan on one MI50 | 91/91; 95/95 with backend-rocm sixteen 6/6; 112/112 | 32eae3e30 |
+| Suite dead-code and docs | PASS, 0 findings | landing head |
+| Qwen3-0.6B Q8_0 generate and per-token logits against main a274cfd62, f16 and int8, CPU, ROCm and Vulkan on one MI50 | byte identical, 6307, 12899 and 13942 B | 32eae3e30 |
+| Qwen3.8-Flash-Next UD-Q4_K_XL ROCm 2x2 int8 (four MI50s, tensor width 2) prompt logits, last 72 positions, against main at device orders 0,2,1,3 and 2,1,0,3 | 71/71 rows identical at both, 0 top-1 mismatches, max dlogit 0 | 32eae3e30 |
+| Same model and split, drafting set with the Q4_K_M MTP head (hard, medium, easy; greedy ids with drafts against without) | main equal on all three; the stack equal on hard and medium and once unequal on easy (first difference at id 29, acceptance 0.455 against 0.634); its reruns gave twelve easy runs, six each way, all equal to main's ids at acceptance 0.634, as did main's twelve | 32eae3e30 |
+| Same model and split, `bench --p 512 --n 128 --r 3`, eight runs m b b m m b b m | tg128 main 61.94, 59.60, 60.15, 60.41 against the stack 62.01, 61.23, 60.17, 59.63 tok/s (means 60.53 and 60.76); pp512 per-run medians main 1169, 1487, 1483, 1496 against 1520, 1523, 1484, 1518 tok/s; level | 32eae3e30 |
+
+The easy drafting difference came in one of the stack's seven drafter runs on that prompt and in none of main's seven, on renderD129, renderD131, renderD136 and renderD137 while the timing round ran beside it; the reruns ran on renderD128, renderD129, renderD131 and renderD136 and on renderD132 to renderD135, and the cause is not found (out/q/ds-br.json in /opt/claude-work/land81, the reruns in /opt/claude-work/land82/out).
+The timing round ran on renderD132 to renderD135 while the other quad ran the drafting set and renderD130 was held by a quarantine sleep, so the cards beside it were not quiet; every run's host wait was 6 to 12 ms, none contended, at host load 18 to 23 on 16 CPUs.
+Main's first run sliced its prompt in 5 against 2 in every later run, which gives its low pp512; the slowdown rule finds no path main has that runs slower.
+
+README: the stack's branches changed its support rows in their own commits, and the docs component's readme check passes on the landing head, so the landing adds no README change.
+
+The hosted run 44427015483 of be73f7c5e on gate/20261118 passed all eight jobs (CPU on Ubuntu, Windows, macOS, TSan and UBSan, the Vulkan and ROCm builds and the HF reference), and it carries to the landing head, which adds this record alone.
+The Radeon VII check is ready and not yet run, and the head lands by fast-forward of gitea main and GitHub main.
+
 ## Safetensors FP8 skip on devices without F8_E4M3 (2026-11-18, FP8R1, branch fix/safetensors-rocm-fp8 on main a274cfd62)
 
 - Goal: the suite's `safetensors` component failed on `--device rocm:0`, since ROCm refuses the FP8 fixtures' F8_E4M3 linears at load and `fp8_checks` asserted the exit status without asking `common.device_lacks_kernel`.

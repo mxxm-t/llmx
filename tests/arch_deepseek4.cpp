@@ -1648,18 +1648,28 @@ struct Forced {
 };
 
 // A CPU that says it is no CPU, so the scheduler records each stage of a split on its own thread as it does a device's, with 16 decode columns to spare for drafts.
+// It counts the rows it gathers by device ids from a table of `table_rows` rows of `table_width` floats, as a draft reads the token embedding; the trunk's lookup takes host ids.
 struct ThreadedCpu : backend::CpuBackend {
+    std::atomic<size_t> looked{0};
+    size_t table_rows = 0, table_width = 0;
     ThreadedCpu() { set_threads(1); }
     bool is_cpu() const override { return false; }
     size_t decode_columns() const override { return 16; }
+    void embed_ids(backend::Slice dst, backend::WeightView weight, size_t nin, size_t nrows, backend::CSlice ids, size_t count) override {
+        if (nrows == table_rows && nin == table_width) looked += count;
+        CpuBackend::embed_ids(dst, weight, nin, nrows, ids, count);
+    }
 };
 
-// With `threaded` the CPUs are ThreadedCpus, and `options` gives the pool and slots a scheduler needs.
-std::unique_ptr<infer::Model> forced_model(const infer::ModelWeights& w, const Forced& f, infer::ModelOptions options = {}, bool threaded = false) {
+// With `threaded` the CPUs are ThreadedCpus, each also put in `made` where given, and `options` gives the pool and slots a scheduler needs.
+std::unique_ptr<infer::Model> forced_model(const infer::ModelWeights& w, const Forced& f, infer::ModelOptions options = {}, bool threaded = false,
+                                           std::vector<std::shared_ptr<ThreadedCpu>>* made = nullptr) {
     std::vector<backend::BackendPtr> devices;
     for (size_t i = 0; i < f.devices; ++i) {
         if (threaded) {
-            devices.push_back(std::make_shared<ThreadedCpu>());
+            auto cpu = std::make_shared<ThreadedCpu>();
+            if (made) made->push_back(cpu);
+            devices.push_back(std::move(cpu));
             continue;
         }
         devices.push_back(backend::make_cpu_backend());
@@ -1733,11 +1743,14 @@ void dspark_served(const std::string& trunk, const gguf::GGUFModel& joined, cons
     options.mark_slots = server::draft_marks(seqs, 16);
     options.mark_rows = draft_max + 1;
     const std::vector<Forced> apart{{"stages 0-1 on the first of two CPUs", 2, 1, {0, 0, 1, 1, 1, 1, 1, 1}, {0, 0, 1}},
-                                    {"a stage on each of three CPUs", 3, 1, {0, 0, 0, 1, 1, 1, 2, 2}, {0, 1, 2}}};
+                                    {"a stage on each of three CPUs", 3, 1, {0, 0, 0, 1, 1, 1, 2, 2}, {0, 1, 2}},
+                                    {"stages 0-1 on the middle of three CPUs", 3, 1, {0, 0, 0, 1, 1, 1, 2, 2}, {1, 1, 2}}};
     for (const Forced& f : apart) {
         for (size_t k = 0; k < cases.size(); ++k) {
             const Case& c = cases[k];
-            auto model = forced_model(jw, f, options, true);
+            std::vector<std::shared_ptr<ThreadedCpu>> cpus;
+            auto model = forced_model(jw, f, options, true, &cpus);
+            for (auto& cpu : cpus) cpu->table_rows = V, cpu->table_width = size_t(golden["dim"]);
             if (c.ubatch) model->set_ubatch(c.ubatch);
             infer::spec::Embedded proposer(*model);
             server::Scheduler::Stats stats;
@@ -1745,6 +1758,12 @@ void dspark_served(const std::string& trunk, const gguf::GGUFModel& joined, cons
             for (size_t i = 0; i < c.reqs.size(); ++i) same(alone[k][i], together[i], "served with " + f.name + ", " + c.name + ", request " + std::to_string(i));
             const size_t fed = std::accumulate(stats.drafted.begin(), stats.drafted.end(), size_t(0)), kept = std::accumulate(stats.kept.begin(), stats.kept.end(), size_t(0));
             require(fed > 0 && kept > 0, "served with " + f.name + ", " + c.name + ": " + std::to_string(fed) + " drafts fed and " + std::to_string(kept) + " kept");
+            // Stage 0 between the embedding's device and the head's holds no table: the embedding's device gathers its rows, which cross to it (Model::draft_record).
+            const size_t first = size_t(f.stages[0]);
+            if (first != size_t(f.mixers.front()) && first != size_t(f.mixers.back())) {
+                require(cpus[first]->looked == 0, "served with " + f.name + ", " + c.name + ": stage 0's middle CPU gathered " + std::to_string(cpus[first]->looked.load()) + " embedding rows");
+                require(cpus[size_t(f.mixers.front())]->looked > 0, "served with " + f.name + ", " + c.name + ": the embedding's CPU gathered no rows");
+            }
             if (c.ubatch && f.devices == 2) require(stats.urgent_taken > 0, "served with " + f.name + ", " + c.name + ": no reply recorded between the chunk's groups in " + std::to_string(stats.paces) + " paces");
             std::cout << "arch-deepseek4: DSpark served with " << f.name << " at " << f.devices << " passes, " << c.name << ", gave each request's ids and log-probabilities alone without drafts, "
                       << kept << " of " << fed << " drafts kept" << std::endl;

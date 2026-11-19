@@ -742,9 +742,48 @@ void drafter_stages_fit() {
     const infer::Footprint six = model(6, 3, MiB);
     auto fewest = infer::split_layers(six, {device("a", room(5, true, false)), device("b", room(5, false, false)), device("c", room(2, false, true))}, 1);
     require(counts(fewest) == std::vector<int>{2, 2, 2} && apart(fewest) == 1 && fewest.draft_device.front() == fewest.draft_device.back(), "the fit takes more devices apart from the head than it needs");
-    // Stage 0 on a device that does not hold the table keeps the drafter's embedding.
-    auto middle = infer::split_layers(six, {device("a", room(2, true, false)), device("b", room(5, false, false) + MiB / 16), device("c", room(2, false, true))}, 1);
-    require(middle.draft_device == std::vector<int>{1, 1, 1} && middle.stages[1].weights == 5 * MiB + MiB / 16, "the drafter's embedding does not go with stage 0");
+    // Stage 0 apart from the head reads the first device's whole table, so its device keeps no copy, and a byte less than its layers and stages moves them.
+    auto middle = infer::split_layers(six, {device("a", room(2, true, false)), device("b", room(5, false, false)), device("c", room(2, false, true))}, 1);
+    require(middle.draft_device == std::vector<int>{1, 1, 1} && middle.stages[1].weights == 5 * MiB, "stage 0 apart from the head keeps a copy of the drafter's embedding");
+    bool middle_short = false;
+    try {
+        middle_short = infer::split_layers(six, {device("a", room(2, true, false)), device("b", room(5, false, false) - 1), device("c", room(2, false, true))}, 1).draft_device != std::vector<int>{1, 1, 1};
+    } catch (const std::runtime_error&) { middle_short = true; }
+    require(middle_short, "a device a byte short of its layers and stages took every stage");
+    // Ten devices of four layers each at DeepSeek-V4.1-Flash's proportions, a unit of 1/100 GiB: the first and last devices hold no stage beside the table and the head, a middle one no stage beside a table copy.
+    // Stage 0's device keeps its layers and its stage alone; with the copy no device holds stage 0, and the base refuses these budgets.
+    {
+        const size_t u = MiB * 1024 / 100;
+        infer::Footprint ds;
+        for (size_t l = 0; l < 40; ++l) ds.layers.push_back({infer::Matrix{0, 1, 1, 690 * u, true}});
+        ds.embedding = infer::Matrix{0, 1, 1, 141 * u, true};
+        ds.output = infer::Matrix{0, 1, 1, 103 * u, true};
+        ds.drafter = {infer::Matrix{0, 1, 1, 21 * u, true}};
+        ds.drafter_embedding = infer::Matrix{0, 1, 1, 141 * u, false};
+        ds.drafter_stages.assign(3, {infer::Matrix{0, 1, 1, 240 * u, true}});
+        ds.drafter_stage_cache = 5 * u;
+        std::vector<infer::DeviceBudget> ten;
+        for (int d = 0; d < 10; ++d) ten.push_back(device(("rocm:" + std::to_string(d)).c_str(), 3140 * u));
+        const auto plan = infer::split_layers(ds, ten, 1);
+        require(counts(plan) == std::vector<int>(10, 4), "a ten-device plan of 40 layers is not four layers a device");
+        // The head's device has room for one stage beside the head, so the fit keeps the last stage there and takes two middle devices apart.
+        require(plan.draft_device == std::vector<int>{7, 8, 9}, "the ten-device plan does not put stages 0 and 1 on middle devices and stage 2 beside the head");
+        require(plan.stages[(size_t)plan.draft_device[0]].weights == 2760 * u + 240 * u, "stage 0's device does not keep its layers and its stage alone");
+        // A group that splits the table: five groups of a member's half of eight layers keep stage 0's copy where it runs, as before.
+        infer::Footprint half;
+        for (size_t l = 0; l < 40; ++l) half.layers.push_back({infer::Matrix{0, 1, 1, 345 * u, true}});
+        half.embedding = infer::Matrix{0, 1, 1, 71 * u, true};
+        half.output = infer::Matrix{0, 1, 1, 52 * u, true};
+        half.drafter = {infer::Matrix{0, 1, 1, 11 * u, true}};
+        half.drafter_embedding = infer::Matrix{0, 1, 1, 141 * u, false};
+        half.drafter_embedding_held = false;
+        half.drafter_stages.assign(3, {infer::Matrix{0, 1, 1, 120 * u, true}});
+        half.drafter_stage_cache = 5 * u;
+        const auto groups = infer::split_layers(half, std::vector<infer::DeviceBudget>(ten.begin(), ten.begin() + 5), 1);
+        require(counts(groups) == std::vector<int>(5, 8), "a five-group plan of 40 layers is not eight layers a group");
+        const size_t s0 = (size_t)groups.draft_device.front();
+        require(groups.stages[s0].weights >= 141 * u + 120 * u + 2760 * u, "stage 0 beside a split table does not keep the drafter's whole table");
+    }
     // One device holds the model and the drafter to the byte, which reads the table it holds, and refuses one byte less naming the stages.
     const infer::Footprint two = model(2, 3, MiB);
     require(infer::split_layers(two, {device("a", room(5, true, true))}, 1).draft_device == std::vector<int>{0, 0, 0}, "one device does not hold the drafter to the byte");

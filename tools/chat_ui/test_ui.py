@@ -9,9 +9,11 @@ import subprocess
 import tempfile
 import threading
 import time
-import unittest
 from http.server import ThreadingHTTPServer
+import unittest
+from unittest.mock import patch
 
+import pdf_reader
 from server import Application, Server
 from monitor import DASHBOARD, health
 from test_engine import FakeTools, FakeUpstream, text_event, tool_event
@@ -74,6 +76,36 @@ class BrowserRunner:
         return dict(files, **{"generated.txt": "Created by the deterministic browser fixture.\n"}), 0
 
 
+def write_pdf_fixture(path):
+    pages = (
+        b"BT /F1 14 Tf 20 150 Td (First page private marker.) Tj ET",
+        b"BT /F1 14 Tf 20 150 Td (Only the second page belongs in chat.) Tj ET",
+        b"0.6 g 10 10 80 90 re f",
+    )
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R] /Count 3 >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    for content in pages:
+        stream = len(objects) + 2
+        objects.append((f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 320 200] "
+                        f"/Resources << /Font << /F1 3 0 R >> >> /Contents {stream} 0 R >>").encode())
+        objects.append(f"<< /Length {len(content)} >>\nstream\n".encode() + content + b"\nendstream")
+    data = bytearray(b"%PDF-1.4\n% raw-pdf-fixture-marker\n")
+    offsets = []
+    for index, obj in enumerate(objects, 1):
+        offsets.append(len(data))
+        data.extend(f"{index} 0 obj\n".encode() + obj + b"\nendobj\n")
+    xref = len(data)
+    size = len(objects) + 1
+    data.extend(f"xref\n0 {size}\n0000000000 65535 f \n".encode())
+    for offset in offsets:
+        data.extend(f"{offset:010d} 00000 n \n".encode())
+    data.extend(f"trailer\n<< /Size {size} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode())
+    path.write_bytes(data)
+
+
 class BrowserTests(unittest.TestCase):
     @unittest.skipUnless(os.name == "posix", "Chrome launch diagnostics are Linux-specific")
     def test_browser_launch_timeout_reports_live_process_state(self):
@@ -108,7 +140,7 @@ class BrowserTests(unittest.TestCase):
         self.assertIn("still running", result.stderr)
         self.assertIn("fake browser started", result.stderr)
 
-    def test_workspace_in_chrome(self):
+    def browser_executables(self):
         node = shutil.which("node")
         chrome = next((str(p) for p in [
             Path(os.environ.get("PROGRAMFILES", "C:/Program Files")) / "Google/Chrome/Application/chrome.exe",
@@ -117,9 +149,67 @@ class BrowserTests(unittest.TestCase):
             Path("/usr/bin/chromium"), Path("/usr/bin/chromium-browser"),
         ] if p.is_file()), None)
         if not node or not chrome:
-            if os.environ.get("LLMX_CHAT_REQUIRE_BROWSER") == "1":
+            if any(os.environ.get(name) == "1" for name in ("LLMX_CHAT_REQUIRE_BROWSER", "LLMX_CHAT_REQUIRE_PDF")):
                 self.fail("Hosted workspace checks require Node and Chrome/Chromium/Edge")
             self.skipTest("Real browser check requires Node 22+ and Chrome/Chromium/Edge")
+        return node, chrome
+
+    def test_pdf_attachment_in_chrome(self):
+        node, chrome = self.browser_executables()
+        require_pdf = os.environ.get("LLMX_CHAT_REQUIRE_PDF") == "1"
+        installed_directory = pdf_reader.READER_DIRECTORY
+        if require_pdf:
+            self.assertTrue(pdf_reader.installed(installed_directory), "Install the pinned PDF reader before this check")
+        with tempfile.TemporaryDirectory(prefix="llmx-browser-pdf-") as temporary:
+            root = Path(temporary)
+            fixture = root / "quarterly.pdf"
+            write_pdf_fixture(fixture)
+            mode = "installed" if require_pdf else "absent"
+            reader = installed_directory if require_pdf else root / "missing-reader"
+            with patch.object(pdf_reader, "READER_DIRECTORY", reader):
+                self.check_pdf_in_chrome(node, chrome, root, fixture, mode)
+
+    def check_pdf_in_chrome(self, node, chrome, root, fixture, mode):
+        with BrowserUpstream.lock:
+            BrowserUpstream.requests = []
+            BrowserUpstream.replies = [[text_event("Plain browser reply.")], [text_event("PDF browser reply.")]]
+        upstream = ThreadingHTTPServer(("127.0.0.1", 0), BrowserUpstream)
+        threading.Thread(target=upstream.serve_forever, daemon=True).start()
+        try:
+            app = Application(str(root / f"{mode}.sqlite"),
+                              "http://127.0.0.1:%d" % upstream.server_address[1], password="browser-test")
+            server = Server(("127.0.0.1", 0), app)
+            threading.Thread(target=server.serve_forever, daemon=True).start()
+            try:
+                artifacts = Path(__file__).resolve().parents[2] / "scratch" / "chat-ui-browser" / f"pdf-{mode}"
+                artifacts.mkdir(parents=True, exist_ok=True)
+                result = subprocess.run([node, str(Path(__file__).with_name("browser_check.mjs")),
+                    "http://127.0.0.1:%d" % server.server_address[1], chrome,
+                    str(root / f"profile-{mode}"), str(artifacts), str(fixture), "--pdf-only=" + mode],
+                    capture_output=True, text=True, timeout=120)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                expected = [{"role": "user", "content": "Browser plain-text prompt"}]
+                if mode == "installed":
+                    expected.append({"role": "user", "content": [
+                        {"type": "text", "text": "Keep this PDF draft."},
+                        {"type": "text", "text": "\nFile: quarterly.txt\nPage 2\nOnly the second page belongs in chat."},
+                    ]})
+                with BrowserUpstream.lock:
+                    self.assertEqual([request["messages"][-1] for request in BrowserUpstream.requests], expected)
+                    self.assertNotIn("raw-pdf-fixture-marker", json.dumps(BrowserUpstream.requests))
+                    self.assertNotIn("First page private marker.", json.dumps(BrowserUpstream.requests))
+                print(result.stdout.strip())
+            finally:
+                app.engine.shutdown()
+                server.shutdown()
+                server.server_close()
+                app.store.close()
+        finally:
+            upstream.shutdown()
+            upstream.server_close()
+
+    def test_workspace_in_chrome(self):
+        node, chrome = self.browser_executables()
         metrics = {"choices": [], "usage": {"prompt_tokens": 120, "completion_tokens": 40,
                    "total_tokens": 160, "prompt_tokens_details": {"cached_tokens": 32}},
                    "timings": {"prompt_per_second": 240, "predicted_per_second": 25,

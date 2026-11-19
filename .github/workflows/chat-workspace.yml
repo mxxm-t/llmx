@@ -48,6 +48,13 @@ jobs:
         run: python -X utf8 -m unittest discover -s tools/chat_ui -v
       - name: Existing dashboard tests
         run: python -X utf8 -m unittest discover -s tools/health_dashboard -v
+      - name: Installed PDF reader in Chrome
+        if: runner.os == 'Linux'
+        env:
+          LLMX_CHAT_REQUIRE_PDF: '1'
+        run: |
+          python -X utf8 tools/chat_ui/install_pdf_reader.py
+          python -X utf8 -m unittest discover -s tools/chat_ui -v -k test_pdf_attachment_in_chrome
       - name: Retain browser failure evidence
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

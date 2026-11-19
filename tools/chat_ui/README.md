@@ -4,8 +4,9 @@ The llmx companion brings Chat, Monitor, Workspace and Settings under one
 address, session and shared dashboard theme. Workspace means project files,
 checkpoints and command execution; conversations are listed under History.
 Conversations, branches, tool results and request metrics live in a local SQLite database. The companion uses
-Python's standard library and buildless HTML, CSS and JavaScript. It changes no
-inference code and needs no package installation or external assets.
+Python's standard library and buildless HTML, CSS and JavaScript. The base
+companion runs without additional packages. PDF text import is an optional
+browser add-on installed by the operator.
 
 Tool names and arguments appear while the model prepares a call. Open the call
 to inspect its incoming arguments, or refresh to resume from its saved state.
@@ -109,6 +110,30 @@ limits at the reverse proxy for a public deployment.
 This is one owner workspace. Everyone who knows its password can access its
 conversations and tools. There is no multi-user account or role system.
 
+## Optional PDF text reader
+
+To enable PDF attachments, run this once from the repository root:
+
+```sh
+python tools/chat_ui/install_pdf_reader.py
+```
+
+The installer downloads a pinned PDF.js release, verifies its SHA-256 and
+installs the reader under `tools/chat_ui/.pdf-reader/` in this checkout. For
+an offline installation, pass `--archive PATH` with the official release ZIP.
+Refresh Chat after installation. The regular configuration response tells the
+attachment picker whether the reader is present. Opening Chat or using plain
+text does not fetch PDF scripts, fonts or character maps.
+
+Choose a PDF with **Attach**, select page numbers such as `1, 3-5`, then
+choose **Review selected pages**. **Add text to draft** attaches the displayed
+text with page numbers. You can remove it or edit your message before sending.
+The browser reads the PDF locally using assets from this companion. Only the
+reviewed text enters the conversation. Image-only scans need OCR before import.
+
+Limits per import are 20 MiB, 200 document pages, 12 selected pages and 2 MiB
+of extracted text. Password-protected documents need an unlocked copy.
+
 ## Model selection
 
 The selector lists model IDs reported by the connected upstream server. Chat sends
@@ -198,7 +223,8 @@ keyboard focus keeps its visible outline.
   A focused message action stays focused across message updates while its
   action and target remain available.
   It does not execute model HTML or JavaScript.
-- Attach up to eight UTF-8 text/code files or PNG/JPEG images. Text is included
+- Attach up to eight files, including UTF-8 text/code, PNG/JPEG images and
+  selected PDF text when the [PDF reader](#optional-pdf-text-reader) is installed. Text is included
   in full with its file name, not retrieved from an embedding index. Limits are
   2 MiB per text file, 8 MiB per image and 10 MiB total decoded attachments.
   Hover over Attach or focus it with the keyboard for the file types. The
@@ -495,6 +521,8 @@ permissions. `upstream.py` owns bounded compatible HTTP transport. `tools.py`
 owns the MCP connection. `server.py` owns HTTP routes and owner authentication.
 `workspace.py` owns managed files and isolated execution. `monitor.py` connects
 the existing dashboard owner to the workspace without another collector.
+`pdf_reader.py` owns the optional asset layout. `pdf_attachment.js` owns
+page selection and extraction in the browser.
 `app.js`, `render.js`, `app.css` and `index.html` own presentation. The exact
 browser/service protocol is in [CONTRACT.md](CONTRACT.md).
 

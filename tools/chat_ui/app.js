@@ -13,6 +13,8 @@
     }
   }
   const $ = id => document.getElementById(id);
+  const baseFileTypes = $('file-input').accept;
+  let pdfSelection = null;
   const systemTheme = window.matchMedia('(prefers-color-scheme: light)');
   const storedTheme = localStorage.getItem('llmx-theme');
   let dockedDetailsOpen = localStorage.getItem('llmx-conversation-details') === 'open';
@@ -373,6 +375,7 @@
     if (S.chat?.temporary && S.chat.id !== id && !await leaveTemporary()) return;
     rememberDraft(); flushDrafts();
     hideReplyStats();
+    pdfSelection?.abort();
     const generation = ++S.generation; banner(configurationWarning());
     const data = snapshot || await chatSnapshot(id); if (generation !== S.generation) return;
     rememberDraft(); flushDrafts();
@@ -408,6 +411,7 @@
   }
   function clearChat() {
     hideReplyStats();
+    pdfSelection?.abort();
     const old = S.chat; forgetDraft(draftKey()); draftReady = false; closeStream(); ++S.generation;
     if (old?.temporary) sessionStorage.removeItem('llmx-temporary-chat'); else localStorage.removeItem('llmx-chat');
     S.chat = null; S.messages = []; S.runs = []; S.edit = null; S.attachments = []; S.fingerprint.clear(); S.inspectorKey = '';
@@ -1064,7 +1068,20 @@
     const chatId = S.chat?.id, generation = S.generation, attachments = S.attachments;
     if (attachments.length + files.length > 8) throw new Error('Attach up to 8 files per message.');
     const pending = [];
-    for (const file of files) {
+    for (let file of files) {
+      if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+        if (!S.config.pdf_reader) throw new Error('PDF import is unavailable. The companion operator can install the PDF reader.');
+        if (pdfSelection) throw new Error('Finish the open PDF selection first.');
+        if (chatId !== S.chat?.id || generation !== S.generation || attachments !== S.attachments) return;
+        const selection = new AbortController();
+        pdfSelection = selection;
+        try {
+          const {selectPdfText} = await import('/pdf_attachment.js');
+          if (selection.signal.aborted) return;
+          file = await selectPdfText(file, {signal: selection.signal});
+          if (!file || selection.signal.aborted) return;
+        } finally { pdfSelection = null; }
+      }
       if (['image/png', 'image/jpeg'].includes(file.type)) {
         if (file.size > 8 * 1024 * 1024) throw new Error(file.name + ' is larger than 8 MiB.');
         const data = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('Could not read ' + file.name)); reader.readAsDataURL(file); }); pending.push({name: file.name, type: file.type, data});
@@ -1251,6 +1268,11 @@
       const session = await api('/session'); $('logout-button').hidden = !session.password_required;
       if (!session.authenticated && session.password_required) { $('login-dialog').showModal(); $('password').focus(); return; }
       S.config = await api('/config'); document.dispatchEvent(new CustomEvent('companion:config', {detail: S.config})); connection(S.config.upstream_available ? 'Connected' : 'Unavailable', !S.config.upstream_available);
+      $('file-input').accept = baseFileTypes + (S.config.pdf_reader ? ',application/pdf,.pdf' : '');
+      $('pdf-help').hidden = !S.config.pdf_reader;
+      const attachButton = document.querySelector('[data-action="attach"]');
+      attachButton.setAttribute('aria-label', S.config.pdf_reader ? 'Attach text, image or PDF' : 'Attach text or image');
+      attachButton.dataset.tooltip = S.config.pdf_reader ? 'Attach text, images or selected PDF pages. See Settings for limits.' : 'Attach UTF-8 text or code, PNG or JPEG. See Settings for limits.';
       if (!S.config.upstream_available) banner(S.config.upstream_error || 'The model server is unavailable. Check the companion connection and try again.');
       if (S.config.tools_error) banner([S.config.upstream_error, 'Tool connection issue: ' + S.config.tools_error].filter(Boolean).join(' '));
       await refreshChats(); loadSettings();
@@ -1318,6 +1340,7 @@
     }
   });
   document.addEventListener('companion:view', event => {
+    if (event.detail !== 'chat') pdfSelection?.abort();
     if (modalDrawer && (modalDrawer === $('sidebar') || event.detail !== 'chat')) closeDrawers(viewHeading());
     else updateShade();
     renderLiveMetrics();

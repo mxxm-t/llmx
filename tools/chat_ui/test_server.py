@@ -281,6 +281,45 @@ class RouteTests(unittest.TestCase):
         explicit = chat_server.settings_of({"model": "test-model", "max_tokens": 2048})
         self.assertEqual(explicit["max_tokens"], 2048)
 
+    def test_pdf_reader_assets_are_local_authenticated_and_allowlisted(self):
+        cookie = self.login()
+        reader = chat_server.pdf_reader
+        package = Path(self.temp.name) / "optional-reader"
+        config = "/api/config"
+        prefix = "/pdf-reader/"
+        with mock.patch.object(reader, "READER_DIRECTORY", package):
+            self.assertFalse(self.json_body(self.request("GET", config, cookie=cookie))["pdf_reader"])
+            self.assertEqual(self.request("GET", prefix + "pdf.mjs", cookie=cookie)[0], 404)
+            package.mkdir()
+            (package / "cmaps").mkdir()
+            (package / "standard_fonts").mkdir()
+            (package / "cmaps" / "Foo-H.bcmap").write_bytes(b"cmap")
+            (package / "standard_fonts" / "Lib.ttf").write_bytes(b"font")
+            (package / "private.txt").write_text("private", encoding="utf-8")
+            for module in reader.MODULES:
+                (package / module).write_bytes(b"script")
+            (package / reader.INSTALL_MARKER).write_bytes(reader.INSTALL_RECORD)
+            self.assertTrue(self.json_body(self.request("GET", config, cookie=cookie))["pdf_reader"])
+            self.assertEqual(self.request("GET", prefix + "pdf.mjs")[0], 401)
+            self.assertEqual(self.request("GET", prefix + "pdf.worker.mjs", cookie=cookie,
+                                          headers={"Sec-Fetch-Site": "cross-site"})[0], 403)
+            for path, mime, data in (("pdf.mjs", "text/javascript; charset=utf-8", b"script"),
+                                     ("pdf.worker.mjs", "text/javascript; charset=utf-8", b"script"),
+                                     ("cmaps/Foo-H.bcmap", "application/octet-stream", b"cmap"),
+                                     ("standard_fonts/Lib.ttf", "font/ttf", b"font")):
+                status, headers, body = self.request("GET", prefix + path, cookie=cookie)
+                self.assertEqual((status, body), (200, data))
+                fields = dict(headers)
+                self.assertEqual(fields["Content-Type"], mime)
+                self.assertEqual(fields["Cross-Origin-Resource-Policy"], "same-origin")
+                if path == "pdf.worker.mjs":
+                    csp = fields["Content-Security-Policy"]
+                    self.assertIn(f"http://127.0.0.1:{self.port}/pdf-reader/cmaps/", csp)
+                    self.assertIn("worker-src 'none'", csp)
+                    self.assertNotIn("connect-src 'self'", csp)
+            for path in ("private.txt", "cmaps", "cmaps/../pdf.mjs", "cmaps/%2e%2e/pdf.mjs", "pdf.mjs?x=1"):
+                self.assertEqual(self.request("GET", prefix + path, cookie=cookie)[0], 404)
+
     def test_settings_allow_only_null_or_valid_integer_reply_limit(self):
         for value in (True, False, 0, -1, 1.5, float("nan"), float("inf"), "1024"):
             with self.subTest(value=value), self.assertRaises(ValueError):

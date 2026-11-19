@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Optional PDF text attachments in Chat (2026-11-19)
+
+- **Goal:** An operator can install a verified PDF.js release. Readers select pages in the browser and explicitly attach their text to a draft.
+- **Done:** The optional installer verifies a pinned distribution and publishes it atomically. The composer imports the page picker on the first PDF selection, stages only reviewed text and uses the ordinary text attachment on Send.
+- **Checks:** Chrome exercised the absent and installed reader, plain chat with zero PDF requests and same-origin worker traffic during extraction. The second page alone reached the upstream fixture. Installer and HTTP tests cover integrity, repeat installs and restricted serving. The companion change lands by fast-forward after docs, dead-code and the hosted Chat workflow pass.
+- **Gotchas:** A scan needs OCR. Cancellation, navigation and failures preserve the draft. PDF bytes stay in the browser.
+
 ## Image search links in Chat replies (2026-11-18)
 
 - **Goal:** Provide a readable link to a Markdown image in a reply, including images with no description.

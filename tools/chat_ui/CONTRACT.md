@@ -6,7 +6,7 @@ The Python standard-library service owns persisted conversations, branches, runs
 
 - `GET /api/session`: `{authenticated, password_required}`. All other APIs require a session when a password is configured.
 - `POST /api/login` with `{password}` sets an HttpOnly session cookie. `POST /api/logout` clears it.
-- `GET /api/config`: `{models: [{id, context_length?}], settings_defaults, tools: [{name, description, inputSchema, server, approval}], upstream_available, upstream_error, tools_error}`. No credentials are returned. A tool discovery failure does not disable a reachable model.
+- `GET /api/config`: `{models: [{id, context_length?}], settings_defaults, tools: [{name, description, inputSchema, server, approval}], upstream_available, upstream_error, tools_error, pdf_reader}`. The boolean `pdf_reader` reports whether the optional local PDF reader is installed. No credentials are returned. A tool discovery failure does not disable a reachable model.
 - `GET /api/chats`: `{chats: [{id,title,pinned,archived,folder,created,updated,active_leaf,settings}]}`.
 - `GET /api/chats/run-status`: `{chats: [{id,status}]}` from the durable Store. Includes only latest attempts in `running`, `approval`, `failed`, or `interrupted`. Latest follows run insertion order, independent of the selected branch. The Store derives the list after recovery and updates it after commits. No transcript, settings, error detail or temporary status is included. The signed-in browser polls at three-second intervals while Chat is visible. Each request and its snapshot expire nine seconds after request start. Leaving or hiding Chat cancels the current request.
 - `POST /api/chats/search` with `{query,archived}` returns `{chats: [{id,title,folder,pinned,archived,updated}]}` in pinned-first, newest-first order. The query is trimmed and must contain 1 to 256 characters. `archived` must be a boolean. Search matches a case-folded literal substring of the title, folder or user and assistant message content across saved branches in that archive view. It omits temporary chats, reasoning, attachments, tool payloads, settings and events. A search holds a read-only snapshot on its own WAL connection. Another search receives HTTP 429 while that reader is active.
@@ -172,6 +172,11 @@ capacity separately, and does not use stale metadata to clamp saved values.
 No extra upstream health fetch is added to model admission or configuration.
 
 Attachment: `{name,type,text}` for UTF-8 text, or `{name,type,data}` for PNG/JPEG base64 data URLs. The browser accepts text up to 2 MiB, images up to 8 MiB and 10 MiB total across at most eight files. It shows each file size and the combined size before send. The service validates the same decoded byte limits and stores attachments in the message. Other formats are refused explicitly. No URL fetching or hidden retrieval occurs.
+
+For an operator-installed PDF reader the browser stages the reviewed pages as
+one UTF-8 text attachment. The service never receives the PDF bytes. The browser
+requests reader modules and supporting assets from the signed-in companion
+origin only when opening a PDF.
 
 Message: `{id,chat_id,parent_id,role,content,reasoning,attachments,tool_calls,tool_call_id,run_id,status,created,usage,timings,context,request}`. Optional fields may be absent. Tool call records have `{id,name,arguments,status,result,duration_ms,error}`. Status can be `pending`, `approval`, `running`, `completed`, `denied`, `failed`, `cancelled` or `interrupted`. Tool outputs remain independent messages for model history.
 

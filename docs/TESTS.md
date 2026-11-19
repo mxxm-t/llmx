@@ -1,5 +1,13 @@
 # Tests
 
+The chat companion's PDF tests check the pinned installer, failed and repeated
+installs, authenticated asset routes and picker availability. Chrome checks
+startup and plain chat for zero PDF requests, then inspects the browser and
+model payloads for a selected page. The base run uses an absent reader. The
+dedicated Linux workflow installs PDF.js and repeats the browser check with
+`LLMX_CHAT_REQUIRE_PDF=1`, including cancellation, reopening the same file
+while its previous worker shuts down, and pages without text.
+
 What each native test (CTest) and each suite component checks, and the real-model checks run by hand.
 
 The standalone [health dashboard](../tools/health_dashboard/README.md) runs with

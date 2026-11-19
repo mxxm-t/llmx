@@ -23,6 +23,7 @@ from temporary import TemporaryChats
 from tools import ToolRegistry
 from upstream import Connection
 from monitor import ASSETS, Monitor
+import pdf_reader
 from project_preview import MAX_PREVIEW_BYTES, assemble
 from workspace import ProjectConflict, Workspace, WorkspaceTools
 
@@ -218,6 +219,7 @@ class Application:
             result = dict(self.cached_config)
         result.update(self.model_state())
         result["settings_defaults"] = dict(DEFAULTS)
+        result["pdf_reader"] = pdf_reader.installed(pdf_reader.READER_DIRECTORY)
         return result
 
 
@@ -397,6 +399,16 @@ class Handler(BaseHTTPRequestHandler):
             self._body()
             self.app.logout(raw_cookie)
             return self._json({"ok": True}, extra={"Set-Cookie": "llmx_chat=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0"})
+        if path.startswith("/pdf-reader/"):
+            if not authenticated:
+                return self._json({"error": "Sign in to continue"}, 401)
+            if method != "GET" or parsed.query:
+                raise KeyError()
+            name = path.removeprefix("/pdf-reader/")
+            data, mime = pdf_reader.asset(pdf_reader.READER_DIRECTORY, name)
+            policy = pdf_reader.worker_policy(self.server.origins) if name == "pdf.worker.mjs" else None
+            self._headers(200, mime, len(data), {"Cross-Origin-Resource-Policy": "same-origin"}, policy=policy)
+            return self.wfile.write(data)
         protected_document = path == "/monitor/view" or path.startswith("/preview/")
         if protected_document and not authenticated:
             return self._json({"error": "Sign in to continue"}, 401)
@@ -418,7 +430,7 @@ class Handler(BaseHTTPRequestHandler):
                 data, mime = self.app.monitor.asset(path[1:])
                 self._headers(200, mime, len(data))
                 return self.wfile.write(data)
-            if method != "GET" or path not in ("/", "/index.html", "/app.js", "/render.js", "/app.css", "/shell.js", "/shell.css", "/artifacts.js", "/monitor.css", "/workspace.js", "/project_context.js"):
+            if method != "GET" or path not in ("/", "/index.html", "/app.js", "/render.js", "/app.css", "/shell.js", "/shell.css", "/artifacts.js", "/monitor.css", "/workspace.js", "/project_context.js", "/pdf_attachment.js"):
                 raise KeyError()
             name = "index.html" if path == "/" else path[1:]
             file = ROOT / name

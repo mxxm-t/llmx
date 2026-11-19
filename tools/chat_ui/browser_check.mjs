@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 const [url, executable, profile, artifacts, fixture, imageFixture, originalDashboard, upstreamFixture,
   textMaxFixture, textOverFixture, imageMaxFixture, imageOverFixture, tinyFixture, textRawOverFixture, textBomMaxFixture,
   textRaceAFixture, textRaceBFixture] = process.argv.slice(2);
+const pdfMode = process.argv.find(arg => arg.startsWith('--pdf-only='))?.split('=')[1];
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const startupTimeoutArg = process.argv.find(arg => arg.startsWith('--startup-timeout-ms='));
 const startupTimeoutCandidate = startupTimeoutArg ? Number(startupTimeoutArg.slice('--startup-timeout-ms='.length)) : NaN;
@@ -42,13 +43,15 @@ let attachmentChooser = null;
 const nativeDialogs = [];
 const apiMutations = [];
 const imageLinkRequests = [];
-async function cdp(method, params = {}) {
+const pdfRequests = [];
+const pdfWorkers = [];
+async function cdp(method, params = {}, sessionId) {
   const id = ++nextId;
   return new Promise((resolve, reject) => {
     const timeoutError = new Error('CDP timed out: ' + method);
     const timeout = setTimeout(() => { pending.delete(id); reject(timeoutError); }, 12000);
     pending.set(id, {resolve, reject, timeout, method});
-    socket.send(JSON.stringify({id, method, params}));
+    socket.send(JSON.stringify({id, method, params, sessionId}));
   });
 }
 async function evaluate(expression) {
@@ -125,6 +128,11 @@ async function reasoningClickDuringDelta(text, expectedOpen) {
 }
 async function fill(selector, text) { await evaluate(`{const e=document.querySelector(${JSON.stringify(selector)});e.value=${JSON.stringify(text)};e.dispatchEvent(new Event('input',{bubbles:true}));}`); }
 async function send(text) { await fill('#draft', text); await evaluate("document.querySelector('#composer').requestSubmit()"); }
+async function signIn() {
+  await wait("document.querySelector('#login-dialog')?.open", 'password dialog');
+  await fill('#password', 'browser-test'); await evaluate("document.querySelector('#login-form').requestSubmit()");
+  await wait("!document.querySelector('#login-dialog').open && document.querySelector('#model').value==='qwen3-local' && !document.querySelector('[data-action=\"new\"]').disabled", 'authenticated workspace');
+}
 async function holdHistoryRefresh() {
   await evaluate(`(() => {
     const original = window.fetch;
@@ -141,6 +149,134 @@ async function idle() { await wait("document.querySelector('#stop').hidden && !d
 async function upload(selector, filename) { const root = await cdp('DOM.getDocument'); const target = await cdp('DOM.querySelector', {nodeId: root.root.nodeId, selector}); await cdp('DOM.setFileInputFiles', {nodeId: target.nodeId, files: [filename]}); }
 async function uploadMany(selector, files) { const root = await cdp('DOM.getDocument'); const target = await cdp('DOM.querySelector', {nodeId: root.root.nodeId, selector}); await cdp('DOM.setFileInputFiles', {nodeId: target.nodeId, files}); }
 async function screenshot(name) { await delay(240); const result = await cdp('Page.captureScreenshot', {format: 'png', captureBeyondViewport: false}); await writeFile(path.join(artifacts, name), Buffer.from(result.data, 'base64')); }
+async function checkPdfAttachment() {
+  const origin = new URL(url).origin;
+  const installed = pdfMode === 'installed';
+  const readerRequests = () => pdfRequests.filter(request => {
+    const pathname = new URL(request.url).pathname;
+    return pathname === '/pdf_attachment.js' || pathname.startsWith('/pdf-reader/');
+  });
+  assert.equal(await evaluate('ChatShell.config.pdf_reader'), installed);
+  assert.equal(await evaluate("document.querySelector('#file-input').accept.split(',').includes('.pdf')"), installed);
+  assert.deepEqual(readerRequests(), [], 'PDF resources were requested during ordinary boot');
+  await send('Browser plain-text prompt');
+  await wait("document.querySelector('#messages').textContent.includes('Plain browser reply.')", 'plain reply');
+  await idle();
+  assert.deepEqual(readerRequests(), [], 'PDF resources were requested for a plain-text chat');
+
+  const draft = 'Keep this PDF draft.';
+  await fill('#draft', draft);
+  const mutations = apiMutations.length;
+  if (!installed) {
+    await upload('#file-input', fixture);
+    await wait("/PDF import is unavailable/i.test(document.querySelector('#toast').textContent)", 'unavailable-reader guidance');
+    assert.deepEqual(readerRequests(), [], 'an unavailable PDF reader was requested');
+  } else {
+    const expected = 'Page 2\nOnly the second page belongs in chat.';
+    const open = async () => {
+      await upload('#file-input', fixture);
+      await wait("document.querySelector('#pdf-attachment-dialog')?.open && !document.querySelector('#pdf-attachment-pages').disabled", 'ready PDF selection');
+    };
+    const closed = async () => wait("!document.querySelector('#pdf-attachment-dialog')", 'closed PDF selection');
+    const review = async (pages) => {
+      await fill('#pdf-attachment-pages', pages);
+      await click('#pdf-attachment-review');
+    };
+    const selectedPage = async () => {
+      await review('2');
+      await wait("!document.querySelector('#pdf-attachment-apply').disabled", 'selected page preview');
+      assert.equal(await evaluate("document.querySelector('#pdf-attachment-preview').readOnly"), true);
+      assert.equal(await evaluate("document.querySelector('#pdf-attachment-preview').value"), expected);
+    };
+    await cdp('Emulation.setDeviceMetricsOverride', {width:320,height:740,deviceScaleFactor:1,mobile:true});
+    await wait("document.documentElement.dataset.compact==='true'", 'narrow PDF viewport');
+    await open();
+    await selectedPage();
+    assert.equal(await evaluate(`(() => {
+      const dialog = document.querySelector('#pdf-attachment-dialog');
+      const box = dialog.getBoundingClientRect();
+      return box.left >= 0 && box.right <= innerWidth && box.top >= 0 && box.bottom <= innerHeight
+        && dialog.scrollWidth <= dialog.clientWidth && dialog.contains(document.activeElement);
+    })()`), true, 'PDF preview overflowed the narrow viewport or lost modal focus');
+    await screenshot('pdf-review-narrow.png');
+    await evaluate(`(() => {
+      const postMessage = Worker.prototype.postMessage;
+      const abortTimeout = AbortSignal.timeout;
+      const gate = window.pdfTerminationGate = {message:null, selectedFile:null, heldTimeout:false};
+      let fallback;
+      gate.release = () => {
+        Worker.prototype.postMessage = postMessage;
+        AbortSignal.timeout = abortTimeout;
+        clearTimeout(fallback);
+        gate.message?.();
+        gate.message = null;
+      };
+      document.querySelector('#file-input').addEventListener('change', event => {
+        gate.selectedFile = event.target.files[0]?.name;
+      }, {capture:true,once:true});
+      // Extend the teardown watchdog for this cancellation so the browser can reopen the same file while the first worker is still live.
+      AbortSignal.timeout = milliseconds => {
+        if (milliseconds !== 250) return abortTimeout.call(AbortSignal, milliseconds);
+        AbortSignal.timeout = abortTimeout;
+        gate.heldTimeout = true;
+        return abortTimeout.call(AbortSignal, 8000);
+      };
+      Worker.prototype.postMessage = function(message, ...args) {
+        if (message?.action !== 'Terminate' || message.data !== null || gate.message) return postMessage.call(this, message, ...args);
+        gate.message = () => postMessage.call(this, message, ...args);
+      };
+      fallback = setTimeout(gate.release, 6000);
+    })()`);
+    try {
+      await cdp('Input.dispatchKeyEvent', {type:'keyDown', key:'Escape', code:'Escape', windowsVirtualKeyCode:27});
+      await cdp('Input.dispatchKeyEvent', {type:'keyUp', key:'Escape', code:'Escape', windowsVirtualKeyCode:27});
+      await closed();
+      await wait('!!pdfTerminationGate.message', 'held first PDF worker termination');
+      assert.equal(await evaluate('pdfTerminationGate.heldTimeout'), true, 'first worker cleanup deadline was not held');
+      assert.equal(await evaluate("document.querySelector('#draft').value"), draft, 'cancelling PDF preview changed the draft');
+      assert.equal(await evaluate("document.querySelectorAll('#attachments .attachment-pill').length"), 0, 'cancelling PDF preview added an attachment');
+
+      await upload('#file-input', fixture);
+      assert.equal(await evaluate('pdfTerminationGate.selectedFile'), 'quarterly.pdf', 'same-file selection did not reach the file input');
+      await wait("document.querySelector('#pdf-attachment-dialog')?.open || document.querySelector('#toast').textContent.includes('Finish the open PDF selection first')", 'same PDF reopened during teardown', 4000);
+      assert.equal(await evaluate("!!document.querySelector('#pdf-attachment-dialog')?.open"), true,
+        'same PDF could not reopen during teardown: ' + await evaluate("document.querySelector('#toast').textContent"));
+      await wait("!document.querySelector('#pdf-attachment-pages').disabled", 'same PDF ready during first worker teardown', 4000);
+      assert.equal(await evaluate('!!pdfTerminationGate.message'), true, 'first worker finished before the same PDF reopened');
+    } finally {
+      await evaluate('pdfTerminationGate.release(); delete window.pdfTerminationGate');
+    }
+    await review('3');
+    await wait("/No extractable text.*OCR/.test(document.querySelector('#pdf-attachment-error').textContent)", 'graphics-only page guidance');
+    assert.equal(await evaluate("document.querySelector('#pdf-attachment-apply').disabled && !document.querySelector('#pdf-attachment-preview').checkVisibility()"), true);
+    await click('#pdf-attachment-cancel');
+    await closed();
+
+    await open();
+    await selectedPage();
+    await click('#pdf-attachment-apply');
+    await closed();
+    await wait("document.querySelector('#attachments').textContent.includes('quarterly.txt')", 'plain-text PDF attachment');
+    assert.equal(await evaluate("document.querySelector('#draft').value"), draft);
+    assert.equal(apiMutations.length, mutations, 'PDF selection or review mutated the server');
+    await evaluate("document.querySelector('#composer').requestSubmit()");
+    await wait("document.querySelector('#messages').textContent.includes('PDF browser reply.')", 'reply to approved PDF text');
+    await idle();
+    const submissions = pdfRequests.filter(request => request.method === 'POST' && /\/api\/chats\/[^/]+\/runs$/.test(new URL(request.url).pathname));
+    assert.equal(submissions.length, 2, 'unexpected number of chat submissions');
+    assert.deepEqual(JSON.parse(submissions[1].postData).attachments, [{name:'quarterly.txt',type:'text/plain',text:expected}], 'chat did not send exactly the previewed plain-text attachment');
+    const paths = readerRequests().map(request => new URL(request.url).pathname);
+    for (const asset of ['/pdf_attachment.js', '/pdf-reader/pdf.mjs', '/pdf-reader/pdf.worker.mjs']) {
+      assert(paths.includes(asset), 'missing request for ' + asset);
+    }
+    assert(pdfWorkers.some(worker => worker === origin + '/pdf-reader/pdf.worker.mjs'), 'PDF.js did not use the dedicated same-origin worker');
+  }
+  assert.deepEqual(pdfRequests.filter(request => new URL(request.url).origin !== origin), [], 'PDF check made an off-origin browser request');
+  const payload = pdfRequests.map(request => request.postData || '').join('\n');
+  assert.doesNotMatch(payload, /raw-pdf-fixture-marker|First page private marker|%PDF-|application\/pdf|JVBERi0/);
+  assert.deepEqual(errors, [], 'uncaught PDF browser exceptions');
+  console.log('PASS: PDF ' + pdfMode + ', zero lazy assets on boot and plain chat' + (installed ? ', reviewed page 2 sent only as text, Escape cancellation, graphics-only refusal, narrow preview and same-origin worker' : ', unavailable-reader guidance'));
+}
 async function sidebarFocusSamples(selector) {
   const transitions = await evaluate(`(async () => {
     const animations = document.querySelector('.sidebar').getAnimations();
@@ -194,6 +330,14 @@ try {
     if (data.method === 'Network.requestWillBeSent' && /\/api\/runs\/[^/]+\/events(?:\?|$)/.test(data.params.request.url)) runStreams.push(data.params.request.url);
     if (data.method === 'Network.requestWillBeSent' && data.params.request.method !== 'GET') apiMutations.push({url: data.params.request.url, method: data.params.request.method});
     if (data.method === 'Network.requestWillBeSent' && data.params.request.url.startsWith('https://example.invalid/')) imageLinkRequests.push(data.params.request.url);
+    if (pdfMode && data.method === 'Network.requestWillBeSent') pdfRequests.push(data.params.request);
+    if (pdfMode && data.method === 'Target.attachedToTarget') {
+      const {sessionId, targetInfo} = data.params;
+      pdfWorkers.push(targetInfo.url);
+      cdp('Network.enable', {}, sessionId)
+        .then(() => cdp('Runtime.runIfWaitingForDebugger', {}, sessionId))
+        .catch(error => errors.push(error.message));
+    }
     if (data.method === 'Fetch.requestPaused') {
       if (data.params.request.method === 'POST' && /\/api\/chats\/[^/]+\/runs$/.test(new URL(data.params.request.url).pathname)) heldSendResponse = data.params;
       else if (data.params.request.url.endsWith('/api/restore')) heldRestoreRequest = data.params.requestId;
@@ -207,10 +351,14 @@ try {
     if (data.method === 'Page.fileChooserOpened') attachmentChooser = data.params;
   };
   await cdp('Page.enable'); await cdp('Runtime.enable'); await cdp('DOM.enable'); await cdp('Network.enable');
+  if (pdfMode) await cdp('Target.setAutoAttach', {autoAttach:true,waitForDebuggerOnStart:true,flatten:true,filter:[{type:'worker'}]});
   await cdp('Emulation.setDeviceMetricsOverride', {width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false});
   await cdp('Emulation.setEmulatedMedia', {features: [{name: 'prefers-color-scheme', value: 'dark'}]});
   await navigateDocument(url);
-  if (process.argv.includes('--nav-only')) {
+  if (pdfMode) {
+    await signIn();
+    await checkPdfAttachment();
+  } else if (process.argv.includes('--nav-only')) {
     await wait("window.ChatShell && window.ChatShell.config!==null && document.querySelector('#connection').textContent!=='Connecting'", 'live studio ready');
     for (const [width,height] of [[1440,1000],[1024,768],[768,1024],[390,844],[360,800],[844,390],[720,500]]) {
       await cdp('Emulation.setDeviceMetricsOverride', {width,height,deviceScaleFactor:width===720?2:1,mobile:width<=390});
@@ -241,8 +389,7 @@ try {
   await wait("document.querySelector('#login-dialog')?.open", 'password dialog');
   await fill('#password', 'wrong'); await evaluate("document.querySelector('#login-form').requestSubmit()");
   await wait("document.querySelector('#login-error').textContent.includes('Incorrect')", 'invalid-password error');
-  await fill('#password', 'browser-test'); await evaluate("document.querySelector('#login-form').requestSubmit()");
-  await wait("!document.querySelector('#login-dialog').open && document.querySelector('#model').value==='qwen3-local' && !document.querySelector('[data-action=\"new\"]').disabled", 'authenticated workspace');
+  await signIn();
   await cdp('Page.setInterceptFileChooserDialog', {enabled: true});
   await pointerClick('[data-action=attach]');
   await wait(() => attachmentChooser !== null, 'native attachment chooser');

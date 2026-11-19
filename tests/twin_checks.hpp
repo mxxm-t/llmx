@@ -154,7 +154,7 @@ inline std::vector<uint8_t> typed_matrix(uint32_t type, size_t nin, size_t rows,
 
 // The table's types beside F32 without twins, which take their exact product in every class.
 inline bool exact_only(uint32_t type) {
-    return type == quant::GGML_TYPE_BF16 || type == quant::GGML_TYPE_F16 || type == quant::GGML_TYPE_NVFP4 ||
+    return type == quant::GGML_TYPE_BF16 || type == quant::GGML_TYPE_F16 ||
            type == quant::GGML_TYPE_IQ2_S || type == quant::GGML_TYPE_IQ3_XXS ||
            type == quant::GGML_TYPE_IQ1_S || type == quant::GGML_TYPE_IQ1_M || type == quant::GGML_TYPE_TQ1_0 || type == quant::GGML_TYPE_TQ2_0 || type == quant::GGML_TYPE_Q1_0 || type == quant::GGML_TYPE_Q2_0;
 }
@@ -255,7 +255,8 @@ inline std::vector<uint8_t> one_hot_q8(size_t nin, size_t b, size_t j) {
 // Q6_K, Q3_K, Q4_0, Q5_0, IQ4_NL, IQ4_XS, IQ2_XXS, IQ2_XS, IQ3_S and MXFP4 have none.
 inline float k_min(uint32_t type, const uint8_t* block, int sub) {
     if (type == quant::GGML_TYPE_Q6_K || type == quant::GGML_TYPE_Q3_K || type == quant::GGML_TYPE_Q4_0 || type == quant::GGML_TYPE_Q5_0 || type == quant::GGML_TYPE_IQ4_NL || type == quant::GGML_TYPE_IQ4_XS ||
-        type == quant::GGML_TYPE_IQ2_XXS || type == quant::GGML_TYPE_IQ2_XS || type == quant::GGML_TYPE_IQ3_S || type == quant::GGML_TYPE_MXFP4)
+        type == quant::GGML_TYPE_IQ2_XXS || type == quant::GGML_TYPE_IQ2_XS || type == quant::GGML_TYPE_IQ3_S || type == quant::GGML_TYPE_MXFP4 ||
+        type == quant::GGML_TYPE_NVFP4)
         return 0.0f;
     if (type == quant::GGML_TYPE_Q2_K) return f16_to_f32(uint16_t(block[82] | (block[83] << 8))) * float(std::max(block[2 * sub] >> 4, block[2 * sub + 1] >> 4));
     if (type == quant::GGML_TYPE_Q5_1 || type == quant::GGML_TYPE_Q4_1) return f16_to_f32(uint16_t(block[2] | (block[3] << 8)));
@@ -1289,8 +1290,8 @@ inline void kernel_times(Backend& timed, Backend& plain, const Launches& launche
     }
 }
 
-// NVFP4 under its tensor's F32 scales, which every class takes through the exact family (kernels/f32.gpu, ExactNVFP4), at MiniMax-M3.1-Flash's expert width.
-// Embeddings are the CPU's rows bit for bit; a product is the F32 product of those rows bit for bit, one row and several, in every class; a routed entry is its expert's one-row product, one factor or one an expert.
+// NVFP4 under its tensor's F32 scales at MiniMax-M3.1-Flash's expert width: the F32 class on the exact family (kernels/f32.gpu, ExactNVFP4), the f16 and int8 classes on the twins, one factor a projection.
+// Embeddings are the CPU's rows bit for bit, F32 products the F32 product of those rows bit for bit, twin products within twin_close's bound, and a routed entry its expert's one-row product in its class.
 inline void nvfp4_scales(Backend& g, Backend& c, const Launches& launches, const Require& require) {
     const uint32_t T = quant::GGML_TYPE_NVFP4;
     const size_t nin = 3072, nout = 96, ne = 4, K = 2, cols = 5;
@@ -1312,6 +1313,7 @@ inline void nvfp4_scales(Backend& g, Backend& c, const Launches& launches, const
     ran.clear();
     for (size_t e = 0; e < ne; ++e) {
         const std::string at = "NVFP4 expert " + std::to_string(e) + " under factor " + std::to_string(factors[e]);
+        const std::vector<uint8_t> we(w.begin() + e * eb, w.begin() + (e + 1) * eb);
         const WeightView cv{T, {cw.get(), e * eb / 4}, {cs.get(), e}, 1}, gv{T, {gw.get(), e * eb / 4}, {gs.get(), e}, 1};
         auto ce = c.alloc(nout * nin * 4), ge = g.alloc(nout * nin * 4);
         c.embed({ce.get(), 0}, cv, nin, nout, every.data(), nout);
@@ -1327,8 +1329,27 @@ inline void nvfp4_scales(Backend& g, Backend& c, const Launches& launches, const
                 note();
                 g.matmul(gv, {gx.get(), 0}, {got.get(), 0}, nin, nout, n, {}, dt);
                 note();
-                require(!std::memcmp(f.data(), read(g, *got, nout * n).data(), nout * n * 4),
-                        "a scaled " + at + " product of " + std::to_string(n) + " rows in " + dtype_name(dt) + " is the F32 product of its decoded rows, bit for bit");
+                const std::vector<float> y = read(g, *got, nout * n);
+                if (dt == Dtype::f32) {
+                    require(!std::memcmp(f.data(), y.data(), nout * n * 4), "a scaled " + at + " product of " + std::to_string(n) + " rows in f32 is the F32 product of its decoded rows, bit for bit");
+                    continue;
+                }
+                bool ok = true;
+                for (size_t r = 0; r < n && ok; ++r)
+                    for (size_t o = 0; o < nout && ok; ++o) ok = twin_close(T, we, rows[e], x, nin, o, r, dt == Dtype::int8 ? 127.0f : 32767.0f, y[r * nout + o]);
+                require(ok, "a scaled " + at + " product of " + std::to_string(n) + " rows in " + dtype_name(dt) + " is within 1e-6 of a double sum over the twin of its decoded rows");
+                // A group of two scaled projections takes one joint twin call (matmul_group), each under its factor.
+                auto g2 = g.alloc(nout * n * 4);
+                note();
+                g.matmul_group({Projection(gv, {got.get(), 0}, nout), Projection(gv, {g2.get(), 0}, nout)}, {gx.get(), 0}, nin, n, {}, dt);
+                note();
+                for (const auto* out : {got.get(), g2.get()}) {
+                    const std::vector<float> yg = read(g, *out, nout * n);
+                    ok = true;
+                    for (size_t r = 0; r < n && ok; ++r)
+                        for (size_t o = 0; o < nout && ok; ++o) ok = twin_close(T, we, rows[e], x, nin, o, r, dt == Dtype::int8 ? 127.0f : 32767.0f, yg[r * nout + o]);
+                    require(ok, "a group of two scaled " + at + " projections of " + std::to_string(n) + " rows in " + dtype_name(dt) + " is within the twin bound in each");
+                }
             }
         }
     }
@@ -1345,8 +1366,8 @@ inline void nvfp4_scales(Backend& g, Backend& c, const Launches& launches, const
         const std::vector<float> y = read(g, *gy, cols * K * nout);
         for (size_t e = 0; e < cols * K; ++e) {
             const size_t id = ids[e];
-            g.matmul({T, {gw.get(), id * eb / 4}, {count == 1 ? g1.get() : gs.get(), count == 1 ? 0 : id}, 1}, {gx.get(), e / K * nin}, {gd.get(), 0}, nin, nout, 1, {}, Dtype::f32);
-            require(!std::memcmp(y.data() + e * nout, read(g, *gd, nout).data(), nout * 4), "routed NVFP4 entry " + std::to_string(e) + " under " + at + " is its expert's one-row product, bit for bit");
+            g.matmul({T, {gw.get(), id * eb / 4}, {count == 1 ? g1.get() : gs.get(), count == 1 ? 0 : id}, 1}, {gx.get(), e / K * nin}, {gd.get(), 0}, nin, nout, 1, {}, count == 1 ? Dtype::f16 : Dtype::f32);
+            require(!std::memcmp(y.data() + e * nout, read(g, *gd, nout).data(), nout * 4), "routed NVFP4 entry " + std::to_string(e) + " under " + at + " is its expert's one-row product in its class, bit for bit");
         }
     }
     bool refused = false;
@@ -1358,8 +1379,11 @@ inline void nvfp4_scales(Backend& g, Backend& c, const Launches& launches, const
         refused = true;
     }
     require(refused, "weight scales on a Q8_0 matrix are refused, as the CPU refuses them");
-    for (const char* k : {"llmx_gather_nvfp4", "llmx_matmul_nvfp4", "llmx_matmul_rows_nvfp4", "llmx_routed_nvfp4"})
+    for (const char* k : {"llmx_gather_nvfp4", "llmx_matmul_nvfp4", "llmx_matmul_rows_nvfp4", "llmx_routed_nvfp4", "llmx_nvfp4_rows16_1", "llmx_nvfp4_rows8_1", "llmx_nvfp4_tile16", "llmx_nvfp4_tile8"})
         require(ran.count(k) > 0, std::string("the NVFP4 checks ran ") + k);
+    bool routed_twin = false;
+    for (const auto& [name, n] : ran) routed_twin = routed_twin || (n && name.rfind("llmx_nvfp4_routed", 0) == 0);
+    require(routed_twin, "the NVFP4 checks ran a routed twin build");
 }
 
 // F8_E4M3 under its scale grid through the exact family (kernels/f32.gpu, ExactF8) at row shifts 0 and 7, against the CPU embedding and the F32 product of its rows (docs/TESTS.md).

@@ -31,32 +31,35 @@ __device__ inline float wave_sums(float (&v)[NV], int lane, int& k) {
     return wave_sum(v[0], warpSize / (2 * NV));
 }
 
-// A row kernel call: up to three projections of one twin, their output rows numbered one after another, projection p's from start[p] on.
+// A row kernel call: up to three projections of one twin, their output rows numbered one after another, projection 0's from 0 and projection p's from start[p - 1] on.
 struct RowCall {
     const unsigned char* w[3];
     float* y[3];
     unsigned long long nout[3];
-    unsigned long long start[3];
+    unsigned long long start[2];   // the first rows of projections 1 and 2, projection 0 starting at row 0
     unsigned long long total;
     unsigned nproj;
     unsigned cluster;   // the lanes a K-type row takes (k_rows); Q8_0's row kernels take a wave a row
+    const float* f[3];  // each projection's F32 factor for a type with one (KFactor), null without it
 };
 // Row o of a call: its weight row, its output for column 0 and its projection's output count.
 struct Row {
     const unsigned char* w;
     float* y;
     unsigned long long nout;
+    const float* f;
 };
 // The kernels pass o through readfirstlane: it is one wave's, so the projection is chosen in scalar registers, which measured 3 to 4 percent faster on the 8B's rows.
 // The projection's fields are picked by adding differences, not by selecting between fields, which the compiler folds into an indexed load that keeps a routed call's copy in scratch.
 __device__ inline Row row_of(const RowCall& c, unsigned long long o, unsigned long long row_bytes) {
-    const bool p1 = c.nproj > 1 && o >= c.start[1], p2 = c.nproj > 2 && o >= c.start[2];
+    const bool p1 = c.nproj > 1 && o >= c.start[0], p2 = c.nproj > 2 && o >= c.start[1];
     const auto pick = [&](unsigned long long a, unsigned long long b, unsigned long long d) { return a + (p1 ? b - a : 0) + (p2 ? d - b : 0); };
-    const unsigned long long local = o - pick(0, c.start[1], c.start[2]);
+    const unsigned long long local = o - pick(0, c.start[0], c.start[1]);
     // Through the global space, so the compiler keeps global loads rather than flat ones, whose waits also hold the scalar loads.
     const unsigned char* w = (const unsigned char*)(const GPU_GLOBAL_SPACE unsigned char*)pick((unsigned long long)c.w[0], (unsigned long long)c.w[1], (unsigned long long)c.w[2]);
     float* y = (float*)(GPU_GLOBAL_SPACE float*)pick((unsigned long long)c.y[0], (unsigned long long)c.y[1], (unsigned long long)c.y[2]);
-    return {w + local * row_bytes, y + local, pick(c.nout[0], c.nout[1], c.nout[2])};
+    const float* f = (const float*)pick((unsigned long long)c.f[0], (unsigned long long)c.f[1], (unsigned long long)c.f[2]);
+    return {w + local * row_bytes, y + local, pick(c.nout[0], c.nout[1], c.nout[2]), f};
 }
 
 // A row build's columns: column c reads twin column x(c) and writes output column y(c), c itself for a plain call.
@@ -436,6 +439,7 @@ struct TileCall {
     float* partials;
     unsigned xrow, xblock;   // the twin's blocks from one row to the next and from one block to the next (TwinMap, kernels/f32.gpu)
     const void* xs;          // the twin's half sums from the call's first row (kernels/quant.h, twin_sums)
+    const float* f[3];       // as RowCall's
 };
 // A routed tile call's groups (kernels/f32.gpu, llmx_moe_group): group first + blockIdx.y a tile of its expert's rows, its columns its entries.
 // The call never splits, so an entry's sums do not depend on the entries beside it.
@@ -1338,6 +1342,25 @@ template <> struct KRaw<rq::MXFP4> {
         dmin = 0.0f;
     }
 };
+// NVFP4: a 36-byte block, 4-byte aligned, its group's E4M3 scale and the lane's eight nibbles, the low or high nibbles of the group's eight bytes; each nibble's doubled E2M1 value as a signed byte under half the scale.
+// Its scale changes every 16 values, so the tile takes two halves; the tensor's F32 factor is not applied here.
+template <> struct KRaw<rq::NVFP4> {
+    static constexpr int offset = 0, halves = 2;
+    using Lane = QuarterLane<rq::NVFP4>;
+    unsigned e, lo[2];
+    __device__ void load(const unsigned char* b, unsigned sub, unsigned part) {
+        const unsigned g = 2u * sub + (part >> 1);
+        const unsigned* q = (const unsigned*)(b + 4u + 8u * g);
+        e = b[g], lo[0] = q[0], lo[1] = q[1];
+    }
+    __device__ void decode(unsigned, unsigned part, unsigned (&v)[2], float& ds, float& dmin) const {
+        const unsigned sh = 4u * (part & 1u);
+#pragma unroll
+        for (int i = 0; i < 2; ++i) v[i] = mx_signed((lo[i] >> sh) & 0x0F0F0F0Fu);
+        ds = rq::e4m3_half(e);
+        dmin = 0.0f;
+    }
+};
 // The quarter form: four lanes a 32-value sub-block, lane t its sub-block t / 4's values 8 (t % 4) to 8 (t % 4) + 7 through the type's KRaw, the tile's loads and arithmetic.
 // IQ4_NL's, IQ4_XS's, IQ2_XXS's, IQ2_XS's and IQ3_S's rows take it alone; a Q4_0, Q4_1, Q5_0 or Q5_1 row in the F16 class takes it or one lane a block by row_form (backend_core.hpp), and in the int8 class one lane a block.
 template <typename KT> struct QuarterLane {
@@ -1361,9 +1384,17 @@ template <> struct KSigned<rq::MXFP4> { static constexpr bool value = true; };
 template <> struct KSigned<rq::IQ2_XXS> { static constexpr bool value = true; };
 template <> struct KSigned<rq::IQ2_XS> { static constexpr bool value = true; };
 template <> struct KSigned<rq::IQ3_S> { static constexpr bool value = true; };
+template <> struct KSigned<rq::NVFP4> { static constexpr bool value = true; };
 // Whether a type's decode sets no min, so a term is ds * isum, which is fmaf(ds, isum, -(0 * xsum))'s value, and the twin sum is not needed.
 template <typename KT> struct KNoMin { static constexpr bool value = false; };
 template <> struct KNoMin<rq::MXFP4> { static constexpr bool value = true; };
+// Whether a type's products take the tensor's F32 factor, NVFP4's, applied to each sum a kernel stores, a lane's partial in the row builds; k_out is the sum itself for every other type.
+template <typename KT> struct KFactor { static constexpr bool value = false; };
+template <> struct KFactor<rq::NVFP4> { static constexpr bool value = true; };
+template <typename KT> __device__ inline float k_out(float v, const float* f) {
+    if constexpr (KFactor<KT>::value) return f ? v * *f : v;
+    else return v;
+}
 // The eight byte values as the twin's words: two words of four bytes, or four of two 16-bit values.
 template <typename QT> struct KWords { static constexpr int n = sizeof(QT) == 2 ? 4 : 2; };
 template <typename QT, typename KT>
@@ -1611,6 +1642,11 @@ __device__ void k_rows(const RowCall& rc, const QT* q, const float* dx, unsigned
                 }
             }
         }
+        if constexpr (KFactor<KT>::value)
+#pragma unroll
+            for (int j = 0; j < R; ++j)
+#pragma unroll
+                for (int c = 0; c < C; ++c) acc[j][c] = k_out<KT>(acc[j][c], r[j].f), acc2[j][c] = k_out<KT>(acc2[j][c], r[j].f);
         if constexpr (CH == 2) store_cluster_pairs<R, C>(acc, acc2, r, lane, cl, o, rc.total, ncols, add, m);
         else store_cluster_sums<R, C>(acc, r, lane, cl, o, rc.total, ncols, add, m);
     }
@@ -1803,10 +1839,10 @@ LLMX_KVEC {
             const unsigned long long oo = o0 + out_at(i), bb = b0 + row_at(j);
             if (oo >= nout || bb >= nrows) continue;
             if (c.parts > 1) {
-                c.partials[c.parts * nrows * before + blockIdx.z * nrows * nout + bb * nout + oo] = acc[i][j];
+                c.partials[c.parts * nrows * before + blockIdx.z * nrows * nout + bb * nout + oo] = k_out<KT>(acc[i][j], c.f[pi]);
             } else {
                 float* y = c.y[pi] + (ROUTED ? ent[bb] : bb) * nout + oo;
-                *y = c.add ? *y + acc[i][j] : acc[i][j];
+                *y = c.add ? *y + k_out<KT>(acc[i][j], c.f[pi]) : k_out<KT>(acc[i][j], c.f[pi]);
             }
         }
 }
@@ -2057,10 +2093,10 @@ __device__ void k_mma(const TileCall& c, const signed char* q, const float* dx, 
                 const unsigned long long oo = o0 + WO * wm + 16 * mi + g + 8 * (e / 2), bb = b0 + WR * wn + 8 * n + 2 * tq + e % 2;
                 if (oo >= nout || bb >= nrows) continue;
                 if (c.parts > 1) {
-                    c.partials[c.parts * nrows * before + blockIdx.z * nrows * nout + bb * nout + oo] = acc[mi][n][e];
+                    c.partials[c.parts * nrows * before + blockIdx.z * nrows * nout + bb * nout + oo] = k_out<KT>(acc[mi][n][e], c.f[pi]);
                 } else {
                     float* y = c.y[pi] + (ROUTED ? ent[bb] : bb) * nout + oo;
-                    *y = c.add ? *y + acc[mi][n][e] : acc[mi][n][e];
+                    *y = c.add ? *y + k_out<KT>(acc[mi][n][e], c.f[pi]) : k_out<KT>(acc[mi][n][e], c.f[pi]);
                 }
             }
 }
@@ -2304,7 +2340,7 @@ __device__ void routed_stream(const TileCall& c, const TileGroups& tg, const sig
     for (int j = 0; j < R; ++j) {
         if (j >= (int)nrows) break;
         float* y = c.y[pi] + (unsigned long long)ent[j] * nout + o;
-        *y = c.add ? *y + acc[j] : acc[j];
+        *y = c.add ? *y + k_out<KT>(acc[j], c.f[pi]) : k_out<KT>(acc[j], c.f[pi]);
     }
 }
 
@@ -2403,7 +2439,7 @@ __device__ void k_thin(const TileCall& c, const short* q, const float* dx, const
     for (int e = 0; e < N; ++e) {
         if (e >= nrows) break;
         float* y = c.y[pi] + ent[e] * nout + o;
-        *y = c.add ? *y + acc[e] : acc[e];
+        *y = c.add ? *y + k_out<KT>(acc[e], c.f[pi]) : k_out<KT>(acc[e], c.f[pi]);
     }
 }
 
@@ -2422,8 +2458,9 @@ __device__ inline RowCall with_expert(const RoutedCall& rc, unsigned id) {
         c.w[p] = rc.c.w[p] + id * rc.stride[p];
         c.y[p] = rc.c.y[p];
         c.nout[p] = rc.c.nout[p];
-        c.start[p] = rc.c.start[p];
+        c.f[p] = rc.c.f[p];
     }
+    c.start[0] = rc.c.start[0], c.start[1] = rc.c.start[1];
     c.total = rc.c.total;
     c.nproj = rc.c.nproj;
     c.cluster = rc.c.cluster;
@@ -2661,6 +2698,7 @@ LLMX_KTYPE(iq4_xs, rq::IQ4_XS, tiles)
 LLMX_KTYPE(iq2_xxs, rq::IQ2_XXS, tiles)
 LLMX_KTYPE(iq2_xs, rq::IQ2_XS, tiles)
 LLMX_KTYPE(iq3_s, rq::IQ3_S, tiles)
+LLMX_KTYPE(nvfp4, rq::NVFP4, tiles)
 LLMX_KTYPE(mxfp4, rq::MXFP4, streams)
 #if GPU_IMMA8
 // The K-quants' tall 8-bit builds, k_tile at 128 outputs, which only the tensor-core body has.
@@ -3349,7 +3387,7 @@ struct MfGateUp {
     signed char* aq;
     float* ad;
 };
-static_assert(offsetof(MfGateUp, q) == 168 && offsetof(MfGateUp, act) == 192 && sizeof(MfGateUp) == 216, "host packs MfGateUp by these offsets");
+static_assert(offsetof(MfGateUp, q) == 184 && offsetof(MfGateUp, act) == 208 && sizeof(MfGateUp) == 232, "host packs MfGateUp by these offsets");
 
 // The shared expert's gate and up (q8_0_half_one's steps, a row a wave and two steps a load, which give the one-row build's bits: the steps keep a lane's block order), then silu_mul and sigmoid_mul by the row gate with the final act's twin.
 struct MfShared {
@@ -3367,7 +3405,7 @@ struct MfGateUpS {
     MfGateUp g;
     MfShared s;
 };
-static_assert(offsetof(MfGateUpS, s) == 216 && offsetof(MfGateUpS, s.sq) == 328 && offsetof(MfGateUpS, s.sact) == 352 && offsetof(MfGateUpS, s.std_) == 376 && offsetof(MfGateUpS, s.rows) == 384 && sizeof(MfGateUpS) == 392,
+static_assert(offsetof(MfGateUpS, s) == 232 && offsetof(MfGateUpS, s.sq) == 360 && offsetof(MfGateUpS, s.sact) == 384 && offsetof(MfGateUpS, s.std_) == 408 && offsetof(MfGateUpS, s.rows) == 416 && sizeof(MfGateUpS) == 424,
               "host packs MfGateUpS by these offsets");
 
 template <int NS, int R>
@@ -3477,9 +3515,9 @@ struct MfDown {
     const float* y0;   // the row y starts from: y itself, or the zero row a dropped copy would have put there
     unsigned long long y0s;   // y0's step a row: y's width, or 0 for the zero row
 };
-static_assert(offsetof(MfDown, y0) == 352 && offsetof(MfDown, y0s) == 360, "host packs MfDown.y0 at 352");
-static_assert(offsetof(MfDown, aq) == 168 && offsetof(MfDown, weights) == 192 && offsetof(MfDown, k) == 208 && offsetof(MfDown, sc) == 216 && offsetof(MfDown, sq) == 328 &&
-                  sizeof(MfDown) == 368,
+static_assert(offsetof(MfDown, y0) == 384 && offsetof(MfDown, y0s) == 392, "host packs MfDown.y0 at 384");
+static_assert(offsetof(MfDown, aq) == 184 && offsetof(MfDown, weights) == 208 && offsetof(MfDown, k) == 224 && offsetof(MfDown, sc) == 232 && offsetof(MfDown, sq) == 360 &&
+                  sizeof(MfDown) == 400,
               "host packs MfDown by these offsets");
 
 template <bool Q8>

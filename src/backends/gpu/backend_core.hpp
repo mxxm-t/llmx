@@ -621,10 +621,10 @@ public:
             size_t n = 0;
             span(*X.buffer, X.offset * sizeof(float), size_mul(size_mul(nin, nbatch), sizeof(float)));
             for (const Projection& p : projections) {
-                check_weight(p.weight, nin, "matrix");
+                check_weight(p.weight, nin, "matrix", 1);
                 span(*p.weight.data.buffer, p.weight.data.offset * sizeof(float), quant::row_bytes(p.weight.type, nin, p.rows));
                 span(*p.out.buffer, p.out.offset * sizeof(float), size_mul(size_mul(p.rows, nbatch), sizeof(float)));
-                proj[n++] = {bytes(p.weight.data), f32(p.out), p.rows};
+                proj[n++] = {bytes(p.weight.data), f32(p.out), p.rows, scales(p.weight)};
             }
             return product_twin(*type_kernels(projections.begin()->weight.type)->twin, proj, n, X, nin, nbatch, false, runs, true, dtype == Dtype::int8);
         }
@@ -2249,6 +2249,7 @@ private:
                   kRowsIQ2XXS16x1, kRowsIQ2XXS16x2, kRowsIQ2XXS16x4, kRowsIQ2XXS16x8, kRowsIQ2XXS16x16, kRowsIQ2XXS8x1, kRowsIQ2XXS8x2, kRowsIQ2XXS8x4, kRowsIQ2XXS8x8, kRowsIQ2XXS8x16, kTileIQ2XXS16, kTileIQ2XXS8, kRoutedIQ2XXS16, kRoutedIQ2XXS8, kGroupedIQ2XXS16x2, kGroupedIQ2XXS16x4, kGroupedIQ2XXS16x8, kGroupedIQ2XXS8x2, kGroupedIQ2XXS8x4, kGroupedIQ2XXS8x8, kRoutedTileIQ2XXS16, kRoutedTileIQ2XXS8, kRoutedNarrowIQ2XXS16, kRoutedStream16IQ2XXS8, kRoutedStreamIQ2XXS8, kRoutedMidIQ2XXS16, kRoutedMidIQ2XXS8,
                   kRowsIQ2XS16x1, kRowsIQ2XS16x2, kRowsIQ2XS16x4, kRowsIQ2XS16x8, kRowsIQ2XS16x16, kRowsIQ2XS8x1, kRowsIQ2XS8x2, kRowsIQ2XS8x4, kRowsIQ2XS8x8, kRowsIQ2XS8x16, kTileIQ2XS16, kTileIQ2XS8, kRoutedIQ2XS16, kRoutedIQ2XS8, kGroupedIQ2XS16x2, kGroupedIQ2XS16x4, kGroupedIQ2XS16x8, kGroupedIQ2XS8x2, kGroupedIQ2XS8x4, kGroupedIQ2XS8x8, kRoutedTileIQ2XS16, kRoutedTileIQ2XS8, kRoutedNarrowIQ2XS16, kRoutedStream16IQ2XS8, kRoutedStreamIQ2XS8, kRoutedMidIQ2XS16, kRoutedMidIQ2XS8,
                   kRowsIQ3S16x1, kRowsIQ3S16x2, kRowsIQ3S16x4, kRowsIQ3S16x8, kRowsIQ3S16x16, kRowsIQ3S8x1, kRowsIQ3S8x2, kRowsIQ3S8x4, kRowsIQ3S8x8, kRowsIQ3S8x16, kTileIQ3S16, kTileIQ3S8, kRoutedIQ3S16, kRoutedIQ3S8, kGroupedIQ3S16x2, kGroupedIQ3S16x4, kGroupedIQ3S16x8, kGroupedIQ3S8x2, kGroupedIQ3S8x4, kGroupedIQ3S8x8, kRoutedTileIQ3S16, kRoutedTileIQ3S8, kRoutedNarrowIQ3S16, kRoutedStream16IQ3S8, kRoutedStreamIQ3S8, kRoutedMidIQ3S16, kRoutedMidIQ3S8,
+                  kRowsNVFP416x1, kRowsNVFP416x2, kRowsNVFP416x4, kRowsNVFP416x8, kRowsNVFP416x16, kRowsNVFP48x1, kRowsNVFP48x2, kRowsNVFP48x4, kRowsNVFP48x8, kRowsNVFP48x16, kTileNVFP416, kTileNVFP48, kRoutedNVFP416, kRoutedNVFP48, kGroupedNVFP416x2, kGroupedNVFP416x4, kGroupedNVFP416x8, kGroupedNVFP48x2, kGroupedNVFP48x4, kGroupedNVFP48x8, kRoutedTileNVFP416, kRoutedTileNVFP48, kRoutedNarrowNVFP416, kRoutedStream16NVFP48, kRoutedStreamNVFP48, kRoutedMidNVFP416, kRoutedMidNVFP48,
                   kQuarterQ5016x1, kQuarterQ5016x2, kQuarterQ5016x4, kQuarterQ5016x8, kQuarterQ5016x16, kQuarterRoutedQ5016, kQuarterGroupedQ5016x2, kQuarterGroupedQ5016x4, kQuarterGroupedQ5016x8, kQuarterQ4016x1, kQuarterQ4016x2, kQuarterQ4016x4, kQuarterQ4016x8, kQuarterQ4016x16, kQuarterRoutedQ4016, kQuarterGroupedQ4016x2, kQuarterGroupedQ4016x4, kQuarterGroupedQ4016x8, kQuarterQ4116x1, kQuarterQ4116x2, kQuarterQ4116x4, kQuarterQ4116x8, kQuarterQ4116x16, kQuarterRoutedQ4116, kQuarterGroupedQ4116x2, kQuarterGroupedQ4116x4, kQuarterGroupedQ4116x8, kQuarterQ5116x1, kQuarterQ5116x2, kQuarterQ5116x4, kQuarterQ5116x8, kQuarterQ5116x16, kQuarterRoutedQ5116, kQuarterGroupedQ5116x2, kQuarterGroupedQ5116x4, kQuarterGroupedQ5116x8, kHcMix, kHcMix8, kHcEntry, kHcEntry8, kMoeStepUpQ4K, kMoeStepUpQ5K, kMoeStepDownQ51, kMoeStepDownQ8, kMoeStepUpQ4KW, kMoeStepUpQ5KW, kF16Tile, kF8Tile, kTallQ4K8, kTallQ5K8, kTallQ6K8, kKernels };
     static constexpr size_t kHcColumns = 8;   // llmx_hc_mix8's columns, hc_mix<8> in kernels/int16.gpu, which backend-rocm twins holds at 2 to 16 rows
     // The build for n columns: one column's own, else the one of up to kHcColumns.
@@ -2284,6 +2285,7 @@ private:
                                                            "llmx_iq2_xxs_rows16_1", "llmx_iq2_xxs_rows16_2", "llmx_iq2_xxs_rows16_4", "llmx_iq2_xxs_rows16_8", "llmx_iq2_xxs_rows16_16", "llmx_iq2_xxs_rows8_1", "llmx_iq2_xxs_rows8_2", "llmx_iq2_xxs_rows8_4", "llmx_iq2_xxs_rows8_8", "llmx_iq2_xxs_rows8_16", "llmx_iq2_xxs_tile16", "llmx_iq2_xxs_tile8", "llmx_iq2_xxs_routed16", "llmx_iq2_xxs_routed8", "llmx_iq2_xxs_routed16_g2", "llmx_iq2_xxs_routed16_g4", "llmx_iq2_xxs_routed16_g8", "llmx_iq2_xxs_routed8_g2", "llmx_iq2_xxs_routed8_g4", "llmx_iq2_xxs_routed8_g8", "llmx_iq2_xxs_routed_tile16", "llmx_iq2_xxs_routed_tile8", "llmx_iq2_xxs_routed_narrow16", "llmx_iq2_xxs_routed_stream16_8", "llmx_iq2_xxs_routed_stream8", "llmx_iq2_xxs_routed_mid16", "llmx_iq2_xxs_routed_mid8",
                                                            "llmx_iq2_xs_rows16_1", "llmx_iq2_xs_rows16_2", "llmx_iq2_xs_rows16_4", "llmx_iq2_xs_rows16_8", "llmx_iq2_xs_rows16_16", "llmx_iq2_xs_rows8_1", "llmx_iq2_xs_rows8_2", "llmx_iq2_xs_rows8_4", "llmx_iq2_xs_rows8_8", "llmx_iq2_xs_rows8_16", "llmx_iq2_xs_tile16", "llmx_iq2_xs_tile8", "llmx_iq2_xs_routed16", "llmx_iq2_xs_routed8", "llmx_iq2_xs_routed16_g2", "llmx_iq2_xs_routed16_g4", "llmx_iq2_xs_routed16_g8", "llmx_iq2_xs_routed8_g2", "llmx_iq2_xs_routed8_g4", "llmx_iq2_xs_routed8_g8", "llmx_iq2_xs_routed_tile16", "llmx_iq2_xs_routed_tile8", "llmx_iq2_xs_routed_narrow16", "llmx_iq2_xs_routed_stream16_8", "llmx_iq2_xs_routed_stream8", "llmx_iq2_xs_routed_mid16", "llmx_iq2_xs_routed_mid8",
                                                            "llmx_iq3_s_rows16_1", "llmx_iq3_s_rows16_2", "llmx_iq3_s_rows16_4", "llmx_iq3_s_rows16_8", "llmx_iq3_s_rows16_16", "llmx_iq3_s_rows8_1", "llmx_iq3_s_rows8_2", "llmx_iq3_s_rows8_4", "llmx_iq3_s_rows8_8", "llmx_iq3_s_rows8_16", "llmx_iq3_s_tile16", "llmx_iq3_s_tile8", "llmx_iq3_s_routed16", "llmx_iq3_s_routed8", "llmx_iq3_s_routed16_g2", "llmx_iq3_s_routed16_g4", "llmx_iq3_s_routed16_g8", "llmx_iq3_s_routed8_g2", "llmx_iq3_s_routed8_g4", "llmx_iq3_s_routed8_g8", "llmx_iq3_s_routed_tile16", "llmx_iq3_s_routed_tile8", "llmx_iq3_s_routed_narrow16", "llmx_iq3_s_routed_stream16_8", "llmx_iq3_s_routed_stream8", "llmx_iq3_s_routed_mid16", "llmx_iq3_s_routed_mid8",
+                                                           "llmx_nvfp4_rows16_1", "llmx_nvfp4_rows16_2", "llmx_nvfp4_rows16_4", "llmx_nvfp4_rows16_8", "llmx_nvfp4_rows16_16", "llmx_nvfp4_rows8_1", "llmx_nvfp4_rows8_2", "llmx_nvfp4_rows8_4", "llmx_nvfp4_rows8_8", "llmx_nvfp4_rows8_16", "llmx_nvfp4_tile16", "llmx_nvfp4_tile8", "llmx_nvfp4_routed16", "llmx_nvfp4_routed8", "llmx_nvfp4_routed16_g2", "llmx_nvfp4_routed16_g4", "llmx_nvfp4_routed16_g8", "llmx_nvfp4_routed8_g2", "llmx_nvfp4_routed8_g4", "llmx_nvfp4_routed8_g8", "llmx_nvfp4_routed_tile16", "llmx_nvfp4_routed_tile8", "llmx_nvfp4_routed_narrow16", "llmx_nvfp4_routed_stream16_8", "llmx_nvfp4_routed_stream8", "llmx_nvfp4_routed_mid16", "llmx_nvfp4_routed_mid8",
                                                            "llmx_q5_0_quarter_rows16_1", "llmx_q5_0_quarter_rows16_2", "llmx_q5_0_quarter_rows16_4", "llmx_q5_0_quarter_rows16_8", "llmx_q5_0_quarter_rows16_16", "llmx_q5_0_quarter_routed16", "llmx_q5_0_quarter_routed16_g2", "llmx_q5_0_quarter_routed16_g4", "llmx_q5_0_quarter_routed16_g8", "llmx_q4_0_quarter_rows16_1", "llmx_q4_0_quarter_rows16_2", "llmx_q4_0_quarter_rows16_4", "llmx_q4_0_quarter_rows16_8", "llmx_q4_0_quarter_rows16_16", "llmx_q4_0_quarter_routed16", "llmx_q4_0_quarter_routed16_g2", "llmx_q4_0_quarter_routed16_g4", "llmx_q4_0_quarter_routed16_g8", "llmx_q4_1_quarter_rows16_1", "llmx_q4_1_quarter_rows16_2", "llmx_q4_1_quarter_rows16_4", "llmx_q4_1_quarter_rows16_8", "llmx_q4_1_quarter_rows16_16", "llmx_q4_1_quarter_routed16", "llmx_q4_1_quarter_routed16_g2", "llmx_q4_1_quarter_routed16_g4", "llmx_q4_1_quarter_routed16_g8", "llmx_q5_1_quarter_rows16_1", "llmx_q5_1_quarter_rows16_2", "llmx_q5_1_quarter_rows16_4", "llmx_q5_1_quarter_rows16_8", "llmx_q5_1_quarter_rows16_16", "llmx_q5_1_quarter_routed16", "llmx_q5_1_quarter_routed16_g2", "llmx_q5_1_quarter_routed16_g4", "llmx_q5_1_quarter_routed16_g8", "llmx_hc_mix", "llmx_hc_mix8", "llmx_hc_entry", "llmx_hc_entry8", "llmx_moe_step_up_q4_k", "llmx_moe_step_up_q5_k", "llmx_moe_step_down_q5_1", "llmx_moe_step_down_q8_0", "llmx_moe_step_up_q4_k_w", "llmx_moe_step_up_q5_k_w", "llmx_f16_tile", "llmx_f8_e4m3_tile", "llmx_q4_k_tile8_tall", "llmx_q5_k_tile8_tall", "llmx_q6_k_tile8_tall"};
     // A type's twin kernels by form and columns, with its routed builds' break-evens and tile extents (docs/src/backends-gpu.md, weight types).
     // kKernels marks a build the type lacks.
@@ -2380,6 +2382,8 @@ private:
     static constexpr TwinKernels kQ50Base = k_twins(kRowsQ5016x1, 1.25f, 1.25f, 128, 32, 32, 32, 32, 1, false), kQ51Base = k_twins(kRowsQ5116x1, 5.0f, 1.25f, 128, 32, 32, 32, 32, 1, false), kIQ4NLTwins = k_twins(kRowsIQ4NL16x1, 0.3125f, 0.3125f, 32, 32, 32, 32, 32, 4, false), kMXFP4Base = k_twins(kRowsMXFP416x1, 0.3125f, 0.3125f, 32, 32, 32, 32, 32, 4, false);
     static constexpr TwinKernels kQ3KTwins = k_twins(kRowsQ3K16x1, 1.25f, 1.25f, 128, 32, 32, 32, 256, 16, false), kQ2KTwins = k_twins(kRowsQ2K16x1, 1.25f, 1.25f, 128, 32, 32, 32, 256, 16, false), kIQ4XSTwins = k_twins(kRowsIQ4XS16x1, 0.3125f, 0.3125f, 32, 32, 32, 32, 256, 32, false);
     static constexpr TwinKernels kIQ2XXSTwins = k_twins(kRowsIQ2XXS16x1, 0.3125f, 0.3125f, 32, 32, 32, 32, 256, 32, false), kIQ2XSTwins = k_twins(kRowsIQ2XS16x1, 0.3125f, 0.3125f, 32, 32, 32, 32, 256, 32, false), kIQ3STwins = k_twins(kRowsIQ3S16x1, 0.3125f, 0.3125f, 32, 32, 32, 32, 256, 32, false);
+    static constexpr TwinKernels kNVFP4Twins = k_twins(kRowsNVFP416x1, 0.3125f, 0.3125f, 32, 32, 32, 32, 64, 8, false);
+    static_assert(kNVFP4Twins.routed_mid[1] == kRoutedMidNVFP48 && kNVFP4Twins.routed_narrow[1] == kRoutedStream16NVFP48, "NVFP4's kernels follow LLMX_KTYPE's order");
     static_assert(kIQ2XXSTwins.routed_mid[1] == kRoutedMidIQ2XXS8 && kIQ2XSTwins.routed_mid[1] == kRoutedMidIQ2XS8 && kIQ3STwins.routed_mid[1] == kRoutedMidIQ3S8 && kIQ3STwins.routed_narrow[1] == kRoutedStream16IQ3S8, "IQ2_XXS's, IQ2_XS's and IQ3_S's kernels follow LLMX_KTYPE's order");
     static_assert(kQ3KTwins.routed_mid[1] == kRoutedMidQ3K8 && kQ2KTwins.routed_mid[1] == kRoutedMidQ2K8 && kIQ4XSTwins.routed_mid[1] == kRoutedMidIQ4XS8 && kIQ4XSTwins.routed_narrow[1] == kRoutedStream16IQ4XS8, "Q3_K's, Q2_K's and IQ4_XS's kernels follow LLMX_KTYPE's order");
     static constexpr TwinKernels kQ40Base = k_twins(kRowsQ4016x1, 5.0f, 5.0f, 128, 32, 128, 32, 32, 1, false), kQ41Base = k_twins(kRowsQ4116x1, 5.0f, 5.0f, 128, 32, 128, 32, 32, 1, false);
@@ -2415,7 +2419,7 @@ private:
         {quant::GGML_TYPE_Q4_0, "Q4_0", kMatmulQ40, kRowsExactQ40, kGatherQ40, kRoutedExactQ40, &kQ40Twins, kKernels},     {quant::GGML_TYPE_Q4_1, "Q4_1", kMatmulQ41, kRowsExactQ41, kGatherQ41, kRoutedExactQ41, &kQ41Twins, kKernels},
         {quant::GGML_TYPE_IQ4_NL, "IQ4_NL", kMatmulIQ4NL, kRowsExactIQ4NL, kGatherIQ4NL, kRoutedExactIQ4NL, &kIQ4NLTwins, kKernels},
         {quant::GGML_TYPE_MXFP4, "MXFP4", kMatmulMXFP4, kRowsExactMXFP4, kGatherMXFP4, kRoutedExactMXFP4, &kMXFP4Twins, kKernels},
-        {quant::GGML_TYPE_NVFP4, "NVFP4", kMatmulNVFP4, kRowsExactNVFP4, kGatherNVFP4, kRoutedExactNVFP4, nullptr, kKernels, kKernels, Scaled::factor},
+        {quant::GGML_TYPE_NVFP4, "NVFP4", kMatmulNVFP4, kRowsExactNVFP4, kGatherNVFP4, kRoutedExactNVFP4, &kNVFP4Twins, kKernels, kKernels, Scaled::factor},
         {quant::GGML_TYPE_Q2_K, "Q2_K", kMatmulQ2K, kRowsExactQ2K, kGatherQ2K, kRoutedExactQ2K, &kQ2KTwins, kKernels},
         {quant::GGML_TYPE_Q3_K, "Q3_K", kMatmulQ3K, kRowsExactQ3K, kGatherQ3K, kRoutedExactQ3K, &kQ3KTwins, kKernels},
         {quant::GGML_TYPE_IQ4_XS, "IQ4_XS", kMatmulIQ4XS, kRowsExactIQ4XS, kGatherIQ4XS, kRoutedExactIQ4XS, &kIQ4XSTwins, kKernels},
@@ -2868,7 +2872,14 @@ private:
     // A product of a type with twins outside the F32 class reads the activations' twin; every other product reads the activations as they are.
     static bool integer(const WeightView& weight, Dtype dtype) {
         const TypeKernels* t = type_kernels(weight.type);
-        return t && t->twin && dtype != Dtype::f32;
+        // A factor an expert stays on the exact family: the twins take one factor a projection.
+        return t && t->twin && dtype != Dtype::f32 && !(t->scaled == Scaled::factor && weight.scale_count > 1);
+    }
+    // A routed call's projections share one kernel, so it takes the twins only when each of them would.
+    static bool integer(const Projection* proj, size_t nproj, Dtype dtype) {
+        for (size_t p = 0; p < nproj; ++p)
+            if (!integer(proj[p].weight, dtype)) return false;
+        return true;
     }
     void product(const WeightView& weight, CSlice X, Slice Y, size_t nin, size_t nout, size_t nbatch, bool accumulate, RowRuns runs, Dtype dtype,
                  bool twin) {
@@ -2888,7 +2899,7 @@ private:
             return;
         }
         if (integer(weight, dtype)) {
-            const Proj one[1] = {{bytes(weight.data), f32(Y), nout}};
+            const Proj one[1] = {{bytes(weight.data), f32(Y), nout, scales(weight)}};
             return product_twin(*kinds.twin, one, 1, X, nin, nbatch, accumulate, runs, twin, dtype == Dtype::int8);
         }
         const uint8_t* w = bytes(weight.data);
@@ -2962,6 +2973,7 @@ private:
         const uint8_t* w;
         float* y;
         size_t nout;
+        const float* f = nullptr;   // the weight's F32 factor, NVFP4's
     };
     // The host's copy of the tile kernel's call (kernels/int16.gpu, TileCall), field for field.
     struct TileCall {
@@ -2976,8 +2988,9 @@ private:
         float* partials;
         unsigned xrow, xblock;
         const void* xs;
+        const float* f[3];
     };
-    static_assert(sizeof(TileCall) == 144 && offsetof(TileCall, nin) == 88 && offsetof(TileCall, partials) == 120 && offsetof(TileCall, xblock) == 132 && offsetof(TileCall, xs) == 136,
+    static_assert(sizeof(TileCall) == 168 && offsetof(TileCall, nin) == 88 && offsetof(TileCall, partials) == 120 && offsetof(TileCall, xblock) == 132 && offsetof(TileCall, xs) == 136 && offsetof(TileCall, f) == 144,
                   "TileCall is the kernel's layout");
     // The host's copy of a routed tile call's groups (kernels/int16.gpu, TileGroups), field for field.
     struct TileGroups {
@@ -3059,12 +3072,14 @@ private:
         const uint8_t* w[3];
         float* y[3];
         unsigned long long nout[3];
-        unsigned long long start[3];
+        unsigned long long start[2];   // projections 1 and 2; projection 0 starts at row 0
         unsigned long long total;
         unsigned nproj;
         unsigned cluster;
+        const float* f[3];
     };
-    static_assert(sizeof(RowCall) == 112 && offsetof(RowCall, start) == 72 && offsetof(RowCall, nproj) == 104 && offsetof(RowCall, cluster) == 108, "RowCall is the kernel's layout");
+    // 128 bytes at most: at 136 ptxas held llmx_q6_k_rows16_8 to 128 registers on sm_86 and spilled (docs/src/backends-gpu.md).
+    static_assert(sizeof(RowCall) == 128 && offsetof(RowCall, start) == 72 && offsetof(RowCall, nproj) == 96 && offsetof(RowCall, cluster) == 100 && offsetof(RowCall, f) == 104, "RowCall is the kernel's layout");
     // The lanes a row takes in the row kernel: a wave for Q8_0, else the power of two covering the row's lane units (kernels/int16.gpu, KRaw's Lane), at most the wave.
     // Q4_K and Q5_K take at most the profile's k45_row_lanes, as the Vulkan row plan has it; the width and type alone decide, so a row keeps its bits in every build.
     unsigned row_cluster(const TwinKernels& tk, size_t nin) const {
@@ -3097,7 +3112,7 @@ private:
         const unsigned* ids;
         unsigned long long first, per, n_expert;
     };
-    static_assert(sizeof(RoutedCall) == 168 && offsetof(RoutedCall, ids) == 136 && offsetof(RoutedCall, n_expert) == 160, "RoutedCall is the kernel's layout");
+    static_assert(sizeof(RoutedCall) == 184 && offsetof(RoutedCall, ids) == 152 && offsetof(RoutedCall, n_expert) == 176, "RoutedCall is the kernel's layout");
     // The host's copies of the fused moe_step's calls (kernels/f32.gpu, MfRoute, and kernels/int16.gpu, MfGateUpS and MfDown), field for field.
     // The host's copy of llmx_delta_step's argument (kernels/f32.gpu, DeltaStepArgs), field for field.
     struct DeltaStepArgs {
@@ -3169,8 +3184,8 @@ private:
         float* std_;
         unsigned long long rows;
     };
-    static_assert(offsetof(StepUp, q) == 168 && offsetof(StepUp, act) == 192 && offsetof(StepUp, sc) == 216 && offsetof(StepUp, sq) == 328 && offsetof(StepUp, sact) == 352 &&
-                      offsetof(StepUp, std_) == 376 && sizeof(StepUp) == 392,
+    static_assert(offsetof(StepUp, q) == 184 && offsetof(StepUp, act) == 208 && offsetof(StepUp, sc) == 232 && offsetof(StepUp, sq) == 360 && offsetof(StepUp, sact) == 384 &&
+                      offsetof(StepUp, std_) == 408 && sizeof(StepUp) == 424,
                   "StepUp is the kernel's layout");
     struct StepDown {
         RoutedCall rc;
@@ -3187,8 +3202,8 @@ private:
         const float* y0;
         unsigned long long y0s;
     };
-    static_assert(offsetof(StepDown, aq) == 168 && offsetof(StepDown, weights) == 192 && offsetof(StepDown, k) == 208 && offsetof(StepDown, sc) == 216 && offsetof(StepDown, sq) == 328 &&
-                      offsetof(StepDown, y0) == 352 && sizeof(StepDown) == 368,
+    static_assert(offsetof(StepDown, aq) == 184 && offsetof(StepDown, weights) == 208 && offsetof(StepDown, k) == 224 && offsetof(StepDown, sc) == 232 && offsetof(StepDown, sq) == 360 &&
+                      offsetof(StepDown, y0) == 384 && sizeof(StepDown) == 400,
                   "StepDown is the kernel's layout");
     struct RoutedExact {
         const unsigned* ids;
@@ -3212,7 +3227,7 @@ private:
         };
         if (!runs.n) return stretch(0, nrows, false);
         const TypeKernels* kinds = type_kernels(proj[0].weight.type);
-        const size_t from = kinds && kinds->twin && integer(proj[0].weight, dtype) ? kinds->twin->tile_from[down][dtype == Dtype::int8] : SIZE_MAX;
+        const size_t from = kinds && kinds->twin && integer(proj, nproj, dtype) ? kinds->twin->tile_from[down][dtype == Dtype::int8] : SIZE_MAX;
         for_each_run(nrows, runs, [from](const RowRun& r) { return r.extent >= from; }, stretch);
     }
     // The routed row builds' call over the stacks of `proj`, `per` entries a twin row, from entry 0.
@@ -3222,7 +3237,8 @@ private:
             c.c.w[p] = bytes(proj[p].weight.data);
             c.c.y[p] = f32(proj[p].out);
             c.c.nout[p] = proj[p].rows;
-            c.c.start[p] = c.c.total;
+            c.c.f[p] = scales(proj[p].weight);
+            if (p) c.c.start[p - 1] = c.c.total;
             c.c.total += proj[p].rows;
             c.stride[p] = quant::row_bytes(proj[0].weight.type, nin, proj[p].rows);
         }
@@ -3248,7 +3264,7 @@ private:
         const unsigned* ids = (const unsigned*)f32(routing.ids);
         constexpr size_t kGridY = 65535, kGroupExperts = 1024;   // HIP's grid height; the experts llmx_moe_group counts in shared memory
         unsigned long long ni = nin;
-        if (integer(proj[0].weight, dtype)) {
+        if (integer(proj, nproj, dtype)) {
             const bool int8 = dtype == Dtype::int8;
             const int form = !int8 ? 0 : nin / 32 % 2 ? 1 : 2;
             const TwinKernels& rk = row_form(*kinds.twin, nin, int8);
@@ -3277,6 +3293,7 @@ private:
                     t.w[p] = c.c.w[p];
                     t.y[p] = c.c.y[p];
                     t.nout[p] = proj[p].rows;
+                    t.f[p] = c.c.f[p];
                     t.start[p] = (unsigned)gx;
                     gx += (proj[p].rows + kTileOut - 1) / kTileOut;
                     tg.stride[p] = c.stride[p];
@@ -3384,7 +3401,8 @@ private:
             c.w[pi] = proj[pi].w;
             c.y[pi] = proj[pi].y + at * proj[pi].nout;
             c.nout[pi] = proj[pi].nout;
-            c.start[pi] = c.total;
+            c.f[pi] = proj[pi].f;
+            if (pi) c.start[pi - 1] = c.total;
             c.total += proj[pi].nout;
         }
         c.nproj = (unsigned)nproj;
@@ -3504,6 +3522,7 @@ private:
             c.w[pi] = proj[pi].w;
             c.y[pi] = proj[pi].y + at * proj[pi].nout;
             c.nout[pi] = proj[pi].nout;
+            c.f[pi] = proj[pi].f;
             c.start[pi] = (unsigned)gx;
             gx += (proj[pi].nout + per - 1) / per;
         }

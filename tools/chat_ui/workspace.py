@@ -328,32 +328,46 @@ class Workspace:
             self._require_project_files(paths)
             return dict(self._read_files(paths), project=deepcopy(project))
 
-    def _editable(self, revision):
+    def _editable(self, revision, conflict="Workspace changed. Reload before saving"):
         if self.control is not None:
             raise ValueError("Wait for the active command to finish or cancel it")
         if type(revision) is not int or revision != self.state["revision"]:
-            raise ValueError("Workspace changed. Reload before saving")
+            raise ValueError(conflict)
 
-    def write(self, path, content, revision, delete=False):
+    def write(self, path, content, revision, delete=False, *, agent_edit=False):
         with self.lock:
-            self._editable(revision)
             path = file_path(path)
-            files = dict(self.state["files"])
-            if delete:
-                del files[path]
+            current = self.state["revision"]
+            files = self.state["files"]
+            if agent_edit:
+                if type(revision) is int and 0 <= revision <= current and path in files and files[path] == content:
+                    self._editable(current)
+                    return dict(self.files(), status="already_saved")
+                action = "Read the current file with workspace_read and review the changes" if path in files else "Call workspace_list to check the saved files"
+                self._editable(revision, f"Workspace revision is {current}. {action} before retrying.")
             else:
-                files[path] = content
-            self.state["files"] = checked_files(files)
-            self.state["revision"] += 1
-            self._save()
-            return self.snapshot()
+                self._editable(revision)
+            updated = dict(files)
+            if delete:
+                del updated[path]
+            else:
+                updated[path] = content
+            state = dict(self.state, files=checked_files(updated), revision=current + 1)
+            if agent_edit:
+                state["checkpoints"] = self._checkpoints_with("Before agent edit: " + path[:90])
+            self._save(state)
+            self.state = state
+            return dict(self.files(), status="saved") if agent_edit else self.snapshot()
+
+    def _checkpoints_with(self, label):
+        point = dict(id=uuid.uuid4().hex, label=label.strip(), created=time.time(), files=dict(self.state["files"]))
+        return (self.state["checkpoints"] + [point])[-20:]
 
     def checkpoint(self, label):
         with self.lock:
             if not isinstance(label, str) or not 1 <= len(label.strip()) <= 120:
                 raise ValueError("Use a checkpoint name of 1 to 120 characters")
-            point = dict(id=uuid.uuid4().hex, label=label.strip(), created=time.time(), files=dict(self.state["files"]))
-            self.state["checkpoints"] = (self.state["checkpoints"] + [point])[-20:]
+            self.state["checkpoints"] = self._checkpoints_with(label)
             self._save()
             return self.snapshot()
 
@@ -454,7 +468,7 @@ class WorkspaceTools:
             ("workspace_list", "List managed project files and the current revision.", {}, [], False),
             ("workspace_read", "Read lines of a managed file. Offset is zero based.",
              {"path": {"type": "string"}, "offset": {"type": "integer", "minimum": 0}, "limit": {"type": "integer", "minimum": 1, "maximum": 500}}, ["path"], False),
-            ("workspace_write", "Write a UTF-8 project file at the revision returned by list or read. Creates a checkpoint first.",
+            ("workspace_write", "Write a UTF-8 file using the revision from workspace_list or workspace_read. A change creates a checkpoint. Identical text is already saved.",
              {"path": {"type": "string"}, "content": {"type": "string"}, "revision": {"type": "integer"}}, ["path", "content", "revision"], True),
         ]
         if self.workspace.runner:
@@ -492,11 +506,8 @@ class WorkspaceTools:
             result.update(content=text[:32768], offset=offset, total_lines=len(lines),
                           truncated=len(text) > 32768 or offset + limit < len(lines))
         elif name == "workspace_write":
-            with self.workspace.lock:
-                self.workspace._editable(arguments.get("revision"))
-                self.workspace.checkpoint("Before agent edit: " + str(arguments.get("path"))[:90])
-                state = self.workspace.write(arguments.get("path"), arguments.get("content"), arguments.get("revision"))
-                result = {"revision": state["revision"], "files": state["files"]}
+            result = self.workspace.write(arguments.get("path"), arguments.get("content"),
+                                          arguments.get("revision"), agent_edit=True)
         elif name == "workspace_run":
             job = self.workspace.start(arguments.get("command"))
             while job["status"] == "running":

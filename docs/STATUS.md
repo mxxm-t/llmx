@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Repeated writes to saved files (2026-11-19)
+
+- **Goal:** Report an already-saved tool edit accurately and protect newer file content on a stale write.
+- **Done:** An identical retry returns the current revision and already_saved. A stale edit with different content points to workspace_read or workspace_list. A real edit and its checkpoint are persisted together.
+- **Checks:** The tool regression covers matching and stale revisions, malformed revisions, rejected edits and a successful change. The branch lands by fast-forward after the companion checks.
+- **Gotchas:** A retry must not overwrite, advance the revision or create another checkpoint.
+
 ## Chat home and Workspace workflow (2026-11-19)
 
 - **Goal:** Attach files or projects directly in Chat, make the saved-file editor actionable on its first visit and return home through the llmx logo.

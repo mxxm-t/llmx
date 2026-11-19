@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Workspace write preconditions in Chat (2026-11-19)
+
+- **Goal:** Track the target file in the companion so a model can write an approved edit without guessing a revision number.
+- **Done:** Reproduced an edit that sent revision 6 immediately after an unchanged write returned revision 5.
+- **Implementation:** The companion binds writes to the target file before generation and approval. A read refreshes the observed file after a conflict. Parallel proposals share the same starting files.
+- **Checks:** Workspace tests cover an invented revision, unrelated and competing writes, idempotence, deletion and recreation.
+
 ## Repeated writes to saved files (2026-11-19)
 
 - **Goal:** Report an already-saved tool edit accurately and protect newer file content on a stale write.

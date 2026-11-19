@@ -224,6 +224,28 @@ class EngineTests(unittest.TestCase):
                 self.engine.start(self.chat["id"], {"attachments": [{"name": "picture.png", "data": "data:image/png;base64,aGVsbG8="}]}, self.settings())
         self.assertEqual(before, self.store.snapshot(self.chat["id"]))
 
+    def test_workspace_edit_keeps_the_file_seen_before_approval(self):
+        from workspace import Workspace, WorkspaceTools
+        files = Workspace(self.temp.name)
+        files.write("page.html", "original", 0)
+        self.engine.tools = WorkspaceTools(self.tools, files)
+        for concurrent in (False, True):
+            with self.subTest(concurrent=concurrent):
+                text = "unapplied" if concurrent else "approved"
+                args = json.dumps(dict(path="page.html", content=text, revision=99))
+                self.reply(tool_event(name="workspace_write", arguments=args))
+                self.reply(text_event("done"))
+                run = self.start({"content": "Edit the page"}, self.settings(["workspace_write"]))
+                self.wait_approval(run["id"])
+                if concurrent:
+                    files.write("page.html", "manual edit", files.files()["revision"])
+                call = self.store.message(run["message_id"])["tool_calls"][0]
+                self.engine.approve(run["id"], call["id"], True, False)
+                self.wait_run(run["id"], {"completed"})
+                self.assertEqual(files.read("page.html")["content"], "manual edit" if concurrent else "approved")
+                result = FakeUpstream.requests[-1]["messages"][-1]
+                self.assertEqual(json.loads(result["content"])["isError"], concurrent)
+
     def test_text_attachment_does_not_probe_images(self):
         self.reply(text_event("Read it"))
         with mock.patch("engine.Connection.json") as probe:

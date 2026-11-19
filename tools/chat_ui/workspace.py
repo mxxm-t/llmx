@@ -1,6 +1,7 @@
 """Managed project files, checkpoints and bounded container execution."""
 
 from copy import deepcopy
+from functools import partial
 import difflib
 import io
 import json
@@ -334,12 +335,15 @@ class Workspace:
         if type(revision) is not int or revision != self.state["revision"]:
             raise ValueError(conflict)
 
-    def write(self, path, content, revision, delete=False, *, agent_edit=False):
+    def write(self, path, content, revision, delete=False, *, agent_edit=False, base=None):
         with self.lock:
             path = file_path(path)
             current = self.state["revision"]
             files = self.state["files"]
             if agent_edit:
+                if base is not None:
+                    unchanged = files.get(path) == base.get(path) or (path in files and files[path] == content)
+                    revision = current if unchanged else None
                 if type(revision) is int and 0 <= revision <= current and path in files and files[path] == content:
                     self._editable(current)
                     return dict(self.files(), status="already_saved")
@@ -468,8 +472,8 @@ class WorkspaceTools:
             ("workspace_list", "List managed project files and the current revision.", {}, [], False),
             ("workspace_read", "Read lines of a managed file. Offset is zero based.",
              {"path": {"type": "string"}, "offset": {"type": "integer", "minimum": 0}, "limit": {"type": "integer", "minimum": 1, "maximum": 500}}, ["path"], False),
-            ("workspace_write", "Write a UTF-8 file using the revision from workspace_list or workspace_read. A change creates a checkpoint. Identical text is already saved.",
-             {"path": {"type": "string"}, "content": {"type": "string"}, "revision": {"type": "integer"}}, ["path", "content", "revision"], True),
+            ("workspace_write", "Save a UTF-8 file. Use path and content. A change creates a checkpoint. If another edit conflicts, read the file before retrying.",
+             {"path": {"type": "string"}, "content": {"type": "string"}}, ["path", "content"], True),
         ]
         if self.workspace.runner:
             definitions.append(("workspace_run", "Run a command in the isolated project container. Network is disabled. Changes return to managed files.",
@@ -489,25 +493,45 @@ class WorkspaceTools:
     def test_connection(self, identity):
         self.remote.test_connection(identity)
 
-    def call_tool(self, name, arguments, cancel_event=None):
+    def bind_reply(self, selected):
+        if "workspace_write" not in selected:
+            return None
+        _, observed = self.workspace.preview_snapshot()
+
+        def bind_round():
+            return partial(self.call_tool, base=dict(observed), observed=observed)
+
+        return bind_round
+
+    def call_tool(self, name, arguments, cancel_event=None, *, base=None, observed=None):
         if name not in ("workspace_list", "workspace_read", "workspace_write", "workspace_run"):
             return self.remote.call_tool(name, arguments, cancel_event)
         if cancel_event is not None and cancel_event.is_set():
             raise ValueError("Cancelled")
         if name == "workspace_list":
-            result = self.workspace.files()
+            with self.workspace.lock:
+                result = self.workspace.files()
+                if observed is not None:
+                    for missing in observed.keys() - {file["path"] for file in result["files"]}:
+                        del observed[missing]
         elif name == "workspace_read":
-            result = self.workspace.read(arguments.get("path"))
             offset, limit = arguments.get("offset", 0), arguments.get("limit", 200)
             if type(offset) is not int or offset < 0 or type(limit) is not int or not 1 <= limit <= 500:
                 raise ValueError("Invalid line range")
+            with self.workspace.lock:
+                result = self.workspace.read(arguments.get("path"))
+                if observed is not None:
+                    observed[result["path"]] = result["content"]
             lines = result["content"].splitlines()
             text = "\n".join(lines[offset:offset + limit])
             result.update(content=text[:32768], offset=offset, total_lines=len(lines),
                           truncated=len(text) > 32768 or offset + limit < len(lines))
         elif name == "workspace_write":
-            result = self.workspace.write(arguments.get("path"), arguments.get("content"),
-                                          arguments.get("revision"), agent_edit=True)
+            with self.workspace.lock:
+                path, content = arguments.get("path"), arguments.get("content")
+                result = self.workspace.write(path, content, arguments.get("revision"), agent_edit=True, base=base)
+                if observed is not None:
+                    observed[file_path(path)] = content
         elif name == "workspace_run":
             job = self.workspace.start(arguments.get("command"))
             while job["status"] == "running":

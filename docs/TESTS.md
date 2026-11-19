@@ -148,6 +148,7 @@ When there are two reply branches, the browser focuses Next before completing a 
 The companion browser check also delays a successful Send response while editing its original draft or switching to another active conversation. It verifies captured request content, branch parent and files, preservation of newer composer state, and no duplicate subscription to the other reply.
 It also holds Retry admission and snapshot responses across navigation, checking that another active chat keeps its stream and a reopened chat keeps its newer snapshot.
 Conversation settings checks cover the blank composer, reuse of the current empty chat, fresh defaults after a populated chat, saving an unavailable model choice, pending admission, and persistence through Send and Retry without a separate save. A held settings save targets its original chat and preserves the destination's edits.
+Workspace tool tests exercise server-owned write preconditions for unrelated edits, simultaneous proposals, same-file conflicts, reads, deletion and recreation.
 The browser opens completed and conflicting writes from Chat, checks the saved text, missing files and unsafe paths, and opens the file picker from conversation settings.
 The browser distinguishes navigation hover from the selected section in both themes.
 The full browser subprocess has a 300-second outer limit for the expanded fixture; individual CDP and assertion waits keep their 12-second limits and no retries.

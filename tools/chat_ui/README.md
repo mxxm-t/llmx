@@ -545,7 +545,7 @@ produce binary workspace files. Containers remove themselves when they exit.
 The optional workspace tools use the existing model/tool loop and approval UI.
 Enable `workspace_list`, `workspace_read`, `workspace_write` and, when configured,
 `workspace_run` in conversation settings. Agent writes and commands require
-approval. A write that changes the file creates a checkpoint. An exact repeat
+approval. A write takes a path and the new text. The companion tracks the saved file through the reply, including the wait for approval. Editing another file does not invalidate the write. A write that changes the file creates a checkpoint. An exact repeat
 returns `already_saved` with the current revision. For a conflicting edit,
 read the current file before retrying. Reading returns bounded lines rather than
 silently inserting the whole project into the prompt.

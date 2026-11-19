@@ -240,7 +240,7 @@ class Engine:
         self.store.publish(rid, "message", latest)
         return latest
 
-    def _tool(self, rid, message_id, call, allowed, control):
+    def _tool(self, rid, message_id, call, allowed, control, invoke=None):
         call = dict(call)
 
         def update(status, **values):
@@ -278,7 +278,7 @@ class Engine:
                 raise Cancelled()
             started = time.monotonic()
             update("running")
-            result = self.tools.call_tool(call["name"], args, control.cancel)
+            result = (invoke or self.tools.call_tool)(call["name"], args, control.cancel)
             duration = (time.monotonic() - started) * 1000
             if control.cancel.is_set():
                 update("cancelled", duration_ms=duration, result=result, error="Stopped waiting. An external action may already have occurred.")
@@ -307,7 +307,10 @@ class Engine:
             missing = set(settings.get("tools", [])) - set(allowed)
             if missing:
                 raise ValueError("Some selected tools are unavailable. Update the enabled tools and retry.")
+            prepare = getattr(self.tools, "bind_reply", None)
+            bind_round = prepare(allowed) if prepare else None
             for _ in range(self.max_rounds):
+                invoke = bind_round() if bind_round else self.tools.call_tool
                 message = self._model(rid, self.store.message(message_id), settings, available, control)
                 calls = message["tool_calls"]
                 if control.cancel.is_set():
@@ -316,7 +319,7 @@ class Engine:
                     self._state(rid, "completed")
                     return
                 with ThreadPoolExecutor(max_workers=4, thread_name_prefix="chat-tool") as pool:
-                    results = list(pool.map(lambda call: self._tool(rid, message_id, call, allowed, control), calls))
+                    results = list(pool.map(lambda call: self._tool(rid, message_id, call, allowed, control, invoke), calls))
                 parent = message_id
                 for call, result in zip(calls, results):
                     content = encoded(result)

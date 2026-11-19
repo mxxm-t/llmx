@@ -477,6 +477,42 @@ README: the stack's branches changed its support rows in their own commits, and 
 The hosted run 44427015483 of be73f7c5e on gate/20261118 passed all eight jobs (CPU on Ubuntu, Windows, macOS, TSan and UBSan, the Vulkan and ROCm builds and the HF reference), and it carries to the landing head, which adds this record alone.
 The Radeon VII check is ready and not yet run, and the head lands by fast-forward of gitea main and GitHub main.
 
+## Held norm barriers (2026-11-19, FUSE2 then FUSE3, branch perf/norm-barriers on land/20261118 57a932e49)
+
+- Goal: shorten the GPU core's block sum tree, whose held norm (`rms_norm_held`, `kernels/f32.gpu`) is 57 packets a Qwen3-0.6B decode pass and 177 on Qwen3.6-27B, without changing a bit.
+- Done: the tree has one owner, `block_tree` and `block_sum` in `kernels/rows.h`, which the held norm, every `block_sum` of `kernels/f32.gpu` and the hyper-connection mix of `kernels/int16.gpu` (its copy `hc_block_sum` removed) take.
+  Wave 0 forms the tree's levels above a wave in registers after one barrier, (l[t] + l[t+128]) + (l[t+64] + l[t+192]) on a 64-lane wave and one level deeper on a 32-lane one, the additions and their order those of the barrier steps it replaces, so a held norm takes three barriers instead of five on a 64-lane wave (six on a 32-lane one) and `block_sum` three instead of five (six on a 32-lane wave).
+- Prototype, one MI50 (renderD128), graph replay of 200 calls, us a call, two runs equal to 0.02 us; dst, twin codes and twin scales the same bits as `llmx_rms_norm_16_twin8` and `_32_twin8` (the twin8 builds only, one row, one seed):
+
+| Shape | five barriers | three barriers | without the row in LDS |
+|---|---|---|---|
+| 0.6B, n 1024, 2 parts | 5.02 | 4.53 | 4.43 |
+| 27B, n 5120, 10 parts | 7.71 | 6.84 | 8.30 |
+
+- The third arm also drops the row's LDS copy, the four summing waves reading their values from global memory; it is 0.10 us faster on 0.6B and 1.46 us slower on 27B, so it is not taken.
+- Not taken, the same stream: silu_mul fused into the down projection's prologue or the gate_up product's epilogue (research/fuse-silu-rejected on gitea, Gotchas); measured on gfx906 only.
+- Gates, one MI50 (renderD128), ROCm 7.2.1, arm a `llmx 0.1.0+g57a932e49b0a` against arm b `llmx 0.1.0+gdfa1f9796394` (source as landed), both built by the same script from detached worktrees:
+
+| Check | Result |
+|---|---|
+| Static witness, gfx906 f32 code object `s_barrier` counts, a to b | `rms_norm_held` builds 5 to 3, `rms_norm_rows`, `group_rms_norm` and `gated_rms_norm` 5 to 3, `layer_norm_rows` 10 to 6 |
+| Generate (64 tokens, greedy), `logits --last` and `--per-token`, Qwen3-0.6B Q8_0, Qwen3.5-0.8B Q4_K_M and Qwen3.6-27B Q4_K_M at f16 and int8 | 18/18 byte identical (generate apart from its timing lines) |
+| CUDA compile and card-free CTest | 0 errors, backend-cuda skipped (no card) |
+| Suite dead-code and docs | PASS, 0 findings |
+| tg128, `bench --p 16 --n 128 --r 5`, a b, b a, a b, medians of the three rounds | 0.6B f16 363.67 against 373.00, int8 393.06 against 407.77; 0.8B f16 262.93 against 271.68, int8 279.84 against 287.45; 27B f16 28.64 against 28.70, int8 31.44 against 31.44 tok/s |
+| pp512, `bench --p 512 --n 16 --r 5`, same order, means | 0.6B f16 8870.7 against 8882.3, int8 10850.2 against 10880.1; 0.8B f16 6886.9 against 6896.6, int8 8506.1 against 8535.7; 27B f16 227.00 against 226.95, int8 329.94 against 329.93 tok/s |
+
+- The second tg128 round ran under heavy ZFS read activity (host wait up to 61 s, 0.6B spread up to 70 tok/s) and is kept; the first and third rounds give the 0.6B and 0.8B decode gain of 2 to 4 percent, 27B is within 0.5 percent and pp512 within 0.35 percent everywhere.
+- The rocprofv3 runtime witness did not run (the binary under its preload fails to load libdw.so.1 in the image); every block-sum kernel of the code object takes the new tree (the static counts), so any norm a pass launches runs it.
+- Left: the 32-lane fold compiles for CUDA and gfx1151 and is not executed here: no card of either is on the rig, and the backend tests hold the norm to the CPU by tolerance, not to the tree's bits.
+  The tree assumes `GPU_WAVE` equals the hardware wave (`port.h`), as `kWave` already does; a gfx1151 build with 64-lane waves would need it changed.
+  The Vulkan norm shaders keep their own trees and do not share this one: `rms_norm_rows.comp` and `group_rms_norm.comp` take a barrier a level down to the subgroup size, and `gated_rms_norm.comp`, `layer_norm_rows.comp` and `norm_rope_kv.comp` one a level down to a single value, so the same fold, with the same pairs, applies there as a separate change.
+- Gotchas: the act twin of silu_mul is per block of 32, so a fused consumer needs no row-wide scale, but every wave of the down projection reads the whole act row, so a prologue repeats silu over all of it in every block.
+  One MI50, graph replay, us a call: 0.6B silu plus down 8.14 (silu 2.09, down 6.01) against 17.2 at best fused (120 blocks of 256 threads; the same loop on the global twin, without the prologue, 7.7), 27B shape (17408 to 5120) 130.6 against 194.
+  The gate_up epilogue (a block of 32 outputs, a wave the gate and up rows of one, silu and the twin from LDS) has the same bits and saves 1.1 us a layer on 0.6B int8 (13.19 against 12.08) and 0.6 at f16 (15.39 against 14.80); on the 27B shape it loses 28 us at int8 (234.3 against 262.1) and 22 to 24 at f16 (271.1 and 281.0 against 295.1 and 303.4).
+  The same epilogue in the one-row-a-wave form the held builds take (gate row o and up row o in different waves, sums through LDS) gives 12.82 on 0.6B int8 at 16 waves a block and 270.6 against 234.8 on the 27B shape at 8, so the loss is not the two-row form.
+  It needs a build a weight family, class and row form, and the Qwen3.5 and 27B Q4_K_M files' gate and up are not Q8_0, for at most about 1 percent of a 0.6B pass at the default dtype, so it is not built.
+
 ## Safetensors FP8 skip on devices without F8_E4M3 (2026-11-18, FP8R1, branch fix/safetensors-rocm-fp8 on main a274cfd62)
 
 - Goal: the suite's `safetensors` component failed on `--device rocm:0`, since ROCm refuses the FP8 fixtures' F8_E4M3 linears at load and `fp8_checks` asserted the exit status without asking `common.device_lacks_kernel`.

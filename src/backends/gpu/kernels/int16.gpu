@@ -2429,24 +2429,6 @@ LLMX_KQUARTER(q5_1, rq::Q5_1)
 namespace {
 constexpr unsigned kHcMaxLow = 512;   // the up rows' blocks a half wave holds in one step, as q8_0_half_pair does
 constexpr int kHcDownSteps = 10, kHcUpPairs = 2;
-__device__ float hc_block_sum(float v, float* lds) {
-    lds[threadIdx.x] = v;
-    __syncthreads();
-    int s = kThreads / 2;
-    for (; s >= warpSize; s >>= 1) {
-        if ((int)threadIdx.x < s) lds[threadIdx.x] += lds[threadIdx.x + s];
-        __syncthreads();
-    }
-    if ((int)threadIdx.x < warpSize) {
-        float t = lds[threadIdx.x];
-        for (; s > 0; s >>= 1) t += shuffle_down(t, s);
-        if (threadIdx.x == 0) lds[0] = t;
-    }
-    __syncthreads();
-    const float r = lds[0];
-    __syncthreads();
-    return r;
-}
 // A twin block's 32-lane maximum for twin_value on lane_xor (DPP and swizzles), the order-free maximum block_amax gives, so the bits are the same.
 __device__ inline float twin_amax(float v) {
     float a = fabsf(v);
@@ -2573,7 +2555,7 @@ __device__ inline void hc_mix(const HcMix& a) {
     // A: each stream's sum of squares, group_rms_norm's chains and tree, a block a stream of a column.
     for (unsigned g = B; g < H * N; g += G) {
         const float s = hc_chain(a.x + g * E, a.x + g * E, t, E, 0.0f);
-        const float r = 1.0f / sqrtf(hc_block_sum(s, lds) / (float)E + a.eps);
+        const float r = 1.0f / sqrtf(block_sum<kThreads>(s, lds) / (float)E + a.eps);
         if (t == 0) a.rr[g] = r;
     }
     hc_bar<false>(a.bar, G);

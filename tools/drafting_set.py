@@ -52,6 +52,8 @@ def run(args, prompt, path, drafter):
         cmd += ["--drafter", args.drafter, "--draft-max", str(args.draft_max)]
     cmd += args.extra
     p = subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace")
+    # Each run's stderr goes on to the caller's, so the forms its sums took and its fit stay beside the result.
+    sys.stderr.write(p.stderr)
     if p.returncode != 0:
         sys.exit("failed (%d): %s\n%s" % (p.returncode, " ".join(cmd), p.stderr[-2000:]))
     r = {"kept": 0, "fed": 0}

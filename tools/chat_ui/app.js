@@ -522,7 +522,12 @@
     if (/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=\r\n]+$/.test(attachment.data || '')) {
       const img = node('img', 'attachment-image'); img.src = attachment.data; img.alt = attachment.name || 'Attached image'; img.loading = 'lazy'; return img;
     }
-    return node('span', 'attachment-pill', attachment.name || 'Text attachment');
+    const name = attachment.name || 'Text attachment';
+    if (typeof attachment.text !== 'string') return node('span', 'attachment-pill', name);
+    const read = node('button', 'attachment-pill', name);
+    read.type = 'button'; read.setAttribute('aria-label', 'Read attachment ' + name);
+    read.addEventListener('click', () => window.ChatArtifacts.open({name, source: attachment.text}, {readOnlyAttachment: true}));
+    return read;
   }
   function toolJson(value) {
     if (typeof value !== 'string') return value;

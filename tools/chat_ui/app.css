@@ -1099,6 +1099,12 @@ kbd {
   max-width:100%;
   overflow-wrap:anywhere
 }
+button.attachment-pill {
+  color:var(--text);
+  text-align:start;
+  min-height:32px
+}
+button.attachment-pill:hover { border-color:var(--muted) }
 .attachment-file-size {
   color:var(--muted);
   font-size:9px;

@@ -135,7 +135,9 @@ Choose a PDF with **Attach**, select page numbers such as `1, 3-5`, then
 choose **Review selected pages**. **Add text to draft** attaches the displayed
 text with page numbers. You can remove it or edit your message before sending.
 The browser reads the PDF locally using assets from this companion. Only the
-reviewed text enters the conversation. Image-only scans need OCR before import.
+reviewed text enters the conversation under the PDF's original filename. In a sent
+message, select the filename to read or copy the exact excerpt and its page numbers.
+Download saves the excerpt as a text file. Image-only scans need OCR before import.
 
 Limits per import are 20 MiB, 200 document pages, 12 selected pages and 2 MiB
 of extracted text. Password-protected documents need an unlocked copy.
@@ -231,7 +233,7 @@ keyboard focus keeps its visible outline.
   It does not execute model HTML or JavaScript.
 - Attach up to eight files, including UTF-8 text/code, PNG/JPEG images and
   selected PDF text when the [PDF reader](#optional-pdf-text-reader) is installed. Text is included
-  in full with its file name, not retrieved from an embedding index. Limits are
+  in full with its file name. Select a sent text attachment to read the saved copy. Limits are
   2 MiB per text file, 8 MiB per image and 10 MiB total decoded attachments.
   Hover over Attach or focus it with the keyboard for the file types. The
   Attachments section in Conversation Settings shows the limits on any device.

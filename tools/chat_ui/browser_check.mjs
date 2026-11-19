@@ -156,6 +156,50 @@ function pdfAssetRequests() {
     return pathname === '/pdf_attachment.js' || pathname.startsWith('/pdf-reader/');
   });
 }
+async function checkSentSource(name, source, exportName) {
+  const button = `Array.from(document.querySelectorAll('.message-attachments button')).find(button=>button.textContent.includes(${JSON.stringify(name)}))`;
+  await wait(`Boolean(${button})`, 'sent attachment button for ' + name);
+  const beforeOpen = browserRequests.length;
+  assert.equal(await evaluate(`(() => {const button=${button}; button.focus();return button.tabIndex>=0 && document.activeElement===button;})()`), true, 'sent attachment is not keyboard focusable');
+  await cdp('Input.dispatchKeyEvent', {type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,text:'\r'});
+  await cdp('Input.dispatchKeyEvent', {type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
+  await wait("document.querySelector('#artifact-dialog').open", 'sent attachment source for ' + name);
+  assert.deepEqual(await evaluate(`(() => {
+    const dialog=document.querySelector('#artifact-dialog'), code=dialog.querySelector('.artifact-source code');
+    return {
+      name:dialog.querySelector('h2').textContent,
+      source:code.textContent,
+      visible:code.checkVisibility(),
+      editable:code.isContentEditable || Array.from(dialog.querySelectorAll('textarea,input,[contenteditable]')).some(control=>control.checkVisibility()),
+      preview:dialog.querySelector('#artifact-preview-tab').checkVisibility() || Boolean(dialog.querySelector('iframe')),
+      edit:Array.from(dialog.querySelectorAll('button')).some(button=>button.textContent.includes('Edit in workspace') && button.checkVisibility()),
+      markup:code.childElementCount,
+    };
+  })()`), {name, source, visible:true, editable:false, preview:false, edit:false, markup:0});
+  assert.equal(await evaluate('typeof window.sentHtmlRan'), 'undefined', 'uploaded HTML executed in the companion');
+  if (exportName) {
+    const exported = await evaluate(`(async () => {
+      const createURL=URL.createObjectURL, anchor=HTMLAnchorElement.prototype;
+      const clickDescriptor=Object.getOwnPropertyDescriptor(anchor,'click');
+      let blob, filename;
+      URL.createObjectURL=file=>{blob=file; return createURL.call(URL,file);};
+      anchor.click=function(){filename=this.download;};
+      try {
+        Array.from(document.querySelectorAll('#artifact-dialog button')).find(button=>button.textContent==='Download').click();
+        return {filename, text:await blob.text(), type:blob.type};
+      } finally {
+        URL.createObjectURL=createURL;
+        if (clickDescriptor) Object.defineProperty(anchor,'click',clickDescriptor); else delete anchor.click;
+      }
+    })()`);
+    assert.deepEqual(exported, {filename:exportName,text:source,type:'text/plain;charset=utf-8'});
+  }
+  await cdp('Input.dispatchKeyEvent', {type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+  await cdp('Input.dispatchKeyEvent', {type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+  await wait(`!document.querySelector('#artifact-dialog').open && document.activeElement===${button}`, 'source viewer Escape restores attachment focus');
+  assert.deepEqual(browserRequests.slice(beforeOpen).filter(request => request.method !== 'GET' ||
+    new URL(request.url).pathname !== '/api/chats/run-status'), [], 'opening sent source made a network request');
+}
 async function checkOptionalFeatures() {
   const workerFixture = process.argv.find(arg => arg.startsWith('--fixture-upstream=')).slice('--fixture-upstream='.length);
   const featureCalls = () => browserRequests.filter(request => /^\/api\/features(?:\/|$)/.test(new URL(request.url).pathname));
@@ -260,7 +304,10 @@ async function checkPdfAttachment() {
     await wait("/PDF import is unavailable/i.test(document.querySelector('#toast').textContent)", 'unavailable-reader guidance');
     assert.deepEqual(pdfAssetRequests(), [], 'an unavailable PDF reader was requested');
   } else {
+    const pdfName = 'quarterly.pdf';
     const expected = 'Page 2\nOnly the second page belongs in chat.';
+    const htmlFixture = process.argv.find(arg => arg.startsWith('--html-fixture=')).slice('--html-fixture='.length);
+    const htmlSource = await readFile(htmlFixture, 'utf8');
     const open = async () => {
       await upload('#file-input', fixture);
       await wait("document.querySelector('#pdf-attachment-dialog')?.open && !document.querySelector('#pdf-attachment-pages').disabled", 'ready PDF selection');
@@ -344,7 +391,9 @@ async function checkPdfAttachment() {
     await selectedPage();
     await click('#pdf-attachment-apply');
     await closed();
-    await wait("document.querySelector('#attachments').textContent.includes('quarterly.txt')", 'plain-text PDF attachment');
+    await wait(`document.querySelector('#attachments').textContent.includes(${JSON.stringify(pdfName)})`, 'plain-text PDF attachment with original filename');
+    await upload('#file-input', htmlFixture);
+    await wait("document.querySelector('#attachments').textContent.includes('uploaded.html')", 'ordinary HTML text attachment');
     assert.equal(await evaluate("document.querySelector('#draft').value"), draft);
     assert.equal(apiMutations.length, mutations, 'PDF selection or review mutated the server');
     await evaluate("document.querySelector('#composer').requestSubmit()");
@@ -352,18 +401,28 @@ async function checkPdfAttachment() {
     await idle();
     const submissions = browserRequests.filter(request => request.method === 'POST' && /\/api\/chats\/[^/]+\/runs$/.test(new URL(request.url).pathname));
     assert.equal(submissions.length, 2, 'unexpected number of chat submissions');
-    assert.deepEqual(JSON.parse(submissions[1].postData).attachments, [{name:'quarterly.txt',type:'text/plain',text:expected}], 'chat did not send exactly the previewed plain-text attachment');
+    assert.deepEqual(JSON.parse(submissions[1].postData).attachments, [
+      {name:pdfName,type:'text/plain',text:expected},
+      {name:'uploaded.html',type:'text/html',text:htmlSource},
+    ], 'chat did not send the exact PDF excerpt and HTML source attachments');
     const paths = pdfAssetRequests().map(request => new URL(request.url).pathname);
     for (const asset of ['/pdf_attachment.js', '/pdf-reader/pdf.mjs', '/pdf-reader/pdf.worker.mjs']) {
       assert(paths.includes(asset), 'missing request for ' + asset);
     }
     assert(pdfWorkers.some(worker => worker === origin + '/pdf-reader/pdf.worker.mjs'), 'PDF.js did not use the dedicated same-origin worker');
+    const beforeViewing = {assets:pdfAssetRequests().length, mutations:apiMutations.length};
+    await checkSentSource(pdfName, expected, pdfName + '.txt');
+    await checkSentSource('uploaded.html', htmlSource);
+    await reloadDocument();
+    await wait("document.querySelector('#messages').textContent.includes('PDF browser reply.')", 'restored PDF conversation');
+    await checkSentSource(pdfName, expected);
+    assert.deepEqual({assets:pdfAssetRequests().length, mutations:apiMutations.length}, beforeViewing, 'viewing sent attachments fetched the PDF reader or mutated the server');
   }
   assert.deepEqual(browserRequests.filter(request => new URL(request.url).origin !== origin), [], 'PDF check made an off-origin browser request');
   const payload = browserRequests.map(request => request.postData || '').join('\n');
   assert.doesNotMatch(payload, /raw-pdf-fixture-marker|First page private marker|%PDF-|application\/pdf|JVBERi0/);
   assert.deepEqual(errors, [], 'uncaught PDF browser exceptions');
-  console.log('PASS: PDF ' + pdfMode + ', zero lazy assets on boot and plain chat' + (installed ? ', reviewed page 2 sent only as text, Escape cancellation, graphics-only refusal, narrow preview and same-origin worker' : ', unavailable-reader guidance'));
+  console.log('PASS: PDF ' + pdfMode + ', zero lazy assets on boot and plain chat' + (installed ? ', reviewed page 2 sent only as text, Escape cancellation, graphics-only refusal, narrow preview, same-origin worker and read-only sent source after reload' : ', unavailable-reader guidance'));
 }
 async function sidebarFocusSamples(selector) {
   const transitions = await evaluate(`(async () => {

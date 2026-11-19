@@ -160,8 +160,7 @@ export async function selectPdfText(file, {signal} = {}) {
   });
   apply.addEventListener('click', () => {
     if (!reviewedText || apply.disabled || session.signal.aborted) return;
-    const filename = (file.name.replace(/\.pdf$/i, '') || 'document') + '.txt';
-    finish(new File([reviewedText], filename, {type: 'text/plain'}));
+    finish(new File([reviewedText], file.name, {type: 'text/plain'}));
   });
 
   document.body.append(dialog);

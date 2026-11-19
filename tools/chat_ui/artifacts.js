@@ -91,11 +91,16 @@ window.ChatArtifacts = (() => {
       frame.addEventListener('load', () => { if (version === previewVersion) { status.hidden = true; } }); previewPanel.insertBefore(frame, consolePanel);
     } catch (error) { if (version === previewVersion) { status.textContent = error.message; status.hidden = false; } }
   }
-  function open(artifact, {initialPreview = false, allowWorkspaceEdit = true, workspacePath = ''} = {}) {
+  function open(artifact, {initialPreview = false, allowWorkspaceEdit = true, workspacePath = '', readOnlyAttachment = false} = {}) {
     current = {name: filename(artifact.name, artifact.language), language: language(artifact.language), source: String(artifact.source ?? ''), workspacePath};
-    showSource(); title.textContent = current.name; subtitle.textContent = current.language.toUpperCase() + ' / ' + new Intl.NumberFormat().format(new TextEncoder().encode(current.source).length) + ' bytes';
-    code.replaceChildren(highlight(current.source, current.language)); previewButton.hidden = current.language !== 'html' && !/\.html?$/i.test(current.name); copy.textContent = 'Copy';
-    edit.hidden = !allowWorkspaceEdit;
+    const displayName = readOnlyAttachment ? artifact.name : current.name;
+    if (readOnlyAttachment && /\.pdf$/i.test(displayName)) current.name = current.name.slice(0, 176) + '.txt';
+    showSource(); title.textContent = displayName; subtitle.textContent = current.language.toUpperCase() + ' / ' + new Intl.NumberFormat().format(new TextEncoder().encode(current.source).length) + ' bytes';
+    if (readOnlyAttachment) code.textContent = current.source;
+    else code.replaceChildren(highlight(current.source, current.language));
+    previewButton.hidden = readOnlyAttachment || (current.language !== 'html' && !/\.html?$/i.test(current.name));
+    copy.textContent = 'Copy';
+    edit.hidden = readOnlyAttachment || !allowWorkspaceEdit;
     if (!dialog.open) dialog.showModal();
     if (initialPreview && !previewButton.hidden) { previewButton.focus(); showPreview(); }
     else sourceButton.focus();

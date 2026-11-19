@@ -165,16 +165,21 @@ class BrowserTests(unittest.TestCase):
             root = Path(temporary)
             fixture = root / "quarterly.pdf"
             write_pdf_fixture(fixture)
+            html_fixture = root / "uploaded.html"
+            html_source = "<script>window.sentHtmlRan = true;</script>\n<p>Uploaded HTML as text.</p>"
+            html_fixture.write_text(html_source, encoding="utf-8", newline="\n")
             mode = "installed" if require_pdf else "absent"
             reader = installed_directory if require_pdf else root / "missing-reader"
             with patch.object(pdf_reader, "READER_DIRECTORY", reader):
-                self.run_focused_browser(node, chrome, root, f"pdf-{mode}", (str(fixture), "--pdf-only=" + mode),
+                self.run_focused_browser(node, chrome, root, f"pdf-{mode}",
+                                         (str(fixture), "--pdf-only=" + mode, "--html-fixture=" + str(html_fixture)),
                                          [[text_event("Plain browser reply.")], [text_event("PDF browser reply.")]])
             expected = [{"role": "user", "content": "Browser plain-text prompt"}]
             if mode == "installed":
                 expected.append({"role": "user", "content": [
                     {"type": "text", "text": "Keep this PDF draft."},
-                    {"type": "text", "text": "\nFile: quarterly.txt\nPage 2\nOnly the second page belongs in chat."},
+                    {"type": "text", "text": "\nFile: quarterly.pdf\nPage 2\nOnly the second page belongs in chat."},
+                    {"type": "text", "text": "\nFile: uploaded.html\n" + html_source},
                 ]})
             with BrowserUpstream.lock:
                 self.assertEqual([request["messages"][-1] for request in BrowserUpstream.requests], expected)

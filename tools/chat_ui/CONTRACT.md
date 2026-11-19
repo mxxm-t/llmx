@@ -182,7 +182,7 @@ No extra upstream health fetch is added to model admission or configuration.
 Attachment: `{name,type,text}` for UTF-8 text, or `{name,type,data}` for PNG/JPEG base64 data URLs. The browser accepts text up to 2 MiB, images up to 8 MiB and 10 MiB total across at most eight files. It shows each file size and the combined size before send. The service validates the same decoded byte limits and stores attachments in the message. Other formats are refused explicitly. No URL fetching or hidden retrieval occurs.
 
 For an operator-installed PDF reader the browser stages the reviewed pages as
-one UTF-8 text attachment. The service never receives the PDF bytes. The browser
+one UTF-8 text attachment with the original filename and page headings. The service never receives the PDF bytes. The browser
 requests reader modules and supporting assets from the signed-in companion
 origin only when opening a PDF.
 

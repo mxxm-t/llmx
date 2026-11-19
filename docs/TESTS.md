@@ -6,7 +6,8 @@ startup and plain chat for zero PDF requests, then inspects the browser and
 model payloads for a selected page. The base run uses an absent reader. The
 dedicated Linux workflow installs PDF.js and repeats the browser check with
 `LLMX_CHAT_REQUIRE_PDF=1`, including cancellation, reopening the same file
-while its previous worker shuts down, and pages without text.
+while its previous worker shuts down, and pages without text. The installed-reader check
+reopens a sent excerpt and compares its text with the selected pages.
 The optional features test uses the Settings install button at 320 px with a
 controlled installer. It checks retry, duplicate requests and PDF availability
 after returning to Chat with a draft and an existing attachment.

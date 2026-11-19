@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Read sent source attachments in Chat (2026-11-19)
+
+- **Goal:** Reopen the exact text attached to a message and trace selected PDF pages to their source filename.
+- **Done:** A sent text attachment opens the saved text in the source viewer. PDF excerpts keep the selected page headings and the original filename in the model request. Downloading an excerpt from a .pdf produces a text file.
+- **Checks:** The installed-reader browser check compares the selected excerpt with the request and reopened conversation, including a literal HTML attachment. The static companion change lands by fast-forward after the browser, docs and dead-code checks.
+- **Gotchas:** Open attachments as plain text, including HTML. A historical attachment only has the name recorded when it was sent.
+
 ## Install optional companion features from Settings (2026-11-19)
 
 - **Goal:** Enable a supported add-on from the owner UI and use the same install flow for later companion features.

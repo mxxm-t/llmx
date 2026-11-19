@@ -841,10 +841,12 @@ inline RestoreInto Model::restore_into(size_t length, const Defer& defer) {
     r.length = length;
     r.seq = make_sequence();
     r.runs.resize(devices_.size());
-    for (size_t i = 0; i < devices_.size(); ++i) {
-        r.backends.push_back(devices_[i]->b.get());
-        r.stages.push_back(stage_of_device(i));
-    }
+    for (size_t i = 0; i < devices_.size(); ++i) r.backends.push_back(devices_[i]->b.get());
+    if (defer) r.defer = [this, defer](size_t d, std::function<void()> run) {
+        StageItem item{stage_of_device(d), std::move(run)};
+        locked(item, d);
+        defer(std::move(item));
+    };
     size_t slot = 0;
     if (state_layers_) {
         slot = slots_.acquire_kept();
@@ -865,11 +867,7 @@ inline RestoreInto Model::restore_into(size_t length, const Defer& defer) {
             const int32_t* blocks = kv.view(nullptr).blocks;
             if (n) {
                 const size_t most = (size_t)*std::max_element(blocks, blocks + n);
-                if (defer) {
-                    StageItem item{stage_of_device(i), [st, most] { st->ensure(most); }};
-                    locked(item, i);
-                    defer(std::move(item));
-                }
+                if (r.defer) r.defer(i, [st, most] { st->ensure(most); });
                 else st->ensure(most);
             }
             detail::block_runs(*st, blocks, n, [&](size_t l, unsigned side, size_t off, size_t bytes) {

@@ -136,9 +136,10 @@ public:
         uint64_t payload = 0;
     };
 
-    // With `defer` every call on a device, its views of the slots and each chunk's copies, runs on its stage's thread (infer::Model::StageItem), in order there, and the scheduler's thread only waits on tickets.
-    StreamedRead(const DiskStore& store, std::vector<File> files, infer::RestoreInto& into, std::function<void()> wake, infer::Model::Defer defer = {})
-        : store_(store), files_(std::move(files)), into_(into), wake_(std::move(wake)), defer_(std::move(defer)), opened_(files_.size()) {
+    // Where `into` is deferred, every call on a device (its views of the slots, each chunk's copies and the views' drop) runs in order on its stage's thread under its recording lock (RestoreInto::defer).
+    // The scheduler's thread then only waits on tickets.
+    StreamedRead(const DiskStore& store, std::vector<File> files, infer::RestoreInto& into, std::function<void()> wake)
+        : store_(store), files_(std::move(files)), into_(into), wake_(std::move(wake)), opened_(files_.size()) {
         for (size_t f = 0; f < files_.size(); ++f)
             for (uint64_t c = 0; c * DiskStore::kChunk < files_[f].payload; ++c) chunks_.push_back({f, c});
         // Each device's image offsets where its runs start, so an image byte finds its run.
@@ -152,37 +153,52 @@ public:
         }
         ring_ = std::make_unique<infer::ReadRing>(chunks_.size(), DiskStore::kChunk, [this](size_t k, uint8_t* slot) { return fill(k, slot); });
         // Each device's view of every slot where it copies out of host pages in place; a write where it does not.
-        // With `defer` the views are made on the device's stage's thread, ahead of every chunk sent to it there, which alone reads them.
+        // Deferred, the views are made on the device's stage's thread, ahead of every chunk sent to it there, which alone reads them.
         views_.resize(into_.backends.size());
-        for (size_t d = 0; d < into_.backends.size(); ++d) {
-            const auto make = [this, d] {
-                for (size_t i = 0; i < ring_->slots(); ++i) {
-                    backend::BufferPtr v = into_.backends[d]->wrap_host(ring_->pages(i).data(), ring_->pages(i).size());
-                    if (!v) {
-                        views_[d].clear();
-                        break;
-                    }
-                    views_[d].push_back(std::move(v));
+        last_.assign(into_.backends.size(), 0);
+        const auto make = [this](size_t d) {
+            for (size_t i = 0; i < ring_->slots(); ++i) {
+                backend::BufferPtr v = into_.backends[d]->wrap_host(ring_->pages(i).data(), ring_->pages(i).size());
+                if (!v) {
+                    views_[d].clear();
+                    break;
                 }
-            };
-            if (defer_) {
+                views_[d].push_back(std::move(v));
+            }
+        };
+        size_t d = 0;
+        try {
+            for (; d < into_.backends.size(); ++d) {
+                if (!into_.defer) {
+                    make(d);
+                    continue;
+                }
+                // A device whose views fail drops those it made where it made them and writes its chunks; only a failure on this thread reaches the constructor.
                 ++views_left_;
-                defer_(infer::Model::StageItem{into_.stages[d], [this, make] {
+                into_.defer(d, [this, make, d, at = std::this_thread::get_id()] {
                     try {
-                        make();
+                        make(d);
                     } catch (...) {
-                        --views_left_;
-                        throw;
+                        views_[d].clear();
+                        if (std::this_thread::get_id() == at) throw;
                     }
                     --views_left_;
-                }});
-            } else {
-                make();
+                });
+            }
+            // The readers start only now: a view that throws above leaves no reader to join, one of which could be waking the scheduler whose lock the caller holds.
+            ring_->start();
+        } catch (...) {
+            if (d < into_.backends.size() && into_.defer) --views_left_;
+            // Items queued before it hold the read, so past the first device a deferred read fails as it goes rather than going now.
+            if (!into_.defer || d == 0) throw;
+            try {
+                throw;
+            } catch (const std::exception& e) {
+                failed(e.what());
+            } catch (...) {
+                failed("a device's views of the read's slots failed");
             }
         }
-        last_.assign(into_.backends.size(), 0);
-        // The readers start only now: a view that throws above leaves no reader to join, one of which could be waking the scheduler whose lock the caller holds.
-        ring_->start();
     }
     StreamedRead(const StreamedRead&) = delete;
     StreamedRead& operator=(const StreamedRead&) = delete;
@@ -221,10 +237,23 @@ public:
         retire();
         return pending_.empty() && !views_left_;
     }
-    // Whether the readers have ended and every copy has retired, so the ring, its pages and the history's blocks can go with no wait.
+    // Whether the readers have ended, every copy has retired and the views are gone, so the ring, its pages and the history's blocks can go with no wait.
+    // Deferred, the views go then as items on their stages' threads, since a GPU backend records on the device as it drops one.
     bool idle() {
         retire();
-        return ring_->idle() && pending_.empty() && !views_left_;
+        if (!ring_->idle() || !pending_.empty() || views_left_) return false;
+        if (into_.defer && !views_dropped_) {
+            views_dropped_ = true;
+            for (size_t d = 0; d < views_.size(); ++d) {
+                if (views_[d].empty()) continue;
+                ++views_left_;
+                into_.defer(d, [this, d] {
+                    views_[d].clear();
+                    --views_left_;
+                });
+            }
+        }
+        return !views_left_;
     }
     // Where a failure came from: the file whose read failed, 0 for a cancel, and why.
     uint64_t failed_key() const { return failed_key_; }
@@ -291,7 +320,7 @@ private:
         const uint64_t from = c.index * DiskStore::kChunk, to = from + full.bytes;
         const uint8_t* data = ring_->pages(full.slot).data();
         std::vector<char> used(into_.backends.size(), 0);
-        if (defer_) return send_deferred(full, f, from, to, data);
+        if (into_.defer) return send_deferred(full, f, from, to, data);
         Pending p{full.piece, std::vector<backend::Ticket>(into_.backends.size(), 0)};
         try {
             uint64_t at = 0;
@@ -323,7 +352,7 @@ private:
         bytes_ += full.bytes;
         ++taken_;
     }
-    // A chunk sent with `defer`: the bytes bound for host memory copied here, and each device's copies and submission one item on its stage's thread, reporting to the chunk's record.
+    // A chunk sent deferred: the bytes bound for host memory copied here, and each device's copies and submission one item on its stage's thread, reporting to the chunk's record.
     // A part that fails retires what it recorded on its own thread and fails the read once the chunk is retired (retire).
     void send_deferred(const infer::ReadRing::Full& full, const File& f, uint64_t from, uint64_t to, const uint8_t* data) {
         struct Put {
@@ -362,7 +391,7 @@ private:
         pending_.push_back(Pending{full.piece, {}, p});
         for (size_t d = 0; d < puts.size(); ++d) {
             if (puts[d].empty()) continue;
-            defer_(infer::Model::StageItem{into_.stages[d], [this, p, d, slot = full.slot, list = std::move(puts[d])] {
+            into_.defer(d, [this, p, d, slot = full.slot, list = std::move(puts[d])] {
                 backend::Backend& b = *into_.backends[d];
                 backend::Ticket t = 0;
                 std::string error;
@@ -382,7 +411,7 @@ private:
                 p->tickets[d] = t;
                 if (!error.empty() && p->error.empty()) p->error = error;
                 --p->left;
-            }});
+            });
         }
         bytes_ += full.bytes;
         ++taken_;
@@ -427,8 +456,8 @@ private:
     std::vector<File> files_;
     infer::RestoreInto& into_;
     const std::function<void()> wake_;
-    const infer::Model::Defer defer_;
-    std::atomic<size_t> views_left_{0};   // view items not yet run on their stages' threads
+    std::atomic<size_t> views_left_{0};   // view items, making or dropping, not yet run on their stages' threads
+    bool views_dropped_ = false;          // the drop items given
     std::vector<Chunk> chunks_;
     std::vector<std::vector<size_t>> starts_;
     std::mutex open_;
@@ -1033,7 +1062,7 @@ public:
     }
 
     // The read of path `p` streamed straight into `into`'s device storage (StreamedRead), its files pinned until end_stream; nothing where the model lays the path out otherwise than its files.
-    std::unique_ptr<StreamedRead> stream(infer::Model& model, const DiskIndex::Path& p, infer::RestoreInto& into, uint64_t& id, const infer::Model::Defer& defer = {}) {
+    std::unique_ptr<StreamedRead> stream(infer::Model& model, const DiskIndex::Path& p, infer::RestoreInto& into, uint64_t& id) {
         const infer::HostHistory image = model.host_layout(p.length);
         std::vector<StreamedRead::File> files;
         const auto segments = [&](StreamedRead::File& f, const std::vector<infer::HostRange>& ranges, const std::vector<infer::HostRange>& skip) {
@@ -1068,7 +1097,7 @@ public:
         std::vector<uint64_t> keys;
         for (const StreamedRead::File& f : files) keys.push_back(f.key);
         // The files are pinned only once the read exists, so a read that fails as it is made leaves no pin.
-        std::unique_ptr<StreamedRead> read = std::make_unique<StreamedRead>(*store_, std::move(files), into, wake_, defer);
+        std::unique_ptr<StreamedRead> read = std::make_unique<StreamedRead>(*store_, std::move(files), into, wake_);
         streams_.push_back({read_ids_ + 1, std::move(keys)});
         id = ++read_ids_;
         return read;

@@ -1141,10 +1141,10 @@ struct Bits {
         return acc[0];
     }
 
-    // A Q8_0 int8 decode call of 9 to 16 columns against each column computed alone, bit for bit, by the kernels it ran.
-    // Sixteen columns take the half-block build of four rows a wave once its waves give each compute unit row_four_waves_per_cu, from the rule's edge on, and the two-row build below it; 9 to 15 columns keep their own builds.
-    void q8_columns_bits(Backend& g) {
-        const size_t nin = 1024, edge = size_t(4) * profile_of(g).row_four_waves_per_cu * caps.compute_units;
+    // A Q8_0 int8 decode call of 2 to 16 columns against each column computed alone, bit for bit, by the build it names, over rows of 1024 values (one block step a lane) and 2560 (several).
+    // The build each column count and output count takes is listed in docs/TESTS.md (backend-rocm).
+    void q8_columns_bits_at(Backend& g, size_t nin) {
+        const size_t edge = size_t(4) * profile_of(g).row_four_waves_per_cu * caps.compute_units;
         const uint32_t waves = profile_of(g).row_four_waves_per_cu;
         // The rule is rows_a_cluster at a whole subgroup and a cap of four.
         require(rows_a_cluster(caps, edge - 1, caps.subgroup_size, 4, waves) < 4 && rows_a_cluster(caps, edge, caps.subgroup_size, 4, waves) == 4,
@@ -1155,20 +1155,27 @@ struct Bits {
         const std::vector<float> x = row_classes::values(nin * 16, 28);
         std::vector<BufferPtr> xs;
         for (size_t c = 0; c < 16; ++c) xs.push_back(g.adopt(x.data() + c * nin, nin * 4));
+        // The output past a call's columns holds a sentinel, which the build's padding columns must not overwrite.
+        const std::vector<float> fill(big * 16, -12345.0f);
         auto xb = g.adopt(x.data(), x.size() * 4), yb = g.alloc(big * 16 * 4);
         for (const size_t n : {size_t(33), edge - 1, edge, big})
-            for (size_t cols = 9; cols <= 16; ++cols) {
-                if (cols < 16 && n != big) continue;
+            for (size_t cols = 2; cols <= 16; ++cols) {
+                if (cols > 8 && cols < 16 && n != big) continue;
                 const RowRun rr{cols, 1};
+                g.write(*yb, 0, fill.data(), n * 16 * 4);
                 launches(g);
                 g.matmul({quant::GGML_TYPE_Q8_0, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, n, cols, {&rr, 1}, Dtype::int8);
                 std::string ran;
                 for (const auto& [k, v] : launches(g))
                     if (k.rfind("llmx_q8_0", 0) == 0) ran += k;
                 const std::vector<float> y = read(g, *yb, n * cols);
-                const std::string want = "llmx_q8_0_half8_" + std::to_string(cols) + (cols == 16 && n >= edge ? "_r4" : "");
+                const size_t build = cols <= 2 ? 2 : cols <= 4 ? 4 : cols <= 8 ? 8 : cols;
+                const bool four = build == 2 || build == 4 || build == 8 || build == 16;
+                const std::string want = "llmx_q8_0_half8_" + std::to_string(build) + (four && n >= edge ? "_r4" : "");
                 const std::string what = "a Q8_0 int8 decode call of " + std::to_string(cols) + " columns, " + std::to_string(n) + " outputs";
                 require(ran == want, what + " runs " + want + " (ran " + ran + ")");
+                const std::vector<float> past = read(g, *yb, n * 16);
+                require(std::memcmp(past.data() + n * cols, fill.data(), n * (16 - cols) * 4) == 0, what + ": the output past its columns unchanged");
                 bool ok = true;
                 for (size_t c = 0; c < cols; ++c) {
                     const RowRun one{1, 1};
@@ -1178,6 +1185,11 @@ struct Bits {
                 }
                 require(ok, what + ": every column the one-column call's bits");
             }
+    }
+
+    void q8_columns_bits(Backend& g) {
+        q8_columns_bits_at(g, 1024);
+        q8_columns_bits_at(g, 2560);
     }
 
     // Every MXFP4 decode build against the host's row bit for bit in both twins: dense rows of 1 to 16 columns, routed entries and the grouped builds of 2, 4 and 8.

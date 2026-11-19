@@ -3286,6 +3286,7 @@ private:
             const bool int8 = dtype == Dtype::int8;
             const int form = !int8 ? 0 : nin / 32 % 2 ? 1 : 2;
             const TwinKernels& rk = row_form(*kinds.twin, nin, int8);
+            half_span(form, xrows, nin);
             auto [q, d, xs] = twin_of(X, xrows, nin, int8, twin_map({}, xrows, nin), true, tile);
             RoutedCall c = routed_call(proj, nproj, nin, rk, ids, per, routing.n_expert);
             const size_t clusters = dev_.caps.subgroup_size / c.c.cluster;
@@ -3412,6 +3413,11 @@ private:
         }
         return twin_planes((uint8_t*)as_gpu<Api>(*twin_[twin_slot_]).data(), map.total, int8);
     }
+    // The half-block builds of up to 8 columns address a column's twin by a 32-bit byte offset from the call's first column (kernels/int16.gpu, q8_0_rows_half); checked before any launch, for every int8 call of that form.
+    // The check is conservative: it also refuses calls of that form that keep 64-bit offsets, whose twin would pass 4 GiB only at shapes no model has.
+    static void half_span(int form, size_t columns, size_t nin) {
+        if (form == 2 && size_mul(columns, nin) > 0xffffffffull) throw std::runtime_error(Api::prefix + "a half-block row call's twin is too wide for its 32-bit offsets");
+    }
     // The row kernel's call for the group's projections from column `at`, their output rows one after another.
     RowCall row_call(const Proj* proj, size_t nproj, size_t at, const TwinKernels& rk, size_t nin) const {
         RowCall c{};
@@ -3437,6 +3443,7 @@ private:
         bool tiles = false;
         for (size_t r = 0; r < all.n; ++r) tiles = tiles || all.runs[r].extent != 1;
         if (tiles) want_sums_ = tk.tile_sums;
+        half_span(!int8 ? 0 : nin / 32 % 2 ? 1 : 2, std::min(nbatch, kColumns), nin);
         const auto [q0, d0, s0] = twin_of(X, nbatch, nin, int8, map, twin, tiles && tk.tile_sums);
         unsigned long long ni = nin;
         int add = accumulate;

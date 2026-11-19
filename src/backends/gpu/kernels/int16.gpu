@@ -224,8 +224,8 @@ __device__ void q8_0_rows(const RowCall& rc, const QT* q, const float* dx, unsig
 // Each lane scales its integer dots in block order and the lanes fold by wave_sums' transposed tree, so every column has the same bits whatever C and R the call takes.
 template <int C, int R, int G, typename M = Cols>
 __device__ void q8_0_rows_half(const RowCall& rc, const signed char* q, const float* dx, unsigned long long nin, int ncols, int add, const M& m = M{}) {
-    // A build wider than 8 columns computes every column it holds, one past the call reading the call's last column, so no column branch splits its loads (docs/STATUS.md).
-    constexpr bool whole = C > 8;
+    // A plain build computes every column it holds, one past the call reading the call's last column, so no column branch splits its loads, where a grouped build of up to 8 columns skips it (docs/STATUS.md).
+    constexpr bool whole = C > 8 || (C > 1 && __is_same(M, Cols));
     const int lanes = warpSize, lane = threadIdx.x % lanes;
     const unsigned long long blocks = nin / 32, waves = (unsigned long long)gridDim.x * (kThreads / lanes);
     const unsigned hl = lane & 1;
@@ -249,25 +249,45 @@ __device__ void q8_0_rows_half(const RowCall& rc, const signed char* q, const fl
             // The lane's bytes start sh bytes into word wi and its weights s0 bytes in, 4 meaning the next word.
             // The even lane's fifth word lies inside its block and the odd lane's, read only where its bytes do not start on a word, inside the block after it.
             const unsigned at = b * kQ8, start = at + 18 * hl, sh = start & 2, wi = start >> 2, s0 = sh + 2 * (1 - hl);
-            // Columns in groups of G, a column past the call skipped below 9 columns: the first group's twin loads issue before the weights' and each group's before its products (docs/STATUS.md, ROCm wide decode rows).
-            int4 xq[G];
-            float xd[G];
+            // Columns in groups of G: the first group's twin loads issue before the weights' and each group's before its products (docs/STATUS.md, ROCm wide decode rows).
+            // Up to 8 columns, two buffers of a group's twin: group g + G's loads issue before group g's products, so it arrives under them; a wider build loads each group as it starts, which holds its registers to one group's twin.
+            constexpr bool ahead = C <= 8;
+            int4 xq[ahead ? 2 : 1][G];
+            float xd[ahead ? 2 : 1][G];
             const auto load = [&](int g) {
 #pragma unroll
                 for (int c = 0; c < G; ++c) {
                     if (whole ? g + c >= C : g + c >= ncols) continue;
-                    // The column's base is the wave's and the lane's offset 32-bit, one register for every column.
-                    const unsigned long long col = m.x(whole && g + c >= ncols ? ncols - 1 : g + c) * blocks;
-                    xq[c] = *(const int4*)(q + col * 32 + (b * 32 + 16 * hl));
-                    xd[c] = dx[col + b];
+                    // Up to 8 columns a column's twin lies within the call's 32-bit span (the host checks it), so its base and the lane's offset are one 32-bit register; a wider build keeps 64-bit offsets, which hold it to fewer registers.
+                    const unsigned long long cx = m.x(whole && g + c >= ncols ? ncols - 1 : g + c) * blocks;
+                    const int k = ahead ? (g / G) & 1 : 0;
+                    if constexpr (ahead) {
+                        const unsigned col = (unsigned)cx;
+                        xq[k][c] = *(const int4*)(q + (col * 32u + (b * 32 + 16 * hl)));
+                        xd[k][c] = dx[col + b];
+                    } else {
+                        xq[k][c] = *(const int4*)(q + cx * 32 + (b * 32 + 16 * hl));
+                        xd[k][c] = dx[cx + b];
+                    }
                 }
             };
             load(0);
+            // Up to 8 columns the weights' words and the first two groups' twin issue before anything waits on them; a wider build reads the words where it aligns them.
+            unsigned tw[R][5];
+            if constexpr (ahead) {
+#pragma unroll
+                for (int j = 0; j < R; ++j) {
+                    tw[j][0] = w[j][wi], tw[j][1] = w[j][wi + 1], tw[j][2] = w[j][wi + 2], tw[j][3] = w[j][wi + 3], tw[j][4] = w[j][wi + 3 + (hl == 0 || sh ? 1 : 0)];
+                }
+                if constexpr (C > G) load(G);
+                schedule_barrier();
+            }
             unsigned wq[R][4];
             float dw[R];
 #pragma unroll
             for (int j = 0; j < R; ++j) {
-                const unsigned t0 = w[j][wi], t1 = w[j][wi + 1], t2 = w[j][wi + 2], t3 = w[j][wi + 3], t4 = w[j][wi + 3 + (hl == 0 || sh ? 1 : 0)];
+                const unsigned t0 = ahead ? tw[j][0] : w[j][wi], t1 = ahead ? tw[j][1] : w[j][wi + 1], t2 = ahead ? tw[j][2] : w[j][wi + 2], t3 = ahead ? tw[j][3] : w[j][wi + 3],
+                               t4 = ahead ? tw[j][4] : w[j][wi + 3 + (hl == 0 || sh ? 1 : 0)];
                 const bool next = s0 == 4;
                 const unsigned u0 = next ? t1 : t0, u1 = next ? t2 : t1, u2 = next ? t3 : t2, u3 = next ? t4 : t3, n = s0 & 3;
                 wq[j][0] = byte_align(u1, u0, n);
@@ -280,17 +300,23 @@ __device__ void q8_0_rows_half(const RowCall& rc, const signed char* q, const fl
             }
 #pragma unroll
             for (int g = 0; g < C; g += G) {
-                if (g) load(g);
+                if constexpr (ahead) {
+                    if (g && g + G < C) load(g + G);
+                    if (g) schedule_barrier();
+                } else if (g) {
+                    load(g);
+                }
+                const int k = ahead ? (g / G) & 1 : 0;
 #pragma unroll
                 for (int c = 0; c < G; ++c) {
                     if (whole ? g + c >= C : g + c >= ncols) continue;
 #pragma unroll
                     for (int j = 0; j < R; ++j) {
-                        int t = word_dot((int)wq[j][0], xq[c].x, 0, (signed char)0);
-                        t = word_dot((int)wq[j][1], xq[c].y, t, (signed char)0);
-                        t = word_dot((int)wq[j][2], xq[c].z, t, (signed char)0);
-                        t = word_dot((int)wq[j][3], xq[c].w, t, (signed char)0);
-                        acc[j][g + c] = fmaf(dw[j] * xd[c], (float)t, acc[j][g + c]);
+                        int t = word_dot((int)wq[j][0], xq[k][c].x, 0, (signed char)0);
+                        t = word_dot((int)wq[j][1], xq[k][c].y, t, (signed char)0);
+                        t = word_dot((int)wq[j][2], xq[k][c].z, t, (signed char)0);
+                        t = word_dot((int)wq[j][3], xq[k][c].w, t, (signed char)0);
+                        acc[j][g + c] = fmaf(dw[j] * xd[k][c], (float)t, acc[j][g + c]);
                     }
                 }
             }

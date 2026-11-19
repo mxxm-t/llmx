@@ -1104,6 +1104,51 @@ README gains the rope-scaling line (models that declare YaRN and `--yarn F`), wh
 - **Left:** the review and the Radeon VII check (AGENTS.md, Merge gates); CUDA builds the same kernel source and gets the same inlining; Vulkan's norm shader has no calls and is unaffected.
 - **Gotchas:** the other kernels that still make calls (`delta_step`, `matmul_q8_0`, `matmul_f16`, `routed_q8_0`, `route_step_*`) were not changed; `gated_delta_rule` inlined gave no measurable pass change on 27B.
   HIP eager launches keep kernel arguments in host memory (HIP_FORCE_DEV_KERNARG has no effect on gfx906 with ROCm 7.2.1), so every kernel's first argument load is a PCIe round trip of about 0.8 us more than from VRAM; the same pass as a HIP graph runs 0.6B 1.88 ms and 27B 38.83 ms against 2.21 and 39.7 eager. That is a separate, larger change of the launch path, not part of this branch.
+## ROCm few decode columns (2026-11-20, HEAD1, HEAD2, HEAD3 then HEAD4, branch perf/rocm-few-columns on main a274cfd62)
+
+**Done:** the Q8_0 half-block decode builds of 2 to 8 columns over 8-bit activations (`q8_0_rows_half`, `kernels/int16.gpu`) issue the weights' words with their twin loads before anything waits on them, the eight-column build, two groups of four columns, issuing both groups' twin loads first and keeping two buffers of a group's twin so group g + G's loads arrive under group g's products, and address a column's twin by a 32-bit offset from the call's first column.
+The host refuses a call whose twin span would not fit those offsets before any launch (`half_span`, `backends/gpu/backend_core.hpp`), on the dense and the routed path.
+Builds of 9 to 16 columns compile as on main: the early loads and the second buffer raised the sixteen-column build's registers, and an earlier cut that gave them to every width ran 16 columns 1.32x slower on Flash-Next's head (2491 against 3275 us).
+Every build keeps the one-column build's bits; `q8_columns_bits` runs 2 to 16 columns over rows of 1024 and 2560 values, each column against its one-column call, and names the build each count takes.
+These builds run decode passes of several sequences and every draft verify of 2 to 8 tokens (MTP, lookup), so their speed is MTP decode speed.
+
+One MI50, ROCm int8, Flash-Next's dense Q8_0 shapes (nin x nout), us per call, median of 5 interleaved rounds, main a274cfd62 against the branch, each cell's output hash equal across arms (/opt/claude-work/head3/out/ab5.txt on the rig, host load average 26):
+
+| Shape | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 12 | 16 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| head 2560x248320 | 838/834 | 915/909 | 967/964 | 1008/992 | 1492/1310 | 1572/1328 | 1671/1318 | 1755/1333 | 2232/2236 | 2489/2489 |
+| 2560x12288 | 46/47 | 52/51 | 56/54 | 57/55 | 85/71 | 88/72 | 91/74 | 95/76 | 123/124 | 138/139 |
+| 2560x10240 | 40/40 | 45/44 | 49/46 | 49/48 | 73/60 | 76/64 | 78/63 | 82/65 | 103/104 | 117/116 |
+| 6144x2560 | 29/29 | 29/28 | 31/30 | 32/31 | 48/35 | 49/35 | 50/36 | 52/38 | 62/62 | 68/68 |
+| 10240x320 | 10/10 | 14/13 | 16/16 | 15/14 | 29/17 | 31/17 | 31/17 | 33/17 | 28/27 | 34/34 |
+| 320x10240 | 13/12 | 19/18 | 25/22 | 25/21 | 38/32 | 40/32 | 41/32 | 42/33 | 49/49 | 60/60 |
+| 2560x640 | 7/7 | 8/8 | 9/10 | 9/9 | 13/11 | 12/11 | 13/10 | 13/11 | 14/14 | 16/16 |
+| 640x2560 | 8/8 | 8/8 | 11/10 | 11/10 | 15/19 | 16/13 | 16/14 | 16/12 | 17/17 | 20/20 |
+
+5 to 8 columns run 0.51x to 0.93x main's time; 1 to 4 and 12 to 16 columns are level but for 320x10240 at 3 and 4 columns (0.86x, 0.85x), 640x2560 at 3 and 4 (0.92x, 0.89x), 10240x320 at 2 (0.91x) and 2560x640 at 3, which read 9.7 against 9.3 us (1.04x) here and 8.8 against 8.9 us (0.99x) in the ten rounds below.
+640x2560 at 5 columns, 18.6 against 15.1 us here, ran 12.2 against 14.7 us (0.83x) in ten more interleaved rounds (/opt/claude-work/head3/out/rr5.txt), so that cell was noise.
+Plain builds of 2 to 8 columns now compute the columns they hold past the call from its last column, as the wider builds did, where main skipped them: calls of 3 and 5 to 7 columns run their padding columns, and grouped builds still skip them.
+
+`backend-rocm`, `types` among its checks, PASS in the ROCm CTest on one MI50 (/opt/claude-work/head4/out/ctest-fc.txt).
+Routed rates (`backend-rocm rates routed`, /opt/claude-work/head3/out/rr5.txt, main a274cfd62 against the branch, two interleaved rounds, the faster round of each): 272 cells over every type, geomean 1.00x, the same build taken in every cell; Q8_0 int8 2560x640 x2 takes `llmx_q8_0_routed_half8_g2` and `_g4` and runs 0.96x to 0.99x, and 640x2560 x1 at 64 and 128 rows 0.91x and 0.94x.
+No rate cell takes `llmx_q8_0_routed_half8_g8`, which shares `q8_0_rows_half` with the timed builds.
+
+**Gates:** on 5f00c2c1, built as llmx 0.1.0+g5f00c2c1d074 the way main a274cfd62's binary was (/opt/claude-work/main-bin), before the tests-only removal of `cuda_sass.py`'s `llmx_q8_0_half8_` spill line; evidence under /opt/claude-work/head4/out on the rig.
+
+| Check | Result |
+|---|---|
+| Builds R and C (ROCm 7.2.1, CPU), CUDA 12.9.1 | 0 errors |
+| CTest ROCm, one MI50 | 94/94 (ctest-fc.txt) |
+| CTest cuda-sass, gpu-core, gpu-port | 2/3 on 5f00c2c1: cuda-sass listed `llmx_q8_0_half8_` as spilling at sm_80, which it no longer does; 1/1 with the line removed (cusass-fc2.txt) |
+| Generate and logits against main a274cfd62, Qwen3-0.6B Q8_0 on the CPU and rocm:0 at int8 and auto: logits, per-token logits, greedy generate, lookup drafts of 7, prompts of 2, 5, 8 and 9 words | byte identical, 24 of 24 cells (ident/fc/summary) |
+| Suite on rocm:0, one MI50 | PASS but safetensors and server (suite-fc.txt); safetensors fails on main a274cfd62 too (ROCm refuses F8_E4M3 weights, a main defect with its own stream); server timed out once at host load about 45, then passed alone twice on main and three times on the branch (sv-*.txt, sv2-*.txt), so the timeout is a flake under load |
+| HF logit golden (suite `baseline`), rocm:0 int8 and f16 | PASS |
+| Qwen3.8-Flash-Next UD-Q4_K_XL 2x2 int8 with its Q8_0 MTP head, tg128 median tok/s over 15 replies, main / branch | draft max 3: 71.86, 46.57 / 65.41, 65.64 (mtp-fc) and 62.79, 61.20, 66.03 / 62.22, 60.30, 63.37 (mtp2-fc), level within the rounds' spread; draft max 7: 74.95, 67.44 / 67.61, 75.39 (mtp3-fc), level within the rounds' spread, every reply's text identical across the four runs |
+
+The change lands by fast-forward.
+
+**Left:** nothing.
+README unchanged (kernel speed only).
 
 ## Landing stack land-20261117 (2026-11-17, LAND68 then LAND69, Done)
 

@@ -16,7 +16,6 @@ SPILL_ALLOWED = {
     "llmx_matmul_rows_q8_0": "step 4, first tuning on real shapes, the Q8_0 row build",
     "llmx_q5_k_rows": "step 4, first tuning on real shapes, the Q5_K row builds at 255 registers on sm_120 and 64 on sm_90",
     "llmx_q6_k_rows8_": "step 4, the int8 class",
-    "llmx_q8_0_half8_": "step 4, the int8 class, the pair mask of the scale exchange at sm_80's 80 registers",
     "llmx_q4_k_routed": "step 8, the routed MoE operations",
     "llmx_q5_k_routed": "step 8, the routed MoE operations",
     "llmx_q6_k_routed": "step 8, the routed MoE operations",

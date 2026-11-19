@@ -92,7 +92,7 @@ constexpr int kNormThreads = 1024;   // the held norm's block: four times kThrea
 // A block a row of n <= K * kThreads values: dst = RMSNorm(src) against w, with its twin at L levels beside it when L is not 0.
 // The sum takes rms_norm_row's chains and block_sum's tree, so both give the same bits.
 template <int K, typename QT, int L>
-__device__ void rms_norm_held(float* __restrict__ dst, const float* __restrict__ src, const float* __restrict__ w, int n, unsigned long long stride, float eps,
+__device__ __forceinline__ void rms_norm_held(float* __restrict__ dst, const float* __restrict__ src, const float* __restrict__ w, int n, unsigned long long stride, float eps,
                               unsigned parts, QT* __restrict__ q, float* __restrict__ d, void* __restrict__ ts, const TwinMap* m) {
     constexpr int J = K * kThreads / kNormThreads;
     __shared__ float xs[K * kThreads];
@@ -110,10 +110,14 @@ __device__ void rms_norm_held(float* __restrict__ dst, const float* __restrict__
     }
     __syncthreads();
     if (t < kThreads) {
+        // Every read before the first sum, so the K reads wait once rather than one at a time; xs holds all K * kThreads values, zeros past n.
+        float xv[K];
+#pragma unroll
+        for (int k = 0; k < K; ++k) xv[k] = xs[t + kThreads * k];
         float s = 0.0f;
 #pragma unroll
         for (int k = 0; k < K; ++k)
-            if (t + kThreads * k < n) s = fmaf(xs[t + kThreads * k], xs[t + kThreads * k], s);
+            if (t + kThreads * k < n) s = fmaf(xv[k], xv[k], s);
         lds[t] = s;
     }
     __syncthreads();

@@ -1066,6 +1066,23 @@ README gains the rope-scaling line (models that declare YaRN and `--yarn F`), wh
   CTest on the CPU 91 of 91 and on ROCm over four MI50s 95 of 95 (placement, which failed once before a rig reset, passed twice on 57a932e49 and once on the fix); Qwen3-0.6B greedy output identical between base and fix on the CPU, one MI50 and tensor width 2 over four.
   The CPU suite passes but for dead-code and docs, which could not read the worktree's git directory in their container and pass on their own run at the head; the server component passes on one MI50 under ROCm and Vulkan; TSan's http, server-passes-cpu and server-spec pass.
   The branch lands by fast-forward.
+## Held norm inline (2026-11-19, BYPASS12, branch perf/norm-held-inline on main a274cfd62)
+
+- **Goal:** the held RMS norm (`rms_norm_held`, `kernels/f32.gpu`), launched 57 times a Qwen3-0.6B decode pass and 177 times a Qwen3.6-27B one, runs its chain without waits it does not need, with every bit kept.
+- **Done:** `rms_norm_held` is `__forceinline__`. The compiler had kept it a real call in each `llmx_rms_norm_*` kernel (s_swappc), so its loads and stores were flat and every shared-memory wait also waited on them.
+  The sum reads its K shared values before the first add, so they wait once, where the per-value bound check had kept each read behind its own wait; the adds and their order are unchanged.
+- **Measured, one MI50, ROCm 7.2.1** (/opt/claude-work/bypass12, graph replay of 200 calls, 3 interleaved reps, the pair's output rows, normed row, twin codes and scales byte-equal): the norm kernel alone runs 4.98 -> 4.22 us at 0.6B (1024 values) and 7.78-7.94 -> 5.97-6.11 us at 27B (5120 values); inlining alone gives 4.57 and 7.04-7.19.
+  The whole decode pass replayed as raw AQL packets with the kernels of main and of this change (bypass7 p15R, host kernarg as HIP eager launches, 3 reps): 0.6B 2.200-2.204 -> 2.132-2.147 ms (-3.0%, logits byte-equal to main's), 27B 39.55-39.59 -> 39.42-39.44 ms (-0.4%).
+- **Gates** (2026-11-20, BYPASS13, one MI50 at default clocks, ROCm 7.2.1, /opt/claude-work/bypass12 and bypass13): main is `llmx 0.1.0+ga274cfd62fa9 numerics 70e57b51011f66bd` (sha256 2412db5c4dba4903), the branch `llmx 0.1.0+gef2dfc85ea43 numerics 23490af045bb4216` (sha256 2be41c1d97c0cf2a), built from ef2dfc85e, whose tree differs from this commit's in this record alone.
+  Identity against main, 14 of 14 byte-equal: Qwen3-0.6B Q8_0 and Qwen3.6-27B Q8_0 on rocm:0 at `--dtype auto` and `int8` (64 greedy ids, `logits --last 16`, `logits --per-token`), and greedy ids on the CPU.
+  Timing, `bench --p 512 --n 128 --r 3`, interleaved main, branch, main, branch (host flagged contended): 0.6B pp512 8071 (one contended run, slices 9003/8152/7059), 8875, 8885, 8890 tok/s and tg128 386.83, 383.93, 385.64, 398.35; 27B pp512 254.85, 253.69, 253.31, 253.32 and tg128 21.81, 22.08, 21.94, 21.30 +- 1.28 (one slow run).
+  A second 27B tg128 round, one run each, kept per run (host not contended): main 21.65, 21.75, 20.77 and branch 21.90, 20.55, 21.74 tok/s, means 21.39 and 21.40; no slowdown, and the decode gain is the replay's above, below the bench's resolution.
+  Suite `--device rocm:0`: every component passes or skips but `safetensors`, which fails identically on main (ROCm refuses the F8_E4M3 directory; fix/safetensors-rocm-fp8); `docs` and `dead-code` pass at the branch head.
+  CUDA 12.9.1 build of the branch head: 0 errors, `gpu-port`, `gpu-core`, `cuda-driver` and `cuda-sass` pass, `backend-cuda` skips without a card.
+  Left: the Radeon VII check, which runs at the landing stack's head.
+- **Left:** the review and the Radeon VII check (AGENTS.md, Merge gates); CUDA builds the same kernel source and gets the same inlining; Vulkan's norm shader has no calls and is unaffected.
+- **Gotchas:** the other kernels that still make calls (`delta_step`, `matmul_q8_0`, `matmul_f16`, `routed_q8_0`, `route_step_*`) were not changed; `gated_delta_rule` inlined gave no measurable pass change on 27B.
+  HIP eager launches keep kernel arguments in host memory (HIP_FORCE_DEV_KERNARG has no effect on gfx906 with ROCm 7.2.1), so every kernel's first argument load is a PCIe round trip of about 0.8 us more than from VRAM; the same pass as a HIP graph runs 0.6B 1.88 ms and 27B 38.83 ms against 2.21 and 39.7 eager. That is a separate, larger change of the launch path, not part of this branch.
 
 ## Landing stack land-20261117 (2026-11-17, LAND68 then LAND69, Done)
 

@@ -50,6 +50,7 @@ SPILL_ALLOWED = {
     "llmx_matmul_rows_iq2_xs": "step 8, IQ2_XS's exact row build: 8 bytes on sm_120, where the 256-thread bound lets ptxas trade them for a block an SM, and two blocks an SM spilled more and was not taken (docs/STATUS.md)",
     "llmx_matmul_rows_iq4_xs": "step 8, IQ4_XS's exact row build: 4 bytes on sm_120, where the 256-thread bound lets ptxas trade them for a block an SM, and two blocks an SM spilled more and was not taken (docs/STATUS.md)",
     "llmx_delta_step": "step 5, the qwen35 delta step: 8 bytes on sm_86, sm_89 and sm_90 since it took the int8 half-block form of feat/qwen27-delta-q8, and two blocks an SM spilled more and was not taken (docs/STATUS.md)",
+    "llmx_rms_norm_16_twin": "the held norm's 16-level twin builds: 8 bytes on sm_80 at its 32 registers since the norm's K reads issue before the first sum (docs/STATUS.md)",
 }
 
 

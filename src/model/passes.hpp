@@ -1375,10 +1375,14 @@ inline std::vector<size_t> Model::readers(size_t from) const {
             if (stream_device_[(size_t)l] == (int)st.device) go(f, st.device), at.push_back(st.device);
         }
     for (size_t a : at) go(a, (size_t)place_.output_device);
-    // A drafter's stages apart: the head to each stage's device, and each device of a draft's route to the next.
+    // A drafter's stages apart: the head to each stage's device, and each device of a draft's route to the next; the head's ids to the table's device and its rows to stage 0's.
     for (size_t i = 0; draft_apart_ && i < draft_route_size(); ++i) {
         go((size_t)place_.output_device, draft_route(i));
         go(draft_route(i), draft_route(i + 1));
+    }
+    if (draft_apart_) {
+        go((size_t)place_.output_device, draft_table_device());
+        go(draft_table_device(), draft_stage_device(0));
     }
     return out;
 }

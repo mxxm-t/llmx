@@ -621,7 +621,7 @@ public:
             for (const Role& role : plan_.drafter->roles) require_type(role, drafter_device(role), "embedded drafter");
             for (const OpUse& u : plan_.drafter->ops)
                 for (size_t d : draft_devices_)
-                    for (size_t at : {d, (size_t)place_.output_device})
+                    for (size_t at : {d, (size_t)place_.output_device, draft_table_device()})
                         if (!backends[at]->implements(u.op))
                             throw std::runtime_error(std::string("inference: the embedded drafter needs ") + backend::op_name(u.op) +
                                                      ", which the backend of its device does not implement");
@@ -779,9 +779,10 @@ public:
             at = f;
         }
         if ((size_t)place_.output_device != at) devices_[at]->sends = true;
-        // A drafter whose stages run apart sends from the head to each stage's device and along its route back to the head (Model::readers).
+        // A drafter whose stages run apart sends from the head to each stage's device and along its route back to the head, and from the head to the table's device and on to stage 0's where they differ (Model::readers).
         for (size_t i = 0; draft_apart_ && i < draft_route_size(); ++i)
             if (draft_route(i) != draft_route(i + 1)) devices_[draft_route(i)]->sends = devices_[(size_t)place_.output_device]->sends = true;
+        if (draft_apart_ && draft_table_device() != draft_stage_device(0)) devices_[draft_table_device()]->sends = devices_[(size_t)place_.output_device]->sends = true;
         // Which of each sender's readers its backend orders on the devices, asked once; every pass's Handoffs answer the same.
         for (size_t d = 0; d < devices_.size(); ++d) {
             Device& dev = *devices_[d];
@@ -1636,12 +1637,18 @@ private:
     // A draft step's route: its stages' devices in order, then the head's at draft_route_size().
     size_t draft_route_size() const { return plan_.drafter->stages.size(); }
     size_t draft_route(size_t i) const { return i < draft_route_size() ? draft_stage_device(i) : (size_t)place_.output_device; }
-    // The device a drafter role runs on: a stage's on its stage's, the gather of the pass's embedding table with stage 0, which reads it first, and every other with the head.
+    // The device that gathers stage 0's rows from the pass's embedding table: stage 0's, but for a stage 0 apart from the head where the embedding's device holds the whole table, which gathers them for stage 0 (Model::draft_record).
+    // The fit charges the same (split_layers), so a stage 0 between the embedding's device and the head's keeps no copy of the table.
+    size_t draft_table_device() const {
+        const size_t first = draft_stage_device(0);
+        return first != (size_t)place_.output_device && (width_ == 1 || !embedding_split(plan_)) ? (size_t)place_.embed_device : first;
+    }
+    // The device a drafter role runs on: a stage's on its stage's, the gather of the pass's embedding table on draft_table_device, and every other with the head.
     size_t drafter_device(const Role& role) const {
         const auto& stages = plan_.drafter->stages;
         for (size_t st = 0; st < stages.size(); ++st)
             if (role.id >= stages[st].first && role.id < stages[st].second) return draft_stage_device(st);
-        if (!stages.empty() && role.kind == RoleKind::gather && role.tensor == embedding_role(plan_).tensor) return draft_stage_device(0);
+        if (!stages.empty() && role.kind == RoleKind::gather && role.tensor == embedding_role(plan_).tensor) return draft_table_device();
         return (size_t)place_.output_device;
     }
     // The device part `phase` of a draft step runs on (DraftStep): a stage's sublayers on its stage's, the head's part and the picks on the head's.

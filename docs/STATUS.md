@@ -1778,6 +1778,18 @@ A prefill whose busy times are uniformly inflated (a contending job, a clock dro
 - **Rejected, bits equal throughout:** branch-free scale, min and twin staging (-1.5 to +3%, noise); 32-bit weight offsets (-1.7 to +2%: the loop's loads already take a scalar base, and the 64-bit adds are the epilogue's stores); a 4 x 8 thread tile of 64 outputs by 128 rows (155 to 160 VGPRs, one wave a SIMD, -15 to -32% at f16), and the same with a thread's rows in two halves of four (201 to 237 VGPRs, not run).
 - **Left:** CTest and the device suite at the landing head, the timing round against main on a quiet host, and the hosted run.
 - **Gotchas:** the pairing needs every part to start at an even block; a split rule that gives odd parts must drop it.
+## DSpark fits the layer split beside the model (branch ds246-dspark-fit on c494eea6f, DSDEV243 to DSDEV251, 2026-11-19 to 2026-11-21, READY)
+
+- **Goal:** DeepSeek-V4.1-Flash MXFP4 with the DSpark sidecar fits the ten-MI50 layer split at the default context, which refused it ("drafting does not fit beside the model"), with the 5x2 split unchanged.
+- **Done:** the fit charges drafter stage 0 a copy of the embedding table only beside the head, or where a tensor group splits the table (`split_layers`), and the runtime matches it: a stage 0 between the embedding's device and the head's holds no copy, the embedding's device gathers its rows in a span of its own and they cross to stage 0 through the drafter's handoff buffers, queued on the devices like the chain's other crossings (`Model::draft_table_device`, `DraftStep::lookup`, docs/SPECULATIVE.md, section 9).
+  The placement test holds the ten-card layer split at DeepSeek's proportions, stages on rocm:7 and rocm:8 and the last beside the head, and the five-group case with its copy; `arch-deepseek4` requires stage 0 on the middle of three CPUs to gather no table rows, its drafts and draft logits bit for bit with the head's and its served ids and log-probabilities those of one CPU without drafts.
+  On a CPU build of the branch the `deepseek4`, `docs` and `dead-code` components passed and the placement test passed three runs of three, one earlier run failing its timed pipelined-cut check at a load average near 40.
+  Device check on ten MI50s, DeepSeek-V4.1-Flash MXFP4, ROCm int8, 2026-11-21: main refuses DSpark `--draft-max 3` on the layer split, and the branch places stages 0, 1 and 2 on rocm:1, rocm:4 and rocm:8 beside layers 4-7, 16-19 and 32-35.
+  Greedy `generate --chat --ignore-eos -n 512` gives main's 512 ids at the layer split and at 5x2, plain and with DSpark, the DSpark ids equal the plain ids at both widths, and drafts kept at 5x2 equal main's (137/220, 68/219, 37/219); on the layer split the branch keeps 151/234, 85/233 and 41/233.
+  At 5x2 with DSpark, four bench runs interleaved branch, main, main, branch: a draft-0 step takes 29.65 and 30.01 ms against main's 30.09 and 29.48, and tg128 gives 29.83 +- 2.90 (a cold first run) and 32.32 +- 0.94 tok/s against 33.47 and 33.53, a path the branch does not reach (bench decodes without drafts, and at 5x2 stage 0 reads its own copy); the earlier plain 5x2 cells gave 32.98 and 31.49 against 32.48 and 30.13.
+  pp16384 gives 1716 against 1729 tok/s at 5x2 and 2087 against 1955 on the layer split, with identical placements.
+- **Left:** the landing gates for model and placement code at the landing head: CTest, the device suite, the Radeon VII check and the hosted run.
+- **Gotchas:** the gathered rows are `ModelPlan::draft_rows_x`, the sequences' rows and the noise row, so a block of one draft would need a handoff of R + 1 rows.
 
 ## Landing stack land-20261118 (2026-11-18 to 2026-11-19, LAND79 to LAND82, Done)
 

@@ -1497,7 +1497,7 @@ inline void Model::draft_record(Chain& c) {
             return x;
         };
         // Part `phase` of step m on member g of the group at device d, over that device's drafter layer, its input ids the head's or, on a device apart from it, those crossed into its arena.
-        const auto call = [&](size_t d, size_t g, size_t m, int phase) {
+        const auto call = [&](size_t d, size_t g, size_t m, int phase, DraftStep::Lookup lookup = DraftStep::Lookup::with) {
             const size_t rows = c.rows[m];
             const backend::RowRun run{rows, 1};
             const backend::Slice hn = slot(ctx_, o + g, plan_.draft_h);
@@ -1521,6 +1521,7 @@ inline void Model::draft_record(Chain& c) {
             step.ids = B;
             step.stride = R;
             step.phase = phase;
+            step.lookup = lookup;
             if (W > 1) {
                 step.width = W;
                 step.partial = ctx_.collectives[d]->partial(g);
@@ -1559,28 +1560,46 @@ inline void Model::draft_record(Chain& c) {
                 const Recording held(*this, o, W);
                 for (size_t g = 0; g < W; ++g) devices_[o + g]->b->write(*draft_ids_[g], 0, c.last.data(), R * sizeof(uint32_t));
             }
-            // Each step runs its parts in spans, a span the parts on one device, each span's rows crossing to the next; the head's picks of a step cross as the next step's ids to stage 0's device, and the first step's are written there.
+            // Each step runs its parts in spans, a span the parts on one device, each span's rows crossing to the next; the head's picks of a step cross as the next step's ids to the device reading them first, and the first step's are written there.
+            // That is stage 0's, or the table's where it gathers stage 0's rows apart (draft_table_device), a span of its own whose rows cross to stage 0 through the same buffers, queued behind the picks on the devices.
+            const size_t table = draft_table_device();
+            const bool lookup_apart = table != draft_stage_device(0);
             size_t from = SIZE_MAX, moved = 0;
             backend::Ticket sent = 0;
             const std::vector<ModelPlan::Carried>* crossing = nullptr;
+            // The first step's ids written into device d's arena, where the head's are not.
+            const auto first_ids = [&](size_t d, size_t m) {
+                for (size_t g = 0; !m && d != o && g < W; ++g) {
+                    const backend::Slice ids = slot(ctx_, d + g, plan_.draft_ids);
+                    devices_[d + g]->b->write(*ids.buffer, ids.offset * sizeof(float), c.last.data(), R * sizeof(uint32_t));
+                }
+            };
             for (size_t m = 0; m < steps; ++m)
                 for (int phase = 0; phase < P;) {
+                    if (!phase && lookup_apart) {
+                        const Recording held(*this, table, W);
+                        for (size_t g = 0; from != SIZE_MAX && g < W; ++g) receive(ctx_, 0, from, 0, sent, table + g, 0, moved, L, crossing);
+                        first_ids(table, m);
+                        for (size_t g = 0; g < W; ++g) call(table, g, m, 0, DraftStep::Lookup::only);
+                        send(ctx_, 0, table, 0, 0, c.rows[m] + 1, L, &draft_rows_slots_);
+                        crossing = &draft_rows_slots_;
+                        moved = c.rows[m] + 1;
+                        for (size_t g = 0; g < W; ++g) c.sent[table + g] = devices_[table + g]->b->submit();
+                        sent = c.sent[table];
+                        from = table;
+                    }
                     const size_t d = draft_part_device(size_t(phase));
                     int end = phase;
                     while (end < P && draft_part_device(size_t(end)) == d) ++end;
                     const Recording held(*this, d, W);
                     for (size_t g = 0; from != SIZE_MAX && g < W; ++g) receive(ctx_, 0, from, 0, sent, d + g, 0, moved, L, crossing);
                     from = SIZE_MAX;
-                    if (!m && !phase && d != o)
-                        for (size_t g = 0; g < W; ++g) {
-                            const backend::Slice ids = slot(ctx_, d + g, plan_.draft_ids);
-                            devices_[d + g]->b->write(*ids.buffer, ids.offset * sizeof(float), c.last.data(), R * sizeof(uint32_t));
-                        }
+                    if (!phase && !lookup_apart) first_ids(d, m);
                     for (int ph = phase; ph < end; ++ph) {
-                        for (size_t g = 0; g < W; ++g) call(d, g, m, ph);
+                        for (size_t g = 0; g < W; ++g) call(d, g, m, ph, lookup_apart && !ph ? DraftStep::Lookup::crossed : DraftStep::Lookup::with);
                         after(d, m, ph);
                     }
-                    const size_t next = end < P ? draft_part_device(size_t(end)) : m + 1 < steps ? draft_route(0) : d;
+                    const size_t next = end < P ? draft_part_device(size_t(end)) : m + 1 < steps ? lookup_apart ? table : draft_route(0) : d;
                     phase = end;
                     if (next == d) continue;
                     if (end < P) {
@@ -1609,9 +1628,10 @@ inline void Model::draft_record(Chain& c) {
         c.ids.resize(per * W);
         for (size_t g = 0; g < W; ++g) std::memcpy(c.ids.data() + g * per, draft_ids_[g]->host_ptr(), per * sizeof(uint32_t));
     } catch (...) {
-        // Only the drafter's devices recorded the chain, and another stage's thread may be recording on the rest.
+        // Only the drafter's devices and the table's recorded the chain, and another stage's thread may be recording on the rest.
         for (size_t d = 0; d < devices_.size(); ++d) {
-            if (d - devices_[d]->member != o && std::find(draft_devices_.begin(), draft_devices_.end(), d - devices_[d]->member) == draft_devices_.end()) continue;
+            const size_t at = d - devices_[d]->member;
+            if (at != o && at != draft_table_device() && std::find(draft_devices_.begin(), draft_devices_.end(), at) == draft_devices_.end()) continue;
             const Recording held(*this, d, 1);
             try { devices_[d]->b->sync(); } catch (...) {}
         }

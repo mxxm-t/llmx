@@ -111,7 +111,7 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   a zero row for an empty history); `DraftStep` the device slices of a
   draft step's token ids, the rows before them where it carries a row (gathered by `prev_rows`
   where they are rows of the carried rows), the drafted ids, its output
-  rows after the drafter's final norm and its logits, `ids` drafts a sequence (`draft_block`, 1 for none), draft j of sequence i at position `pos[i * ids + j]` in row j * `stride` + i, the output rows being the next call's `prev`.
+  rows after the drafter's final norm and its logits, `ids` drafts a sequence (`draft_block`, 1 for none), draft j of sequence i at position `pos[i * ids + j]` in row j * `stride` + i, the output rows being the next call's `prev`, and with `lookup` whether part 0 reads the embedding table itself, only reads it on the table's device, or takes the rows that crossed from there.
   The cache views of both are the drafter's KV layers' (`kv_layer` the first of `draft_kv_layers`) or state layer's; a drafter that reads a window sets `ModelPlan::draft_window`, which the chain sets as `KVView::window` on the views it attends through, and declares `Op::attention_window`.
   An external table lookup adds `lookup`, a borrowed `PreparedLookup`: packed
   unique rows in `data`, their count in `rows`, and ordered request IDs remapped

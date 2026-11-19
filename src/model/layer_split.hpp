@@ -290,10 +290,12 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
             for (const Matrix& m : fp.layers[l]) b += resident(d, m);
             prefix[d][l + 1] = backend::size_add(prefix[d][l], b);
         }
-    // The drafter's embedding goes with its first part, the head's without stages and stage 0's with them, unless the device holds the table already.
+    // The drafter's embedding copy goes with its first part on the head's device, which runs the chain beside the head; a stage 0 apart reads the first device's whole table, whose rows cross to it.
+    // A group that splits the table holds no whole one, so its first part keeps a copy wherever it runs.
     const size_t S = fp.drafter_stages.size();
     auto drafted_embedding = [&](size_t d, bool first, bool last) {
-        return (first && fp.drafter_embedding_held) || (last && fp.tied) ? size_t(0) : resident(d, fp.drafter_embedding);
+        if (!fp.drafter_embedding_held) return last && fp.tied ? size_t(0) : resident(d, fp.drafter_embedding);
+        return last && !first && !fp.tied ? resident(d, fp.drafter_embedding) : size_t(0);
     };
     // The embedding and head weights a device keeps, given whether it runs the first and the last layers.
     // A tied pair on one device is one buffer, kept as the head keeps it, since the head reads it through a product.

@@ -171,10 +171,15 @@ inline void DeepSeek41::draft(const DraftStep& s) const {
     x.rows = n;
     x.runs = {&run, 1};
     const backend::Slice rows = s.slot(collapsed);
-    if (runs(0)) {
+    using Lookup = DraftStep::Lookup;
+    // The table's rows, the ids' then the noise token's, R + 1 rows of `collapsed`, which is ModelPlan::draft_rows_x and crosses where the table sits apart.
+    if (runs(0) && s.lookup != Lookup::crossed) {
         const Weight& table = s.w[token_embd];
         s.b.embed_ids(rows, table.operand(), E, table.nout, s.id, R);
         s.b.embed({rows.buffer, rows.offset + R * E}, table.operand(), E, table.nout, &c.noise_id, 1);
+    }
+    if (s.lookup == Lookup::only) return;
+    if (runs(0)) {
         for (size_t i = 0; i < n * H; ++i) s.indices[i] = (i / H) % B ? uint32_t(R) : uint32_t(i / H / B);
         s.b.gather_rows(x.x, rows, E, s.indices, n * H);
         std::fill(s.indices, s.indices + n, 0u);

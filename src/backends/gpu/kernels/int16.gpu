@@ -1830,8 +1830,9 @@ LLMX_KVEC {
     __shared__ __attribute__((aligned(16))) int wq[STEP * WORDS][OUTS];
     __shared__ __attribute__((aligned(16))) int xw[STEP * WORDS][ROWS];
     __shared__ float wd[STEP][H][OUTS], wm[STEP][H][OUTS], xd[STEP][ROWS];
-    // Each row's twin sum over a sub-block, or over each half where the scale changes every 16 values.
-    __shared__ int xh[STEP][H][ROWS];
+    // Each row's twin sum over a sub-block, or over each half where the scale changes every 16 values: a float for a type with no offset, else times -offset, where the integer sums start.
+    __shared__ typename std::conditional<KRaw<KT>::offset == 0, float, int>::type xh[STEP][H][ROWS];
+    constexpr int XM = KRaw<KT>::offset ? -KRaw<KT>::offset : 1;
     const int t = threadIdx.x, tr = t / 16, tc = t % 16;
     // The narrow routed build gives each wave one quad of the group's entries, rotated by workgroup since wave w runs on SIMD w; a quad holding no entry skips its dots.
     constexpr bool QUADS = ROUTED && ROWS == kNarrowRows;
@@ -1926,15 +1927,15 @@ LLMX_KVEC {
             if (seg == 0 && r < ROWS) {
                 xd[s][r] = xok[s] ? xs_[s] : 0.0f;
 #pragma unroll
-                for (int h = 0; h < H; ++h) xh[s][h][r] = !xok[s] ? 0 : H == 1 ? twin_half(xh_[s], 0) + twin_half(xh_[s], 1) : twin_half(xh_[s], h);
+                for (int h = 0; h < H; ++h) xh[s][h][r] = !xok[s] ? 0 : XM * (H == 1 ? twin_half(xh_[s], 0) + twin_half(xh_[s], 1) : twin_half(xh_[s], h));
             }
         }
     };
-    load(kbeg);
+    // A step is read right before it is staged, so no prefetch registers live across the dots and the occupancy that frees hides the reads (docs/STATUS.md).
     for (unsigned long long k0 = kbeg; k0 < kend; k0 += STEP) {
+        load(k0);
         store(k0);
         __syncthreads();
-        if (k0 + STEP < kend) load(k0 + STEP);
 #pragma unroll
         for (int s = 0; s < STEP; ++s) {
             if (k0 + s >= kend || idle) break;
@@ -1944,7 +1945,7 @@ LLMX_KVEC {
 #pragma unroll
                 for (int i = 0; i < TO; ++i)
 #pragma unroll
-                    for (int j = 0; j < TJ; ++j) is[i][j] = 0;
+                    for (int j = 0; j < TJ; ++j) is[i][j] = KRaw<KT>::offset ? xh[s][h][row_at(j)] : 0;
 #pragma unroll
                 for (int w = h * (WORDS / H); w < (h + 1) * (WORDS / H); ++w) {
                     int av[TO];
@@ -1967,11 +1968,12 @@ LLMX_KVEC {
                         for (int j = 0; j < TJ; ++j) is[i][j] = word_dot(av[i], bv[j], is[i][j], QT());
                 }
                 // A type with no min takes ds * isum, the bits of the fused form with its zero min (k_term), without the twin's sums.
+                // An offset type's isum already holds isum - offset * xsum, so ds * isum is k_term's offset form.
 #pragma unroll
                 for (int i = 0; i < TO; ++i)
 #pragma unroll
                     for (int j = 0; j < TJ; ++j)
-                        acc[i][j] = fmaf(xd[s][row_at(j)], KNoMin<KT>::value ? wd[s][h][out_at(i)] * sum_float<false>(is[i][j]) : k_term<KT>(wd[s][h][out_at(i)], wm[s][h][out_at(i)], is[i][j], xh[s][h][row_at(j)]), acc[i][j]);
+                        acc[i][j] = fmaf(xd[s][row_at(j)], KNoMin<KT>::value || KRaw<KT>::offset ? wd[s][h][out_at(i)] * sum_float<false>(is[i][j]) : k_term<KT>(wd[s][h][out_at(i)], wm[s][h][out_at(i)], is[i][j], xh[s][h][row_at(j)]), acc[i][j]);
             }
         }
         __syncthreads();

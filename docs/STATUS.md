@@ -590,6 +590,22 @@ A prefill whose busy times are uniformly inflated (a contending job, a clock dro
 **Gotchas.**
 - The bits of every 256-wide prompt attention row change on ROCm and CUDA (Qwen3.5, Qwen3.6 and Qwen3.8 attention layers at `attention_tile_rows` and above); 128-wide heads (Qwen3) are unchanged.
 - build/gpu-arch-options-land2 is build/gpu-arch-options-land 67340f65f rebased onto this branch without the change; it lands after it.
+## Prompt K tile staging 2 (2026-11-19, KEFF4, branch perf/k-tile-staging2 on perf/k-tile-pairs 9cceeeef0)
+
+- **Goal:** the prompt K tile (`k_tile`'s vector body in `kernels/int16.gpu`) closer to the dot peak on gfx906: after the pairs it ran at 46 to 48% of the 16-bit dot peak for Q4_K and 39% for Q6_K.
+- **Done:** a step is read right before it is staged rather than a step ahead, so no prefetch registers live across the dots: VGPRs q4_k_tile16 92 to 73, q5_k 95 to 74, q6_k 100 to 75 and the tile8 builds 98-108 to 70-75, three waves a SIMD where two ran (the 18 to 21 KB of shared memory a block takes fits three a compute unit); the int8 figures are the dot module's, the gfx906 code that runs.
+  An offset type (Q6_K, Q5_0, Q4_0) stages its twin sums times -offset and starts each integer sum there, so isum - offset * xsum needs no subtract and no shift; a type with no offset stages its twin sums as floats, converted once a row rather than at every output.
+  The integer sums are exact, so every output keeps its bits.
+- **Kernel rates (one MI50, ROCm 7.2.1, gfx906 builds, both arms built the same way):** `rates ktile` on Qwen3.6-27B's five dense shapes at 512 rows over all nine K tile types, two ABAB runs, output hashes equal to base in every cell.
+  Q4_K f16 48.5 to 52.0% of the dot peak (+6.6 to +9.3%), int8 +10.9 to +13.5%; Q5_K f16 +7.5 to +10.2%, int8 +11.2 to +13.9%; Q6_K f16 40.1 to 44.9% (+11.6 to +13.8%), int8 +19.5 to +21.4%; Q4_0, Q4_1, Q5_0, Q5_1, IQ4_NL f16 +6.6 to +12.2%, int8 +9.3 to +19.5%; MXFP4 f16 +10.6 to +11.9%, int8 +1.8 to +7.3%.
+- **Full model:** Qwen3.6-27B Q4_K_M, `llmx bench --p 512 --n 1 --r 3`, one MI50 (renderD136), ROCm 7.2.1, gfx906 builds of 9cceeeef0 and 31c218e54 made the same way, three alternating rounds: pp512 f16 232.25 to 232.66 against 251.70 to 251.99 tok/s (+8.4%), int8 342.00 to 342.39 against 384.46 to 384.61 tok/s (+12.4%); tg1, which takes no K tile, f16 29.09 to 29.22 against 29.06 to 29.10 and int8 31.92 to 32.01 against 31.81 to 31.86 tok/s (-0.3 to -0.4%, within the layout band of AGENTS.md, Principles).
+  The 1207-token prompts of the identity runs read f16 227.3 against 244.6 tok/s and int8 330.5 against 369.0 tok/s on 27B, and on Qwen3.5-0.8B Q4_K_M f16 5427 against 6500 and int8 7509 against 7951 tok/s.
+- **Identity:** greedy generations of a 1207-token wikitext prompt, the timing lines left out, equal to the base on Qwen3.6-27B Q4_K_M (48 tokens) and Qwen3.5-0.8B Q4_K_M (64 tokens) at f16 and int8 and on Qwen3-0.6B Q8_0 (64 tokens), whose Q8_0 tile the change does not reach.
+- **Rejected, bits equal throughout:** waves_per_eu(3) on the prefetching tile (84 VGPRs with 44 to 124 bytes of scratch in every K tile, not run, as an earlier arm on the pre-pair tile measured -42 to -54%); Q6_K's runs as three aligned dwords shifted into place (-1.3 to -2.8% on Q6_K); waves_per_eu(3) beside the change (no further gain, it already fits).
+- **Left:** the CUDA 16-bit tile takes the same body (`k_vec`) and compiles for sm_80, 86, 89, 90 and 120 with no new warning and no spill, its nine K tiles at 64 to 80 registers where they took 90 to 128, but is not timed; CTest and the device suite at the landing head, the timing round against main on a quiet host, and the hosted run.
+- **Gotchas:** the load no longer overlaps the dots within a block, so the gain rests on occupancy: a change that raises the tile's VGPRs past 84 or its shared memory past a third of 64 KB gives it back.
+  The plain module's gfx906 int8 tiles, which a device with the dot instructions does not run, go from 85 to 112 VGPRs to 73 to 75 for Q4_K and Q5_K, 124 for Q6_K and 218 to 228 for Q4_0, Q4_1, Q5_0, Q5_1, IQ4_NL and MXFP4, so a device that runs the plain module's int8 tiles is untimed and may lose.
+
 ## K tile paired sub-block staging (2026-11-19, KEFF2 then KEFF3, branch perf/k-tile-pairs on land-20261118 57a932e49)
 
 - **Goal:** the prompt K tile (`k_tile`'s vector body in `kernels/int16.gpu`, the HIP 16-bit and 8-bit twins) stages its weights with fewer loads, since staging costs 10 to 18 percent of its time.

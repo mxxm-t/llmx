@@ -1,4 +1,6 @@
 #version 450
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
 #extension GL_EXT_control_flow_attributes : require
 // One workgroup a row: the mHC coefficients pre, post and comb from the row's (2 + hc) * hc mixes, a lane a comb entry forming each row and column sum in the CPU order after a tree sum of the squares (docs/DEEPSEEK4.md, section 4.2).
 layout(local_size_x = 256) in;
@@ -11,6 +13,7 @@ layout(set = 0, binding = 4) readonly buffer X { float x[]; };
 layout(set = 0, binding = 5) readonly buffer S { float scale[]; };
 layout(set = 0, binding = 6) readonly buffer Z { float base[]; };
 shared float red[256];
+#include "tree_sum.glsl"
 shared float c[256];
 float sigmoid_of(float v) { return 1.0 / (1.0 + exp(-v)); }
 void main() {
@@ -25,11 +28,8 @@ void main() {
     }
     red[lid] = s;
     barrier();
-    for (uint k = 128u; k > 0u; k >>= 1u) {
-        if (lid < k) red[lid] += red[lid + k];
-        barrier();
-    }
-    precise float rs = 1.0 / sqrt(red[0] / float(width) + p.norm_eps);
+    float total = tree_sum();
+    precise float rs = 1.0 / sqrt(total / float(width) + p.norm_eps);
     uint m = r * mix, cells = hc * hc, i = lid / hc, j = lid - i * hc;
     bool own = lid < cells;
     if (lid < hc) {

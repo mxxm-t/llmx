@@ -1,6 +1,6 @@
 #version 450
 // One workgroup per (row, head): normalize x, multiply by w and the selected gate of z; p.gate selects SiLU or sigmoid, and dst may be x.
-// The sum of squares is a lane's fused multiply-adds then a fixed-order tree through shared memory, so a head computes the same in every build; with `quant` 1 or 2 the 16-bit twin is written beside the output (xquant.glsl).
+// The sum of squares is a lane's fused multiply-adds then the fixed-order tree of tree_sum.glsl, so a head computes the same in every build; with `quant` 1 or 2 the 16-bit twin is written beside the output (xquant.glsl).
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;
@@ -12,6 +12,7 @@ layout(set = 0, binding = 3) readonly buffer W { float w[]; };
 layout(set = 0, binding = 4) writeonly buffer Q { uint xq[]; };
 #include "xquant.glsl"
 shared float red[256];
+#include "tree_sum.glsl"
 float gated(uint o, uint i, float r) {
     float zz = z[o + i];
     if (p.gate == 0u) return x[o + i] * r * w[i] * (zz / (1.0 + exp(-zz)));
@@ -24,11 +25,8 @@ void main() {
     for (uint i = lid; i < p.dim; i += 256u) { float v = x[o + i]; s = fma(v, v, s); }
     red[lid] = s;
     barrier();
-    for (uint k = 128u; k > 0u; k >>= 1u) {
-        if (lid < k) red[lid] += red[lid + k];
-        barrier();
-    }
-    float r = 1.0 / sqrt(red[0] / float(p.dim) + p.eps);
+    float total = tree_sum();
+    float r = 1.0 / sqrt(total / float(p.dim) + p.eps);
     if (p.quant == 2u) {
         // A head is whole blocks, so a block's eight lanes take the loop together.
         for (uint j = lid; j < p.dim / 4u; j += 256u) {

@@ -1,4 +1,6 @@
 #version 450
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
 // One workgroup per (row, head): the head's RMS norm over head_dim values, then the rotation of its first 2 * half values at the row's own position (element i pairs with i + half), the rest passing normed.
 // Source head h of row r starts at r * src_stride + h * src_head_stride and heads are written contiguously, and dst may be src with contiguous heads, since every value is read before the barrier and each lane then writes only its own.
 layout(local_size_x = 256) in;
@@ -21,6 +23,7 @@ layout(set = 0, binding = 3) readonly buffer C { float cs[]; };
 layout(set = 0, binding = 4) readonly buffer S { float sn[]; };
 layout(set = 0, binding = 5) readonly buffer I { uint pos[]; };
 shared float red[256];
+#include "tree_sum.glsl"
 void main() {
     uint row = gl_WorkGroupID.x / p.heads;
     uint head = gl_WorkGroupID.x - row * p.heads;
@@ -31,16 +34,18 @@ void main() {
     float r = 1.0;
     if (p.norm != 0u) {
 #endif
+#ifdef LLMX_FORM
+    // The form's precise rotation reached the squares through red before the tree became a call, which precise does not cross.
+    precise float s = 0.0;
+#else
     float s = 0.0;
+#endif
     for (uint i = lid; i < p.head_dim; i += 256u) { float v = src[base + i]; s += v * v; }
     red[lid] = s;
     barrier();
-    for (uint k = 128u; k > 0u; k >>= 1u) {
-        if (lid < k) red[lid] += red[lid + k];
-        barrier();
-    }
+    float total = tree_sum();
 #ifdef LLMX_STREAMS
-    r = 1.0 / sqrt(red[0] / float(p.head_dim) + p.eps);
+    r = 1.0 / sqrt(total / float(p.head_dim) + p.eps);
     }
 #ifdef LLMX_FORM
     for (uint j = lid; j < p.half_dim; j += 256u) {
@@ -69,7 +74,7 @@ void main() {
     for (uint i = 2u * p.half_dim + lid; i < p.head_dim; i += 256u) dst[out_base + i] = p.norm != 0u ? src[base + i] * r * w[i] : src[base + i];
 #endif
 #else
-    float r = 1.0 / sqrt(red[0] / float(p.head_dim) + p.eps);
+    float r = 1.0 / sqrt(total / float(p.head_dim) + p.eps);
     uint t = pos[row] * p.half_dim;
     for (uint i = lid; i < p.half_dim; i += 256u) {
         float a = src[base + i] * r * w[i];

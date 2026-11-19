@@ -13,6 +13,7 @@ layout(set = 0, binding = 3) readonly buffer W { float w[]; };
 layout(set = 0, binding = 4) writeonly buffer Q { uint xq[]; };
 #include "xquant.glsl"
 shared float red[256];
+#include "tree_sum.glsl"
 void main() {
     uint r = gl_WorkGroupID.x, lid = gl_LocalInvocationID.x;
     uint width = p.hc * p.dim;
@@ -37,11 +38,8 @@ void main() {
     }
     red[lid] = s;
     barrier();
-    for (uint k = 128u; k > 0u; k >>= 1u) {
-        if (lid < k) red[lid] += red[lid + k];
-        barrier();
-    }
-    float scale = 1.0 / sqrt(red[0] / float(p.dim) + p.eps);
+    float total = tree_sum();
+    float scale = 1.0 / sqrt(total / float(p.dim) + p.eps);
     for (uint d0 = lid; d0 < p.dim; d0 += 1024u) {
         float v[4];
         [[unroll]] for (uint t = 0u; t < 4u; ++t) v[t] = d0 + 256u * t < p.dim ? dst[r * p.dim + d0 + 256u * t] * scale * w[d0 + 256u * t] : 0.0;

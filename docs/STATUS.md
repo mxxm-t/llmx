@@ -477,6 +477,30 @@ README: the stack's branches changed its support rows in their own commits, and 
 The hosted run 44427015483 of be73f7c5e on gate/20261118 passed all eight jobs (CPU on Ubuntu, Windows, macOS, TSan and UBSan, the Vulkan and ROCm builds and the HF reference), and it carries to the landing head, which adds this record alone.
 The Radeon VII check is ready and not yet run, and the head lands by fast-forward of gitea main and GitHub main.
 
+## Vulkan norm barriers (2026-11-19, VKNORM1, branch perf/vulkan-norm-barriers on land/20261118 57a932e49)
+
+- Goal: carry the GPU core's block-sum fold (perf/norm-barriers, Held norm barriers) to the Vulkan shaders, the same additions in the same order with fewer barriers.
+- Done: `shaders/tree_sum.glsl` is the one owner of the 256-lane float sum tree, and the eleven shaders that summed through a shared-memory level a barrier take it: `rms_norm_rows`, `group_rms_norm`, `gated_rms_norm`, `layer_norm_rows`, `norm_rope_kv`, `norm_rope_partial`, `signed_sqrt_gate`, `compress_pool`, `kv_index_pool`, `hc_coeffs` and `hc_collapse_norm`.
+  Every subgroup reads its lane's 256 / width partials, adds the levels at or above its width in registers (u[j] + u[j + h], the pair a level adds) and the rest by xor shuffles, and takes lane 0's total, so the caller's barrier after it writes `red` is the tree's only one; `layer_norm_rows` puts one more between its two sums.
+  The `LLMX_FORM` build of `norm_rope_partial` declares its sum of squares `precise`, since its precise rotation reached the squares through `red` before and does not cross a call; its SPIR-V keeps every NoContraction multiply it had.
+- Gates, one MI50 (renderD128), Mesa 25.0.7 RADV, arm a `llmx 0.1.0+g57a932e49b0a` against arm b `llmx 0.1.0+gde9661db132d` (the source as landed, apart from this record), both built by one script from detached worktrees:
+
+| Check | Result |
+|---|---|
+| Static witness, `llmx-backend-vulkan-test --isa` `s_barrier` counts, a to b | `rms_norm_rows` and `_x8` 4 to 1; `gated_rms_norm` and `_x8`, every `norm_rope_kv` and `norm_rope_partial` build, `hc_collapse_norm` and `_x8`, `compress_pool` 9 to 1; `layer_norm_rows` 20 to 3; `hc_coeffs` 18 to 10; no scratch in any; instructions down 39 to 95 a kernel |
+| Generate (64 tokens, greedy), `logits --last` and `--per-token`, Qwen3-0.6B Q8_0, Qwen3.5-0.8B Q4_K_M and Qwen3.6-27B Q4_K_M at the default dtype (auto, f16 on the MI50) and f16 | 18/18 byte identical (generate apart from its timing lines) |
+| backend-vulkan, arm b | pass |
+| Suite on vulkan:0, `deepseek4`, `qwen35` and `minimax`, both arms | PASS, PASS, SKIP (the device lacks sigmoid_routing) on both |
+| Suite dead-code and docs | PASS, 0 findings |
+| tg128, `bench --p 16 --n 128 --r 5`, a b, b a, a b, medians | 0.6B 390.22 against 390.62, f16 392.60 against 392.26; 0.8B 340.03 against 338.41, f16 336.17 against 345.00; 27B 30.24 against 30.38, f16 30.21 against 30.37 tok/s |
+| pp512, `bench --p 512 --n 16 --r 5`, same rounds, medians | 0.6B 8961.96 against 8983.43, f16 8965.25 against 8999.38; 0.8B 7184.33 against 7202.26, f16 7179.96 against 7199.25; 27B 235.71 against 235.79, f16 235.70 against 235.76 tok/s |
+| tg128 f16, `--r 10`, twelve a b pairs then twelve b a, medians | 0.6B 366.19 against 368.96 (b ahead in 6 of 12 pairs), 0.8B 318.34 against 323.52 (9 of 12) tok/s |
+
+- The third round of the first timing ran arm b under heavy ZFS read activity (host wait up to 1.0 s, load 19), which took b's 0.6B and 0.8B tg128 to 252 to 287 tok/s; it is kept, and the medians and the 24-pair run, also on a busy host (host wait up to 0.6 s), give 0.6B and 0.8B decode a gain of 0 to 2 percent within the noise, 27B decode 0.5 percent and pp512 0.03 to 0.4 percent; the two cells of the first timing where b is behind, 0.6B f16 by 0.09 and 0.8B auto by 0.48 percent, are within the spread of their arms.
+- Left: `group_rms_norm`, `signed_sqrt_gate` and `kv_index_pool` are not dispatched by backend-vulkan, so they have no `--isa` count; the identity models do not reach them either, and `deepseek4` passing covers the DeepSeek ones by its bounds only.
+  The 32-lane fold (eight partials a lane) is not executed: no 32-lane Vulkan device is on the rig, and the Radeon VII check at landing is a 64-lane device.
+- Gotchas: glslang does not carry `precise` through a function call, so a shader whose precise result depends on `tree_sum()` loses NoContraction on the squares feeding `red` unless their accumulator is itself `precise`; the tree's own adds take two loaded or shuffled values and have no multiply to contract.
+
 ## Held norm barriers (2026-11-19, FUSE2 then FUSE3, branch perf/norm-barriers on land/20261118 57a932e49)
 
 - Goal: shorten the GPU core's block sum tree, whose held norm (`rms_norm_held`, `kernels/f32.gpu`) is 57 packets a Qwen3-0.6B decode pass and 177 on Qwen3.6-27B, without changing a bit.

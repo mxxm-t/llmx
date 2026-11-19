@@ -1,4 +1,6 @@
 #version 450
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
 // A layer's attention inputs in one dispatch for every view of a batch: one workgroup per (batch row, head) over the q, then k, then v heads.
 // q is normed and rotated in place, k normed and rotated into its KV block at position hist + b, v copied into its block, each head's arithmetic being norm_rope_partial's at the full width exactly.
 #extension GL_EXT_shader_16bit_storage : require
@@ -34,6 +36,7 @@ void v_store(uint i, float x) { vb[i] = x; }
 layout(set = 0, binding = 10) readonly buffer T { uint tab[]; };
 #include "views.glsl"
 shared float red[256];
+#include "tree_sum.glsl"
 
 void main() {
     uint total = p.n_head + 2u * p.n_head_kv;
@@ -65,11 +68,7 @@ void main() {
     }
     red[lid] = s;
     barrier();
-    for (uint kk = 128u; kk > 0u; kk >>= 1u) {
-        if (lid < kk) red[lid] += red[lid + kk];
-        barrier();
-    }
-    float r = 1.0 / sqrt(red[0] / float(dim) + p.eps);
+    float r = 1.0 / sqrt(tree_sum() / float(dim) + p.eps);
     uint tp = pos[row] * p.half_dim;
     uint dst = kv_base + hk * p.bt * dim;
     for (uint i = lid; i < p.half_dim; i += 256u) {

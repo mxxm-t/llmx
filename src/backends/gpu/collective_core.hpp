@@ -287,7 +287,7 @@ private:
         for (size_t m = 0; m < members_.size(); ++m)
             if (host_load(&status_[m])) {
                 fast_ = false;
-                std::fprintf(stderr, "%sa tensor group's sum gave up waiting on %s; the group's later sums take the conservative path\n", Api::prefix.c_str(), members_[m]->identity().c_str());
+                std::fprintf(stderr, "%sa tensor group's sum gave up waiting on %s; the group's later sums take the conservative path\n", Api::prefix.c_str(), members_[m]->ordinal().c_str());
                 return;
             }
     }

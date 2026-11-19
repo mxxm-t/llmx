@@ -37,7 +37,7 @@ The toolkit is pinned at 12.8 or newer, the first with sm_120 SASS, in the build
 
 The backend is compiled only with `LLMX_HAS_BACKEND_CUDA`, off by default, added with the implementation to CMake, `cmake/llmx-config.hpp.in` and the fallback `src/config.hpp`.
 Without it, `--device cuda:N` reports that the build lacks the backend, as `rocm:N` does.
-`cuda:N` is the driver's ordinal, as `rocm:N` is the HIP index; llmx does not reorder devices, and `identity()` carries the name, the SM version and the PCI address.
+`cuda:N` is the driver's ordinal, as `rocm:N` is the HIP index; llmx does not reorder devices, and `identity()` carries the name, the SM version and the driver version, not the ordinal or the PCI address, since cards of one device and driver compute the same bits.
 Vendor environment variables that select devices are the vendor's, not llmx knobs.
 
 Every existing flag is honoured through the same seams or refused at load, and no flag is CUDA's alone: `--dtype` through the dtype resolver, `--cache-type-k` and `--cache-type-v` through the shared KV storage, `--load-mode` through buffer adoption, `--layer-shares` and `--tensor-width` through the collective and handoff, and `--ubatch` through the fit's scratch pricing.

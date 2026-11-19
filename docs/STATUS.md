@@ -1,5 +1,20 @@
 # llmx - Development Status
 
+## A kept disk cache across tensor group picks (2026-11-19, CRASH5, BACKLOG1 to BACKLOG3, branch backlog2/disk-cache-device-order on land/20261118 57a932e49)
+
+- **Goal:** a server restarted with the same flags adopts the kept disk directory of the one before on a tensor split, whichever cards its timed pick gives the members (docs/DISK-TIER.md).
+- **Cause:** ROCm's `member_order` times each pairing once, and on four MI50s at width 2 the pairings tie but for noise, so runs differ: ten runs of a first fix on renderD132-135 took 0+3, 1+2 six times, 0+3, 2+1 three times and 0+2, 1+3 once, and land's took 3+1, 2+0, then 2+1, 0+3.
+  Member k keeps shard k and every sum adds members in member order, so the text was the same at every pick, but `Model::host_identity` names each member by `Backend::identity`, which on the GPU core named the HIP or CUDA index and the PCI address, so the second server refused the first's directory as a layout differing.
+  A pick made deterministic by tie rules does not hold either: the first fix's rules (the first swap in listing order within 4%, listing order inside a group unless 4% faster) still gave three picks over ten runs, since one timing per group can pass any margin.
+- **Done:** the GPU core's `identity()` is the backend, the device's name and architecture and the runtime or driver version, which is what `Backend::identity` promises (what makes the arithmetic its own), and messages that name a card use `ordinal()`, `rocm:N` or `cuda:N`. `gpu-core` requires two fake devices at indices 0 and 1 and two PCI addresses to give one identity, and `backend-cuda` the new shape; both fail on land.
+- **Gates:** built from this tree at ab099479 (0.1.0+gab099479161f) and land 57a932e49 in backlog1-dev on the rig, four MI50s renderD132-135 under one card lock.
+  CPU CTest 95/95 (the device tests skipped), ROCm CTest gpu-core, backend-rocm, backend-rocm-sixteen and backend-rocm-scratch 4/4; gpu-core fails its two identity checks on land with the test commit alone and passes with the fix; backend-cuda was not built here (no CUDA host), so the hosted CUDA build is its gate.
+  Bits do not follow the pick: Qwen3-0.6B Q8_0 greedy 128 tokens at width 2, device listing forward and reversed, twice each on land and the fix, gave six different member picks and the same text in all eight.
+  Adoption: a server listing rocm:3,2,1,0 after one listing rocm:0..3 with the same flags refused the kept directory on land ("layout differing", 3 of 3 pairs) and adopted it with the fix (3 entries, then 2, over 4 of 4 pairs, the two servers at different picks in some).
+  Read-back: on the long-prompt pairs (about 1800 tokens a turn) the fix's second server reused 1792 tokens on every turn, its first turn reading a 1792-token history (196.0 MiB) from disk, where land's second server reused none on its first two turns; every reply of a second server equals the first's, and the fix's replies equal land's.
+  CPU byte identity against land was not run: the change is the GPU core's identity string and two messages, which no arithmetic reads, and the CPU CTest above passes.
+- **Left:** the landing stack's hosted run; README unchanged (a fix of behaviour no table names).
+
 ## The tile reduce within the resident workgroups (2026-11-19, BACKLOG1 and BACKLOG2, branch perf/rocm-reduce-cap on land/20261118 57a932e49)
 
 - **Why:** on an MI50 a dispatch of 510 to 512 workgroups of 256 threads stalls about 40 us (INV11, 2026-11-10, /opt/claude-work/inv11).

@@ -344,7 +344,10 @@ public:
         if (fault_) (void)Api::host_free(fault_);
     }
 
-    std::string identity() const override { return Api::name + std::string(":") + std::to_string(dev_.index) + " " + dev_.caps.device + " " + dev_.pci_bus; }
+    // The device and its driver, not the index or PCI address: cards of one device and driver give the same bits, so a history continues on whichever of them holds its member.
+    std::string identity() const override { return Api::name + std::string(" ") + dev_.caps.device + "; " + dev_.caps.driver; }
+    // The card as the device list names it, for messages.
+    std::string ordinal() const { return Api::name + std::string(":") + std::to_string(dev_.index); }
     std::string pci_root() const override { return dev_.pci_root; }
     void set_threads(int) override {}
     int threads_available() const override { return 0; }
@@ -3419,7 +3422,7 @@ private:
             if (!failed_.empty()) throw std::runtime_error(failed_);
         }
         if (host_load(fault_) && host_exchange(fault_, 0u))
-            throw std::runtime_error(Api::prefix + "a tensor group's sum on " + identity() + " gave up waiting for its peers; the group's later sums take the conservative path");
+            throw std::runtime_error(Api::prefix + "a tensor group's sum on " + ordinal() + " gave up waiting for its peers; the group's later sums take the conservative path");
     }
     // A group sum's kernel, launched without raise_failed: the collective checks every member before it launches any, so no member waits for a peer whose launch threw.
     void group_launch(GpuSumForm form, unsigned blocks, const Args& args) {

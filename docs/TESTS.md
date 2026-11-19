@@ -7,6 +7,9 @@ model payloads for a selected page. The base run uses an absent reader. The
 dedicated Linux workflow installs PDF.js and repeats the browser check with
 `LLMX_CHAT_REQUIRE_PDF=1`, including cancellation, reopening the same file
 while its previous worker shuts down, and pages without text.
+The optional features test uses the Settings install button at 320 px with a
+controlled installer. It checks retry, duplicate requests and PDF availability
+after returning to Chat with a draft and an existing attachment.
 
 What each native test (CTest) and each suite component checks, and the real-model checks run by hand.
 

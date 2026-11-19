@@ -23,6 +23,7 @@ from temporary import TemporaryChats
 from tools import ToolRegistry
 from upstream import Connection
 from monitor import ASSETS, Monitor
+from optional_features import OptionalFeatures
 import pdf_reader
 from project_preview import MAX_PREVIEW_BYTES, assemble
 from workspace import ProjectConflict, Workspace, WorkspaceTools
@@ -128,6 +129,7 @@ class Application:
         self.config_lock = threading.Lock()
         self.cached_config, self.config_time = None, 0
         self.monitor = Monitor(upstream, api_key)
+        self.features = OptionalFeatures()
         self.previews = {}
 
     def digest(self, password):
@@ -460,6 +462,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(result)
         if path == "/api/config" and method == "GET":
             return self._json(self.app.config())
+        if path == "/api/features" and method == "GET" and not parsed.query:
+            return self._json(self.app.features.snapshot())
+        if path.startswith("/api/features/") and path.endswith("/install") and method == "POST" and not parsed.query:
+            if self._body(128):
+                raise ValueError("Expected an empty feature install request")
+            key = path.removeprefix("/api/features/").removesuffix("/install")
+            return self._json(self.app.features.start(key))
         if path == "/api/backup" and method == "GET":
             with tempfile.TemporaryDirectory(prefix="llmx-backup-") as directory:
                 destination = Path(directory) / "chat.sqlite3"

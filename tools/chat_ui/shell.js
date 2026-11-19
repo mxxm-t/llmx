@@ -12,10 +12,11 @@ window.ChatShell = (() => {
     document.documentElement.style.setProperty('--studio-width', width + 'px'); document.documentElement.style.setProperty('--studio-height', height + 'px');
     document.documentElement.dataset.compact = String(width <= 720);
   }
-  async function api(path, method = 'GET', body) {
-    const response = await fetch('/api' + path, {method, credentials: 'same-origin', headers: method === 'GET' ? {} : {'Content-Type': 'application/json', 'X-Chat-Request': '1'}, body: body === undefined ? undefined : JSON.stringify(body)});
+  async function api(path, method = 'GET', body, signal) {
+    const response = await fetch('/api' + path, {method, credentials: 'same-origin', headers: method === 'GET' ? {} : {'Content-Type': 'application/json', 'X-Chat-Request': '1'}, body: body === undefined ? undefined : JSON.stringify(body), signal});
     let data;
     try { data = await response.json(); } catch (_) { data = {}; }
+    signal?.throwIfAborted();
     if (!response.ok) {
       if (response.status === 401) {
         document.dispatchEvent(new CustomEvent('companion:unauthorized'));
@@ -24,6 +25,132 @@ window.ChatShell = (() => {
     }
     return data;
   }
+  const featureRows = new Map();
+  const featureStates = {available: 'Available', installing: 'Installing', installed: 'Installed', failed: 'Installation failed'};
+  let features = [], publishedFeatures = '', featureRequest, featureInstall, featureTimer, featureDelay = 1000;
+  let featuresAuthorized = false;
+
+  function viewingFeatures() {
+    return featuresAuthorized && !document.hidden && $('app').dataset.view === 'preferences';
+  }
+  function featuresStatus(message = '', failed = false) {
+    const status = $('preferences-features-status');
+    status.textContent = message; status.hidden = !message; status.classList.toggle('error-text', failed);
+  }
+  function featureRow(id) {
+    const element = node('section', 'tool-connection optional-feature'); element.dataset.feature = id;
+    const heading = node('strong', 'tool-connection-heading'); heading.id = 'optional-feature-' + id; element.setAttribute('aria-labelledby', heading.id);
+    const description = node('p');
+    const state = node('span', 'optional-feature-state'); state.tabIndex = -1; state.setAttribute('role', 'status');
+    const error = node('p', 'tool-connection-error optional-feature-error'); error.hidden = true; error.setAttribute('role', 'alert');
+    const button = node('button', 'secondary-button optional-feature-action'); button.type = 'button';
+    button.addEventListener('click', () => {
+      if (button.getAttribute('aria-disabled') === 'true' || !viewingFeatures()) return;
+      requestFeatures(id);
+    });
+    const actions = node('div', 'tool-connection-actions'); actions.append(state, button);
+    element.append(heading, description, actions, error);
+    $('preferences-features').append(element);
+    return {element, heading, description, state, button, error};
+  }
+  function renderFeatures() {
+    const remaining = new Set(featureRows.keys());
+    for (const feature of features) {
+      const row = featureRows.get(feature.id) || featureRow(feature.id);
+      featureRows.set(feature.id, row); remaining.delete(feature.id);
+      row.element.dataset.state = feature.state;
+      row.heading.textContent = feature.name;
+      row.description.textContent = feature.description;
+      const state = featureStates[feature.state] + (feature.version ? ' / ' + feature.version : '');
+      if (row.state.textContent !== state) row.state.textContent = state;
+      row.error.hidden = !feature.error;
+      if (row.error.textContent !== (feature.error || '')) row.error.textContent = feature.error || '';
+      if (feature.state === 'installed' && document.activeElement === row.button && viewingFeatures()) row.state.focus({preventScroll: true});
+      row.button.hidden = feature.state === 'installed';
+      const label = feature.state === 'installing' ? 'Installing' : feature.state === 'failed' ? 'Retry' : 'Install';
+      row.button.textContent = label;
+      row.button.setAttribute('aria-label', label + ' ' + feature.name);
+      row.button.setAttribute('aria-disabled', String(Boolean(featureRequest || featureInstall && featureInstall.id !== feature.id) || feature.state === 'installing'));
+    }
+    for (const id of remaining) {
+      featureRows.get(id).element.remove(); featureRows.delete(id);
+    }
+  }
+  function applyFeatures(snapshot) {
+    features = snapshot;
+    if (featureInstall && !features.some(feature => feature.id === featureInstall.id && feature.state === 'installing')) featureInstall = null;
+    featuresStatus(features.length ? '' : 'No optional features are available.');
+    const key = JSON.stringify(features);
+    if (key !== publishedFeatures) {
+      publishedFeatures = key;
+      document.dispatchEvent(new CustomEvent('companion:features', {detail: {features}}));
+    }
+  }
+  function failFeature(id, message) {
+    features = features.map(feature => feature.id === id ? {...feature, state: 'failed', error: message} : feature);
+  }
+  function stopFeatureTimer() {
+    clearTimeout(featureTimer); featureTimer = null;
+  }
+  function scheduleFeatures() {
+    if (featureRequest || featureTimer) return;
+    if (featureInstall && Date.now() >= featureInstall.deadline) {
+      failFeature(featureInstall.id, 'The install status could not be confirmed. Retry or reopen Settings to check again.');
+      featureInstall = null; renderFeatures();
+    }
+    if (!featuresAuthorized || document.hidden || !featureInstall && !(viewingFeatures() && features.some(feature => feature.state === 'installing'))) {
+      featureDelay = 1000; return;
+    }
+    featureTimer = setTimeout(() => {
+      featureTimer = null; requestFeatures();
+    }, featureDelay);
+    featureDelay = Math.min(5000, featureDelay * 2);
+  }
+  async function requestFeatures(id) {
+    if (featureRequest || !(viewingFeatures() || featureInstall && featuresAuthorized && !document.hidden)) return;
+    stopFeatureTimer();
+    const controller = new AbortController();
+    const current = {id, controller};
+    featureRequest = current;
+    if (id) {
+      featureInstall = {id, deadline: Date.now() + 180000}; featureDelay = 1000;
+      features = features.map(feature => feature.id === id ? {...feature, state: 'installing', error: ''} : feature);
+      featuresStatus();
+    } else if (!features.length) featuresStatus('Loading optional features...');
+    renderFeatures();
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(id ? 30000 : 8000)]);
+    try {
+      const result = id ? await api('/features/' + encodeURIComponent(id) + '/install', 'POST', {}, signal) : await api('/features', 'GET', undefined, signal);
+      if (!Array.isArray(result.features)) throw new Error('The server did not return optional feature status.');
+      applyFeatures(result.features);
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      if (Array.isArray(error.details?.features)) applyFeatures(error.details.features);
+      else if (id) failFeature(id, error.name === 'TimeoutError' ? 'The install request timed out. Checking its status...' : error.message);
+      else featuresStatus(error.name === 'TimeoutError' ? 'Checking optional features timed out.' : 'Could not check optional features. ' + error.message, true);
+    } finally {
+      if (featureRequest === current) featureRequest = null;
+      renderFeatures();
+      if (controller.signal.aborted && viewingFeatures()) requestFeatures();
+      else scheduleFeatures();
+    }
+  }
+  function syncFeatures() {
+    if (viewingFeatures()) requestFeatures();
+    else if (!featureInstall) { stopFeatureTimer(); featureRequest?.controller.abort(); }
+    else if (document.hidden) stopFeatureTimer();
+    else scheduleFeatures();
+  }
+  document.addEventListener('companion:view', syncFeatures);
+  document.addEventListener('visibilitychange', syncFeatures);
+  document.addEventListener('companion:ready', () => {
+    if (featuresAuthorized) return;
+    featuresAuthorized = true; syncFeatures();
+  });
+  document.addEventListener('companion:unauthorized', () => {
+    featuresAuthorized = false; featureInstall = null; publishedFeatures = ''; features = [];
+    stopFeatureTimer(); featureRequest?.controller.abort(); featuresStatus(); renderFeatures();
+  });
   function themeMonitor() {
     try { const root = $('monitor-frame').contentDocument?.documentElement; if (root) root.dataset.theme = document.documentElement.dataset.theme; } catch (_) { /* The monitor is expected to remain same-origin. */ }
   }

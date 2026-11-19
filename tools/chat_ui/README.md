@@ -112,16 +112,22 @@ conversations and tools. There is no multi-user account or role system.
 
 ## Optional PDF text reader
 
-To enable PDF attachments, run this once from the repository root:
+Open **Settings > Optional features** in the sidebar. Select **Install** next
+to **PDF text import**. The companion downloads the pinned release, verifies
+its SHA-256 and enables PDF attachments when installation finishes. You can
+return to Chat during the download. Your current draft stays in place.
+
+The operator can also install from the repository root:
 
 ```sh
 python tools/chat_ui/install_pdf_reader.py
 ```
 
-The installer downloads a pinned PDF.js release, verifies its SHA-256 and
-installs the reader under `tools/chat_ui/.pdf-reader/` in this checkout. For
-an offline installation, pass `--archive PATH` with the official release ZIP.
-Refresh Chat after installation. The regular configuration response tells the
+Both methods install the same files under `tools/chat_ui/.pdf-reader/` in
+this checkout. The companion service needs write access there for a Settings
+installation. For an offline installation, pass `--archive PATH` to the
+command with the official release ZIP. Refresh Chat after a command-line
+installation. The regular configuration response tells the
 attachment picker whether the reader is present. Opening Chat or using plain
 text does not fetch PDF scripts, fonts or character maps.
 

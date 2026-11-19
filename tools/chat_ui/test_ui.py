@@ -13,6 +13,7 @@ from http.server import ThreadingHTTPServer
 import unittest
 from unittest.mock import patch
 
+import install_pdf_reader
 import pdf_reader
 from server import Application, Server
 from monitor import DASHBOARD, health
@@ -167,39 +168,73 @@ class BrowserTests(unittest.TestCase):
             mode = "installed" if require_pdf else "absent"
             reader = installed_directory if require_pdf else root / "missing-reader"
             with patch.object(pdf_reader, "READER_DIRECTORY", reader):
-                self.check_pdf_in_chrome(node, chrome, root, fixture, mode)
+                self.run_focused_browser(node, chrome, root, f"pdf-{mode}", (str(fixture), "--pdf-only=" + mode),
+                                         [[text_event("Plain browser reply.")], [text_event("PDF browser reply.")]])
+            expected = [{"role": "user", "content": "Browser plain-text prompt"}]
+            if mode == "installed":
+                expected.append({"role": "user", "content": [
+                    {"type": "text", "text": "Keep this PDF draft."},
+                    {"type": "text", "text": "\nFile: quarterly.txt\nPage 2\nOnly the second page belongs in chat."},
+                ]})
+            with BrowserUpstream.lock:
+                self.assertEqual([request["messages"][-1] for request in BrowserUpstream.requests], expected)
+                self.assertNotIn("raw-pdf-fixture-marker", json.dumps(BrowserUpstream.requests))
+                self.assertNotIn("First page private marker.", json.dumps(BrowserUpstream.requests))
 
-    def check_pdf_in_chrome(self, node, chrome, root, fixture, mode):
+    def test_optional_features_in_chrome(self):
+        node, chrome = self.browser_executables()
+        with tempfile.TemporaryDirectory(prefix="llmx-browser-features-") as temporary:
+            root = Path(temporary)
+            reader = root / "pdf-reader"
+            note = root / "notes.txt"
+            note.write_text("Keep this local text attachment.", encoding="utf-8")
+            attempts = []
+
+            def install_fixture(directory):
+                attempts.append(directory)
+                attempt = len(attempts)
+                BrowserUpstream.gate.wait()
+                if attempt == 1:
+                    raise OSError("fixture download failure")
+                for resource in pdf_reader.RESOURCE_PATHS:
+                    (directory / resource).mkdir(parents=True)
+                for module in pdf_reader.MODULES:
+                    (directory / module).write_text("export {};", encoding="utf-8")
+                (directory / pdf_reader.INSTALL_MARKER).write_bytes(pdf_reader.INSTALL_RECORD)
+
+            with patch.object(pdf_reader, "READER_DIRECTORY", reader), patch.object(install_pdf_reader, "install", side_effect=install_fixture):
+                self.run_focused_browser(node, chrome, root, "features", (str(note), "--features-only"),
+                                         [[text_event("Plain browser reply.")]])
+            self.assertEqual(attempts, [reader, reader], "visiting Settings or repeated requests started an extra installer")
+            self.assertTrue(pdf_reader.installed(reader), "successful feature install did not persist its marker")
+            with BrowserUpstream.lock:
+                self.assertEqual([request["messages"][-1] for request in BrowserUpstream.requests],
+                                 [{"role": "user", "content": "Browser plain-text prompt"}])
+
+    def run_focused_browser(self, node, chrome, root, name, arguments, replies):
         with BrowserUpstream.lock:
             BrowserUpstream.requests = []
-            BrowserUpstream.replies = [[text_event("Plain browser reply.")], [text_event("PDF browser reply.")]]
+            BrowserUpstream.replies = replies
+        BrowserUpstream.gate = StepGate()
         upstream = ThreadingHTTPServer(("127.0.0.1", 0), BrowserUpstream)
         threading.Thread(target=upstream.serve_forever, daemon=True).start()
         try:
-            app = Application(str(root / f"{mode}.sqlite"),
-                              "http://127.0.0.1:%d" % upstream.server_address[1], password="browser-test")
+            upstream_url = "http://127.0.0.1:%d" % upstream.server_address[1]
+            app = Application(str(root / f"{name}.sqlite"),
+                              upstream_url, password="browser-test")
             server = Server(("127.0.0.1", 0), app)
             threading.Thread(target=server.serve_forever, daemon=True).start()
             try:
-                artifacts = Path(__file__).resolve().parents[2] / "scratch" / "chat-ui-browser" / f"pdf-{mode}"
+                artifacts = Path(__file__).resolve().parents[2] / "scratch" / "chat-ui-browser" / name
                 artifacts.mkdir(parents=True, exist_ok=True)
                 result = subprocess.run([node, str(Path(__file__).with_name("browser_check.mjs")),
                     "http://127.0.0.1:%d" % server.server_address[1], chrome,
-                    str(root / f"profile-{mode}"), str(artifacts), str(fixture), "--pdf-only=" + mode],
+                    str(root / f"profile-{name}"), str(artifacts), *arguments, "--fixture-upstream=" + upstream_url],
                     capture_output=True, text=True, timeout=120)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                expected = [{"role": "user", "content": "Browser plain-text prompt"}]
-                if mode == "installed":
-                    expected.append({"role": "user", "content": [
-                        {"type": "text", "text": "Keep this PDF draft."},
-                        {"type": "text", "text": "\nFile: quarterly.txt\nPage 2\nOnly the second page belongs in chat."},
-                    ]})
-                with BrowserUpstream.lock:
-                    self.assertEqual([request["messages"][-1] for request in BrowserUpstream.requests], expected)
-                    self.assertNotIn("raw-pdf-fixture-marker", json.dumps(BrowserUpstream.requests))
-                    self.assertNotIn("First page private marker.", json.dumps(BrowserUpstream.requests))
                 print(result.stdout.strip())
             finally:
+                BrowserUpstream.gate.set()
                 app.engine.shutdown()
                 server.shutdown()
                 server.server_close()

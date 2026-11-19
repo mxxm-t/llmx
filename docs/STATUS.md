@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## Install optional companion features from Settings (2026-11-19)
+
+- **Goal:** Enable a supported add-on from the owner UI and use the same install flow for later companion features.
+- **Done:** Owners install PDF text import from Settings > Optional features. The companion downloads and verifies the pinned release in the background. Each entry supplies its own installation and availability checks.
+- **Left:** Land by fast-forward after the companion tests, docs, dead-code and hosted Chat workspace checks pass.
+- **Checks:** The HTTP fixture checks authenticated installation and duplicate requests. Chrome covers a failed install, retry, and switching back to Chat with an existing draft while the reader installs.
+- **Gotchas:** Only explicit installation may download assets. Preserve owner authentication, request origin checks, the active draft and existing offline installs.
+
 ## Optional PDF text attachments in Chat (2026-11-19)
 
 - **Goal:** An operator can install a verified PDF.js release. Readers select pages in the browser and explicitly attach their text to a draft.

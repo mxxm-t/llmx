@@ -4,6 +4,14 @@ The Python standard-library service owns persisted conversations, branches, runs
 
 ## Routes
 
+- `GET /api/features` returns `{features: [...]}` for the companion's supported
+  optional features. Each entry has an id, name, description, version and state.
+  States are `available`, `installing`, `installed` and `failed`; a failed
+  install also carries an error message.
+- `POST /api/features/{id}/install` with `{}` starts the named installation
+  and returns the same list. Concurrent requests share one installation for
+  that feature. The operator can retry a failed install.
+
 - `GET /api/session`: `{authenticated, password_required}`. All other APIs require a session when a password is configured.
 - `POST /api/login` with `{password}` sets an HttpOnly session cookie. `POST /api/logout` clears it.
 - `GET /api/config`: `{models: [{id, context_length?}], settings_defaults, tools: [{name, description, inputSchema, server, approval}], upstream_available, upstream_error, tools_error, pdf_reader}`. The boolean `pdf_reader` reports whether the optional local PDF reader is installed. No credentials are returned. A tool discovery failure does not disable a reachable model.

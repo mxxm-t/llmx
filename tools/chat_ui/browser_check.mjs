@@ -8,6 +8,7 @@ const [url, executable, profile, artifacts, fixture, imageFixture, originalDashb
   textMaxFixture, textOverFixture, imageMaxFixture, imageOverFixture, tinyFixture, textRawOverFixture, textBomMaxFixture,
   textRaceAFixture, textRaceBFixture] = process.argv.slice(2);
 const pdfMode = process.argv.find(arg => arg.startsWith('--pdf-only='))?.split('=')[1];
+const featuresMode = process.argv.includes('--features-only');
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const startupTimeoutArg = process.argv.find(arg => arg.startsWith('--startup-timeout-ms='));
 const startupTimeoutCandidate = startupTimeoutArg ? Number(startupTimeoutArg.slice('--startup-timeout-ms='.length)) : NaN;
@@ -43,7 +44,7 @@ let attachmentChooser = null;
 const nativeDialogs = [];
 const apiMutations = [];
 const imageLinkRequests = [];
-const pdfRequests = [];
+const browserRequests = [];
 const pdfWorkers = [];
 async function cdp(method, params = {}, sessionId) {
   const id = ++nextId;
@@ -149,20 +150,107 @@ async function idle() { await wait("document.querySelector('#stop').hidden && !d
 async function upload(selector, filename) { const root = await cdp('DOM.getDocument'); const target = await cdp('DOM.querySelector', {nodeId: root.root.nodeId, selector}); await cdp('DOM.setFileInputFiles', {nodeId: target.nodeId, files: [filename]}); }
 async function uploadMany(selector, files) { const root = await cdp('DOM.getDocument'); const target = await cdp('DOM.querySelector', {nodeId: root.root.nodeId, selector}); await cdp('DOM.setFileInputFiles', {nodeId: target.nodeId, files}); }
 async function screenshot(name) { await delay(240); const result = await cdp('Page.captureScreenshot', {format: 'png', captureBeyondViewport: false}); await writeFile(path.join(artifacts, name), Buffer.from(result.data, 'base64')); }
-async function checkPdfAttachment() {
-  const origin = new URL(url).origin;
-  const installed = pdfMode === 'installed';
-  const readerRequests = () => pdfRequests.filter(request => {
+function pdfAssetRequests() {
+  return browserRequests.filter(request => {
     const pathname = new URL(request.url).pathname;
     return pathname === '/pdf_attachment.js' || pathname.startsWith('/pdf-reader/');
   });
-  assert.equal(await evaluate('ChatShell.config.pdf_reader'), installed);
-  assert.equal(await evaluate("document.querySelector('#file-input').accept.split(',').includes('.pdf')"), installed);
-  assert.deepEqual(readerRequests(), [], 'PDF resources were requested during ordinary boot');
+}
+async function checkOptionalFeatures() {
+  const workerFixture = process.argv.find(arg => arg.startsWith('--fixture-upstream=')).slice('--fixture-upstream='.length);
+  const featureCalls = () => browserRequests.filter(request => /^\/api\/features(?:\/|$)/.test(new URL(request.url).pathname));
+  const row = '#preferences-features [data-feature="pdf-reader"]';
+  const action = row + ' .optional-feature-action';
+  const hasPdf = "document.querySelector('#file-input').accept.split(',').includes('.pdf')";
+  const state = name => `document.querySelector(${JSON.stringify(row)})?.dataset.state===${JSON.stringify(name)}`;
+  async function view(name) {
+    await pointerClick('.mobile-nav');
+    await evaluate("Promise.all(document.querySelector('.sidebar').getAnimations().map(animation=>animation.finished.catch(()=>{})))");
+    await pointerClick(`.global-nav [data-view="${name}"]`);
+    await wait(`document.querySelector('#app').dataset.view===${JSON.stringify(name)}`, name + ' view');
+  }
+  async function releaseInstall() {
+    assert.equal((await fetch(workerFixture + '/browser-step', {signal:AbortSignal.timeout(4000)})).status, 204);
+  }
+  assert.deepEqual(featureCalls(), [], 'feature catalog requested during ordinary boot');
+  assert.equal(await evaluate(hasPdf), false, 'PDF is offered before installation');
   await send('Browser plain-text prompt');
   await wait("document.querySelector('#messages').textContent.includes('Plain browser reply.')", 'plain reply');
   await idle();
-  assert.deepEqual(readerRequests(), [], 'PDF resources were requested for a plain-text chat');
+  const draft = 'Preserve this unsent draft.';
+  await fill('#draft', draft);
+  await upload('#file-input', fixture);
+  await wait("document.querySelector('#attachments').textContent.includes('notes.txt')", 'ordinary text attachment');
+  assert.deepEqual(featureCalls(), [], 'feature catalog requested by plain chat');
+  assert.deepEqual(pdfAssetRequests(), [], 'PDF resources requested by plain chat');
+
+  const document = await documentIdentity();
+  await cdp('Emulation.setDeviceMetricsOverride', {width:320,height:740,deviceScaleFactor:1,mobile:true});
+  await wait("document.documentElement.dataset.compact==='true'", 'narrow Optional features viewport');
+  await view('preferences');
+  await wait(state('available'), 'available PDF feature');
+  assert(featureCalls().some(request => request.method === 'GET' && new URL(request.url).pathname === '/api/features'));
+  assert.deepEqual(featureCalls().filter(request => request.method !== 'GET'), [], 'opening Settings started installation');
+  assert.deepEqual(pdfAssetRequests(), [], 'opening Settings requested PDF resources');
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(action)}).textContent.trim()`), 'Install');
+  assert.equal(await evaluate(`(() => {
+    const panel=document.querySelector('#view-preferences'), item=document.querySelector(${JSON.stringify(row)});
+    const bounds=item.getBoundingClientRect();
+    return document.documentElement.scrollWidth<=innerWidth && panel.scrollWidth<=panel.clientWidth
+      && bounds.left>=0 && bounds.right<=innerWidth;
+  })()`), true, 'Optional features overflows at 320 pixels');
+
+  await pointerClick(action);
+  await wait(state('installing'), 'first PDF install running');
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(action)}).getAttribute('aria-disabled')`), 'true');
+  await releaseInstall();
+  await wait(state('failed'), 'retryable PDF install failure');
+  const error = await evaluate(`document.querySelector(${JSON.stringify(row + ' .optional-feature-error')}).textContent.trim()`);
+  assert.match(error, /Retry/i, 'the failure did not explain how to retry');
+  assert.doesNotMatch(error, /fixture download failure/, 'installer exception leaked into Settings');
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(action)}).textContent.trim()`), 'Retry');
+
+  await pointerClick(action);
+  await wait(state('installing'), 'retried PDF install running');
+  const duplicate = await evaluate("ChatShell.api('/features/pdf-reader/install','POST',{})");
+  assert.equal(duplicate.features.find(feature => feature.id === 'pdf-reader').state, 'installing');
+  await view('chat');
+  assert.equal(await evaluate(hasPdf), false, 'PDF chooser enabled before installation completed');
+  await releaseInstall();
+  await wait(hasPdf, 'live PDF chooser upgrade in Chat');
+  assert.deepEqual(await documentIdentity(), document, 'PDF chooser upgrade required reloading the page');
+  assert.equal(await evaluate("document.querySelector('#draft').value"), draft);
+  assert.deepEqual(await evaluate("Array.from(document.querySelectorAll('#attachments .attachment-pill')).map(pill=>pill.firstChild.textContent)"), ['notes.txt']);
+  await cdp('Page.setInterceptFileChooserDialog', {enabled:true});
+  await pointerClick('[data-action=attach]');
+  await wait(() => attachmentChooser !== null, 'live native file chooser after installation');
+  await cdp('Page.setInterceptFileChooserDialog', {enabled:false});
+  const {node} = await cdp('DOM.describeNode', {backendNodeId:attachmentChooser.backendNodeId});
+  assert(node.attributes[node.attributes.indexOf('accept') + 1].split(',').includes('.pdf'));
+
+  const visits = featureCalls().filter(request => request.method === 'GET').length;
+  await view('preferences');
+  await wait(state('installed'), 'installed feature on return to Settings');
+  await wait(() => featureCalls().filter(request => request.method === 'GET').length > visits, 'settings catalog refresh on return');
+  assert.equal(await evaluate(`(() => {
+    const button=document.querySelector(${JSON.stringify(action)});
+    return !button || button.disabled || !button.checkVisibility();
+  })()`), true, 'installed feature still has an active install button');
+  assert.deepEqual(pdfAssetRequests(), [], 'installing in Settings requested PDF browser assets');
+  assert.deepEqual(browserRequests.filter(request => new URL(request.url).origin !== new URL(url).origin), [], 'Optional features made off-origin browser requests');
+  assert.deepEqual(errors, [], 'uncaught Optional features browser exceptions');
+  console.log('PASS: Optional features lazy catalog, 320 px Settings, install failure and retry, duplicate admission, live PDF chooser and preserved draft');
+}
+async function checkPdfAttachment() {
+  const origin = new URL(url).origin;
+  const installed = pdfMode === 'installed';
+  assert.equal(await evaluate('ChatShell.config.pdf_reader'), installed);
+  assert.equal(await evaluate("document.querySelector('#file-input').accept.split(',').includes('.pdf')"), installed);
+  assert.deepEqual(pdfAssetRequests(), [], 'PDF resources were requested during ordinary boot');
+  await send('Browser plain-text prompt');
+  await wait("document.querySelector('#messages').textContent.includes('Plain browser reply.')", 'plain reply');
+  await idle();
+  assert.deepEqual(pdfAssetRequests(), [], 'PDF resources were requested for a plain-text chat');
 
   const draft = 'Keep this PDF draft.';
   await fill('#draft', draft);
@@ -170,7 +258,7 @@ async function checkPdfAttachment() {
   if (!installed) {
     await upload('#file-input', fixture);
     await wait("/PDF import is unavailable/i.test(document.querySelector('#toast').textContent)", 'unavailable-reader guidance');
-    assert.deepEqual(readerRequests(), [], 'an unavailable PDF reader was requested');
+    assert.deepEqual(pdfAssetRequests(), [], 'an unavailable PDF reader was requested');
   } else {
     const expected = 'Page 2\nOnly the second page belongs in chat.';
     const open = async () => {
@@ -262,17 +350,17 @@ async function checkPdfAttachment() {
     await evaluate("document.querySelector('#composer').requestSubmit()");
     await wait("document.querySelector('#messages').textContent.includes('PDF browser reply.')", 'reply to approved PDF text');
     await idle();
-    const submissions = pdfRequests.filter(request => request.method === 'POST' && /\/api\/chats\/[^/]+\/runs$/.test(new URL(request.url).pathname));
+    const submissions = browserRequests.filter(request => request.method === 'POST' && /\/api\/chats\/[^/]+\/runs$/.test(new URL(request.url).pathname));
     assert.equal(submissions.length, 2, 'unexpected number of chat submissions');
     assert.deepEqual(JSON.parse(submissions[1].postData).attachments, [{name:'quarterly.txt',type:'text/plain',text:expected}], 'chat did not send exactly the previewed plain-text attachment');
-    const paths = readerRequests().map(request => new URL(request.url).pathname);
+    const paths = pdfAssetRequests().map(request => new URL(request.url).pathname);
     for (const asset of ['/pdf_attachment.js', '/pdf-reader/pdf.mjs', '/pdf-reader/pdf.worker.mjs']) {
       assert(paths.includes(asset), 'missing request for ' + asset);
     }
     assert(pdfWorkers.some(worker => worker === origin + '/pdf-reader/pdf.worker.mjs'), 'PDF.js did not use the dedicated same-origin worker');
   }
-  assert.deepEqual(pdfRequests.filter(request => new URL(request.url).origin !== origin), [], 'PDF check made an off-origin browser request');
-  const payload = pdfRequests.map(request => request.postData || '').join('\n');
+  assert.deepEqual(browserRequests.filter(request => new URL(request.url).origin !== origin), [], 'PDF check made an off-origin browser request');
+  const payload = browserRequests.map(request => request.postData || '').join('\n');
   assert.doesNotMatch(payload, /raw-pdf-fixture-marker|First page private marker|%PDF-|application\/pdf|JVBERi0/);
   assert.deepEqual(errors, [], 'uncaught PDF browser exceptions');
   console.log('PASS: PDF ' + pdfMode + ', zero lazy assets on boot and plain chat' + (installed ? ', reviewed page 2 sent only as text, Escape cancellation, graphics-only refusal, narrow preview and same-origin worker' : ', unavailable-reader guidance'));
@@ -330,7 +418,7 @@ try {
     if (data.method === 'Network.requestWillBeSent' && /\/api\/runs\/[^/]+\/events(?:\?|$)/.test(data.params.request.url)) runStreams.push(data.params.request.url);
     if (data.method === 'Network.requestWillBeSent' && data.params.request.method !== 'GET') apiMutations.push({url: data.params.request.url, method: data.params.request.method});
     if (data.method === 'Network.requestWillBeSent' && data.params.request.url.startsWith('https://example.invalid/')) imageLinkRequests.push(data.params.request.url);
-    if (pdfMode && data.method === 'Network.requestWillBeSent') pdfRequests.push(data.params.request);
+    if ((pdfMode || featuresMode) && data.method === 'Network.requestWillBeSent') browserRequests.push(data.params.request);
     if (pdfMode && data.method === 'Target.attachedToTarget') {
       const {sessionId, targetInfo} = data.params;
       pdfWorkers.push(targetInfo.url);
@@ -355,7 +443,10 @@ try {
   await cdp('Emulation.setDeviceMetricsOverride', {width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false});
   await cdp('Emulation.setEmulatedMedia', {features: [{name: 'prefers-color-scheme', value: 'dark'}]});
   await navigateDocument(url);
-  if (pdfMode) {
+  if (featuresMode) {
+    await signIn();
+    await checkOptionalFeatures();
+  } else if (pdfMode) {
     await signIn();
     await checkPdfAttachment();
   } else if (process.argv.includes('--nav-only')) {

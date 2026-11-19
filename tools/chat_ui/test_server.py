@@ -11,6 +11,7 @@ import unittest
 from unittest import mock
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import install_pdf_reader
 import server as chat_server
 import monitor as chat_monitor
 from server import Application, Server
@@ -280,6 +281,76 @@ class RouteTests(unittest.TestCase):
         self.assertIsNone(missing["max_tokens"])
         explicit = chat_server.settings_of({"model": "test-model", "max_tokens": 2048})
         self.assertEqual(explicit["max_tokens"], 2048)
+
+    def test_optional_feature_install_requires_owner_and_serializes_visible_retries(self):
+        url = "/api/features"
+        install_url = url + "/pdf-reader/install"
+        cookie = self.login()
+        reader = chat_server.pdf_reader
+        package = Path(self.temp.name) / "optional-reader"
+        entered, release = threading.Event(), threading.Event()
+        attempts = []
+
+        def install(directory):
+            attempts.append(directory)
+            if len(attempts) == 1:
+                entered.set()
+                if not release.wait(3):
+                    raise RuntimeError("fixture timed out")
+                raise OSError("private path and URL: fixture was unable to download")
+            directory.mkdir()
+            for name in reader.MODULES:
+                (directory / name).write_text("fixture", encoding="utf-8")
+            for path in reader.RESOURCE_PATHS:
+                (directory / path).mkdir()
+            (directory / reader.INSTALL_MARKER).write_bytes(reader.INSTALL_RECORD)
+
+        def status(method="GET", path=url, body=None):
+            result = self.request(method, path, body, cookie)
+            self.assertEqual(result[0], 200, result[2])
+            self.assertEqual(set(self.json_body(result)), {"features"})
+            feature, = self.json_body(result)["features"]
+            self.assertEqual(feature["id"], "pdf-reader")
+            self.assertEqual(feature["name"], "PDF text import")
+            self.assertEqual(feature["version"], reader.VERSION)
+            self.assertTrue(feature["description"])
+            return feature
+
+        def wait_status(state):
+            deadline = time.monotonic() + 2
+            while time.monotonic() < deadline:
+                value = status()
+                if value["state"] == state:
+                    return value
+                threading.Event().wait(0.01)
+            self.fail(f"feature did not reach {state}")
+
+        with mock.patch.object(reader, "READER_DIRECTORY", package), mock.patch.object(install_pdf_reader, "install", side_effect=install):
+            self.assertEqual(self.request("GET", url)[0], 401)
+            self.assertEqual(self.request("POST", install_url, {})[0], 401)
+            self.assertEqual(self.request("POST", install_url, {}, cookie, {"X-Chat-Request": "0"})[0], 403)
+            self.assertEqual(self.request("POST", install_url, {}, cookie, {"Origin": "https://other.invalid"})[0], 403)
+            self.assertEqual(self.request("POST", install_url, {"url": "https://other.invalid"}, cookie)[0], 400)
+            self.assertEqual(self.request("POST", url + "/unknown/install", {}, cookie)[0], 404)
+            self.assertEqual(status()["state"], "available")
+            self.assertFalse(self.json_body(self.request("GET", "/api/config", cookie=cookie))["pdf_reader"])
+            self.assertEqual(attempts, [])
+            try:
+                self.assertEqual(status("POST", install_url, {})["state"], "installing")
+                self.assertTrue(entered.wait(1))
+                self.assertEqual(status("POST", install_url, {})["state"], "installing")
+                self.assertEqual(status()["state"], "installing")
+                self.assertEqual(attempts, [package])
+            finally:
+                release.set()
+            failed = wait_status("failed")
+            self.assertNotIn("private path", failed["error"])
+            self.assertIn("Retry", failed["error"])
+            self.assertNotIn("error", status("POST", install_url, {}))
+            self.assertNotIn("error", wait_status("installed"))
+            self.assertTrue(self.json_body(self.request("GET", "/api/config", cookie=cookie))["pdf_reader"])
+            self.assertEqual(status("POST", install_url, {})["state"], "installed")
+            self.assertEqual(attempts, [package, package])
 
     def test_pdf_reader_assets_are_local_authenticated_and_allowlisted(self):
         cookie = self.login()

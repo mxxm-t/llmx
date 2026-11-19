@@ -1070,7 +1070,7 @@
     const pending = [];
     for (let file of files) {
       if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
-        if (!S.config.pdf_reader) throw new Error('PDF import is unavailable. The companion operator can install the PDF reader.');
+        if (!S.config.pdf_reader) throw new Error('PDF import is unavailable. Open Settings > Optional features to install PDF text import.');
         if (pdfSelection) throw new Error('Finish the open PDF selection first.');
         if (chatId !== S.chat?.id || generation !== S.generation || attachments !== S.attachments) return;
         const selection = new AbortController();
@@ -1261,6 +1261,18 @@
       approval.querySelectorAll('button').forEach(b => { b.disabled = true; });
     }
   }
+  function configurePdfPicker(enabled) {
+    S.config.pdf_reader = enabled;
+    $('file-input').accept = baseFileTypes + (enabled ? ',application/pdf,.pdf' : '');
+    $('pdf-help').hidden = !enabled;
+    const button = document.querySelector('[data-action="attach"]');
+    button.setAttribute('aria-label', enabled ? 'Attach text, image or PDF' : 'Attach text or image');
+    button.dataset.tooltip = enabled ? 'Attach text, images or selected PDF pages. See Settings for limits.' : 'Attach UTF-8 text or code, PNG or JPEG. See Settings for limits.';
+  }
+  document.addEventListener('companion:features', event => {
+    const pdf = event.detail.features.find(feature => feature.id === 'pdf-reader');
+    if (pdf) configurePdfPicker(pdf.state === 'installed');
+  });
   async function initialize() {
     chatCreating(true);
     sidebarRuns.ready = false; syncSidebarRuns();
@@ -1268,11 +1280,7 @@
       const session = await api('/session'); $('logout-button').hidden = !session.password_required;
       if (!session.authenticated && session.password_required) { $('login-dialog').showModal(); $('password').focus(); return; }
       S.config = await api('/config'); document.dispatchEvent(new CustomEvent('companion:config', {detail: S.config})); connection(S.config.upstream_available ? 'Connected' : 'Unavailable', !S.config.upstream_available);
-      $('file-input').accept = baseFileTypes + (S.config.pdf_reader ? ',application/pdf,.pdf' : '');
-      $('pdf-help').hidden = !S.config.pdf_reader;
-      const attachButton = document.querySelector('[data-action="attach"]');
-      attachButton.setAttribute('aria-label', S.config.pdf_reader ? 'Attach text, image or PDF' : 'Attach text or image');
-      attachButton.dataset.tooltip = S.config.pdf_reader ? 'Attach text, images or selected PDF pages. See Settings for limits.' : 'Attach UTF-8 text or code, PNG or JPEG. See Settings for limits.';
+      configurePdfPicker(Boolean(S.config.pdf_reader));
       if (!S.config.upstream_available) banner(S.config.upstream_error || 'The model server is unavailable. Check the companion connection and try again.');
       if (S.config.tools_error) banner([S.config.upstream_error, 'Tool connection issue: ' + S.config.tools_error].filter(Boolean).join(' '));
       await refreshChats(); loadSettings();

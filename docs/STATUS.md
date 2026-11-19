@@ -203,6 +203,41 @@ This test-only correction lands by fast-forward with the companion workflow.
 - **Checks:** The independent Chrome regression failed in 59.797 seconds before the fix and passed in 54.855 seconds after it. The combined browser fixture over public main `2ea30d410` passed in 66.845 seconds, including both themes at 1440, 390 and 320 pixels and 200 percent CSS zoom. Desktop preference, transient Settings access, mobile drawer state and toggle geometry passed. JavaScript syntax, whitespace and independent integration review passed. Dead-code passed with 17 expected findings and 20 planted faults in 34.8 seconds; docs passed with zero findings and 29 planted faults in 31.8 seconds and runs once more after this record.
 - **Landing:** Fast-forward from `2ea30d410` after final documentation validation and a fresh main check. This is static presentation only, with no server, runtime, API or numerical changes. The existing docs CLI remains applicable because native source and build inputs are unchanged. Full Markdown review checks references to details, temporary labels and layout; the companion README and TESTS own the updated behavior. Receipts are in `scratch/reading-landing/`, with independent matched screenshots in the main workspace's `scratch/chat-reading-layout/`.
 - **Gotchas:** Composer Settings and the narrow drawer are transient. Only explicit docked Details actions save the preference. Long titles can still truncate. Chrome emulation does not establish physical phone or Safari coverage. Settings semantics and history search remain separate audit work.
+## Tile256 total denominator (2026-11-19, CUDA96, branch fix/tile256-denominator on land/20261118 57a932e49)
+
+**Goal.** `backend-cuda` passes `check_long` at 16384 tokens on every NVIDIA card, where land/20261118 fails it on an RTX 3090 (sm_86), a T4 (sm_75) and a V100 (sm_70) with a drift of -2.47e-8 against its 2e-8 bound.
+
+**Failing test.** Already present: `attention_tiles::check_long` (`tests/attention_tiles.hpp`), which `backend-cuda` and `backend-rocm attention` run, fails on 57a932e49 on CUDA: `FAIL the tile of heads 256 wide after 16384 tokens drifts -2.47e-08 of the reference, within 2e-8` (CUDA95 session P, RTX 3090, `/opt/claude-work/cuda95/p/results/20261119-1034-P/`), so the branch is the fix alone.
+
+**Done.**
+- `llmx_attention_tile256` (`kernels/f32.gpu`) carries the total's denominator over its folds as a two-float sum, a value and its rounding error by exact products and sums (docs/src/backends-gpu.md); the numerator, the 128-wide tile and every other kernel are unchanged.
+- The cause, from build/gpu-arch-options-land 67340f65f, where the change was found and from which it is split out: the F32 rounding of the denominator over 64 folds scales every output of a row alike, which a host emulation of the kernel's arithmetic reproduces at -2.14e-8.
+
+**MI50 results** (one MI50, renderD137, one container; A = land/20261118 `llmx 0.1.0+g57a932e49b0a numerics 2b9f6021974111f5`, B = the fix `llmx 0.1.0+g9ab587860073 numerics 56a45a7db217344c`, the fix's commit before this record was added; both built by `main-bin/build-branch.sh` R from detached worktrees, 0 errors; results `/opt/claude-work/cuda96/out/`):
+
+| Check | A, stack | B, fix | Bound |
+|---|---|---|---|
+| `backend-rocm attention` `check_long` drift at 4133 / 16384 tokens, two runs each, interleaved | 7.74e-9 / -1.84e-8 | -5.68e-9 / -3.21e-9 | 2e-8 |
+| rms error at 16384 tokens | 4.18e-7 | 3.98e-7 | 1e-6 |
+| `backend-rocm rates attention`, `llmx_attention_tile256`, 24 heads 256 wide, 16384 tokens, 512 rows, 2 / 4 / 8 KV heads, four rounds A B A B | medians 140.5 / 141.6 / 142.4 ms, ranges 140.5-140.6 / 141.5-141.6 / 142.4-142.6 | medians 139.1 / 140.2 / 141.1 ms, ranges 139.1-140.3 (one round 140.3) / 140.1-140.2 / 141.1-141.1 | level |
+| Qwen3-0.6B Q8_0 64 greedy ids, short prompt, ROCm and CPU; 16k-token wikitext prompt, ROCm | identical | identical | byte identity |
+| Qwen3-0.6B Q8_0 `logits --last 256 --top 8` of an 8000-byte prompt, CPU, f32, f16 and int8 | identical | identical | byte identity |
+| Qwen3.5-0.8B Q4_K_M 16k raw, ROCm f32 with f32 K/V, last 512 positions against F32 file-exact HF (`hf_depth_top1`) | 512 exact, 0 tie, 0 miss; top-1 logit d RMS 6e-5, max 2e-4 | 512 exact, 0 tie, 0 miss; RMS 6e-5, max 2e-4 | 0 misses |
+| Same, chat template | 512 exact, 0 tie, 0 miss; RMS 3e-5, max 1e-4 | 512 exact, 0 tie, 0 miss; RMS 3e-5, max 1e-4 | 0 misses |
+| Qwen3.6-27B Q4_K_M, 16384-token raw prompt, default f16, 64 greedy ids | reference | identical to A | byte identity |
+
+- The 0.8B captures differ from A's in their bits (1 and 0 of 512 rows identical, raw and chat; at most 2e-5 apart), so the 256-wide tile ran in them, and every top-1 is the same; the HF reference is CUDA31's (`/opt/claude-work/cuda31/depth/ref-f32`), scored by `/opt/claude-work/cuda96/score.py`.
+- The tile is level or faster with the fix: 1.0% less at 2 KV heads by median, as in 67340f65f's own round; the host was at load 42 to 50 of 16 cores, so the absolute times are of a busy host, and the fix adds work, so the gain is layout and not claimed.
+- The 0.6B 16k prompt on the CPU ran past its 900 s limit in both arms and gave no ids; the CPU path does not compile `kernels/f32.gpu`, and the 8000-byte logits stand in for it.
+- On CUDA the change was measured on build/gpu-arch-options-land's binary: -1.22e-8 at 16384 tokens on a T4 and a V100 (-2.47e-8 before); the re-check of this branch's own CUDA build is in Left.
+
+**Left.**
+- The CUDA re-check on a rented card, staged and not rented: `backend-cuda` default on this branch's CUDA build (`/opt/claude-work/cuda96/p`, sections pre and bcuda, one RTX 3090, at most 35 minutes at 0.40 USD/h), where `check_long` must pass at 16384 tokens.
+
+**Gotchas.**
+- The bits of every 256-wide prompt attention row change on ROCm and CUDA (Qwen3.5, Qwen3.6 and Qwen3.8 attention layers at `attention_tile_rows` and above); 128-wide heads (Qwen3) are unchanged.
+- build/gpu-arch-options-land2 is build/gpu-arch-options-land 67340f65f rebased onto this branch without the change; it lands after it.
+
 ## Landing stack land-20261118 (2026-11-18 to 2026-11-19, LAND79 to LAND82, Done)
 
 **What lands.** The stack on main a274cfd62, in this order: fix/shift-while-generating (the failing test, then the fix), feat/gfx942-default-target, perf/vulkan-queue-plan, the metadata-only GGUF shard reads (test, then the fix), the vulkan-lifetime hold timing check, the Flash-Next file reference's image, feat/rope-owner (YaRN), feat/qwen27-delta-q8, the fit's prompt and page budgets (test, then the change), the drafting set, feat/rocm-vision, the CUDA chain (step 8 and its fixes, ported), fix/dspark-prompt-context, fix/disk-tier-drafter-race (test, then the fix), fix/safetensors-rocm-fp8 and the attention-follows-dtype proposal in `docs/PRECISION.md`.

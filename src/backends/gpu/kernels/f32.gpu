@@ -1324,6 +1324,8 @@ __device__ inline void attention_tile(const float* Q, float* O, const void* kc, 
         tot[k] = acc[k];
     }
     float m = -INFINITY, l = 0.0f, tm = -INFINITY, tl = 0.0f;
+    // At 256 the total's denominator carries its rounding in tll, a two-float sum, since its rounding over the folds is a scale error of the whole row (docs/src/backends-gpu.md).
+    float tll = 0.0f;
     const int tile_end = min(hist + tile * TQ + TQ, hist + nq), my_end = hist + b + 1;
     for (int t0 = 0; t0 < tile_end; t0 += TK) {
         // Eight values a load, zero past the tile's last token so a masked score meets a finite value.
@@ -1400,7 +1402,10 @@ __device__ inline void attention_tile(const float* Q, float* O, const void* kc, 
             if ((t0 / TK + 1) % FOLD == 0 || t0 + TK >= tile_end) {
                 const float M = fmaxf(tm, m);
                 const float fa = tm == -INFINITY ? 0.0f : expf(tm - M), fb = m == -INFINITY ? 0.0f : expf(m - M);
-                tl = fmaf(l, fb, tl * fa);
+                const float a = l * fb, ae = fmaf(l, fb, -a), c = tl * fa, ce = fmaf(tl, fa, -c), s = a + c, z = s - a, se = (a - (s - z)) + (c - z);
+                const float lo = ae + ce + se + tll * fa;
+                tl = s + lo;
+                tll = lo - (tl - s);
                 for (int k = 0; k < RUNS; ++k) {
                     tot[k] = make_float4(fmaf(acc[k].x, fb, tot[k].x * fa), fmaf(acc[k].y, fb, tot[k].y * fa), fmaf(acc[k].z, fb, tot[k].z * fa),
                                          fmaf(acc[k].w, fb, tot[k].w * fa));

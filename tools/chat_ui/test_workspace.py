@@ -280,6 +280,34 @@ class WorkspaceTests(unittest.TestCase):
             self.assertEqual([tool["name"] for tool in tools],
                              ["workspace_list", "workspace_read", "workspace_write"])
 
+    def test_repeated_agent_write_preserves_revision_and_checkpoints(self):
+        workspace = Workspace(self.temp.name)
+        tools = WorkspaceTools(FakeRemote(), workspace)
+        def write(path, content, revision):
+            result = tools.call_tool("workspace_write", dict(path=path, content=content, revision=revision))
+            return json.loads(result["content"][0]["text"])
+
+        result = write("site.html", "<main>Hello</main>", 0)
+        self.assertEqual(result["revision"], 1)
+        workspace.write("notes.txt", "another edit", 1)
+        before = workspace.snapshot()
+        for revision in (0, 1, 2):
+            result = write("site.html", "<main>Hello</main>", revision)
+            self.assertEqual((result["status"], result["revision"]), ("already_saved", 2))
+        with self.assertRaisesRegex(ValueError, "workspace_read"):
+            write("site.html", "different", 1)
+        with self.assertRaisesRegex(ValueError, "workspace_list"):
+            write("missing.txt", "new", 1)
+        for invalid in (True, None, -1, 3):
+            with self.assertRaises(ValueError):
+                write("site.html", "<main>Hello</main>", invalid)
+        with self.assertRaises(ValueError):
+            write("new.txt", None, 2)
+        self.assertEqual(workspace.snapshot(), before)
+        self.assertEqual(workspace.read("site.html")["content"], "<main>Hello</main>")
+        self.assertEqual(write("site.html", "new text", 2)["revision"], 3)
+        self.assertEqual(len(workspace.snapshot()["checkpoints"]), 2)
+
     def test_workspace_tools_list_read_write_and_remote_passthrough(self):
         workspace = Workspace(self.temp.name)
         workspace.write("src/main.py", "one\ntwo\nthree", 0)

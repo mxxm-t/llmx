@@ -277,8 +277,28 @@ __device__ void group_pass(unsigned* slot, unsigned value) {
     if (!threadIdx.x) atomic_store_release_system(slot, value);
 }
 
+// Waits until no float below n of unit i of a peer's slot is armed, giving up as group_stop says or once a thread of the block has, then takes the unit and arms it again.
+__device__ inline bool group_take(const GroupPeers* p, GroupSignal* self, float* slot, unsigned long long i, unsigned long long n, unsigned long long deadline, unsigned long long tick,
+                                  unsigned long long* next, int* failed, float4* got) {
+    GroupWord4 w;
+    for (unsigned s = 1;; ++s) {
+        if (i + 4 <= n) {
+            w = load_volatile((const GroupWord4*)(slot + i));
+        } else {
+            unsigned v[4] = {0u, 0u, 0u, 0u};
+            for (unsigned long long k = i; k < n; ++k) v[k - i] = ((const volatile unsigned*)slot)[k];
+            w = GroupWord4{v[0], v[1], v[2], v[3]};
+        }
+        if (w.x != kGroupArmed && w.y != kGroupArmed && w.z != kGroupArmed && w.w != kGroupArmed) break;
+        if (s % kGroupSpinChecks == 0 && (atomic_load_relaxed_block(failed) || group_stop(p, self, deadline, tick, next, failed))) return false;
+    }
+    *got = make_float4(__uint_as_float(w.x), __uint_as_float(w.y), __uint_as_float(w.z), __uint_as_float(w.w));
+    group_arm_unit(slot, i, n);
+    return true;
+}
+
 // Two shots: share k of the units, whole float4s, goes from every member into member k's staging, member k adds the share in member order into its out and into every peer's own slot, and each member adds the shares it gathered.
-// The staging is the parity half at `half_at`, and member k arms the peers' slots of its share again once read, since the one-shot reads them as signals.
+// The staging is the parity half at `half_at`; every slot is read as the one-shot reads it, waiting until its data lands and armed again once taken, so a meeting word that passes its data delays a sum and never gives an earlier one.
 __device__ void group_two_shots(const GroupPeers* p, GroupSignal* self, const float* own, float* out, unsigned long long n, unsigned long long cap, unsigned long long half_at, int members, int rank,
                                 bool replace, unsigned epoch, unsigned long long deadline, unsigned long long tick, int* failed) {
     const unsigned long long units = (n + 3) / 4, share = (units + members - 1) / members, step = (unsigned long long)gridDim.x * kThreads;
@@ -288,7 +308,7 @@ __device__ void group_two_shots(const GroupPeers* p, GroupSignal* self, const fl
     auto lo = [&](int k) { return share * k < units ? share * k : units; };
     for (int k = 0; k < members; ++k) {
         if (k == rank) continue;
-        for (unsigned long long u = lo(k) + first; u < lo(k + 1); u += step) group_store(p->stage[k] + half_at + rank * cap, u * 4, n, group_load(own, u * 4, n));
+        for (unsigned long long u = lo(k) + first; u < lo(k + 1); u += step) group_store(p->stage[k] + half_at + rank * cap, u * 4, n, group_sane4(group_load(own, u * 4, n)));
     }
     __threadfence_system();
     __syncthreads();
@@ -298,18 +318,24 @@ __device__ void group_two_shots(const GroupPeers* p, GroupSignal* self, const fl
             for (unsigned long long k = u * 4; k < n && k < u * 4 + 4; ++k) out[k] = __builtin_nanf("");
         return;
     }
-    for (unsigned long long u = lo(rank) + first; u < lo(rank + 1); u += step) {
+    unsigned long long next = (unsigned long long)wall_clock() + tick;
+    bool took = true;
+    for (unsigned long long u = lo(rank) + first; u < lo(rank + 1) && took; u += step) {
         const unsigned long long i = u * 4;
-        float4 t;
-        if (i + 4 <= n) {
-            t = group_values(own, stage, cap, members, rank, i);
-        } else {
-            float v[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-            for (unsigned long long k = i; k < n; ++k) v[k - i] = group_value(own, stage, cap, members, rank, k);
-            t = make_float4(v[0], v[1], v[2], v[3]);
+        float4 t = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+        for (int j = 0; j < members && took; ++j) {
+            float4 v = group_load(own, i, n);
+            if (j != rank) took = group_take(p, self, stage + j * cap, i, n, deadline, tick, &next, failed, &v);
+            if (!j) {
+                t = v;
+            } else {
+                t.x += v.x;
+                t.y += v.y;
+                t.z += v.z;
+                t.w += v.w;
+            }
         }
-        for (int j = 0; j < members; ++j)
-            if (j != rank) group_arm_unit(stage + j * cap, i, n);
+        if (!took) break;
         for (int j = 0; j < members; ++j)
             if (j != rank) group_store(p->stage[j] + half_at + j * cap, i, n, t);
         group_out(out, i, n, t, replace, aligned);
@@ -322,10 +348,20 @@ __device__ void group_two_shots(const GroupPeers* p, GroupSignal* self, const fl
             for (unsigned long long k = u * 4; k < n && k < u * 4 + 4; ++k) out[k] = __builtin_nanf("");
         return;
     }
-    const float* gathered = stage + rank * cap;
-    for (int k = 0; k < members; ++k) {
+    float* gathered = stage + rank * cap;
+    for (int k = 0; k < members && took; ++k) {
         if (k == rank) continue;
-        for (unsigned long long u = lo(k) + first; u < lo(k + 1); u += step) group_out(out, u * 4, n, group_load(gathered, u * 4, n), replace, aligned);
+        for (unsigned long long u = lo(k) + first; u < lo(k + 1) && took; u += step) {
+            float4 v;
+            took = group_take(p, self, gathered, u * 4, n, deadline, tick, &next, failed, &v);
+            if (took) group_out(out, u * 4, n, v, replace, aligned);
+        }
+    }
+    __syncthreads();
+    if (*failed) {
+        group_failed(p, members, rank);
+        for (unsigned long long u = first; u < units; u += step)
+            for (unsigned long long k = u * 4; k < n && k < u * 4 + 4; ++k) out[k] = __builtin_nanf("");
     }
 }
 
@@ -351,6 +387,7 @@ __device__ bool group_chain(const GroupPeers* p, GroupSignal* self, const float*
     const unsigned long long mine = b < chunks ? (chunks - b + F - 1) / F : 0;
     bool met = true;
     unsigned j = 0;
+    unsigned long long spin = (unsigned long long)wall_clock() + tick;
     for (unsigned long long c = b; c < chunks && (ahead || !last); c += F, ++j) {
         const unsigned long long lo = c * kChainUnits, hi = lo + kChainUnits < units ? lo + kChainUnits : units;
         const bool waits = ahead ? rank > 0 : true;
@@ -358,24 +395,30 @@ __device__ bool group_chain(const GroupPeers* p, GroupSignal* self, const float*
             met = false;
             break;
         }
-        for (unsigned long long u = lo + threadIdx.x; u < hi; u += kThreads) {
+        bool took = true;
+        for (unsigned long long u = lo + threadIdx.x; u < hi && took; u += kThreads) {
             const unsigned long long i = u * 4;
             float4 s;
             if (ahead) {
                 s = group_load(own, i, n);
-                if (rank) {
-                    const float4 a = group_load(in, i, n);
+                float4 a;
+                if (rank && (took = group_take(p, self, in, i, n, deadline, tick, &spin, failed, &a))) {
                     s.x = a.x + s.x;
                     s.y = a.y + s.y;
                     s.z = a.z + s.z;
                     s.w = a.w + s.w;
                 }
             } else {
-                s = group_load(in, i, n);
-                group_arm_unit(in, i, n);
+                took = group_take(p, self, in, i, n, deadline, tick, &spin, failed, &s);
             }
-            if (to) group_store(to, i, n, s);
+            if (!took) break;
+            if (to) group_store(to, i, n, ahead && !rank ? group_sane4(s) : s);
             if (writes) group_out(out, i, n, s, replace, aligned);
+        }
+        __syncthreads();
+        if (*failed) {
+            met = false;
+            break;
         }
         if (told) group_pass(told, base + j + 1);
     }
@@ -386,26 +429,6 @@ __device__ bool group_chain(const GroupPeers* p, GroupSignal* self, const float*
     }
     __syncthreads();
     if (!threadIdx.x) self->passed[ahead ? 0 : 1][b] = base + (unsigned)mine;
-    return true;
-}
-
-// Waits until no float below n of unit i of a peer's slot is armed, giving up as group_stop says or once a thread of the block has, then takes the unit and arms it again.
-__device__ inline bool group_take(const GroupPeers* p, GroupSignal* self, float* slot, unsigned long long i, unsigned long long n, unsigned long long deadline, unsigned long long tick,
-                                  unsigned long long* next, int* failed, float4* got) {
-    GroupWord4 w;
-    for (unsigned s = 1;; ++s) {
-        if (i + 4 <= n) {
-            w = load_volatile((const GroupWord4*)(slot + i));
-        } else {
-            unsigned v[4] = {0u, 0u, 0u, 0u};
-            for (unsigned long long k = i; k < n; ++k) v[k - i] = ((const volatile unsigned*)slot)[k];
-            w = GroupWord4{v[0], v[1], v[2], v[3]};
-        }
-        if (w.x != kGroupArmed && w.y != kGroupArmed && w.z != kGroupArmed && w.w != kGroupArmed) break;
-        if (s % kGroupSpinChecks == 0 && (atomic_load_relaxed_block(failed) || group_stop(p, self, deadline, tick, next, failed))) return false;
-    }
-    *got = make_float4(__uint_as_float(w.x), __uint_as_float(w.y), __uint_as_float(w.z), __uint_as_float(w.w));
-    group_arm_unit(slot, i, n);
     return true;
 }
 

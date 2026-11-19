@@ -247,6 +247,8 @@ keyboard focus keeps its visible outline.
 - Reasoning is displayed only when the upstream supplies `reasoning_content`.
   You can open or close it while the reply is being generated. Reloading
   reconnects to the same reply without cancelling or restarting generation.
+  If a completed reply contains reasoning and no answer, Chat shows a notice
+  next to Retry. The notice uses the model's finish reason when available.
   The renderer supports basic Markdown, nested lists with preserved starting
   numbers, code blocks, tables and safe links. An image in a Markdown reply
   appears as a link with its description, or **Open image** if empty. Open the

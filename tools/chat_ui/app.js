@@ -106,7 +106,7 @@
   let runtimeLimits = null;
   const objectIds = new WeakMap(); let nextObjectId = 0;
   function identity(value) { if (!value || typeof value !== 'object') return value; if (!objectIds.has(value)) objectIds.set(value, ++nextObjectId); return objectIds.get(value); }
-  function messageKey(m, text = false) { return [m.id, m.role, m.status, text ? m.content : undefined, text ? m.reasoning : undefined, identity(m.usage), identity(m.timings), identity(m.context), (m.tool_calls || []).map(identity), (m.attachments || []).map(identity)]; }
+  function messageKey(m, text = false) { return [m.id, m.role, m.status, m.finish_reason, text ? m.content : undefined, text ? m.reasoning : undefined, identity(m.usage), identity(m.timings), identity(m.context), (m.tool_calls || []).map(identity), (m.attachments || []).map(identity)]; }
   function timestamp(value) { return new Date(typeof value === 'number' && value < 100000000000 ? value * 1000 : value); }
   function toast(message) { $('toast').textContent = message; $('toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; }, 4200); }
   function banner(message) { $('banner').textContent = message || ''; $('banner').hidden = !message; }
@@ -660,6 +660,13 @@
       el.append(tool);
     });
     if (!message.content && !message.reasoning && !message.tool_calls?.length && message.role === 'assistant' && !terminal(message.status)) el.append(node('span', 'muted fine-print', 'Preparing a response...'));
+    if (message.role === 'assistant' && message.status === 'completed' && message.reasoning?.trim()
+        && !message.content?.trim() && !message.tool_calls?.length) {
+      const notice = message.finish_reason === 'stop' ? 'The model stopped before sending an answer.'
+        : message.finish_reason === 'length' ? 'The model reached its reply limit before sending an answer.'
+        : 'The model did not send an answer.';
+      el.append(node('p', 'muted fine-print reply-no-answer', notice));
+    }
     const actions = node('div', 'message-actions');
     if (message.content) actions.append(actionIcon('Copy message', 'copy', message.id, 'M8 5H5v16h12v-3 M9 3h11v14H9z'));
     if (message.role === 'user') actions.append(actionIcon('Edit message', 'edit', message.id, 'M4 16.5V20h3.5L19 8.5 15.5 5 4 16.5z M13.8 6.7l3.5 3.5'));

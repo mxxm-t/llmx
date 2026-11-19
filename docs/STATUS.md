@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## Show when a completed reply has no answer (2026-11-19)
+
+- **Goal:** Explain why the last assistant message shows reasoning and no answer.
+- **Done:** Completed reasoning-only replies explain the absent answer and retain the existing Retry action. The notice distinguishes a stop, a reply limit and an unknown finish reason.
+- **Checks:** The real Chrome fixture streams a tool continuation, verifies the notice only after completion and reloads the stored finish reason without starting another run. The focused check also covers length, unknown and interrupted replies.
+- **Left:** Run the combined companion and scoped static checks on the landing tree.
+- **Gotchas:** Leave intermediate tool messages and interrupted replies alone. Keep Retry explicit.
+
 ## Workspace write preconditions in Chat (2026-11-19)
 
 - **Goal:** Track the target file in the companion so a model can write an approved edit without guessing a revision number.

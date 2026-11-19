@@ -1026,6 +1026,10 @@ kbd {
   padding:0 11px 9px;
   font-size:12px
 }
+.reply-no-answer {
+  margin:6px 0 8px;
+  line-height:1.5
+}
 .tool-call {
   border:1px solid var(--border);
   border-radius:8px;

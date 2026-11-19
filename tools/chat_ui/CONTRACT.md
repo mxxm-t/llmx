@@ -193,7 +193,7 @@ one UTF-8 text attachment with the original filename and page headings. The serv
 requests reader modules and supporting assets from the signed-in companion
 origin only when opening a PDF.
 
-Message: `{id,chat_id,parent_id,role,content,reasoning,attachments,tool_calls,tool_call_id,run_id,status,created,usage,timings,context,request}`. Optional fields may be absent. Tool call records have `{id,name,arguments,status,result,duration_ms,error}`. Status can be `pending`, `approval`, `running`, `completed`, `denied`, `failed`, `cancelled` or `interrupted`. Tool outputs remain independent messages for model history.
+Message: `{id,chat_id,parent_id,role,content,reasoning,attachments,tool_calls,tool_call_id,run_id,status,created,usage,timings,context,request,finish_reason}`. Optional fields may be absent. A completed assistant message carries the model's `finish_reason` when supplied. Tool call records have `{id,name,arguments,status,result,duration_ms,error}`. Status can be `pending`, `approval`, `running`, `completed`, `denied`, `failed`, `cancelled` or `interrupted`. Tool outputs remain independent messages for model history.
 
 The renderer opens tool arguments when the call first requires approval or a
 pending approval is loaded. When a streamed tool update changes a focused call,

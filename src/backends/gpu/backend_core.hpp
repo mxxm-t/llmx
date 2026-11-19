@@ -1097,6 +1097,11 @@ public:
             span(*m.inject.data.buffer, m.inject.data.offset * sizeof(float), size_mul(streams, width) * sizeof(float));
             span(*m.inject_gates.buffer, m.inject_gates.offset * sizeof(float), size_mul(rows, streams * sizeof(float)));
         }
+        if (!entry_mixes_) entry_mixes_ = entry_fits(streams, dim, low_rank, inj);
+        if (rows == 1 && pending_ && pending_->inject && pending_->dst == f32(x) && (!pending_->take || pending_->take->members == 2) && entry_fits(streams, dim, low_rank, inj)) {
+            entry(out, x, m, streams, dim, low_rank, eps, runs);
+            return;
+        }
         // The launch's scratch: the two barrier counters first, which the allocation zeroes and every launch leaves at zero, then each stream's root, the twin's scales and the twin, for a launch's columns.
         // The counters keep their offset whatever the shape, so a launch on scratch a wider mix used reads zeros there, never that mix's twin bytes.
         const HcLayout hl = hc_layout(rows, streams, width);
@@ -1150,7 +1155,7 @@ public:
     }
     // Whether a grid of the build is resident at once, which its barriers need; a grid past it is said once and runs the chain.
     bool hc_resident(int k, unsigned grid) {
-        const size_t i = k == kHcMix ? 0 : 1;
+        const size_t i = k == kHcMix ? 0 : k == kHcMix8 ? 1 : 2;
         const bool ok = size_t(grid) <= resident(hc_per_cu_[i], k);
         if (!ok && !hc_refused_) {
             hc_refused_ = true;
@@ -1159,9 +1164,109 @@ public:
         }
         return ok;
     }
-    BufferPtr hc_scratch_;
-    int hc_per_cu_[2] = {-1, -1};
+    // The pending inject and the mix after it as one launch (kernels/int16.gpu, llmx_hc_entry), on a shape whose grid of streams * dim / 1280 * low / 32 blocks is resident.
+    // The scratch holds the two barrier counters first, zero between launches, then the down, square and inject partials.
+    static constexpr size_t kEntryGroup = 1280;   // kernels/int16.gpu, kEntGroup
+    bool entry_fits(size_t streams, size_t dim, size_t low, bool inj) {
+        if (streams > 8 || dim % kEntryGroup || low % 64 || low > 512 || (inj && streams > low / 32 - 1)) return false;
+        const size_t nb = streams * (dim / 1280) * (low / 32);
+        return nb <= UINT32_MAX && (dim / 32 + nb - 1) / nb * streams * 32 <= 512 && hc_resident(kHcEntry, (unsigned)nb);
+    }
+    void entry(Slice out, CSlice x, const HyperMix& m, size_t streams, size_t dim, size_t low, float eps, RowRuns runs) {
+        const bool inj = m.inject.data.buffer != nullptr;
+        const size_t ng = streams * (dim / 1280), nb = ng * (low / 32), need = 64 + (ng * low + ng + ng * streams) * sizeof(float);
+        // The pending join leaves before the allocation, whose held fill would issue it first and leave the launch nothing to take.
+        const Pending p = *pending_;
+        pending_.reset();
+        if (!hc_entry_scratch_ || hc_entry_scratch_->size() < need) {
+            try {
+                hc_entry_scratch_ = alloc(need, Memory::device);
+            } catch (...) {
+                pending_ = p;
+                throw;
+            }
+        }
+        uint8_t* sc = (uint8_t*)as_gpu<Api>(*hc_entry_scratch_).data();
+        forget_twins();
+        StreamTwin t = stream_twin(out, 1, dim, runs);
+        if (t.major || t.level == 1) t = {};
+        // With a pending take, the block is this member's own partial and the kernel adds its peer's from the staging half the push filled.
+        const TakeDesc* k = p.take ? &*p.take : nullptr;
+        const HcEntry a{p.dst, k ? k->own : p.block, p.gate, f32(m.norm), bytes(m.down.data), bytes(m.up.data), inj ? f32(m.inject.data) : nullptr, (float*)(sc + 64), f32(m.low),
+                        inj ? f32(m.inject_gates) : nullptr, f32(out), t.q ? (signed char*)t.q : nullptr, t.q ? t.d : nullptr, (unsigned*)sc, k ? k->peers : nullptr,
+                        k ? k->half_at : 0, k ? k->cap : 0, k ? k->timeout : 0, k ? k->tick : 0, (unsigned)streams, (unsigned)dim, (unsigned)low, k ? 2u : 1u, k ? (unsigned)k->rank : 0u,
+                        eps, 1.0f / float(streams)};
+        launch(kHcEntry, (unsigned)nb, 1, Args(a));
+        if (k) take_status_ = k->status;
+        keep(t.t, f32(out), dim);
+    }
+    // The kernel's argument, laid out as kernels/int16.gpu's HcEntry.
+    struct HcEntry {
+        float* x;
+        const float* blk;
+        const float* gin;
+        const float* nw;
+        const uint8_t* down;
+        const uint8_t* up;
+        const float* inj;
+        float* part;
+        float* low;
+        float* injg;
+        float* out;
+        signed char* oq;
+        float* od;
+        unsigned* bar;
+        const void* peers;
+        unsigned long long half_at, cap, timeout, tick;
+        unsigned streams, dim, lowr, members, rank;
+        float eps, scale;
+    };
+    static_assert(offsetof(HcEntry, half_at) == 15 * sizeof(void*) && offsetof(HcEntry, streams) == 15 * sizeof(void*) + 32 && offsetof(HcEntry, scale) == 15 * sizeof(void*) + 56,
+                  "HcEntry mirrors the kernel's argument");
+    // A one-shot sum's take, recorded by its collective after the push (collective_core.hpp, pushed): llmx_group_sum's arguments and the launch's blocks.
+    struct TakeDesc {
+        const void* peers;
+        const float* own;
+        float* out;
+        unsigned long long n, cap, half_at, timeout, tick;
+        int members, rank, flags;
+        unsigned blocks;
+        unsigned* status;   // the member's status word in the collective's host memory, set where the take's launch fails so its next sum turns conservative
+    };
+    // The join held until the next operation, which issues it first, unless the mix after it takes it (entry): a sum's take, a generated row's inject, or the take and the inject of its sum.
+    struct Pending {
+        std::optional<TakeDesc> take;
+        bool inject;
+        float* dst;
+        const float* block;
+        const float* gate;
+        unsigned streams, dim;
+    };
+    std::optional<Pending> pending_;
+    // A take's slots are armed again only by the take, so a flush that drops a held take turns its collective conservative (flush).
+    unsigned* take_status_ = nullptr;
+    void materialize() {
+        if (!pending_) return;
+        const Pending p = *pending_;
+        pending_.reset();
+        if (p.take) {
+            const TakeDesc& k = *p.take;
+            launch(kGroupTake, k.blocks, 1, Args(k.peers, k.own, k.out, k.n, k.cap, k.members, k.rank, k.flags, k.timeout, k.tick));
+            take_status_ = k.status;
+        }
+        if (p.inject) launch(kInjectStreams, p.streams * ((p.dim + kThreads - 1) / kThreads), 1, Args(p.dst, p.block, p.gate, p.streams, p.dim));
+    }
+    // The collective's take, held as the pending join after every member's push went to its stream.
+    void pend_take(const TakeDesc& k) {
+        materialize();
+        pending_ = Pending{k, false, nullptr, nullptr, nullptr, 0, 0};
+        opened_ = true;
+    }
+    BufferPtr hc_scratch_, hc_entry_scratch_;
+    int hc_per_cu_[3] = {-1, -1, -1};
     bool hc_refused_ = false;
+    // Whether a generated row's mix here fits the entry, so a row's sum in place holds its take for one (GpuCollective::sum_in_place); a backend no mix reaches keeps one launch a sum.
+    bool entry_mixes_ = false;
     void inject_streams(Slice dst, CSlice block, CSlice gate, size_t rows, size_t streams, size_t dim) override {
         if (!streams || !dim) throw std::runtime_error(Api::prefix + "invalid stream injection dimensions");
         if (!rows) return;
@@ -1176,6 +1281,20 @@ public:
         const float* b = f32(block);
         const float* g = f32(gate);
         unsigned st = (unsigned)streams, dm = (unsigned)dim;
+        // A generated row's inject waits for the mix after it, which may take it into one launch (entry); any other operation issues it first.
+        if (rows == 1 && streams <= 8 && dim % 1280 == 0 && !as_gpu<Api>(*dst.buffer).host_ptr() && !as_gpu<Api>(*block.buffer).host_ptr() && !as_gpu<Api>(*gate.buffer).host_ptr()) {
+            // The take of the sum this inject reads joins it, so the mix after may take both.
+            std::optional<TakeDesc> take;
+            if (pending_ && pending_->take && !pending_->inject && pending_->take->out == b && pending_->take->n == dm) {
+                take = pending_->take;
+                pending_.reset();
+            }
+            materialize();
+            forget_twins();
+            pending_ = Pending{take, true, d, b, g, st, dm};
+            opened_ = true;
+            return;
+        }
         const Args args(d, b, g, st, dm);
         launch(kInjectStreams, (unsigned)(gn * chunks), 1, args);
     }
@@ -2018,7 +2137,7 @@ private:
                   kRmsNorm32Twin8, kNormRope, kNormRopeKv, kGather, kGatherQ8, kMatmul, kMatmulQ8, kMatmulQ4K, kGatherQ4K, kMatmulQ5K, kGatherQ5K, kMatmulQ6K,
                   kGatherQ6K, kMatmulQ50, kGatherQ50, kMatmulQ40, kGatherQ40, kMatmulQ41, kGatherQ41, kMatmulQ51, kGatherQ51, kMatmulBF16, kGatherBF16, kMatmulF16, kGatherF16, kMatmulIQ4NL, kGatherIQ4NL, kMatmulMXFP4, kGatherMXFP4, kKvWrite, kAttentionChunk, kAttentionTile, kAttentionTile256, kAttentionMerge, kAttentionVec,
                   kAttentionVecMerge, kTwin16, kTwin8, kSiluMulTwin16Major, kSiluMulTwin8Major, kRmsNorm16Twin16Major, kRmsNorm16Twin8Major,
-                  kRmsNorm32Twin16Major, kRmsNorm32Twin8Major, kAttentionVecMajor, kAttentionVecMergeMajor, kTwin16Major, kTwin8Major, kGroupSum, kGroupTwoShots, kGroupChain, kGroupArm, kGroupAddCheck, kSigmoidMul, kGatedRmsNorm, kNormRopeStreams, kCausalConvSilu, kGatedDeltaRule, kGatedDeltaRuleShort, kGroupRmsNorm, kSiluScaled, kMixStreams, kInjectStreams, kSignedSqrtGate, kDilatedConvSiluAdd, kKvIndexPool, kKvIndexScores, kKvIndexSelect, kKvIndexSelectWide, kSparseChunk, kSparseMerge, kSparseVec, kSparseVec256, kSparseVecMerge, kSparseVecMerge256,
+                  kRmsNorm32Twin16Major, kRmsNorm32Twin8Major, kAttentionVecMajor, kAttentionVecMergeMajor, kTwin16Major, kTwin8Major, kGroupSum, kGroupTwoShots, kGroupChain, kGroupArm, kGroupAddCheck, kGroupPush, kGroupTake, kSigmoidMul, kGatedRmsNorm, kNormRopeStreams, kCausalConvSilu, kGatedDeltaRule, kGatedDeltaRuleShort, kGroupRmsNorm, kSiluScaled, kMixStreams, kInjectStreams, kSignedSqrtGate, kDilatedConvSiluAdd, kKvIndexPool, kKvIndexScores, kKvIndexSelect, kKvIndexSelectWide, kSparseChunk, kSparseMerge, kSparseVec, kSparseVec256, kSparseVecMerge, kSparseVecMerge256,
                   kAttentionVec256, kAttentionVec256Major, kAttentionVecMerge256, kAttentionVecMerge256Major, kArgmaxSlices, kArgmaxMerge, kArgmaxPart, kArgmaxPick,
                   kMoeRoute, kMoeCombine, kMoeGroup, kRoutedExactF32, kRoutedExactQ8, kRoutedExactQ4K, kRoutedExactQ5K, kRoutedExactQ6K, kRoutedExactQ50, kRoutedExactQ40, kRoutedExactQ41, kRoutedExactQ51, kRoutedExactBF16, kRoutedExactF16, kRoutedExactIQ4NL, kRoutedExactMXFP4,
                   kRowsExactF32, kRowsExactQ8, kRowsExactQ4K, kRowsExactQ5K, kRowsExactQ6K, kRowsExactQ50, kRowsExactQ40, kRowsExactQ41, kRowsExactQ51, kRowsExactBF16, kRowsExactF16, kRowsExactIQ4NL, kRowsExactMXFP4, kSparseVecG4, kSparseVec256G4, kColsF32x2, kColsF32x4, kMoeStepRoute,
@@ -2030,7 +2149,7 @@ private:
                   kHalf8x1, kHalf8x1p, kHalf8x1r2, kHalf8x1s1, kHalf8x1r2s1, kHalf8x1r2s4, kHalf8x1h2, kHalf8x1h3, kHalf8x1h4, kHalf8x1h5, kHalf8x2, kHalf8x2r4, kHalf8x4, kHalf8x4r4, kHalf8x8, kHalf8x8r4, kHalf8x16, kHalf8x16r4, kHalf8x9, kHalf8x10, kHalf8x11, kHalf8x12, kHalf8x13, kHalf8x14, kHalf8x15, kTile16Tall, kTile8Tall, kRouted16, kRouted8, kRoutedHalf8, kRoutedHalf8s1, kGrouped16x2, kGrouped16x4, kGrouped16x8, kGrouped8x2, kGrouped8x4, kGrouped8x8, kGroupedHalf8x2, kGroupedHalf8x4, kGroupedHalf8x8, kRoutedTile16, kRoutedTile8, kRoutedNarrow16, kRoutedNarrow8, kRoutedStream8, kRoutedThinMXFP416,
                   kRowsQ4K16x1, kRowsQ4K16x2, kRowsQ4K16x4, kRowsQ4K16x8, kRowsQ4K16x16, kRowsQ4K8x1, kRowsQ4K8x2, kRowsQ4K8x4, kRowsQ4K8x8, kRowsQ4K8x16, kTileQ4K16, kTileQ4K8, kRoutedQ4K16, kRoutedQ4K8, kGroupedQ4K16x2, kGroupedQ4K16x4, kGroupedQ4K16x8, kGroupedQ4K8x2, kGroupedQ4K8x4, kGroupedQ4K8x8, kRoutedTileQ4K16, kRoutedTileQ4K8, kRoutedNarrowQ4K16, kRoutedStream16Q4K8, kRoutedStreamQ4K8, kRoutedMidQ4K16, kRoutedMidQ4K8, kRowsQ5K16x1, kRowsQ5K16x2, kRowsQ5K16x4, kRowsQ5K16x8, kRowsQ5K16x16, kRowsQ5K8x1, kRowsQ5K8x2, kRowsQ5K8x4, kRowsQ5K8x8, kRowsQ5K8x16, kTileQ5K16, kTileQ5K8, kRoutedQ5K16, kRoutedQ5K8, kGroupedQ5K16x2, kGroupedQ5K16x4, kGroupedQ5K16x8, kGroupedQ5K8x2, kGroupedQ5K8x4, kGroupedQ5K8x8, kRoutedTileQ5K16, kRoutedTileQ5K8, kRoutedNarrowQ5K16, kRoutedStream16Q5K8, kRoutedStreamQ5K8, kRoutedMidQ5K16, kRoutedMidQ5K8, kRowsQ6K16x1, kRowsQ6K16x2, kRowsQ6K16x4, kRowsQ6K16x8, kRowsQ6K16x16, kRowsQ6K8x1, kRowsQ6K8x2, kRowsQ6K8x4, kRowsQ6K8x8, kRowsQ6K8x16, kTileQ6K16, kTileQ6K8, kRoutedQ6K16, kRoutedQ6K8, kGroupedQ6K16x2, kGroupedQ6K16x4, kGroupedQ6K16x8, kGroupedQ6K8x2, kGroupedQ6K8x4, kGroupedQ6K8x8, kRoutedTileQ6K16, kRoutedTileQ6K8, kRoutedNarrowQ6K16, kRoutedStream16Q6K8, kRoutedStreamQ6K8, kRoutedMidQ6K16, kRoutedMidQ6K8,
                   kRowsQ5016x1, kRowsQ5016x2, kRowsQ5016x4, kRowsQ5016x8, kRowsQ5016x16, kRowsQ508x1, kRowsQ508x2, kRowsQ508x4, kRowsQ508x8, kRowsQ508x16, kTileQ5016, kTileQ508, kRoutedQ5016, kRoutedQ508, kGroupedQ5016x2, kGroupedQ5016x4, kGroupedQ5016x8, kGroupedQ508x2, kGroupedQ508x4, kGroupedQ508x8, kRoutedTileQ5016, kRoutedTileQ508, kRoutedNarrowQ5016, kRoutedStream16Q508, kRoutedStreamQ508, kRoutedMidQ5016, kRoutedMidQ508, kRowsQ4016x1, kRowsQ4016x2, kRowsQ4016x4, kRowsQ4016x8, kRowsQ4016x16, kRowsQ408x1, kRowsQ408x2, kRowsQ408x4, kRowsQ408x8, kRowsQ408x16, kTileQ4016, kTileQ408, kRoutedQ4016, kRoutedQ408, kGroupedQ4016x2, kGroupedQ4016x4, kGroupedQ4016x8, kGroupedQ408x2, kGroupedQ408x4, kGroupedQ408x8, kRoutedTileQ4016, kRoutedTileQ408, kRoutedNarrowQ4016, kRoutedStream16Q408, kRoutedStreamQ408, kRoutedMidQ4016, kRoutedMidQ408, kRowsQ4116x1, kRowsQ4116x2, kRowsQ4116x4, kRowsQ4116x8, kRowsQ4116x16, kRowsQ418x1, kRowsQ418x2, kRowsQ418x4, kRowsQ418x8, kRowsQ418x16, kTileQ4116, kTileQ418, kRoutedQ4116, kRoutedQ418, kGroupedQ4116x2, kGroupedQ4116x4, kGroupedQ4116x8, kGroupedQ418x2, kGroupedQ418x4, kGroupedQ418x8, kRoutedTileQ4116, kRoutedTileQ418, kRoutedNarrowQ4116, kRoutedStream16Q418, kRoutedStreamQ418, kRoutedMidQ4116, kRoutedMidQ418, kRowsQ5116x1, kRowsQ5116x2, kRowsQ5116x4, kRowsQ5116x8, kRowsQ5116x16, kRowsQ518x1, kRowsQ518x2, kRowsQ518x4, kRowsQ518x8, kRowsQ518x16, kTileQ5116, kTileQ518, kRoutedQ5116, kRoutedQ518, kGroupedQ5116x2, kGroupedQ5116x4, kGroupedQ5116x8, kGroupedQ518x2, kGroupedQ518x4, kGroupedQ518x8, kRoutedTileQ5116, kRoutedTileQ518, kRoutedNarrowQ5116, kRoutedStream16Q518, kRoutedStreamQ518, kRoutedMidQ5116, kRoutedMidQ518, kRowsIQ4NL16x1, kRowsIQ4NL16x2, kRowsIQ4NL16x4, kRowsIQ4NL16x8, kRowsIQ4NL16x16, kRowsIQ4NL8x1, kRowsIQ4NL8x2, kRowsIQ4NL8x4, kRowsIQ4NL8x8, kRowsIQ4NL8x16, kTileIQ4NL16, kTileIQ4NL8, kRoutedIQ4NL16, kRoutedIQ4NL8, kGroupedIQ4NL16x2, kGroupedIQ4NL16x4, kGroupedIQ4NL16x8, kGroupedIQ4NL8x2, kGroupedIQ4NL8x4, kGroupedIQ4NL8x8, kRoutedTileIQ4NL16, kRoutedTileIQ4NL8, kRoutedNarrowIQ4NL16, kRoutedStream16IQ4NL8, kRoutedStreamIQ4NL8, kRoutedMidIQ4NL16, kRoutedMidIQ4NL8, kRowsMXFP416x1, kRowsMXFP416x2, kRowsMXFP416x4, kRowsMXFP416x8, kRowsMXFP416x16, kRowsMXFP48x1, kRowsMXFP48x2, kRowsMXFP48x4, kRowsMXFP48x8, kRowsMXFP48x16, kTileMXFP416, kTileMXFP48, kRoutedMXFP416, kRoutedMXFP48, kGroupedMXFP416x2, kGroupedMXFP416x4, kGroupedMXFP416x8, kGroupedMXFP48x2, kGroupedMXFP48x4, kGroupedMXFP48x8, kRoutedTileMXFP416, kRoutedTileMXFP48, kRoutedNarrowMXFP416, kRoutedStream16MXFP48, kRoutedStreamMXFP48, kRoutedMidMXFP416, kRoutedStream32MXFP48, kQuadRowsMXFP48x1, kQuadRoutedMXFP48,
-                  kQuarterQ5016x1, kQuarterQ5016x2, kQuarterQ5016x4, kQuarterQ5016x8, kQuarterQ5016x16, kQuarterRoutedQ5016, kQuarterGroupedQ5016x2, kQuarterGroupedQ5016x4, kQuarterGroupedQ5016x8, kQuarterQ4016x1, kQuarterQ4016x2, kQuarterQ4016x4, kQuarterQ4016x8, kQuarterQ4016x16, kQuarterRoutedQ4016, kQuarterGroupedQ4016x2, kQuarterGroupedQ4016x4, kQuarterGroupedQ4016x8, kQuarterQ4116x1, kQuarterQ4116x2, kQuarterQ4116x4, kQuarterQ4116x8, kQuarterQ4116x16, kQuarterRoutedQ4116, kQuarterGroupedQ4116x2, kQuarterGroupedQ4116x4, kQuarterGroupedQ4116x8, kQuarterQ5116x1, kQuarterQ5116x2, kQuarterQ5116x4, kQuarterQ5116x8, kQuarterQ5116x16, kQuarterRoutedQ5116, kQuarterGroupedQ5116x2, kQuarterGroupedQ5116x4, kQuarterGroupedQ5116x8, kHcMix, kHcMix8, kMoeStepUpQ4K, kMoeStepUpQ5K, kMoeStepDownQ51, kMoeStepDownQ8, kMoeStepUpQ4KW, kMoeStepUpQ5KW, kF16Tile, kTallQ4K8, kTallQ5K8, kTallQ6K8, kKernels };
+                  kQuarterQ5016x1, kQuarterQ5016x2, kQuarterQ5016x4, kQuarterQ5016x8, kQuarterQ5016x16, kQuarterRoutedQ5016, kQuarterGroupedQ5016x2, kQuarterGroupedQ5016x4, kQuarterGroupedQ5016x8, kQuarterQ4016x1, kQuarterQ4016x2, kQuarterQ4016x4, kQuarterQ4016x8, kQuarterQ4016x16, kQuarterRoutedQ4016, kQuarterGroupedQ4016x2, kQuarterGroupedQ4016x4, kQuarterGroupedQ4016x8, kQuarterQ4116x1, kQuarterQ4116x2, kQuarterQ4116x4, kQuarterQ4116x8, kQuarterQ4116x16, kQuarterRoutedQ4116, kQuarterGroupedQ4116x2, kQuarterGroupedQ4116x4, kQuarterGroupedQ4116x8, kQuarterQ5116x1, kQuarterQ5116x2, kQuarterQ5116x4, kQuarterQ5116x8, kQuarterQ5116x16, kQuarterRoutedQ5116, kQuarterGroupedQ5116x2, kQuarterGroupedQ5116x4, kQuarterGroupedQ5116x8, kHcMix, kHcMix8, kHcEntry, kMoeStepUpQ4K, kMoeStepUpQ5K, kMoeStepDownQ51, kMoeStepDownQ8, kMoeStepUpQ4KW, kMoeStepUpQ5KW, kF16Tile, kTallQ4K8, kTallQ5K8, kTallQ6K8, kKernels };
     static constexpr size_t kHcColumns = 8;   // llmx_hc_mix8's columns, hc_mix<8> in kernels/int16.gpu, which backend-rocm twins holds at 2 to 16 rows
     // The build for n columns: one column's own, else the one of up to kHcColumns.
     static Kernel hc_build(size_t n) { return n == 1 ? kHcMix : kHcMix8; }
@@ -2048,7 +2167,7 @@ private:
                                                            "llmx_twin16", "llmx_twin8", "llmx_silu_mul_twin16_major", "llmx_silu_mul_twin8_major",
                                                            "llmx_rms_norm_16_twin16_major", "llmx_rms_norm_16_twin8_major", "llmx_rms_norm_32_twin16_major",
                                                            "llmx_rms_norm_32_twin8_major", "llmx_attention_vec_major", "llmx_attention_vec_merge_major",
-                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_group_two_shots", "llmx_group_chain", "llmx_group_arm", "llmx_group_add_check", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_argmax_part", "llmx_argmax_pick", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q4_0", "llmx_routed_q4_1", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_f16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q4_0", "llmx_matmul_rows_q4_1", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_f16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols2_f32", "llmx_matmul_cols4_f32", "llmx_moe_step_route", "llmx_hc_coeffs_collapse", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_indexer_scores_tile", "llmx_indexer_scores_int", "llmx_raw_index_scores", "llmx_pool_write", "llmx_sparse_scores_few16", "llmx_sparse_values_few16", "llmx_sparse_scores_few8", "llmx_sparse_values_few8", "llmx_sparse_scores_few4", "llmx_sparse_values_few4", "llmx_sparse_scores_few2", "llmx_sparse_values_few2", "llmx_sparse_scores_few32", "llmx_sparse_values_few16x2", "llmx_sparse_scores_tile", "llmx_sparse_values_tile", "llmx_route_sqrt_softplus", "llmx_route_step_f32", "llmx_route_step_bf16", "llmx_norm_rope_form", "llmx_delta_step", "llmx_mix_rows", "llmx_layer_norm_rows", "llmx_gelu", "llmx_add_bias", "llmx_q8_0_rows16_1",
+                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_group_two_shots", "llmx_group_chain", "llmx_group_arm", "llmx_group_add_check", "llmx_group_push", "llmx_group_take", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_argmax_part", "llmx_argmax_pick", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q4_0", "llmx_routed_q4_1", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_f16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q4_0", "llmx_matmul_rows_q4_1", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_f16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols2_f32", "llmx_matmul_cols4_f32", "llmx_moe_step_route", "llmx_hc_coeffs_collapse", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_indexer_scores_tile", "llmx_indexer_scores_int", "llmx_raw_index_scores", "llmx_pool_write", "llmx_sparse_scores_few16", "llmx_sparse_values_few16", "llmx_sparse_scores_few8", "llmx_sparse_values_few8", "llmx_sparse_scores_few4", "llmx_sparse_values_few4", "llmx_sparse_scores_few2", "llmx_sparse_values_few2", "llmx_sparse_scores_few32", "llmx_sparse_values_few16x2", "llmx_sparse_scores_tile", "llmx_sparse_values_tile", "llmx_route_sqrt_softplus", "llmx_route_step_f32", "llmx_route_step_bf16", "llmx_norm_rope_form", "llmx_delta_step", "llmx_mix_rows", "llmx_layer_norm_rows", "llmx_gelu", "llmx_add_bias", "llmx_q8_0_rows16_1",
 
                                                            "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_2_r4", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_4_r4",
                                                            "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_8_r4", "llmx_q8_0_rows16_16", "llmx_q8_0_tile16", "llmx_q8_0_rows8_1",
@@ -2059,7 +2178,7 @@ private:
                                                            "llmx_q4_k_rows16_1", "llmx_q4_k_rows16_2", "llmx_q4_k_rows16_4", "llmx_q4_k_rows16_8", "llmx_q4_k_rows16_16", "llmx_q4_k_rows8_1", "llmx_q4_k_rows8_2", "llmx_q4_k_rows8_4", "llmx_q4_k_rows8_8", "llmx_q4_k_rows8_16", "llmx_q4_k_tile16", "llmx_q4_k_tile8", "llmx_q4_k_routed16", "llmx_q4_k_routed8", "llmx_q4_k_routed16_g2", "llmx_q4_k_routed16_g4", "llmx_q4_k_routed16_g8", "llmx_q4_k_routed8_g2", "llmx_q4_k_routed8_g4", "llmx_q4_k_routed8_g8", "llmx_q4_k_routed_tile16", "llmx_q4_k_routed_tile8", "llmx_q4_k_routed_narrow16", "llmx_q4_k_routed_stream16_8", "llmx_q4_k_routed_stream8", "llmx_q4_k_routed_mid16", "llmx_q4_k_routed_mid8", "llmx_q5_k_rows16_1", "llmx_q5_k_rows16_2", "llmx_q5_k_rows16_4", "llmx_q5_k_rows16_8", "llmx_q5_k_rows16_16", "llmx_q5_k_rows8_1", "llmx_q5_k_rows8_2", "llmx_q5_k_rows8_4", "llmx_q5_k_rows8_8", "llmx_q5_k_rows8_16", "llmx_q5_k_tile16", "llmx_q5_k_tile8", "llmx_q5_k_routed16", "llmx_q5_k_routed8", "llmx_q5_k_routed16_g2", "llmx_q5_k_routed16_g4", "llmx_q5_k_routed16_g8", "llmx_q5_k_routed8_g2", "llmx_q5_k_routed8_g4", "llmx_q5_k_routed8_g8", "llmx_q5_k_routed_tile16", "llmx_q5_k_routed_tile8", "llmx_q5_k_routed_narrow16", "llmx_q5_k_routed_stream16_8", "llmx_q5_k_routed_stream8", "llmx_q5_k_routed_mid16", "llmx_q5_k_routed_mid8", "llmx_q6_k_rows16_1", "llmx_q6_k_rows16_2", "llmx_q6_k_rows16_4", "llmx_q6_k_rows16_8", "llmx_q6_k_rows16_16", "llmx_q6_k_rows8_1", "llmx_q6_k_rows8_2", "llmx_q6_k_rows8_4", "llmx_q6_k_rows8_8", "llmx_q6_k_rows8_16", "llmx_q6_k_tile16", "llmx_q6_k_tile8", "llmx_q6_k_routed16", "llmx_q6_k_routed8", "llmx_q6_k_routed16_g2", "llmx_q6_k_routed16_g4", "llmx_q6_k_routed16_g8", "llmx_q6_k_routed8_g2", "llmx_q6_k_routed8_g4", "llmx_q6_k_routed8_g8", "llmx_q6_k_routed_tile16", "llmx_q6_k_routed_tile8", "llmx_q6_k_routed_narrow16", "llmx_q6_k_routed_stream16_8", "llmx_q6_k_routed_stream8", "llmx_q6_k_routed_mid16", "llmx_q6_k_routed_mid8",
                                                            "llmx_q5_0_rows16_1", "llmx_q5_0_rows16_2", "llmx_q5_0_rows16_4", "llmx_q5_0_rows16_8", "llmx_q5_0_rows16_16", "llmx_q5_0_rows8_1", "llmx_q5_0_rows8_2", "llmx_q5_0_rows8_4", "llmx_q5_0_rows8_8", "llmx_q5_0_rows8_16", "llmx_q5_0_tile16", "llmx_q5_0_tile8", "llmx_q5_0_routed16", "llmx_q5_0_routed8", "llmx_q5_0_routed16_g2", "llmx_q5_0_routed16_g4", "llmx_q5_0_routed16_g8", "llmx_q5_0_routed8_g2", "llmx_q5_0_routed8_g4", "llmx_q5_0_routed8_g8", "llmx_q5_0_routed_tile16", "llmx_q5_0_routed_tile8", "llmx_q5_0_routed_narrow16", "llmx_q5_0_routed_stream16_8", "llmx_q5_0_routed_stream8", "llmx_q5_0_routed_mid16", "llmx_q5_0_routed_mid8", "llmx_q4_0_rows16_1", "llmx_q4_0_rows16_2", "llmx_q4_0_rows16_4", "llmx_q4_0_rows16_8", "llmx_q4_0_rows16_16", "llmx_q4_0_rows8_1", "llmx_q4_0_rows8_2", "llmx_q4_0_rows8_4", "llmx_q4_0_rows8_8", "llmx_q4_0_rows8_16", "llmx_q4_0_tile16", "llmx_q4_0_tile8", "llmx_q4_0_routed16", "llmx_q4_0_routed8", "llmx_q4_0_routed16_g2", "llmx_q4_0_routed16_g4", "llmx_q4_0_routed16_g8", "llmx_q4_0_routed8_g2", "llmx_q4_0_routed8_g4", "llmx_q4_0_routed8_g8", "llmx_q4_0_routed_tile16", "llmx_q4_0_routed_tile8", "llmx_q4_0_routed_narrow16", "llmx_q4_0_routed_stream16_8", "llmx_q4_0_routed_stream8", "llmx_q4_0_routed_mid16", "llmx_q4_0_routed_mid8", "llmx_q4_1_rows16_1", "llmx_q4_1_rows16_2", "llmx_q4_1_rows16_4", "llmx_q4_1_rows16_8", "llmx_q4_1_rows16_16", "llmx_q4_1_rows8_1", "llmx_q4_1_rows8_2", "llmx_q4_1_rows8_4", "llmx_q4_1_rows8_8", "llmx_q4_1_rows8_16", "llmx_q4_1_tile16", "llmx_q4_1_tile8", "llmx_q4_1_routed16", "llmx_q4_1_routed8", "llmx_q4_1_routed16_g2", "llmx_q4_1_routed16_g4", "llmx_q4_1_routed16_g8", "llmx_q4_1_routed8_g2", "llmx_q4_1_routed8_g4", "llmx_q4_1_routed8_g8", "llmx_q4_1_routed_tile16", "llmx_q4_1_routed_tile8", "llmx_q4_1_routed_narrow16", "llmx_q4_1_routed_stream16_8", "llmx_q4_1_routed_stream8", "llmx_q4_1_routed_mid16", "llmx_q4_1_routed_mid8", "llmx_q5_1_rows16_1", "llmx_q5_1_rows16_2", "llmx_q5_1_rows16_4", "llmx_q5_1_rows16_8", "llmx_q5_1_rows16_16", "llmx_q5_1_rows8_1", "llmx_q5_1_rows8_2", "llmx_q5_1_rows8_4", "llmx_q5_1_rows8_8", "llmx_q5_1_rows8_16", "llmx_q5_1_tile16", "llmx_q5_1_tile8", "llmx_q5_1_routed16", "llmx_q5_1_routed8", "llmx_q5_1_routed16_g2", "llmx_q5_1_routed16_g4", "llmx_q5_1_routed16_g8", "llmx_q5_1_routed8_g2", "llmx_q5_1_routed8_g4", "llmx_q5_1_routed8_g8", "llmx_q5_1_routed_tile16", "llmx_q5_1_routed_tile8", "llmx_q5_1_routed_narrow16", "llmx_q5_1_routed_stream16_8", "llmx_q5_1_routed_stream8", "llmx_q5_1_routed_mid16", "llmx_q5_1_routed_mid8",
                                                            "llmx_iq4_nl_rows16_1", "llmx_iq4_nl_rows16_2", "llmx_iq4_nl_rows16_4", "llmx_iq4_nl_rows16_8", "llmx_iq4_nl_rows16_16", "llmx_iq4_nl_rows8_1", "llmx_iq4_nl_rows8_2", "llmx_iq4_nl_rows8_4", "llmx_iq4_nl_rows8_8", "llmx_iq4_nl_rows8_16", "llmx_iq4_nl_tile16", "llmx_iq4_nl_tile8", "llmx_iq4_nl_routed16", "llmx_iq4_nl_routed8", "llmx_iq4_nl_routed16_g2", "llmx_iq4_nl_routed16_g4", "llmx_iq4_nl_routed16_g8", "llmx_iq4_nl_routed8_g2", "llmx_iq4_nl_routed8_g4", "llmx_iq4_nl_routed8_g8", "llmx_iq4_nl_routed_tile16", "llmx_iq4_nl_routed_tile8", "llmx_iq4_nl_routed_narrow16", "llmx_iq4_nl_routed_stream16_8", "llmx_iq4_nl_routed_stream8", "llmx_iq4_nl_routed_mid16", "llmx_iq4_nl_routed_mid8", "llmx_mxfp4_rows16_1", "llmx_mxfp4_rows16_2", "llmx_mxfp4_rows16_4", "llmx_mxfp4_rows16_8", "llmx_mxfp4_rows16_16", "llmx_mxfp4_rows8_1", "llmx_mxfp4_rows8_2", "llmx_mxfp4_rows8_4", "llmx_mxfp4_rows8_8", "llmx_mxfp4_rows8_16", "llmx_mxfp4_tile16", "llmx_mxfp4_tile8", "llmx_mxfp4_routed16", "llmx_mxfp4_routed8", "llmx_mxfp4_routed16_g2", "llmx_mxfp4_routed16_g4", "llmx_mxfp4_routed16_g8", "llmx_mxfp4_routed8_g2", "llmx_mxfp4_routed8_g4", "llmx_mxfp4_routed8_g8", "llmx_mxfp4_routed_tile16", "llmx_mxfp4_routed_tile8", "llmx_mxfp4_routed_narrow16", "llmx_mxfp4_routed_stream16_8", "llmx_mxfp4_routed_stream8", "llmx_mxfp4_routed_mid16", "llmx_mxfp4_routed_stream32_8", "llmx_mxfp4_quad_rows8_1", "llmx_mxfp4_quad_routed8",
-                                                           "llmx_q5_0_quarter_rows16_1", "llmx_q5_0_quarter_rows16_2", "llmx_q5_0_quarter_rows16_4", "llmx_q5_0_quarter_rows16_8", "llmx_q5_0_quarter_rows16_16", "llmx_q5_0_quarter_routed16", "llmx_q5_0_quarter_routed16_g2", "llmx_q5_0_quarter_routed16_g4", "llmx_q5_0_quarter_routed16_g8", "llmx_q4_0_quarter_rows16_1", "llmx_q4_0_quarter_rows16_2", "llmx_q4_0_quarter_rows16_4", "llmx_q4_0_quarter_rows16_8", "llmx_q4_0_quarter_rows16_16", "llmx_q4_0_quarter_routed16", "llmx_q4_0_quarter_routed16_g2", "llmx_q4_0_quarter_routed16_g4", "llmx_q4_0_quarter_routed16_g8", "llmx_q4_1_quarter_rows16_1", "llmx_q4_1_quarter_rows16_2", "llmx_q4_1_quarter_rows16_4", "llmx_q4_1_quarter_rows16_8", "llmx_q4_1_quarter_rows16_16", "llmx_q4_1_quarter_routed16", "llmx_q4_1_quarter_routed16_g2", "llmx_q4_1_quarter_routed16_g4", "llmx_q4_1_quarter_routed16_g8", "llmx_q5_1_quarter_rows16_1", "llmx_q5_1_quarter_rows16_2", "llmx_q5_1_quarter_rows16_4", "llmx_q5_1_quarter_rows16_8", "llmx_q5_1_quarter_rows16_16", "llmx_q5_1_quarter_routed16", "llmx_q5_1_quarter_routed16_g2", "llmx_q5_1_quarter_routed16_g4", "llmx_q5_1_quarter_routed16_g8", "llmx_hc_mix", "llmx_hc_mix8", "llmx_moe_step_up_q4_k", "llmx_moe_step_up_q5_k", "llmx_moe_step_down_q5_1", "llmx_moe_step_down_q8_0", "llmx_moe_step_up_q4_k_w", "llmx_moe_step_up_q5_k_w", "llmx_f16_tile", "llmx_q4_k_tile8_tall", "llmx_q5_k_tile8_tall", "llmx_q6_k_tile8_tall"};
+                                                           "llmx_q5_0_quarter_rows16_1", "llmx_q5_0_quarter_rows16_2", "llmx_q5_0_quarter_rows16_4", "llmx_q5_0_quarter_rows16_8", "llmx_q5_0_quarter_rows16_16", "llmx_q5_0_quarter_routed16", "llmx_q5_0_quarter_routed16_g2", "llmx_q5_0_quarter_routed16_g4", "llmx_q5_0_quarter_routed16_g8", "llmx_q4_0_quarter_rows16_1", "llmx_q4_0_quarter_rows16_2", "llmx_q4_0_quarter_rows16_4", "llmx_q4_0_quarter_rows16_8", "llmx_q4_0_quarter_rows16_16", "llmx_q4_0_quarter_routed16", "llmx_q4_0_quarter_routed16_g2", "llmx_q4_0_quarter_routed16_g4", "llmx_q4_0_quarter_routed16_g8", "llmx_q4_1_quarter_rows16_1", "llmx_q4_1_quarter_rows16_2", "llmx_q4_1_quarter_rows16_4", "llmx_q4_1_quarter_rows16_8", "llmx_q4_1_quarter_rows16_16", "llmx_q4_1_quarter_routed16", "llmx_q4_1_quarter_routed16_g2", "llmx_q4_1_quarter_routed16_g4", "llmx_q4_1_quarter_routed16_g8", "llmx_q5_1_quarter_rows16_1", "llmx_q5_1_quarter_rows16_2", "llmx_q5_1_quarter_rows16_4", "llmx_q5_1_quarter_rows16_8", "llmx_q5_1_quarter_rows16_16", "llmx_q5_1_quarter_routed16", "llmx_q5_1_quarter_routed16_g2", "llmx_q5_1_quarter_routed16_g4", "llmx_q5_1_quarter_routed16_g8", "llmx_hc_mix", "llmx_hc_mix8", "llmx_hc_entry", "llmx_moe_step_up_q4_k", "llmx_moe_step_up_q5_k", "llmx_moe_step_down_q5_1", "llmx_moe_step_down_q8_0", "llmx_moe_step_up_q4_k_w", "llmx_moe_step_up_q5_k_w", "llmx_f16_tile", "llmx_q4_k_tile8_tall", "llmx_q5_k_tile8_tall", "llmx_q6_k_tile8_tall"};
     // A type's twin kernels by form and columns, with its routed builds' break-evens and tile extents (docs/src/backends-gpu.md, weight types).
     // kKernels marks a build the type lacks.
     struct TwinKernels {
@@ -3427,9 +3546,14 @@ private:
     // A group sum's kernel, launched without raise_failed: the collective checks every member before it launches any, so no member waits for a peer whose launch threw.
     void group_launch(GpuSumForm form, unsigned blocks, const Args& args) {
         forget_twins();
-        if (form == GpuSumForm::two_shots) issue(kernels_[kGroupTwoShots], blocks, 1, 1, kThreads, args, "llmx_group_two_shots");
-        else if (form == GpuSumForm::chain || form == GpuSumForm::wrap) issue(kernels_[kGroupChain], blocks, 1, 1, kThreads, args, "llmx_group_chain");
-        else issue(kernels_[kGroupSum], blocks, 1, 1, kThreads, args, "llmx_group_sum");
+        const Kernel k = form == GpuSumForm::two_shots ? kGroupTwoShots : form == GpuSumForm::chain || form == GpuSumForm::wrap ? kGroupChain : kGroupSum;
+        issue(kernels_[k], blocks, 1, 1, kThreads, args, kKernelNames[k]);
+        ++launched_[k];
+    }
+    // A one-shot's push alone, whose take the collective then hands the member as its pending join (pend_take).
+    void group_push(unsigned blocks, const Args& args) {
+        issue(kernels_[kGroupPush], blocks, 1, 1, kThreads, args, kKernelNames[kGroupPush]);
+        ++launched_[kGroupPush];
     }
     // A fast collective's staging armed at join (kernels/f32.gpu, llmx_group_arm).
     void group_arm(void* stage, size_t words) {
@@ -3454,6 +3578,7 @@ private:
         typename Api::CopyKind dir;
     };
     void hold(const Held& op) {
+        materialize();
         // A device with nothing left running starts on the first few, rather than waiting while the host records a whole chunk.
         if (!opened_) chunk_ = done(tickets_.last()) ? kFirstChunk : dev_.profile.dispatch_chunk;
         ops_.push_back(op);
@@ -3476,6 +3601,7 @@ private:
     void hold_write(uint64_t* word, uint64_t value) { hold({Held::write_word, nullptr, 0, 0, 0, 0, "write_word", 0, 0, word, nullptr, value, Api::kAnyCopy}); }
     // Issues the held operations in order; one HIP refuses throws naming it, and those after it are dropped with it.
     void flush() {
+        materialize();
         if (ops_.empty()) return;
         std::vector<Held> ops;
         std::vector<uint8_t> bytes;
@@ -3483,23 +3609,30 @@ private:
         bytes.swap(op_bytes_);
         // HIP finds a module's function through the calling thread's device, which another backend's call may have changed.
         Api::check(Api::set_device(dev_.index), "set_device");
-        for (const Held& op : ops) {
-            // A submission's busy time starts at its first operation after its waits on other devices (busy_ms).
-            if (!started_ && op.kind != Held::wait_word) {
-                Api::check(Api::event_record(starts_[(tickets_.last() + 1) % kEvents], stream_), "event_record");
-                started_ = true;
+        unsigned* const take = take_status_;
+        take_status_ = nullptr;
+        try {
+            for (const Held& op : ops) {
+                // A submission's busy time starts at its first operation after its waits on other devices (busy_ms).
+                if (!started_ && op.kind != Held::wait_word) {
+                    Api::check(Api::event_record(starts_[(tickets_.last() + 1) % kEvents], stream_), "event_record");
+                    started_ = true;
+                }
+                if (op.kind == Held::kernel) {
+                    launch_check(Api::launch(op.f, op.gx, op.gy, op.gz, op.threads, (unsigned)op.bytes, stream_, bytes.data() + op.at, op.size), op.name);
+                } else if (op.kind == Held::copy) {
+                    launch_check(Api::copy_async(op.dst, op.src, op.bytes, op.dir, stream_), op.name);
+                } else if (op.kind == Held::wait_word) {
+                    launch_check(Api::wait_word(stream_, op.dst, op.bytes), op.name);
+                } else if (op.kind == Held::write_word) {
+                    launch_check(Api::write_word(stream_, op.dst, op.bytes), op.name);
+                } else {
+                    launch_check(Api::zero_async(op.dst, op.bytes, stream_), op.name);
+                }
             }
-            if (op.kind == Held::kernel) {
-                launch_check(Api::launch(op.f, op.gx, op.gy, op.gz, op.threads, (unsigned)op.bytes, stream_, bytes.data() + op.at, op.size), op.name);
-            } else if (op.kind == Held::copy) {
-                launch_check(Api::copy_async(op.dst, op.src, op.bytes, op.dir, stream_), op.name);
-            } else if (op.kind == Held::wait_word) {
-                launch_check(Api::wait_word(stream_, op.dst, op.bytes), op.name);
-            } else if (op.kind == Held::write_word) {
-                launch_check(Api::write_word(stream_, op.dst, op.bytes), op.name);
-            } else {
-                launch_check(Api::zero_async(op.dst, op.bytes, stream_), op.name);
-            }
+        } catch (...) {
+            if (take) host_store(take, 1u);
+            throw;
         }
         // The vectors keep their capacity for the next records.
         ops.clear();

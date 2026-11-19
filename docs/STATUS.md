@@ -1,5 +1,18 @@
 # llmx - Development Status
 
+## The suite at --tensor-width 2 on four devices (2026-11-19, BACKLOG1, branch fix/suite-tw2 on land/20261118 57a932e49)
+
+- **Why:** on four MI50s at `--tensor-width 2` (CRASH5, 2026-11-19, /opt/claude-work/crash5/ds2) two components failed on main for reasons of their own, not of the runtime.
+  `tensor-split`'s drafter check ran `llmx-decode-probe` over the listing, which the tool refused unless it was one device or one group.
+  `server`'s group run opens with the request identity check, whose model had f32's 257-id vocabulary, one KV head and two query heads, so the server refused a width of 2 at load and the check reported "server exited early" with the log's first line, `server: no authentication`, which named no cause.
+- **The change:** `llmx-decode-probe` drops its own check of the listing and takes any listing placement takes, whole groups of the width given, whose refusal `plan_placement` owns; the identity check's model takes the tensor-split fixtures' heads and vocabulary, which a group of two splits whole, on every run.
+- **Tests:** `tensor-split` also captures its fixtures and reads the drafter over two CPU groups of two (`cpu,cpu,cpu,cpu` at width 2), which reaches the probe's refusal on a hosted runner; the first commit adds it, failing on the base.
+- **Gates, at 1e58e1c9** (rig, land/20261118 57a932e49 and the branch built the same way, ROCm 7.2.1; logs /opt/claude-work/backlog1/out and /opt/claude-work/backlog2/out; the tree that lands differs only in this block):
+  - Four CPU backends at width 2: land's `tensor-split` fails at the probe ("the devices listed are one device, or one tensor group of the width given", out/cpu-base/ts-land.txt), and the branch passes `tensor-split` and `decode-probe` (out/cpu2/ts-fix.txt).
+  - Four MI50s (renderD132-135) at `--tensor-width 2`, `--only tensor-split,server`: land fails both, `tensor-split` at the probe and `server` exiting early at the 257-row vocabulary, and the branch passes both (out/cj4a/tw2-land.txt, tw2-fix.txt).
+  - CTest CPU 90/90 (out/cpu-br/ctest-suite-tw2.txt).
+- **Left:** the landing stack's hosted run; README unchanged (tests and a tool).
+
 ## Tile256 total denominator (2026-11-19, CUDA96, branch fix/tile256-denominator on land/20261118 57a932e49)
 
 **Goal.** `backend-cuda` passes `check_long` at 16384 tokens on every NVIDIA card, where land/20261118 fails it on an RTX 3090 (sm_86), a T4 (sm_75) and a V100 (sm_70) with a drift of -2.47e-8 against its 2e-8 bound.

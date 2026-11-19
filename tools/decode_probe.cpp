@@ -43,7 +43,6 @@ int main(int argc, char** argv) {
         // A bare index is a Vulkan device; a named one, rocm:1 say, is taken as named.
         for (const std::string& d : core::comma_list(device)) request.names.push_back(d == "cpu" || d.find(':') != std::string::npos ? d : "vulkan:" + d);
         request.width = argc > 4 ? (size_t)std::atoi(argv[4]) : 1;
-        if (request.names.size() != request.width) throw std::runtime_error("the devices listed are one device, or one tensor group of the width given");
         // A fixture's `drafter_file` holds the MTP blocks the draft takes, beside the model, rather than its own (infer::load_model).
         const jmini::Value* drafter_file = fixture.get("drafter_file");
         if (drafter_file && (!drafter_file->isString() || !draft)) throw std::runtime_error("drafter_file is not a path beside a draft count");

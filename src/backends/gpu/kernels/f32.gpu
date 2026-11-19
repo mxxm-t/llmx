@@ -10,31 +10,11 @@ namespace {
 constexpr int kThreads = 256;
 constexpr int kWave = GPU_WAVE;
 
-// The sum of each thread's value over the block, the same tree for every block and wave width: levels across waves in shared memory, the rest by shuffles in wave 0, each adding the pair the shared-memory level would.
-__device__ float block_sum(float v, float* lds) {
-    lds[threadIdx.x] = v;
-    __syncthreads();
-    int s = kThreads / 2;
-    for (; s >= warpSize; s >>= 1) {
-        if ((int)threadIdx.x < s) lds[threadIdx.x] += lds[threadIdx.x + s];
-        __syncthreads();
-    }
-    if ((int)threadIdx.x < warpSize) {
-        float t = lds[threadIdx.x];
-        for (; s > 0; s >>= 1) t += shuffle_down(t, s);
-        if (threadIdx.x == 0) lds[0] = t;
-    }
-    __syncthreads();
-    const float r = lds[0];
-    __syncthreads();
-    return r;
-}
-
 // One row's RMS norm, the reciprocal root applied as the CPU applies it, x * (r * w).
 __device__ void rms_norm_row(float* dst, const float* src, const float* w, int n, float eps, float* lds) {
     float s = 0.0f;
     for (int i = threadIdx.x; i < n; i += kThreads) s = fmaf(src[i], src[i], s);
-    const float r = 1.0f / sqrtf(block_sum(s, lds) / (float)n + eps);
+    const float r = 1.0f / sqrtf(block_sum<kThreads>(s, lds) / (float)n + eps);
     for (int i = threadIdx.x; i < n; i += kThreads) dst[i] = src[i] * (r * w[i]);
 }
 
@@ -137,16 +117,7 @@ __device__ void rms_norm_held(float* __restrict__ dst, const float* __restrict__
         lds[t] = s;
     }
     __syncthreads();
-    int h = kThreads / 2;
-    for (; h >= warpSize; h >>= 1) {
-        if (t < h) lds[t] += lds[t + h];
-        __syncthreads();
-    }
-    if (t < warpSize) {
-        float u = lds[t];
-        for (; h > 0; h >>= 1) u += shuffle_down(u, h);
-        if (t == 0) lds[0] = u;
-    }
+    block_tree<kThreads>(lds);
     __syncthreads();
     const float rr = 1.0f / sqrtf(lds[0] / (float)n + eps);
     float* y = dst + r * stride;
@@ -671,7 +642,7 @@ __device__ void norm_rope_held(float* head, const float* from, int head_dim, int
     const float ct = t < half ? c[t] : 0.0f, st = t < half ? s[t] : 0.0f;
     float o = v;
     if (w) {
-        const float r2 = 1.0f / sqrtf(block_sum(t < head_dim ? fmaf(v, v, 0.0f) : 0.0f, lds) / (float)head_dim + eps);
+        const float r2 = 1.0f / sqrtf(block_sum<kThreads>(t < head_dim ? fmaf(v, v, 0.0f) : 0.0f, lds) / (float)head_dim + eps);
         o = v * (r2 * wt);
     }
     hs[t] = o;
@@ -768,10 +739,10 @@ extern "C" __global__ void llmx_layer_norm_rows(float* dst, const float* src, co
     float* y = dst + blockIdx.x * stride;
     float s = 0.0f;
     for (int i = threadIdx.x; i < n; i += kThreads) s += x[i];
-    const float mean = block_sum(s, lds) / (float)n;
+    const float mean = block_sum<kThreads>(s, lds) / (float)n;
     float v = 0.0f;
     for (int i = threadIdx.x; i < n; i += kThreads) v = fmaf(x[i] - mean, x[i] - mean, v);
-    const float inv = 1.0f / sqrtf(block_sum(v, lds) / (float)n + eps);
+    const float inv = 1.0f / sqrtf(block_sum<kThreads>(v, lds) / (float)n + eps);
     for (int i = threadIdx.x; i < n; i += kThreads) y[i] = fmaf((x[i] - mean) * inv, w[i], b[i]);
 }
 
@@ -1706,7 +1677,7 @@ extern "C" __global__ void llmx_gated_rms_norm(float* dst, const float* x, const
     const unsigned long long o = (unsigned long long)blockIdx.x * dim;
     float s = 0.0f;
     for (int i = threadIdx.x; i < dim; i += kThreads) s = fmaf(x[o + i], x[o + i], s);
-    const float r = 1.0f / sqrtf(block_sum(s, lds) / (float)dim + eps);
+    const float r = 1.0f / sqrtf(block_sum<kThreads>(s, lds) / (float)dim + eps);
     for (int i = threadIdx.x; i < dim; i += kThreads) {
         const float zz = z[o + i], g = sig ? 1.0f / (1.0f + expf(-zz)) : zz / (1.0f + expf(-zz));
         const float v = x[o + i] * (r * w[i]) * g;
@@ -1728,7 +1699,7 @@ extern "C" __global__ void llmx_norm_rope_streams(float* dst, const float* src, 
     if (w) {
         float s = 0.0f;
         for (int i = threadIdx.x; i < head_dim; i += kThreads) s = fmaf(from[i], from[i], s);
-        rs = 1.0f / sqrtf(block_sum(s, lds) / (float)head_dim + eps);
+        rs = 1.0f / sqrtf(block_sum<kThreads>(s, lds) / (float)head_dim + eps);
     }
     for (int i = threadIdx.x; i < half; i += kThreads) {
         const float xa = w ? from[i] * (rs * w[i]) : from[i], xb = w ? from[i + half] * (rs * w[i + half]) : from[i + half];
@@ -1912,7 +1883,7 @@ extern "C" __global__ void llmx_group_rms_norm(float* dst, const float* src, con
     const float* wg = w + (unsigned long long)(blockIdx.x % groups) * dim;
     float s = 0.0f;
     for (unsigned i = threadIdx.x; i < dim; i += kThreads) s = fmaf(src[o + i], src[o + i], s);
-    const float r = 1.0f / sqrtf(block_sum(s, lds) / (float)dim + eps);
+    const float r = 1.0f / sqrtf(block_sum<kThreads>(s, lds) / (float)dim + eps);
     if (four) {
         for (unsigned c = blockIdx.y; c * 1024u < dim; c += gridDim.y) {
             const unsigned i = c * 1024u + 4u * threadIdx.x;
@@ -1977,7 +1948,7 @@ extern "C" __global__ void llmx_signed_sqrt_gate(float* dst, const float* key, c
     const unsigned long long o = (unsigned long long)blockIdx.x * dim, v0 = (unsigned long long)(blockIdx.x / groups) * dim;
     float s = 0.0f;
     for (unsigned i = threadIdx.x; i < dim; i += kThreads) s = fmaf(key[o + i], query[o + i], s);
-    const float g = block_sum(s, lds) * scale;
+    const float g = block_sum<kThreads>(s, lds) * scale;
     const float sign = g > 0.0f ? 1.0f : g < 0.0f ? -1.0f : g == 0.0f ? (kept ? copysignf(1.0f, g) : 0.0f) : g, magnitude = fabsf(g) < 1e-6f ? 1e-6f : fabsf(g);
     const float factor = 1.0f / (1.0f + expf(-(sign * sqrtf(magnitude))));
     for (unsigned i = threadIdx.x; i < dim; i += kThreads) dst[o + i] = value[v0 + i] * factor;
@@ -2199,7 +2170,7 @@ extern "C" __global__ void llmx_kv_index_pool(float* aux, const float* w, const 
         }
         v *= 1.0f / (float)compression;
     }
-    const float r = 1.0f / sqrtf(block_sum(t < dim ? v * v : 0.0f, lds) / (float)dim + eps);
+    const float r = 1.0f / sqrtf(block_sum<kThreads>(t < dim ? v * v : 0.0f, lds) / (float)dim + eps);
     const float n = t < dim ? (v * r) * w[t] : 0.0f;
     vals[t] = n;
     __syncthreads();
@@ -2731,7 +2702,7 @@ __device__ void hc_coeffs_row(unsigned long long r, float* pre, float* post, flo
         for (unsigned u = 0; u < 16u; ++u)
             if (i0 + u * kThreads < width) sq = fmaf(v[u], v[u], sq);
     }
-    const float rs = 1.0f / sqrtf(block_sum(sq, lds) / (float)width + norm_eps);
+    const float rs = 1.0f / sqrtf(block_sum<kThreads>(sq, lds) / (float)width + norm_eps);
     const unsigned t = threadIdx.x, cells = hc * hc, i = t / hc, j = t - i * hc;
     const bool own = t < cells;
     const float* m = mixes + r * mix;
@@ -4468,7 +4439,7 @@ extern "C" __global__ void __launch_bounds__(kThreads, 1) llmx_delta_step(DeltaS
         const unsigned long long o = ((unsigned long long)(row0 + b) * v_heads + j) * vd;
         const float xv = lid < vd ? osh[b][lid] : 0.0f;
         const float sq = lid < vd ? fmaf(xv, xv, 0.0f) : 0.0f;
-        const float rr = 1.0f / sqrtf(block_sum(sq, red) / (float)vd + A.neps);
+        const float rr = 1.0f / sqrtf(block_sum<kThreads>(sq, red) / (float)vd + A.neps);
         if (lid < vd) {
             const float zz = A.z[o + lid], gg = A.sig ? 1.0f / (1.0f + expf(-zz)) : zz / (1.0f + expf(-zz));
             const float val = xv * (rr * A.nw[lid]) * gg;

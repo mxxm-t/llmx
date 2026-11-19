@@ -1,4 +1,4 @@
-// The int8 class's one-column Q8_0 row order, shared by the row kernels (kernels/int16.gpu) and the fused delta step (kernels/f32.gpu), so a row has one order wherever it is summed.
+// The orders both modules share, so a value has one order wherever it is summed: the int8 class's one-column Q8_0 row order, which the row kernels (kernels/int16.gpu) and the fused delta step (kernels/f32.gpu) take, and the block's sum tree.
 #pragma once
 #include "backends/gpu/kernels/port.h"
 #include "backends/gpu/kernels/quant.h"
@@ -7,6 +7,36 @@ namespace {
 
 constexpr unsigned kQ8 = rq::Q8_0::bytes;   // a Q8_0 block's bytes, whose layout the word loads below take: the f16 scale, then 32 int8 values
 static_assert(kQ8 == 34 && rq::Q8_0::values == 32, "the Q8_0 word loads assume 34-byte blocks of 32 values");
+
+// The sum tree of N threads' values in lds[0, N), left in lds[0]: wave 0 folds the levels above a wave in registers, each adding the pair a shared-memory level of barriers would, then the rest by shuffles.
+// The caller's barriers come before and after it, so the tree takes two where a barrier a level took two more on a 64-lane wave and three more on a 32-lane one (docs/src/backends-gpu.md).
+template <int N>
+__device__ inline void block_tree(float* lds) {
+    if ((int)threadIdx.x < GPU_WAVE) {
+        constexpr int M = N / GPU_WAVE;
+        float u[M];
+#pragma unroll
+        for (int k = 0; k < M; ++k) u[k] = lds[threadIdx.x + GPU_WAVE * k];
+#pragma unroll
+        for (int h = M / 2; h > 0; h >>= 1)
+#pragma unroll
+            for (int k = 0; k < h; ++k) u[k] = u[k] + u[k + h];
+        float a = u[0];
+        for (int h = GPU_WAVE / 2; h > 0; h >>= 1) a += shuffle_down(a, h);
+        if (threadIdx.x == 0) lds[0] = a;
+    }
+}
+// The sum of each thread's value over a block of N threads, the same tree for every block and wave width.
+template <int N>
+__device__ inline float block_sum(float v, float* lds) {
+    lds[threadIdx.x] = v;
+    __syncthreads();
+    block_tree<N>(lds);
+    __syncthreads();
+    const float r = lds[0];
+    __syncthreads();
+    return r;
+}
 
 // The dot of two packed words, two 16-bit values each or four 8-bit values each, added to s.
 __device__ inline int word_dot(int a, int b, int s, short) {

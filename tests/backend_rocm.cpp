@@ -497,6 +497,46 @@ void twin_types(Backend& g, Backend& c) {
                             {Dtype::f16, Dtype::int8}, rocm_device(0).caps.subgroup_size, rocm_take_launches, [](uint32_t, Dtype, size_t, size_t, size_t) { return false; }, require);
 }
 
+// The 8-bit tile's offset types and IQ4_NL take their term in one fma against the scale times 1.5 * 2^23 (docs/PRECISION.md, Biased sums in the 8-bit HIP tile).
+// An infinite weight scale gives NaN at each output it reaches, where a multiply gave an infinity, and leaves the other outputs' bits.
+void biased_edges(Backend& g) {
+    for (uint32_t type : {quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_IQ4_NL}) {
+        const quant::StorageType& st = *quant::storage_type(type);
+        const std::string name = st.name;
+        std::string tname = name;
+        for (char& ch : tname) ch = char(std::tolower(ch));
+        const size_t nin = 512, nout = 64, rows = 64, blocks = nin / st.block_size;
+        std::vector<uint8_t> w = typed_matrix(type, nin, nout, uint32_t(type * 13 + 5));
+        const std::vector<float> x = row_classes::values(nin * rows, 17);
+        auto xb = g.adopt(x.data(), x.size() * 4), yb = g.alloc(nout * rows * 4);
+        const RowRun rr{rows, rows};
+        const auto run = [&]() {
+            auto wb = g.adopt(w.data(), w.size());
+            rocm_take_launches(g);
+            g.matmul({type, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, rows, {&rr, 1}, Dtype::int8);
+            std::map<std::string, size_t> ran;
+            for (const auto& [k, v] : rocm_take_launches(g))
+                if (k.rfind("llmx_" + tname, 0) == 0) ran[k] = v;
+            require(ran.size() == 1 && ran.begin()->first == "llmx_" + tname + "_tile8", "a " + name + " int8 prompt of 64 rows runs its 8-bit tile alone");
+            return read(g, *yb, nout * rows);
+        };
+        const std::vector<float> base = run();
+        // Output 5's second block: its half scale leads a Q4_0, Q5_0 or IQ4_NL block and ends a Q6_K one.
+        const size_t at = (5 * blocks + 1) * st.type_size + (type == quant::GGML_TYPE_Q6_K ? 208 : 0);
+        w[at] = 0x00, w[at + 1] = 0x7c;
+        const std::vector<float> got = run();
+        bool nan = true, kept = true;
+        for (size_t r = 0; r < rows; ++r)
+            for (size_t o = 0; o < nout; ++o) {
+                const size_t i = r * nout + o;
+                if (o == 5) nan = nan && std::isnan(got[i]);
+                else kept = kept && std::memcmp(&got[i], &base[i], 4) == 0;
+            }
+        require(nan, "a " + name + " int8 tile gives NaN at an output whose weight scale is infinite");
+        require(kept, "a " + name + " int8 tile keeps the other outputs' bits beside an infinite weight scale");
+    }
+}
+
 // Printed, never asserted: the exact products at Qwen3.8-Flash-Next's F32 and BF16 shapes and Qwen3's F16 ones over 1 to 293 rows, and the F16 half tile over 293 and 512, in wall time a call.
 void exact_rates(Backend& g) {
     struct Shape { const char* name; uint32_t type; size_t nin, nout; };
@@ -3591,6 +3631,7 @@ int main(int argc, char** argv) {
             exact_rows(*g);
             bits().half_tile(*g);
             twin_types(*g, *c);
+            biased_edges(*g);
             bits().q8_decode_bits(*g);
             bits().q8_columns_bits(*g);
             bits().mxfp4_decode_bits(*g);
@@ -3607,6 +3648,7 @@ int main(int argc, char** argv) {
         exact_rows(*g);
         bits().half_tile(*g);
         twin_types(*g, *c);
+        biased_edges(*g);
         bits().q8_decode_bits(*g);
         bits().q8_columns_bits(*g);
         bits().mxfp4_decode_bits(*g);

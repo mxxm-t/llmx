@@ -306,6 +306,16 @@ python tools/calibrate_dtype.py --output dtype-reproduction.json
 
 The output must be a new file. The tool pins the package versions, uses one CPU thread and records fixture seeds and weight hashes. It reuses the HF fixture builders rather than defining another model. The committed `tests/data/dtype_budget.json` preserves the handoff values byte for byte; a reproduction matched every field of all 60 original rows and all maxima and budgets exactly. An independent module-input audit over the six default fixtures in each dtype checked actual rounded inputs, unchanged F32 routers and unchanged weights. These were calibration checks, not llmx kernel-conformance evidence. At that checkpoint the existing tiny-fixture tolerances remained unchanged while actual dispatch witnesses and the shared tolerance owner were being connected. The implementation reads completed matrix-path witnesses through the shared tolerance owner; all-F32 measurements retain F32 bounds, and narrowed paths use the frozen budget. Backend conformance remains a separate qualification.
 
+### Biased sums in the 8-bit HIP tile
+
+Under HIP the 8-bit prompt tile of the types whose term is a half scale times the integer sum (the offset types Q4_0, Q5_0 and Q6_K, and IQ4_NL; `k_tile`'s vector body in `kernels/int16.gpu`) starts each integer sum at `kSumBias`, the bits of 1.5 * 2^23, and takes a sub-block's term as one fma, fma(ds, bits, -(1.5 * 2^23 * ds)) (`scaled_sum`), where the offset types took the multiply ds * isum and IQ4_NL `k_term`'s fma(ds, isum, -(0 * xsum)).
+The sums stay below 2^20 and ds, a half scale or a half scale times a byte, has at most 19 significant bits, so 1.5 * 2^23 * ds is exact and the fma rounds ds * isum once, as the old forms did: every finite output keeps its bits.
+Two cases differ.
+An infinite or NaN weight scale gives NaN at each output it reaches, where the old forms gave an infinity (`biased_edges` in `tests/backend_rocm.cpp`).
+A zero term is +0, where the old forms gave -0 for some signs of the scale, the sum or the twin's sum, which changes an output's sign of zero only after its sum underflowed to -0.
+MXFP4 keeps the multiply, since its E8M0 scale times 1.5 * 2^23 can overflow.
+The CUDA tensor-core tile's biased sums keep the multiply (`sum_float`), and the 16-bit tiles and the row builds take no bias.
+
 ## 9. Precision and range (clarified 2026-09-30)
 
 The user questioned whether the range work was overengineered. LDEV confirmed at 13:50 that the intended contract uses the selected dtype's precision and range, not the original F32 input range. This clarification narrows the range requirement in rules 3 and 4 above; it does not waive a gate or widen the frozen budget.

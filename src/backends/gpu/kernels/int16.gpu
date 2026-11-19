@@ -461,6 +461,8 @@ template <int MW, int RW> __device__ inline int mma_row(int t, int f) { return t
 // The tiles' 8-bit sums stay below 2^20, so an add replaces the conversion, which sm_80 to sm_90 run at a quarter of the FP32 rate.
 constexpr int kSumBias = 0x4B400000;
 template <bool BIASED> __device__ inline float sum_float(int v) { return BIASED ? __int_as_float(v) - 12582912.0f : (float)v; }
+// A scale times an integer sum, under BIASED one fma against the scale times 1.5 * 2^23, which rounds the product once wherever the scale times 3 is exact, as for a half scale times a byte (docs/PRECISION.md).
+template <bool BIASED> __device__ inline float scaled_sum(float ds, int v) { return BIASED ? fmaf(ds, __int_as_float(v), -12582912.0f * ds) : ds * (float)v; }
 
 // The prompt tile in the Vulkan tile's design: a block of 256 threads 64 outputs by 64 rows, each thread 4 by 4, the steps staged k-major in shared memory.
 // Each output sums its blocks in order, acc = fma(dw * dx, isum, acc), so a row gives the same bits wherever the tile falls; routed, a block row is a group.
@@ -1815,7 +1817,7 @@ __device__ void k_tile(const TileCall& c, const QT* q, const float* dx, const Ti
 #define LLMX_KVEC template <typename KT, typename QT, bool ROUTED = false, int ROWS = kTileRows> __device__ void k_tile(const TileCall& c, const QT* q, const float* dx, const TileGroups& tg = TileGroups{})
 #endif
 
-// The vector body: a block of 256 threads 64 outputs by ROWS rows, each thread 4 outputs by ROWS / 16 rows, a step's sub-blocks staged k-major in shared memory.
+// The vector body: a block of 256 threads 64 outputs by ROWS rows, each thread 4 outputs by ROWS / 16 rows, a step's sub-blocks staged in shared memory part-major (WQ, XW).
 LLMX_KVEC {
     constexpr int STEP = TileStep<QT, 4>::n, WORDS = 32 * (int)sizeof(QT) / 4, OUTS = kTileOut, NW = KWords<QT>::n, H = KRaw<KT>::halves;
     constexpr int J = ROWS / 16;   // a thread's rows
@@ -1827,12 +1829,20 @@ LLMX_KVEC {
     if (ROUTED && (nrows <= LO || nrows > (unsigned long long)ROWS)) return;
     const unsigned* ent = ROUTED ? tg.tab + tg.order0 + tg.tab[4 * gi + 1] : nullptr;
     const unsigned long long blocks = nin / 32, row_bytes = nin / KT::values * KT::bytes;
-    __shared__ __attribute__((aligned(16))) int wq[STEP * WORDS][OUTS];
-    __shared__ __attribute__((aligned(16))) int xw[STEP * WORDS][ROWS];
     __shared__ float wd[STEP][H][OUTS], wm[STEP][H][OUTS], xd[STEP][ROWS];
     // Each row's twin sum over a sub-block, or over each half where the scale changes every 16 values: a float for a type with no offset, else times -offset, where the integer sums start.
     __shared__ typename std::conditional<KRaw<KT>::offset == 0, float, int>::type xh[STEP][H][ROWS];
     constexpr int XM = KRaw<KT>::offset ? -KRaw<KT>::offset : 1;
+    // The 8-bit sums of a type whose term is its half scale times the sum, an offset type or IQ4_NL, start at kSumBias, so the term is one fma (scaled_sum); MXFP4's E8M0 scale times 1.5 * 2^23 can overflow.
+    constexpr bool EB = sizeof(QT) == 1 && (KRaw<KT>::offset != 0 || __is_same(KT, rq::IQ4_NL));
+    // The staged words part-major, a thread part's WORDS / 4 rows of every step together and the parts PAD words apart, so a store's four parts fall in different banks and a part's rows stay whole rows apart.
+    // PAD is 8 where three blocks still fit a compute unit's 64 KB in 512-byte units with it, as the tile's occupancy needs (docs/STATUS.md, Prompt K tile staging 3), else 0; STAGED counts the arrays the tile reads.
+    constexpr bool MIN_READ = !(EB || KNoMin<KT>::value || KRaw<KT>::offset), XH_READ = KRaw<KT>::offset || MIN_READ;
+    constexpr int NP = WORDS / 4, STAGED = 4 * (STEP * WORDS * (OUTS + ROWS) + STEP * H * OUTS * (MIN_READ ? 2 : 1) + STEP * ROWS + (XH_READ ? STEP * H * ROWS : 0));
+    constexpr int PART_PAD = 8, PAD = (STAGED + 2 * 3 * PART_PAD * 4 + 511) / 512 * 512 * 3 <= 65536 ? PART_PAD : 0;
+    __shared__ __attribute__((aligned(16))) int wq_[STEP * WORDS * OUTS + 3 * PAD], xw_[STEP * WORDS * ROWS + 3 * PAD];
+    const auto WQ = [&](int row, int col) -> int& { return wq_[(row % WORDS / NP * STEP * NP + row / WORDS * NP + row % NP) * OUTS + row % WORDS / NP * PAD + col]; };
+    const auto XW = [&](int row, int col) -> int& { return xw_[(row % WORDS / NP * STEP * NP + row / WORDS * NP + row % NP) * ROWS + row % WORDS / NP * PAD + col]; };
     const int t = threadIdx.x, tr = t / 16, tc = t % 16;
     // The narrow routed build gives each wave one quad of the group's entries, rotated by workgroup since wave w runs on SIMD w; a quad holding no entry skips its dots.
     constexpr bool QUADS = ROUTED && ROWS == kNarrowRows;
@@ -1905,7 +1915,7 @@ LLMX_KVEC {
             float ds[H], dm[H];
             StreamDecode<KT>::get(whole, 0, 0u, v, ds, dm);
 #pragma unroll
-            for (int i = 0; i < 8; ++i) wq[ws * WORDS + i][wr] = wok1 ? v[i] : 0;
+            for (int i = 0; i < 8; ++i) WQ(ws * WORDS + i, wr) = wok1 ? v[i] : 0;
 #pragma unroll
             for (int h = 0; h < H; ++h) wd[ws][h][wr] = wok1 ? ds[h] : 0.0f, wm[ws][h][wr] = wok1 ? dm[h] : 0.0f;
         }
@@ -1918,16 +1928,16 @@ LLMX_KVEC {
                 int w[NW];
                 widen<QT, KT>(v, w);
 #pragma unroll
-                for (int i = 0; i < NW; ++i) wq[s * WORDS + ws * NW + i][wr] = wok[s] ? w[i] : 0;
+                for (int i = 0; i < NW; ++i) WQ(s * WORDS + ws * NW + i, wr) = wok[s] ? w[i] : 0;
                 if (ws % (4 / H) == 0) wd[s][ws / (4 / H)][wr] = wok[s] ? ds : 0.0f, wm[s][ws / (4 / H)][wr] = wok[s] ? dm : 0.0f;
             }
 #pragma unroll
             for (int w2 = 0; w2 < WORDS / 4; ++w2)
-                if (r < ROWS) xw[s * WORDS + seg * (WORDS / 4) + w2][r] = xok[s] ? xv[s][w2] : 0;
+                if (r < ROWS) XW(s * WORDS + seg * (WORDS / 4) + w2, r) = xok[s] ? xv[s][w2] : 0;
             if (seg == 0 && r < ROWS) {
                 xd[s][r] = xok[s] ? xs_[s] : 0.0f;
 #pragma unroll
-                for (int h = 0; h < H; ++h) xh[s][h][r] = !xok[s] ? 0 : XM * (H == 1 ? twin_half(xh_[s], 0) + twin_half(xh_[s], 1) : twin_half(xh_[s], h));
+                for (int h = 0; h < H; ++h) xh[s][h][r] = (EB && KRaw<KT>::offset ? kSumBias : 0) + (!xok[s] ? 0 : XM * (H == 1 ? twin_half(xh_[s], 0) + twin_half(xh_[s], 1) : twin_half(xh_[s], h)));
             }
         }
     };
@@ -1945,35 +1955,35 @@ LLMX_KVEC {
 #pragma unroll
                 for (int i = 0; i < TO; ++i)
 #pragma unroll
-                    for (int j = 0; j < TJ; ++j) is[i][j] = KRaw<KT>::offset ? xh[s][h][row_at(j)] : 0;
+                    for (int j = 0; j < TJ; ++j) is[i][j] = KRaw<KT>::offset ? xh[s][h][row_at(j)] : EB ? kSumBias : 0;
 #pragma unroll
                 for (int w = h * (WORDS / H); w < (h + 1) * (WORDS / H); ++w) {
                     int av[TO];
                     if constexpr (QUADS) {
-                        av[0] = wq[s * WORDS + w][lane];
+                        av[0] = WQ(s * WORDS + w, lane);
                     } else {
-                        const int4 a = *(const int4*)&wq[s * WORDS + w][tr * 4];
+                        const int4 a = *(const int4*)&WQ(s * WORDS + w, tr * 4);
                         av[0] = a.x, av[1] = a.y, av[2] = a.z, av[3] = a.w;
                     }
                     int bv[TJ];
                     if constexpr (TJ == 4) {
-                        const int4 b4 = *(const int4*)&xw[s * WORDS + w][row_at(0)];
+                        const int4 b4 = *(const int4*)&XW(s * WORDS + w, row_at(0));
                         bv[0] = b4.x, bv[1] = b4.y, bv[2] = b4.z, bv[3] = b4.w;
                     } else {
-                        for (int j = 0; j < TJ; ++j) bv[j] = xw[s * WORDS + w][row_at(j)];
+                        for (int j = 0; j < TJ; ++j) bv[j] = XW(s * WORDS + w, row_at(j));
                     }
 #pragma unroll
                     for (int i = 0; i < TO; ++i)
 #pragma unroll
                         for (int j = 0; j < TJ; ++j) is[i][j] = word_dot(av[i], bv[j], is[i][j], QT());
                 }
-                // A type with no min takes ds * isum, the bits of the fused form with its zero min (k_term), without the twin's sums.
+                // A type with no min takes ds * isum, the bits of the fused form with its zero min (k_term), without the twin's sums, and so does IQ4_NL in 8 bits (EB).
                 // An offset type's isum already holds isum - offset * xsum, so ds * isum is k_term's offset form.
 #pragma unroll
                 for (int i = 0; i < TO; ++i)
 #pragma unroll
                     for (int j = 0; j < TJ; ++j)
-                        acc[i][j] = fmaf(xd[s][row_at(j)], KNoMin<KT>::value || KRaw<KT>::offset ? wd[s][h][out_at(i)] * sum_float<false>(is[i][j]) : k_term<KT>(wd[s][h][out_at(i)], wm[s][h][out_at(i)], is[i][j], xh[s][h][row_at(j)]), acc[i][j]);
+                        acc[i][j] = fmaf(xd[s][row_at(j)], EB || KNoMin<KT>::value || KRaw<KT>::offset ? scaled_sum<EB>(wd[s][h][out_at(i)], is[i][j]) : k_term<KT>(wd[s][h][out_at(i)], wm[s][h][out_at(i)], is[i][j], xh[s][h][row_at(j)]), acc[i][j]);
             }
         }
         __syncthreads();

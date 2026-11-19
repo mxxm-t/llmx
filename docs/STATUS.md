@@ -590,6 +590,36 @@ A prefill whose busy times are uniformly inflated (a contending job, a clock dro
 **Gotchas.**
 - The bits of every 256-wide prompt attention row change on ROCm and CUDA (Qwen3.5, Qwen3.6 and Qwen3.8 attention layers at `attention_tile_rows` and above); 128-wide heads (Qwen3) are unchanged.
 - build/gpu-arch-options-land2 is build/gpu-arch-options-land 67340f65f rebased onto this branch without the change; it lands after it.
+## Prompt K tile staging 3 (2026-11-20, KEFF7, branch perf/k-tile-staging3 on perf/k-tile-staging2 f97bc5106)
+
+- **Goal:** the prompt K tile (`k_tile`'s vector body in `kernels/int16.gpu`) closer to the dot peak on gfx906 after staging 2, where it is VALU-bound (VALUBusy 80 to 85%, LDS bank conflicts 8 to 10%) at 52 to 53% of the 16-bit dot peak for Q4_K and 42 to 43% of the 8-bit one.
+- **Done:** the 8-bit integer sums of the types whose term is a half scale times the sum (Q4_0, Q5_0, Q6_K and IQ4_NL) start at `kSumBias`, so the term is one fma against the scale times 1.5 * 2^23 (`scaled_sum`) where a conversion and a multiply, or IQ4_NL's `k_term`, were; every finite output keeps its bits and the edge cases are in docs/PRECISION.md (Biased sums in the 8-bit HIP tile), tested by `biased_edges`.
+  The staged words are part-major (`WQ`, `XW`): a thread part's rows of every step together, the four parts 8 words apart, so a store's parts fall in different banks while every read keeps a compile-time offset from one base; the 8 words are left out where they would cost the third block a compute unit (64 KB in 512-byte units), which today is Q6_K's 8-bit tile at 21504 bytes.
+  VGPRs stay at 71 to 76 on every K tile (q6_k 8-bit 72 to 75, mxfp4 8-bit 72 to 76; the Q8_0 tiles, not reached, 78 and 82), three waves a SIMD.
+- **Kernel rates (one MI50, ROCm 7.2.1, gfx906 builds, both arms built the same way):** `rates ktile` and `rates ktile2` (Qwen3.6-27B's five dense shapes at 512 rows over all nine K tile types, and Q4_K, Q6_K and Q8_0 at the 27B and 0.6B shapes at 512 and 2048 rows), two ABAB runs, output hashes equal to base in every cell; percent of the dot peak, mean of the five 27B shapes at 512 rows, base to candidate:
+  Q4_K f16 52.3 to 54.9 (+4.9%), int8 42.9 to 43.5 (+1.5%); Q5_K f16 +4.0%, int8 +0.6%; Q6_K f16 45.3 to 46.0 (+1.6%), int8 33.8 to 35.2 (+4.0%); Q4_0 f16 +5.2%, int8 +6.0%; Q4_1 f16 +5.5%, int8 +2.9%; Q5_0 f16 +3.9%, int8 +3.7%; Q5_1 f16 +3.7%, int8 +1.3%; IQ4_NL f16 +2.7%, int8 35.8 to 39.6 (+10.4%); MXFP4 f16 +3.2%, int8 +2.5%; Q8_0, whose tile the change does not reach, -0.2 to -0.3%.
+  At 2048 rows Q4_K f16 +4.0%, int8 +0.8%, Q6_K f16 +1.6%, int8 +3.6%.
+- **Full model:** one MI50 (renderD136), ROCm 7.2.1, gfx906 llmx builds of f97bc5106 (A), this change at c4781a123 (C, its kernels the same as the head's, which changed comments and docs only) and a control of A with one `s_nop` in the tile loop (P), made the same way; three rounds of `llmx bench`, arm order rotated, each followed on the same card by the mx fork's `llama-bench` (image mxxm/mx-llama.cpp:gfx906, build 557a6068f, `-fa 1 -r 3`).
+  The host was contended throughout (load 18 to 25 on 16 CPUs, ZFS read threads and memory compaction): 66 of 72 llmx cells waited over 100 ms for a CPU (median 0.6 to 1.5 s a cell, from the load line to the exit), the mx runs 5.9 to 33 s a run, so the figures are kept and read as ranges.
+
+  | Qwen3.6-27B Q4_K_M, tok/s | A (base) | C (this change) | P (control) | mx fork |
+  |---|---|---|---|---|
+  | pp512 f16 | 251.28-252.60 | 261.33-262.17 (+4.0%) | 193.38-252.10 | 245.94-247.79 |
+  | pp512 int8 | 352.59-385.38 | 366.92-393.05 (+1.1%) | 325.44-383.48 | |
+  | pp2048 f16 | 239.21-240.11 | 238.62-248.99 (+1.6%) | 232.43-237.79 | 237.65-245.53 |
+  | pp2048 int8 | 357.56-358.05 | 333.12-365.14 (-1.1%) | 305.62-357.98 | |
+  | tg64 f16 | 28.19-28.51 | 28.46-28.71 (+0.8%) | 27.45-28.21 | 26.09-28.17 |
+  | tg64 int8 | 28.07-31.42 | 29.92-31.50 (+2.3%) | 30.61-31.45 | |
+
+  Qwen3-0.6B Q8_0, whose Q8_0 tile the change does not reach: pp512 f16 A 8692-8904, C 4970-8880, P 8575-8848, int8 A 10598-10817, C 10719-10814; pp2048 f16 A 5900-5925, C 5913-5922, int8 A 6689-6712, C 6606-6720; tg64 f16 A 319-371, C 227-352, P 361-385, int8 A 275-350, C 219-419; mx fork pp512 6745-6939, pp2048 6451-6580, tg64 88-326, so its cells measure the host's contention, not the change.
+  Decode takes no K tile and staging 2's tg1 -0.3 to -0.4% does not recur: tg64 C is within A's range or above it, and the control P, the same behaviour as A with its code moved, spans -1.7 to +2.9% of A, the layout band of AGENTS.md (Principles).
+- **Identity:** greedy generations of a 1207-token wikitext prompt, the timing lines left out, equal between A and C on Qwen3.6-27B Q4_K_M (48 tokens), Qwen3.5-0.8B Q4_K_M and Qwen3-0.6B Q8_0 (64 tokens each) at f16 and int8; the ROCm `types` check passes on C with `biased_edges` (Q4_0, Q5_0, Q6_K, IQ4_NL).
+- **Rejected or left as leads, bits equal unless said:** padding each part's rows in place (+8 to +12 VGPRs from the lost paired stores, Q6_K int8 -8%, IQ4_NL f16 -4%); swizzled columns (+8 VGPRs, Q6_K, MXFP4 int8 and IQ4_NL int8 lose); 128-row 16-bit tiles with the K split counting their blocks (parity, -3 to +2%); a staging re-map of 32 rows by 2 parts a wave (-2.6 to +2.5 points by type).
+  Lead: Q6_K's 8-bit tile at 128 rows with the K split fixed (116 VGPRs, two waves) gives +5 to +7% over this change on the 27B shapes at 512 and 2048 rows but changes bits through the split and has an unread small-shape result from a contended run, so it is not part of this change; a rule for the tile height needs the staging share a kernel measures, which the device profile does not hold.
+- **CUDA and Vulkan:** the 8-bit change is HIP's alone, since CUDA's 8-bit K tiles are the tensor-core body (`k_mma`), whose biased sums already take `sum_float`; CUDA's 16-bit `k_vec` takes the part-major staging with its 8 words (it compiles for sm_86 with no warning, CUDA 12.9.1), untimed. Vulkan's prompt tile (`matmul_tile_q.comp`) is its own shader and is not changed; the same two ideas apply to it.
+- **Left:** CTest and the device suite at the landing head, the timing round against main on a quiet host, and the hosted run.
+- **Gotchas:** `PAD`'s rule counts the shared arrays the tile reads (`STAGED`), relying on the compiler dropping a store-only array (`wm` for offset types, `xh` for IQ4_NL in 8 bits), as gfx906's code objects show; a change that reads one of them again moves the count.
+
 ## Prompt K tile staging 2 (2026-11-19, KEFF4, branch perf/k-tile-staging2 on perf/k-tile-pairs 9cceeeef0)
 
 - **Goal:** the prompt K tile (`k_tile`'s vector body in `kernels/int16.gpu`) closer to the dot peak on gfx906: after the pairs it ran at 46 to 48% of the 16-bit dot peak for Q4_K and 39% for Q6_K.

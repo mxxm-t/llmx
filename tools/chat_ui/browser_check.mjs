@@ -2466,7 +2466,8 @@ try {
   await pointerClick('.workspace-back');
   await checkSavedFilesFromChat([['src/index.js','Saved src/index.js'], ['tests/index.js','Saved tests/index.js']]);
   const originalDraft = await evaluate("document.querySelector('#draft').value");
-  await fill('#draft', 'Keep this draft while attaching Workspace files');
+  const bridgePrompt = 'Keep this draft while attaching Workspace files';
+  await fill('#draft', bridgePrompt);
   const bridgeMutations = apiMutations.length;
   const showRefreshedWorkspace = async () => {
     await evaluate("window.previousWorkspaceRow=document.querySelector('.workspace-file')");
@@ -2484,7 +2485,7 @@ try {
   await cdp('Input.dispatchKeyEvent', {type:'keyDown', ...attachKey, text:'\r', unmodifiedText:'\r'});
   await cdp('Input.dispatchKeyEvent', {type:'keyUp', ...attachKey});
   await wait("document.querySelector('#app').dataset.view==='chat' && document.activeElement.id==='draft' && document.querySelector('[aria-label=\"Remove src:index.js\"]')", 'keyboard attachment returns to composer');
-  assert.equal(await evaluate("document.querySelector('#draft').value"), 'Keep this draft while attaching Workspace files');
+  assert.equal(await evaluate("document.querySelector('#draft').value"), bridgePrompt);
   await showRefreshedWorkspace();
   assert.equal(await evaluate("document.querySelector('#workspace-editor').value"), 'Unsaved source edit for Chat', 'attaching changed the editor');
   await pointerClick('.workspace-file[title="tests/index.js"]');
@@ -2493,11 +2494,15 @@ try {
   await wait("document.querySelector('#workspace-editor').value==='Saved tests/index.js'", 'test file loaded');
   await pointerClick('#workspace-attach');
   await wait("document.querySelector('[aria-label=\"Remove tests:index.js\"]')", 'same basename attachment retains workspace identity');
-  const savedBridgeDraft = "JSON.parse(sessionStorage.getItem('llmx-draft:'+localStorage.getItem('llmx-chat'))||'{}')";
-  await wait(`(${savedBridgeDraft}).attachments?.length===2`, 'attachments retained with ordinary draft');
-  assert.deepEqual(await evaluate(`(${savedBridgeDraft}).attachments.map(({name,text})=>({name,text}))`), [
-    {name:'src:index.js',text:'Unsaved source edit for Chat'}, {name:'tests:index.js',text:'Saved tests/index.js'}
-  ], 'attachments should contain the exact editor text and distinct relative names');
+  const savedBridgeDraft = `(() => {
+    const {text,attachments}=JSON.parse(sessionStorage.getItem('llmx-draft:'+localStorage.getItem('llmx-chat'))||'{}');
+    return {text,attachments:attachments?.map(({name,text})=>({name,text}))};
+  })()`;
+  const expectedBridgeDraft = {text:bridgePrompt, attachments:[
+    {name:'src:index.js',text:'Unsaved source edit for Chat'}, {name:'tests:index.js',text:'Saved tests/index.js'},
+  ]};
+  await wait(`JSON.stringify(${savedBridgeDraft})===${JSON.stringify(JSON.stringify(expectedBridgeDraft))}`, 'current draft and exact Workspace attachments persisted');
+  assert.deepEqual(await evaluate(savedBridgeDraft), expectedBridgeDraft, 'attachments should contain the exact editor text and distinct relative names');
   assert.equal(apiMutations.length, bridgeMutations, 'attaching from Workspace should neither send nor save');
   await showRefreshedWorkspace();
   await evaluate("{const editor=document.querySelector('#workspace-editor');editor.value='x'.repeat(2*1024*1024+4);editor.dispatchEvent(new Event('input'))}");

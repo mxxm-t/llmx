@@ -5779,9 +5779,25 @@ void host_pool_shortest_copy() {
 
 // A conversation larger than the host tier, on disk, behind its message boundary in host memory (docs/DISK-TIER.md, Restore): a turn and its job on the hybrid model over four CPUs, then another conversation's request that takes its room.
 // The follow-up turn must read the history back from disk, streamed also with no host memory free (A20), and a request taking the room before any file holds it waits for its write.
-enum class Behind { read, no_memory, at_once };
+enum class Behind { read, no_memory, at_once, views };  // views: CPUs that say they are devices, and each view a stream makes must be dropped on the thread that made it, as a GPU backend records as it drops one
+
+// A CPU device whose views of host memory (Backend::wrap_host) count those made and those dropped on another thread than the one that made them.
+struct ViewThreads : backend::CpuBackend {
+    std::shared_ptr<std::atomic<size_t>> made, elsewhere;
+    bool is_cpu() const override { return false; }
+    backend::BufferPtr wrap_host(void* memory, size_t bytes) override {
+        if (!memory) return nullptr;
+        ++*made;
+        return std::shared_ptr<backend::CpuBuffer>(new backend::CpuBuffer(memory, bytes), [o = elsewhere, at = std::this_thread::get_id()](backend::CpuBuffer* b) {
+            if (std::this_thread::get_id() != at) ++*o;
+            delete b;
+        });
+    }
+};
+
 void boundary_is_not_a_history(const gguf::GGUFModel& mixed, Behind arm) {
-    const std::string what = std::string("a history larger than the host tier behind its boundary") + (arm == Behind::no_memory ? ", no host memory free for its read" : arm == Behind::at_once ? ", its room asked before it was written" : "");
+    const std::string what = std::string("a history larger than the host tier behind its boundary") + (arm == Behind::no_memory ? ", no host memory free for its read" : arm == Behind::at_once ? ", its room asked before it was written" :
+                                                                                                         arm == Behind::views ? ", on devices whose stages record on their own threads" : "");
     const uint32_t v = (uint32_t)kHybrid.vocab;
     const bpe::Tokenizer tok(mixed);
     const size_t slab = infer::Model::host_slab_bytes(), cap = 3 * slab;
@@ -5792,7 +5808,20 @@ void boundary_is_not_a_history(const gguf::GGUFModel& mixed, Behind arm) {
         const size_t taken = m ? m->host_allocated() : 0, b = base.load();
         return b > taken ? b - taken : 0;
     };
-    const Make make = on(mixed, [] { return cpus(4); }, 3, 3, 0, 0, false, 1, free);
+    auto made = std::make_shared<std::atomic<size_t>>(0), elsewhere = std::make_shared<std::atomic<size_t>>(0);
+    const auto devices = [arm, made, elsewhere]() -> std::vector<backend::BackendPtr> {
+        if (arm != Behind::views) return cpus(4);
+        std::vector<backend::BackendPtr> v;
+        for (size_t i = 0; i < 4; ++i) {
+            auto b = std::make_shared<ViewThreads>();
+            b->set_threads(1);
+            b->made = made;
+            b->elsewhere = elsewhere;
+            v.push_back(b);
+        }
+        return v;
+    };
+    const Make make = on(mixed, devices, 3, 3, 0, 0, false, 1, free);
     DiskRoot disk("behind-boundary");
     server::DiskOptions options = disk.options(uint64_t(1) << 30);
     options.keep = true;
@@ -5851,6 +5880,8 @@ void boundary_is_not_a_history(const gguf::GGUFModel& mixed, Behind arm) {
         // The other request waits for the history's write before it takes the room, so nothing is lost and the turn reads the prompt's 640 whole-block rows back, no job having read the reply.
         require(reused == 640 && after.disk_hits == 1 && !taken.lost_before_written && !written.disk_entries && taken.room_waits >= 1,
                 what + ": " + seen + ", " + std::to_string(taken.room_waits) + " waits, against 640 reused from one history read, nothing lost and the other request waiting");
+    if (arm == Behind::views)
+        require(*made > 0 && !*elsewhere, what + ": " + std::to_string(elsewhere->load()) + " of " + std::to_string(made->load()) + " views of the read's slots dropped on another thread than their stage's");
     std::cout << "server-resume: " << what << ": " << seen << "\n";
 }
 
@@ -6223,7 +6254,7 @@ int main(int argc, char** argv) {
             host_growth_one_step(weights);
             host_pool_pressure(weights, tok, vocab);
             host_pool_shortest_copy();
-            for (const Behind arm : {Behind::read, Behind::no_memory, Behind::at_once}) boundary_is_not_a_history(mixed, arm);
+            for (const Behind arm : {Behind::read, Behind::no_memory, Behind::at_once, Behind::views}) boundary_is_not_a_history(mixed, arm);
             shorter_boundary_with_rows(mixed);
             for (const bool spare : {true, false}) state_read_keeps_its_rows(mixed, spare);
             for (const bool no_memory : {false, true}) lost_restore_points(mixed, no_memory);

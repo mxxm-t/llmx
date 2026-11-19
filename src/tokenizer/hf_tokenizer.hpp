@@ -12,7 +12,7 @@
 #include "format/gguf.hpp"
 
 // A Hugging Face directory's tokenizer.json, tokenizer_config.json and chat_template.jinja read into the tokenizer keys the GGUF converter writes, so bpe::Tokenizer and the chat template read a directory as they read its GGUF file.
-// Strict: a tokenizer other than byte-level BPE with the qwen2 split and the NFC normalizer, or an option the tokenizer does not implement, is refused.
+// Strict: a tokenizer other than byte-level BPE with the qwen2 or qwen35 split and the NFC normalizer, or an option the tokenizer does not implement, is refused.
 
 namespace bpe::hf {
 
@@ -21,6 +21,9 @@ using KeyValues = std::vector<std::pair<std::string, gguf::MetaValue>>;
 // The Split pattern of Qwen2 and Qwen3 tokenizer.json files, which Tokenizer::pretokenize implements as pre "qwen2".
 inline const char* const qwen2_pattern =
     R"((?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+)";
+// The Split pattern of Qwen 3.5 and 3.6 files, pre "qwen35", which adds combining marks to qwen2's letter runs.
+inline const char* const qwen35_pattern =
+    R"((?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?[\p{L}\p{M}]+|\p{N}| ?[^\s\p{L}\p{M}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+)";
 
 // GGUF token types.
 enum : int32_t { token_normal = 1, token_control = 3, token_user = 4, token_unused = 5 };
@@ -126,8 +129,9 @@ inline KeyValues read_keys(const std::string& dir, const jmini::Value& config, u
         {"type", "pattern", "behavior", "invert"});
     const jmini::Value* pattern = steps->arr[0].get("pattern");
     check(pattern, "tokenizer.json Split pattern", {{"Regex", nullptr}}, {"Regex"});
-    if (!pattern->get("Regex")->isString() || pattern->get("Regex")->str != qwen2_pattern)
-        throw std::runtime_error("tokenizer.json Split pattern is not the qwen2 pattern, the one llmx implements for this format");
+    const jmini::Value* regex = pattern->get("Regex");
+    const char* pre_name = !regex->isString() ? nullptr : regex->str == qwen2_pattern ? "qwen2" : regex->str == qwen35_pattern ? "qwen35" : nullptr;
+    if (!pre_name) throw std::runtime_error("tokenizer.json Split pattern is not the qwen2 or qwen35 pattern, the ones llmx implements for this format");
     const std::initializer_list<detail::Rule> byte_level = {{"type", "\"ByteLevel\""}, {"add_prefix_space", "false"}, {"trim_offsets", "true|false"},
         {"use_regex", "false"}};
     check(&steps->arr[1], "tokenizer.json ByteLevel pre_tokenizer", byte_level, {"type"});
@@ -153,6 +157,24 @@ inline KeyValues read_keys(const std::string& dir, const jmini::Value& config, u
     }
     const jmini::Value* added = tj.get("added_tokens");
     if (!added->isArray()) throw std::runtime_error("tokenizer.json added_tokens is not an array");
+    // added_tokens_decoder may add tokens tokenizer.json does not list, as Qwen 3.5's audio and speech tokens, which HF's tokenizer and the converter take as added tokens.
+    jmini::Value listed = *added;
+    if (const jmini::Value* decoder = tc.get("added_tokens_decoder"); decoder && decoder->isObject())
+        for (const auto& [id, entry] : decoder->obj) {
+            bool known = false;
+            for (const jmini::Value& a : added->arr)
+                known = known || (a.get("id") && a.get("id")->isNumber() && std::to_string(int64_t(a.get("id")->num)) == id);
+            if (known || !entry.isObject()) continue;
+            if (id.empty() || id.size() > 9 || id.find_first_not_of("0123456789") != std::string::npos)
+                throw std::runtime_error("tokenizer_config.json added_tokens_decoder id " + id + " is not a token id");
+            jmini::Value e = entry, number;
+            number.t = jmini::Value::T::Number;
+            number.num = double(std::stoll(id));
+            number.whole = true;
+            e.obj.emplace_back("id", number);
+            listed.arr.push_back(std::move(e));
+        }
+    added = &listed;
     for (const jmini::Value& a : added->arr) {
         check(&a, "tokenizer.json added token", {{"id", nullptr}, {"content", nullptr}, {"single_word", "false"}, {"lstrip", "false"},
             {"rstrip", "false"}, {"normalized", "false"}, {"special", "true|false"}}, {"id", "content", "special"});
@@ -198,7 +220,7 @@ inline KeyValues read_keys(const std::string& dir, const jmini::Value& config, u
 
     KeyValues kv;
     kv.emplace_back("tokenizer.ggml.model", detail::string_value("gpt2"));
-    kv.emplace_back("tokenizer.ggml.pre", detail::string_value("qwen2"));
+    kv.emplace_back("tokenizer.ggml.pre", detail::string_value(pre_name));
     kv.emplace_back("tokenizer.ggml.tokens", std::move(token_array));
     kv.emplace_back("tokenizer.ggml.token_type", std::move(type_array));
     kv.emplace_back("tokenizer.ggml.merges", std::move(merge_array));
@@ -209,7 +231,10 @@ inline KeyValues read_keys(const std::string& dir, const jmini::Value& config, u
         {"clean_up_tokenization_spaces", "false"}, {"eos_token", nullptr}, {"errors", "\"replace\""}, {"model_max_length", nullptr},
         {"pad_token", nullptr}, {"split_special_tokens", "false"}, {"tokenizer_class", nullptr}, {"unk_token", nullptr},
         {"extra_special_tokens", nullptr}, {"_commit_hash", nullptr}, {"max_length", nullptr}, {"stride", nullptr}, {"truncation_side", nullptr},
-        {"truncation_strategy", nullptr}, {"padding_side", nullptr}});
+        {"truncation_strategy", nullptr}, {"padding_side", nullptr}, {"pretokenize_regex", nullptr}});
+    // The slow tokenizer's split pattern, which Qwen 3.5 files repeat, must be the fast one's.
+    if (const jmini::Value* slow = tc.get("pretokenize_regex"); slow && (!slow->isString() || slow->str != regex->str))
+        throw std::runtime_error("tokenizer_config.json pretokenize_regex differs from tokenizer.json's Split pattern");
     // Special ids: tokenizer_config.json's text first, then config.json's id, each kept only below n_vocab, as the converter takes them.
     // A pad text naming no token gives no id from the text, as HF's tokenizer gives none; the other texts must name an added token.
     struct Special { const char* hf; const char* gguf; bool must_name; };

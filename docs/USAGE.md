@@ -80,7 +80,7 @@ A file's `rope.scaling.attn_factor`, `yarn_ext_factor`, `yarn_attn_factor` and `
 ## Global conventions
 
 - A model file is a GGUF v3 container (see `docs/src/format-gguf.md`).
-  `generate`, `chat`, `logits`, `perplexity`, `bench --model`, `serve`, `info`, `tokenize` and `detokenize` also take a Hugging Face model directory (`config.json`, `*.safetensors` with or without `model.safetensors.index.json`, `tokenizer.json`, `tokenizer_config.json`), read as the GGUF file the converter writes from it would be; today dense Qwen3 in F32, F16 or BF16 (`docs/src/inference-directory.md`).
+  `generate`, `chat`, `logits`, `perplexity`, `bench --model`, `serve`, `info`, `tokenize` and `detokenize` also take a Hugging Face model directory (`config.json`, `*.safetensors` with or without `model.safetensors.index.json`, `tokenizer.json`, `tokenizer_config.json`), read as the GGUF file the converter writes from it would be; today dense Qwen3 and dense Qwen 3.5 and 3.6 (`Qwen3_5ForConditionalGeneration`, its text model only, the vision tower left unread) in F32, F16 or BF16 (`docs/src/inference-directory.md`).
   `quantize` and `dequantize`, a `--drafter` file and an `--mmproj` file stay GGUF only.
 - Every command that reads a model's tokenizer refuses a file that names a `tokenizer.ggml.model` other than `gpt2` or a `tokenizer.ggml.pre` other than `qwen2`, `qwen35` or `joyai-llm`, the byte-level BPE with Qwen2, Qwen3.5 and DeepSeek-V4.1 pretokenization that llmx implements.
   A key the file omits is not checked.

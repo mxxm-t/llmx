@@ -127,6 +127,8 @@ struct GGUFModel {
         uint32_t group = 0;                                   // inputs per scale
         uint32_t zero_offset = 0;                             // added to each stored zero point (GPTQ's v1 format stores z - 1)
         std::vector<std::pair<TensorInfo, size_t>> parts;     // each part and its offset among `offsets`, in the order `kind` reads them
+        std::vector<uint32_t> order;                          // a transform's order: output row n, or column n with `columns`, holds the part's row or column order[n]; empty keeps it
+        bool columns = false;
     };
     std::map<size_t, Composite> composites;
 

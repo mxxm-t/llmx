@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -8,6 +9,8 @@
 #include <string>
 #include <vector>
 
+#include "core/bf16.hpp"
+#include "core/fp16.hpp"
 #include "core/json.hpp"
 #include "format/gguf.hpp"
 #include "format/hf_quant.hpp"
@@ -32,11 +35,31 @@ struct Key {
     const char* allowed;   // for check: the values accepted, as JSON texts separated by '|', or null for any value
 };
 
-// "{N}" in both names stands for a layer number below the block count.
-struct Name {
-    const char* hf;
-    const char* gguf;
+// A tensor's form made at load from its HF values, as the converter writes it; a composite of this kind (gguf::GGUFModel::Composite) is made by `transform`.
+// The kinds follow hf_quant's (format/hf_quant.hpp), whose repack makes the others.
+enum Transform : uint32_t {
+    none = 0,
+    plus_one = 16,   // F32 of 1 + w, as HF's norms compute it
+    neg_exp = 17,    // F32 of -exp(w), rounded once from double
+    widen = 18,      // F32 of w, a 3-D tensor's two slower dimensions made one
+    reorder = 19,    // the values moved, their type kept
 };
+inline bool transforms(uint32_t kind) { return kind >= plus_one && kind <= reorder; }
+static_assert(hf_quant::fp8_grid < plus_one, "hf_quant's composite kinds must stay below the transforms'");
+
+// Which of a tensor's rows or columns are indexed by V head, which the converter stores in tiled order: every row, the rows after the 2 Hk Dk of q and k, or every row's columns.
+enum class VHeads { none, rows, rows_after_qk, columns };
+
+// "{N}" in both names stands for a layer number below the decoder layer count, and "{L}" in the GGUF name for the MTP layer after them.
+// An HF name ending in '*' matches every name it begins, and an empty GGUF name drops the tensor.
+struct Name {
+    std::string hf;
+    std::string gguf;
+    Transform transform = none;
+    VHeads heads = VHeads::none;
+};
+
+using Meta = std::vector<std::pair<std::string, gguf::MetaValue>>;
 
 struct Table {
     const char* model_type;     // config.json model_type
@@ -45,6 +68,12 @@ struct Table {
     std::vector<Name> names;
     const char* embedding;      // the GGUF names of the token embedding and the head, which the tie and vocab_size checks read
     const char* head;
+    const char* config = nullptr;     // the object of config.json `keys` read, or null for config.json itself
+    std::vector<Key> outer{};         // with `config`: config.json's own keys beside it
+    void (*derive)(const jmini::Value& config, Meta& kv, const std::string& prefix) = nullptr;   // the keys no single config value gives
+    const char* k_heads = nullptr;    // for VHeads: the GGUF keys of Hk, Hv and Dk under the prefix
+    const char* v_heads = nullptr;
+    const char* k_width = nullptr;
 };
 
 namespace detail {
@@ -127,6 +156,7 @@ inline void rope_scaling(const jmini::Value& v, const jmini::Value& config, cons
 
 // The layer number `name` gives where `pattern` has "{N}", if it matches.
 inline bool match(const std::string& pattern, const std::string& name, uint64_t& layer) {
+    if (!pattern.empty() && pattern.back() == '*') return name.compare(0, pattern.size() - 1, pattern, 0, pattern.size() - 1) == 0;
     const size_t at = pattern.find("{N}");
     if (at == std::string::npos) return pattern == name;
     const std::string head = pattern.substr(0, at), tail = pattern.substr(at + 3);
@@ -140,10 +170,96 @@ inline bool match(const std::string& pattern, const std::string& name, uint64_t&
     return true;
 }
 
+// The keys of `obj` stored as `keys` give them; a key `keys` does not list, but for those in `skip`, is refused by name.
+inline void read_keys(const std::vector<Key>& keys, const jmini::Value& obj, const std::vector<std::string>& skip, const std::string& arch,
+                      const char* model_type, Meta& kv) {
+    std::set<std::string> seen;
+    for (const auto& [key, value] : obj.obj) {
+        if (!seen.insert(key).second) throw std::runtime_error("config.json repeats key " + key);
+        if (std::find(skip.begin(), skip.end(), key) != skip.end()) continue;
+        bool known = false;
+        for (const Key& k : keys) {
+            if (key != k.hf) continue;
+            known = true;
+            if (k.rule == Rule::check) {
+                check(k, key, value);
+            } else if (k.rule == Rule::rope_scaling) {
+                rope_scaling(value, obj, arch + ".", kv);
+            } else if (k.rule == Rule::each) {
+                if (!value.isArray()) throw std::runtime_error("config.json " + key + " is not an array");
+                for (const jmini::Value& entry : value.arr) check(k, key, entry);
+            } else {
+                kv.emplace_back(arch + "." + k.gguf, meta(value, k.rule, key));
+            }
+        }
+        if (!known) throw std::runtime_error("config.json key " + key + " is not one llmx reads for " + model_type);
+    }
+}
+
+// The tiled order of `units` rows or columns, those from `offset` on Hv heads of equal width: unit n holds HF's unit order[n], so GGUF V head j = s Hk + h holds HF's V head h r + s.
+inline std::vector<uint32_t> tiled(uint64_t units, uint64_t offset, uint64_t hk, uint64_t hv, const std::string& name) {
+    if (!hk || !hv || hv % hk || offset >= units || (units - offset) % hv || units > UINT32_MAX)
+        throw std::runtime_error("tensor " + name + " does not hold whole V heads");
+    const uint64_t width = (units - offset) / hv, r = hv / hk;
+    std::vector<uint32_t> order(static_cast<size_t>(units));
+    for (uint64_t n = 0; n < units; ++n) {
+        const uint64_t j = n < offset ? 0 : (n - offset) / width;
+        order[size_t(n)] = uint32_t(n < offset ? n : offset + ((j % hk) * r + j / hk) * width + (n - offset) % width);
+    }
+    return order;
+}
+
 } // namespace detail
 
+// Composite `c`'s bytes, tensor `t`, at `out` from its one part's bytes: each value of the part taken at its place in `c.order`, then `c.kind` applied (Transform).
+inline void transform(const gguf::GGUFModel::Composite& c, const gguf::TensorInfo& t, const std::vector<const uint8_t*>& parts, uint8_t* out) {
+    if (!transforms(c.kind) || parts.size() != 1 || c.parts.size() != 1) throw std::logic_error("hf: unknown transform of " + t.name);
+    const gguf::TensorInfo& in = c.parts[0].first;
+    const size_t n = size_t(in.n_elements()), width = in.ne.size() > 1 ? size_t(in.ne[0]) : 1, rows = n / width;
+    const size_t size = in.type == quant::GGML_TYPE_F32 ? 4 : 2;
+    const uint8_t* src = parts[0];
+    if (c.kind == reorder) {
+        // Whole rows move, or runs of consecutive columns (a head's), so each copy is one memcpy.
+        if (!c.columns) {
+            for (size_t r = 0; r < rows; ++r) std::memcpy(out + r * width * size, src + size_t(c.order[r]) * width * size, width * size);
+            return;
+        }
+        std::vector<std::pair<size_t, size_t>> runs;   // (first output column, length)
+        for (size_t w = 0, e; w < width; w = e) {
+            for (e = w + 1; e < width && c.order[e] == c.order[e - 1] + 1;) ++e;
+            runs.emplace_back(w, e - w);
+        }
+        for (size_t r = 0; r < rows; ++r)
+            for (const auto& [w, len] : runs) std::memcpy(out + (r * width + w) * size, src + (r * width + c.order[w]) * size, len * size);
+        return;
+    }
+    for (size_t r = 0; r < rows; ++r)
+        for (size_t w = 0; w < width; ++w) {
+            const size_t from = c.order.empty() ? r * width + w : c.columns ? r * width + c.order[w] : size_t(c.order[r]) * width + w;
+            const size_t to = r * width + w;
+            float v;
+            if (size == 4) {
+                std::memcpy(&v, src + from * 4, 4);
+            } else {
+                uint16_t h;
+                std::memcpy(&h, src + from * 2, 2);
+                v = in.type == quant::GGML_TYPE_BF16 ? bf16_to_f32(h) : f16_to_f32(h);
+            }
+            const float f = c.kind == plus_one ? 1.0f + v : c.kind == neg_exp ? -float(std::exp(double(v))) : v;
+            std::memcpy(out + to * 4, &f, 4);
+        }
+}
+
+// The object of `config` that `table`'s keys read: config.json itself, or the one it nests them in.
+inline const jmini::Value& keys_of(const Table& table, const jmini::Value& config) {
+    if (!table.config) return config;
+    const jmini::Value* inner = config.isObject() ? config.get(table.config) : nullptr;
+    if (!inner || !inner->isObject()) throw std::runtime_error(std::string("config.json gives no ") + table.config + " object");
+    return *inner;
+}
+
 // `m`, the tensors of a directory under their HF names, given the metadata and names `table` makes of `config` for the architecture `arch`, with the table's keys under its prefix ahead of those `m` already holds, such as hf_quant's.
-// A tied head stored beside the embedding is dropped, as the HF model ignores it, so the head reads the embedding as the GGUF file of the same checkpoint has it.
+// A tied head and a tensor the table drops are not read, and one the converter stores in another form is made at load (Transform).
 inline void apply(const Table& table, const std::string& arch, const jmini::Value& config, gguf::GGUFModel& m) {
     if (!config.isObject()) throw std::runtime_error("config.json is not an object");
     const jmini::Value* classes = config.get("architectures");
@@ -154,42 +270,38 @@ inline void apply(const Table& table, const std::string& arch, const jmini::Valu
     if (!type || !type->isString() || type->str != table.model_type)
         throw std::runtime_error(std::string("config.json model_type must be ") + table.model_type);
 
-    std::vector<std::pair<std::string, gguf::MetaValue>> kv;
+    Meta kv;
     gguf::MetaValue name;
     name.vtype = gguf::V_STRING;
     name.s = arch;
     kv.emplace_back("general.architecture", name);
-    std::set<std::string> seen;
-    for (const auto& [key, value] : config.obj) {
-        if (!seen.insert(key).second) throw std::runtime_error("config.json repeats key " + key);
-        if (key == "architectures" || key == "model_type") continue;
-        bool known = false;
-        for (const Key& k : table.keys) {
-            if (key != k.hf) continue;
-            known = true;
-            if (k.rule == Rule::check) {
-                detail::check(k, key, value);
-            } else if (k.rule == Rule::rope_scaling) {
-                detail::rope_scaling(value, config, arch + ".", kv);
-            } else if (k.rule == Rule::each) {
-                if (!value.isArray()) throw std::runtime_error("config.json " + key + " is not an array");
-                for (const jmini::Value& entry : value.arr) detail::check(k, key, entry);
-            } else {
-                kv.emplace_back(arch + "." + k.gguf, detail::meta(value, k.rule, key));
-            }
-        }
-        if (!known) throw std::runtime_error("config.json key " + key + " is not one llmx reads for " + table.model_type);
-    }
+    const jmini::Value& keys = keys_of(table, config);
+    if (table.config) detail::read_keys(table.outer, config, {"architectures", "model_type", table.config}, arch, table.model_type, kv);
+    detail::read_keys(table.keys, keys, table.config ? std::vector<std::string>{} : std::vector<std::string>{"architectures", "model_type"}, arch,
+                      table.model_type, kv);
+    if (table.derive) table.derive(keys, kv, arch + ".");
     const auto find = [&](const std::string& key) -> const gguf::MetaValue* {
         for (const auto& item : kv)
             if (item.first == key) return &item.second;
         return nullptr;
     };
-    const gguf::MetaValue* layers = find(arch + ".block_count");
-    if (!layers) throw std::runtime_error("config.json gives no layer count");
+    const gguf::MetaValue* blocks = find(arch + ".block_count");
+    if (!blocks) throw std::runtime_error("config.json gives no layer count");
+    const gguf::MetaValue* nextn = find(arch + ".nextn_predict_layers");
+    const uint64_t layers = blocks->u - (nextn ? nextn->u : 0);
+    const auto count = [&](const char* key) -> uint64_t {
+        const gguf::MetaValue* v = key ? find(arch + "." + key) : nullptr;
+        if (!v) throw std::runtime_error(std::string("config.json gives no value for ") + arch + "." + (key ? key : "the V heads"));
+        return v->u;
+    };
 
-    // Tensors: renamed, a layer past the count refused, a tied head dropped.
-    const jmini::Value* tie = config.get("tie_word_embeddings");
+    // Tensors: renamed, a layer past the count refused, a dropped one or a tied head dropped, one stored in another form made at load.
+    // With nested keys the top level's tie_word_embeddings, which HF's outer model reads, holds where the nested object gives none.
+    const jmini::Value* inner_tie = keys.get("tie_word_embeddings");
+    const jmini::Value* outer_tie = table.config ? config.get("tie_word_embeddings") : nullptr;
+    if (inner_tie && outer_tie && detail::text(*inner_tie) != detail::text(*outer_tie))
+        throw std::runtime_error(std::string("config.json tie_word_embeddings differs from ") + table.config + "'s");
+    const jmini::Value* tie = inner_tie ? inner_tie : outer_tie;
     const bool tied = tie && tie->t == jmini::Value::T::Bool && tie->b;
     std::vector<size_t> drop;
     for (size_t i = 0; i < m.tensors.size(); ++i) {
@@ -198,24 +310,52 @@ inline void apply(const Table& table, const std::string& arch, const jmini::Valu
         // An FP8 linear's scale grid, which hf_quant made `X.scale` beside `X.weight`, takes its weight's name with `.scale` for `.weight`.
         const bool grid = m.composites.count(i) && hf_name.size() > 6 && hf_name.compare(hf_name.size() - 6, 6, ".scale") == 0;
         const std::string looked = grid ? hf_quant::fp8_weight_of(hf_name) : hf_name;
-        bool renamed = false;
+        const Name* row = nullptr;
         for (const Name& n : table.names) {
             uint64_t layer = 0;
             if (!detail::match(n.hf, looked, layer)) continue;
-            if (layer >= layers->u) throw std::runtime_error("tensor " + t.name + " is past the layer count");
+            if (layer >= layers) throw std::runtime_error("tensor " + t.name + " is past the layer count");
             std::string out = n.gguf;
-            const size_t at = out.find("{N}");
-            if (at != std::string::npos) out.replace(at, 3, std::to_string(layer));
+            if (const size_t at = out.find("{N}"); at != std::string::npos) out.replace(at, 3, std::to_string(layer));
+            if (const size_t at = out.find("{L}"); at != std::string::npos) {
+                if (!nextn) throw std::runtime_error("tensor " + t.name + " is an MTP tensor, and config.json gives no MTP layer");
+                out.replace(at, 3, std::to_string(layers));
+            }
             if (grid) out = hf_quant::fp8_grid_of(out);
             t.name = out;
-            renamed = true;
+            row = &n;
             break;
         }
-        if (!renamed) throw std::runtime_error("tensor " + t.name + " is not one llmx reads for " + table.model_type);
-        if (tied && t.name == table.head) {
-            if (m.composites.count(i)) throw std::runtime_error("tensor " + hf_name + " is quantized, and config.json ties the head to the embedding");
+        if (!row) throw std::runtime_error("tensor " + t.name + " is not one llmx reads for " + table.model_type);
+        if (row->gguf.empty() || (tied && t.name == table.head)) {
+            if (m.composites.count(i))
+                throw std::runtime_error("tensor " + hf_name + " is quantized, and " + (row->gguf.empty() ? std::string("llmx does not read it") : "config.json ties the head to the embedding"));
             drop.push_back(i);
+            continue;
         }
+        if (t.ne.size() > 4) throw std::runtime_error("tensor " + hf_name + " has " + std::to_string(t.ne.size()) + " dimensions, more than a GGUF tensor's 4");
+        std::vector<uint32_t> order;
+        if (row->heads != VHeads::none) {
+            const uint64_t hk = count(table.k_heads), hv = count(table.v_heads);
+            const uint64_t width = t.ne.size() > 1 ? t.ne[0] : 1;
+            if (!width || !t.n_elements()) throw std::runtime_error("tensor " + hf_name + " does not hold whole V heads");
+            const uint64_t units = row->heads == VHeads::columns ? width : uint64_t(t.n_elements()) / width;
+            if (hv != hk) order = detail::tiled(units, row->heads == VHeads::rows_after_qk ? 2 * hk * count(table.k_width) : 0, hk, hv, hf_name);
+        }
+        // A 1-D tensor that only moves is widened as it moves, as the loader widens every other 16-bit vector.
+        const Transform kind = row->transform != none ? row->transform : order.empty() ? none : t.ne.size() == 1 ? widen : reorder;
+        if (kind == none) continue;
+        if (m.composites.count(i)) throw std::runtime_error("tensor " + hf_name + " is quantized, which llmx reads only in the form the directory stores");
+        if (t.type != quant::GGML_TYPE_F32 && t.type != quant::GGML_TYPE_BF16 && t.type != quant::GGML_TYPE_F16)
+            throw std::runtime_error("tensor " + hf_name + " is not F32, BF16 or F16, the types llmx transforms");
+        gguf::GGUFModel::Composite c;
+        c.kind = kind;
+        c.parts.emplace_back(t, m.offsets[i]);
+        c.order = std::move(order);
+        c.columns = row->heads == VHeads::columns;
+        if (kind != reorder) t.type = quant::GGML_TYPE_F32;
+        if (kind == widen && t.ne.size() == 3) t.ne = {t.ne[0], t.ne[1] * t.ne[2]};
+        m.composites[i] = std::move(c);
     }
     m.erase_tensors(drop);
     const gguf::TensorInfo* embedding = nullptr;
@@ -225,7 +365,7 @@ inline void apply(const Table& table, const std::string& arch, const jmini::Valu
         head |= t.name == table.head;
     }
     if (!tied && !head) throw std::runtime_error("config.json unties the head, and the directory holds no lm_head");
-    const jmini::Value* vocab = config.get("vocab_size");
+    const jmini::Value* vocab = keys.get("vocab_size");
     if (!embedding || embedding->ne.size() != 2 || !vocab || !vocab->isNumber() || vocab->num != double(embedding->ne[1]))
         throw std::runtime_error("config.json vocab_size does not give the embedding's rows");
     kv.insert(kv.end(), std::make_move_iterator(m.kv.begin()), std::make_move_iterator(m.kv.end()));

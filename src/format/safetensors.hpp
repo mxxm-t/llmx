@@ -21,7 +21,8 @@ namespace safetensors {
 constexpr uint64_t max_header_bytes = 100ull << 20;
 // Shapes and offsets are JSON numbers, exact as integers up to 2^53.
 constexpr double max_integer = 9007199254740992.0;
-constexpr size_t max_rank = 4;
+// Rank 5 holds a vision tower's 3-D convolution; an architecture keeps only tensors of a GGUF tensor's 4 dimensions (model/arch/hf_config.hpp).
+constexpr size_t max_rank = 5;
 
 namespace detail {
 
@@ -70,7 +71,7 @@ inline Entry entry(const std::string& name, const jmini::Value& v, const std::st
     if (v.obj.size() != 3 || !dtype || !shape || !offsets)
         throw std::runtime_error(what + " must hold exactly dtype, shape and data_offsets");
     if (!dtype->isString()) throw std::runtime_error(what + ": dtype is not a string");
-    if (!shape->isArray() || shape->arr.size() > max_rank) throw std::runtime_error(what + ": shape is not an array of rank 4 or less");
+    if (!shape->isArray() || shape->arr.size() > max_rank) throw std::runtime_error(what + ": shape is not an array of rank 5 or less");
     if (!offsets->isArray() || offsets->arr.size() != 2) throw std::runtime_error(what + ": data_offsets is not a pair");
     Entry e;
     e.tensor.name = name;

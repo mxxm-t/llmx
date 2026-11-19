@@ -2113,6 +2113,69 @@ Every cell, both arms alike, recorded 1.4 to 66.5 s of host run-queue wait (`hos
 
 **Left.**
 - The `docs` and `dead-code` components on the head that lands; lands by fast-forward as one commit.
+
+## vLLM formats, step 5a: qwen35 Hugging Face directories at 16 and 32 bits (2026-11-19, VLLM24 to VLLM27, branch formats/qwen35-dirs on perf/load-transform-parallel, which lands first, on land/20261119 cc1e880f3)
+
+- **Goal:** a Qwen 3.5 or 3.6 dense directory (`Qwen3_5ForConditionalGeneration`, `model_type` `qwen3_5`, Qwen/Qwen3.5-0.8B 2fc0636) loads as the qwen35 GGUF file the converter writes from it, and runs as that file runs.
+  The FP8 plan's step 5 names qwen35 directories (Qwen3.6-27B-FP8, the four-GPU goal model) and routed FP8 (Qwen3.6-35B-A3B-FP8, a qwen35moe directory); both need this step first.
+  FP8 on ROCm and CUDA (that plan's step 4) is rocm-quant-gaps' rocm/f8-e4m3-l1118, and every scale scheme the FP8 checkpoints use (tensor, channel, 128 x 128 block) landed with step 1.
+- **Done:** the qwen35 module's `hf_table` and `hf_derive`, which the registry entry names as qwen3's table is named (`docs/src/model-arch-hf_config.md`, `docs/src/model-arch-qwen35.md`).
+  `hf::Table` gains the nested object its keys sit in (`text_config`) with the top level's keys checked beside it, `derive` for the keys no single value gives, `{L}` for the MTP layer, names that drop a tensor (`model.visual.*`, since images come from an mmproj file), and a transform a name carries.
+  A transform is a composite of kinds 16 to 19 that `hf::transform` makes at load and the loader calls beside `hf_quant::repack`: `plus_one` (1 + w in F32, HF's `1.0 + weight.float()`), `neg_exp` (-exp(A_log) from double, rounded once), `widen` (`ssm_conv1d` to F32 [4, C]) and the tiled V-head order, which moves whole heads (`detail::tiled`, the order of `tests/qwen35.py`'s writer) only where Hv is above Hk.
+  The tokenizer reader takes the qwen35 Split pattern (`tokenizer.ggml.pre` qwen35), the seven tokens Qwen 3.5's `added_tokens_decoder` adds beyond `tokenizer.json` (248070 to 248076), and `pretokenize_regex` when it repeats the pattern. safetensors reads rank 5, the vision tower's 3-D convolution; a kept tensor above 4 dimensions is refused by name.
+  `tests/baseline_qwen35.py --model DIR` holds a pinned directory (`DIRECTORIES`, by its weight file's SHA-256) to its model's goldens at the file-exact bounds, since those goldens are HF's float32 forward of the same revision's weights.
+  Design reviewed by Fable before code (V-head mapping, ownership of the kinds, widening owner, nested keys, `{L}`, exp in double) and the code after (16-bit transforms untested, a zero dimension, a missing-key message, a directory without `chat_template.jinja`), each rechecked and folded in.
+- **Measured:** Qwen/Qwen3.5-0.8B 2fc0636: `info` gives the converter's metadata (the keys of the Q4_K_M GGUF of the same model, with `nextn_predict_layers` 1 for the MTP layer it leaves out) and `tokenizer.ggml.pre` qwen35; greedy text of "The capital of France is" is " Paris." on the CPU.
+  Suite at 9e0058d85 (the tests of 2736e6f4, CPU build): `safetensors` PASS, its worst error against HF 8.0e-7 (F32 bound 2e-5), with the qwen35 directories in it; `qwen35`, `docs` (0 findings) and `dead-code` PASS; CTest `safetensors`, `hf-config`, `hf-tokenizer`, `arch-qwen35`, `load*`, `model*` 8 of 8.
+  HF on the directory itself (`tests/baseline_qwen35.py --model DIR`, goldens `qwen35-0.8b`, HF float32 of revision 2fc0636, at the file-exact bounds), CPU on llmx 0.1.0+g9e0058d85665 and one MI50 (renderD128) on 0.1.0+gc82b344a8712, whose source differs from the CPU run's in a refusal's guard and message and the test script:
+
+  | Device, default dtype | top-1 | top-5 overlap | max top-10 logit error | worst NLL delta / bound | of bound |
+  |---|---|---|---|---|---|
+  | CPU, 6 threads | 8/8 | 5/5 every case | 0.00168 | 1.95e-5 / 0.02 | 0.1% |
+  | Vulkan, one MI50 | 8/8 | 5/5 every case | 0.00143 (logit cases) | 1.95e-5 / 0.02 | 0.1% |
+  | ROCm, one MI50 | 8/8 | 5/5 every case | 0.00147 (logit cases) | 1.64e-5 / 0.02 | 0.1% |
+
+  Vulkan and ROCm passed all 63 checks; the CPU run passed 63 of 64, the one left being the chat template's hash below.
+
+  The run's one failed check was the chat template's hash: the chat goldens were rendered with the GGUF file's template, and the directory carries its repository's, so the check now applies to files alone; the chat cases are rendered text and passed.
+
+  At 151e17074 (llmx 0.1.0+g151e1707457b numerics 01b80f609fe5ac0b, clean builds), HF on each directory at the file-exact bounds, 63 of 63 checks each; Qwen/Qwen3.5-4B (Hk = 16, Hv = 32) reaches the moved V heads on real weights, against its goldens `qwen35-4b`:
+
+  | Model | Device, default dtype | top-1 | top-5 overlap | worst NLL delta / bound | of bound |
+  |---|---|---|---|---|---|
+  | Qwen3.5-0.8B | CPU, 6 threads | 6/6 | 5/5 every case | 1.95e-5 / 0.02 | 0.098% |
+  | Qwen3.5-0.8B | ROCm, one MI50 | 6/6 | 5/5 every case | 1.64e-5 / 0.02 | 0.082% |
+  | Qwen3.5-4B | CPU, 6 threads | 6/6 | 5/5 every case | 1.09e-5 / 0.02 | 0.054% |
+  | Qwen3.5-4B | ROCm, one MI50 | 6/6 | 5/5 every case | 1.36e-5 / 0.02 | 0.068% |
+
+  Suite at 151e17074 on the CPU: `safetensors`, `qwen35`, `docs` and `dead-code` PASS; CTest `safetensors`, `hf-config`, `hf-tokenizer`, `arch-qwen35`, `load*`, `model*` 8 of 8.
+  On `--device rocm:0` the `safetensors` component failed in main's `fp8_checks`, which asks no `common.device_lacks_kernel` before ROCm refuses F8_E4M3 (fixed by 493f1f6fe on land/20261119), so this branch's qwen35 directory checks did not run on ROCm and rerun at the stacked head; `qwen35` PASS there.
+
+  Load of the 4B directory against unsloth's Qwen3.5-4B-BF16 GGUF (e87f176), `generate -n 1`, warm-up then three alternating pairs, wall seconds; the GGUF is not shown to hold the directory's weights byte for byte, so this is a record, not a comparison of the same bytes:
+
+  | Device | directory | GGUF | directory construct | GGUF construct |
+  |---|---|---|---|---|
+  | CPU | 24.03, 9.33, 8.67 | 5.05, 3.32, 3.49 | 5.4 to 6.7 s | 0.16 to 0.18 s |
+  | ROCm, one MI50 | 8.61, 9.31, 9.39 | 7.98, 6.96, 7.41 | 0.24 to 0.29 s | 0.21 to 0.26 s |
+
+  The first CPU directory run follows the GGUF warm-up's 36.6 s, likely page-cache eviction between the two 8 GB files.
+  The CPU's 6 s of construct was the loader's host path for composites, one tensor at a time into a zero-filled vector with each part read by `pread`; perf/load-transform-parallel fixed it (above).
+  Rebased by VLLM27 onto land/20261119 over perf/load-transform-parallel, which makes a host's composites side by side after the build and cut the 4B directory's CPU construct from 2.9 to 3.1 s to 0.39 to 0.41 s (its STATUS block); conflicts resolved in `hf::detail::read_keys` (land's `Rule::rope_scaling` read there), `tests/safetensors_dir.py`'s `run` and docs/TESTS.md.
+  At that head (llmx 0.1.0+g3fd15f68e67d, ROCm build; a comment differs from the head that lands), HF on each directory at the file-exact bounds, 63 of 63 checks each:
+
+  | Model | Device, default dtype | top-1 | top-5 overlap | worst NLL delta / bound | of bound |
+  |---|---|---|---|---|---|
+  | Qwen3.5-0.8B | CPU, 6 threads | 6/6 | 5/5 every case | 1.65e-5 / 0.02 | 0.083% |
+  | Qwen3.5-0.8B | ROCm, one MI50 | 6/6 | 5/5 every case | 1.80e-5 / 0.02 | 0.090% |
+  | Qwen3.5-4B | ROCm, one MI50 | 6/6 | 5/5 every case | 1.36e-5 / 0.02 | 0.068% |
+
+  Suite there: `safetensors`, `qwen35` and `dead-code` PASS on the CPU, and `safetensors` (main's FP8 directories' logits SKIP through `common.device_lacks_kernel`, this branch's qwen35 directories run) and `qwen35` (its drafter checks run, `--require-tools`) PASS on `--device rocm:0`; `docs` failed on the loader branch's comment line, since fixed.
+- **Left:** the landing gates at the head that lands; lands as one commit after perf/load-transform-parallel.
+  Then step 5b (FP8 qwen35, Qwen3.6-27B-FP8, formats/qwen35-fp8) and step 5c (expert stacking for qwen3moe and qwen35moe directories, after a reviewed multi-span design, then routed FP8).
+- **Gotchas:** with Hv above Hk (4B and up) the V-side linears are made at load rather than read in place, so their bytes are private to the process; with Hv = Hk (0.8B, 2B) nothing moves.
+  HF takes -exp(A_log) in float32 at run time, so `ssm_a` may differ from HF's by an ulp; the HF checks bound it.
+  Qwen 3.5's tokenizer.json lists 26 added tokens and its tokenizer_config.json 33; HF's tokenizer and the converter take all 33.
+
 ## vLLM formats, quant step 4: FP8 E4M3 checkpoints on the CPU and Vulkan (2026-11-16, VLLM17, VLLM18 then VLLM20, branch formats/quant-fp8 on formats/quant-compressed (7bdcec4d), which lands first; plan /opt/claude-work/vllm18/plan.md with F2DEV's items 1-9 and rulings a-g, steps 1 and 3 of 4)
 
 - **Goal:** FP8 weight checkpoints, E4M3 codes under scales a tensor, a row or a 128 x 128 block (Qwen/Qwen3-0.6B-FP8 and RedHatAI's FP8-dynamic and FP8-BLOCK), load with their bytes read in place and run at the default precision. This branch is the CPU (step 1) and Vulkan (step 3); ROCm and CUDA are step 4.

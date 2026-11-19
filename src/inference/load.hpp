@@ -246,7 +246,7 @@ struct Piece {
     std::function<void(uint8_t*)> make{};
 };
 
-// Composite `i`'s bytes made at `out` from its parts by hf_quant::repack.
+// Composite `i`'s bytes made at `out` from its parts by hf_quant::repack, or by hf::transform for an architecture's transform (model/arch/hf_config.hpp).
 // Its parts come from the mapping when `mapping` and their file is mapped, else each is read whole through `reader_of` on its granule into one buffer, and as it holds no state several threads run it at once.
 inline void make_composite(const gguf::GGUFModel& file, size_t i, const std::function<const format::FileReader&(const std::string&)>& reader_of, uint8_t* out,
                            bool mapping) {
@@ -274,7 +274,8 @@ inline void make_composite(const gguf::GGUFModel& file, size_t i, const std::fun
         if (r.reader->read(r.from, buffer.data() + r.at, r.request) < r.lead + r.bytes) throw std::runtime_error("loading: short file read");
         parts[r.part] = buffer.data() + r.at + r.lead;
     }
-    hf_quant::repack(c, file.tensors[i], parts, out);
+    if (hf::transforms(c.kind)) hf::transform(c, file.tensors[i], parts, out);
+    else hf_quant::repack(c, file.tensors[i], parts, out);
     if (mapping)
         for (const auto& part : c.parts) file.drop_part(part.second, size_t(part.first.data_size()));
 }

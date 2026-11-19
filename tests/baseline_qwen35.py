@@ -56,6 +56,12 @@ QWEN35_08B_Q4_K_M_QUALITY = {"top1_matches": 6, "top5_overlap": 4, "continuous_n
 # Each file's committed file-exact goldens, by its SHA-256, a directory under tests/data whose goldens GOLDEN_SHA256 pins.
 QWEN35_08B_Q8_0_SHA256 = "0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c"
 FILE_EXACT = {QWEN35_08B_Q4_K_M_SHA256: "qwen35-0.8b-q4_k_m-file-exact", QWEN35_08B_Q8_0_SHA256: "qwen35-0.8b-q8_0-file-exact"}
+# A Hugging Face directory of a model's goldens' own reference weights, by its goldens' directory and the SHA-256 of each weight file (docs/ASSETS.md): the goldens are file-exact for it, so it is held to FILE_EXACT_BOUNDS.
+DIRECTORIES = {
+    "qwen35-0.8b": {"model.safetensors-00001-of-00001.safetensors": "04b1c301231dd422b8860db31311ab2721511346a32cb1e079c4c4e5f1fe4696"},
+    "qwen35-4b": {"model.safetensors-00001-of-00002.safetensors": "26a93f066e1916adb13453dae5a0c707c0fbc71299ed98779571a907b8e74c61",
+                  "model.safetensors-00002-of-00002.safetensors": "cb544bd9bfae93dc59b0f22b292f5933573854a7f9b97835c67060d7d910e188"},
+}
 MAX_PLAUSIBLE_LOGIT = 100.0
 # What a file without bounds is measured at: every rule of the validators except the bounds themselves.
 MEASURE_ONLY = {"top5_overlap": 0, "max_abs_logit": MAX_PLAUSIBLE_LOGIT, "continuous_nll": math.inf, "window_nll": math.inf}
@@ -163,7 +169,9 @@ def check_file(model, context, run, check, write, docs, bounds):
         check(label, common.check_ids, output(label, ["tokenize", model, case["text"]]), case["ids"])
     chats = []
     if "baseline_chat.json" in docs:
-        check("chat-template", check_chat_template, model, docs["baseline_chat.json"]["template_sha256"])
+        # A directory carries its repository's template, not the GGUF file's the chat goldens were rendered with; their cases are rendered text either way.
+        if not Path(model).is_dir():
+            check("chat-template", check_chat_template, model, docs["baseline_chat.json"]["template_sha256"])
         chats = docs["baseline_chat.json"]["cases"]
     for index, case in enumerate(chats):
         label = "chat-%02d-ids" % index
@@ -194,6 +202,14 @@ def check_file(model, context, run, check, write, docs, bounds):
             label = "ppl-%02d" % index + ("-per-token" if mode == "per-token" else "")
             check(label, common.check_ppl, output(label, common.ppl_command(model, excerpt, case, mode)), case, doc["n_tokens"], MODEL_CONTEXT, limits)
     return "checked" if bounds else "unbounded"
+
+
+def directory_goldens(model):
+    """The goldens of the pinned directory `model`, by name, and the SHA-256 of each weight file; the goldens' reference revision is the directory's, whose weights they ran in float32."""
+    for golden, weights in DIRECTORIES.items():
+        if all(Path(model, file).is_file() for file in weights) and all(file_sha256(Path(model, file)) == digest for file, digest in weights.items()):
+            return {name.split("/")[1]: load_golden(name) for name in GOLDEN_SHA256 if name.startswith(golden + "/")}, weights
+    require(False, "%s is not a pinned qwen35 directory" % model)
 
 
 def check_pinned(model, context, run, check, write, file_exact=None):
@@ -288,7 +304,7 @@ def run_hosted():
 def main(argv=None):
     parser = argparse.ArgumentParser(description="The qwen35 real-model HF check of one pinned file, with a report; no downloads.")
     parser.add_argument("--exe", required=True, type=Path)
-    parser.add_argument("--model", required=True, type=Path)
+    parser.add_argument("--model", required=True, type=Path, help="a pinned qwen35 file, or a pinned Hugging Face directory of its model (DIRECTORIES)")
     parser.add_argument("--output-dir", required=True, type=Path, help="new directory for raw output and report")
     parser.add_argument("--context", type=int, choices=sorted(PPL_GOLDENS), default=512, help="the perplexity windows to score, in tokens")
     parser.add_argument("--device", help="run the commands that take --device on this device or comma-separated list, e.g. vulkan:0")
@@ -343,12 +359,21 @@ def main(argv=None):
     save()
     try:
         report["executable_sha256"] = file_sha256(exe)
-        report["model_sha256"] = file_sha256(model)
+        directory = model.is_dir()
+        if directory:
+            require(not args.file_exact, "a directory is held to its model's goldens, which are file-exact for it")
+            docs, report["model_sha256"] = directory_goldens(model)
+            report["bounds"] = BOUNDS.get(FILE_EXACT_BOUNDS)
+        else:
+            report["model_sha256"] = file_sha256(model)
+            report["bounds"] = model_goldens(str(model), args.file_exact)[1]
         rc, version = run("version", ["--version"])
         require(rc == 0, "llmx --version failed")
         report["version"] = version.strip()
-        report["bounds"] = model_goldens(str(model), args.file_exact)[1]
-        status = check_pinned(str(model), args.context, run, check, write, args.file_exact)
+        if directory:
+            status = check_file(str(model), args.context, run, check, write, docs, report["bounds"])
+        else:
+            status = check_pinned(str(model), args.context, run, check, write, args.file_exact)
         failures = [item["label"] for item in report["checks"] if item["status"] == "fail"]
         require(not failures, "failed checks: " + ", ".join(failures))
         if status == "skip":

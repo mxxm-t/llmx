@@ -212,6 +212,7 @@ A recurrent state exists only at the end of what it has read, so a sequence cann
 ## GGUF conventions
 
 Weights load as the file stores them, with no byte transform, so the loader keeps streaming in file order.
+A Hugging Face directory is read into these forms at load ([hf_config](src/model-arch-hf_config.md)), as the converter writes them, but for `ssm_a`, whose exponential llmx takes in double and the converter in float32, so a value may differ by an ulp.
 The kernels read the conventions below.
 
 ### Tensors

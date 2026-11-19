@@ -106,7 +106,7 @@ A model that declares YaRN rope scaling runs it as declared, and `--yarn F` (wit
 | GGUF v3, one file or a shard set | Supported: read by every model command, written by `quantize` |
 | Hugging Face download | Supported: `llmx pull <owner/repo>:<quant>` for GGUF, `llmx pull <owner/repo>` for a safetensors directory |
 | Raw F32 tensors (`.json` + `.bin`) | Supported: input of `quantize`, output of `dequantize` |
-| safetensors, with `config.json` and `tokenizer.json` | Supported: dense `qwen3` directories in `F32`, `F16` or `BF16`; AWQ 4-bit directories read as exact `Q5_0`; GPTQ and compressed-tensors int directories read as exact `Q4_0` (4-bit symmetric), `Q5_0` (other 4-bit) or `Q8_0` (8-bit symmetric); FP8 directories (`quant_method` fp8 or compressed-tensors `float-quantized`, by tensor, channel or 128 x 128 block) read as `F8_E4M3`, which runs on the CPU and Vulkan; quantize, dequantize, drafter and mmproj files stay GGUF |
+| safetensors, with `config.json` and `tokenizer.json` | Supported: dense `qwen3` and `qwen35` directories (Qwen 3.5 and 3.6) in `F32`, `F16` or `BF16`; AWQ 4-bit directories read as exact `Q5_0`; GPTQ and compressed-tensors int directories read as exact `Q4_0` (4-bit symmetric), `Q5_0` (other 4-bit) or `Q8_0` (8-bit symmetric); FP8 directories (`quant_method` fp8 or compressed-tensors `float-quantized`, by tensor, channel or 128 x 128 block) read as `F8_E4M3`, which runs on the CPU and Vulkan; quantize, dequantize, drafter and mmproj files stay GGUF |
 
 ## Build
 

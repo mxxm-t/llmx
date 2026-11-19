@@ -97,7 +97,7 @@ int main() {
         refused_file(bad, R"({"a":{"dtype":"F32","shape":[2],"data_offsets":[0,8],"x":1}})", 8, "exactly dtype");
         refused_file(bad, R"({"a":{"dtype":"F32","shape":[2.0],"data_offsets":[0,8]}})", 8, "non-negative integer");
         refused_file(bad, R"({"a":{"dtype":"F32","shape":[-2],"data_offsets":[0,8]}})", 8, "non-negative integer");
-        refused_file(bad, R"({"a":{"dtype":"F32","shape":[1,1,1,1,2],"data_offsets":[0,8]}})", 8, "rank 4");
+        refused_file(bad, R"({"a":{"dtype":"F32","shape":[1,1,1,1,1,2],"data_offsets":[0,8]}})", 8, "rank 5");
         refused_file(bad, R"({"a":{"dtype":"F32","shape":[2],"data_offsets":[8,0]}})", 8, "end before");
         refused_file(bad, R"({"__metadata__":{"n":1},)" + a + "}", 8, "not a string");
         refused_file(bad, R"({"a":{"dtype":"F16","shape":[1],"data_offsets":[0,2]},"b":{"dtype":"F32","shape":[1],"data_offsets":[2,6]}})", 6, "float-aligned");

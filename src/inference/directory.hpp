@@ -40,9 +40,10 @@ inline gguf::GGUFModel read_directory(const std::string& dir) {
     if (quantization != config.obj.end()) config.obj.erase(quantization);
     const ArchEntry& entry = hf_architecture(model_type);
     hf::apply(entry.hf_table(), entry.name, config, m);
-    // hf::apply has held vocab_size to the embedding's rows.
-    const uint64_t rows = uint64_t(config.get("vocab_size")->num);
-    for (auto& item : bpe::hf::read_keys(dir, config, rows)) m.kv.push_back(std::move(item));
+    // hf::apply has held vocab_size to the embedding's rows; the token ids are read beside it.
+    const jmini::Value& keys = hf::keys_of(entry.hf_table(), config);
+    const uint64_t rows = uint64_t(keys.get("vocab_size")->num);
+    for (auto& item : bpe::hf::read_keys(dir, keys, rows)) m.kv.push_back(std::move(item));
     return m;
 }
 

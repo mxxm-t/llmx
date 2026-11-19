@@ -138,6 +138,19 @@ int main() {
             require(!m.find("tokenizer.ggml.padding_token_id") && key(m, "tokenizer.ggml.eos_token_id").u == 13, "pad naming no token");
         }
         {
+            // A Qwen 3.5 file: the qwen35 Split pattern, repeated as tokenizer_config.json's pretokenize_regex, and a token only added_tokens_decoder adds, taken as an added token.
+            ++cases;
+            gguf::GGUFModel m;
+            const std::string qwen35 =
+                R"((?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\\r\\n\\p{L}\\p{N}]?[\\p{L}\\p{M}]+|\\p{N}| ?[^\\s\\p{L}\\p{M}\\p{N}]+[\\r\\n]*|\\s*[\\r\\n]+|\\s+(?!\\S)|\\s+)";
+            const std::string decoder = R"("special":true},"15":{"content":"<|audio|>","special":true}},"pretokenize_regex":")" + qwen35 + "\"";
+            m.kv = read(directory({pattern_json, qwen35}, {"\"special\":true}}", decoder}));
+            const gguf::MetaValue& tokens = key(m, "tokenizer.ggml.tokens");
+            const gguf::MetaValue& types = key(m, "tokenizer.ggml.token_type");
+            require(key(m, "tokenizer.ggml.pre").s == "qwen35" && tokens.arr[15].s == "<|audio|>" && types.arr[15].i == 3, "qwen35 pattern and a decoder-only token");
+            refused({pattern_json, qwen35}, {"", "\"pretokenize_regex\":\"" + pattern_json + "\""}, "pretokenize_regex differs");
+        }
+        {
             // extra_special_tokens naming added tokens, as a map or a list, changes no encoding.
             ++cases;
             gguf::GGUFModel m;
@@ -167,7 +180,7 @@ int main() {
         refused({}, {"", "\"extra_special_tokens\":\"<think>\""}, "extra_special_tokens is not a map or a list");
         refused({"\"normalizer\":{\"type\":\"NFC\"}", "\"normalizer\":null"}, {}, "normalizer is not an object");
         refused({"\"normalizer\":{\"type\":\"NFC\"}", "\"normalizer\":{\"type\":\"NFKC\"}"}, {}, "normalizer type");
-        refused({"\\\\s+(?!\\\\S)|", ""}, {}, "not the qwen2 pattern");
+        refused({"\\\\s+(?!\\\\S)|", ""}, {}, "not the qwen2 or qwen35 pattern");
         refused({"\"Isolated\"", "\"Removed\""}, {}, "behavior");
         refused({"\"invert\":false", "\"invert\":true"}, {}, "invert");
         refused({"{\"type\":\"ByteLevel\",\"add_prefix_space\":false", "{\"type\":\"ByteLevel\",\"add_prefix_space\":true"}, {}, "add_prefix_space");

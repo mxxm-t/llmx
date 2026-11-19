@@ -15,6 +15,7 @@
 #include "model/arch/metadata.hpp"
 #include "model/rope.hpp"
 #include "model/arch/blocks.hpp"
+#include "model/arch/hf_config.hpp"
 
 // Qwen 3.5, 3.6 and 3.8 (docs/QWEN35.md): linear-attention layers alternate with a gated full-attention layer at every interval, each followed by a dense feed-forward block or, on qwen35moe, routed experts and a gated shared expert.
 // Weights are read as the converter stores them (docs/QWEN35.md, GGUF conventions): the norms but ssm_norm hold 1 + w, ssm_a holds -exp(A_log), attn_q holds each head's q and gate side by side, and V head j reads K head j mod Hk.
@@ -126,6 +127,164 @@ inline Config read_config(const gguf::GGUFModel& m, const std::string& p, bool m
         check_config(c);
     }
     return c;
+}
+
+// The keys of a directory's text_config no single value gives (hf::Table::derive): the blocks with the MTP layer, the V side's width, the layer kinds and the rotary keys.
+inline void hf_derive(const jmini::Value& c, hf::Meta& kv, const std::string& p) {
+    const auto whole = [&](const jmini::Value* v, const std::string& key) -> uint64_t {
+        if (!v || !v->isNumber() || !v->whole || v->num < 0 || v->num > 4294967295.0) throw std::runtime_error("config.json " + key + " is not a whole number");
+        return uint64_t(v->num);
+    };
+    const auto uint = [&](const std::string& key, uint64_t value) {
+        gguf::MetaValue v;
+        v.vtype = gguf::V_UINT32;
+        v.u = value;
+        kv.emplace_back(p + key, v);
+    };
+    const uint64_t layers = whole(c.get("num_hidden_layers"), "num_hidden_layers");
+    const jmini::Value* mtp_key = c.get("mtp_num_hidden_layers");
+    const uint64_t mtp = mtp_key ? whole(mtp_key, "mtp_num_hidden_layers") : 0;
+    if (!layers || mtp > 1) throw std::runtime_error("config.json num_hidden_layers or mtp_num_hidden_layers is not one llmx reads (an MTP layer at most)");
+    uint("block_count", layers + mtp);
+    if (mtp) uint("nextn_predict_layers", mtp);
+    uint("ssm.inner_size", whole(c.get("linear_value_head_dim"), "linear_value_head_dim") * whole(c.get("linear_num_value_heads"), "linear_num_value_heads"));
+    // The layer kinds follow the interval, as read_config reads them from it; without full_attention_interval, the first full-attention layer gives it.
+    const jmini::Value* kinds = c.get("layer_types");
+    if (!kinds || !kinds->isArray() || kinds->arr.size() != layers) throw std::runtime_error("config.json layer_types does not give every layer");
+    uint64_t interval = 0;
+    if (const jmini::Value* given = c.get("full_attention_interval")) interval = whole(given, "full_attention_interval");
+    for (uint64_t l = 0; !interval && l < layers; ++l)
+        if (kinds->arr[l].isString() && kinds->arr[l].str == "full_attention") interval = l + 1;
+    if (!interval) throw std::runtime_error("config.json layer_types holds no full-attention layer");
+    for (uint64_t l = 0; l < layers; ++l)
+        if (!kinds->arr[l].isString() || kinds->arr[l].str != ((l + 1) % interval == 0 ? "full_attention" : "linear_attention"))
+            throw std::runtime_error("config.json layer_types does not follow full_attention_interval");
+    uint("full_attention_interval", interval);
+    // rope_parameters: the interleaved sections of the default rope over the leading partial_rotary_factor of each head.
+    const jmini::Value* rope = c.get("rope_parameters");
+    if (!rope || !rope->isObject()) throw std::runtime_error("config.json gives no rope_parameters");
+    for (const auto& [key, value] : rope->obj) {
+        const std::string text = hf::detail::text(value);
+        if ((key == "rope_type" && text == "\"default\"") || (key == "mrope_interleaved" && text == "true") || key == "rope_theta" || key == "partial_rotary_factor" ||
+            key == "mrope_section")
+            continue;
+        throw std::runtime_error("config.json rope_parameters " + key + " = " + text + " is not supported");
+    }
+    const jmini::Value* theta = rope->get("rope_theta");
+    const jmini::Value* factor = rope->get("partial_rotary_factor");
+    const jmini::Value* sections = rope->get("mrope_section");
+    if (!theta || !factor || !factor->isNumber() || !sections || !sections->isArray() || sections->arr.size() != 3 || !rope->get("mrope_interleaved"))
+        throw std::runtime_error("config.json rope_parameters lacks rope_theta, partial_rotary_factor, mrope_section or mrope_interleaved");
+    kv.emplace_back(p + "rope.freq_base", hf::detail::meta(*theta, hf::Rule::real, "rope_parameters rope_theta"));
+    const double rotated = double(whole(c.get("head_dim"), "head_dim")) * factor->num;
+    if (!(rotated > 0) || rotated != double(uint64_t(rotated))) throw std::runtime_error("config.json partial_rotary_factor does not give whole rotated dims");
+    uint("rope.dimension_count", uint64_t(rotated));
+    // The converter writes four sections, the fourth 0.
+    gguf::MetaValue list;
+    list.vtype = gguf::V_ARRAY;
+    list.u = gguf::V_INT32;
+    for (size_t k = 0; k < 4; ++k) {
+        gguf::MetaValue e;
+        e.vtype = gguf::V_INT32;
+        e.i = k < 3 ? int64_t(whole(&sections->arr[k], "rope_parameters mrope_section")) : 0;
+        list.arr.push_back(e);
+    }
+    kv.emplace_back(p + "rope.dimension_sections", list);
+}
+
+// The table of a Qwen 3.5 or 3.6 dense directory (hf::Table), whose text model's keys sit in text_config; the vision tower is dropped, since images come from an mmproj file.
+inline const hf::Table& hf_table() {
+    using hf::Rule;
+    using hf::VHeads;
+    static const hf::Table table = [] {
+        hf::Table t{"qwen3_5", "Qwen3_5ForConditionalGeneration",
+            {{"hidden_size", "embedding_length", Rule::integer, nullptr},
+             {"intermediate_size", "feed_forward_length", Rule::integer, nullptr},
+             {"max_position_embeddings", "context_length", Rule::integer, nullptr},
+             {"num_attention_heads", "attention.head_count", Rule::integer, nullptr},
+             {"num_key_value_heads", "attention.head_count_kv", Rule::integer, nullptr},
+             {"head_dim", "attention.key_length", Rule::integer, nullptr},
+             {"head_dim", "attention.value_length", Rule::integer, nullptr},
+             {"rms_norm_eps", "attention.layer_norm_rms_epsilon", Rule::real, nullptr},
+             {"linear_conv_kernel_dim", "ssm.conv_kernel", Rule::integer, nullptr},
+             {"linear_key_head_dim", "ssm.state_size", Rule::integer, nullptr},
+             {"linear_num_key_heads", "ssm.group_count", Rule::integer, nullptr},
+             {"linear_num_value_heads", "ssm.time_step_rank", Rule::integer, nullptr},
+             {"model_type", nullptr, Rule::check, "\"qwen3_5_text\""},
+             {"attention_bias", nullptr, Rule::check, "false"},
+             {"attn_output_gate", nullptr, Rule::check, "true"},
+             {"hidden_act", nullptr, Rule::check, "\"silu\""},
+             {"mamba_ssm_dtype", nullptr, Rule::check, "\"float32\""},
+             {"mtp_use_dedicated_embeddings", nullptr, Rule::check, "false"},
+             {"tie_word_embeddings", nullptr, Rule::check, "true|false"},
+             {"dtype", nullptr, Rule::check, "\"bfloat16\"|\"float16\"|\"float32\""},
+             // Read by hf_derive.
+             {"num_hidden_layers", nullptr, Rule::check, nullptr},
+             {"mtp_num_hidden_layers", nullptr, Rule::check, nullptr},
+             {"linear_value_head_dim", nullptr, Rule::check, nullptr},
+             {"full_attention_interval", nullptr, Rule::check, nullptr},
+             {"layer_types", nullptr, Rule::check, nullptr},
+             {"rope_parameters", nullptr, Rule::check, nullptr},
+             // A dense model has no expert layers to leave out; the rest are read elsewhere (vocab_size against the embedding, the token ids beside the tokenizer's) or have no effect on inference.
+             {"mlp_only_layers", nullptr, Rule::check, nullptr},
+             {"vocab_size", nullptr, Rule::check, nullptr},
+             {"bos_token_id", nullptr, Rule::check, nullptr},
+             {"eos_token_id", nullptr, Rule::check, nullptr},
+             {"pad_token_id", nullptr, Rule::check, nullptr},
+             {"attention_dropout", nullptr, Rule::check, nullptr},
+             {"initializer_range", nullptr, Rule::check, nullptr},
+             {"use_cache", nullptr, Rule::check, nullptr}},
+            {},
+            "token_embd.weight", "output.weight"};
+        t.config = "text_config";
+        t.outer = {{"tie_word_embeddings", nullptr, Rule::check, "true|false"},
+                   {"transformers_version", nullptr, Rule::check, nullptr},
+                   {"vision_config", nullptr, Rule::check, nullptr},
+                   {"image_token_id", nullptr, Rule::check, nullptr},
+                   {"video_token_id", nullptr, Rule::check, nullptr},
+                   {"vision_start_token_id", nullptr, Rule::check, nullptr},
+                   {"vision_end_token_id", nullptr, Rule::check, nullptr}};
+        t.derive = hf_derive;
+        t.k_heads = "ssm.group_count";
+        t.v_heads = "ssm.time_step_rank";
+        t.k_width = "ssm.state_size";
+        // A full-attention layer's and every layer's tensors, which the MTP layer holds too under blk.{L}.
+        const std::vector<hf::Name> full = {
+            {"self_attn.q_proj.weight", "attn_q.weight"},
+            {"self_attn.k_proj.weight", "attn_k.weight"},
+            {"self_attn.v_proj.weight", "attn_v.weight"},
+            {"self_attn.o_proj.weight", "attn_output.weight"},
+            {"self_attn.q_norm.weight", "attn_q_norm.weight", hf::plus_one},
+            {"self_attn.k_norm.weight", "attn_k_norm.weight", hf::plus_one},
+            {"input_layernorm.weight", "attn_norm.weight", hf::plus_one},
+            {"post_attention_layernorm.weight", "post_attention_norm.weight", hf::plus_one},
+            {"mlp.gate_proj.weight", "ffn_gate.weight"},
+            {"mlp.up_proj.weight", "ffn_up.weight"},
+            {"mlp.down_proj.weight", "ffn_down.weight"}};
+        const std::vector<hf::Name> linear = {
+            {"linear_attn.in_proj_qkv.weight", "attn_qkv.weight", hf::none, VHeads::rows_after_qk},
+            {"linear_attn.in_proj_z.weight", "attn_gate.weight", hf::none, VHeads::rows},
+            {"linear_attn.in_proj_b.weight", "ssm_beta.weight", hf::none, VHeads::rows},
+            {"linear_attn.in_proj_a.weight", "ssm_alpha.weight", hf::none, VHeads::rows},
+            {"linear_attn.conv1d.weight", "ssm_conv1d.weight", hf::widen, VHeads::rows_after_qk},
+            {"linear_attn.dt_bias", "ssm_dt.bias", hf::none, VHeads::rows},
+            {"linear_attn.A_log", "ssm_a", hf::neg_exp, VHeads::rows},
+            {"linear_attn.norm.weight", "ssm_norm.weight"},
+            {"linear_attn.out_proj.weight", "ssm_out.weight", hf::none, VHeads::columns}};
+        t.names = {{"model.language_model.embed_tokens.weight", "token_embd.weight"},
+                   {"model.language_model.norm.weight", "output_norm.weight", hf::plus_one},
+                   {"lm_head.weight", "output.weight"},
+                   {"mtp.fc.weight", "blk.{L}.nextn.eh_proj.weight"},
+                   {"mtp.pre_fc_norm_embedding.weight", "blk.{L}.nextn.enorm.weight", hf::plus_one},
+                   {"mtp.pre_fc_norm_hidden.weight", "blk.{L}.nextn.hnorm.weight", hf::plus_one},
+                   {"mtp.norm.weight", "blk.{L}.nextn.shared_head_norm.weight", hf::plus_one},
+                   {"model.visual.*", ""}};
+        for (const auto* part : {&full, &linear})
+            for (const hf::Name& n : *part) t.names.push_back({"model.language_model.layers.{N}." + n.hf, "blk.{N}." + n.gguf, n.transform, n.heads});
+        for (const hf::Name& n : full) t.names.push_back({"mtp.layers.0." + n.hf, "blk.{L}." + n.gguf, n.transform, n.heads});
+        return t;
+    }();
+    return table;
 }
 
 // qwen35's roles, by the id a row of resolved weights is indexed by, and its layer kinds.

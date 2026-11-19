@@ -6,12 +6,15 @@ import tempfile
 
 import common
 import f32
+import qwen35
 import spec_decode as sd
 from common import run_f32_cache as cli
 from tokenizer import build_byte_vocab
 
 # The Split pattern of Qwen2 and Qwen3 tokenizer.json files, the one the reader takes (bpe::hf::qwen2_pattern).
 QWEN2_PATTERN = r"""(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+"""
+# The Split pattern of Qwen 3.5 and 3.6 files (bpe::hf::qwen35_pattern).
+QWEN35_PATTERN = r"""(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?[\p{L}\p{M}]+|\p{N}| ?[^\s\p{L}\p{M}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+"""
 
 
 def write_entries(path, entries):
@@ -61,12 +64,18 @@ def write_directory(path, weights, tied, files=1, c=f32.CONFIG, extra=None):
             weight_map.update((hf, name) for _, hf, _, _ in part)
         with open(os.path.join(path, "model.safetensors.index.json"), "w") as f:
             json.dump({"metadata": {}, "weight_map": weight_map}, f)
+    write_tokenizer(path, QWEN2_PATTERN)
+    return path
+
+
+def write_tokenizer(path, pattern):
+    """A byte-level tokenizer whose ids are the bytes, then <|endoftext|>, splitting by `pattern`."""
     vocab = {token: i for i, token in enumerate(build_byte_vocab())}
     end = {"id": f32.VOCAB - 1, "content": "<|endoftext|>", "single_word": False, "lstrip": False, "rstrip": False,
            "normalized": False, "special": True}
     tokenizer = {"added_tokens": [end], "normalizer": {"type": "NFC"},
                  "pre_tokenizer": {"type": "Sequence", "pretokenizers": [
-                     {"type": "Split", "pattern": {"Regex": QWEN2_PATTERN}, "behavior": "Isolated", "invert": False},
+                     {"type": "Split", "pattern": {"Regex": pattern}, "behavior": "Isolated", "invert": False},
                      {"type": "ByteLevel", "add_prefix_space": False, "trim_offsets": False, "use_regex": False}]},
                  "post_processor": None, "decoder": {"type": "ByteLevel", "add_prefix_space": False, "trim_offsets": False, "use_regex": False},
                  "model": {"type": "BPE", "vocab": vocab, "merges": []}}
@@ -74,7 +83,6 @@ def write_directory(path, weights, tied, files=1, c=f32.CONFIG, extra=None):
         json.dump(tokenizer, f)
     with open(os.path.join(path, "tokenizer_config.json"), "w") as f:
         json.dump({"eos_token": "<|endoftext|>"}, f)
-    return path
 
 
 # A 64-wide model whose every linear has whole AWQ groups of 32 inputs and outputs in whole words of eight.
@@ -343,6 +351,104 @@ def twin_checks(directory, label, fixture, quantization, type_name):
         assert same, "%s on the %s directory differs from its twin: %r" % (args[0], label, [(p.stdout[-400:], p.stderr[-400:]) for p in outs])
 
 
+def bf16_raw(raw):
+    """The HF weights `raw` rounded to BF16, ties to even, as (name, shape, values, BF16 bytes)."""
+    out = []
+    for name, shape, values in raw:
+        bits = [struct.unpack("<I", struct.pack("<f", v))[0] for v in values]
+        halves = [(b + 0x7fff + ((b >> 16) & 1)) >> 16 for b in bits]
+        out.append((name, shape, [struct.unpack("<f", struct.pack("<I", h << 16))[0] for h in halves], struct.pack("<%dH" % len(halves), *halves)))
+    return out
+
+
+def qwen35_directory(path, spec, text_change=None, rope_change=None, raw=None):
+    """The tiny qwen35 fixture `spec` of tests/qwen35.py as a Qwen 3.5 directory: its HF weights, or `raw` from bf16_raw, under the multimodal model's names beside one vision tower tensor.
+    The text model's keys sit in text_config, changed by `text_change` and `rope_change`."""
+    os.makedirs(path)
+    config, v_head, _ = qwen35.fixture_config(spec)
+    head = config["attention.key_length"]
+    text = {"model_type": "qwen3_5_text", "dtype": "float32", "vocab_size": f32.VOCAB, "hidden_size": config["embedding_length"],
+            "intermediate_size": config["feed_forward_length"], "num_hidden_layers": qwen35.LAYERS, "num_attention_heads": config["attention.head_count"],
+            "num_key_value_heads": config["attention.head_count_kv"], "head_dim": head, "hidden_act": "silu",
+            "max_position_embeddings": config["context_length"], "rms_norm_eps": config["attention.layer_norm_rms_epsilon"],
+            "tie_word_embeddings": spec["tied"], "attention_bias": False, "attention_dropout": 0.0, "attn_output_gate": True,
+            "linear_conv_kernel_dim": config["ssm.conv_kernel"], "linear_key_head_dim": config["ssm.state_size"], "linear_value_head_dim": v_head,
+            "linear_num_key_heads": config["ssm.group_count"], "linear_num_value_heads": spec["v_heads"], "full_attention_interval": config["full_attention_interval"],
+            "layer_types": ["full_attention" if qwen35.full_attention(layer) else "linear_attention" for layer in range(qwen35.LAYERS)],
+            "mtp_num_hidden_layers": int(spec["mtp"]), "mtp_use_dedicated_embeddings": False, "mamba_ssm_dtype": "float32", "eos_token_id": qwen35.EOS,
+            "rope_parameters": dict({"rope_type": "default", "rope_theta": config["rope.freq_base"], "partial_rotary_factor": config["rope.dimension_count"] / head,
+                                     "mrope_section": config["rope.dimension_sections"][:3], "mrope_interleaved": True}, **(rope_change or {}))}
+    text.update(text_change or {})
+    top = {"architectures": ["Qwen3_5ForConditionalGeneration"], "model_type": "qwen3_5", "text_config": text, "tie_word_embeddings": text["tie_word_embeddings"],
+           "vision_config": {"depth": 1}, "image_token_id": f32.VOCAB, "transformers_version": "5.17.0"}
+    with open(os.path.join(path, "config.json"), "w") as f:
+        json.dump(top, f)
+    entries = [("model.visual.patch_embed.proj.weight", "F32", [2, 2, 2, 3, 4], b"\0" * 4 * 96)]
+    for name, shape, values, *half in raw or qwen35.raw_weights(spec):
+        hf = "model.language_model." + name[len("model."):] if name.startswith("model.") else name
+        entries.append((hf, "BF16" if half else "F32", list(reversed(shape)), half[0] if half else struct.pack("<%df" % len(values), *values)))
+    write_entries(os.path.join(path, "model.safetensors"), entries)
+    write_tokenizer(path, QWEN35_PATTERN)
+    return path
+
+
+def qwen35_checks(directory):
+    """Tiny qwen35 directories, Hv = Hk tied and Hv = 3 Hk alone, in BF16 and with an MTP layer, give the outputs of the GGUF the converter writes (tests/qwen35.py) byte for byte, the MTP layer drafting as the file's does.
+    The Hv = 3 Hk directory against HF's goldens of its weights, and what the table does not read refused by name. Returns the largest logit error against HF."""
+    goldens = {fixture["name"]: fixture for fixture in qwen35.golden()["fixtures"]}
+    text = f32.TEXTS[-1]
+    worst = 0.0
+    hv3 = next(spec for spec in qwen35.FIXTURES if spec["name"] == "hv3")
+    for spec, half in [(spec, False) for spec in qwen35.FIXTURES if not spec.get("moe")] + [(hv3, True)]:
+        label = spec["name"] + ("-bf16" if half else "")
+        if half:
+            # BF16 weights reach the 16-bit forms of every transform; the twin holds their exact values.
+            raw = bf16_raw(qwen35.raw_weights(spec))
+            model = qwen35_directory(os.path.join(directory, "qwen35-" + label), spec, {"dtype": "bfloat16"}, raw=raw)
+            twin = f32.write_model(os.path.join(directory, "qwen35-%s.gguf" % label), qwen35.gguf_tensors(spec, [r[:3] for r in raw]), eos_id=qwen35.EOS,
+                                   config=qwen35.gguf_config(spec), arch="qwen35")
+        else:
+            model = qwen35_directory(os.path.join(directory, "qwen35-" + label), spec)
+            twin = qwen35.write_fixture(directory, spec)
+        runs = [["tokenize", "{}", text], ["logits", "{}", text, "--top", str(f32.VOCAB)], ["generate", "{}", text[:4], "-n", "8", "--temp", "0", "--ignore-eos"]]
+        if spec["mtp"]:
+            runs.append(["generate", "{}", text[:4], "-n", "8", "--temp", "0", "--ignore-eos", "--drafter", "embedded"])
+        for args in runs:
+            outs = [common.run_process([a.replace("{}", m) for a in args], cache="f32") for m in (model, twin)]
+            text_of = common.generate_text if args[0] == "generate" else common.cli_stdout
+            assert outs[0].returncode == 0 == outs[1].returncode and text_of(outs[0].stdout) == text_of(outs[1].stdout), \
+                "%s on the qwen35 %s directory differs from its GGUF twin: %r" % (args[0], label, [(p.stdout[-400:], p.stderr[-400:]) for p in outs])
+        if label == "hv3":
+            error, _ = common.check_hf_fixture("safetensors qwen35 hv3", model, goldens["hv3"]["cases"], goldens["hv3"]["perplexity"], text, (1, 16))
+            worst = max(worst, error)
+    mtp = next(spec for spec in qwen35.FIXTURES if spec["mtp"])
+    cases = [("no-mtp", {"mtp_num_hidden_layers": 0}, None, "is an MTP tensor, and config.json gives no MTP layer"),
+             ("layers", {"full_attention_interval": 3}, None, "config.json layer_types does not follow full_attention_interval"),
+             ("rope", None, {"rope_type": "yarn"}, 'config.json rope_parameters rope_type = "yarn" is not supported'),
+             ("key", {"sliding_window": 4}, None, "config.json key sliding_window is not one llmx reads for qwen3_5")]
+    for label, text_change, rope_change, message in cases:
+        model = qwen35_directory(os.path.join(directory, "qwen35-refused-" + label), mtp, text_change, rope_change)
+        rc, out = cli(["info", model])
+        assert rc != 0 and message in out, "the %s qwen35 directory was not refused by name: %s" % (label, out)
+    # tie_word_embeddings at the top level alone ties the head as text_config's would, and the two levels disagreeing is refused.
+    tied = next(spec for spec in qwen35.FIXTURES if spec["tied"] and not spec.get("moe"))
+    outs = []
+    for label, inner in [("tie-both", True), ("tie-outer", None), ("tie-differs", False)]:
+        model = qwen35_directory(os.path.join(directory, "qwen35-" + label), tied)
+        with open(os.path.join(model, "config.json")) as f:
+            top = json.load(f)
+        if inner is None:
+            del top["text_config"]["tie_word_embeddings"]
+        else:
+            top["text_config"]["tie_word_embeddings"] = inner
+        with open(os.path.join(model, "config.json"), "w") as f:
+            json.dump(top, f)
+        outs.append(cli(["logits", model, text, "--top", "4"]))
+    assert outs[0][0] == 0 == outs[1][0] and outs[0][1] == outs[1][1], "a tie at the top level alone did not tie the head: %r" % (outs[:2],)
+    assert outs[2][0] != 0 and "tie_word_embeddings differs" in outs[2][1], "disagreeing ties were not refused: " + outs[2][1]
+    return worst
+
+
 def run():
     if common.f32_cache_skip("safetensors") or common.tensor_width_skip("safetensors"):
         return common.SKIPPED
@@ -388,9 +494,10 @@ def run():
             for dt, error in errors.items():
                 fp8_worst[dt] = max(fp8_worst[dt], error)
         fp8_refusals(directory)
+        worst = max(worst, qwen35_checks(directory))
     fp8 = ("against their F32 twins, worst %.8f at f32 and %.8f at f16, by tensor as their F8_E4M3 GGUF twins byte for byte"
            % (fp8_worst["f32"], fp8_worst["f16"]) if fp8_worst else "listed by info, their logits skipped")
-    print("safetensors: tiny F32 directories, tied in one file and untied in two under an index, all 257 logits vs HF, PPL, --last/--then-ids/--per-token rows, and the GGUF twin's ids, text and logits; an AWQ directory with F16 and BF16 scales and GPTQ 4-bit symmetric, 4-bit v2 and 8-bit directories and compressed-tensors 4-bit symmetric and asymmetric packed and 8-bit packed and int8 directories as their Q5_0, Q4_0 and Q8_0 twins' ids, text and logits; max error %.8f; FP8 directories in both dialects by tensor, channel and block %s, and the refusals  [ok]" % (worst, fp8))
+    print("safetensors: tiny F32 directories, tied in one file and untied in two under an index, all 257 logits vs HF, PPL, --last/--then-ids/--per-token rows, and the GGUF twin's ids, text and logits; an AWQ directory with F16 and BF16 scales and GPTQ 4-bit symmetric, 4-bit v2 and 8-bit directories and compressed-tensors 4-bit symmetric and asymmetric packed and 8-bit packed and int8 directories as their Q5_0, Q4_0 and Q8_0 twins' ids, text and logits; max error %.8f; FP8 directories in both dialects by tensor, channel and block %s, and the refusals; tiny qwen35 directories, F32 and BF16, with their GGUF twins' outputs byte for byte, Hv = 3 Hk against HF, and their refusals  [ok]" % (worst, fp8))
     return True
 
 

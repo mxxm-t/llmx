@@ -447,6 +447,7 @@ The hard prompt's article text is wikitext-2 (Merity, Xiong, Bradbury and Socher
 The requests, the medium prompt's notes and the easy prompt's file were written for llmx and are under its license.
 
 **The driver.** `python tools/drafting_set.py --exe build/llmx --model M.gguf --drafter lookup,embedded --draft-max 3 --repeats 2 --json out.json` runs each prompt with drafts off and with the drafter given, as fresh greedy `llmx generate` runs alternating off, on, on, off; `generate` flags given after a `--`, such as the device and the dtype, go to both arms.
+Each run's stderr goes on to the driver's, so the sum forms a tensor group timed and the fit stay beside the result.
 For each prompt it prints one table: prefill and decode tok/s of each arm, medians over the repeats; the drafts fed and kept and the acceptance, kept over fed, from the `drafts kept:` and `own drafts kept:` lines of `--verbose`; the tokens a decode pass gives, the tokens after the first over the passes that gave them, which is 1 without drafts; and whether every run's greedy ids equal the first run's without drafts, the correctness witness, a difference failing the run.
 Development runs may take one prompt (`--prompts easy`); final and gate results report all three.
 

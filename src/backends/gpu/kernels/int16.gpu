@@ -2268,17 +2268,20 @@ extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_tile16(LLMX_GRI
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_f16_tile(LLMX_GRID_CONST TileCall c, const float* X) { f16_tile(c, X); }
 extern "C" __global__ void LLMX_TILE8_BOUNDS(2) llmx_q8_0_tile8(LLMX_GRID_CONST TileCall c, const signed char* q, const float* dx) { q8_0_tile<signed char, 4>(c, q, dx); }
 
-// The parts of a split tile call added in part order, plus y when adding (the Vulkan reduce's order, matmul_reduce.comp): a thread an output, projection p's outputs from workgroup c.start[p] on.
-extern "C" __global__ void __launch_bounds__(kThreads) llmx_tile_reduce(TileCall c) {
-    const unsigned pi = c.nproj > 2 && blockIdx.x >= c.start[2] ? 2 : c.nproj > 1 && blockIdx.x >= c.start[1] ? 1 : 0;
-    const unsigned long long n = c.nout[pi] * c.nrows, local = (unsigned long long)(blockIdx.x - c.start[pi]) * kThreads + threadIdx.x;
-    if (local >= n) return;
-    unsigned long long before = 0;
-    for (unsigned p = 0; p < pi; ++p) before += c.nout[p];
-    const float* part = c.partials + c.parts * c.nrows * before + local;
-    float s = c.add ? c.y[pi][local] : 0.0f;
-    for (unsigned z = 0; z < c.parts; ++z) s += part[z * n];
-    c.y[pi][local] = s;
+// The parts of a split tile call added in part order, plus y when adding (the Vulkan reduce's order, matmul_reduce.comp): a thread an output, projection p's outputs from block c.start[p] on.
+// A workgroup takes the blocks below `blocks` from blockIdx.x in steps of gridDim.x, so the grid stays within what the device holds resident (docs/src/backends-gpu.md).
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_tile_reduce(TileCall c, unsigned blocks) {
+    for (unsigned bx = blockIdx.x; bx < blocks; bx += gridDim.x) {
+        const unsigned pi = c.nproj > 2 && bx >= c.start[2] ? 2 : c.nproj > 1 && bx >= c.start[1] ? 1 : 0;
+        const unsigned long long n = c.nout[pi] * c.nrows, local = (unsigned long long)(bx - c.start[pi]) * kThreads + threadIdx.x;
+        if (local >= n) continue;
+        unsigned long long before = 0;
+        for (unsigned p = 0; p < pi; ++p) before += c.nout[p];
+        const float* part = c.partials + c.parts * c.nrows * before + local;
+        float s = c.add ? c.y[pi][local] : 0.0f;
+        for (unsigned z = 0; z < c.parts; ++z) s += part[z * n];
+        c.y[pi][local] = s;
+    }
 }
 
 extern "C" __global__ void LLMX_TILE8_BOUNDS(2) llmx_q8_0_tile8_tall(LLMX_GRID_CONST TileCall c, const signed char* q, const float* dx) { q8_0_tile<signed char, 8>(c, q, dx); }

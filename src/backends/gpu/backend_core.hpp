@@ -1136,17 +1136,19 @@ public:
         float eps, scale;
     };
     static_assert(offsetof(HcMix, streams) == 16 * sizeof(void*) && sizeof(HcMix) == 16 * sizeof(void*) + 6 * 4, "HcMix mirrors the kernel's argument");
-    // Whether a grid of the build is resident at once, which its barriers need: the blocks a compute unit holds times the units, read once a build; a grid past it is said once and runs the chain.
-    bool hc_resident(int k, unsigned grid) {
-        const size_t i = k == kHcMix ? 0 : 1;
-        if (hc_per_cu_[i] < 0) {
-            int n = 0;
+    // The workgroups of build k the device holds at once: its occupancy a compute unit, read once into `per_cu`, times the units.
+    size_t resident(int& per_cu, int k) {
+        if (per_cu < 0) {
             // HIP finds the module's function through the calling thread's device, which another backend's call may have changed.
             Api::check(Api::set_device(dev_.index), "set_device");
-            Api::check(Api::occupancy(&n, kernels_[k], kThreads, 0), "occupancy");
-            hc_per_cu_[i] = n;
+            Api::check(Api::occupancy(&per_cu, kernels_[k], kThreads, 0), "occupancy");
         }
-        const bool ok = size_t(grid) <= size_t(hc_per_cu_[i]) * dev_.caps.compute_units;
+        return size_t(per_cu) * dev_.caps.compute_units;
+    }
+    // Whether a grid of the build is resident at once, which its barriers need; a grid past it is said once and runs the chain.
+    bool hc_resident(int k, unsigned grid) {
+        const size_t i = k == kHcMix ? 0 : 1;
+        const bool ok = size_t(grid) <= resident(hc_per_cu_[i], k);
         if (!ok && !hc_refused_) {
             hc_refused_ = true;
             std::fprintf(stderr, "%sthe hyper-connection mix's %u workgroups exceed the %d a compute unit times %u units resident on %s; it runs as separate launches\n", Api::prefix.c_str(), grid,
@@ -1862,12 +1864,7 @@ public:
     // The gate+up build for a grid: the wide shared build, two rows a wave and four steps a load, where the grid is resident at that build's occupancy, else the lean one.
     auto step_up_kernel(bool q5, size_t grid) {
         const auto lean = q5 ? kMoeStepUpQ5K : kMoeStepUpQ4K, wide = q5 ? kMoeStepUpQ5KW : kMoeStepUpQ4KW;
-        int& per_cu = step_up_per_cu_[q5];
-        if (per_cu < 0) {
-            Api::check(Api::set_device(dev_.index), "set_device");
-            Api::check(Api::occupancy(&per_cu, kernels_[wide], kThreads, 0), "occupancy");
-        }
-        return grid <= size_t(per_cu) * dev_.caps.compute_units ? wide : lean;
+        return grid <= resident(step_up_per_cu_[q5], wide) ? wide : lean;
     }
     // Where fused_step holds, a step is three launches (docs/src/backends-gpu.md): route with row gate and twin of h, every gate and up with their SiLU, the down with combine and shared down.
     // Each output keeps the bits of the base's ops (Backend::moe_step), which run every other step.
@@ -3251,8 +3248,8 @@ private:
                 c.start[pi] = (unsigned)g;
                 g += (proj[pi].nout * rows + kThreads - 1) / kThreads;
             }
-            const Args rargs(c);
-            launch(kTileReduce, (unsigned)g, 1, rargs);
+            const Args rargs(c, (unsigned)g);
+            launch(kTileReduce, (unsigned)std::min(g, std::max<size_t>(1, resident(reduce_per_cu_, kTileReduce))), 1, rargs);
         }
     }
     // Rows `ids` of a table through the type's gather kernel, ids on the device; an id of `nrows` or more gives a zero row.
@@ -3531,6 +3528,7 @@ private:
         return (unsigned*)as_gpu<Api>(*step_counter_).data();
     }
     int step_up_per_cu_[2] = {-1, -1};      // the wide gate+up builds' resident workgroups a compute unit, Q4_K then Q5_K, found at their first step
+    int reduce_per_cu_ = -1;   // the tile reduce's resident workgroups a compute unit, found at its first launch, which caps its grid
     BufferPtr moe_tab_;   // a grouped routed call's groups and entries (kernels/f32.gpu, llmx_moe_group)
     int want_twin_ = 0;   // the class of the last twin a product read, 1 block-int16 and 2 block-int8, which producers write; 0 before any
     bool want_sums_ = true;   // whether the last product with prompt tiles read the half sums (TwinKernels::tile_sums), which producers then write

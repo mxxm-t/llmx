@@ -203,6 +203,31 @@ This test-only correction lands by fast-forward with the companion workflow.
 - **Checks:** The independent Chrome regression failed in 59.797 seconds before the fix and passed in 54.855 seconds after it. The combined browser fixture over public main `2ea30d410` passed in 66.845 seconds, including both themes at 1440, 390 and 320 pixels and 200 percent CSS zoom. Desktop preference, transient Settings access, mobile drawer state and toggle geometry passed. JavaScript syntax, whitespace and independent integration review passed. Dead-code passed with 17 expected findings and 20 planted faults in 34.8 seconds; docs passed with zero findings and 29 planted faults in 31.8 seconds and runs once more after this record.
 - **Landing:** Fast-forward from `2ea30d410` after final documentation validation and a fresh main check. This is static presentation only, with no server, runtime, API or numerical changes. The existing docs CLI remains applicable because native source and build inputs are unchanged. Full Markdown review checks references to details, temporary labels and layout; the companion README and TESTS own the updated behavior. Receipts are in `scratch/reading-landing/`, with independent matched screenshots in the main workspace's `scratch/chat-reading-layout/`.
 - **Gotchas:** Composer Settings and the narrow drawer are transient. Only explicit docked Details actions save the preference. Long titles can still truncate. Chrome emulation does not establish physical phone or Safari coverage. Settings semantics and history search remain separate audit work.
+## The tile reduce within the resident workgroups (2026-11-19, BACKLOG1 and BACKLOG2, branch perf/rocm-reduce-cap on land/20261118 57a932e49)
+
+- **Why:** on an MI50 a dispatch of 510 to 512 workgroups of 256 threads stalls about 40 us (INV11, 2026-11-10, /opt/claude-work/inv11).
+  `llmx_tile_reduce`'s grid is the outputs times the rows over 256, so a split tile call of 32, 64, 96 or 128 full tiles landed on that count, and Qwen3-0.6B's q projection at 64 rows and three parts took its reduce from 6 to 50 us.
+  A standalone copy-sum kernel stalls the same way at 510 to 512 workgroups and not at 508 or 513; RADV shows no such stall, so Vulkan's reduce is unchanged (INV12, /opt/claude-work/inv12/out/vs.txt).
+- **The change:** `llmx_tile_reduce` takes its block count, each workgroup takes every grid-th block, and the launch is capped at the workgroups the device holds resident (`resident`, the build's occupancy a compute unit times the units, 480 on an MI50), which the hyper-connection mix's and the gate+up's residency checks now share.
+  Each output adds its parts in the same order, so the bits are the same.
+- **Evidence before the rebase:** INV11's A/B on one MI50 over 936 cells (9 shapes, int8 and f16, 13 extents, forced parts) gave equal output hashes in every cell, 82 cells more than 20% faster and none slower beyond noise; Qwen3 q at 64 rows and three parts went from 80.3 to 40.3 us.
+- **Not carried:** fix/rocm-group-ksplit's split rule for grouped calls, which loses 13 single and 16 group cells against main (INV12) and stays parked.
+- **Gates, at 87c0e3b9** (rig, land/20261118 57a932e49 `0.1.0+g57a932e49b0a` against the branch `0.1.0+g87c0e3b9d850`, both built the same way, ROCm 7.2.1; logs /opt/claude-work/backlog1/out/cj1, /opt/claude-work/backlog2/out/cj1c and out/cpu2):
+  - Qwen3-0.6B Q8_0 on one MI50, 600 ids, greedy, decode and batched logits at int8 and f16, ubatch 64 and 512: byte-identical to land in all 12 files.
+  - CTest ROCm `gpu-core`, `backend-rocm`, `backend-rocm-sixteen` and `backend-rocm-scratch` 4/4 on one MI50; CTest CPU 90/90.
+  - Prompt timing, Qwen3-0.6B Q8_0 on one MI50 (renderD132), land and branch interleaved over three rounds, the median of three samples, each the mean of three runs; the host was contended (hostwait 42 s of run-queue wait over the job), and the card was the job's alone:
+
+    | dtype | prompt | land tok/s | branch tok/s | change |
+    |---|---|---|---|---|
+    | int8 | 64 (ubatch 64) | 4699 | 5260 | +11.9% |
+    | f16 | 64 (ubatch 64) | 4300 | 4756 | +10.6% |
+    | int8 | 512 | 10894 | 10880 | -0.1% |
+    | f16 | 512 | 8774 | 8752 | -0.3% |
+
+    The 512-token cells are level within their spread (land 8717 to 8781, branch 8738 to 8765 at f16).
+  The tree that lands differs from the gated 87c0e3b9 in this block and in one comment of `llmx_tile_reduce` that the `docs` component's comment check found, which compiles to the same kernel.
+- **Left:** the landing stack's hosted run; README unchanged (a speed-up no table names).
+
 ## A prefill sheds a stale prefill's slice points (2026-11-16, DSPP20, branch fix/slice-stale-points on main 929f042c6, rebased onto main a274cfd62 and then onto land/20261118 57a932e49; F2DEV's review of 07:56)
 
 **Goal.** `SlicePeriods` prices a pipelined prompt's cut from the second prefill's points on, however cold the first prefill after a load ran, on any split and device.

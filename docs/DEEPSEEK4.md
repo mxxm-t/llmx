@@ -345,6 +345,11 @@ The rest of the table's handling is the cache plan's, unchanged:
   Host experts beside one large device follow `--n-cpu-moe` where the host holds the experts (269 GiB on V4.1).
 - **Tensor groups:** 64 query heads over one shared vector, 32 index heads and 384 experts shard by heads and experts, and the 8 output groups allow widths 2 and 4; built after the layer split, on the owner's 1.5x tensor-split target (step 14).
   As built (2026-11-11): five stages of width 2 on ten MI50s, the only shape whose weights fit them, with the query, the sinks, the output groups, the routed and shared experts, the head and the BF16 embedding split and the shared vector, the compressor, the indexer, Engram and the router whole on every member (docs/src/model-arch-deepseek4.md); the embedding's vocabulary rows split so the first group fits at the default ubatch (TENSOR-SPLIT.md, section 4.2).
+- **Activity-based expert placement (planned):** it applies only to tensor groups; under a layer split a layer's experts stay on the device that runs the layer.
+  First record each member's routed work per pass; if the busiest member is more than about 15% over the mean, choose a static expert placement once at load from a routing trace.
+  Moving experts while serving, or copying hot experts, comes only if serving traffic shows a skew a static placement cannot handle.
+  Moving an expert to another member changes which partial it lands in and so the order of the group sum, so outputs stay bit-identical across placements only if the sum order is fixed per expert.
+  Decode for one user gains little, since each token picks only a few experts.
 - **Not here:** expert parallelism (MULTI-DEVICE.md).
 
 ### 4.9 ROCm (new, 2026-11-04)

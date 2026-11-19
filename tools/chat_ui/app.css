@@ -803,7 +803,7 @@ kbd {
   font-weight:400
 }
 .message.user>.message-header {
-  margin-bottom:5px
+  margin-bottom:9px
 }
 .message.user .message-avatar {
   display:none
@@ -965,6 +965,19 @@ kbd {
   height:16px
 }
 .message-actions button:hover {
+  border-color:var(--border);
+  background:var(--hover);
+  color:var(--text)
+}
+.message.user>.message-actions {
+  column-gap:8px;
+  margin-top:9px
+}
+.message.user>.message-actions>.message-icon-action {
+  border-color:transparent;
+  background:transparent
+}
+.message.user>.message-actions>.message-icon-action:is(:hover,:focus-visible) {
   border-color:var(--border);
   background:var(--hover);
   color:var(--text)
@@ -1549,6 +1562,11 @@ body {
     min-width:40px;
     min-height:40px;
     padding:0
+  }
+  .message.user>.message-actions>.message-icon-action {
+    width:44px;
+    min-width:44px;
+    min-height:44px
   }
   .branch-switch button {
     min-width:40px;

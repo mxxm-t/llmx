@@ -7,12 +7,21 @@
 - **Implementation:** The companion binds writes to the target file before generation and approval. A read refreshes the observed file after a conflict. Parallel proposals share the same starting files.
 - **Checks:** Workspace tests cover an invented revision, unrelated and competing writes, idempotence, deletion and recreation.
 
+## User message spacing in Chat (2026-11-19)
+
+- **Goal:** Make prompt timestamps, bubbles, and message actions easier to distinguish.
+- **Done:** Separated the prompt header, bubble and actions. Copy and Edit use quiet icons with focus and hover treatments and 44 px touch targets.
+- **Checks:** Chrome measured 9 px above and below short and long prompts and 8 px between their actions at 1440, 390 and 320 px in both themes. Keyboard focus and hover retained the row position, and touch Edit opened the prompt.
+- **Checks:** Docs and dead-code passed on the spacing branch. The changes land by fast-forward after the combined companion checks.
+- **Gotchas:** Controls must stay visible and usable by keyboard and touch. Hover and keyboard focus must not resize the action row.
+
 ## Repeated writes to saved files (2026-11-19)
 
 - **Goal:** Report an already-saved tool edit accurately and protect newer file content on a stale write.
 - **Done:** An identical retry returns the current revision and already_saved. A stale edit with different content points to workspace_read or workspace_list. A real edit and its checkpoint are persisted together.
 - **Checks:** The tool regression covers matching and stale revisions, malformed revisions, rejected edits and a successful change. The branch lands by fast-forward after the companion checks.
 - **Gotchas:** A retry must not overwrite, advance the revision or create another checkpoint.
+
 ## Open files from a Chat tool result (2026-11-19)
 
 - **Goal:** View the saved output where a write appears in Chat and make the right panel easier to scan.

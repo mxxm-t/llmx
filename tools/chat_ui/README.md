@@ -237,8 +237,10 @@ keyboard focus keeps its visible outline.
   saved settings. You can keep editing while Save or a reply request is
   pending. Wait for that request to finish before submitting another change
   for the same chat.
-- Prompts have a **You** label and a tinted bubble. Assistant prose uses shorter
-  lines on wide screens, while code and tables retain the space they need.
+- Prompts have a **You** label and a tinted bubble. Copy and Edit sit below
+  the prompt, with larger touch targets and visible keyboard focus.
+  Assistant prose uses shorter lines on wide screens, while code and tables
+  retain the space they need.
   Consecutive model calls in a tool-assisted reply share a heading and a side
   rule. Each call keeps its own actions and expandable details. One statistics
   icon covers the reply, including its tool-related model calls.

@@ -99,6 +99,8 @@ As built in step 6, transports 1 and 2 are one collective in the shared core (`g
 NVLink and NVSwitch take transport 1 unchanged and the form timing picks per size; a context reaches at most eight peers, so an all-peer group is at most nine cards on every NVIDIA card, and host writes are the fast transport past that.
 Hopper's asynchronous copies do not enter the collective.
 A bridgeless GeForce pair refuses peer access, so a session on one proves transports 2 and 3 only, and peer writes on CUDA wait for the NVLink session.
+On two RTX 3090s without a bridge (2026-11-16, gitea cuda/step6-split 9f254dd5) the join took pulls from 81920 floats a sum and the host-written wrap or chain below, and held 80 MiB of pinned host memory for Qwen3.6-27B's largest sums.
+There host writes did not make a group of two beat the layer split: on Qwen3.6-27B Q4_K_M at int8 the group read 485.9 against 535.6 tok/s at pp512 and 14.0 against 21.9 at tg128, about 128 sums a token at 0.17 ms each.
 Layer-split handoffs use the shared counters in coherent host memory with the driver's stream wait and write calls, and need no peer access.
 
 NCCL is an optional byte transport behind its own off-by-default build option, valid only with the CUDA backend, and opened at run time like the driver.
@@ -182,6 +184,5 @@ ROCm does not build the tensor-core body (`GPU_IMMA8`), so MI300X's int8 tile st
 
 ## Open questions
 
-- Whether host-staged writes are fast enough for a two-card group without peer access to beat a layer split; step 6 measures it.
 - How far the F16 class trails the reference runtime's 8-bit tensor-core prefill on NVIDIA; int8 is the matched cell, and the FP16 tensor-core candidate is the answer if the gap is wide.
 - Whether a vendor GEMM is ever needed for F32-class prefill on cards with matrix cores; decided per kernel with the numbers in hand.

@@ -4,7 +4,7 @@
 
 - **Goal:** Enable a supported add-on from the owner UI and use the same install flow for later companion features.
 - **Done:** Owners install PDF text import from Settings > Optional features. The companion downloads and verifies the pinned release in the background. Each entry supplies its own installation and availability checks.
-- **Left:** Land by fast-forward after the companion tests, docs, dead-code and hosted Chat workspace checks pass.
+- **Landing:** Fast-forwarded to main at `1a5581ba1` after the companion suite, docs, dead-code and hosted Linux and Windows Chat workspace checks passed. A clean Settings install took 3.15 seconds on the test machine.
 - **Checks:** The HTTP fixture checks authenticated installation and duplicate requests. Chrome covers a failed install, retry, and switching back to Chat with an existing draft while the reader installs.
 - **Gotchas:** Only explicit installation may download assets. Preserve owner authentication, request origin checks, the active draft and existing offline installs.
 

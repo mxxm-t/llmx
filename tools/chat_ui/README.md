@@ -241,8 +241,9 @@ keyboard focus keeps its visible outline.
   conversation history. A rejection keeps your draft and attachments.
   Older saved image turns refused by the chat template before any reply or tool
   call stay visible but are excluded from later prompts. Retrying that image turn
-  still includes its images. Accepted images and partial replies remain in context. PDF extraction, audio, OCR, rendered
-  LaTeX, executable artifacts and knowledge-base retrieval are not implemented.
+  still includes its images. Accepted images and partial replies remain in context.
+  Image-only PDFs need OCR before import. The companion has no built-in OCR,
+  audio input, LaTeX renderer, executable chat artifacts or knowledge-base retrieval.
 - A companion process restart marks unfinished runs interrupted. It never
   retries a tool automatically after losing its outcome.
 

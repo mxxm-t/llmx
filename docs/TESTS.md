@@ -1669,3 +1669,15 @@ python -X utf8 tests/baseline_qwen35.py --exe build/llmx --model path/to/Qwen3.5
 It prints one skip line where llmx does not run the architecture, on a device whose backend lacks its ops, and a file without bounds is measured and fails, so the first measurement sets them.
 
 `tests/baseline_layered.py` runs the same checks on the Qwen3.5-9B, Qwen3.6-27B and Qwen3.6-35B-A3B Q4_K_M files against the layered HF reference's goldens, chosen by the file's SHA-256, and skips in one line where llmx does not run the qwen35 architecture (`docs/ASSETS.md`, The layered qwen35 reference).
+
+## Device checks by hand
+
+A tensor group's sums are held to the vendor collective library's all-reduce on the same devices by `tools/sums_vs_reference.py`.
+It runs the `vsnccl` mode of `llmx-backend-rocm-test` or `llmx-backend-cuda-test`, which times a joined group's in-place F32 sums per size, and `all_reduce_perf` of rccl-tests or nccl-tests in one process over the same first W visible devices, the arms alternating cycle by cycle.
+The sizes are 1 to 512 rows of a 5120-wide hidden state, the 65537-float odd row and a 256-float row, both arms take the median of 15 repetitions of the same number of back-to-back calls, and the check fails where llmx's median over the cycles is slower than the reference's at any size and width.
+An earlier build's test binary, given as the before arm, is timed in the same cycles and printed beside them without being judged.
+No hosted runner has more than one GPU, so it runs by hand on a multi-GPU machine:
+
+```
+python3 tools/sums_vs_reference.py --test build/llmx-backend-rocm-test --reference rccl-tests/build/all_reduce_perf --widths 2,3,4 --cycles 3
+```

@@ -600,6 +600,39 @@ void groups() {
 
 } // namespace
 
+// Measurement for tools/sums_vs_reference.py: the joined group's sums per size in one member order, timed as `sums` times them.
+void vsnccl(bool reversed, size_t W, size_t model) {
+    std::vector<BackendPtr> d = cuda_devices(W);
+    if (d.size() < W) return;
+    std::vector<Backend*> group = raw(d, W);
+    if (reversed) std::reverse(group.begin(), group.end());
+    // A model width of 5120 times the 27B's rows and the odd row its picks cover; another width joins as a model of that width and times its one decode row.
+    const std::unique_ptr<Collective> rows = group[0]->join(group, 512, model), odd = model == 5120 ? group[0]->join(group, 1, 65537) : nullptr;
+    std::vector<size_t> rows_of = {1, 2, 4, 6, 8, 1, 13, 32, 128, 512}, widths = {5120, 5120, 5120, 5120, 5120, 65537, 5120, 5120, 5120, 5120};
+    if (model != 5120) rows_of = {1}, widths = {model};
+    for (size_t s = 0; s < rows_of.size(); ++s) {
+        Collective& c = widths[s] == 65537 ? *odd : *rows;
+        const size_t n = rows_of[s] * widths[s];
+        const int N = n >= 100000 ? 10 : 32;
+        const auto run = [&] {
+            c.sum_in_place(rows_of[s], widths[s]);
+            for (Backend* m : group) m->submit();
+        };
+        run();
+        for (Backend* m : group) m->sync();
+        std::vector<double> ms;
+        for (int rep = 0; rep < 15; ++rep) {
+            const auto t0 = std::chrono::steady_clock::now();
+            for (int i = 0; i < N; ++i) run();
+            for (Backend* m : group) m->sync();
+            ms.push_back(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count() / N);
+        }
+        std::sort(ms.begin(), ms.end());
+        std::printf("ARM llmx order %s n %zu us %.2f GBs %.3f min %.2f max %.2f width %zu\n", reversed ? "10" : "01", n, ms[7] * 1e3, n * 4.0 / ms[7] / 1e6, ms[0] * 1e3, ms[14] * 1e3, W);
+    }
+    std::fflush(stdout);
+}
+
 int main(int argc, char** argv) {
     const std::string mode = argc > 1 ? argv[1] : "";
     const bool only_types = mode == "types";
@@ -637,6 +670,10 @@ int main(int argc, char** argv) {
     if (mode == "moe") {
         moe(d, *g, *cpu);
         return failures ? 1 : 0;
+    }
+    if (mode == "vsnccl") {
+        vsnccl(argc > 2 && std::string(argv[2]) == "10", argc > 3 ? (size_t)std::atoi(argv[3]) : 2, argc > 4 ? (size_t)std::atoi(argv[4]) : 5120);
+        return 0;
     }
     if (mode == "groups") {
         groups();

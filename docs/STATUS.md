@@ -14,6 +14,12 @@
 - **Checks:** Chrome measured 9 px above and below short and long prompts and 8 px between their actions at 1440, 390 and 320 px in both themes. Keyboard focus and hover retained the row position, and touch Edit opened the prompt.
 - **Checks:** Docs and dead-code passed on the spacing branch. The changes land by fast-forward after the combined companion checks.
 - **Gotchas:** Controls must stay visible and usable by keyboard and touch. Hover and keyboard focus must not resize the action row.
+## Reply budget after a Chat tool result (2026-11-19)
+
+- **Goal:** Continue a tool turn when the full prompt fits and the upstream refused only the requested reply room.
+- **Done:** Native admission reports the measured prompt length and the running server's request limit. The observed continuation used 4,108 prompt tokens and asked for 4,096 reply tokens in an 8,192-token request.
+- **Left:** Reproduce the refusal, implement a bounded retry in the companion transport and verify that prompts, tools, cancellation and explicit smaller caps keep their existing behavior.
+- **Gotchas:** Preserve conversation messages and tool results. A partial stream or an unrelated HTTP 413 is outside this recovery.
 
 ## Repeated writes to saved files (2026-11-19)
 

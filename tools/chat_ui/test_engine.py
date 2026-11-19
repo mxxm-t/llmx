@@ -32,6 +32,15 @@ class FakeUpstream(BaseHTTPRequestHandler):
                 return
             reply = type(self).replies.pop(0)
         type(self).request_seen.set()
+        if isinstance(reply, tuple):
+            status, detail = reply
+            data = json.dumps({"error": {"message": detail, "type": "invalid_request_error"}}).encode()
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.end_headers()
@@ -270,6 +279,10 @@ class EngineTests(unittest.TestCase):
         with FakeUpstream.lock:
             FakeUpstream.replies.append(list(events))
 
+    def refuse(self, detail):
+        with FakeUpstream.lock:
+            FakeUpstream.replies.append((413, detail))
+
     def wait_run(self, rid, statuses, timeout=3):
         end = time.monotonic() + timeout
         with self.store.changed:
@@ -413,6 +426,97 @@ class EngineTests(unittest.TestCase):
         answers = [m for m in self.snapshot()["messages"] if m["role"] == "assistant"]
         self.assertEqual([m["request"]["id"] for m in answers], ["r-first-1", "r-first-2"])
         self.assertTrue(all("request" not in m for m in second_history))
+
+    def test_tool_continuation_refits_reply_budget_without_changing_the_prompt(self):
+        self.tools.approval = False
+        self.reply(tool_event())
+        self.refuse("the prompt is 4108 tokens and asks for 4096 more, and a request may hold 8192; "
+                    "shorten it, or start the server with --context-overflow shift, which drops the oldest turns")
+        self.reply(dict(text_event("Continued"), id="r-refit"),
+                   {"choices": [], "usage": {"prompt_tokens": 4108, "completion_tokens": 1},
+                    "context": {"tokens": 4109, "limit": 8192}})
+        settings = dict(self.settings(["echo"]), max_tokens=4096, system="Retain all context.")
+        run = self.start({"content": "Use echo", "attachments": [{"name": "note.txt", "text": "Keep the attachment."}]}, settings)
+        finished = self.wait_run(run["id"], {"completed", "failed"})
+        self.assertEqual(finished["status"], "completed", finished.get("error"))
+        self.assertEqual(finished["settings"]["max_tokens"], 4096)
+        first, refusal, retry = FakeUpstream.requests
+        self.assertEqual(first["max_tokens"], 4096)
+        self.assertEqual(refusal["max_tokens"], 4096)
+        self.assertEqual(retry, dict(refusal, max_tokens=4084))
+        self.assertEqual(refusal["messages"][:-2], first["messages"])
+        self.assertEqual(refusal["messages"][-1]["role"], "tool")
+        self.assertIn("hello", refusal["messages"][-1]["content"])
+        self.assertEqual(self.tools.calls, [("echo", {"text": "hello"})])
+        answer = self.snapshot()["messages"][-1]
+        self.assertEqual(answer["request"], {"id": "r-refit"})
+        self.assertEqual(answer["usage"], {"prompt_tokens": 4108, "completion_tokens": 1})
+        self.assertEqual(answer["context"], {"tokens": 4109, "limit": 8192})
+
+    def test_uncapped_tool_continuation_refits_the_native_default_reserve(self):
+        self.tools.approval = False
+        self.reply(tool_event())
+        self.refuse("the prompt is 7600 tokens and leaves 592 for its reply, fewer than the 1024 "
+                    "a request without max_tokens is given, of the 8192 a request may hold; shorten it, send max_tokens")
+        self.reply(text_event("Used the remaining room"))
+        run = self.start(settings=dict(self.settings(["echo"]), max_tokens=None))
+        finished = self.wait_run(run["id"], {"completed", "failed"})
+        self.assertEqual(finished["status"], "completed", finished.get("error"))
+        self.assertIsNone(finished["settings"]["max_tokens"])
+        first, refusal, retry = FakeUpstream.requests
+        self.assertNotIn("max_tokens", first)
+        self.assertNotIn("max_tokens", refusal)
+        self.assertEqual(retry, dict(refusal, max_tokens=592))
+
+    def test_first_model_request_does_not_retry_context_refusal(self):
+        self.refuse("the prompt is 4108 tokens and asks for 4096 more, and a request may hold 8192; shorten it")
+        run = self.start(settings=dict(self.settings(["echo"]), max_tokens=4096))
+        failed = self.wait_run(run["id"], {"completed", "failed"})
+        self.assertEqual(failed["status"], "failed")
+        self.assertIn("HTTP 413", failed["error"])
+        self.assertEqual(len(FakeUpstream.requests), 1)
+        self.assertEqual(self.tools.calls, [])
+
+    def test_tool_continuation_does_not_retry_unusable_refusals(self):
+        cases = ("request body too large",
+                 "the prompt is 8192 tokens and asks for 32 more, and a request may hold 8192; shorten it",
+                 "the prompt is 4108 tokens and asks for 4096 more, and a request may hold 8192; shorten it")
+        self.tools.approval = False
+        for detail in cases:
+            with self.subTest(detail=detail):
+                self.reply(tool_event())
+                self.refuse(detail)
+                first = len(FakeUpstream.requests)
+                chat = self.store.create_chat({})
+                run = self.engine.start(chat["id"], {"content": "Use echo"}, self.settings(["echo"]))
+                result = self.wait_run(run["id"], {"completed", "failed"})
+                self.assertEqual(result["status"], "failed")
+                self.assertIn(detail, result["error"])
+                self.assertEqual([req["max_tokens"] for req in FakeUpstream.requests[first:]], [32, 32])
+
+    def test_tool_budget_retry_is_bounded_and_never_repeats_partial_output(self):
+        for retry in (False, True):
+            with self.subTest(retry=retry):
+                self.tools.approval = False
+                self.reply(tool_event())
+                detail = "the prompt is 4108 tokens and asks for 4096 more, and a request may hold 8192; shorten it"
+                if retry:
+                    self.refuse(detail)
+                    self.refuse("the prompt is 8192 tokens and asks for 4084 more, and a request may hold 8192; shorten it")
+                else:
+                    self.reply(text_event("Part of a reply"), "TRUNCATE")
+                first = len(FakeUpstream.requests)
+                chat = self.store.create_chat({})
+                run = self.engine.start(chat["id"], {"content": "Use echo"}, dict(self.settings(["echo"]), max_tokens=4096))
+                result = self.wait_run(run["id"], {"completed", "failed"})
+                self.assertEqual(result["status"], "failed")
+                if retry:
+                    self.assertIn("the prompt is 8192 tokens", result["error"])
+                    self.assertEqual([req["max_tokens"] for req in FakeUpstream.requests[first:]], [4096, 4096, 4084])
+                else:
+                    self.assertIn("disconnected", result["error"])
+                    self.assertEqual([req["max_tokens"] for req in FakeUpstream.requests[first:]], [4096, 4096])
+                    self.assertEqual(self.store.snapshot(chat["id"])["messages"][-1]["content"], "Part of a reply")
 
     def test_request_identity_arrives_before_text_and_survives_reload(self):
         FakeUpstream.gate = threading.Event()

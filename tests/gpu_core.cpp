@@ -51,6 +51,7 @@ struct FakeApi {
     static Device device(int index) {
         FakeDevice d;
         d.index = index;
+        d.pci_bus = "0000:0" + std::to_string(index) + ":00.0";
         d.caps.subgroup_size = 32;
         d.caps.compute_units = 4;
         d.caps.shared_bytes = 48 << 10;
@@ -195,7 +196,7 @@ int main() {
     {
         GpuBackend<FakeApi> core(0);
         Backend& b = core;
-        require(b.identity() == "fake:0 fake 0000:00:00.0", "identity names the backend, the index, the device and its PCI address: " + b.identity());
+        require(b.identity() == "fake fake; fake 1", "identity names the backend, the device and its driver: " + b.identity());
         require(fake.modules == 2, "the f32 and int16 modules load and a missing dot module is refused, not fatal");
 
         // A buffer written and read back, then a ticket for the work before it.
@@ -229,5 +230,10 @@ int main() {
     }
     require(fake.memory == 0 && fake.host == 0, "every device and host allocation is freed with the backend");
     require(fake.streams == 0 && fake.events == 0 && fake.modules == 0, "every stream, event and module is released with the backend");
+    {
+        // A card of the same device and driver at another index and PCI address computes the same bits, so a kept disk cache is adopted whichever card a member lands on.
+        GpuBackend<FakeApi> first(0), second(1);
+        require(second.identity() == first.identity(), "another index of the same device gives the same identity: " + second.identity());
+    }
     return failures ? 1 : 0;
 }

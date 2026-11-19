@@ -47,7 +47,7 @@ void guarded(const std::string& name, const std::function<void()>& check) {
 
 // Identity, a round trip, a refused allocation and the F32 matmul.
 void basics(const CudaDevice& d, Backend& g, Backend& cpu) {
-    require(g.identity().rfind("cuda:0 ", 0) == 0 && g.identity().find(d.pci_bus) != std::string::npos, "identity names cuda:0 and its PCI address: " + g.identity());
+    require(g.identity() == "cuda " + d.caps.device + "; " + d.caps.driver, "identity names the backend, the device and its driver, not the ordinal or PCI address: " + g.identity());
 
     // 16 MiB to the device and back through its stream.
     {

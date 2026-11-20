@@ -332,6 +332,7 @@ async function checkHomeLanding() {
     await cdp('Input.dispatchKeyEvent', {type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,text:'\r'});
     await cdp('Input.dispatchKeyEvent', {type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
     await wait("document.querySelector('#app').dataset.view==='chat' && !document.querySelector('#welcome').hidden && !document.querySelector('.message') && !document.querySelector('.chat-item.active') && document.activeElement.id==='draft'", 'fresh Chat landing from ' + view);
+    assert.equal(await evaluate("document.querySelector('#jump-bottom').hidden"), true, 'empty Chat kept the transcript jump control');
     assert.deepEqual(await history(), ids, 'home changed the history from ' + view);
     assert.equal(creates(), originalCreates, 'home created an empty saved conversation from ' + view);
     await pointerClick(`.chat-item[data-chat="${selected}"]`);
@@ -1348,6 +1349,17 @@ try {
   await reloadDocument();
   await wait("document.querySelectorAll('.message.assistant').length===1 && document.querySelector('#stop').hidden", 'refresh and persisted stream completion');
   assert.equal(await evaluate("document.querySelector('.message.assistant').textContent.split('A practical plan.').length-1"), 1, 'snapshot replay duplicated output');
+  const scrollChat = await evaluate("document.querySelector('.chat-item.active').dataset.chat");
+  await cdp('Emulation.setDeviceMetricsOverride', {width:850,height:360,deviceScaleFactor:1,mobile:false});
+  await wait("document.querySelector('#scroll-region').scrollHeight - document.querySelector('#scroll-region').clientHeight >= 180", 'long transcript in a short viewport');
+  await evaluate("document.querySelector('#scroll-region').scrollTop=0");
+  await wait("!document.querySelector('#jump-bottom').hidden", 'jump control available above latest reply');
+  await pointerClick('#chat-home');
+  await wait("!document.querySelector('#welcome').hidden && document.querySelector('#jump-bottom').hidden", 'home clears the previous transcript jump');
+  await cdp('Emulation.setDeviceMetricsOverride', {width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+  await wait("document.querySelector('#app').getBoundingClientRect().height===1000", 'desktop frame height restored before selecting history');
+  await pointerClick('.chat-item[data-chat="'+scrollChat+'"]');
+  await wait("document.querySelector('.message.assistant table') && document.querySelector('.chat-item.active')", 'return to saved conversation');
   await checkHomeLanding();
   assert.equal(await evaluate('window.injected===true'), false, 'model HTML executed');
   assert.equal(await evaluate("document.querySelectorAll('.message.assistant table').length"), 1);
@@ -2489,6 +2501,7 @@ try {
   }
   await evaluate("document.documentElement.dataset.theme="+JSON.stringify(linkTheme)+"; window.ChatShell.show('workbench')");
   await cdp('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+  await wait("document.documentElement.dataset.compact==='false' && !document.querySelector('#view-workbench').hidden", 'desktop workspace after viewport change');
   await selectWorkspaceSection('files');
   const previewFiles = {
     'site/styles/site.css': 'h1 { color: rgb(12, 34, 56); }',
@@ -2502,6 +2515,16 @@ try {
   })()`);
   await pointerClick('.workspace-actions button');
   await wait("document.querySelector('.workspace-file[title=\"site/pages/boot.js\"]')", 'saved project assets listed');
+  await pointerClick('.workspace-file[title="site/pages/boot.js"]');
+  await wait("document.querySelector('.workspace-file-path').textContent==='site/pages/boot.js'", 'open a saved source file');
+  assert.deepEqual(await evaluate("{const e=document.querySelector('#workspace-editor');[e.selectionStart,e.scrollTop,e.scrollLeft]}"), [0,0,0], 'newly opened file starts at its first character');
+  const editorBeforeFilter = await evaluate("document.querySelector('#workspace-editor').value");
+  await fill('#workspace-file-filter', 'SITE/PAGES/');
+  assert.deepEqual(await evaluate("Array.from(document.querySelectorAll('.workspace-file'), item => item.title)"), ['site/pages/boot.js']);
+  await fill('#workspace-file-filter', 'no such file');
+  assert.equal(await evaluate("document.querySelector('.workspace-file-list').innerText"), 'No matching files.');
+  assert.equal(await evaluate("document.querySelector('#workspace-editor').value"), editorBeforeFilter, 'filtering replaced the editor buffer');
+  await fill('#workspace-file-filter', '');
   const previewSource = '<!doctype html><html><head><link rel="stylesheet" href="../styles/site.css"><script defer src="./boot.js"></script></head><body><h1>Isolated preview</h1><script>console.log("preview-ready");try{parent.document.body.dataset.previewTouched="yes"}catch(e){console.log("parent-blocked")}fetch("/api/session").then(()=>console.error("network-allowed")).catch(()=>console.log("network-blocked"));setTimeout(()=>{throw new Error("preview-error")},20)</script></body></html>';
   await pointerClick('.workspace-actions .primary-button');
   await wait("document.querySelector('#action-dialog').open", 'new HTML file dialog');
@@ -2673,6 +2696,10 @@ try {
   await wait("document.querySelector('.workspace-project-row')?.textContent.includes('Browser project')", 'created named Workspace project');
   await selectWorkspaceSection('files');
   await pointerClick('.workspace-back');
+  await pointerClick('.composer [data-action=attach-project]');
+  await wait("document.querySelector('#project-context-files').children.length === 2", 'review saved project directly from composer');
+  await pointerClick('#project-context-cancel');
+  assert.equal(await evaluate("document.activeElement.matches('.composer [data-action=attach-project]')"), true, 'closing project review should restore its composer shortcut');
   async function reviewProject() {
     await pointerClick('.composer [data-action="settings"]');
     await pointerClick('#use-workspace-project');

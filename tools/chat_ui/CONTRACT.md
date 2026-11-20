@@ -262,6 +262,8 @@ conversations and event journal unchanged.
 
 ## Workspace editor
 
+Filtering saved files in Workspace only changes the file list. The editor keeps its selected path, pending operations and unsaved text. The Project control in the composer opens the same reviewed snapshot picker as the attachment menu.
+
 The file editor uses native Tab and Shift+Tab focus movement and preserves the
 buffer when focus leaves. Ctrl+S or Cmd+S invokes the Workspace Save action
 when available and no dialog is open. Workspace tool cards hand off validated

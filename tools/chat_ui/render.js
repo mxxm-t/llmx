@@ -8,6 +8,14 @@ window.ChatRender = (() => {
     if (text !== undefined) el.textContent = String(text);
     return el;
   }
+  function icon(path, cls) {
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns, 'svg'), shape = document.createElementNS(ns, 'path');
+    svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true');
+    if (cls) svg.classList.add(cls);
+    shape.setAttribute('d', path); svg.append(shape);
+    return svg;
+  }
   function inline(text, target) {
     const re = /`[^`\n]+`|\*\*[^*\n]+\*\*|\*[^*\n]+\*|(!?)\[([^\]\n]*)\]\(((?:[^\s()]|\([^\s()]*\))+)\)/g;
     let pos = 0;
@@ -174,5 +182,5 @@ window.ChatRender = (() => {
   }
   function number(value, suffix = '') { return typeof value === 'number' && Number.isFinite(value) ? new Intl.NumberFormat(undefined, {maximumFractionDigits: 2}).format(value) + suffix : 'Unavailable'; }
   function json(value) { return typeof value === 'string' ? value : JSON.stringify(value, null, 2); }
-  return {node, markdown, reconcileMarkdown, number, json};
+  return {node, icon, markdown, reconcileMarkdown, number, json};
 })();

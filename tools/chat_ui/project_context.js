@@ -31,7 +31,9 @@
         const size = new TextEncoder().encode(file.text).byteLength;
         total += size;
         const item = document.createElement('li');
-        item.textContent = file.path + ' / ' + window.ChatComposer.formatAttachmentSize(size);
+        const name = document.createElement('span'), bytes = document.createElement('small');
+        name.textContent = file.path; bytes.textContent = window.ChatComposer.formatAttachmentSize(size);
+        item.append(name, bytes);
         files.append(item);
       }
       files.hidden = !data.files.length;

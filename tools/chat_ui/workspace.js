@@ -1,7 +1,7 @@
 /* The managed workspace API owns files, revision conflicts, jobs and history. */
 (() => {
   'use strict';
-  const {node, number} = window.ChatRender;
+  const {node, icon, number} = window.ChatRender;
   const {api} = window.ChatShell;
   const view = document.getElementById('view-workbench');
   const state = {snapshot: null, path: '', original: '', revision: 0, activeJob: null, timer: null, loading: null, isNew: false, selection: 0, saving: false, attaching: false, jobSelection: 0};
@@ -11,13 +11,18 @@
   function control(label, cls, listener) { const button = node('button', cls || 'secondary-button', label); button.type = 'button'; if (listener) button.addEventListener('click', () => Promise.resolve().then(listener).catch(showError)); return button; }
   const toolbar = node('div', 'view-toolbar'); const back = control('Back to Chat', 'text-button workspace-back', returnToChat);
   const headingActions = node('div', 'workspace-actions'); const revisionLabel = node('span', 'workspace-revision'); const refresh = control('Refresh', '', refreshWorkspace); const newFile = control('New file', 'primary-button', createFile); headingActions.append(revisionLabel, refresh, newFile); toolbar.append(back, headingActions);
-  const purpose = node('p', 'workspace-purpose', 'Files saved here can be edited and reused across chats. Attach a copy when you want to discuss a file in Chat.');
   const sections = node('nav', 'workspace-sections'); sections.id = 'workspace-sections'; sections.setAttribute('aria-label', 'Workspace sections');
   const error = node('div', 'view-notice workspace-error'); error.setAttribute('role', 'alert'); error.tabIndex = -1; error.hidden = true;
   const limits = node('details', 'workspace-limits'), limitsText = node('p');
   limits.append(node('summary', '', 'Workspace limits'), limitsText); limits.hidden = true;
   const layout = node('div', 'workbench-layout');
-  const filePanel = node('section', 'workspace-files'); filePanel.setAttribute('aria-label', 'Workspace files'); const fileHeading = node('div', 'workspace-section-heading'); fileHeading.append(node('h3', '', 'Files')); const fileCount = node('span', 'muted', '0'); fileHeading.append(fileCount); const fileList = node('nav', 'workspace-file-list'); fileList.setAttribute('aria-label', 'Files'); filePanel.append(fileHeading, fileList);
+  const filePanel = node('section', 'workspace-files'); filePanel.setAttribute('aria-label', 'Workspace files'); const fileHeading = node('div', 'workspace-section-heading'); fileHeading.append(node('h3', '', 'Files')); const fileCount = node('span', 'muted', '0'); fileHeading.append(fileCount);
+  const fileList = node('nav', 'workspace-file-list'); fileList.setAttribute('aria-label', 'Files');
+  const fileFilter = node('input'); fileFilter.type = 'search'; fileFilter.id = 'workspace-file-filter';
+  fileFilter.placeholder = 'Find a file'; fileFilter.setAttribute('aria-label', 'Filter saved files by name or folder');
+  const fileSearch = node('label', 'search-box workspace-file-search');
+  fileSearch.append(icon('M16 16l5 5M18 11a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z'), fileFilter);
+  fileFilter.addEventListener('input', renderFiles); filePanel.append(fileHeading, fileSearch, fileList);
   const editorPanel = node('section', 'workspace-editor'); editorPanel.setAttribute('aria-label', 'File editor');
   const editorHeading = node('div', 'workspace-editor-heading'); const fileLabel = node('span', 'workspace-file-path', 'Select a file'); const dirtyLabel = node('span', 'unsaved-indicator', 'Unsaved'); dirtyLabel.hidden = true;
   const fileActions = node('div', 'workspace-editor-actions'); const preview = control('View source', '', openArtifact); const attach = control('Attach to Chat', '', attachFile); attach.id = 'workspace-attach'; const download = control('Download', '', () => window.ChatArtifacts.download(editor.value, state.path, fileLanguage(state.path))); const save = control('Save', 'primary-button', saveFile); save.id = 'workspace-save'; const remove = control('Delete', 'text-button danger', deleteFile); fileActions.append(preview, attach, download, remove, save); editorHeading.append(fileLabel, dirtyLabel, fileActions);
@@ -67,7 +72,7 @@
     const button = control(label, 'workspace-section', () => selectSection(key));
     button.dataset.section = key; sections.append(button);
   }
-  view.append(purpose, sections, toolbar, error, layout, projects, terminalPanel, historyPanel, limits);
+  view.append(sections, toolbar, error, layout, projects, terminalPanel, historyPanel, limits);
   function selectSection(next) {
     if (section !== next) { state.selection++; state.jobSelection++; }
     section = next;
@@ -211,7 +216,16 @@
   }
   function renderFiles() {
     fileList.replaceChildren(); const files = state.snapshot?.files || []; fileCount.textContent = String(files.length);
-    files.forEach(file => { const button = control('', 'workspace-file' + (file.path === state.path ? ' active' : ''), () => openFile(file.path)); button.title = file.path; button.append(node('span', 'workspace-file-icon', file.path.endsWith('.html') ? '<>' : '#'), node('span', 'workspace-file-name', file.path), node('span', 'workspace-file-size', number(file.size, ' B'))); if (file.path === state.path) button.setAttribute('aria-current', 'page'); fileList.append(button); });
+    const query = fileFilter.value.trim().toLowerCase();
+    const matches = files.filter(file => file.path.toLowerCase().includes(query));
+    for (const file of matches) {
+      const button = control('', 'workspace-file' + (file.path === state.path ? ' active' : ''), () => openFile(file.path));
+      button.title = file.path;
+      button.append(icon('M5 3h9l5 5v13H5Z M14 3v6h5', 'workspace-file-icon'), node('span', 'workspace-file-name', file.path), node('small', 'workspace-file-size', bytes(file.size)));
+      if (file.path === state.path) button.setAttribute('aria-current', 'page');
+      fileList.append(button);
+    }
+    if (query && !matches.length) fileList.append(node('p', 'workspace-empty', 'No matching files.'));
     newFile.disabled = !state.snapshot;
     filePanel.hidden = !files.length;
     if (!state.snapshot) {
@@ -289,7 +303,8 @@
     if (!isCurrent()) return;
     if (editor.value !== content && !await canReplace()) return;
     if (!isCurrent()) return;
-    state.path = file.path; state.original = file.content; state.isNew = false; state.revision = file.revision; editor.value = file.content; editor.disabled = false; updateEditor(); renderFiles(); editor.focus();
+    state.path = file.path; state.original = file.content; state.isNew = false; state.revision = file.revision; editor.value = file.content; editor.disabled = false;
+    editor.setSelectionRange(0, 0); updateEditor(); renderFiles(); editor.focus(); editor.scrollTop = 0; editor.scrollLeft = 0;
   }
   async function createFile() {
     const selection = ++state.selection;

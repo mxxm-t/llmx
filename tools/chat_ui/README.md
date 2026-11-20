@@ -2,7 +2,7 @@
 
 The llmx companion brings Chat, Monitor, Workspace and Settings under one
 address, session and shared dashboard theme. Workspace means project files,
-checkpoints and command execution; conversations are listed under History.
+checkpoints and command execution. Search saved conversations in the sidebar.
 Conversations, branches, tool results and request metrics live in a local SQLite database. The companion uses
 Python's standard library and buildless HTML, CSS and JavaScript. The base
 companion runs without additional packages. PDF text import is an optional
@@ -21,6 +21,7 @@ HTML opens in Preview. Choose Source to read the saved text, or Download to keep
 If a write hits a revision conflict, **Open saved copy** opens the version currently in the workspace.
 If that path has no saved file, the conversation shows a message beside the filename.
 
+The **Project** button beside the paperclip opens a saved project directly.
 In Chat, open **Attach** and choose **From this device**, **Saved files** or
 **Saved project**. You can find files by name or folder and select several at
 once. Adding them keeps you in the current draft. Sending the message shares
@@ -32,7 +33,8 @@ across conversations. This is the companion's workspace.
 For example, save a generated web page there, edit it, preview it with its
 saved stylesheet, then attach the edited HTML to a draft.
 
-Start in **Files** to create or edit a file. Use **Projects** to group files
+Start in **Files** to create or edit a file. **Find a file** filters saved paths
+by filename or folder while keeping your editor open. Use **Projects** to group files
 with instructions, **Commands** to run against saved files in a configured
 sandbox, or **History** to compare and restore checkpoints.
 Switching between these sections keeps the current editor buffer.
@@ -188,8 +190,9 @@ Select the llmx wordmark to return to the Chat landing page. This keeps the
 draft of the conversation you left and adds no empty row to chat history.
 Ending a temporary chat still uses its existing confirmation.
 
-Main navigation highlights the selected section. Hover uses a lighter fill, and
-keyboard focus keeps its visible outline.
+The sidebar highlights the current view and groups saved conversations by pin
+and folder. Search shows matching conversations in one list. The chat landing
+page keeps the composer, project picker and suggested prompts together.
 
 - Unsent text, attachments and edit targets stay with each ordinary conversation
   when you switch chats or select the same chat again. They are saved in this
@@ -306,7 +309,7 @@ Other sampling defaults stay temperature 0.7, top P 0.95 and top K 40.
 Use the Conversation details button in the header to open or close Activity,
 Stats and Settings. On wide screens the panel starts closed and the browser
 remembers your docked-panel choice. On narrow screens, Details opens as a drawer
-when needed. The composer's Settings shortcut opens directly to Settings.
+when needed. The sliders beside the model selector open conversation settings.
 On narrow screens, opening either drawer moves focus inside and disables
 background controls. Tab and Shift+Tab stay inside the drawer. Escape, Close
 or selecting the shade returns focus to the opener. Navigation moves focus to

@@ -24,9 +24,14 @@
     <div id="app" class="workspace inspector-closed" data-view="chat">
       <aside class="sidebar" id="sidebar" aria-label="Conversations">
         <div class="brand">
-          <button id="sidebar-close" class="icon mobile-only" data-action="close-drawers" aria-label="Close navigation">x</button>
+          <button id="sidebar-close" class="icon mobile-only" data-action="close-drawers" aria-label="Close navigation"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
           <button id="chat-home" class="brand-home" type="button" data-action="home" aria-label="llmx Chat home" title="Chat home"><span class="brand-wordmark" aria-hidden="true"></span></button>
         </div>
+        <button class="new-chat" data-action="new" disabled aria-busy="true">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+          <span class="chat-create-label">New conversation</span>
+          <kbd>Ctrl K</kbd>
+        </button>
         <nav class="global-nav" aria-label="Main navigation">
           <button data-view="chat" aria-current="page">
             <svg viewBox="0 0 24 24">
@@ -57,22 +62,16 @@
             <span>Settings</span>
           </button>
         </nav>
-        <div class="chat-library-heading">CONVERSATIONS</div>
-        <button class="new-chat" data-action="new" disabled aria-busy="true">
-          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-          <span class="chat-create-label">New conversation</span>
-          <kbd>Ctrl K</kbd>
-        </button>
-        <label class="search-box"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><input id="search" type="search" maxlength="256" placeholder="Search conversations" aria-label="Search conversations"></label>
         <div class="library-heading">
-          <span>HISTORY</span>
+          <span id="library-title">Conversations</span>
           <button id="archive-toggle" class="text-button" data-action="archive-view">Show archive</button>
         </div>
+        <label class="search-box"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><input id="search" type="search" maxlength="256" placeholder="Search conversations" aria-label="Search conversations"></label>
         <nav id="chat-list" class="chat-list" aria-label="Chat history"></nav>
         <div class="sidebar-footer">
           <div class="local-label">
             <span class="status-dot"></span>
-            <span>Owner session<small>Chat, monitor and files.</small></span>
+            <span>Owner session</span>
           </div>
           <div class="footer-actions">
             <button data-action="import" class="text-button">Import</button>
@@ -89,11 +88,10 @@
             </svg>
           </button>
           <div class="chat-heading">
-            <span class="eyebrow">CONVERSATION</span>
+            <span class="chat-location" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h16v12H8l-4 3Z"/></svg><span>Chat</span></span>
             <button id="chat-title" data-action="rename" class="title-button">New conversation</button>
           </div>
           <div class="shell-heading" hidden>
-            <span class="eyebrow" id="shell-eyebrow">LLMX</span>
             <h1 id="shell-title" tabindex="-1">Monitor</h1>
           </div>
           <div class="topbar-actions">
@@ -124,64 +122,80 @@
           <button type="button" data-action="end-temporary" class="text-button">End chat</button>
         </aside>
         <div id="banner" class="banner" role="status" hidden></div>
-        <div id="scroll-region" class="scroll-region">
-          <section id="messages" class="messages" aria-label="Messages"></section>
-          <div id="welcome" class="welcome">
-            <div class="welcome-symbol" aria-hidden="true">
-              <svg viewBox="0 0 64 64">
-                <path d="M32 7v50M7 32h50M14 14l36 36M14 50l36-36"/>
-              </svg>
-            </div>
-            <h1>Start a conversation</h1>
-            <div class="suggestions">
-              <button data-prompt="Help me think through a difficult decision. Start by asking me a few useful questions.">
-                <span>Think it through</span>
-                <small>Compare options and tradeoffs</small>
-              </button>
-              <button data-prompt="Help me turn an idea into a practical plan. Ask me what I am working on.">
-                <span>Make a plan</span>
-                <small>Break an idea into steps</small>
-              </button>
-              <button data-prompt="Help me understand a topic deeply. Ask what I would like to explore.">
-                <span>Explore something</span>
-                <small>Ask questions about a topic</small>
-              </button>
+        <div class="chat-stage">
+          <div id="scroll-region" class="scroll-region">
+            <section id="messages" class="messages" aria-label="Messages"></section>
+            <div id="welcome" class="welcome">
+              <div class="welcome-art" aria-hidden="true">
+                <svg viewBox="0 0 342 100" preserveAspectRatio="xMidYMid meet">
+                  <path d="M2 20 C66 30 62 97 119 74 S185 -10 232 22 S294 72 340 42"/>
+                  <path d="M2 22.9 C66 32.9 62 95.1 119 71.4 S185 -7.5 232 24.2 S294 70.6 340 40.9"/>
+                  <path d="M2 25.8 C66 35.8 62 93.2 119 68.8 S185 -5 232 26.4 S294 69.2 340 39.8"/>
+                  <path d="M2 28.7 C66 38.7 62 91.3 119 66.2 S185 -2.5 232 28.6 S294 67.8 340 38.7"/>
+                  <path d="M2 31.6 C66 41.6 62 89.4 119 63.6 S185 0 232 30.8 S294 66.4 340 37.6"/>
+                  <path d="M2 34.5 C66 44.5 62 87.5 119 61 S185 2.5 232 33 S294 65 340 36.5"/>
+                  <path d="M2 37.4 C66 47.4 62 85.6 119 58.4 S185 5 232 35.2 S294 63.6 340 35.4"/>
+                  <path d="M2 40.3 C66 50.3 62 83.7 119 55.8 S185 7.5 232 37.4 S294 62.2 340 34.3"/>
+                  <path d="M2 43.2 C66 53.2 62 81.8 119 53.2 S185 10 232 39.6 S294 60.8 340 33.2"/>
+                  <path d="M2 46.1 C66 56.1 62 79.9 119 50.6 S185 12.5 232 41.8 S294 59.4 340 32.1"/>
+                  <path d="M2 49 C66 59 62 78 119 48 S185 15 232 44 S294 58 340 31"/>
+                  <path d="M2 51.9 C66 61.9 62 76.1 119 45.4 S185 17.5 232 46.2 S294 56.6 340 29.9"/>
+                  <path d="M2 54.8 C66 64.8 62 74.2 119 42.8 S185 20 232 48.4 S294 55.2 340 28.8"/>
+                  <path d="M2 57.7 C66 67.7 62 72.3 119 40.2 S185 22.5 232 50.6 S294 53.8 340 27.7"/>
+                  <path d="M2 60.6 C66 70.6 62 70.4 119 37.6 S185 25 232 52.8 S294 52.4 340 26.6"/>
+                  <path d="M2 63.5 C66 73.5 62 68.5 119 35 S185 27.5 232 55 S294 51 340 25.5"/>
+                  <path d="M2 66.4 C66 76.4 62 66.6 119 32.4 S185 30 232 57.2 S294 49.6 340 24.4"/>
+                </svg>
+              </div>
+              <h1>Start a conversation</h1>
             </div>
           </div>
-        </div>
-        <div class="composer-area">
-          <button id="jump-bottom" class="jump-bottom" data-action="bottom" hidden>Jump to latest &darr;</button>
-          <div id="edit-note" class="edit-note" hidden>Editing creates a new branch.<button data-action="cancel-edit">Cancel edit</button></div>
-          <div id="attachments" class="attachments"></div>
-          <form id="composer" class="composer">
-            <textarea id="draft" rows="1" aria-label="Message" placeholder="Message your model..." maxlength="1000000"></textarea>
-            <div class="composer-toolbar">
-              <div class="composer-left">
-                <button id="attach-source" type="button" class="icon" data-action="attach" aria-label="Attach files" aria-haspopup="menu" aria-controls="action-menu" aria-expanded="false" data-tooltip="Choose a source. Device: UTF-8 text or code, PNG or JPEG. See Settings for limits.">
+          <div class="composer-area">
+            <button id="jump-bottom" class="jump-bottom" data-action="bottom" hidden>Jump to latest &darr;</button>
+            <div id="edit-note" class="edit-note" hidden>Editing creates a new branch.<button data-action="cancel-edit">Cancel edit</button></div>
+            <div id="attachments" class="attachments"></div>
+            <form id="composer" class="composer">
+              <textarea id="draft" rows="1" aria-label="Message" placeholder="Write a message..." maxlength="1000000"></textarea>
+              <div class="composer-toolbar">
+                <div class="composer-left">
+                  <button id="attach-source" type="button" class="icon" data-action="attach" aria-label="Attach files" aria-haspopup="menu" aria-controls="action-menu" aria-expanded="false" data-tooltip="Choose a source. Device: UTF-8 text or code, PNG or JPEG. See Settings for limits.">
+                    <svg viewBox="0 0 24 24">
+                      <path d="m8 12 6-6a4 4 0 0 1 6 6L10 22a6 6 0 0 1-8-8L12 4M6 16l10-10"/>
+                    </svg>
+                  </button>
+                  <button type="button" class="context-shortcut" data-action="attach-project" aria-haspopup="dialog" aria-controls="project-context-dialog" title="Use a saved project" aria-label="Use a saved project"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 7V5h6l2 2h10v12H3Z"/></svg><span>Project</span></button>
+                  <span class="composer-divider"></span>
+                  <select id="model" aria-label="Model on the connected server" aria-describedby="model-source-help">
+                    <option value="">Select model</option>
+                  </select>
+                  <button type="button" class="icon" data-action="settings" aria-label="Conversation settings" title="Conversation settings"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 7h10m4 0h4M3 17h3m4 0h11M17 4v6M7 14v6"/></svg></button>
+                </div>
+                <button id="send" type="submit" class="send-button" aria-label="Send message">
                   <svg viewBox="0 0 24 24">
-                    <path d="m8 12 6-6a4 4 0 0 1 6 6L10 22a6 6 0 0 1-8-8L12 4M6 16l10-10"/>
+                    <path d="M12 19V5m-6 6 6-6 6 6"/>
                   </svg>
                 </button>
-                <select id="model" aria-label="Model on the connected server" aria-describedby="model-source-help">
-                  <option value="">Select model</option>
-                </select>
-                <span class="composer-divider"></span>
-                <button type="button" class="text-button" data-action="settings">Settings</button>
+                <button id="stop" type="button" class="send-button stop-button" data-action="stop" aria-label="Stop generation" hidden>
+                  <svg viewBox="0 0 24 24">
+                    <rect x="7" y="7" width="10" height="10" rx="1"/>
+                  </svg>
+                </button>
               </div>
-              <button id="send" type="submit" class="send-button" aria-label="Send message">
-                <svg viewBox="0 0 24 24">
-                  <path d="M12 19V5m-6 6 6-6 6 6"/>
-                </svg>
+            </form>
+            <div class="suggestions">
+              <button data-prompt="Help me think through a difficult decision. Start by asking me a few useful questions.">
+                <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 19h6m-5 2h4M8.5 14.5a6 6 0 1 1 7 0c-1 .7-1.5 1.5-1.5 2.5h-4c0-1-.5-1.8-1.5-2.5Z"/></svg><span>Think it through</span>
               </button>
-              <button id="stop" type="button" class="send-button stop-button" data-action="stop" aria-label="Stop generation" hidden>
-                <svg viewBox="0 0 24 24">
-                  <rect x="7" y="7" width="10" height="10" rx="1"/>
-                </svg>
+              <button data-prompt="Help me turn an idea into a practical plan. Ask me what I am working on.">
+                <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 5h12M8 12h12M8 19h12M3 5h.1M3 12h.1M3 19h.1"/></svg><span>Make a plan</span>
+              </button>
+              <button data-prompt="Help me understand a topic deeply. Ask what I would like to explore.">
+                <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m14.5 9.5-1.6 3.4-3.4 1.6 1.6-3.4Zm6.5 2.5a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg><span>Explore something</span>
               </button>
             </div>
-          </form>
-          <div class="composer-caption">
-            <span id="run-caption">Enter to send <span class="caption-separator">/</span> Shift + Enter for a new line</span>
+            <div class="composer-caption">
+              <span id="run-caption">Enter to send <span class="caption-separator">/</span> Shift + Enter for a new line</span>
+            </div>
           </div>
         </div>
         <section id="view-monitor" class="studio-view monitor-view" aria-label="Runtime monitor" hidden>
@@ -242,7 +256,7 @@
       <aside id="inspector" class="inspector" aria-label="Conversation details">
         <div class="inspector-heading">
           <span>Conversation details</span>
-          <button id="details-close" class="icon" data-action="inspector" aria-label="Close details">x</button>
+          <button id="details-close" class="icon" data-action="inspector" aria-label="Close details"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
         </div>
         <div class="tabs" role="tablist" aria-label="Details">
           <button role="tab" id="tab-activity" data-tab="activity" aria-selected="true">Activity</button>

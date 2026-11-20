@@ -1,7 +1,7 @@
 /* The service owns conversation state; this file owns browser presentation. */
 (() => {
   'use strict';
-  const {node, markdown, reconcileMarkdown, number, json} = window.ChatRender;
+  const {node, icon, markdown, reconcileMarkdown, number, json} = window.ChatRender;
   async function api(...args) {
     try {
       const result = await window.ChatShell.api(...args);
@@ -351,24 +351,29 @@
     const chats = chatSearch.request ? chatSearch.chats : S.chats.filter(c => Boolean(c.archived) === S.archive);
     if (!chatSearch.request) chats.sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || (String(b.updated).localeCompare(String(a.updated))));
     const groups = new Map();
-    chats.forEach(chat => { const group = chat.pinned ? 'Pinned' : chat.folder || 'Recent conversations'; if (!groups.has(group)) groups.set(group, []); groups.get(group).push(chat); });
+    chats.forEach(chat => {
+      const group = chatSearch.request ? '' : chat.pinned ? 'Pinned' : chat.folder || 'Recent';
+      if (!groups.has(group)) groups.set(group, []);
+      groups.get(group).push(chat);
+    });
     const out = $('chat-list'); out.replaceChildren();
     groups.forEach((items, name) => {
-      out.append(node('div', 'folder-heading', name));
+      if (name) out.append(node('div', 'folder-heading', name));
       items.forEach(chat => {
         const button = node('button', 'chat-item' + (S.chat?.id === chat.id ? ' active' : '')); button.type = 'button'; button.dataset.chat = chat.id; button.title = chat.title;
         if (S.chat?.id === chat.id) button.setAttribute('aria-current', 'page');
-        button.append(node('span', 'chat-glyph', '#'), node('span', 'chat-name', chat.title || 'Untitled conversation'));
+        button.append(icon('M4 5h16v12H9l-5 3Z', 'chat-glyph'), node('span', 'chat-name', chat.title || 'Untitled conversation'));
         const cue = node('span', 'chat-run-cue'); cue.setAttribute('aria-hidden', 'true'); button.append(cue);
         updateSidebarCue(button);
-        if (chat.pinned) button.append(node('span', 'pin-mark', '*'));
+        if (chat.pinned) button.append(icon('M9 3h6l-1 6 4 4H6l4-4Z M12 13v8', 'pin-mark'));
         const row = node('div', 'chat-row' + (S.chat?.id === chat.id ? ' active' : ''));
-        const menu = node('button', 'chat-row-menu', '...'); menu.type = 'button'; menu.dataset.action = 'chat-menu'; menu.dataset.id = chat.id;
+        const menu = node('button', 'chat-row-menu'); menu.append(icon('M5 12h.2m6.7 0h.2m6.7 0h.2')); menu.type = 'button'; menu.dataset.action = 'chat-menu'; menu.dataset.id = chat.id;
         menu.setAttribute('aria-label', 'Actions for ' + (chat.title || 'Untitled conversation')); menu.setAttribute('aria-haspopup', 'menu'); menu.title = 'Conversation actions';
         row.append(button, menu); out.append(row);
       });
     });
-    if (!chats.length) out.append(node('p', 'empty-history', chatSearch.notice || (chatSearch.request ? 'No matching conversations.' : S.archive ? 'Your archive is empty.' : 'Your next good idea starts here. Create a conversation to get going.')));
+    if (!chats.length) out.append(node('p', 'empty-history', chatSearch.notice || (chatSearch.request ? 'No matching conversations.' : S.archive ? 'Your archive is empty.' : 'No saved conversations yet.')));
+    $('library-title').textContent = chatSearch.request ? 'Search results' : S.archive ? 'Archive' : 'Conversations';
     $('archive-toggle').textContent = S.archive ? 'Back to chats' : 'Show archive';
   }
   async function openChat(id, snapshot = null) {
@@ -516,8 +521,7 @@
   }
   function actionIcon(label, action, id, path, cls = 'message-icon-action') {
     const el = button('', action, id, cls); el.setAttribute('aria-label', label);
-    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); icon.setAttribute('viewBox', '0 0 24 24'); icon.setAttribute('fill', 'none'); icon.setAttribute('stroke', 'currentColor'); icon.setAttribute('stroke-width', '1.8'); icon.setAttribute('stroke-linecap', 'round'); icon.setAttribute('stroke-linejoin', 'round'); icon.setAttribute('aria-hidden', 'true');
-    const shape = document.createElementNS('http://www.w3.org/2000/svg', 'path'); shape.setAttribute('d', path); icon.append(shape); el.append(icon);
+    el.append(icon(path));
     if (action !== 'reply-stats') bindActionTooltip(el);
     return el;
   }
@@ -609,7 +613,9 @@
   }
   function toolRow(call, message) {
     const wrap = node('div', 'tool-call'); wrap.dataset.toolCall = call.id || ''; const detail = node('details'); const summary = node('summary'); summary.tabIndex = 0;
-    summary.append(node('span', 'tool-summary-kind', 'Tool'), node('span', 'tool-name', call.name || 'Call'), node('span', 'badge' + (call.error ? ' error' : ''), call.status || 'pending'));
+    const status = node('span', 'badge' + (call.error ? ' error' : ''), call.status || 'pending');
+    status.dataset.status = call.status || 'pending';
+    summary.append(icon('m8 8-4 4 4 4m8-8 4 4-4 4m-3-10-2 12', 'tool-symbol'), node('span', 'tool-name', call.name || 'Call'), status);
     const body = node('div', 'tool-body'); body.append(node('div', 'section-label', 'ARGUMENTS'), node('pre', '', json(call.arguments ?? {})));
     const result = toolJson(call.result), parts = Array.isArray(result?.content) ? result.content : [];
     const write = call.name === 'workspace_write' ? workspaceToolTarget(call, result, parts) : null;
@@ -623,7 +629,10 @@
         const target = workspaceToolTarget(call, result, parts);
         const label = target?.path ? 'Open file' : target?.jobId ? 'Open job output' : 'Open saved files';
         const open = node('button', 'secondary-button workspace-tool-open', label);
-        open.type = 'button'; open.addEventListener('click', () => window.ChatWorkspace.openToolResult(target)); wrap.append(open);
+        open.type = 'button'; open.addEventListener('click', () => window.ChatWorkspace.openToolResult(target));
+        const link = node('div', 'workspace-tool-file');
+        if (target?.path) link.append(node('code', '', target.path));
+        link.append(open); wrap.append(link);
       }
     }
     if (call.error) body.append(node('p', 'error-text', json(call.error)));
@@ -633,7 +642,7 @@
       const edit = node('button', 'secondary-button workspace-tool-open', 'Open in Workspace');
       edit.type = 'button'; edit.addEventListener('click', () => window.ChatWorkspace.openToolResult(write)); body.append(edit);
     }
-    detail.append(summary, body); wrap.append(detail);
+    detail.append(summary, body); wrap.prepend(detail);
     if (call.status === 'approval') {
       detail.open = true;
       const approval = node('div', 'approval', 'Review the requested arguments above.'); const actions = node('div', 'approval-actions');
@@ -648,11 +657,22 @@
   }
   function messageView(message) {
     const el = node('article', 'message ' + message.role); el.dataset.message = message.id;
-    const header = node('div', 'message-header'); header.append(node('span', 'message-avatar', message.role === 'assistant' ? 'll' : message.role === 'tool' ? '>_' : 'Y'), node('span', '', message.role === 'assistant' ? 'Assistant' : message.role === 'tool' ? 'Tool result' : 'You'));
+    const header = node('div', 'message-header');
+    if (message.role === 'assistant') {
+      const avatar = node('span', 'message-avatar');
+      avatar.append(icon('M5 15V9m4 9V6m4 14V4m4 13V7m4 7v-4'));
+      header.append(avatar);
+    }
+    header.append(node('span', '', message.role === 'assistant' ? 'Assistant' : message.role === 'tool' ? 'Tool result' : 'You'));
     if (message.created) { const time = timestamp(message.created); if (!isNaN(time)) header.append(node('span', 'message-time', time.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}))); }
     el.append(header);
     if (message.attachments?.length) { const attachments = node('div', 'message-attachments'); message.attachments.forEach(a => attachments.append(renderAttachment(a))); el.append(attachments); }
-    if (message.reasoning) { const reasoning = node('details', 'reasoning'); reasoning.dataset.disclosure = 'reasoning'; reasoning.append(node('summary', '', 'Reasoning'), markdown(message.reasoning)); el.append(reasoning); }
+    if (message.reasoning) {
+      const reasoning = node('details', 'reasoning'); reasoning.dataset.disclosure = 'reasoning';
+      const summary = node('summary');
+      summary.append(icon('M4 8h10m-6 4h12M4 16h9'), document.createTextNode('Reasoning'));
+      reasoning.append(summary, markdown(message.reasoning)); el.append(reasoning);
+    }
     if (message.content) el.append(markdown(message.content));
     (message.tool_calls || []).forEach(call => {
       const tool = toolRow(call, message);
@@ -751,9 +771,9 @@
             if (nextWrap && body && nextSummary && summary) {
               keepDetail.querySelector(':scope > .tool-body')?.replaceWith(body);
               keepDetail.open = next.open;
-              summary.children[1].textContent = nextSummary.children[1].textContent;
-              summary.children[2].textContent = nextSummary.children[2].textContent;
-              summary.children[2].classList.toggle('error', nextSummary.children[2].classList.contains('error'));
+              summary.querySelector('.tool-name').textContent = nextSummary.querySelector('.tool-name').textContent;
+              const badge = summary.querySelector('.badge'), nextBadge = nextSummary.querySelector('.badge');
+              badge.textContent = nextBadge.textContent; badge.dataset.status = nextBadge.dataset.status; badge.className = nextBadge.className;
               const stableWrap = keepDetail.closest('.tool-call');
               reconcileChildren(stableWrap, nextWrap, [[next, keepDetail]]);
               preserved.push([nextWrap, stableWrap]);
@@ -793,7 +813,8 @@
       const control = container.querySelector('[data-message="' + CSS.escape(m.id) + '"] [data-action=reply-stats]');
       if (control) { control.dataset.reply = group.id; control.hidden = index !== group.calls.length - 1; control.setAttribute('aria-expanded', String(replyStats?.id === group.id)); }
     }));
-    positionReplyStats(); syncLiveMetrics(); renderInspector(); renderContextLimits(); tick(); if (nearBottom) requestAnimationFrame(bottom);
+    positionReplyStats(); syncLiveMetrics(); renderInspector(); renderContextLimits(); tick();
+    syncJump(); if (nearBottom) requestAnimationFrame(bottom);
   }
   function syncLiveMetrics() {
     const run = currentRun();
@@ -1209,7 +1230,11 @@
     }};
   }
   window.ChatComposer = {attach, workspaceName, projectDraft, formatAttachmentSize};
-  function bottom() { const region = $('scroll-region'); region.scrollTop = region.scrollHeight; $('jump-bottom').hidden = true; }
+  function syncJump() {
+    const region = $('scroll-region');
+    $('jump-bottom').hidden = !$('welcome').hidden || region.scrollHeight - region.scrollTop - region.clientHeight < 180;
+  }
+  function bottom() { const region = $('scroll-region'); region.scrollTop = region.scrollHeight; syncJump(); }
   function resizeDraft() { const el = $('draft'); el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 220) + 'px'; rememberDraft(); }
   function showTab(name) { S.tab = name; document.querySelectorAll('[data-tab]').forEach(el => { el.setAttribute('aria-selected', String(el.dataset.tab === name)); el.tabIndex = el.dataset.tab === name ? 0 : -1; }); for (const tab of ['activity', 'stats', 'settings']) $('panel-' + tab).hidden = tab !== name; syncLiveMetrics(); renderContextLimits(); }
   function usesDetailsDrawer() { return document.documentElement.dataset.compact === 'true' || window.innerWidth <= 1200; }
@@ -1411,7 +1436,9 @@
   $('file-input').addEventListener('change', event => { attach(Array.from(event.target.files)).catch(error => toast(error.message)); event.target.value = ''; });
   $('import-input').addEventListener('change', async event => { const file = event.target.files[0]; event.target.value = ''; if (!file) return; try { if (file.size > 32 * 1024 * 1024) throw new Error('Import must be smaller than 32 MB.'); const chat = await api('/import', 'POST', JSON.parse(await file.text())); await refreshChats(); await openChat(chat.id || chat.chat?.id); toast('Conversation imported.'); } catch (error) { toast('Import failed: ' + error.message); } });
   $('search').addEventListener('input', queueChatSearch);
-  $('scroll-region').addEventListener('scroll', () => { const el = $('scroll-region'); $('jump-bottom').hidden = el.scrollHeight - el.scrollTop - el.clientHeight < 180; }, {passive: true});
+  $('scroll-region').addEventListener('scroll', syncJump, {passive: true});
+  const transcriptSize = new ResizeObserver(syncJump);
+  transcriptSize.observe($('scroll-region')); transcriptSize.observe($('messages'));
   $('login-dialog').addEventListener('cancel', event => event.preventDefault());
   $('login-form').addEventListener('submit', async event => { event.preventDefault(); const submit = event.target.querySelector('button'); submit.disabled = true; try { await api('/login', 'POST', {password: $('password').value}); $('password').value = ''; $('login-error').textContent = ''; $('login-dialog').close(); await initialize(); } catch (error) { $('login-error').textContent = error.message; } finally { submit.disabled = false; } });
   document.addEventListener('keydown', event => {

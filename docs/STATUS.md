@@ -1,5 +1,14 @@
 # llmx - Development Status
 
+## Chat companion reading and composition (2026-11-20)
+
+- **Goal:** Make it easier to start a conversation, follow multi-call replies and use saved project files in a draft.
+- **Done:** Chat has a centered empty composer with a direct project picker, a compact navigation and conversation search area, a shared reading width, and grouped tool rows that show their file paths. Saved files can be filtered by path while an editor stays open.
+- **Checks:** Chrome exercised empty and populated conversations, reasoning, two file reads in a reply, project review and insertion, file filtering, search and both themes at 1440, 390 and 320 px. Opening a file shows its first character. Returning to the landing page clears Jump to latest.
+- **Verification:** The Windows companion suite ran 134 tests with one Linux-only launch diagnostic skipped. JavaScript syntax, docs and dead-code checks passed. The browser tested CSS at 200 percent zoom.
+- **Left:** Scoped hosted verification and fast-forward landing.
+- **Gotchas:** The companion keeps temporary mode, per-reply statistics, keyboard focus and tool approvals. The fixture waits for the browser to apply its desktop viewport before selecting the Files tab after a resize.
+
 ## Chat message actions (2026-11-19)
 
 - **Goal:** Use one treatment for the controls under user and assistant messages.

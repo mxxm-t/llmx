@@ -380,6 +380,12 @@ a fitted budget with experts on the CPU over a null backend: inference: missing 
 experts on the CPU with the CPU among two devices: --n-cpu-moe: not with the CPU as a device of a split; list the devices without the CPU, or the CPU alone
 experts on the CPU with layer shares over the CPU: --cpu-moe: not with the CPU as a device of a split; list the devices without the CPU, or the CPU alone
 experts on the CPU of a model without routed layers: --n-cpu-moe: the model has no expert layers
+an expert cache without experts on the CPU: --expert-cache: only experts on the CPU are cached; give --n-cpu-moe or --cpu-moe
+an expert cache beside streamed experts: --expert-cache: not with --moe-stream-from; the cache already runs a prompt's experts on the device
+an expert cache on the CPU: --expert-cache: not with the CPU as a device; the cache holds experts on a Vulkan, ROCm or CUDA device
+an expert cache on a device without one: --expert-cache: the device has no expert cache; it runs on a Vulkan, ROCm or CUDA device
+an expert cache of no slot: --expert-cache: 1 bytes hold no expert a layer, which takes 1152
+an expert cache over a split of devices without one: --expert-cache: the device has no expert cache; it runs on a Vulkan, ROCm or CUDA device
 a tensor width refused before the fit: inference: a tensor width of 2 splits blk.0.ffn_down.weight off whole Q8_0 blocks
 a split without device names: split: a name for every device
 three layer shares for two devices: split: 3 layer shares for 2 devices
@@ -392,6 +398,7 @@ tensor width heads: inference: a tensor width of 3 does not divide the 8 heads o
 tensor width KV heads: inference: a tensor width of 6 does not divide the 4 KV heads of blk.0.attn_k.weight, nor is a multiple of them
 tensor width quant blocks: inference: a tensor width of 8 splits blk.0.ffn_down.weight off whole Q4_K blocks
 tensor width vocabulary: inference: a tensor width of 2 does not divide the 15 vocabulary rows of output.weight
+an expert cache of 65536 experts a layer: --expert-cache: 65536 experts a layer, more than the 65535 the cache names
 tensor width K heads: inference: a tensor width of 4 does not divide the 2 K heads of blk.0.attn_qkv.weight
 tensor width saved row: inference: a tensor width of 2 does not divide the 513 floats layer 0 saves a row for a mark
 row run past the tensor: inference: incompatible tensor layout blk.0.attn_qk.weight

@@ -1727,6 +1727,46 @@ void two_tables_share() {
     checked += 2;
 }
 
+// Experts on the CPU beside a model with a lookup table: held in the host's own memory they count against what the host can take, read in place from the file's mapping they are page cache and count nothing.
+// The expert stacks claim a GiB each against a host that can take 512 MiB, so only the mapped load places the model.
+void mapped_experts_fit() {
+    const auto file = tiny_qwen_moe(2, 2 * 128, true);
+    infer::ModelWeights weights = infer::gguf_weights(file);
+    weights.arch = std::make_shared<LookupArchitecture>(weights.arch);
+    const size_t columns = 16, rows = 64, GiB = size_t(1) << 30;
+    std::vector<float> table(columns * rows);
+    const size_t tensor = weights.tensors.size();
+    weights.tensors.push_back({"placement.lookup", {columns, rows}, quant::GGML_TYPE_F32, reinterpret_cast<const uint8_t*>(table.data()), table.size() * sizeof(float)});
+    const auto source = table_source(quant::GGML_TYPE_F32, columns, rows, weights.tensors[tensor].data, weights.tensors[tensor].bytes);
+    size_t stacks = 0;
+    for (infer::TensorView& t : weights.tensors)
+        if (t.name.find("_exps") != std::string::npos) {
+            t.bytes = GiB;
+            ++stacks;
+        }
+    require(stacks > 0, "the routed fixture has no expert stacks");
+    auto device = std::make_shared<SizedDevice>();
+    device->room = size_t(64) << 20;
+    device->copying = true;
+    device->set_threads(1);
+    infer::PlacementRequest request;
+    request.names = {"device"};
+    request.ubatch = 2;
+    request.cpu_moe = -1;
+    request.lookup_storage = infer::LookupStorage::file;
+    const infer::ModelOptions options;
+    const std::optional<size_t> room = GiB / 2;
+    std::string refused;
+    try { infer::plan_placement(weights, {device}, request, options, {{tensor, source}}, false, room); }
+    catch (const std::runtime_error& e) { refused = e.what(); }
+    require(refused.find("the host's") != std::string::npos, "experts in the host's own memory past what it can take were not refused by the host's budget");
+    std::string mapped;
+    try { infer::plan_placement(weights, {device}, request, options, {{tensor, source}}, true, room); }
+    catch (const std::runtime_error& e) { mapped = e.what(); }
+    require(mapped.empty(), ("experts read in place from the mapping were counted as the host's own memory: " + mapped).c_str());
+    checked += 2;
+}
+
 // One host budget for the lookup tables' hot rows and a server's evicted prefixes (infer::host_shares): the rows first, at most half the budget and at most their cap, the prefixes the rest;
 // without --host-cache-bytes the budget is half the host memory available, none where that is unknown, and 0 keeps neither.
 void host_budget_shared() {
@@ -3497,6 +3537,7 @@ int main() {
         external_lookup_fits();
         host_budget_shared();
         two_tables_share();
+        mapped_experts_fit();
         split_matches_single();
         drafter_stages_fit();
         histories_fit_the_pool();

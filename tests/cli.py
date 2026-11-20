@@ -167,6 +167,7 @@ def check_usage_errors():
                                (["pull", "a/b:q8_0", "--revision", "a", "--revision", "b"], "pull", "--revision is given twice"),
                                (["generate", model, "a", "--cpu-moe", "--n-cpu-moe", "2"], "generate", "--cpu-moe and --n-cpu-moe set the same thing"),
                                (["serve", model, "--n-cpu-moe", "1", "--cpu-moe"], "serve", "--n-cpu-moe and --cpu-moe set the same thing"),
+                               (["generate", model, "a", "--expert-cache", "1gb"], "generate", "--expert-cache caches the experts on the CPU; give --n-cpu-moe or --cpu-moe"),
                                (["generate", model, "a", "--device", "vulkan:0,vulkan:1,vulkan:2", "--tensor-width", "2"], "generate",
                                 "--tensor-width 2 needs a device list of whole groups: 3 devices listed"),
                                (["logits", model, "a", "--device", ",".join("vulkan:%d" % d for d in range(17)), "--tensor-width", "17"], "logits",
@@ -311,11 +312,11 @@ def check_help():
              "pull": ["pull", "owner/repo:"], "info": ["info", model], "tokenize": ["tokenize", model, "a"],
              "detokenize": ["detokenize", model, "1"], "dequantize": ["dequantize", model, "out.json", "out.bin"],
              "quantize": ["quantize", "missing.json", "missing.bin", "out.gguf"]}
-    # bench's --size and --iters are the synthetic bench's, which runs in full on a short line giving the other of the two once; --profile times one Vulkan device, and --moe-stream-from streams the experts on the CPU.
+    # bench's --size and --iters are the synthetic bench's, which runs in full on a short line giving the other of the two once; --profile times one Vulkan device, and --moe-stream-from and --expert-cache take the experts on the CPU.
     synthetic = ["bench", "--p", "1", "--n", "1"]
     # The image flags are taken together and with --chat, but serve's, which take an encoder alone and size its images with it.
     serve_company = {"--mmproj": [], "--image-max-tokens": ["--mmproj", "missing.gguf"]}
-    company = {"--profile": ["--device", "vulkan:0"], "--moe-stream-from": ["--cpu-moe"], "--image": ["--chat", "--mmproj", "missing.gguf"],
+    company = {"--profile": ["--device", "vulkan:0"], "--moe-stream-from": ["--cpu-moe"], "--expert-cache": ["--cpu-moe"], "--image": ["--chat", "--mmproj", "missing.gguf"],
                "--mmproj": ["--chat", "--image", "missing.png"], "--image-max-tokens": ["--chat", "--mmproj", "missing.gguf", "--image", "missing.png"],
                "--yarn-original-ctx": ["--yarn", "4"]}
     # Values a placeholder's would not give: --size is a multiple of 32, a perplexity window holds two tokens at least, --drafter names a drafter and --yarn scales by more than 1.

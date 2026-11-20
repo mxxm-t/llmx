@@ -710,7 +710,7 @@ add_executable(llmx-arch-deepseek4-test tests/arch_deepseek4.cpp)
 target_include_directories(llmx-arch-deepseek4-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 list(APPEND LLMX_TARGETS llmx-arch-deepseek4-test)
 add_test(NAME arch-deepseek4 COMMAND llmx-arch-deepseek4-test ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/deepseek41_reference.json)
-set_tests_properties(arch-deepseek4 PROPERTIES TIMEOUT 30)
+set_tests_properties(arch-deepseek4 PROPERTIES TIMEOUT 90)
 
 add_executable(llmx-arch-minimax-m3-test tests/arch_minimax_m3.cpp)
 target_include_directories(llmx-arch-minimax-m3-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)

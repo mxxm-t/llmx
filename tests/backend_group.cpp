@@ -4,6 +4,8 @@
 #include <chrono>
 #include <cmath>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <functional>
 #include <iostream>
 #include <limits>
@@ -592,6 +594,56 @@ static size_t check_moe_decode_step(const moe::Matrix& matrix) {
     return values;
 }
 
+// Expert stacks adopted with their file (Backend::adopt_file) over zeros in memory: the CPU's routed step and products read the picked experts from the file, so every output has the bits of the stacks held in memory.
+// The stacks lie at offsets that are no multiple of a page, and the step takes the decode step, the base and the prompt products on 1 and 4 threads.
+static size_t check_experts_from_file(const moe::Matrix& matrix) {
+    const uint32_t q4k = quant::GGML_TYPE_Q4_K, q6k = quant::GGML_TYPE_Q6_K, mx = quant::GGML_TYPE_MXFP4, f32 = quant::GGML_TYPE_F32;
+    const moe::Shape shapes[] = {{256, 16, 4, 64, {mx, mx, mx, mx}, false, 7.0f, f32, f32, false, backend::RouteRule::Score::sqrt_softplus}, {256, 16, 4, 256, {q4k, q6k, q4k, q6k}, false}};
+    const std::filesystem::path path = std::filesystem::temp_directory_path() / ("llmx-experts-from-file-" + std::to_string(std::hash<std::thread::id>{}(std::this_thread::get_id())) + ".bin");
+    backend::CpuBackend cpu;
+    size_t values = 0;
+    for (const moe::Shape& s : shapes) {
+        const moe::Weights w = moe::weights(cpu, s, matrix, 95);
+        uint64_t at[3] = {};
+        {
+            std::ofstream out(path, std::ios::binary | std::ios::trunc);
+            out.write("0123456789abc", 13);
+            uint64_t offset = 13;
+            const backend::BufferPtr* stacks[3] = {&w.gate, &w.up, &w.down};
+            for (size_t k = 0; k < 3; ++k) {
+                at[k] = offset;
+                out.write((const char*)(*stacks[k])->host_ptr(), std::streamsize((*stacks[k])->size()));
+                offset += (*stacks[k])->size();
+            }
+            require(bool(out), "the experts' file was not written");
+        }
+        {
+            const auto file = std::make_shared<const format::FileReader>(path.string());
+            std::vector<uint8_t> zeros(std::max({w.gate->size(), w.up->size(), w.down->size()}), 0);
+            moe::Weights read = w;
+            read.gate = cpu.adopt_file(zeros.data(), w.gate->size(), file, at[0]);
+            read.up = cpu.adopt_file(zeros.data(), w.up->size(), file, at[1]);
+            read.down = cpu.adopt_file(zeros.data(), w.down->size(), file, at[2]);
+            for (int threads : {1, 4}) {
+                cpu.set_threads(threads);
+                for (size_t rows = 1; rows <= 3; ++rows) {
+                    const std::vector<float> h = moe::inputs(rows, s.E, 96), y0 = moe::residual(rows, s.E, 97);
+                    const std::vector<backend::RowRun> prompt = {{rows, 512}}, decode = moe::decode_runs(rows);
+                    for (const auto* runs : {&decode, &prompt})
+                        for (backend::Dtype dtype : {backend::Dtype::f32, backend::Dtype::f16}) {
+                            std::string what;
+                            const size_t n = moe::same(moe::run(cpu, read, h, y0, rows, *runs, dtype, moe::How::op), moe::run(cpu, w, h, y0, rows, *runs, dtype, moe::How::op), what);
+                            require(n != 0, ("experts read from their file gave other " + what + " than the stacks in memory").c_str());
+                            values += n;
+                        }
+                }
+            }
+        }
+        std::filesystem::remove(path);
+    }
+    return values;
+}
+
 // Routed prompt entries of the types without packed prompt dots (MXFP4, Q5_1) take float products, and unit columns give each weight as the registry's decoder writes it over every finite scale byte.
 // Each entry has the bits of its expert's plain prompt product of that entry alone.
 static size_t check_float_routed_prompts(backend::CpuBackend& cpu) {
@@ -789,6 +841,7 @@ int main() {
         };
         const size_t steps = check_moe_step(cpu, matrix), step_classes = moe::check_row_classes(cpu, matrix);
         const size_t decode_steps = check_moe_decode_step(matrix);
+        const size_t from_file = check_experts_from_file(matrix);
         size_t values = 0, cases = 0;
         for (int threads : {1, 2, 6}) {
             cpu.set_threads(threads);
@@ -835,7 +888,7 @@ int main() {
         std::cout << "grouped projections: " << cases << " cases, " << values
                   << " outputs checked against separate calls and double dots; "
                   << inputs << " Q8 products on original inputs; " << summed << " collective sums in member order; " << routed << " routing edge cases; " << float_routed << " float routed prompt rows and entries; " << busy << " busy times; "
-                  << steps << " routed step outputs equal to the calls it replaced; " << decode_steps << " CPU routed step outputs equal to the base step's; " << step_classes << " pairs of extents of one class with the same bits through the routed step; "
+                  << steps << " routed step outputs equal to the calls it replaced; " << decode_steps << " CPU routed step outputs equal to the base step's; " << from_file << " routed outputs of experts read from their file equal to those held in memory; " << step_classes << " pairs of extents of one class with the same bits through the routed step; "
                   << classes << " pairs of extents of one class with the same bits; "
                   << scales << " exact finite Q8 scale/weight cases; "
                   << reductions << " ordered prefill reductions; "

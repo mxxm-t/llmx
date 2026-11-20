@@ -759,6 +759,136 @@ void positions() {
     require(refused, "a device too small for one block not refused by the placement");
 }
 
+// A device that caches experts and allocates in units of 1000 bytes, so a slot stack's bytes are rarely whole units.
+struct Cache : Room {
+    bool caches_experts() const override { return true; }
+    size_t resident_bytes(uint32_t, size_t, size_t, size_t bytes, bool) const override { return (bytes + 999) / 1000 * 1000; }
+};
+
+// Under --cpu-moe --expert-cache the device holds each routed layer's copies (Stream::copy) beside the split's own need, and its slots take only what that leaves, at the units it allocates them in.
+// The slots are the most that fit: one more a layer does not, unless every expert has its slot already.
+void expert_cache_room() {
+    const gguf::GGUFModel m = fork();
+    const infer::ModelWeights w = infer::gguf_weights(m);
+    const infer::ModelPlan p = infer::plan_model(w);
+    const infer::ModelOptions options;
+    infer::PlacementRequest request;
+    request.names = {"device"};
+    request.ubatch = 64;
+    request.cpu_moe = -1;
+    request.expert_cache = size_t(1) << 50;
+    // What the device holds written out here: every role but the routed stacks, whose strides and experts the slots take.
+    infer::ModelPlan held = p;
+    std::vector<std::pair<uint32_t, size_t>> stacks;
+    size_t layers = 0, n_expert = 0, expert = 0;
+    for (infer::LayerPlan& layer : held.layers) {
+        bool routed = false;
+        for (infer::Role& role : layer.roles)
+            if (role.stream == infer::Stream::window && role.tensor) {
+                const infer::TensorView& t = w.tensors[*role.tensor];
+                if (!layers) stacks.push_back({t.type, t.bytes / role.experts}), expert += t.bytes / role.experts;
+                n_expert = role.experts;
+                role.tensor.reset();
+                routed = true;
+            }
+        layers += routed;
+    }
+    require(layers > 0 && stacks.size() == 3, "the fixture has no routed layer of three stacks");
+    const auto device = [](size_t room) {
+        auto d = std::make_shared<Cache>();
+        d->room = room;
+        d->set_threads(1);
+        return std::vector<backend::BackendPtr>{d};
+    };
+    const auto units = [](size_t bytes) { return (bytes + 999) / 1000 * 1000; };
+    const auto layer_bytes = [&](size_t n) {
+        backend::ExpertSlots state;
+        state.slots = n, state.n_expert = n_expert;
+        size_t b = units(state.words() * sizeof(uint32_t));
+        for (const auto& s : stacks) b += units(n * s.second);
+        return b;
+    };
+    const infer::Footprint fp = infer::footprint(w, held, options);
+    const size_t rows = infer::fitted_rows(request);
+    const auto split_at = [&](size_t room) { return infer::split_layers(fp, infer::budgets_for(device(room), {"device"}), rows, {}, std::nullopt, request.slots, std::nullopt, 0); };
+    size_t lo = 1, hi = size_t(1) << 34;
+    while (hi - lo > 1) {
+        const size_t mid = lo + (hi - lo) / 2;
+        bool holds = true;
+        try { split_at(mid); } catch (const std::runtime_error&) { holds = false; }
+        (holds ? hi : lo) = mid;
+    }
+    size_t checked = 0;
+    for (size_t k = 1; k < n_expert && checked < 6; ++k) {
+        const size_t room = hi + k * layers * expert + layers * expert / 2 + 7;
+        const infer::PlannedModel planned = infer::plan_placement(w, device(room), request, options, {}, false, std::nullopt);
+        // The split of the plan and KV budget the placement settled, which the model allocates, without the routed stacks.
+        infer::ModelPlan settled = planned.architecture;
+        for (infer::LayerPlan& layer : settled.layers)
+            for (infer::Role& role : layer.roles)
+                if (role.stream == infer::Stream::window) role.tensor.reset();
+        const infer::LayerSplit split = infer::split_layers(infer::footprint(w, settled, planned.options), infer::budgets_for(device(room), {"device"}), rows, {}, std::nullopt, request.slots,
+                                                            std::nullopt, 0);
+        const infer::LayerSplit::Stage& st = split.stages[0];
+        const size_t used = st.weights + st.cache + st.other;
+        require(used < room, "the room holds nothing beside the split");
+        size_t n = 0;
+        for (size_t s : planned.placement.expert_slots) n = std::max(n, s);
+        if (!n) continue;
+        require(layers * layer_bytes(n) <= room - used, "the expert cache's slots take more than the split leaves the device (" + std::to_string(n) + " a layer)");
+        require(n == n_expert || layers * layer_bytes(n + 1) > room - used, "the expert cache left room for another slot a layer (" + std::to_string(n) + ")");
+        ++checked;
+    }
+    require(checked > 0, "no room gave the expert cache a slot");
+    // A server without --kv-tokens fills the device with its automatic budget, which leaves each cached layer room for one slot first.
+    request.kv_auto = true;
+    {
+        const size_t room = hi + 4 * layers * expert + (size_t(1) << 20);
+        const infer::PlannedModel planned = infer::plan_placement(w, device(room), request, options, {}, false, std::nullopt);
+        size_t cached = 0;
+        for (size_t s : planned.placement.expert_slots) cached += s > 0;
+        require(cached == layers, "an automatic KV budget left a cached layer no slot (" + std::to_string(cached) + " of " + std::to_string(layers) + ")");
+        require(planned.options.kv_tokens > 0, "an automatic KV budget beside the expert cache holds no token");
+    }
+    // A layer split of 2048-row prompts over two devices places its layers by their room, which leaves each cached layer room for one slot first: a split that holds never refuses the cache no room.
+    request.kv_auto = false;
+    request.ubatch = 2048;
+    request.names = {"a", "b"};
+    const auto two = [](size_t room) {
+        std::vector<backend::BackendPtr> d;
+        for (int i = 0; i < 2; ++i) {
+            auto c = std::make_shared<Cache>();
+            c->room = room;
+            c->set_threads(1);
+            d.push_back(c);
+        }
+        return d;
+    };
+    const infer::Footprint wide = infer::footprint(w, held, options);
+    const size_t wide_rows = infer::fitted_rows(request);
+    lo = 1, hi = size_t(1) << 34;
+    while (hi - lo > 1) {
+        const size_t mid = lo + (hi - lo) / 2;
+        bool holds = true;
+        try { infer::split_layers(wide, infer::budgets_for(two(mid), request.names), wide_rows, {}, std::nullopt, request.slots, std::nullopt, 0); } catch (const std::runtime_error&) { holds = false; }
+        (holds ? hi : lo) = mid;
+    }
+    size_t placed = 0;
+    for (size_t j : {size_t(0), size_t(4)}) {
+        const size_t room = hi + j * layers * expert / 2;
+        try {
+            const infer::PlannedModel planned = infer::plan_placement(w, two(room), request, options, {}, false, std::nullopt);
+            size_t cached = 0;
+            for (size_t s : planned.placement.expert_slots) cached += s > 0;
+            require(cached == layers, "a split of two devices left a cached layer no slot");
+            ++placed;
+        } catch (const std::runtime_error& e) {
+            require(std::string(e.what()).rfind("--expert-cache:", 0) != 0, std::string("a split of two devices that holds refused the expert cache: ") + e.what());
+        }
+    }
+    require(placed > 0, "no room placed the split of two devices with an expert cache");
+}
+
 // engram_q times engram_k against doubles: the fixture's 1 + j/64 values, every pair, and random BF16 pairs whose products are normal F32.
 void norm_product() {
     std::vector<uint16_t> q, k;
@@ -2112,6 +2242,7 @@ int main(int argc, char** argv) {
             plan();
             footprint();
             positions();
+            expert_cache_room();
             norm_product();
             position_tables();
             named();

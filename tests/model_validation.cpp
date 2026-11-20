@@ -715,6 +715,23 @@ void placement_checks() {
     auto device = std::make_shared<LoadingBackend>();
     device->set_threads(1);
     rejects("experts on the CPU of a model without routed layers", [&] { infer::place_model(weights, {device}, request, options); });
+    // A device expert cache needs experts on the CPU and no streaming beside it, one device that has one, and room for an expert a layer.
+    request = {}; request.expert_cache = size_t(1) << 30;
+    rejects("an expert cache without experts on the CPU", [&] { infer::place_model(routed, {device}, request, options); });
+    request.cpu_moe = -1; request.stream_from = 2;
+    rejects("an expert cache beside streamed experts", [&] { infer::place_model(routed, {device}, request, options); });
+    request.stream_from = 0;
+    rejects("an expert cache on the CPU", [&] { infer::place_model(routed, {cpu()}, request, options); });
+    rejects("an expert cache on a device without one", [&] { infer::place_model(routed, {device}, request, options); });
+    struct Caching : LoadingBackend {
+        bool caches_experts() const override { return true; }
+    };
+    auto caching = std::make_shared<Caching>();
+    caching->set_threads(1);
+    request.expert_cache = 1;
+    rejects("an expert cache of no slot", [&] { infer::place_model(routed, {caching}, request, options); });
+    request.expert_cache = size_t(1) << 30; request.names = {"a", "b"};
+    rejects("an expert cache over a split of devices without one", [&] { infer::place_model(routed, {device, device}, request, options); });
     // A width a model's shards cannot take is refused by its name before the fit reads a member's shards: a Q8_0 feed-forward width of 96, 48 columns a member of two.
     request = {}; request.width = 2; request.names = {"a", "b"};
     const gguf::GGUFModel off_block = infer::synthetic_model({1, 64, 96, 2, 2, 32, 64, 7u});
@@ -1162,6 +1179,22 @@ void shard_checks() {
         for (size_t width : {size_t(2), size_t(4)}) infer::shard::check_plan(pv.first, pv.second, width);
         const auto q8 = dense(8, 2, 128, 1024, 48, quant::GGML_TYPE_Q8_0, true);
         for (size_t width : {size_t(2), size_t(4)}) infer::shard::check_plan(q8.first, q8.second, width);
+        ++checks;
+    }
+    {
+        // A device expert cache names a layer's experts in 16 bits, so a layer of 65536 is refused at the fit and one of 65535 is not (Placement::expert_slots).
+        auto pv = dense(8, 2, 128, 1024, 48, f32, true);
+        for (infer::TensorView& v : pv.second) v.bytes = size_t(1) << 20;
+        infer::PlacementRequest request;
+        request.cpu_moe = -1; request.expert_cache = size_t(1) << 62;
+        const infer::ModelWeights w{nullptr, pv.second};
+        for (uint64_t n : {uint64_t(65535), uint64_t(65536)}) {
+            for (infer::LayerPlan& layer : pv.first.layers)
+                for (infer::Role& role : layer.roles)
+                    if (role.experts) role.experts = n;
+            if (n == 65536) rejects("an expert cache of 65536 experts a layer", [&] { infer::expert_slots(w, pv.first, request); });
+            else require(infer::expert_slots(w, pv.first, request) > 0, "an expert cache of 65535 experts a layer has no slot");
+        }
         ++checks;
     }
     {

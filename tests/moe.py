@@ -195,6 +195,56 @@ def check_q8(directory, golden):
                 variant, mode, "; ".join(parts), aggregate, "  [ok]" if gated else "  [sensitivity, no bound]"))
 
 
+# A shape whose expert matrices are whole 16-byte rows, which the device expert cache copies in: 64 wide, 16 rows an expert, 8 experts, 3 a token, with room for a chat of two turns.
+CACHE_CONFIG = dict(CONFIG, embedding_length=64, expert_feed_forward_length=16, context_length=64)
+
+
+def check_expert_cache(directory, devices):
+    """On `devices` GPU devices, one or a layer split, --cpu-moe --expert-cache gives every logit and generated token of the experts all on the devices, bit for bit.
+    Three slots a layer of eight experts run a prompt in rounds and a generated token misses, hits and evicts; eight slots run it in one round, and a chat's second turn takes experts from the slots its first turn left."""
+    model = write_model(os.path.join(directory, "cache-moe.gguf"), tensors(config=CACHE_CONFIG), config=CACHE_CONFIG, arch="qwen3moe",
+                        chat_template="{% for m in messages %}{{ m['content'] }}{% endfor %}")
+    expert = 3 * 64 * 16 * 4
+    for slots in (3, 8):
+        cached = ["--cpu-moe", "--expert-cache", str(2 * slots * expert)]  # the slots in each of the two routed layers
+        for args, given in ((["logits", model, TEXTS[-1], "--top", "257"], None), (["generate", model, TEXTS[0], "-n", "12", "--temp", "0"], None),
+                            (["chat", model, "-n", "3", "--temp", "0", "--ignore-eos"], b"ab\ncdef\n")):
+            # A tiny model's tokens are any bytes, so the outputs are compared as bytes, without generate's timing lines.
+            plain = common.run_process(args, input=given, cache="f32")
+            cache = common.run_process(args + cached, input=given, cache="f32")
+            errors = (plain.stderr + cache.stderr).decode("utf-8", "replace")
+            assert plain.returncode == 0 and cache.returncode == 0, "expert cache: " + errors
+            untimed = [[line for line in p.stdout.split(b"\n") if not line.startswith((b"pp:", b"tg:"))] for p in (plain, cache)]
+            assert untimed[0] == untimed[1], "expert cache: %s with %d slots differs from the experts all on the device" % (args[0], slots)
+            counts = [line for line in cache.stderr.decode("utf-8", "replace").splitlines() if line.startswith("expert cache: ")]
+            assert len(counts) == 1, "expert cache: no count of experts in slots and pulled"
+            hits, pulled = (int(counts[0].split(", ")[i].split()[0]) for i in (1, 2))
+            assert pulled, "expert cache: nothing pulled (%s)" % counts[0]
+            if args[0] == "generate" and slots == 3:
+                assert hits and pulled > 2 * 3, "expert cache: generated tokens neither hit nor evicted (%s)" % counts[0]
+            if args[0] == "chat":
+                assert hits, "expert cache: the second turn took no expert from a slot (%s)" % counts[0]
+            print("moe: --expert-cache %s with %d slots identical to the experts on the device; %s  [ok]" % (args[0], slots, counts[0]))
+
+
+# A prompt pass of more cached waves than a device has tickets in flight (1024 on ROCm and CUDA): 23 routed layers of 64 experts, one slot each, take 64 waves a layer.
+WRAP_CONFIG = dict(CACHE_CONFIG, block_count=24, expert_count=64, expert_used_count=8)
+
+
+def check_expert_cache_wrap(directory):
+    """A prompt whose cached waves outnumber the tickets in flight gives the logits of the experts all on the device: the ring's reader waits on tickets whose event slots the recording thread reuses."""
+    model = write_model(os.path.join(directory, "wrap-moe.gguf"), tensors(config=WRAP_CONFIG), config=WRAP_CONFIG, arch="qwen3moe")
+    args = ["logits", model, "the expert ring wraps its tickets in one prompt pass here", "--top", "257"]
+    plain = common.run_process(args, cache="f32", timeout=300)
+    cache = common.run_process(args + ["--cpu-moe", "--expert-cache", str(23 * 3 * 64 * 16 * 4)], cache="f32", timeout=300)
+    assert plain.returncode == 0 and cache.returncode == 0, "expert cache wrap: " + (plain.stderr + cache.stderr).decode("utf-8", "replace")
+    assert plain.stdout == cache.stdout, "expert cache wrap: the logits differ from the experts all on the device"
+    counts = [line for line in cache.stderr.decode("utf-8", "replace").splitlines() if line.startswith("expert cache: ")]
+    waves = int(counts[0].split(" waves")[0].rsplit(", ", 1)[1]) if counts else 0
+    assert waves > 1024, "expert cache wrap: %d waves, not past the tickets in flight (%s)" % (waves, counts)
+    print("moe: --expert-cache logits with %d waves in a pass identical to the experts on the device  [ok]" % waves)
+
+
 def run():
     if common.f32_cache_skip("moe") or common.tensor_width_skip("moe"):
         return common.SKIPPED
@@ -214,6 +264,9 @@ def run():
         worst, _ = common.check_hf_fixture("MoE", model, golden["cases"], golden["perplexity"], TEXTS[-1],
                                            (1, 2, 3, 5, 16), placements)
         common.check_drafts("MoE", model)
+        if all(d.startswith(("vulkan", "rocm", "cuda")) for d in device.split(",")):
+            check_expert_cache(directory, len(device.split(",")))
+            check_expert_cache_wrap(directory)
     print("moe: all 257 logits vs HF over routed and dense layers, batch widths, threads, expert placement and PPL; max error %.8f  [ok]" % worst)
     with open(os.path.join(os.path.dirname(__file__), "data", "baseline_moe_q8.json"), encoding="utf-8") as f:
         golden = json.load(f)

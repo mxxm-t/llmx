@@ -1,13 +1,37 @@
 # llmx companion
 
-The llmx companion brings Chat, Monitor, Workspace and Settings under one
-address, session and shared dashboard theme. Workspace means project files,
-checkpoints and command execution. Search saved conversations in the sidebar.
+The llmx companion brings Chat, Saved files, Monitor and Settings under one
+address and session. Open **Saved files** to edit files, reuse projects or run
+commands.
 Conversations, branches, tool results and request metrics live in a local SQLite database. The companion uses
 Python's standard library and buildless HTML, CSS and JavaScript. The base
 companion runs without additional packages. PDF text import is an optional
 browser add-on installed by the operator.
 
+## Run
+
+From the repository root, start llmx with a chat model. Replace `model.gguf`
+with its path. This local example listens on `127.0.0.1:8080`.
+
+```sh
+./build/llmx serve model.gguf --no-auth
+```
+
+On Windows, a `build.bat` build uses `.\llmx.exe serve model.gguf --no-auth`.
+Keep that terminal open and start the companion in a second terminal.
+
+```sh
+python tools/chat_ui/server.py --upstream http://127.0.0.1:8080
+```
+
+Open `http://127.0.0.1:8183` and send a message. If your model server is
+already running, use its address for `--upstream` and skip the first command.
+For a server that requires a key, add `--api-key-file PATH` to the companion
+command. The file must contain one upstream key.
+
+To try a tool with a model that supports tool calls, open **Conversation
+settings** beside the model selector, enable `workspace_list` under **Tools
+for this conversation**, and ask the model to list your saved files.
 Tool names and arguments appear while the model prepares a call. Open the call
 to inspect its incoming arguments, or refresh to resume from its saved state.
 Preparing a call does not run it: approval and execution begin only after the
@@ -77,15 +101,9 @@ saved workspace files and creates a checkpoint before a command runs. Back to
 Chat returns to the current conversation and keeps the editor buffer for the
 current page.
 
-## Run
+## Storage and deployment
 
-Start llmx's server first, then run from the repository root:
-
-```powershell
-python tools/chat_ui/server.py --upstream http://127.0.0.1:8090 --port 8183
-```
-
-Open `http://127.0.0.1:8183`. `--upstream` accepts an origin or a URL ending in
+`--upstream` accepts an origin or a URL ending in
 `/v1`. By default, data is in `~/.llmx-chat/chat.sqlite3`. `--data-dir PATH`
 selects another directory. Settings can download an online SQLite chat backup
 and restore one while replies are idle. Restore replaces conversations, and
@@ -95,15 +113,11 @@ active database is replaced. Back up the entire data
 directory with the companion stopped to include workspace files and checkpoints.
 Do not point two companion processes at the same database.
 
-The upstream may run on another machine. For example, use
-`--upstream http://11.10.10.13:8090` when that address is your llmx endpoint.
-The companion does not discover production ports or start an inference server.
-
 For access from another machine, supply an owner password file and the exact
 browser-facing origin:
 
 ```text
-python tools/chat_ui/server.py --upstream http://127.0.0.1:8090 --host 0.0.0.0 --port 8183 --password-file /run/secrets/chat-password --public-origin https://chat.example.com
+python tools/chat_ui/server.py --upstream http://127.0.0.1:8080 --host 0.0.0.0 --port 8183 --password-file /run/secrets/chat-password --public-origin https://chat.example.com
 ```
 
 Non-loopback listening requires an HTTPS public origin and an owner password.

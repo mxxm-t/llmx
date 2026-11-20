@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Local chat startup instructions (2026-11-21)
+
+- **Goal:** Connect a fresh companion to the server started by the README.
+- **Done:** The project README and companion guide connect to the runtime on port 8080. The guide opens with the two launch commands and the conversation settings for enabling a tool.
+- **Checks:** A local Qwen3-0.6B Q8_0 runtime served its catalog on port 8080. An isolated companion completed a text chat. In a second chat the model called workspace_list, received one tool result and finished its reply. The test used companion port 18183 and temporary storage while the live preview stayed on 8183.
+- **Landing:** Documentation-only fast-forward after the docs and dead-code checks.
+
 ## Find chat attachments (2026-11-21)
 
 - **Goal:** Find a sent file by name and reach its original message on the active branch.

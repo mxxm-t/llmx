@@ -9,8 +9,9 @@ The optional [chat companion](tools/chat_ui/README.md) brings conversations,
 monitoring, code previews and a managed file workspace into one owner interface.
 It includes branches, MCP tools, request statistics and optional isolated execution.
 It uses Python's standard library and static browser files, with no inference
-runtime dependencies. Run `python tools/chat_ui/server.py --upstream http://127.0.0.1:8090`
-and open `http://127.0.0.1:8183` after starting the llmx server.
+runtime dependencies. With the local server below running on port 8080, run
+`python tools/chat_ui/server.py --upstream http://127.0.0.1:8080` in another
+terminal and open `http://127.0.0.1:8183`. See [Run the companion](tools/chat_ui/README.md#run) for setup.
 
 The tables summarize current model, weight-format and backend support. **Supported** means the path is implemented and has applicable checks. **In development** means the implementation exists but qualification remains open. **Planned** means roadmap work not available in this tree; see the [ROADMAP](docs/ROADMAP.md).
 

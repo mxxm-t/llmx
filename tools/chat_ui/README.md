@@ -192,7 +192,10 @@ Ending a temporary chat still uses its existing confirmation.
 
 The sidebar highlights the current view and groups saved conversations by pin
 and folder. Search shows matching conversations in one list. The chat landing
-page keeps the composer, project picker and suggested prompts together.
+page lists up to three recently updated conversations with messages. Archived
+conversations stay in the archive. Select a recent conversation to reopen its
+active branch. **Browse saved files** adds selected files to the current draft.
+**Prompt starters** inserts a task prompt at the cursor for editing before sending.
 
 - Unsent text, attachments and edit targets stay with each ordinary conversation
   when you switch chats or select the same chat again. They are saved in this
@@ -220,6 +223,8 @@ page keeps the composer, project picker and suggested prompts together.
   continues in its original conversation if you navigate away while admission
   or snapshot refresh is pending; its completion does not reconnect or scroll
   the newly selected view.
+- Choose **Conversation actions > Find in conversation** to jump to an earlier prompt or search the current branch's prompts and replies. Select a result to focus its message. Search runs in the browser and leaves the draft intact.
+- **Conversation actions > Download Markdown** saves the current branch's prompt and reply text in reading order. It leaves out tool payloads, reasoning, attachments and unsent drafts. Use **Export JSON** for a backup with branches.
 - Each sidebar row has a compact anchored actions menu for rename, pin/unpin,
   move to folder, duplicate, archive/restore, export and delete. Actions target
   that row without opening it. Rename, folder and delete use accessible dialogs.

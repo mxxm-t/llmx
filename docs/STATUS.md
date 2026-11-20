@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Chat workspace and conversation navigation (2026-11-21)
+
+- **Goal:** Make Chat a practical working surface for composing, resuming conversations and finding material in a reply history.
+- **Done:** Chat opens at the composer with saved files and up to three recent conversations. The active branch has a local prompt index, text search with jump-to-message and a Markdown transcript download.
+- **Checks:** Chrome exercised both themes at 320, 390, 768 and 1440 px. The 320 and 390 px composer has 16 px side gutters. The message-navigation fixture covers 27 turns, paging, literal matching, alternate branches, draft preservation, focus and export contents.
+- **Landing:** The standalone companion uses the Linux and Windows Chat workspace workflow for the landing head. The change lands by fast-forward after its scoped checks pass.
+
 ## Chat message actions (2026-11-19)
 
 - **Goal:** Use one treatment for the controls under user and assistant messages.

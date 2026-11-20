@@ -335,8 +335,25 @@ async function checkHomeLanding() {
     assert.equal(await evaluate("document.querySelector('#jump-bottom').hidden"), true, 'empty Chat kept the transcript jump control');
     assert.deepEqual(await history(), ids, 'home changed the history from ' + view);
     assert.equal(creates(), originalCreates, 'home created an empty saved conversation from ' + view);
-    await pointerClick(`.chat-item[data-chat="${selected}"]`);
+    const recent = await evaluate("fetch('/api/chats').then(r=>r.json()).then(({chats})=>chats.filter(c=>!c.archived && c.active_leaf).sort((a,b)=>b.updated-a.updated).slice(0,3).map(c=>c.id))");
+    assert.deepEqual(await evaluate("Array.from(document.querySelectorAll('#recent-list button'), b=>b.dataset.chat)"), recent, 'landing lists recent populated chats by update time');
+    if (view === 'chat') {
+      assert.equal(await evaluate("document.querySelector('.prompt-starters').open"), false);
+      const unsent = await evaluate("document.querySelector('#draft').value");
+      await fill('#draft', 'Two storage formats');
+      await evaluate("document.querySelector('#draft').setSelectionRange(0,0)");
+      await pointerClick('.prompt-starters summary'); await pointerClick('.starter-options button');
+      assert.equal(await evaluate("document.querySelector('#draft').value"), 'Compare these options, including cost, constraints and tradeoffs: Two storage formats');
+      assert.equal(await evaluate("document.activeElement.id==='draft' && !document.querySelector('.prompt-starters').open"), true);
+      await fill('#draft', unsent);
+      await pointerClick('.landing-actions [data-action=attach-files]');
+      await wait("document.querySelector('#saved-file-dialog').open", 'open saved files from the landing');
+      await pointerClick('#saved-file-cancel');
+    }
+    const fromRecent = recent.includes(selected);
+    await pointerClick((fromRecent ? '.recent-chat' : '.chat-item')+'[data-chat="'+selected+'"]');
     await wait(`document.querySelector('.chat-item.active')?.dataset.chat===${JSON.stringify(selected)} && document.querySelector('#draft').value===${JSON.stringify(marker)} && document.querySelector('.message.assistant')`, 'restore saved transcript and draft after leaving ' + view);
+    if (fromRecent) assert.equal(await evaluate("document.activeElement.id"), 'chat-title', 'resuming from the landing focuses the conversation');
   }
   await fill('#draft', draft);
 }
@@ -740,6 +757,72 @@ try {
     await checkChatSavedWriteActions(filename, source);
     assert.deepEqual(errors, [], 'saved write action browser exceptions');
     console.log('PASS: completed and stale write read saved text in Chat, safe missing and invalid paths, and Attachments inspector opens saved file picker');
+  } else if (process.argv.includes('--message-find-only')) {
+    await signIn();
+    const chat = await evaluate(`(async () => {
+      const messages = [];
+      for (let i=0;i<27;i++) {
+        messages.push({id:'p'+i,parent_id:i?'a'+(i-1):null,role:'user',content:'Prompt '+i});
+        messages.push({id:'a'+i,parent_id:'p'+i,role:'assistant',content:'Answer ['+i+']', reasoning:'Private reasoning marker'});
+      }
+      messages.push({id:'other',parent_id:'p26',role:'assistant',content:'Alternate branch marker'});
+      return ChatShell.api('/import','POST',{version:1,chat:{title:'Navigation fixture',active_leaf:'a26'},messages});
+    })()`);
+    await reloadDocument();
+    await wait(`document.querySelector('[data-chat="${chat.id}"]')`, 'imported conversation');
+    await pointerClick(`[data-chat="${chat.id}"]`);
+    await wait("document.querySelectorAll('.message.user').length===27", 'selected branch');
+    await fill('#draft', 'Unsent draft');
+    const writes = apiMutations.length;
+    await pointerClick('.topbar [data-action=chat-menu]');
+    await pointerClick('#action-menu [data-action=find-message]');
+    assert.equal(await evaluate("document.activeElement.id"), 'find-message-query');
+    assert.equal(await evaluate("document.querySelectorAll('.find-message-result').length"), 25);
+    await pointerClick('#find-message-more');
+    assert.equal(await evaluate("document.querySelectorAll('.find-message-result').length"), 27);
+    assert.match(await evaluate("document.activeElement.textContent"), /Prompt 1$/);
+    for (const query of ['Private reasoning marker','Alternate branch marker','.*']) {
+      await fill('#find-message-query', query);
+      assert.equal(await evaluate("document.querySelector('#find-message-count').textContent"), 'No matching messages');
+    }
+    await fill('#find-message-query','ANSWER [3]');
+    assert.equal(await evaluate("document.querySelector('.find-message-result mark').textContent"), 'Answer [3]');
+    await pointerClick('.find-message-result');
+    assert.equal(await evaluate("document.activeElement.matches('article.message.assistant') && document.activeElement.innerText.includes('Answer [3]')"), true);
+    assert.equal(await evaluate("document.querySelector('#draft').value"), 'Unsent draft');
+    await evaluate(`(async () => {
+      const open = () => {
+        document.querySelector('.topbar [data-action=chat-menu]').click();
+        document.querySelector('#action-menu [data-action=find-message]').click();
+      };
+      open();
+      const dialog = document.querySelector('#find-message-dialog');
+      const closed = new Promise(resolve => dialog.addEventListener('close', resolve, {once:true}));
+      dialog.close();
+      open();
+      await closed;
+    })()`);
+    await fill('#find-message-query', 'answer [0]');
+    assert.equal(await evaluate("document.querySelector('.find-message-result mark')?.textContent"), 'Answer [0]', 'a previous close event cleared the reopened search');
+    await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
+    await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
+    assert.equal(await evaluate("document.activeElement.innerText.includes('Answer [0]') && !document.querySelector('#find-message-dialog').open"), true);
+    const downloadPath = path.join(profile, 'downloads');
+    await mkdir(downloadPath, {recursive:true});
+    await cdp('Browser.setDownloadBehavior', {behavior:'allow', downloadPath});
+    await pointerClick('.topbar [data-action=chat-menu]');
+    await pointerClick('#action-menu [data-action=transcript]');
+    let transcript;
+    for (let i = 0; i < 50 && !transcript; i++) {
+      try { transcript = await readFile(path.join(downloadPath, 'Navigation fixture.md'), 'utf8'); }
+      catch (error) { if (error.code !== 'ENOENT') throw error; await delay(100); }
+    }
+    assert.match(transcript, /^# Navigation fixture/);
+    assert.match(transcript, /## You\n\nPrompt 0\n\n## Assistant\n\nAnswer \[0\]/);
+    assert.doesNotMatch(transcript, /Private reasoning marker|Alternate branch marker|Unsent draft/);
+    assert.equal(apiMutations.length, writes, 'search changed server state');
+    assert.deepEqual(errors, [], 'message navigation browser errors');
+    console.log('PASS: prompt index, page two, literal match, branch isolation, focus and draft preservation');
   } else if (process.argv.includes('--workflow-only')) {
     await signIn();
     await send('Browser workflow prompt');
@@ -2804,8 +2887,10 @@ try {
   assert.equal(await evaluate("fetch('/api/chats').then(r=>r.json()).then(d=>d.chats.length)"), savedBeforeTemporary, 'temporary chat leaked into history');
   assert.equal(await evaluate("getComputedStyle(document.querySelector('.composer')).borderTopStyle"), 'dashed', 'temporary composer missing its visual marker');
   await click('.topbar [data-action="chat-menu"]');
-  assert.deepEqual(await evaluate("Array.from(document.querySelectorAll('#action-menu button')).map(b=>b.dataset.action)"), ['export', 'delete'], 'temporary menu exposes unsupported actions');
-  await evaluate("window.ChatShell.closeMenu()");
+  assert.deepEqual(await evaluate("Array.from(document.querySelectorAll('#action-menu button')).map(b=>b.dataset.action)"), ['find-message', 'transcript', 'export', 'delete'], 'temporary menu actions');
+  await pointerClick('#action-menu [data-action=find-message]');
+  assert.equal(await evaluate("document.querySelector('#find-message-list button')?.dataset.target === document.querySelector('.message.user')?.dataset.message"), true, 'temporary search found its private prompt');
+  await pointerClick('#find-message-dialog button[type=submit]');
   await screenshot('temporary-chat-desktop.png');
   await cdp('Emulation.setDeviceMetricsOverride', {width: 360, height: 800, deviceScaleFactor: 1, mobile: true});
   await click('[data-action="close-drawers"]'); await delay(230);
@@ -2850,6 +2935,7 @@ try {
     await pointerClick('#temporary-button');
     await wait("!document.querySelector('#temporary-notice').hidden && !document.querySelector('#temporary-button').disabled", 'empty temporary mode');
     assert.equal(await evaluate("getComputedStyle(document.querySelector('#temporary-button')).borderTopStyle"), 'solid', 'Normal chat button must be solid');
+    assert.equal(await evaluate("document.querySelector('#recent-conversations').checkVisibility()"), false, 'temporary landing shows saved conversations');
     if (width < 500) assert.equal(await compactLabel(), 'Normal', 'mobile normal mode label is not visible');
     const {titleWidth: temporaryTitleWidth, ...temporaryControls} = await geometry();
     assert.deepEqual(temporaryControls, before, 'mode toggle shifted header controls');

@@ -2,8 +2,8 @@
   width: 76px;
   height: 30px;
 }
-.sidebar { background: var(--header); }
-.topbar { background: var(--bg); }
+.sidebar { background: var(--inset); }
+.topbar { background: var(--header); }
 .settings-card,
 .metric-card,
 .workbench-layout,
@@ -61,26 +61,26 @@
 }
 .global-nav {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
-  margin: 14px 0 17px;
-  padding-bottom: 16px;
+  gap: 2px;
+  margin: 2px 0 15px;
+  padding-bottom: 12px;
   border-bottom: 1px solid var(--border);
 }
 .global-nav button {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 38px;
-  padding: 6px 9px;
-  border-radius: 7px;
+  min-height: 32px;
+  padding: 5px 9px;
+  border-radius: 5px;
   color: var(--muted);
   text-align: left;
   font-size: 12px;
 }
 .global-nav button:hover { color: var(--text); background: var(--surface); }
-.global-nav button[aria-current=page] { color: var(--text); background: var(--hover); }
-.global-nav button[aria-current=page] svg { color: var(--accent); }
+.global-nav button[aria-current=page] { color: var(--text); background: var(--hover); font-weight: 600; }
+@media (max-width: 720px), (pointer: coarse) { .global-nav button { min-height: 40px; } }
+@media (max-height: 650px) { .global-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .global-nav svg { height: 16px; width: 16px; flex: none; }
 .workspace:not([data-view=chat]),
 .workspace.inspector-closed:not([data-view=chat]) {
@@ -982,7 +982,7 @@
   margin-left: auto;
 }
 :root[data-compact=true] .topbar {
-  height: 68px;
+  height: 56px;
   padding: 0 15px;
   gap: 12px;
 }
@@ -992,7 +992,6 @@
 :root[data-compact=true] .topbar-actions {
   gap: 7px;
 }
-:root[data-compact=true] .chat-location { display: none; }
 :root[data-compact=true] .title-button { width: 100%; max-width: 100%; }
 :root[data-compact=true] .connection {
   display: none;
@@ -1228,4 +1227,5 @@
 .conversation-form-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .conversation-form-actions button { min-height: 38px; padding: 8px 16px; }
 .tool-body > .workspace-tool-open { margin-top: 8px; }
-.workspace-tool-file .secondary-button { padding:6px 10px; }
+.workspace-tool-file .secondary-button { border-color:transparent; padding:4px 7px; color:var(--secondary); }
+.workspace-tool-file .secondary-button:hover { border-color:var(--border); color:var(--text); }

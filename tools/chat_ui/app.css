@@ -48,8 +48,8 @@ input,textarea,select {
 }
 .workspace {
   display:grid;
-  --rail-width:254px;
-  --reading-width:860px;
+  --rail-width:248px;
+  --reading-width:886px;
   --page-edge:clamp(24px,3.3vw,54px);
   grid-template-columns:var(--rail-width) minmax(0,1fr) 304px;
   height:100dvh;
@@ -66,14 +66,13 @@ input,textarea,select {
   border-right:1px solid var(--border);
   display:flex;
   flex-direction:column;
-  padding:18px 17px 0;
+  padding:0 16px;
   min-width:0
 }
 .brand {
   display:flex;
   align-items:center;
-  min-height:52px;
-  margin-bottom:12px;
+  min-height:60px;
   padding:0 8px
 }
 .brand-home {
@@ -99,10 +98,13 @@ input,textarea,select {
   border-color:var(--muted)
 }
 .sidebar>.new-chat {
-  min-height:42px;
-  color:var(--cyan);
-  background:var(--brand-bg);
-  border-color:var(--brand-line)
+  min-height:38px;
+  margin:0 0 20px;
+  padding:8px 11px;
+  color:var(--text);
+  background:var(--panel);
+  border-color:var(--line);
+  border-radius:6px
 }
 kbd {
   font:10px ui-monospace,Consolas,monospace;
@@ -120,7 +122,7 @@ kbd {
   background:var(--inset);
   color:var(--muted);
   border:1px solid var(--border);
-  border-radius:var(--ui-control-radius);
+  border-radius:6px;
   cursor:text
 }
 .search-box:hover { border-color:var(--muted) }
@@ -221,7 +223,7 @@ kbd {
 .sidebar-footer {
   border-top:1px solid var(--border);
   padding:20px 8px 16px;
-  margin-top:20px
+  margin-top:12px
 }
 .local-label {
   display:flex;
@@ -264,13 +266,14 @@ kbd {
   --sidebar-composer-target:40px
 }
 .main {
+  background:var(--header);
   display:flex;
   flex-direction:column;
   min-width:0;
   position:relative
 }
 .topbar {
-  height:70px;
+  height:56px;
   flex-shrink:0;
   display:flex;
   justify-content:space-between;
@@ -286,21 +289,11 @@ kbd {
   flex:1;
   min-width:0
 }
-.chat-location {
-  display:inline-flex;
-  align-items:center;
-  gap:8px;
-  padding-right:14px;
-  border-right:1px solid var(--line);
-  color:var(--muted);
-  font-size:13px
-}
-.chat-location svg { width:16px; height:16px }
 :root[data-compact=true] .context-shortcut span { display:none }
 .title-button {
   padding:4px 0;
   text-align:left;
-  font-size:14px;
+  font-size:15px;
   white-space:nowrap;
   overflow:hidden;
   text-overflow:ellipsis;
@@ -357,62 +350,96 @@ kbd {
 .scroll-region:has(#welcome:not([hidden])) {
   flex:none;
   overflow:visible;
-  margin-top:auto
+  margin-top:clamp(24px,7vh,72px)
 }
 .welcome {
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  flex-direction:row-reverse;
-  gap:22px;
   width:100%;
   max-width:var(--reading-width);
   margin:auto;
-  padding:30px var(--page-edge) 28px
-}
-.welcome-art {
-  width:43%;
-  color:var(--cyan);
-  opacity:.83;
-  mask-image:linear-gradient(90deg,transparent,#000 12%,#000 84%,transparent)
-}
-.welcome-art svg {
-  width:100%;
-  height:auto;
-  display:block;
-  stroke-width:1.25
+  padding:0 var(--page-edge) 15px
 }
 .welcome h1 {
-  font-size:clamp(34px,4vw,57px);
-  line-height:1.06;
-  letter-spacing:-.055em;
-  font-weight:550;
-  max-width:12ch;
-  margin:0
+  margin:0;
+  font-size:25px;
+  font-weight:600;
+  line-height:1.25;
+  letter-spacing:-.035em
 }
-.suggestions {
-  display:none;
+.landing-tools { display:none }
+.chat-stage:has(#welcome:not([hidden])) .landing-tools { display:block }
+.landing-actions {
+  display:flex;
   flex-wrap:wrap;
-  gap:8px;
-  margin-top:17px
+  align-items:flex-start;
+  gap:8px 24px;
+  padding:8px 0
 }
-.chat-stage:has(#welcome:not([hidden])) .suggestions { display:flex }
-.suggestions button,.context-shortcut {
-  display:inline-flex;
+.landing-actions>.text-button,.prompt-starters>summary {
+  display:flex;
   align-items:center;
-  justify-content:center;
-  gap:8px;
-  border:1px solid var(--border);
-  border-radius:8px;
-  padding:7px 11px;
+  gap:7px;
+  min-height:36px;
+  padding:0 2px;
+  color:var(--muted);
+  font:inherit;
   font-size:12px;
-  color:var(--secondary)
+  cursor:pointer
 }
-.suggestions svg,.context-shortcut svg { width:16px; height:16px; flex:none }
-.suggestions button:hover,.context-shortcut:hover {
-  background:var(--surface);
-  color:var(--text)
+.landing-actions>.text-button:hover,.prompt-starters>summary:hover,.starter-options button:hover { color:var(--text) }
+.landing-actions svg,.context-shortcut svg { width:15px; height:15px; flex:none }
+.prompt-starters>summary { list-style:none }
+.prompt-starters>summary::-webkit-details-marker { display:none }
+.prompt-starters>summary::after {
+  content:"";
+  width:5px;
+  height:5px;
+  border:solid currentColor;
+  border-width:0 1px 1px 0;
+  transform:translateY(-2px) rotate(45deg)
 }
+.prompt-starters[open]>summary::after { transform:translateY(1px) rotate(225deg) }
+.starter-options { display:grid; padding-left:8px; border-left:1px solid var(--line) }
+.starter-options button { padding:5px 7px; text-align:left; color:var(--secondary); font-size:13px }
+#recent-conversations { margin-top:20px }
+.workspace[data-temporary=true] #recent-conversations { display:none }
+#recent-conversations h2 {
+  margin:0 0 6px;
+  font-size:13px;
+  font-weight:600
+}
+#recent-list { border-top:1px solid var(--line) }
+.recent-chat {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  width:100%;
+  min-height:44px;
+  padding:7px 2px;
+  border-bottom:1px solid var(--line);
+  text-align:left;
+  font-size:14px
+}
+.recent-chat:hover { background:var(--inset) }
+.recent-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.recent-chat time {
+  flex:none;
+  color:var(--muted);
+  font-size:12px;
+  font-variant-numeric:tabular-nums
+}
+.context-shortcut {
+  display:inline-flex;
+  justify-content:center;
+  align-items:center;
+  min-height:32px;
+  gap:6px;
+  padding:4px 7px;
+  border-radius:5px;
+  color:var(--secondary);
+  font-size:12px
+}
+.context-shortcut:hover { background:var(--surface); color:var(--text) }
 .composer-area {
   position:relative;
   width:100%;
@@ -421,23 +448,19 @@ kbd {
   padding:12px var(--page-edge) 16px
 }
 .chat-stage:has(#welcome:not([hidden])) .composer-area {
-  margin-bottom:auto;
-  padding-top:0
+  padding-top:0;
+  padding-bottom:24px
 }
 .chat-stage:has(#welcome:not([hidden])) .composer-caption { display:none }
 .composer {
-  border:1px solid var(--border);
-  border-radius:16px;
+  border:1px solid var(--line);
+  border-radius:8px;
   background:var(--panel);
-  padding:15px 15px 12px;
-  box-shadow:0 4px 14px #00000009
+  padding:13px 14px 10px
 }
-.chat-stage:has(#welcome:not([hidden])) .composer {
-  box-shadow:0 8px 32px #00000012
-}
-.chat-stage:has(#welcome:not([hidden])) #draft { min-height:64px }
+.chat-stage:has(#welcome:not([hidden])) #draft { min-height:88px }
 .composer:focus-within {
-  border-color:var(--brand-line)
+  border-color:var(--muted)
 }
 #draft {
   background:none;
@@ -489,9 +512,9 @@ kbd {
   justify-content:center;
   width:36px;
   height:36px;
-  border-radius:10px;
-  background:var(--accent);
-  color:var(--accent-ink);
+  border-radius:6px;
+  background:var(--text);
+  color:var(--panel);
   flex-shrink:0
 }
 .send-button svg {
@@ -504,7 +527,7 @@ kbd {
 }
 .composer-caption {
   display:flex;
-  justify-content:center;
+  justify-content:flex-start;
   gap:10px;
   font-size:9px;
   color:var(--faint);
@@ -529,7 +552,7 @@ kbd {
   display:flex;
   align-items:center;
   justify-content:space-between;
-  height:70px;
+  height:56px;
   padding:0 20px;
   font-size:12px;
   font-weight:500
@@ -747,7 +770,7 @@ kbd {
 .messages {
   max-width:var(--reading-width);
   margin:0 auto;
-  padding:32px var(--page-edge) 18px
+  padding:20px var(--page-edge) 12px
 }
 .message {
   padding:15px 0 24px;
@@ -762,14 +785,14 @@ kbd {
   padding-bottom:6px
 }
 .message.assistant:is(.continuation,:has(+ .message.assistant.continuation)) {
-  padding-inline-start:18px
+  padding-inline-start:14px
 }
 .message.assistant:is(.continuation,:has(+ .message.assistant.continuation))::before {
   content:"";
   position:absolute;
   inset-block:0;
   inset-inline-start:0;
-  border-inline-start:2px solid var(--brand-line);
+  border-inline-start:1px solid var(--line);
   pointer-events:none
 }
 .message.assistant:has(+ .message.assistant.continuation):not(.continuation)::before {
@@ -785,7 +808,7 @@ kbd {
   display:none
 }
 .message.user {
-  padding:22px 0 16px clamp(20px,7%,60px);
+  padding:14px 0 12px clamp(20px,7%,60px);
   display:flex;
   flex-direction:column;
   align-items:flex-end;
@@ -809,29 +832,19 @@ kbd {
 .message.assistant>.message-header {
   margin-bottom:10px
 }
-.message-avatar {
-  display:grid;
-  place-items:center;
-  width:26px;
-  height:26px;
-  border:1px solid var(--brand-line);
-  border-radius:8px;
-  color:var(--cyan);
-  background:var(--brand-bg)
-}
-.message-avatar svg { width:15px; height:15px; stroke-width:1.9 }
 .message-time {
   color:var(--faint);
-  font-size:9px;
-  font-weight:400
+  font-size:11px;
+  font-weight:400;
+  font-variant-numeric:tabular-nums
 }
 .message.user>.message-header {
   margin-bottom:9px
 }
 .message.user>.markdown {
   border:0;
-  background:color-mix(in srgb,var(--brand-bg) 48%,var(--surface));
-  border-radius:15px 5px 15px 15px;
+  background:var(--surface);
+  border-radius:6px;
   padding:11px 16px;
   max-width:100%;
   font-size:14px
@@ -1021,10 +1034,8 @@ kbd {
   display:inline-flex;
   align-items:center;
   gap:7px;
-  min-height:36px;
-  padding:4px 8px;
-  border:1px solid var(--line);
-  border-radius:7px;
+  min-height:29px;
+  padding:3px 1px;
   cursor:pointer
 }
 .reasoning summary svg { width:15px; height:15px }
@@ -1050,8 +1061,8 @@ kbd {
   line-height:1.5
 }
 .tool-call {
-  border:1px solid var(--border);
-  border-radius:10px;
+  border:1px solid var(--line);
+  border-radius:6px;
   margin:6px 0;
   background:var(--panel);
   overflow:hidden;
@@ -1069,8 +1080,8 @@ kbd {
   gap:7px;
   cursor:pointer;
   font-size:12px;
-  min-height:40px;
-  padding:7px 11px
+  min-height:34px;
+  padding:5px 10px
 }
 .tool-call>details>summary::before {
   content:"";
@@ -1085,7 +1096,7 @@ kbd {
 .tool-call>details[open]>summary::before {
   transform:rotate(45deg)
 }
-.tool-symbol { width:15px; height:15px; flex:none; color:var(--accent) }
+.tool-symbol { width:15px; height:15px; flex:none; color:var(--muted) }
 .tool-call summary .tool-name {
   font:12px ui-monospace,Consolas,monospace;
   min-width:0;
@@ -1107,7 +1118,7 @@ kbd {
   width:5px;
   height:5px;
   border-radius:50%;
-  background:var(--cyan)
+  background:var(--muted)
 }
 .tool-call summary .badge:is([data-status=preparing],[data-status=approval],[data-status=pending])::before { background:var(--amber) }
 .tool-call summary .badge:is(.error,[data-status=failed],[data-status=denied],[data-status=interrupted],[data-status=cancelled])::before { background:var(--red) }
@@ -1132,7 +1143,7 @@ kbd {
   flex-wrap:wrap;
   align-items:center;
   gap:8px;
-  padding:10px 13px;
+  padding:5px 10px;
   background:var(--inset);
   border-top:1px solid var(--border)
 }
@@ -1341,6 +1352,22 @@ dialog {
   max-width:min(400px,90vw);
   width:400px
 }
+#find-message-dialog { width:36rem; max-width:min(36rem,94vw) }
+#find-message-list { max-height:40dvh; overflow:auto; overscroll-behavior:contain }
+.find-message-result {
+  display:grid;
+  grid-template-columns:4.5rem minmax(0,1fr);
+  gap:8px;
+  width:100%;
+  padding:10px 6px;
+  border-bottom:1px solid var(--line);
+  text-align:left;
+  line-height:1.45;
+  overflow-wrap:anywhere
+}
+.find-message-result:hover, .find-message-result:focus-visible { background:var(--hover) }
+.find-message-result strong { color:var(--muted); font-size:12px; font-weight:500 }
+.find-message-result mark { background:transparent; color:inherit; font-weight:700; text-decoration:underline }
 dialog::backdrop {
   background:#0009;
   backdrop-filter:blur(5px)
@@ -1491,14 +1518,13 @@ dialog::backdrop {
     font-size:18px
   }
   .topbar {
-    height:68px;
+    height:56px;
     padding:0 15px;
     gap:12px
   }
   .chat-heading {
     flex:1
   }
-  .chat-location { display:none }
   .title-button {
     width:100%;
     font-size:13px
@@ -1509,18 +1535,13 @@ dialog::backdrop {
   .inspector {
     width:min(340px,90vw)
   }
-  .welcome {
-    gap:12px;
-    padding:20px 18px
-  }
-  .welcome h1 { font-size:clamp(32px,8vw,46px) }
-  .suggestions { gap:6px; margin-top:12px }
-  .suggestions button { min-height:36px; padding:6px 8px; font-size:11px; gap:5px }
-  .suggestions svg { width:13px; height:13px }
+  .welcome { padding:0 16px 12px }
+  .welcome h1 { font-size:22px }
+  .scroll-region:has(#welcome:not([hidden])) { margin-top:26px }
   .context-shortcut span { display:none }
   .context-shortcut { height:40px; width:40px; padding:0; border-color:transparent }
   .composer-area {
-    padding:10px 14px 16px
+    padding:10px 16px 16px
   }
   .composer {
     padding:14px 12px 10px
@@ -1540,7 +1561,7 @@ dialog::backdrop {
     display:none
   }
   .messages {
-    padding:20px 18px 8px
+    padding:16px 16px 8px
   }
   .message.user {
     padding-left:25px
@@ -1584,6 +1605,7 @@ body {
   row-gap:7px
 }
 @media(max-width:720px),(pointer:coarse) {
+  .landing-actions>.text-button,.prompt-starters>summary,.starter-options button,.tool-call>details>summary,.reasoning summary,.workspace-tool-file button,.sidebar>.new-chat { min-height:40px }
   .composer-left .icon,.context-shortcut {
     width:40px;
     height:40px

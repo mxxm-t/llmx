@@ -264,7 +264,25 @@
     renderToolSelections(selected);
     snapshotBanner();
   });
-  async function refreshChats() { const data = await api('/chats'); S.chats = data.chats || []; queueChatSearch(); }
+  async function refreshChats() {
+    const data = await api('/chats'); S.chats = data.chats || [];
+    const recent = S.chats.filter(chat => !chat.archived && chat.active_leaf).sort((a, b) => b.updated - a.updated).slice(0, 3);
+    const list = $('recent-list'), today = new Date();
+    list.replaceChildren();
+    for (const chat of recent) {
+      const row = node('button', 'recent-chat'); row.type = 'button'; row.dataset.chat = chat.id;
+      row.append(node('span', 'recent-name', chat.title || 'Untitled conversation'));
+      const date = timestamp(chat.updated);
+      if (!Number.isNaN(date.valueOf())) {
+        const label = date.toDateString() === today.toDateString() ? date.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'})
+          : date.toLocaleDateString([], {month: 'short', day: 'numeric', year: date.getFullYear() === today.getFullYear() ? undefined : 'numeric'});
+        const time = node('time', '', label); time.dateTime = date.toISOString(); time.title = date.toLocaleString(); row.append(time);
+      }
+      list.append(row);
+    }
+    $('recent-conversations').hidden = !recent.length;
+    queueChatSearch();
+  }
   function queueChatSearch() {
     const query = $('search').value.trim();
     chatSearch.request = query ? {query, archived: S.archive} : null;
@@ -470,7 +488,12 @@
       {action: 'duplicate', label: 'Duplicate', separator: true},
       {action: 'archive', label: chat.archived ? 'Restore from archive' : 'Archive'}
     ];
-    items.push({action: 'export', label: 'Export JSON', separator: true}, {action: 'delete', label: chat.temporary ? 'End temporary chat' : 'Delete conversation', danger: true, separator: true, disabled: Boolean(chat.temporary && (currentRun() || S.busy))});
+    const openTranscript = anchor.closest('.topbar') && S.messages.length;
+    if (openTranscript) {
+      items.unshift({action: 'find-message', label: 'Find in conversation'});
+      items.push({action: 'transcript', label: 'Download Markdown', separator: true});
+    }
+    items.push({action: 'export', label: 'Export JSON', separator: !openTranscript}, {action: 'delete', label: chat.temporary ? 'End temporary chat' : 'Delete conversation', danger: true, separator: true, disabled: Boolean(chat.temporary && (currentRun() || S.busy))});
     window.ChatShell.menu(anchor, chat.temporary ? 'Temporary chat' : chat.title || 'Conversation', items, name => action(name, {dataset: {id: chat.id}}).catch(error => toast(error.message)));
   }
   function path() {
@@ -478,6 +501,77 @@
     let id = S.chat?.active_leaf;
     while (id && map.has(id) && !seen.has(id)) { seen.add(id); const message = map.get(id); selected.unshift(message); id = message.parent_id; }
     return selected;
+  }
+  function dialogueMessages() { return path().filter(m => (m.role === 'user' || m.role === 'assistant') && m.content); }
+  function jumpToMessage(id) {
+    const target = $('messages').querySelector('[data-message="' + CSS.escape(id) + '"]');
+    if (!target) return;
+    closeDrawers(false);
+    target.tabIndex = -1;
+    target.focus({preventScroll: true});
+    target.scrollIntoView({block: 'center', behavior: 'instant'});
+  }
+  function findMessage() {
+    const dialog = $('find-message-dialog'), query = $('find-message-query'), list = $('find-message-list'), more = $('find-message-more');
+    const messages = dialogueMessages().reverse();
+    let matches = [], shown = 0;
+    function appendPage() {
+      const start = shown;
+      for (const {message, at, length} of matches.slice(start, start + 25)) {
+        const item = node('button', 'find-message-result');
+        item.type = 'button';
+        item.dataset.target = message.id;
+        const from = Math.max(0, at - 40), end = Math.min(message.content.length, at + length + 100);
+        const excerpt = node('span');
+        excerpt.append((from ? '...' : '') + message.content.slice(from, at));
+        if (length) excerpt.append(node('mark', '', message.content.slice(at, at + length)));
+        excerpt.append(message.content.slice(at + length, end) + (end < message.content.length ? '...' : ''));
+        item.append(node('strong', '', message.role === 'user' ? 'You' : 'Assistant'), excerpt);
+        list.append(item);
+        shown++;
+      }
+      more.hidden = shown >= matches.length;
+      if (start) list.children[start]?.focus();
+    }
+    function filter() {
+      const term = query.value.trim();
+      const escaped = Array.from(term, ch => '^$\\.*+?()[]{}|'.includes(ch) ? '\\' + ch : ch).join('');
+      const pattern = term ? new RegExp(escaped, 'iu') : null;
+      matches = [];
+      for (const message of messages) {
+        if (!pattern && message.role !== 'user') continue;
+        const hit = pattern?.exec(message.content);
+        if (!pattern || hit) matches.push({message, at: hit?.index || 0, length: hit?.[0].length || 0});
+      }
+      const count = matches.length;
+      $('find-message-count').textContent = term ? (count ? count + ' matching message' + (count === 1 ? '' : 's') : 'No matching messages') : (count ? 'Your prompts, newest first' : 'Type to search assistant replies');
+      shown = 0;
+      list.replaceChildren();
+      appendPage();
+      list.scrollTop = 0;
+    }
+    query.value = '';
+    query.oninput = filter;
+    query.onkeydown = event => {
+      if (event.key === 'Enter' && !event.isComposing) {
+        event.preventDefault();
+        list.firstElementChild?.click();
+      }
+    };
+    more.onclick = appendPage;
+    list.onclick = event => {
+      const item = event.target.closest('button[data-target]');
+      if (item) { dialog.close(); jumpToMessage(item.dataset.target); }
+    };
+    dialog.onclose = () => {
+      if (dialog.open) return;
+      query.value = '';
+      query.oninput = query.onkeydown = more.onclick = list.onclick = dialog.onclose = null;
+      list.replaceChildren();
+    };
+    filter();
+    dialog.showModal();
+    query.focus();
   }
   function replyGroups() {
     const groups = []; let prompt = '', previous = null;
@@ -658,11 +752,6 @@
   function messageView(message) {
     const el = node('article', 'message ' + message.role); el.dataset.message = message.id;
     const header = node('div', 'message-header');
-    if (message.role === 'assistant') {
-      const avatar = node('span', 'message-avatar');
-      avatar.append(icon('M5 15V9m4 9V6m4 14V4m4 13V7m4 7v-4'));
-      header.append(avatar);
-    }
     header.append(node('span', '', message.role === 'assistant' ? 'Assistant' : message.role === 'tool' ? 'Tool result' : 'You'));
     if (message.created) { const time = timestamp(message.created); if (!isNaN(time)) header.append(node('span', 'message-time', time.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}))); }
     el.append(header);
@@ -1305,7 +1394,15 @@
     if (name === 'home') return newChat({landing: true});
     if (name === 'temporary') return temporaryChat();
     if (name === 'end-temporary') return leaveTemporary();
-    if (name === 'reply-detail') { const target = $('messages').querySelector('[data-message="' + CSS.escape(el.dataset.id) + '"]'); if (target) { closeDrawers(false); target.tabIndex = -1; target.focus({preventScroll: true}); target.scrollIntoView({block: 'center', behavior: 'smooth'}); } return; }
+    if (name === 'reply-detail') return jumpToMessage(el.dataset.id);
+    if (name === 'find-message') return findMessage();
+    if (name === 'transcript') {
+      const title = S.chat.title || 'Conversation';
+      const turns = dialogueMessages();
+      const sections = turns.map(m => '## ' + (m.role === 'user' ? 'You' : 'Assistant') + '\n\n' + m.content);
+      window.ChatArtifacts.download(['# ' + title, ...sections].join('\n\n') + '\n', title.slice(0, 175) + '.md', 'markdown');
+      return;
+    }
     if (name === 'tool-detail') return showToolCall(el.dataset.message, el.dataset.call);
     if (name === 'sidebar') {
       if ($('app').classList.contains('sidebar-open')) return closeDrawers();
@@ -1421,9 +1518,17 @@
     const el = event.target.closest('[data-action],[data-chat],[data-tab],[data-prompt]'); if (!el) return;
     const execute = async () => {
       if (el.dataset.action) await action(el.dataset.action, el);
-      else if (el.dataset.chat) await openChat(el.dataset.chat);
+      else if (el.dataset.chat) {
+        await openChat(el.dataset.chat);
+        if (el.classList.contains('recent-chat') && S.chat?.id === el.dataset.chat && $('app').dataset.view === 'chat'
+            && (document.activeElement === el || document.activeElement === document.body)) $('chat-title').focus({preventScroll: true});
+      }
       else if (el.dataset.tab) showTab(el.dataset.tab);
-      else if (el.dataset.prompt) { $('draft').value = el.dataset.prompt; composerRevision++; resizeDraft(); $('draft').focus(); }
+      else if (el.dataset.prompt) {
+        const draft = $('draft');
+        draft.setRangeText(el.dataset.prompt, draft.selectionStart, draft.selectionEnd, 'end');
+        composerRevision++; resizeDraft(); el.closest('details').open = false; draft.focus();
+      }
     };
     execute().catch(error => toast(error.message));
   });

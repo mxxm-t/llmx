@@ -155,6 +155,12 @@ class BrowserTests(unittest.TestCase):
             self.skipTest("Real browser check requires Node 22+ and Chrome/Chromium/Edge")
         return node, chrome
 
+    def test_find_in_conversation_in_chrome(self):
+        node, chrome = self.browser_executables()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.run_focused_browser(node, chrome, root, "message-find", ("--message-find-only",), [])
+
     def test_pdf_attachment_in_chrome(self):
         node, chrome = self.browser_executables()
         require_pdf = os.environ.get("LLMX_CHAT_REQUIRE_PDF") == "1"

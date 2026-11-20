@@ -203,6 +203,71 @@ This test-only correction lands by fast-forward with the companion workflow.
 - **Checks:** The independent Chrome regression failed in 59.797 seconds before the fix and passed in 54.855 seconds after it. The combined browser fixture over public main `2ea30d410` passed in 66.845 seconds, including both themes at 1440, 390 and 320 pixels and 200 percent CSS zoom. Desktop preference, transient Settings access, mobile drawer state and toggle geometry passed. JavaScript syntax, whitespace and independent integration review passed. Dead-code passed with 17 expected findings and 20 planted faults in 34.8 seconds; docs passed with zero findings and 29 planted faults in 31.8 seconds and runs once more after this record.
 - **Landing:** Fast-forward from `2ea30d410` after final documentation validation and a fresh main check. This is static presentation only, with no server, runtime, API or numerical changes. The existing docs CLI remains applicable because native source and build inputs are unchanged. Full Markdown review checks references to details, temporary labels and layout; the companion README and TESTS own the updated behavior. Receipts are in `scratch/reading-landing/`, with independent matched screenshots in the main workspace's `scratch/chat-reading-layout/`.
 - **Gotchas:** Composer Settings and the narrow drawer are transient. Only explicit docked Details actions save the preference. Long titles can still truncate. Chrome emulation does not establish physical phone or Safari coverage. Settings semantics and history search remain separate audit work.
+## Landing stack land-20261120 (2026-11-19 to 2026-11-20, LAND83 to LAND86, Done)
+
+**What lands.** The two stacks land together by fast-forward of main ce2b0603b, onto which LAND86 rebased them: land-20261118 (its record below, 21 commits) and on it land-20261119, 27 commits in this order: fix/tile256-denominator; backlog2 suite-tw2, docs-folds, slice-stale-points (test, then the fix), rocm-reduce-cap, disk-cache-device-order (test, then the fix), job-wait-line (test, then the fix), weight-scales and fp-contract; REUSE5 host-growth-step, wrap-host-view-drop and server-short-followup; QDEV45 hc-entry-invariant (llmx_hc_entry, then the invariant); FUSE3 norm-barriers; VKNORM1 vulkan-norm-barriers; ATTN2 decode-head-groups-2; fix/draft-divergence (the failing late_totals test, then the fix); fix/drafting-set-stderr; cuda97/profile.
+ROCGAP's rocm/iq2s-iq3xxs-twins and nvfp4 stay out (cuda-sass spills), and dspark-fit, keff, rocm-quant-gaps, norm-held-inline, load-transform-parallel and qwen35-dirs are not in.
+
+**The rebase.** Main moved from a274cfd62 to ce2b0603b with 76 companion and dashboard commits (`tools/chat_ui`, `tools/health_dashboard`, `.github/workflows/chat-workspace.yml`, `docs/STATUS.md`, `docs/TESTS.md` and four `docs/benchmarks` notes), none of which touches `src/`, the C++ tests, CMake or the suite's llmx components.
+Gitea main was a fast-forward behind GitHub main and was brought up to ce2b0603b first.
+The rebase of the 48 commits had one conflict, the server request-identity line of `docs/TESTS.md`, where both the companion's HTTP 413 line and the stack's tensor-width wording are kept.
+The rebased stack differs from cc1e880f3 by exactly the companion commits' changes, outside the merged lines of `docs/STATUS.md` and `docs/TESTS.md`, so the card cells below carry from cc1e880f3, and the builds, CTest, the docs and dead-code components and the hosted run ran again on the rebased tree.
+
+**Hand resolutions.** `backend_core.hpp`: rocm-reduce-cap's `resident(per_cu, k)` helper kept and `hc_resident` indexes kHcMix 0, kHcMix8 1, kHcEntry 2 and kHcEntry8 3 into `hc_per_cu_[4]` (reviewed: one occupancy slot a kernel, the reduce-cap callers kept, the kernel table in enum order).
+fix/draft-divergence on hc-entry: hc-entry moved the group signals into `kernels/group.h`, so `group_sane4` sits there beside `group_sane` and the rest of the fix applies to `f32.gpu`; `group_take`, `group_two_shots`, `group_chain` and `group_sane4` are text-identical to the tested 49acafdc.
+cuda97/profile: the submit loop keeps the stack's try/catch for a pending take with the profile's timed events inside it, `tests/sparse_attention.cpp` keeps ATTN2's per-group match with `timed_kernels(device, name)`, and `tests/gpu_core.cpp`'s identity check constructs `GpuBackend<FakeApi>(0, false)` and `(1, false)`, the profile's two-argument constructor; without that line the profile commit does not build on the stack (hosted run 44625303441).
+slice-stale-points' test names its local `on_line` instead of `near`, which windows.h defines under MSVC (hosted run 44606158647 failed on windows-2022 there); its test commit still fails on the unfixed code (server-passes rc 1 on the stale-first-prefill check) and the fix passes (121090512 checks), gitea backlog2/slice-stale-points a7bd51ca and f3748533.
+
+**The drafting difference.** The one unequal easy drafting run of land-20261118 (its record below) did not come back.
+DRAFT89's window ran the bad run's binary (32eae3e30) twenty times on the bad run's cards, renderD129, renderD131, renderD136 and renderD137, and twenty times on renderD132 to renderD135, alternating which went first, then the draft-divergence fix (66a998d4) ten times on the bad cards, after two control runs, 52 runs of the easy prompt in all.
+Every run's off and drafter ids equal the reference ids, no kernel log line was flagged and no RAS or EDAC count moved; correctable AER status bits (Timeout) were seen set after three runs, on renderD136 and renderD133, and recorded only (/opt/claude-work/draft89/out/summary.txt).
+The owner accepted the cause as a transient platform fault on 2026-11-20 and chose to land with a nightly canary.
+/opt/claude-work/coordcl/canary/drafting.sh runs current main's ROCm binary on the drafting set at 03:30 each night: Qwen3.8-Flash-Next UD-Q4_K_XL ROCm 2x2 int8 with the Q4_K_M MTP head, hard, medium and easy, off and drafter arms, on four MI50s, keeping full stderr and the device pairing.
+On any id mismatch or failed run it writes a line to its ALERT file, which the stream watch prints.
+
+**Binaries.** Rebased tree 84fd96f9e: llmx 0.1.0+g84fd96f9ed7c numerics 4d8422243eba3978 (ROCm 2c805ffe, Vulkan 78bab398, CPU 5267bf59 sha256 prefixes).
+Card cells: llmx 0.1.0+gcc1e880f3457 numerics 4d8422243eba3978 (ROCm 7.2.1 f6fbb6d4, Vulkan 3decae26, CPU 6ca9e761 sha256 prefixes); main a274cfd62: 0.1.0+ga274cfd62fa9 (R 2412db5c, V 9f408f0a, C 88cd7ca5); previous head 3e4c0e447: 0.1.0+g3e4c0e4471e9 (R f354a180, V 5f83cf19); Radeon VII Vulkan build b5ef41a5.
+
+| Check | Result | Tree |
+|---|---|---|
+| Builds R, V, C (ROCm 7.2.1, Vulkan, CPU) | all three build, 0 errors | 84fd96f9e |
+| CUDA 12.9.1 compile and CTest cuda-sass, gpu-core, gpu-port | build and 3/3 tests pass | 84fd96f9e |
+| CTest CPU; ROCm and Vulkan on one MI50 | CPU 91/91; Vulkan 112/112; ROCm 93/95, the two failures rerun below | 84fd96f9e |
+| Suite dead-code and docs | dead-code 22 listed findings and docs 0 findings, both PASS with --exe on the CPU build | landing head |
+| Hosted run 44677545081 on gate/20261120 | all eight jobs pass | 84fd96f9e |
+| CTest ROCm four MI50s | 95/95 | cc1e880f3 |
+| Linked dead code | 15 findings, all listed | cc1e880f3 |
+| Suite on CPU, rocm:0 and vulkan:0 (the server component on an MI50) | every component PASS or SKIP; reference-generator PASS when run without the rig's foreign numpy path (128 tests); baseline SKIP, fixtures not mounted (the hosted HF job runs it) | cc1e880f3 |
+| Qwen3-0.6B Q8_0 generate and per-token logits against main, f16 and int8, ROCm and Vulkan on one MI50 | byte identical | cc1e880f3 |
+| Same on CPU | ids and text identical, logits within 2.5e-3; backlog2/fp-contract alone (46cf3dea) gives the head's bytes exactly | cc1e880f3 |
+| Qwen3.5-0.8B Q4_K_M, same commands | Vulkan byte identical; ROCm differs from main, and fix/tile256-denominator alone (af07396ff) gives the head's bytes exactly (256-wide heads) | cc1e880f3 |
+| Qwen3.8-Flash-Next UD-Q4_K_XL ROCm 2x2 int8 prompt logits, last 72 positions, order 0,2,1,3 | head against 3e4c0e447: 71/71 rows identical; against main: 0 identical, 6 top-1 mismatches, max dlogit 2.05; fix/qwen4exp-hc-entry-invariant alone (372b141a5) and with fix/tile256-denominator both give the head's rows exactly, tile256 alone gives main's differences, so the change is exactly hc-entry | cc1e880f3 |
+| Same model and split, drafting set with the Q4_K_M MTP head | ids with drafts equal to ids without on hard, medium and easy; acceptance 0.515, 0.533, 0.615 | cc1e880f3 |
+| Same model and split, bench pp512/tg128, o n n o o n n o against 3e4c0e447 | pp512 1596.0 against 1598.4, tg128 65.81 against 65.20 tok/s (-0.9%) | cc1e880f3 |
+| Qwen3-0.6B Q8_0 ROCm width 2, same order | pp512 10450 against 10398 (-0.5%), tg128 355.6 against 352.3 tok/s | cc1e880f3 |
+| Qwen3-0.6B Q8_0 one MI50, six rotated blocks main / 3e4c0e447 / head | ROCm pp512 8806 / 8736 / 8745, tg128 387.45 / 386.77 / 381.33; Vulkan pp512 8721 / 8781 / 8783, tg128 389.23 / 395.86 / 396.56 tok/s | cc1e880f3 |
+| Radeon VII (Windows, Vulkan): build, CTest, suite on vulkan:0, 0.6B and 0.8B identity against main | 0 errors, 113/113 (format-output-link skipped), suite rc 0; 0.6B identical, 0.8B logits differ with every row's top-8 ids identical and the bytes equal to fix/tile256-denominator's alone | cc1e880f3 |
+
+The Radeon VII pass carries: the rebase changes no device code, shader or host C++ input.
+ROCm one-card tg128 is 1.4% under the previous head in five of six blocks; of the four commits added after it only cuda97/profile reaches that path (a timing check a held op in the submit loop), and the difference sits inside the four-point layout band, so it is recorded for the profile's owner and not read as a loss.
+The draft-divergence fix's own costs reproduce: Flash-Next decode -0.9% here against -0.3% on its branch, Qwen3-0.6B width 2 prefill -0.5% against -0.6%.
+Hosted run 44677545081 carries to the landing head, which adds this record alone.
+Machine: timing ran beside other agents' card jobs; every cell's host wait was 0 to 241 ms, contended only in the two device suites.
+
+**Recorded flakes.**
+The ROCm CTest on one MI50 failed two tests, and both pass alone on the same binary.
+`server-resume-cache` failed in the first run at "a paused request given its next turn's ids: the request was never seen paused" (`keeps_paused_donor`, tests/server_resume.cpp:2714 at 84fd96f9e), with a contended host.
+It failed again in one of three reruns on an idle host (renderD128, host wait contended=no, runs 180 s pass, 100 s fail, 178 s pass), at the require of `boundary_is_not_a_history` in its `at_once` arm (tests/server_resume.cpp:5798 at 84fd96f9e): 640 tokens reused, one disk read and nothing lost, with `room_waits >= 1` the failed term.
+That arm samples the stats and submits the next request with nothing holding the turn-end write open, so when the write finishes first the code correctly records 0 waits; the follow-up reply's identity comparison before the require passed.
+The rate is 2 of 4 runs, recorded as a test-observation flake of the test and not a scheduler or cache fault; the first failure's cause is probable and not traced.
+`backend-rocm` timed out at its 600 s CTest limit on a contended host (kcompactd0 and kswapd0 active) and passes alone in 583 s on this stack against 508 s on main ce2b0603b, single runs, so the limit sits 17 s above its unloaded time.
+Follow-ups, each on a branch of its own later: a test change that holds the write open or splits the five-term require, and a higher backend-rocm CTest limit.
+
+**Markdown review.** At the landing head LAND86 reviewed the Markdown the rebase and this record touch against the tree: the merged `docs/TESTS.md` lines, the companion's docs as main has them, the draft-divergence block's Left line and the land-20261118 record's Radeon VII line, which now point here.
+The stack's own docs were reviewed by its branches and by LAND84, and the docs component, its readme check included, passes on the head.
+README: the stack's branches changed their own rows, and the landing adds no README change.
+The head lands by fast-forward of gitea main and GitHub main.
+
 ## bench --profile on ROCm and CUDA (2026-11-19, CUDA95 then CUDA97, branch cuda97/profile on fix/tile256-denominator af07396ff; F2DEV's approval of cuda/profile 434ca4546 with items 1 and 2)
 
 **Goal.** `bench --profile` times a prompt's kernels on ROCm and CUDA devices as it does on Vulkan, so a rented CUDA card whose image has no system profiler can still be profiled.
@@ -256,7 +321,7 @@ This test-only correction lands by fast-forward with the companion workflow.
 | Two shots at join, 655360 floats, W=2 | 0.237 to 0.239 ms | 0.237 to 0.238 ms | 0 |
 
 - Sums cells (the vendor comparison tool of sums/shares, with its timing mode patched into both test builds, 3 cycles, us): sizes the one-shot takes are unchanged; at the two-shot sizes the fix costs 1.6 to 2.7% at W=2 (163840: 98.4 to 100.4, 655360: 338.8 to 348.0, 2621440: 1325.5 to 1348.0), 1.6 to 2.1% at W=3 and 0.8 to 3.2% at W=4 up to 655360, -0.3% at W=4 2621440. RCCL wins 20 of 33 cells in both arms; that gate belongs to sums/shares.
-- Left: lands with the landing stack land/20261119 by fast-forward; on that stack llmx_hc_entry moved the group signals into kernels/group.h, so `group_sane4` sits there beside `group_sane`, and the rest is as tested. sums/shares drops two shots for its shares form, which already reads through `group_take`, and keeps the chain, so that branch takes this change's chain part when it rebases.
+- Left: lands with the landing stack land-20261120 by fast-forward; on that stack llmx_hc_entry moved the group signals into kernels/group.h, so `group_sane4` sits there beside `group_sane`, and the rest is as tested. sums/shares drops two shots for its shares form, which already reads through `group_take`, and keeps the chain, so that branch takes this change's chain part when it rebases.
 - Stress, a test-only mode (both 2-wide groups of the four cards at once, sizes of 1, 13, 185 and 512 rows of 2560 through two shots, the chain and the timed forms, one member made late by up to three 64 MiB copies queued before its partial, every member's result against the member-order oracle): 160000 sums with the fix and 160000 on the base, 0 bad on both, so the hazard does not fire on healthy links and the test that holds the fix is `late_totals`.
 - Gotchas: the one bad drafting run of 2026-11-19 (Qwen3.8-Flash-Next 2x2 int8, easy prompt, the drafter run) is not shown to come from this hazard: injected stale totals, zeroed hand-off rows and zeroed KV rows of the damaged prompt rows do not reproduce its tokens past index 21.
 
@@ -556,7 +621,7 @@ Main's first run sliced its prompt in 5 against 2 in every later run, which give
 README: the stack's branches changed its support rows in their own commits, and the docs component's readme check passes on the landing head, so the landing adds no README change.
 
 The hosted run 44427015483 of be73f7c5e on gate/20261118 passed all eight jobs (CPU on Ubuntu, Windows, macOS, TSan and UBSan, the Vulkan and ROCm builds and the HF reference), and it carries to the landing head, which adds this record alone.
-The Radeon VII check is ready and not yet run, and the head lands by fast-forward of gitea main and GitHub main.
+This stack did not land alone: it lands with land-20261119 on main ce2b0603b as the landing stack land-20261120 (above), whose Radeon VII check covers it.
 
 ## Vulkan norm barriers (2026-11-19, VKNORM1, branch perf/vulkan-norm-barriers on land/20261118 57a932e49)
 

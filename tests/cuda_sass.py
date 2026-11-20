@@ -34,8 +34,18 @@ SPILL_ALLOWED = {
     "llmx_iq4_nl_": "step 8, IQ4_NL",
     "llmx_q4_k_tile8_tall": "change 3, the tall K tile: 4 bytes on sm_90 at two blocks an SM, one loop-invariant word reloaded a step, which the tall loop trim removes (docs/STATUS.md, CUDA prompt gap, change 3, second part, Left)",
     "llmx_q5_k_tile8_tall": "change 3, the tall K tile: 8 bytes on sm_90 at two blocks an SM, one loop-invariant pair reloaded a step, which the tall loop trim removes (docs/STATUS.md, CUDA prompt gap, change 3, second part, Left)",
-    "llmx_matmul_rows_iq4_nl": "step 8, IQ4_NL",
-    "llmx_delta_step": "step 5, the qwen35 delta step: 8 bytes on sm_86, sm_89 and sm_90 since it took the int8 half-block form of feat/qwen27-delta-q8, which no CUDA card has timed",
+    "llmx_q2_k_": "step 8, Q2_K's twin builds: up to 36 bytes, where the 256-thread bound lets ptxas trade them for a block an SM, and two blocks an SM spilled more and was not taken (docs/STATUS.md)",
+    "llmx_q3_k_": "step 8, Q3_K's twin builds: up to 48 bytes, where the 256-thread bound lets ptxas trade them for a block an SM, and two blocks an SM spilled more and was not taken (docs/STATUS.md)",
+    "llmx_iq4_xs_": "step 8, IQ4_XS's twin builds: up to 44 bytes, where the 256-thread bound lets ptxas trade them for a block an SM, and two blocks an SM spilled more and was not taken (docs/STATUS.md)",
+    "llmx_iq2_xxs_": "step 8, IQ2_XXS's twin builds: up to 44 bytes, where the 256-thread bound lets ptxas trade them for a block an SM, and two blocks an SM spilled more and was not taken (docs/STATUS.md)",
+    "llmx_iq2_xs_": "step 8, IQ2_XS's twin builds: up to 44 bytes, where the 256-thread bound lets ptxas trade them for a block an SM, and two blocks an SM spilled more and was not taken (docs/STATUS.md)",
+    "llmx_iq3_s_": "step 8, IQ3_S's twin builds: up to 44 bytes, where the 256-thread bound lets ptxas trade them for a block an SM, and two blocks an SM spilled more and was not taken (docs/STATUS.md)",
+    "llmx_iq2_s_": "step 8, IQ2_S's twin builds: up to 48 bytes, where the 256-thread bound lets ptxas trade them for a block an SM, and two blocks an SM spilled more and was not taken (docs/STATUS.md)",
+    "llmx_iq3_xxs_": "step 8, IQ3_XXS's twin builds: up to 44 bytes, where the 256-thread bound lets ptxas trade them for a block an SM, and two blocks an SM spilled more and was not taken (docs/STATUS.md)",
+    "llmx_nvfp4_": "step 8, NVFP4's twin builds: up to 36 bytes, where the 256-thread bound lets ptxas trade them for a block an SM, and two blocks an SM spilled more and was not taken (docs/STATUS.md)",
+    "llmx_matmul_rows_iq2_xs": "step 8, IQ2_XS's exact row build: 8 bytes on sm_120, where the 256-thread bound lets ptxas trade them for a block an SM, and two blocks an SM spilled more and was not taken (docs/STATUS.md)",
+    "llmx_matmul_rows_iq4_xs": "step 8, IQ4_XS's exact row build: 4 bytes on sm_120, where the 256-thread bound lets ptxas trade them for a block an SM, and two blocks an SM spilled more and was not taken (docs/STATUS.md)",
+    "llmx_delta_step": "step 5, the qwen35 delta step: 8 bytes on sm_86, sm_89 and sm_90 since it took the int8 half-block form of feat/qwen27-delta-q8, and two blocks an SM spilled more and was not taken (docs/STATUS.md)",
 }
 
 

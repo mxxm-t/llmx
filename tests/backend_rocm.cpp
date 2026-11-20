@@ -318,9 +318,9 @@ void refusals(Backend& g) {
     std::vector<uint8_t> q4k(144 * 4, 0);
     auto w = g.adopt(q4k.data(), q4k.size());
     auto x = g.alloc(256 * 4), y = g.alloc(16);
-    require(g.supports_type(quant::GGML_TYPE_F32) && g.supports_type(quant::GGML_TYPE_Q8_0) && g.supports_type(quant::GGML_TYPE_Q4_K) && !g.supports_type(quant::GGML_TYPE_Q2_K),
+    require(g.supports_type(quant::GGML_TYPE_F32) && g.supports_type(quant::GGML_TYPE_Q8_0) && g.supports_type(quant::GGML_TYPE_Q4_K) && !g.supports_type(quant::GGML_TYPE_I8),
             "the backend supports the types of its descriptor table and no other");
-    require(throws([&] { g.matmul({quant::GGML_TYPE_Q2_K, {w.get(), 0}}, {x.get(), 0}, {y.get(), 0}, 256, 4, 1); }), "a Q2_K matmul is refused");
+    require(throws([&] { g.matmul({quant::GGML_TYPE_I8, {w.get(), 0}}, {x.get(), 0}, {y.get(), 0}, 256, 4, 1); }), "an I8 matmul is refused");
     require(throws([&] { g.matmul({quant::GGML_TYPE_Q4_K, {w.get(), 0}}, {x.get(), 0}, {y.get(), 0}, 128, 4, 1); }), "a Q4_K row ending inside a block is refused");
     require(throws([&] { g.matmul({quant::GGML_TYPE_Q8_0, {w.get(), 0}}, {x.get(), 0}, {y.get(), 0}, 48, 4, 1); }), "a Q8_0 row ending inside a block is refused");
     // The ops ROCm implements are its `implements`, which the kernel checks below reach one by one: every op but the two it lacks.

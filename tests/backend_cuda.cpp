@@ -301,7 +301,10 @@ void types(const CudaDevice& d, Backend& g, Backend& cpu) {
             const bool k = type == quant::GGML_TYPE_Q4_K || type == quant::GGML_TYPE_Q5_K || type == quant::GGML_TYPE_Q6_K;
             return k && dt == Dtype::int8 && backend::tile_rows_for(d.caps, prof, 64, 64, 128, nout, (std::min<size_t>(extent, 512) + 63) / 64, nin, prof.qtile_tall_from_8bit, true) == 128;
         };
-        twin_checks::twin_types(g, cpu, {quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4}, {Dtype::f16, Dtype::int8}, d.caps.subgroup_size, cuda_take_launches, tall, require);
+        twin_checks::twin_types(g, cpu, {quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4,
+                                         quant::GGML_TYPE_Q3_K, quant::GGML_TYPE_Q2_K, quant::GGML_TYPE_IQ4_XS, quant::GGML_TYPE_IQ2_XXS, quant::GGML_TYPE_IQ2_XS, quant::GGML_TYPE_IQ3_S, quant::GGML_TYPE_IQ2_S,
+                                         quant::GGML_TYPE_IQ3_XXS},
+                                {Dtype::f16, Dtype::int8}, d.caps.subgroup_size, cuda_take_launches, tall, require);
     });
     guarded("row classes", [&] { require(row_classes::check(g, quants, twin_checks::typed_matrix, {Dtype::f32, Dtype::f16, Dtype::int8}, false) > 0, "every pair of extents of one class gives the same bits"); });
 }

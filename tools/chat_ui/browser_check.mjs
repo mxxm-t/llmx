@@ -12,8 +12,9 @@ const featuresMode = process.argv.includes('--features-only');
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const startupTimeoutArg = process.argv.find(arg => arg.startsWith('--startup-timeout-ms='));
 const startupTimeoutCandidate = startupTimeoutArg ? Number(startupTimeoutArg.slice('--startup-timeout-ms='.length)) : NaN;
+const defaultStartupTimeoutMs = process.platform === 'win32' ? 60000 : 30000;
 const startupTimeoutMs = Number.isSafeInteger(startupTimeoutCandidate) && startupTimeoutCandidate > 0
-  ? startupTimeoutCandidate : 30000;
+  ? startupTimeoutCandidate : defaultStartupTimeoutMs;
 const launchArgs = ['--headless=new', '--no-first-run', '--no-default-browser-check',
   '--disable-background-networking', '--remote-debugging-port=0', '--user-data-dir=' + profile,
   '--window-size=1440,1000', 'about:blank'];
@@ -687,16 +688,24 @@ try {
   const startupElapsedMs = Date.now() - startupStarted;
   if (!port) throw launchDiagnostic('Chrome did not open DevTools within ' + startupElapsedMs + ' ms (limit ' + startupTimeoutMs + ' ms)');
   const startupUrl = 'http://127.0.0.1:' + port + '/json/list';
-  let target;
+  let target, discovery = 'No response received';
   while (!target && Date.now() < startupDeadline) {
-    const remaining = startupDeadline - Date.now();
+    const remaining = Math.max(1, startupDeadline - Date.now());
     try {
-      const response = await fetch(startupUrl, {signal: AbortSignal.timeout(Math.min(500, Math.max(1, remaining)))});
-      if (response.ok) target = (await response.json()).find(t => t.type === 'page');
-    } catch {}
+      const response = await fetch(startupUrl, {signal: AbortSignal.timeout(remaining)});
+      if (response.ok) {
+        target = (await response.json()).find(t => t.type === 'page' && t.webSocketDebuggerUrl);
+        if (!target) discovery = 'No page with a debugger URL';
+      } else {
+        discovery = 'HTTP ' + response.status;
+      }
+    } catch (error) {
+      discovery = error.name + ': ' + error.message;
+    }
     if (!target) await delay(Math.min(80, Math.max(0, startupDeadline - Date.now())));
   }
-  if (!target) throw launchDiagnostic('Chrome DevTools HTTP endpoint did not become ready within ' + (Date.now() - startupStarted) + ' ms (limit ' + startupTimeoutMs + ' ms)');
+  if (!target) throw launchDiagnostic('DevTools page discovery timed out at ' + startupUrl + ' (' + startupTimeoutMs + ' ms limit). Last result: ' + discovery);
+  const discoveryElapsedMs = Date.now() - startupStarted;
   socket = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => {
     const remaining = startupDeadline - Date.now();
@@ -705,7 +714,7 @@ try {
     socket.onopen = () => { clearTimeout(timeout); resolve(); };
     socket.onerror = () => { clearTimeout(timeout); reject(launchDiagnostic('Chrome DevTools WebSocket connection failed')); };
   });
-  console.log('Chrome DevTools ready in ' + (Date.now() - startupStarted) + ' ms');
+  console.log('Chrome DevTools ready in ' + (Date.now() - startupStarted) + ' ms (port at ' + startupElapsedMs + ' ms, page at ' + discoveryElapsedMs + ' ms)');
   socket.onmessage = event => {
     const data = JSON.parse(event.data);
     if (data.id && pending.has(data.id)) { const call = pending.get(data.id); pending.delete(data.id); clearTimeout(call.timeout); if (data.error) call.reject(new Error(JSON.stringify(data.error))); else call.resolve(data.result); }

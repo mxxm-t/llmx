@@ -3,9 +3,9 @@
 ## Chat browser test startup (2026-11-21)
 
 - **Goal:** Let a slow DevTools page list finish within the browser startup deadline.
-- **Done:** Windows CI reported a listening Chrome process but never obtained a page target. The fixture caps each HTTP request at 500 ms inside a 30-second startup budget.
-- **Left:** Reproduce delayed discovery and run the affected browser check on Windows and Linux.
-- **Gotchas:** The hosted log does not identify the response latency. Preserve the total startup deadline and the reported failure.
+- **Done:** Removed the 500 ms per-request deadline on the local DevTools page list. The startup deadline covers the process, discovery and WebSocket connection. Windows uses 60 seconds after a hosted cold launch outlasted 30 seconds before publishing its port. Other platforms keep 30 seconds. A timeout now reports the endpoint and last discovery result.
+- **Checks:** A 750 ms delay on each discovery request reproduced the Windows error before the fix. The browser fixture exercises that delay while searching and exporting a real conversation. The first hosted failure had a listening Chrome process and unknown response latency. The second never published its port in 30 seconds. The preceding successful Windows run connected in 26.7 seconds. The harness now records when the port and target became available.
+- **Landing:** Fast-forward after the dedicated Linux and Windows Chat workspace checks. The change is confined to the browser test harness and its documentation.
 
 ## Chat workspace and conversation navigation (2026-11-21)
 

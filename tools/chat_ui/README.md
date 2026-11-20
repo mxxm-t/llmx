@@ -591,6 +591,7 @@ The tests use temporary databases and local protocol fixtures, not a GPU or
 production server. Browser checks use an installed Chrome/Chromium and Node
 when available and explicitly report a skip otherwise. Static UI and standalone
 companion changes need their focused checks, not model numerical gates.
+The browser harness gives Chrome 60 seconds on Windows and 30 seconds elsewhere to start and connect. A page-discovery timeout reports its local endpoint, last result and process diagnostics.
 The dedicated Chat workspace workflow runs these and the existing dashboard
 tests on Windows and Linux, requiring the browser check with
 `LLMX_CHAT_REQUIRE_BROWSER=1`. This is test configuration, not a runtime setting.

@@ -728,19 +728,25 @@ extern "C" __global__ void llmx_norm_rope_kv(float* q, unsigned long long q_stri
     const int dim = 2 * half;
     const unsigned long long r = blockIdx.x;
     const int h = blockIdx.y, t = threadIdx.x;
-    const float* c = cos + (unsigned long long)pos[r] * half;
-    const float* s = sin + (unsigned long long)pos[r] * half;
-    if (h < n_head) {
-        float* head = q + r * q_stride + (unsigned long long)h * dim;
-        return norm_rope_held(head, head, dim, half, q_w, eps, c, s, lds, hs, os);
-    }
+    const bool isq = h < n_head;
     const int kh = h - n_head;
     const unsigned long long in = (r * n_head_kv + kh) * dim;
-    norm_rope_held(k + in, k + in, dim, half, k_w, eps, c, s, lds, hs, os);
-    if (t >= dim) return;
-    const unsigned long long out = (((unsigned long long)blocks[r] * n_head_kv + kh) * bt + slots[r]) * dim + t;
+    float* head = isq ? q + r * q_stride + (unsigned long long)h * dim : k + in;
+    // One path for q and k heads, with k's cache block, slot and v value read before the norm, so those loads overlap it (docs/src/backends-gpu.md).
+    int blk = 0, slot = 0;
+    float vt = 0.0f;
+    if (!isq) {
+        blk = blocks[r];
+        slot = slots[r];
+        if (t < dim) vt = v[in + t];
+    }
+    const float* c = cos + (unsigned long long)pos[r] * half;
+    const float* s = sin + (unsigned long long)pos[r] * half;
+    norm_rope_held(head, head, dim, half, isq ? q_w : k_w, eps, c, s, lds, hs, os);
+    if (isq || t >= dim) return;
+    const unsigned long long out = (((unsigned long long)blk * n_head_kv + kh) * bt + slot) * dim + t;
     kv_store(kc, out, os[t], k_half);
-    kv_store(vc, out, v[in + t], v_half);
+    kv_store(vc, out, vt, v_half);
 }
 
 // Rows of an F32 table: dst row i = table row ids[i], `nin` floats each, and a zero row for an id of `nrows` or more.

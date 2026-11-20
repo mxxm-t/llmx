@@ -401,6 +401,23 @@ A saved tool result opens the latest file in the editor or resumes unsaved chang
 - **Done:** Chat opens at the composer with saved files and up to three recent conversations. The active branch has a local prompt index, text search with jump-to-message and a Markdown transcript download.
 - **Checks:** Chrome exercised both themes at 320, 390, 768 and 1440 px. The 320 and 390 px composer has 16 px side gutters. The message-navigation fixture covers 27 turns, paging, literal matching, alternate branches, draft preservation, focus and export contents.
 - **Landing:** The standalone companion uses the Linux and Windows Chat workspace workflow for the landing head. The change lands by fast-forward after its scoped checks pass.
+## Norm-rope KV reads first (2026-11-20, BYPASS15, branch perf/norm-rope-kv-reads-first on main ce2b0603b)
+
+- **Goal:** `llmx_norm_rope_kv` (`kernels/f32.gpu`), launched once a layer on qwen3, issues its global reads before its first wait, with every bit kept.
+- **Done:** q and k heads run one path, the head and its norm weights chosen by select, and a k head reads its cache block, slot and v value before `norm_rope_held`, where it read them after the norm's sum and rotation; the arithmetic and its order are unchanged.
+- **Measured, one MI50, ROCm 7.2.1** (/opt/claude-work/bypass14, one row, 16 q and 8 k heads of 128, 200 calls, 3 interleaved reps, outputs byte-equal): the kernel runs 5.96-5.97 -> 4.78 us launched eagerly as the backend launches it and 3.61-3.62 -> 3.18 us in graph replay.
+  Reading every argument at entry through an empty asm (5.28-5.33 eager, 3.71-3.74 graph) was rejected: it turns the uniform `pos`, `blocks` and `slots` reads from scalar loads into vector loads, each with its own wait.
+- **Gates:** on main 6770182ad, one MI50 (rocm:0), ROCm 7.2.1, both arms built alike from committed trees in the same container image (main `llmx 0.1.0+g6770182ad3e7` sha256 41cf4b95, branch `llmx 0.1.0+g6e6ae6461d60` sha256 84b6857d).
+  Identity against main, Qwen3-0.6B-Q8_0 and Qwen3.6-27B-Q8_0: 64 greedy ids and the logits of the last 16 prompt rows and every prompt row (top 8) at the default dtype and int8 on rocm:0, and 32 (0.6B) or 4 (27B) greedy ids on the CPU, are byte-identical in all 14 cells.
+  One 27B CPU cell came back empty under host memory pressure in the first run and printed the same ids on four reruns of each arm.
+  Qwen3.6-27B does not reach `llmx_norm_rope_kv`, so its cells are no-reach checks, and the 0.6B cells are the ones that run it.
+  Timing, `bench --p 512 --n 128 --r 3`, three rounds alternating order (mean of the three round means, main / branch / delta): Qwen3-0.6B pp512 8920 / 8897 tok/s (-0.3%), tg128 379.3 / 376.4 (-0.8%; the branch's first round was 354.5 +- 36.9, the other two 388.5 and 386.3, main's 377.4 to 381.0); Qwen3.6-27B pp512 264.9 / 264.2 (-0.3%), tg128 21.61 / 21.72 (+0.5%).
+  Per-layer the kernel saves about 1 us launched eagerly, so the end-to-end change at 0.6B lies inside the run-to-run band; the gain is the kernel's, measured above.
+  An earlier round on main ce2b0603b gave 0.6B pp512 8610 / 8950 (+3.9%) and 27B tg128 21.37 / 21.22 (-0.7%, six rounds), and its first 27B pp512 round dipped 4.8% where 27B cannot reach the kernel, so these deltas are noise and layout, not the change.
+  The suite on rocm:0 ran 35 PASS and 0 FAIL on the rebased head, the rest SKIP; CUDA 12.9.1 compile of the branch passed with 5 of 5 card-free CTests (f32.gpu is shared); the `docs` and `dead-code` components passed.
+  Host contention was recorded for every run (hostwait): the timing job ran uncontended, the suite and the first identity job ran with kswapd0 active.
+  The branch lands by fast-forward.
+- **Left:** nothing; the branch lands by fast-forward.
 
 ## Chat message actions (2026-11-19)
 

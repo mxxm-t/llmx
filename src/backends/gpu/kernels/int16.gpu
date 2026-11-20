@@ -1023,6 +1023,15 @@ struct Q51Lane {
 
 template <typename KT> struct KRaw;
 template <typename KT> struct QuarterLane;
+// A block of the K tile's weights: a uniform base, the block's uniform byte offset and the lane's row offset, so a read adds a uniform and a lane part to them.
+struct WBased {
+    gpu_based base;
+    unsigned blk, lane;
+    template <typename T, int N> __device__ void get(unsigned uni, unsigned l, T (&v)[N]) const { gpu_based_load(base, blk + uni, lane + l, v); }
+};
+// Whether a type's KRaw reads a based block (WBased); the others read by pointer, and so does MXFP4, which aligns its reads by the address.
+template <typename KT, typename = void> struct KBased { static constexpr bool value = false; };
+template <typename KT> struct KBased<KT, decltype(std::declval<KRaw<KT>&>().load(std::declval<const WBased&>(), 0u, 0u))> { static constexpr bool value = !__is_same(KT, rq::MXFP4); };
 // Q4_K and Q5_K: the f16 scale and min word, the 12 packed scale bytes, the lane's eight nibble bytes and Q5_K's eight fifth-bit bytes, all 4-byte aligned since a block is a multiple of 16 bytes.
 template <bool Q5> struct K45Raw {
     unsigned dm, sc[3], q[2], h[2];
@@ -1033,8 +1042,16 @@ template <bool Q5> struct K45Raw {
         q[0] = w[qo / 4], q[1] = w[qo / 4 + 1];
         if constexpr (Q5) h[0] = w[4 + 2 * part], h[1] = w[5 + 2 * part];
     }
+    // The K tile's read of the same words through its based block (WBased).
+    __device__ void load(const WBased& b, unsigned sub, unsigned part) {
+        unsigned w[4];
+        b.get(0, 0, w);
+        dm = w[0], sc[0] = w[1], sc[1] = w[2], sc[2] = w[3];
+        b.get((Q5 ? 48 : 16) + 32 * (sub >> 1), 8 * part, q);
+        if constexpr (Q5) b.get(16, 8 * part, h);
+    }
     // Sub-block 2j + 1 reads the same words as sub-block 2j, its nibbles the high ones.
-    __device__ void pair(const K45Raw& e, const unsigned char*, unsigned, unsigned) { *this = e; }
+    __device__ void pair(const K45Raw& e, const WBased&, unsigned, unsigned) { *this = e; }
     __device__ void decode(unsigned sub, unsigned, unsigned (&v)[2], float& ds, float& dmin) const {
         unsigned s, m;
         k45_scale_min(sc, sub, s, m);
@@ -1066,13 +1083,23 @@ template <> struct KRaw<rq::Q6_K> {
         sc = ((const signed char*)b)[192 + 8 * n + (part >> 1) + 2 * quarter];
         d = *(const unsigned short*)(b + 208);
     }
-    // Sub-block 2j + 1 shares sub-block 2j's high bits and block scale, so only its low nibbles and sub-scale are read.
-    __device__ void pair(const KRaw& e, const unsigned char* b, unsigned sub, unsigned part) {
+    __device__ void load(const WBased& b, unsigned sub, unsigned part) {
         const unsigned n = sub >> 2, quarter = sub & 3;
-        const unsigned short* l = (const unsigned short*)(b + 64 * n + 32 * (quarter & 1) + 8 * part);
+        b.get(64 * n + 32 * (quarter & 1), 8 * part, lo), b.get(128 + 32 * n, 8 * part, hi);
+        signed char s[1];
+        unsigned short e[1];
+        b.get(192 + 8 * n + 2 * quarter, part >> 1, s), b.get(208, 0, e);
+        sc = s[0], d = e[0];
+    }
+    // Sub-block 2j + 1 shares sub-block 2j's high bits and block scale, so only its low nibbles and sub-scale are read.
+    __device__ void pair(const KRaw& e, const WBased& b, unsigned sub, unsigned part) {
+        const unsigned n = sub >> 2, quarter = sub & 3;
 #pragma unroll
-        for (int i = 0; i < 4; ++i) lo[i] = l[i], hi[i] = e.hi[i];
-        sc = ((const signed char*)b)[192 + 8 * n + (part >> 1) + 2 * quarter];
+        for (int i = 0; i < 4; ++i) hi[i] = e.hi[i];
+        b.get(64 * n + 32 * (quarter & 1), 8 * part, lo);
+        signed char s[1];
+        b.get(192 + 8 * n + 2 * quarter, part >> 1, s);
+        sc = s[0];
         d = e.d;
     }
     __device__ void decode(unsigned sub, unsigned, unsigned (&v)[2], float& ds, float& dmin) const {
@@ -1152,6 +1179,11 @@ template <> struct KRaw<rq::Q4_0> {
 #pragma unroll
         for (int i = 0; i < 4; ++i) lo[i] = w[1 + 4 * (part & 1) + i];
     }
+    __device__ void load(const WBased& b, unsigned, unsigned part) {
+        unsigned short e[1];
+        b.get(0, 0, e), b.get(2, 8 * (part & 1), lo);
+        d = e[0];
+    }
     __device__ void decode(unsigned, unsigned part, unsigned (&v)[2], float& ds, float& dmin) const {
         const unsigned sh = 4 * (part >> 1);
 #pragma unroll
@@ -1168,6 +1200,11 @@ template <> struct KRaw<rq::Q4_1> {
     __device__ void load(const unsigned char* b, unsigned, unsigned part) {
         const unsigned* w = (const unsigned*)b;
         dm = w[0], lo[0] = w[1 + 2 * (part & 1)], lo[1] = w[2 + 2 * (part & 1)];
+    }
+    __device__ void load(const WBased& b, unsigned, unsigned part) {
+        unsigned w[1];
+        b.get(0, 0, w), b.get(4, 8 * (part & 1), lo);
+        dm = w[0];
     }
     __device__ void decode(unsigned, unsigned part, unsigned (&v)[2], float& ds, float& dmin) const {
         const unsigned sh = 4 * (part >> 1);
@@ -1188,6 +1225,11 @@ template <> struct KRaw<rq::Q5_0> {
 #pragma unroll
         for (int i = 0; i < 4; ++i) lo[i] = w[3 + 4 * (part & 1) + i];
     }
+    __device__ void load(const WBased& b, unsigned, unsigned part) {
+        unsigned short e[1];
+        b.get(0, 0, e), b.get(2, 0, h), b.get(6, 8 * (part & 1), lo);
+        d = e[0];
+    }
     __device__ void decode(unsigned, unsigned part, unsigned (&v)[2], float& ds, float& dmin) const {
         const unsigned sh = 4 * (part >> 1);
 #pragma unroll
@@ -1205,6 +1247,11 @@ template <> struct KRaw<rq::Q5_1> {
     __device__ void load(const unsigned char* b, unsigned, unsigned part) {
         const unsigned* w = (const unsigned*)b;
         dm = w[0], h = w[1], lo[0] = w[2 + 2 * (part & 1)], lo[1] = w[3 + 2 * (part & 1)];
+    }
+    __device__ void load(const WBased& b, unsigned, unsigned part) {
+        unsigned w[2];
+        b.get(0, 0, w), b.get(8, 8 * (part & 1), lo);
+        dm = w[0], h = w[1];
     }
     __device__ void decode(unsigned, unsigned part, unsigned (&v)[2], float& ds, float& dmin) const {
         const unsigned sh = 4 * (part >> 1);
@@ -1225,6 +1272,11 @@ template <> struct KRaw<rq::IQ4_NL> {
         d = w[0];
 #pragma unroll
         for (int i = 0; i < 4; ++i) lo[i] = w[1 + 4 * (part & 1) + i];
+    }
+    __device__ void load(const WBased& b, unsigned, unsigned part) {
+        unsigned short e[1];
+        b.get(0, 0, e), b.get(2, 8 * (part & 1), lo);
+        d = e[0];
     }
     __device__ void decode(unsigned, unsigned part, unsigned (&v)[2], float& ds, float& dmin) const {
         const unsigned sh = 4 * (part >> 1);
@@ -1889,6 +1941,10 @@ LLMX_KVEC {
     const unsigned long long o = o0 + wr, b = b0 + r;
     const unsigned xr = ROUTED ? (b < nrows ? (unsigned)(ent[b] / tg.per) : 0u) : (unsigned)r;   // the twin row this thread stages
     const unsigned char* wrow = c.w[pi] + (ROUTED ? tg.tab[4 * gi] * tg.stride[pi] : 0) + (o < nout ? o : 0) * row_bytes;
+    // The based form: the workgroup's first row as a uniform base and the lane's row as a 32-bit offset, row o0 past nout.
+    constexpr bool BASED = KBased<KT>::value;
+    const gpu_based wb = gpu_base(c.w[pi] + (ROUTED ? tg.tab[4 * gi] * tg.stride[pi] : 0) + o0 * row_bytes);
+    const unsigned wlo = o < nout ? (unsigned)(wr * row_bytes) : 0u;
     KRaw<KT> raw[STEP];
     bool xok[STEP];
     // The 8-bit MXFP4 step: thread t stages block t % 4 of row t / 4 whole, from one 16-byte and one 4-byte load (StreamWords) rather than sixteen scattered words, into the same slots.
@@ -1908,12 +1964,16 @@ LLMX_KVEC {
             const unsigned long long k = k0 + s;
             xok[s] = k < kend && b < nrows;
             const unsigned long long kk = k < kend ? k : 0;
+            const auto src = [&] {
+                if constexpr (BASED) return WBased{wb, (unsigned)(kk / (KT::values / 32) * KT::bytes), wlo};
+                else return wrow + (kk / (KT::values / 32)) * KT::bytes;
+            }();
             // A part's blocks start and end even (split_blocks, or a whole row of nin / 32) and a step is even, so an odd s is the second sub-block of s - 1's block.
             if constexpr (!WHOLE && KPairs<KT>::value) {
                 static_assert(STEP % 2 == 0 && KT::values % 64 == 0, "a step takes whole sub-block pairs");
-                if (s % 2 == 1) raw[s].pair(raw[s - 1], wrow + (kk / (KT::values / 32)) * KT::bytes, (unsigned)(kk % (KT::values / 32)), ws);
-                else raw[s].load(wrow + (kk / (KT::values / 32)) * KT::bytes, (unsigned)(kk % (KT::values / 32)), ws);
-            } else if constexpr (!WHOLE) raw[s].load(wrow + (kk / (KT::values / 32)) * KT::bytes, (unsigned)(kk % (KT::values / 32)), ws);
+                if (s % 2 == 1) raw[s].pair(raw[s - 1], src, (unsigned)(kk % (KT::values / 32)), ws);
+                else raw[s].load(src, (unsigned)(kk % (KT::values / 32)), ws);
+            } else if constexpr (!WHOLE) raw[s].load(src, (unsigned)(kk % (KT::values / 32)), ws);
             else if (s == 0) {
                 const unsigned long long kw = k0 + ws;
                 whole.load(wrow + (kw < kend ? kw : 0) * KT::bytes);

@@ -357,3 +357,30 @@ __device__ __forceinline__ float gpu_tanhf(float x) {
 }
 
 #endif
+
+#if defined(__HIP__) || defined(__CUDACC__)
+// N values of type T at a uniform base's uniform byte offset plus a lane's byte offset, both 32-bit, aligned to T alone.
+// On gfx9 a buffer resource holds the base and one load of the bytes reads them, so the uniform offset stays scalar and a lane adds no 64-bit address (buffer_load offen); elsewhere a pointer.
+#if defined(__HIP__) && defined(__GFX9__)
+struct gpu_based { __amdgpu_buffer_rsrc_t r; };
+__device__ __forceinline__ gpu_based gpu_base(const void* p) { return {__builtin_amdgcn_make_buffer_rsrc(const_cast<void*>(p), (short)0, -1, 0x00020000)}; }
+template <typename T, int N> __device__ __forceinline__ void gpu_based_load(gpu_based b, unsigned uni, unsigned lane, T (&v)[N]) {
+    constexpr int B = (int)sizeof(T) * N;
+    struct V { T x[N]; } r;
+    if constexpr (B == 1) r = __builtin_bit_cast(V, __builtin_amdgcn_raw_buffer_load_b8(b.r, (int)lane, (int)uni, 0));
+    else if constexpr (B == 2) r = __builtin_bit_cast(V, __builtin_amdgcn_raw_buffer_load_b16(b.r, (int)lane, (int)uni, 0));
+    else if constexpr (B == 4) r = __builtin_bit_cast(V, __builtin_amdgcn_raw_buffer_load_b32(b.r, (int)lane, (int)uni, 0));
+    else if constexpr (B == 8) r = __builtin_bit_cast(V, __builtin_amdgcn_raw_buffer_load_b64(b.r, (int)lane, (int)uni, 0));
+    else r = __builtin_bit_cast(V, __builtin_amdgcn_raw_buffer_load_b128(b.r, (int)lane, (int)uni, 0));
+#pragma unroll
+    for (int i = 0; i < N; ++i) v[i] = r.x[i];
+}
+#else
+struct gpu_based { const unsigned char* p; };
+__device__ __forceinline__ gpu_based gpu_base(const void* p) { return {(const unsigned char*)p}; }
+template <typename T, int N> __device__ __forceinline__ void gpu_based_load(gpu_based b, unsigned uni, unsigned lane, T (&v)[N]) {
+#pragma unroll
+    for (int i = 0; i < N; ++i) v[i] = *(const T*)(b.p + uni + lane + i * sizeof(T));
+}
+#endif
+#endif

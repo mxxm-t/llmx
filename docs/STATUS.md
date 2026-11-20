@@ -1075,6 +1075,44 @@ A prefill whose busy times are uniformly inflated (a contending job, a clock dro
 **Gotchas.**
 - The bits of every 256-wide prompt attention row change on ROCm and CUDA (Qwen3.5, Qwen3.6 and Qwen3.8 attention layers at `attention_tile_rows` and above); 128-wide heads (Qwen3) are unchanged.
 - build/gpu-arch-options-land2 is build/gpu-arch-options-land 67340f65f rebased onto this branch without the change; it lands after it.
+## Prompt K tile staging 6 (2026-11-20, KEFF13 and KEFF14, branch perf/k-tile-staging6 on perf/k-tile-staging5 ad22eeac1)
+
+- **Goal:** fewer vector memory instructions in the prompt K tile's staging: a row's four lanes each loaded the activation scale and sums of every step and only lane 0 used them.
+- **Done:** in the vector body (`k_tile` in `kernels/int16.gpu`, which is also CUDA's 16-bit `k_vec`) a row's lane seg loads the activation scale and sums of step seg % STEP alone and writes that step's `xd` and `xh`, so a step's twin scales take one load a lane rather than STEP (STEP is 4 at 8-bit and 2 at 16-bit).
+  CUDA's 16-bit tile takes the same change, untimed and not run on a device.
+  Static ISA of the staging loads: Q4_K 8-bit 16 to 10, Q4_K 16-bit 8 to 6, Q6_K 8-bit 24 to 18; VGPRs rise by 2 to 6 (q4_k_tile8 70 to 76, q6_k_tile8 74 to 80, at most 80 of the 84 that keep three waves a SIMD) and ds_write 12 to 18.
+  The bits are unchanged: each step's scale and sums reach the same slot as before.
+- **Kernel rates (one MI50, ROCm 7.2.1, gfx906 builds, both arms built the same way):** `rates ktile` and `rates ktile2`, 5 ABAB rounds, output hashes equal in every cell; percent of the dot peak, mean of the five Qwen3.6-27B shapes at 512 rows, staging 5 to this change (mean change; layout control mean change):
+
+  | Type | f16 | int8 |
+  |---|---|---|
+  | Q4_K | 56.4 to 56.9 (+0.9%; -0.1%) | 45.5 to 46.0 (+1.3%; -1.0%) |
+  | Q5_K | 54.6 to 55.0 (+0.8%; +0.1%) | 43.7 to 44.1 (+1.0%; +0.1%) |
+  | Q6_K | 48.5 to 49.1 (+1.3%; -0.4%) | 37.6 to 38.1 (+1.4%; +0.6%) |
+  | Q4_0 | 58.2 to 58.4 (+0.4%; -0.3%) | 50.3 to 51.3 (+1.9%; +0.4%) |
+  | Q5_0 | 55.1 to 55.6 (+0.9%; -0.2%) | 45.5 to 46.7 (+2.7%; +0.3%) |
+  | Q4_1 | 56.2 to 56.9 (+1.2%; +0.3%) | 46.0 to 46.8 (+1.7%; +0.3%) |
+  | Q5_1 | 53.7 to 54.0 (+0.7%; -0.1%) | 41.7 to 42.4 (+1.5%; -0.4%) |
+
+  IQ4_NL, MXFP4 and Q8_0, whose loads do not change, read -1.6 to +0.5% in this change's screen, as the control does (-1.5 to +0.3%).
+  Layout control: staging 5 with an unused kernel added before the K tile (keff13/k5), screened the same way, moves every 27B cell's mean by -1.0 to +0.6%.
+  The gain is small, +1% on the K types and up to +2.7% on the offset types at int8, but positive on every type the change reaches, and it is a loss nowhere.
+  It does not clear the stream's +2% screening rule on the K types; it lands as the coordinator's decision to weigh gains rather than cut on a per-cell rule (AGENTS.md, Principles), as staging 5 did.
+  Small-model cells are bimodal as in staging 5 and are not read.
+- **Finding:** cutting the Q4_K 8-bit staging loads by 37% bought about 1%, so the load issue of staging (4 to 16% of a wave's loop time in a phase-clock probe, barriers about 4%) is not the lever; the loop is VALU-bound.
+  The next lever is the float work after the dots, about 320 VALU per 512 dots on Q4_K 8-bit, which needs its own identity proof or a precision ruling and is not started.
+- **Identity:** greedy generations of one 5000-byte wikitext prompt, timing lines left out, equal between staging 5 (ad22eeac1) and this change on one MI50 at f16 and int8 for Qwen3.6-27B Q4_K_M (48 tokens), Qwen3.5-0.8B Q4_K_M and Qwen3-0.6B Q8_0 (64 tokens each), both full llmx builds made the same way.
+- **Re-check on main c494eea6f (2026-11-21, KEFF19):** staging 5 and 6 sit on main c494eea6f (k15/s5 3268b8f9e, k15/s6 628628512); gfx906 builds of main and of staging 6 made the same way, one MI50.
+  `rates ktile` and `rates ktile2`, 3 ABAB rounds, output hashes equal to main in every cell (0 mismatches); percent of the dot peak, mean of the 27B shapes at 512 and 2048 rows, main to staging 6 (mean change): Q5_0 54.1 to 55.8 (+3.2%) f16 and 44.0 to 46.4 (+5.4%) int8, Q6_K 47.8 to 49.2 (+2.7%) and 36.2 to 38.0 (+5.2%), Q4_0 +0.9% and +3.4%, Q4_K +1.1% and +2.5%, Q4_1 +1.5% and +2.7%, Q5_1 +1.7% and +2.3%, Q5_K +0.7% and +2.2%, IQ4_NL +1.6% and +2.5%, Q3_K +1.0% and +2.5%, IQ1_S int8 +3.0%.
+  Losses: MXFP4 -0.6% f16 and -0.7% int8 (its read is not the based form); Q8_0 -0.3 to +0.2%, whose tile is not changed.
+  Greedy generations of one 5000-byte wikitext prompt on one MI50, main against staging 6, equal at f16 and int8 for Qwen3.6-27B Q4_K_M (48 tokens), Qwen3.5-0.8B Q4_K_M and Qwen3-0.6B Q8_0 (64 tokens).
+  The all-architecture compile of staging 5's `int16.gpu` for gfx906, gfx942 and gfx1151 and its `LLMX_DOT16` build pass.
+  `llmx-backend-rocm-test` fails the same two checks on main c494eea6f and on staging 6, `the NVFP4 checks ran llmx_nvfp4_tile16` and `llmx_nvfp4_tile8`, and nothing else: its NVFP4 scale check issues products of at most 5 rows, which the row builds take since `prompt_rows_below` is 9 on an MI50, so no tile launches.
+  That is a fault of main's test and not of this change; `nvfp4_scales` needs to run at `prompt_rows_below` 2 as `twin_types` does, a fix on main.
+- **Left:** CTest and the device suite at the landing head, a CUDA build and identity run, the timing round against main, the hosted run, and a rebase onto main at landing (staging 3, 4 and 5 land first).
+- **Gotchas:** at 16-bit (STEP 2) a lane with seg at or above STEP loads a step's scale it does not store, since the load is unconditional and the store is guarded.
+  On CUDA 12.9.1 at sm_90 the change leaves `llmx_q4_k_tile16` and `llmx_q5_k_tile16` at 80 registers with 4 bytes spilled, one word stored before the main loop and reloaded a step, where staging 5 had none (land95 bisect of int16.gpu at sm_90, the stack's commits from main 72503be85); `tests/cuda_sass.py` lists both, and no card has run them.
+
 ## Prompt K tile staging 5 (2026-11-20, KEFF11 and KEFF12, branch perf/k-tile-staging5 on perf/k-tile-staging4 66bbb31e4)
 
 - **Goal:** the prompt K tile closer to the dot peak after staging 4 by taking the 64-bit address arithmetic out of its weight staging: staging 4 made a step's weight address a uniform block plus a lane offset, but the compiler still built every load's address with 64-bit lane adds.

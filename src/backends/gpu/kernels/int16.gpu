@@ -1953,8 +1953,9 @@ LLMX_KVEC {
     StreamWords<KT, 1> whole;
     int xv[STEP][WORDS / 4];
     using XH = typename std::conditional<sizeof(QT) == 2, int2, int>::type;   // a twin block's two half sums as they lie
-    XH xh_[STEP];
-    float xs_[STEP];
+    // A row's lane seg reads the scale and sums of step seg % STEP alone, so a step's twin scales take one load a lane rather than STEP.
+    XH xh_;
+    float xs_;
     const QT* qt = q + b0 * c.xrow * 32;
     const float* dxt = dx + b0 * c.xrow;
     const unsigned char* sxt = (const unsigned char*)c.xs + b0 * c.xrow * 4 * sizeof(QT);
@@ -1986,11 +1987,13 @@ LLMX_KVEC {
                 const int2 v = at<int2>(qt, xb * 32u + seg * 8u);
                 xv[s][0] = v.x, xv[s][1] = v.y;
             }
-            xs_[s] = at<float>(dxt, xb * 4u);
-            // The sums plane starts at total * 68 bytes, so a block-int16 pair is only 4-aligned and takes two 4-byte loads.
-            if constexpr (sizeof(QT) == 2) xh_[s] = make_int2(at<int>(sxt, xb * 8u), at<int>(sxt, xb * 8u + 4u));
-            else xh_[s] = at<int>(sxt, xb * 4u);
         }
+        const unsigned long long k = k0 + seg % STEP;
+        const unsigned xb = k < kend && b < nrows ? xr * c.xrow + (unsigned)k * c.xblock : 0u;
+        xs_ = at<float>(dxt, xb * 4u);
+        // The sums plane starts at total * 68 bytes, so a block-int16 pair is only 4-aligned and takes two 4-byte loads.
+        if constexpr (sizeof(QT) == 2) xh_ = make_int2(at<int>(sxt, xb * 8u), at<int>(sxt, xb * 8u + 4u));
+        else xh_ = at<int>(sxt, xb * 4u);
     };
     const auto store = [&](unsigned long long k0) {
         if constexpr (WHOLE) {
@@ -2017,11 +2020,11 @@ LLMX_KVEC {
 #pragma unroll
             for (int w2 = 0; w2 < WORDS / 4; ++w2)
                 if (r < ROWS) XW(s * WORDS + seg * (WORDS / 4) + w2, r) = xv[s][w2];
-            if (seg == 0 && r < ROWS) {
-                xd[s][r] = xs_[s];
+        }
+        if (seg < STEP && r < ROWS) {
+            xd[seg][r] = xs_;
 #pragma unroll
-                for (int h = 0; h < H; ++h) xh[s][h][r] = (EB && KRaw<KT>::offset ? kSumBias : 0) + XM * (H == 1 ? twin_half(xh_[s], 0) + twin_half(xh_[s], 1) : twin_half(xh_[s], h));
-            }
+            for (int h = 0; h < H; ++h) xh[seg][h][r] = (EB && KRaw<KT>::offset ? kSumBias : 0) + XM * (H == 1 ? twin_half(xh_, 0) + twin_half(xh_, 1) : twin_half(xh_, h));
         }
     };
     // A step is read right before it is staged, so no prefetch registers live across the dots and the occupancy that frees hides the reads (docs/STATUS.md).

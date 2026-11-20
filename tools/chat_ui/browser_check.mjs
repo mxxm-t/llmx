@@ -316,6 +316,26 @@ async function checkChatSavedWriteActions(filename, source) {
   if (!inspectorOpened) await pointerClick('#details-toggle');
   await fill('#draft', original.draft);
 }
+async function checkNewChatShortcut() {
+  const shortcut = async () => {
+    for (const type of ['keyDown', 'keyUp']) await cdp('Input.dispatchKeyEvent', {type, key:'k', code:'KeyK', modifiers:2});
+  };
+  const creates = () => apiMutations.filter(request => request.method === 'POST' && new URL(request.url).pathname === '/api/chats').length;
+  const before = creates();
+  await pointerClick('.global-nav [data-view=workbench]');
+  await shortcut();
+  await wait("document.querySelector('#app').dataset.view==='chat' && document.activeElement.id==='draft' && document.querySelector('#welcome').checkVisibility()", 'new chat shortcut opens Chat and focuses the draft');
+  assert.equal(creates(), before + 1, 'new chat shortcut creates one conversation');
+  const id = await evaluate("document.querySelector('.chat-item.active').dataset.chat");
+  await fill('#draft', 'Unsent keyboard draft');
+  await pointerClick('.global-nav [data-view=preferences]');
+  await shortcut();
+  await wait("document.querySelector('#app').dataset.view==='chat' && document.activeElement.id==='draft'", 'repeat shortcut returns to the empty conversation');
+  assert.equal(await evaluate("document.querySelector('.chat-item.active').dataset.chat"), id);
+  assert.equal(await evaluate("document.querySelector('#draft').value"), 'Unsent keyboard draft');
+  assert.equal(creates(), before + 1, 'repeat shortcut duplicated an empty conversation');
+  await fill('#draft', '');
+}
 async function checkHomeLanding() {
   const selected = await evaluate("document.querySelector('.chat-item.active')?.dataset.chat");
   assert(selected, 'home landing check requires a saved conversation');
@@ -837,6 +857,7 @@ try {
     await send('Browser workflow prompt');
     await idle();
     await checkHomeLanding();
+    await checkNewChatShortcut();
     await checkWorkspaceFlow();
     assert.deepEqual(errors, [], 'workflow browser exceptions');
     console.log('PASS: keyboard Home, Workspace Sections, narrow Attach menu, saved file confirmation and deduplication, and saved project entry from Chat');
@@ -1860,9 +1881,7 @@ try {
   await click('.topbar [data-action="chat-menu"]'); await click('[data-action="archive"]');
   await wait("!document.querySelector('.chat-item.active')", 'restored conversation leaves archive');
   await click('[data-action="archive-view"]');
-  await cdp('Input.dispatchKeyEvent', {type: 'keyDown', key: 'k', code: 'KeyK', modifiers: 2});
-  await cdp('Input.dispatchKeyEvent', {type: 'keyUp', key: 'k', code: 'KeyK', modifiers: 2});
-  await wait("document.querySelectorAll('.message').length===0 && !document.querySelector('#welcome').hidden", 'keyboard new conversation');
+  await checkNewChatShortcut();
   await click('.topbar [data-action="chat-menu"]'); await click('[data-action="delete"]'); await closeAction('#conversation-submit');
   await wait("document.querySelector('#chat-title').textContent==='New conversation'", 'confirmed delete');
   await cdp('Emulation.setDeviceMetricsOverride', {width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false});

@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## New conversation keyboard shortcut (2026-11-21)
+
+- **Goal:** Make the displayed New conversation shortcut open Chat from other companion views and preserve an empty draft on repeat.
+- **Done:** The button goes through the shell's navigation handler. The shortcut calls the data operation directly.
+- **Left:** Exercise keyboard navigation from Saved files and Settings, then qualify the shared action.
+- **Gotchas:** Keep the dialog and drawer keyboard guards and the existing rule for reusing an empty conversation.
+
 ## Chat browser test startup (2026-11-21)
 
 - **Goal:** Let a slow DevTools page list finish within the browser startup deadline.

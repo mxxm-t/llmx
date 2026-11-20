@@ -590,6 +590,33 @@ A prefill whose busy times are uniformly inflated (a contending job, a clock dro
 **Gotchas.**
 - The bits of every 256-wide prompt attention row change on ROCm and CUDA (Qwen3.5, Qwen3.6 and Qwen3.8 attention layers at `attention_tile_rows` and above); 128-wide heads (Qwen3) are unchanged.
 - build/gpu-arch-options-land2 is build/gpu-arch-options-land 67340f65f rebased onto this branch without the change; it lands after it.
+## Prompt K tile staging 4 (2026-11-20, KEFF10, branch perf/k-tile-staging4 on perf/k-tile-staging3 372ff2d70)
+
+- **Goal:** the prompt K tile (`k_tile`'s vector body in `kernels/int16.gpu`) closer to the dot peak on gfx906 after staging 3, where counters (one MI50, Qwen3.6-27B shapes at 512 rows) put it at 55% (Q4_K f16) and 44% (Q4_K int8) of the nominal dot peak: a 0.69 dynamic dot share x 0.86 VALUBusy x 0.93 clock, the idle 14 to 21% being correlated waiting and the rest of the VALU staging and address arithmetic.
+- **Done:** a step's weight index is the same for every thread (`kk = k < kend ? k : 0`, where it was `wok ? k : 0` with `wok` also holding `o < nout`), and the value masks at the shared-memory stores are gone (`wok`, `wok1` and the `xok` ternaries on the staged words, scales and sums), so the stores are unconditional and a thread's weight address is a uniform block plus its lane offset.
+  A weight row past `nout` already loads row 0, a twin row past `nrows` or a step past `kend` loads twin row 0 (`xok` still clamps the address), the dots stop at `kend` (`k0 + s >= kend` breaks) and a lane sums only its own output and row, which the final store gates on `oo < nout && bb < nrows`, so a staged value nothing sums is never read and every output keeps its bits.
+  VGPRs stay at 82 or fewer on every K tile (three waves a SIMD).
+- **Kernel rates (one MI50, ROCm 7.2.1, gfx906 builds, both arms built the same way):** `rates ktile` and `rates ktile2`, ABAB, output hashes equal to staging 3 in every cell; percent of the dot peak, mean of the five 27B shapes at 512 rows, staging 3 to this change: Q4_K f16 55.0 to 55.7, int8 43.7 to 44.9; Q6_K f16 46.2 to 47.6, int8 35.5 to 36.3; every K type +0.5 to +3.3% except MXFP4 f16 -0.2%; Q8_0, whose tile the change does not reach, -0.1 to -3.4% (2048 rows int8), the layout band of AGENTS.md (Principles).
+- **Full model (t9a):** one MI50 (renderD131), ROCm 7.2.1, gfx906 llmx builds of 372ff2d70 (S3) and 86023de45 (S4) made the same way, four rounds of `llmx bench` with the arm order alternating; the host was contended throughout (load 35 to 49 on 16 CPUs, every cell waited 8 to 28 s for a CPU from its load line to its exit), so the figures are ranges, with the median of four in brackets.
+
+  | Qwen3.6-27B Q4_K_M, tok/s | S3 (staging 3) | S4 (this change) | median | best of 4 |
+  |---|---|---|---|---|
+  | pp512 f16 | 237.9-257.1 (243.4) | 237.4-261.8 (259.5) | +6.6% | +1.8% |
+  | pp512 int8 | 313.7-387.4 (380.7) | 329.4-391.6 (386.0) | +1.4% | +1.1% |
+  | pp2048 f16 | 209.1-245.9 (230.4) | 217.7-251.1 (240.5) | +4.4% | +2.1% |
+  | pp2048 int8 | 345.6-360.7 (355.6) | 345.7-356.2 (348.2) | -2.1% | -1.2% |
+  | tg64 f16 | 25.2-25.6 (25.4) | 25.3-26.5 (26.1) | +2.4% | +3.8% |
+  | tg64 int8 | 27.1-28.6 (28.1) | 25.3-28.6 (27.8) | -0.9% | 0.0% |
+
+  Qwen3-0.6B Q8_0, whose tile the change does not reach, swings from -3.3% to +12.4% in its medians (pp512 f16 8399-8825 against 6783-8734, int8 4283-10246 against 9218-10670), so those cells measure the host.
+  The kernel screen is the clean measurement; the two full-model cells that are not positive lie inside the contended spread and the layout band, and decode takes no K tile.
+- **Identity:** greedy generations of one 963-word prompt, the timing lines left out, equal between S3 and S4 on Qwen3.6-27B Q4_K_M (48 tokens), Qwen3.5-0.8B Q4_K_M and Qwen3-0.6B Q8_0 (64 tokens each) at f16 and int8; `llmx-backend-rocm-test`, whose shapes include widths and row counts off the tile's edges, passes on S4 (509 s on one MI50).
+- **Rejected or left as leads, bits equal:** loading step k + 1 after the dots (-7 to -26%, 105 to 109 VGPRs, under the occupancy cliff); STEP 2 for Q6_K int8 alone (neutral); rotating part columns by 8 words (Q6_K f16 -4%, changes every kernel); a block base in scalar registers plus a 32-bit lane offset for the weight loads, which the compiler still emits as 64-bit adds (Q6_K int8 static VALU 1274 to 1253), so a real SGPR base needs buffer loads and is a lead.
+  Exposed staging share (1 - t(dots only) / t(base), probe builds of 84 to 120 VGPRs, so their occupancy differs): Q4_K 11 to 18%, Q6_K f16 18 to 21% and int8 24 to 26%, IQ4_NL int8 32 to 34%.
+- **Left:** CTest and the device suite at the landing head, the timing round against main on a quiet host, the hosted run, and a rebase onto main at landing (staging 3 lands first; main was at ce2b0603b when this branch was cut).
+  Not run: a forced-edge poison check of `k_tile` (block 0 and row 0 at extreme codes, scales and sums, part lengths of every remainder a step, `nout` and `nrows` at 1, a tile less one and a tile more one, a routed narrow group of 5 rows), which would only re-prove that the dots stop at `kend` and that lanes are independent, structural facts the diff keeps; CUDA's 16-bit `k_vec` is the same function and is covered by source identity only until a CUDA run.
+- **Gotchas:** the unmasked stores rely on the dots loop stopping at `kend` and on every lane summing only its own output and row; a change that reduces across lanes or tiles, or sums a step past `kend`, reads values the masks used to zero.
+
 ## Prompt K tile staging 3 (2026-11-20, KEFF7, branch perf/k-tile-staging3 on perf/k-tile-staging2 f97bc5106)
 
 - **Goal:** the prompt K tile (`k_tile`'s vector body in `kernels/int16.gpu`) closer to the dot peak on gfx906 after staging 2, where it is VALU-bound (VALUBusy 80 to 85%, LDS bank conflicts 8 to 10%) at 52 to 53% of the 16-bit dot peak for Q4_K and 42 to 43% of the 8-bit one.

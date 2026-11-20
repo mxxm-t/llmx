@@ -1864,12 +1864,11 @@ LLMX_KVEC {
     const unsigned xr = ROUTED ? (b < nrows ? (unsigned)(ent[b] / tg.per) : 0u) : (unsigned)r;   // the twin row this thread stages
     const unsigned char* wrow = c.w[pi] + (ROUTED ? tg.tab[4 * gi] * tg.stride[pi] : 0) + (o < nout ? o : 0) * row_bytes;
     KRaw<KT> raw[STEP];
-    bool wok[STEP], xok[STEP];
+    bool xok[STEP];
     // The 8-bit MXFP4 step: thread t stages block t % 4 of row t / 4 whole, from one 16-byte and one 4-byte load (StreamWords) rather than sixteen scattered words, into the same slots.
     constexpr bool WHOLE = sizeof(QT) == 1 && __is_same(KT, rq::MXFP4);
     static_assert(!WHOLE || STEP == 4, "a whole block a thread needs four blocks a step");
     StreamWords<KT, 1> whole;
-    bool wok1 = false;
     int xv[STEP][WORDS / 4];
     using XH = typename std::conditional<sizeof(QT) == 2, int2, int>::type;   // a twin block's two half sums as they lie
     XH xh_[STEP];
@@ -1882,8 +1881,7 @@ LLMX_KVEC {
         for (int s = 0; s < STEP; ++s) {
             const unsigned long long k = k0 + s;
             xok[s] = k < kend && b < nrows;
-            wok[s] = k < kend && o < nout;
-            const unsigned long long kk = wok[s] ? k : 0;
+            const unsigned long long kk = k < kend ? k : 0;
             // A part's blocks start and end even (split_blocks, or a whole row of nin / 32) and a step is even, so an odd s is the second sub-block of s - 1's block.
             if constexpr (!WHOLE && KPairs<KT>::value) {
                 static_assert(STEP % 2 == 0 && KT::values % 64 == 0, "a step takes whole sub-block pairs");
@@ -1892,8 +1890,7 @@ LLMX_KVEC {
             } else if constexpr (!WHOLE) raw[s].load(wrow + (kk / (KT::values / 32)) * KT::bytes, (unsigned)(kk % (KT::values / 32)), ws);
             else if (s == 0) {
                 const unsigned long long kw = k0 + ws;
-                wok1 = kw < kend && o < nout;
-                whole.load(wrow + (wok1 ? kw : 0) * KT::bytes);
+                whole.load(wrow + (kw < kend ? kw : 0) * KT::bytes);
             }
             const unsigned xb = xok[s] ? xr * c.xrow + (unsigned)k * c.xblock : 0u;
             if constexpr (sizeof(QT) == 2) {
@@ -1915,9 +1912,9 @@ LLMX_KVEC {
             float ds[H], dm[H];
             StreamDecode<KT>::get(whole, 0, 0u, v, ds, dm);
 #pragma unroll
-            for (int i = 0; i < 8; ++i) WQ(ws * WORDS + i, wr) = wok1 ? v[i] : 0;
+            for (int i = 0; i < 8; ++i) WQ(ws * WORDS + i, wr) = v[i];
 #pragma unroll
-            for (int h = 0; h < H; ++h) wd[ws][h][wr] = wok1 ? ds[h] : 0.0f, wm[ws][h][wr] = wok1 ? dm[h] : 0.0f;
+            for (int h = 0; h < H; ++h) wd[ws][h][wr] = ds[h], wm[ws][h][wr] = dm[h];
         }
 #pragma unroll
         for (int s = 0; s < STEP; ++s) {
@@ -1928,16 +1925,16 @@ LLMX_KVEC {
                 int w[NW];
                 widen<QT, KT>(v, w);
 #pragma unroll
-                for (int i = 0; i < NW; ++i) WQ(s * WORDS + ws * NW + i, wr) = wok[s] ? w[i] : 0;
-                if (ws % (4 / H) == 0) wd[s][ws / (4 / H)][wr] = wok[s] ? ds : 0.0f, wm[s][ws / (4 / H)][wr] = wok[s] ? dm : 0.0f;
+                for (int i = 0; i < NW; ++i) WQ(s * WORDS + ws * NW + i, wr) = w[i];
+                if (ws % (4 / H) == 0) wd[s][ws / (4 / H)][wr] = ds, wm[s][ws / (4 / H)][wr] = dm;
             }
 #pragma unroll
             for (int w2 = 0; w2 < WORDS / 4; ++w2)
-                if (r < ROWS) XW(s * WORDS + seg * (WORDS / 4) + w2, r) = xok[s] ? xv[s][w2] : 0;
+                if (r < ROWS) XW(s * WORDS + seg * (WORDS / 4) + w2, r) = xv[s][w2];
             if (seg == 0 && r < ROWS) {
-                xd[s][r] = xok[s] ? xs_[s] : 0.0f;
+                xd[s][r] = xs_[s];
 #pragma unroll
-                for (int h = 0; h < H; ++h) xh[s][h][r] = (EB && KRaw<KT>::offset ? kSumBias : 0) + (!xok[s] ? 0 : XM * (H == 1 ? twin_half(xh_[s], 0) + twin_half(xh_[s], 1) : twin_half(xh_[s], h)));
+                for (int h = 0; h < H; ++h) xh[s][h][r] = (EB && KRaw<KT>::offset ? kSumBias : 0) + XM * (H == 1 ? twin_half(xh_[s], 0) + twin_half(xh_[s], 1) : twin_half(xh_[s], h));
             }
         }
     };

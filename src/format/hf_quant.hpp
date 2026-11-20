@@ -536,8 +536,12 @@ inline void apply(const jmini::Value* qc, gguf::GGUFModel& m) {
 inline void repack(const gguf::GGUFModel::Composite& c, const gguf::TensorInfo& t, const std::vector<const uint8_t*>& parts, uint8_t* out) {
     if (c.kind == fp8_grid) {
         if (parts.size() != 1 || c.parts.size() != 1) throw std::logic_error("hf_quant: unknown repack of " + t.name);
-        gguf::fp8_grid(parts[0], c.parts[0].first.type, size_t(c.parts[0].first.n_elements()), out, size_t(t.n_elements()));
-        return;
+        const size_t count = size_t(t.n_elements()), n = size_t(c.parts[0].first.n_elements());
+        if (c.order.empty()) return gguf::fp8_grid(parts[0], c.parts[0].first.type, n, out, count);
+        // A grid that follows its weight's V-head order (infer::hf::apply) is widened, then moved by whole scales.
+        std::vector<uint8_t> grid(4 * count);
+        gguf::fp8_grid(parts[0], c.parts[0].first.type, n, grid.data(), count);
+        return gguf::permute(grid.data(), out, size_t(t.ne[0]), count / size_t(t.ne[0]), 4, c.order, c.columns);
     }
     const bool awq = c.kind == awq_q5_0, gptq = c.kind == gptq_q4_0 || c.kind == gptq_q5_0 || c.kind == gptq_q8_0, ct = c.kind == ct_q4_0 || c.kind == ct_q5_0 || c.kind == ct_q8_0;
     if (!(awq && parts.size() == 3) && !(gptq && (parts.size() == 3 || parts.size() == 4)) && !(ct && parts.size() == c.parts.size() && parts.size() >= 2))

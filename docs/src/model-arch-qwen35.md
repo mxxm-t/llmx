@@ -137,6 +137,7 @@ conversation's prefix through state checkpoints ([server](server.md)).
   registry's readers of a qwen35 file and a qwen35moe file, each the
   architecture over the configuration `read_config` reads.
 - `hf_table()`, `hf_derive(config, kv, prefix)`: the table that reads a dense Qwen 3.5 or 3.6 Hugging Face directory (`Qwen3_5ForConditionalGeneration`, `model_type` `qwen3_5`) as the qwen35 GGUF file the converter writes from it ([hf_config](model-arch-hf_config.md)): the text model's keys from `text_config`, the vision tower dropped, the MTP layer `mtp.*` under `blk.{L}`, and the norms, `ssm_a`, `ssm_conv1d` and the tiled V heads made at load in the forms of [QWEN35](../QWEN35.md), GGUF conventions; `hf_derive` writes the keys no single value gives.
+  Qwen 3.6's keys are checked: `output_gate_type` is `swish` only, `partial_rotary_factor` beside `rope_parameters` must equal its factor, and the top level's `language_model_only` is false only; an FP8 directory's V-side linears and their scale grids move in tiled order ([hf_config](model-arch-hf_config.md)).
   The suite's `safetensors` component holds tiny directories, F32 and BF16, to their GGUF twins' outputs byte for byte and to HF.
 
 CTest `arch-qwen35` holds every refused key and tensor to its text, the

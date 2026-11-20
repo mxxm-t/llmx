@@ -2240,6 +2240,45 @@ Every cell, both arms alike, recorded 1.4 to 66.5 s of host run-queue wait (`hos
 **Left.**
 - The `docs` and `dead-code` components on the head that lands; lands by fast-forward as one commit.
 
+## vLLM formats, step 5b: FP8 qwen35 Hugging Face directories (2026-11-19, VLLM25 to VLLM28, branch formats/qwen35-fp8 on formats/qwen35-dirs, which lands first)
+
+- **Goal:** Qwen/Qwen3.6-27B-FP8 (revision a56219b, `quant_method` fp8, E4M3 codes under BF16 `weight_scale_inv` grids of 128 x 128 blocks, `activation_scheme` dynamic, 882 `modules_to_not_convert`) loads as a qwen35 directory and runs on the CPU and Vulkan at the default precision, held to its own HF reference at file precision.
+  Hv = 48, Hk = 16, Dk = Dv = 128: the V-side FP8 linears (`in_proj_qkv` rows after 2 Hk Dk = 4096, `in_proj_z` rows, `out_proj` columns) move in tiled order with their grids, every V head one 128-row block.
+  ROCm and CUDA F8_E4M3 are rocm-quant-gaps'; routed FP8 (35B-A3B) is step 5c.
+- **Done:** `gguf::permute` (`format/gguf.hpp`) is the one owner of a composite's order, whole rows or runs of columns per memcpy; `hf::transform`'s reorder and `hf_quant::repack`'s FP8 grid both call it.
+  An F8_E4M3 weight with a V-head order becomes a reorder composite of its own type; its grid skips the names pass's head order and takes its own in `hf::detail::follow_weights` from the weight's, by whole units (`unit_order`: a scale a row moves with its row, a 128-row or 128-input block whole, a tensor scale stays), and a weight whose V heads split a scale block is refused by name.
+  The qwen35 table reads Qwen 3.6's `output_gate_type` (swish only), `partial_rotary_factor` beside `rope_parameters` (equal only) and the top level's `language_model_only` (false only).
+  `tools/gen_layered_reference.py goldens` reads an FP8 checkpoint: each block-scaled weight is `tests/spec_decode.py`'s numpy E4M3 decode times its repeated block scale in float32, and `--gguf` is optional for a checkpoint llmx reads as a directory, whose goldens its weight files' SHA-256 label.
+  Tests (`safetensors`): a tiny Qwen 3.6 FP8 directory, hidden 256, Hk = 2, Hv = 6, Dk = Dv = 128, an MTP layer, distinct block scales, by block against its F32 twin of `spec_decode`'s values (F32 bound at f32, frozen F16 budget at f16, greedy text equal) and by tensor as its GGUF twin of tiled F8_E4M3 codes byte for byte, drafting too; refusals of Dv = 64, 2 Hk Dk = 192 and block-scaled `in_proj_a`, and of Qwen 3.6's keys at other values.
+  Plan reviewed by Fable before code (fixture with Hk = 1 moved nothing, grids through the names pass threw on `in_proj_qkv`, the 27B's unread keys, the layered tool's FP8 reading), each rechecked and folded in.
+  The tokenizer reader takes Qwen 3.6's `response_template` in `tokenizer_config.json`, which refused the 27B's directory, and CTest `hf-tokenizer` covers it.
+  The layered tool runs attention in chunks of queries (`--attention-chunk`, 512 for `depth`), each chunk eager's arithmetic for its rows, with a tail under 4 rows joined to the chunk before, since torch multiplies 1 to 3 rows another way; `depth` writes the logits of long sequences at their continuations' positions, the 16k reference (docs/ASSETS.md, The layered qwen35 reference).
+  `equality --attention-chunk 17` (`tests/data/layered_equality_chunked.json`) and `equality --fp8-fixture` (`tests/data/layered_equality_fp8.json`, the tiny FP8 directory layered against its float32 twin whole) are bit for bit, and `reference_generator` holds both records.
+  The 27B-FP8's goldens are `tests/data/qwen3.6-27b-fp8` (logits and 512-token perplexity), and `DIRECTORIES` pins its 66 weight files.
+  Chunked attention reviewed by Fable for exactness against eager before the 16k run (arithmetic, mask, swap, `keep`; nothing blocking), and its input pins, call count and float64 NLL folded in.
+- **Measured:** suite `safetensors` PASS on the CPU (Vulkan build, uncommitted tree of this checkpoint), FP8 worst 1.0e-6 at f32 (bound 2e-5) and 1.18e-3 at f16 (budget 3.3e-3), over every FP8 directory.
+  Qwen/Qwen3.6-27B-FP8 a56219b, `tests/baseline_qwen35.py --model DIR` at `FILE_EXACT_BOUNDS` (llmx 0.1.0+gd2944b50372e numerics 329d0e2fbbd217fb, Vulkan on two MI50s, default dtype f16, rig 2026-11-20): 63 of 63 checks pass.
+  | Check | Observed | HF bound | Share of bound |
+  |---|---|---|---|
+  | top-1 on every logits prompt, top-5 overlap | HF's, 5 of 5 | HF's, 5 of 5 | |
+  | worst NLL error, 8 perplexity cases (ppl-02, 64-token windows) | 9.95e-5 | 0.02 | 0.5% |
+  | NLL error range, the other cases | 1.8e-5 to 8.2e-5 | 0.02 | 0.1% to 0.4% |
+  CPU, same bounds: 56 checks pass before `ppl-00-per-token` (worst NLL error 4.58e-5 of 0.02, 0.2%, at ppl-00); the host's kernel then killed llmx for memory while other jobs held 58 of the 62 GiB, so the rest of the CPU gate is Left.
+  16k depth against the 27B-FP8 reference (`depth`, 512 rows each, `hf_depth_top1`, 24439 s on the CPU) from llmx on two MI50s:
+  | Capture | Prompt | Exact / accepted tie / miss | Largest logit difference at HF's top-1 |
+  |---|---|---|---|
+  | f32 K/V | raw 16384 | 512 / 0 / 0 | 0.0042 |
+  | f32 K/V | chat template 16384 | 512 / 0 / 0 | 0.0043 |
+  | default | raw 16384 | 511 / 1 / 0 | 0.1611 |
+  | default | chat template 16384 | 512 / 0 / 0 | 0.0649 |
+  `tests/data/qwen3.6-27b-fp8/baseline_perplexity.json` holds its excerpt and ids inline, so `baseline_qwen35.py` reads either form, and `--command-timeout` (3600 s by default) reports a timed out command as such.
+  CTest on the rebased head over landing-1121 b39e91740 (Vulkan build, a7d893afe before the squash): 112 of 112 pass, including hf-tokenizer.
+- **Left:** rebase onto main once landing-1121 lands, the `docs` and `dead-code` components on the head that lands, and the CPU half of the 27B gate (`baseline_qwen35.py --command-timeout 14400` with a host that leaves the 27B its memory), the qwen35 FP8 outputs skipped through `common.device_lacks_kernel` with the refusals run first.
+  The 27B-FP8's NLL against the BF16 Qwen3.6-27B goldens as a record, and load time beside the Q8_0 GGUF's.
+  The 27B's MTP layer is covered only by the tiny fixture's drafter.
+- **Gotchas:** the moved FP8 linears are private bytes made at load (about 5.5 GB on the 27B, whole composites); a checkpoint whose V heads do not fill whole scale blocks is refused rather than regridded.
+  An F16 budget miss is an owner recalibration under the frozen protocol, never a wider number.
+
 ## vLLM formats, step 5a: qwen35 Hugging Face directories at 16 and 32 bits (2026-11-19, VLLM24 to VLLM27, branch formats/qwen35-dirs on perf/load-transform-parallel, which lands first, on land/20261119 cc1e880f3)
 
 - **Goal:** a Qwen 3.5 or 3.6 dense directory (`Qwen3_5ForConditionalGeneration`, `model_type` `qwen3_5`, Qwen/Qwen3.5-0.8B 2fc0636) loads as the qwen35 GGUF file the converter writes from it, and runs as that file runs.

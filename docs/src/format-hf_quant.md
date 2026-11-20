@@ -80,5 +80,6 @@ E4M3 codes (the safetensors dtype `F8_E4M3`, [safetensors](format-safetensors.md
 A linear `X` is `X.weight` F8_E4M3 [out, in], `in` a multiple of 128, its scales BF16, F16 or F32, one value ([] or [1]), [out, 1] by channel or [ceil(out / 128), in / 128] by block (Hugging Face order), and optionally a static `X.input_scale`, which leaves the table unapplied; so do a KV cache scheme's `k_scale` and `v_scale`.
 Another scale type is refused naming the tensor, and so is a scale shape the declared form does not give.
 `fp8` makes the scales the F32 grid `X.scale` of [format/weight_scales.hpp](format-weight_scales.md) (composite kind `fp8_grid`): `repack` widens them exactly, by `gguf::fp8_grid`, at row shift 0 by channel and 7 by block or tensor, and the codes stay the file's bytes, read in place like any weight.
+A grid whose weight moves by V head (a qwen35 directory's V-side linears, [hf_config](model-arch-hf_config.md)) carries its scale units' `order`: `repack` widens it into a scratch grid, then moves whole scales by `gguf::permute`, and the weight is a `reorder` composite of its F8_E4M3 codes.
 Every code times a BF16 or F16 scale is exact in F32, 4 and at most 11 significant bits; with an F32 scale the product rounds once to F32.
 A NaN code (0x7F, 0xFF) decodes to NaN as the checkpoints' own decoders give it; no load-time scan looks for one.

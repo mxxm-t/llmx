@@ -234,6 +234,24 @@ private:
     }
 };
 
+// Writes `rows` rows of `width` elements of `size` bytes at `out` from `src`, output row n (or column n with `columns`) from the source's row or column order[n].
+// Whole rows, or runs of consecutive columns, move per memcpy.
+inline void permute(const uint8_t* src, uint8_t* out, size_t width, size_t rows, size_t size, const std::vector<uint32_t>& order, bool columns) {
+    if (order.size() != (columns ? width : rows))
+        throw std::logic_error("gguf: an order of " + std::to_string(order.size()) + " for " + std::to_string(columns ? width : rows) + " units");
+    if (!columns) {
+        for (size_t r = 0; r < rows; ++r) std::memcpy(out + r * width * size, src + size_t(order[r]) * width * size, width * size);
+        return;
+    }
+    std::vector<std::pair<size_t, size_t>> runs;   // (first output column, length)
+    for (size_t w = 0, e; w < width; w = e) {
+        for (e = w + 1; e < width && order[e] == order[e - 1] + 1;) ++e;
+        runs.emplace_back(w, e - w);
+    }
+    for (size_t r = 0; r < rows; ++r)
+        for (const auto& [w, len] : runs) std::memcpy(out + (r * width + w) * size, src + (r * width + order[w]) * size, len * size);
+}
+
 inline uint32_t file_alignment(const GGUFModel& m) {
     const MetaValue* value = m.find("general.alignment");
     if (!value) return uint32_t(ALIGNMENT);

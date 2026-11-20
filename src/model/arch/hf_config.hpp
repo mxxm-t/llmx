@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstring>
 #include <iterator>
+#include <map>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -209,6 +210,43 @@ inline std::vector<uint32_t> tiled(uint64_t units, uint64_t offset, uint64_t hk,
     return order;
 }
 
+// The order of a weight's scale units of `unit` rows or columns, from the weight's own order of single ones, where every unit moves whole.
+inline std::vector<uint32_t> unit_order(const std::vector<uint32_t>& order, uint64_t unit, const std::string& name) {
+    const size_t n = order.size(), units = size_t((n + unit - 1) / unit);
+    std::vector<uint32_t> out(units);
+    std::vector<bool> seen(units);
+    for (size_t u = 0; u < units; ++u) {
+        const uint64_t first = order[u * unit], to = first / unit;
+        // A partial last unit stays last, so no whole unit moves onto its short tail.
+        bool whole = first % unit == 0 && to < units && !seen[size_t(to)] && (u + 1 == units) == (to + 1 == units);
+        for (uint64_t k = 1; whole && k < unit && u * unit + k < n; ++k) whole = order[size_t(u * unit + k)] == first + k;
+        if (!whole) throw std::runtime_error("FP8 tensor " + name + " moves its V heads across its scale blocks of " + std::to_string(unit) + ", which llmx does not regrid");
+        seen[size_t(to)] = true;
+        out[u] = uint32_t(to);
+    }
+    return out;
+}
+
+// Each FP8 grid composite whose weight moves by V head takes the order of its scales: a scale a row moves with its row, a block of 128 rows or inputs moves whole, and one scale for the tensor stays.
+inline void follow_weights(gguf::GGUFModel& m) {
+    std::map<std::string, size_t> names;
+    for (size_t i = 0; i < m.tensors.size(); ++i) names.emplace(m.tensors[i].name, i);
+    for (auto& [i, c] : m.composites) {
+        if (c.kind != hf_quant::fp8_grid) continue;
+        const std::string& g = m.tensors[i].name;
+        const auto w = names.find(g.substr(0, g.size() - 6) + ".weight");
+        if (w == names.end()) throw std::logic_error("hf: FP8 grid " + g + " has no weight");
+        const auto wc = m.composites.find(w->second);
+        if (wc == m.composites.end() || wc->second.kind != reorder || c.parts[0].first.n_elements() == 1) continue;
+        const gguf::TensorInfo& weight = wc->second.parts[0].first;
+        const auto shift = gguf::fp8_scale_shift(weight.ne, m.tensors[i].ne);
+        if (!shift) throw std::logic_error("hf: FP8 grid " + g + " does not pair with its weight");
+        if (wc->second.columns && *shift == 0) continue;   // a scale a row covers every input of its row
+        c.columns = wc->second.columns;
+        c.order = unit_order(wc->second.order, c.columns ? gguf::kFp8ScaleInputs : uint64_t(1) << *shift, weight.name);
+    }
+}
+
 } // namespace detail
 
 // Composite `c`'s bytes, tensor `t`, at `out` from its one part's bytes: each value of the part taken at its place in `c.order`, then `c.kind` applied (Transform).
@@ -216,23 +254,9 @@ inline void transform(const gguf::GGUFModel::Composite& c, const gguf::TensorInf
     if (!transforms(c.kind) || parts.size() != 1 || c.parts.size() != 1) throw std::logic_error("hf: unknown transform of " + t.name);
     const gguf::TensorInfo& in = c.parts[0].first;
     const size_t n = size_t(in.n_elements()), width = in.ne.size() > 1 ? size_t(in.ne[0]) : 1, rows = n / width;
-    const size_t size = in.type == quant::GGML_TYPE_F32 ? 4 : 2;
+    const size_t size = in.type == quant::GGML_TYPE_F32 ? 4 : in.type == quant::GGML_TYPE_F8_E4M3 ? 1 : 2;
     const uint8_t* src = parts[0];
-    if (c.kind == reorder) {
-        // Whole rows move, or runs of consecutive columns (a head's), so each copy is one memcpy.
-        if (!c.columns) {
-            for (size_t r = 0; r < rows; ++r) std::memcpy(out + r * width * size, src + size_t(c.order[r]) * width * size, width * size);
-            return;
-        }
-        std::vector<std::pair<size_t, size_t>> runs;   // (first output column, length)
-        for (size_t w = 0, e; w < width; w = e) {
-            for (e = w + 1; e < width && c.order[e] == c.order[e - 1] + 1;) ++e;
-            runs.emplace_back(w, e - w);
-        }
-        for (size_t r = 0; r < rows; ++r)
-            for (const auto& [w, len] : runs) std::memcpy(out + (r * width + w) * size, src + (r * width + c.order[w]) * size, len * size);
-        return;
-    }
+    if (c.kind == reorder) return gguf::permute(src, out, width, rows, size, c.order, c.columns);
     for (size_t r = 0; r < rows; ++r)
         for (size_t w = 0; w < width; ++w) {
             const size_t from = c.order.empty() ? r * width + w : c.columns ? r * width + c.order[w] : size_t(c.order[r]) * width + w;
@@ -334,6 +358,7 @@ inline void apply(const Table& table, const std::string& arch, const jmini::Valu
             continue;
         }
         if (t.ne.size() > 4) throw std::runtime_error("tensor " + hf_name + " has " + std::to_string(t.ne.size()) + " dimensions, more than a GGUF tensor's 4");
+        if (grid) continue;   // a grid takes its weight's order once every weight has one (detail::follow_weights)
         std::vector<uint32_t> order;
         if (row->heads != VHeads::none) {
             const uint64_t hk = count(table.k_heads), hv = count(table.v_heads);
@@ -346,8 +371,10 @@ inline void apply(const Table& table, const std::string& arch, const jmini::Valu
         const Transform kind = row->transform != none ? row->transform : order.empty() ? none : t.ne.size() == 1 ? widen : reorder;
         if (kind == none) continue;
         if (m.composites.count(i)) throw std::runtime_error("tensor " + hf_name + " is quantized, which llmx reads only in the form the directory stores");
-        if (t.type != quant::GGML_TYPE_F32 && t.type != quant::GGML_TYPE_BF16 && t.type != quant::GGML_TYPE_F16)
-            throw std::runtime_error("tensor " + hf_name + " is not F32, BF16 or F16, the types llmx transforms");
+        const bool fp8 = t.type == quant::GGML_TYPE_F8_E4M3;
+        if (fp8 && kind != reorder) throw std::runtime_error("tensor " + hf_name + " holds F8_E4M3 codes, which llmx moves but does not transform");
+        if (!fp8 && t.type != quant::GGML_TYPE_F32 && t.type != quant::GGML_TYPE_BF16 && t.type != quant::GGML_TYPE_F16)
+            throw std::runtime_error("tensor " + hf_name + " is not F32, BF16, F16 or F8_E4M3, the types llmx transforms");
         gguf::GGUFModel::Composite c;
         c.kind = kind;
         c.parts.emplace_back(t, m.offsets[i]);
@@ -358,6 +385,7 @@ inline void apply(const Table& table, const std::string& arch, const jmini::Valu
         m.composites[i] = std::move(c);
     }
     m.erase_tensors(drop);
+    detail::follow_weights(m);
     const gguf::TensorInfo* embedding = nullptr;
     bool head = false;
     for (const auto& t : m.tensors) {

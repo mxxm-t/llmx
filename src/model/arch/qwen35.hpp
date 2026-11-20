@@ -175,6 +175,9 @@ inline void hf_derive(const jmini::Value& c, hf::Meta& kv, const std::string& p)
     const jmini::Value* sections = rope->get("mrope_section");
     if (!theta || !factor || !factor->isNumber() || !sections || !sections->isArray() || sections->arr.size() != 3 || !rope->get("mrope_interleaved"))
         throw std::runtime_error("config.json rope_parameters lacks rope_theta, partial_rotary_factor, mrope_section or mrope_interleaved");
+    // Qwen 3.6 repeats the factor beside rope_parameters, which HF's rope reads.
+    if (const jmini::Value* outer = c.get("partial_rotary_factor"); outer && (!outer->isNumber() || outer->num != factor->num))
+        throw std::runtime_error("config.json partial_rotary_factor differs from rope_parameters'");
     kv.emplace_back(p + "rope.freq_base", hf::detail::meta(*theta, hf::Rule::real, "rope_parameters rope_theta"));
     const double rotated = double(whole(c.get("head_dim"), "head_dim")) * factor->num;
     if (!(rotated > 0) || rotated != double(uint64_t(rotated))) throw std::runtime_error("config.json partial_rotary_factor does not give whole rotated dims");
@@ -213,6 +216,7 @@ inline const hf::Table& hf_table() {
              {"model_type", nullptr, Rule::check, "\"qwen3_5_text\""},
              {"attention_bias", nullptr, Rule::check, "false"},
              {"attn_output_gate", nullptr, Rule::check, "true"},
+             {"output_gate_type", nullptr, Rule::check, "\"swish\""},
              {"hidden_act", nullptr, Rule::check, "\"silu\""},
              {"mamba_ssm_dtype", nullptr, Rule::check, "\"float32\""},
              {"mtp_use_dedicated_embeddings", nullptr, Rule::check, "false"},
@@ -225,6 +229,7 @@ inline const hf::Table& hf_table() {
              {"full_attention_interval", nullptr, Rule::check, nullptr},
              {"layer_types", nullptr, Rule::check, nullptr},
              {"rope_parameters", nullptr, Rule::check, nullptr},
+             {"partial_rotary_factor", nullptr, Rule::check, nullptr},
              // A dense model has no expert layers to leave out; the rest are read elsewhere (vocab_size against the embedding, the token ids beside the tokenizer's) or have no effect on inference.
              {"mlp_only_layers", nullptr, Rule::check, nullptr},
              {"vocab_size", nullptr, Rule::check, nullptr},
@@ -243,7 +248,8 @@ inline const hf::Table& hf_table() {
                    {"image_token_id", nullptr, Rule::check, nullptr},
                    {"video_token_id", nullptr, Rule::check, nullptr},
                    {"vision_start_token_id", nullptr, Rule::check, nullptr},
-                   {"vision_end_token_id", nullptr, Rule::check, nullptr}};
+                   {"vision_end_token_id", nullptr, Rule::check, nullptr},
+                   {"language_model_only", nullptr, Rule::check, "false"}};
         t.derive = hf_derive;
         t.k_heads = "ssm.group_count";
         t.v_heads = "ssm.time_step_rank";

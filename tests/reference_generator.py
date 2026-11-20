@@ -1119,6 +1119,18 @@ class ReferenceGenerator(unittest.TestCase):
                     self.assertNotIn("activation_rounding", doc)
             self.assertEqual([case["text"] for case in docs["baseline_logits.json"]["cases"]], generator.LOGIT_PROMPTS)
             self.assertEqual(docs[baseline_qwen35.PPL_GOLDENS[512]]["chars"], generator.QWEN35_PPL[512])
+        # A directory's goldens that the layered tool made from the directory itself, an FP8 one among them, hold its weight files' SHA-256 as DIRECTORIES pins them.
+        for golden, weights in baseline_qwen35.DIRECTORIES.items():
+            if any(spec["directory"] == golden for spec in generator.QWEN35_MODELS.values()):
+                continue
+            docs = {path.name: json.loads(path.read_text(encoding="utf-8")) for path in (Path(generator.OUT_DIR) / golden).glob("*.json")}
+            self.assertEqual(sorted(docs), ["baseline_logits.json", baseline_qwen35.PPL_GOLDENS[512]])
+            pinned.update(golden + "/" + name for name in docs)
+            for name, doc in docs.items():
+                with self.subTest(golden=golden + "/" + name):
+                    self.assertEqual((doc["_comment"], doc["layered"]["safetensors_sha256"]), (layered.COMMENT, weights))
+                    self.assertEqual((doc["reference_dtype"], doc["attention"], doc["transformers_version"]), ("float32", "eager", generator.QWEN35_ENV["transformers"]))
+            self.assertEqual([case["text"] for case in docs["baseline_logits.json"]["cases"]], generator.LOGIT_PROMPTS)
         self.assertEqual(pinned | {baseline_qwen35.TOKENIZER_GOLDEN}, set(baseline_qwen35.GOLDEN_SHA256))
 
     @unittest.skipUnless(sys.platform == "win32", "Windows short-path aliases")
@@ -1430,7 +1442,7 @@ class LayeredReference(unittest.TestCase):
             Path(directory, "config.json").write_text(json.dumps({"model_type": "qwen3_moe"}))
             gguf = Path(directory, "model.gguf")
             gguf.write_bytes(b"GGUF")
-            args = SimpleNamespace(repo="a/model", revision="b" * 40, threads=1, file_exact=True,
+            args = SimpleNamespace(repo="a/model", revision="b" * 40, threads=1, file_exact=True, fp8_fixture=False, attention_chunk=None,
                                    gguf=str(gguf), gguf_repo="a/gguf", gguf_revision="c" * 40)
             for entry in (layered.goldens, layered.equality):
                 with self.subTest(entry=entry.__name__), patch.object(layered, "snapshot", return_value=directory), \
@@ -1756,14 +1768,21 @@ class LayeredReference(unittest.TestCase):
         # The dense record runs Qwen3.5-0.8B whole, and the routed one the checkpoint of the Qwen3.6-35B-A3B goldens cut to its first four layers, three linear and one full attention.
         routed = next(json.loads((golden["data"] / "baseline_logits.json").read_text(encoding="utf-8"))
                       for golden in baseline_layered.GOLDENS.values() if golden["name"].startswith("Qwen3.6-35B-A3B"))
-        records = {"layered_equality.json": (layered.EQUALITY_REPO, layered.EQUALITY_REVISION, None, None),
+        # The chunked record runs the 0.8B's layered attention in chunks of 17 queries, and the FP8 one the safetensors component's tiny FP8 directory against its float32 twin; HF names their dense configs' experts implementation eager.
+        fp8 = "tests/safetensors_dir.py QWEN35_FP8, block scales, against its float32 twin"
+        records = {"layered_equality.json": (layered.EQUALITY_REPO, layered.EQUALITY_REVISION, None, None, None, None),
                    "layered_equality_qwen3.6-35b-a3b.json": (routed["reference_repo"], routed["reference_revision"],
-                                                             "the first 4, of which 1 full attention", routed["layered"]["experts_implementation"])}
-        for name, (repo, revision, layers, experts) in records.items():
+                                                             "the first 4, of which 1 full attention", routed["layered"]["experts_implementation"], None, None),
+                   "layered_equality_chunked.json": (layered.EQUALITY_REPO, layered.EQUALITY_REVISION, None, "eager", "eager in chunks of 17 queries", None),
+                   "layered_equality_fp8.json": (fp8, None, None, "eager", None, 52)}
+        for name, (repo, revision, layers, experts, chunked, fp8_weights) in records.items():
             with self.subTest(record=name):
                 doc = json.loads((Path(generator.OUT_DIR) / name).read_text(encoding="utf-8"))
                 self.assertEqual((doc["reference_repo"], doc["reference_revision"], doc.get("decoder_layers"), doc.get("experts_implementation")),
                                  (repo, revision, layers, experts))
+                self.assertEqual((doc.get("layered_attention", "eager"), doc.get("fp8_weights")), (chunked or "eager", fp8_weights))
+                if chunked:
+                    self.assertGreater(doc["layered_chunked_attention_calls"], 0)
                 self.assertEqual((doc["transformers_version"], doc["torch_version"], doc["reference_dtype"], doc["attention"]),
                                  (generator.QWEN35_ENV["transformers"], generator.QWEN35_ENV["torch"], "float32", "eager"))
                 self.assertTrue(doc["parameters"] > 0 and doc["parameters_equal"] == doc["parameters"] and doc["inv_freq_equal"])

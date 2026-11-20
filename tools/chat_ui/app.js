@@ -502,7 +502,7 @@
     while (id && map.has(id) && !seen.has(id)) { seen.add(id); const message = map.get(id); selected.unshift(message); id = message.parent_id; }
     return selected;
   }
-  function dialogueMessages() { return path().filter(m => (m.role === 'user' || m.role === 'assistant') && m.content); }
+  function dialogueMessages() { return path().filter(m => m.role === 'user' || m.role === 'assistant'); }
   function jumpToMessage(id) {
     const target = $('messages').querySelector('[data-message="' + CSS.escape(id) + '"]');
     if (!target) return;
@@ -514,19 +514,22 @@
   function findMessage() {
     const dialog = $('find-message-dialog'), query = $('find-message-query'), list = $('find-message-list'), more = $('find-message-more');
     const role = $('find-message-role');
-    const messages = dialogueMessages().reverse();
+    const entries = dialogueMessages().reverse().map(message => ({
+      message, fields: [message.content, ...(message.attachments || []).map(file => file.name)]
+    }));
     let matches = [], shown = 0;
     function appendPage() {
       const start = shown;
-      for (const {message, at, length} of matches.slice(start, start + 25)) {
+      for (const {message, text, filename, at, length} of matches.slice(start, start + 25)) {
         const item = node('button', 'find-message-result');
         item.type = 'button';
         item.dataset.target = message.id;
-        const from = Math.max(0, at - 40), end = Math.min(message.content.length, at + length + 100);
+        const from = Math.max(0, at - 40), end = Math.min(text.length, at + length + 100);
         const excerpt = node('span');
-        excerpt.append((from ? '...' : '') + message.content.slice(from, at));
-        if (length) excerpt.append(node('mark', '', message.content.slice(at, at + length)));
-        excerpt.append(message.content.slice(at + length, end) + (end < message.content.length ? '...' : ''));
+        if (filename) excerpt.append('File: ');
+        excerpt.append((from ? '...' : '') + text.slice(from, at));
+        if (length) excerpt.append(node('mark', '', text.slice(at, at + length)));
+        excerpt.append(text.slice(at + length, end) + (end < text.length ? '...' : ''));
         item.append(node('strong', '', message.role === 'user' ? 'You' : 'Assistant'), excerpt);
         list.append(item);
         shown++;
@@ -539,10 +542,15 @@
       const escaped = Array.from(term, ch => '^$\\.*+?()[]{}|'.includes(ch) ? '\\' + ch : ch).join('');
       const pattern = term ? new RegExp(escaped, 'iu') : null;
       matches = [];
-      for (const message of messages) {
+      for (const {message, fields} of entries) {
         if (role.value !== 'all' && message.role !== role.value) continue;
-        const hit = pattern?.exec(message.content);
-        if (!pattern || hit) matches.push({message, at: hit?.index || 0, length: hit?.[0].length || 0});
+        for (const [i, text] of fields.entries()) {
+          if (!text) continue;
+          const hit = pattern?.exec(text);
+          if (pattern && !hit) continue;
+          matches.push({message, text, filename: i > 0, at: hit?.index || 0, length: hit?.[0].length || 0});
+          break;
+        }
       }
       const count = matches.length;
       $('find-message-count').textContent = count ? count + (term ? ' matching message' : ' message') + (count === 1 ? '' : 's') + ', newest first' : 'No matching messages';
@@ -1427,7 +1435,7 @@
     if (name === 'find-message') return findMessage();
     if (name === 'transcript') {
       const title = S.chat.title || 'Conversation';
-      const turns = dialogueMessages();
+      const turns = dialogueMessages().filter(m => m.content);
       const sections = turns.map(m => '## ' + (m.role === 'user' ? 'You' : 'Assistant') + '\n\n' + m.content);
       window.ChatArtifacts.download(['# ' + title, ...sections].join('\n\n') + '\n', title.slice(0, 175) + '.md', 'markdown');
       return;

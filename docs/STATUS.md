@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Find chat attachments (2026-11-21)
+
+- **Goal:** Find a sent file by name and reach its original message on the active branch.
+- **Done:** The conversation finder includes attachment names alongside message text. A matching filename opens the original turn. Multiple matching files on a turn produce one result.
+- **Checks:** Chrome reproduced 53 of 54 searchable messages on main. The candidate finds all 54, jumps to a file-only prompt by its second filename, respects speaker filters and preserves the draft. Attachment bodies, alternate turns and private reasoning stay outside the results. Markdown export keeps its text-only coverage.
+- **Landing:** Fast-forward after the Linux and Windows Chat workspace checks.
+
 ## Chat reading and follow-up work (2026-11-21)
 
 - **Goal:** Make long conversations easier to read, find earlier answers and reuse files from tool results in a follow-up.

@@ -225,7 +225,7 @@ active branch. **Browse saved files** adds selected files to the current draft.
   continues in its original conversation if you navigate away while admission
   or snapshot refresh is pending; its completion does not reconnect or scroll
   the newly selected view.
-- Choose **Conversation actions > Find in conversation** or press Ctrl+Shift+F (Command+Shift+F on macOS). Choose **My prompts** or **Assistant replies** to browse by speaker, or type to narrow the results. Select a result to focus that message on the current branch. Your unsent draft stays in the composer.
+- Choose **Conversation actions > Find in conversation** or press Ctrl+Shift+F (Command+Shift+F on macOS). Search message text or an attachment's filename on the current branch. **My prompts** includes messages that contain only a file. Choose a result to jump to the original message with your draft intact.
 - **Conversation actions > Download Markdown** saves the current branch's prompt and reply text in reading order. It leaves out tool payloads, reasoning, attachments and unsent drafts. Use **Export JSON** for a backup with branches.
 - Each sidebar row has a compact anchored actions menu for rename, pin/unpin,
   move to folder, duplicate, archive/restore, export and delete. Actions target

@@ -207,7 +207,7 @@ A device without the asked form runs the next wider one and says so ([PRECISION]
 | Mode | Flags | Status |
 |---|---|---|
 | Layer split: consecutive layers on different devices, GPUs and the CPU mixed | `--device A,B,...`, `--layer-shares` | Supported ([MULTI-DEVICE](docs/MULTI-DEVICE.md)) |
-| Expert offload: a mixture-of-experts model's experts on the CPU, not with `--tensor-width` | `--n-cpu-moe N`, `--cpu-moe` | Supported ([USAGE](docs/USAGE.md#expert-offload---n-cpu-moe-n---cpu-moe)) |
+| Expert offload: a mixture-of-experts model's experts on the CPU, not with `--tensor-width`; a device cache of the hot ones on Vulkan and ROCm | `--n-cpu-moe N`, `--cpu-moe`, `--expert-cache SIZE` | Supported ([USAGE](docs/USAGE.md#expert-offload---n-cpu-moe-n---cpu-moe)) |
 | Tensor split: every layer over a group of devices, Vulkan and ROCm on Linux | `--tensor-width N` | Supported ([TENSOR-SPLIT](docs/TENSOR-SPLIT.md)) |
 | Several machines | | Planned |
 

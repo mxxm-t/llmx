@@ -997,7 +997,7 @@ void source_checks(const std::string& path) {
 gguf::GGUFModel tiny_moe() { return with_tokens(tiny_qwen_moe(2, 2 * 128, false)); }
 
 // Experts on the CPU beside a device: the placement adds a CPU backend that reads the experts in place, so each load mode maps the file for it though the device copies, and the logits are those of the same model built in memory.
-// Every mode but direct has the CPU read the expert stacks from the file at the picked experts' offsets, which the load reports; a prompt and a generated token give the model's logits.
+// Without a device expert cache no mode reads the expert stacks from the file at the picked experts' offsets, so the load reports none; a prompt and a generated token give the model's logits.
 void experts_checks(const std::string& path) {
     const gguf::GGUFModel source = tiny_moe();
     gguf::write_gguf(source, path);
@@ -1006,17 +1006,13 @@ void experts_checks(const std::string& path) {
     const std::vector<float> expected = in_memory.prefill(ids);
     const float* next = in_memory.step(5);
     const std::vector<float> expected_next(next, next + expected.size());
-    size_t stacks = 0;
-    for (size_t i = 0; i < source.tensors.size(); ++i)
-        if (source.tensors[i].name.find("_exps.") != std::string::npos) stacks += source.tensor_bytes(i);
-    require(stacks != 0, "the MoE fixture has no expert stacks");
     for (const infer::LoadMode mode : load_modes(path)) {
         infer::PlacementRequest request;
         request.names = {"cpu"};
         request.cpu_moe = -1;
         const auto loaded = infer::load_model(path, {std::make_shared<CopyingBackend>()}, request, {}, {}, mode);
         require(loaded->file.payload_size() != 0, "experts on the CPU lost the payload they read in place");
-        require(loaded->times.read_at == (mode == infer::LoadMode::direct ? 0 : stacks), "the CPU's expert stacks were not read from their file outside direct, or were in it");
+        require(loaded->times.read_at == 0, "the CPU's expert stacks were read from their file without a device expert cache");
         const std::vector<float> logits = loaded->model->prefill(ids);
         require(logits.size() == expected.size() && std::memcmp(logits.data(), expected.data(), logits.size() * sizeof(float)) == 0,
                 "a model with its experts on the CPU gives other logits than the model built in memory");

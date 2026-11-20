@@ -126,7 +126,7 @@ inline void moe_step(const Step& s, const Weight& router, const Weight& gate, co
         sh = {projection(shared->gate, past(g)), projection(shared->up, past(u)), shared->down.operand(), past(act),
               shared->row_gate ? projection(*shared->row_gate, row_gate) : backend::Projection{}, shared->limit, shared->form};
     const backend::MoeStep m{projection(router, scores), k, rule, ids, weights, projection(gate, g), projection(up, u), down.operand(), act,
-                             shared ? &sh : nullptr, zero ? zero : s.width > 1 ? s.zero : nullptr, s.scratch, limit, form};
+                             shared ? &sh : nullptr, zero ? zero : s.width > 1 ? s.zero : nullptr, s.scratch, limit, form, s.experts};
     s.b.moe_step(m, h, s.width > 1 ? s.partial : s.x, router.nin, s.rows, s.runs, s.dtype);
     if (s.routes) {
         std::vector<uint32_t> picked(s.rows * k);

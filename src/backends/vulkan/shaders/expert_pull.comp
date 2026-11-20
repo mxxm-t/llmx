@@ -1,0 +1,37 @@
+#version 450
+// A wave's copies from the ring into slots once its hold has ended (backend.hpp ExpertSlots, kernels/f32.gpu llmx_expert_pull): workgroup (x, y) copies chunk x % chunks of stack y for pull x / chunks.
+// A ticket other than `seq` (a hold its bound ended, which marks the high word, or the reader's failure bit) copies nothing and sets the fault word the host reads.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint chunks; uint chunk; uint stride0; uint stride1; uint stride2; uint half_at; uint seq; uint fault; uint pulls; } p;
+layout(set = 0, binding = 0) coherent buffer X { uint xchg[]; };
+layout(set = 0, binding = 1) readonly buffer R { uvec4 ring[]; } rings[3];
+layout(set = 0, binding = 2) writeonly buffer D { uvec4 dst[]; } dsts[3];
+layout(set = 0, binding = 3) readonly buffer S { uint state[]; };
+shared uint word_s, entry_s, go_s;
+void main() {
+    const uint pull = gl_WorkGroupID.x / p.chunks, h = p.half_at;
+    // A workgroup past the wave's pulls, which the wave left in the state, ends without reading the exchange, which is host memory; one invocation reads it otherwise (docs/src/backends-expert_ring.md).
+    if (pull >= state[p.pulls]) return;
+    if (gl_LocalInvocationID.x == 0u) {
+        go_s = 0u;
+        if (pull < atomicAdd(xchg[h + 2u], 0u)) {
+            if (atomicAdd(xchg[h], 0u) != p.seq || atomicAdd(xchg[h + 1u], 0u) != 0u) {
+                if (gl_WorkGroupID.x == 0u && gl_WorkGroupID.y == 0u) atomicExchange(xchg[p.fault], 1u);
+            } else {
+                word_s = xchg[h + 4u + 2u * pull];
+                entry_s = xchg[h + 5u + 2u * pull];
+                go_s = 1u;
+            }
+        }
+    }
+    barrier();
+    if (go_s == 0u) return;
+    const uint word = word_s, entry = entry_s, y = gl_WorkGroupID.y;
+    const uint stride = y == 0u ? p.stride0 : y == 1u ? p.stride1 : p.stride2, from = entry * stride, to = (word >> 16) * stride;
+    const uint first = (gl_WorkGroupID.x % p.chunks) * p.chunk, last = min(first + p.chunk, stride);
+    for (uint i = first + gl_LocalInvocationID.x; i < last; i += 256u) {
+        if (y == 0u) dsts[0].dst[to + i] = rings[0].ring[from + i];
+        else if (y == 1u) dsts[1].dst[to + i] = rings[1].ring[from + i];
+        else dsts[2].dst[to + i] = rings[2].ring[from + i];
+    }
+}

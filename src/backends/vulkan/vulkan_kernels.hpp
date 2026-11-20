@@ -741,6 +741,18 @@ const uint32_t kSpvMoeStepRoute[] = {
 const uint32_t kSpvMoeStepAct[] = {
 #include "vulkan/moe_step_act.inc"
 };
+const uint32_t kSpvExpertMark[] = {
+#include "vulkan/expert_mark.inc"
+};
+const uint32_t kSpvExpertWave[] = {
+#include "vulkan/expert_wave.inc"
+};
+const uint32_t kSpvExpertPull[] = {
+#include "vulkan/expert_pull.inc"
+};
+const uint32_t kSpvExpertRound[] = {
+#include "vulkan/expert_round.inc"
+};
 const uint32_t kSpvMoeStepUpK4q8[] = {
 #include "vulkan/moe_step_up_k4q8.inc"
 };
@@ -1376,6 +1388,10 @@ const uint32_t kSpvFlagRecv[] = {
     X(K_MOE_STEP_DOWN_K, "moe_step_down_k", kSpvMoeStepDownK, sizeof(kSpvMoeStepDownK), 14, kMoeStepDownCounts, kSpvMoeStepDownKPreserve, sizeof(kSpvMoeStepDownKPreserve), 0, kPreserve32) \
     X(K_MOE_STEP_DOWN_K_I8, "moe_step_down_k_i8", kSpvMoeStepDownKI8, sizeof(kSpvMoeStepDownKI8), 14, kMoeStepDownCounts, kSpvMoeStepDownKI8Preserve, sizeof(kSpvMoeStepDownKI8Preserve), 0, kPreserve32) \
     X(K_MOE_STEP_ACT, "moe_step_act", kSpvMoeStepAct, sizeof(kSpvMoeStepAct), 5, nullptr) \
+    X(K_EXPERT_MARK, "expert_mark", kSpvExpertMark, sizeof(kSpvExpertMark), 2, nullptr) \
+    X(K_EXPERT_WAVE, "expert_wave", kSpvExpertWave, sizeof(kSpvExpertWave), 2, nullptr) \
+    X(K_EXPERT_PULL, "expert_pull", kSpvExpertPull, sizeof(kSpvExpertPull), 4, kExpertPullCounts) \
+    X(K_EXPERT_ROUND, "expert_round", kSpvExpertRound, sizeof(kSpvExpertRound), 4, nullptr) \
     X(K_ATTENTION_G4, "attention_g4", kSpvAttentionG4, sizeof(kSpvAttentionG4), 7, nullptr) \
     X(K_ATTENTION_K16_G4, "attention_k16_g4", kSpvAttentionK16G4, sizeof(kSpvAttentionK16G4), 7, nullptr) \
     X(K_ATTENTION_V16_G4, "attention_v16_g4", kSpvAttentionV16G4, sizeof(kSpvAttentionV16G4), 7, nullptr) \
@@ -2050,6 +2066,8 @@ const uint32_t kMatmulRowCounts[12] = {3, 3, 3, 3, 1, 3, 1, 1, 1, 1, 1, 1};
 const uint32_t kMoeStepRouteCounts[16] = {3, 3, 3, 3, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 const uint32_t kMoeStepUpCounts[12] = {4, 4, 4, 4, 1, 4, 1, 1, 1, 1, 1, 1};
 const uint32_t kMoeStepDownCounts[14] = {2, 2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1};
+// The pull's exchange, then its ring entries and slots, three of each, then the state.
+const uint32_t kExpertPullCounts[4] = {1, 3, 3, 1};
 // The integer-dot tile's outputs and weights, three of each, and the reduce's outputs.
 const uint32_t kMatmulTileQCounts[5] = {3, 3, 1, 1, 1};
 const uint32_t kMatmulTileIq3Counts[6] = {3, 3, 1, 1, 1, 1};

@@ -294,7 +294,7 @@ That tool takes `--dtype auto|f16|bf16|f32` to select the same request for promp
 `--per-token` reads every token one at a time through decode steps, the path a generated token takes, instead of the batched passes a prompt takes, as `perplexity --per-token` does; on a device the two paths run different kernels, so a reply's `--then-ids` read this way gives the logits its decode steps gave.
 `--top` and `--last` are at least 1.
 
-Shared execution options for `logits` are `--threads`, `--ubatch`, `--kv-tokens`, `--device`, `--layer-shares`, `--tensor-width`, `--n-cpu-moe`, `--cpu-moe`, `--moe-stream-from`, `--cache-type-k`, `--cache-type-v`, `--load-mode`, `--lookup-storage`, `--dtype`, `--yarn` and `--yarn-original-ctx`; their meanings and defaults are in the shared execution sections above.
+Shared execution options for `logits` are `--threads`, `--ubatch`, `--kv-tokens`, `--device`, `--layer-shares`, `--tensor-width`, `--n-cpu-moe`, `--cpu-moe`, `--moe-stream-from`, `--expert-cache`, `--cache-type-k`, `--cache-type-v`, `--load-mode`, `--lookup-storage`, `--dtype`, `--yarn` and `--yarn-original-ctx`; their meanings and defaults are in the shared execution sections above.
 
 This exists for the correctness gate. Comparing llmx against a reference
 through sampled text hides everything except argmax flips, so
@@ -358,7 +358,7 @@ Flags:
 | `--yarn-original-ctx N` | the trained length `--yarn` scales from (Rope scaling, above) |
 | `--threads N`   | worker thread count (0 = auto)                 |
 | `-tb`, `--threads-batch N` | threads for batched passes (omitted or 0: `--threads`); refused with `--per-token`, which scores on `--threads` |
-| `--ubatch N`    | tokens per batched pass (default 512)          |
+| `--ubatch N`    | tokens per batched pass (default 512, 2048 with `--expert-cache`) |
 | `--kv-tokens N` | KV cache tokens, in whole blocks, backed at load (default the model context; fitted as `llmx serve`, below, gives) |
 | `-ctk`, `--cache-type-k T` / `-ctv`, `--cache-type-v T` | KV cache storage per side, `f16` (default) or `f32`, or `native` where the model declares a format (its default there) |
 | `--device D`    | backend: `cpu`, or `vulkan:N`, `rocm:N` or `cuda:N` in a build with it |
@@ -366,6 +366,7 @@ Flags:
 | `--tensor-width N` | devices each layer is split across, the listed devices forming groups of `N` (default 1, below) |
 | `--n-cpu-moe N`, `--cpu-moe` | experts of the first `N` routed layers, or of all, on the CPU beside a device |
 | `--moe-stream-from N` | run those experts on the device for a prompt of at least `N` tokens, two at the least (default 0, never) |
+| `--expert-cache SIZE` | the most device bytes for slots of those experts on Vulkan, ROCm or CUDA devices, spread evenly over the cached layers: each layer keeps slots on its device, as many as the room its device has left after the split gives, at most this cap; a step pulls its missing experts into the slots from the stacks' files or host memory and runs its experts on the device, in rounds where it picks more than the slots hold (default 0, none; not over tensor groups); without `--ubatch` a prompt pass takes 2048 tokens rather than 512; refused with `--moe-stream-from`, since the cache already runs a prompt's experts on the device, with the CPU as a device, for expert stacks with a scale companion, and for a layer of more than 65535 experts |
 | `--load-mode M` | how the weights are read: `auto` (default), `mapped` or `direct` (below) |
 | `--lookup-storage S` | bounded lookup tables: `auto`, `device` or `file`; independent of `--load-mode` |
 
@@ -531,7 +532,7 @@ A short follow-up in a long chat therefore streams too and pays the copy, and `s
 With `bench --depth` the depth counts toward the length as well.
 Generated tokens never stream, and neither does a one-token prompt, so `1` streams the prompts `2` does.
 The device holds one layer's experts for this (about 640 MB for Qwen3-30B-A3B Q8_0).
-Without `--n-cpu-moe` or `--cpu-moe` there are no experts on the CPU to stream, so a nonzero `--moe-stream-from` is refused.
+Without `--n-cpu-moe` or `--cpu-moe` there are no experts on the CPU to stream, so a nonzero `--moe-stream-from` is refused, as it is beside `--expert-cache`, whose slots already run a prompt's experts on the device.
 
 ## KV cache types (`--cache-type-k`, `--cache-type-v`)
 
@@ -671,6 +672,7 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--n-cpu-moe N`         | experts of the first `N` routed layers on the CPU    | 0       |
 | `--cpu-moe`             | experts of every routed layer on the CPU             | off     |
 | `--moe-stream-from N`   | prompt length, two at the least, from which those experts run on the device | 0 (never) |
+| `--expert-cache SIZE`   | the most device bytes for slots of those experts, spread over the cached layers, each layer taking what its device has room for up to that; a step pulls missing experts into the slots and runs on the device; `--ubatch` then defaults to 2048; refused for expert stacks with a scale companion | 0 (none) |
 | `--load-mode M`         | how the weights are read: `auto`, `mapped` or `direct` | auto    |
 | `--lookup-storage S`    | bounded lookup table storage: `auto`, `device` or `file` | auto |
 | `--seed N`              | RNG seed (0 retains the fixed default state)        | 0       |
@@ -836,7 +838,7 @@ request may hold: with 16 sequences over a 40k-token budget that is 2.5k
 tokens each on average, and a request whose prompt plus `max_tokens` exceeds
 what a request may hold is refused with 413, or cut under `--context-overflow shift` (below).
 
-The server-only flags accepted by `llmx serve` are listed below. Each row gives the default and the main range or interaction; the paragraphs after the tables explain the behavior in detail. Shared flags are `--device`, `--dtype`, `--layer-shares`, `--tensor-width`, `--threads`, `--ubatch`, `--kv-tokens` (its serve default is above), `--cache-type-k`, `--cache-type-v`, `--n-cpu-moe`, `--cpu-moe`, `--moe-stream-from`, `--load-mode` and `--lookup-storage`; their meanings and defaults are in the `generate` table above and the sections on precision, threads, devices, cache types, loading and lookup storage. `llmx serve --help` prints the same server-only groups. [OPERATING](OPERATING.md) has setups to copy and what to do when a server misbehaves.
+The server-only flags accepted by `llmx serve` are listed below. Each row gives the default and the main range or interaction; the paragraphs after the tables explain the behavior in detail. Shared flags are `--device`, `--dtype`, `--layer-shares`, `--tensor-width`, `--threads`, `--ubatch`, `--kv-tokens` (its serve default is above), `--cache-type-k`, `--cache-type-v`, `--n-cpu-moe`, `--cpu-moe`, `--moe-stream-from`, `--expert-cache`, `--load-mode` and `--lookup-storage`; their meanings and defaults are in the `generate` table above and the sections on precision, threads, devices, cache types, loading and lookup storage. `llmx serve --help` prints the same server-only groups. [OPERATING](OPERATING.md) has setups to copy and what to do when a server misbehaves.
 
 | Group | Flag | Default | Scope, range or interaction |
 |---|---|---|---|
@@ -1222,7 +1224,7 @@ llmx bench --model <in.gguf> [flags...]
 | Group | Flags | Reference |
 |---|---|---|
 | Model run | `--model`, `--p`, `--n`, `--r`, `--seqs`, `--depth` | Prompt tokens, decode tokens, repeats, concurrent sequences and optional draft depth |
-| Device execution | `--threads`, `--ubatch`, `--kv-tokens`, `--device`, `--layer-shares`, `--tensor-width`, `--n-cpu-moe`, `--cpu-moe`, `--moe-stream-from`, `--cache-type-k`, `--cache-type-v`, `--load-mode`, `--lookup-storage`, `--dtype` | Shared execution options described above |
+| Device execution | `--threads`, `--ubatch`, `--kv-tokens`, `--device`, `--layer-shares`, `--tensor-width`, `--n-cpu-moe`, `--cpu-moe`, `--moe-stream-from`, `--expert-cache`, `--cache-type-k`, `--cache-type-v`, `--load-mode`, `--lookup-storage`, `--dtype` | Shared execution options described above |
 | Measurement and drafts | `--profile`, `--drafter`, `--draft-max` | Time device kernels or measure draft chain and verify work |
 
 The matched real-model measurement: a warm-up of each test, then `--r`

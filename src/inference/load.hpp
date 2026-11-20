@@ -66,6 +66,7 @@ struct LoadTimes {
     size_t direct_files = 0;    // files they were streamed from around it
     size_t streamed = 0;        // bytes read for them, gaps and granule rounding included
     size_t copied = 0;          // bytes the devices copied straight out of the reads, each device's counted, where the rest go through their staging
+    size_t read_at = 0;         // bytes of expert stacks the CPU reads from their files at the picked experts' offsets, which the load neither reads nor warms
     double construct = 0, read = 0, upload = 0, wait = 0;
 };
 
@@ -125,12 +126,14 @@ inline void put_runs(const shard::Held& held, size_t lo, size_t n, const uint8_t
 }
 
 // What the loader's hook records while the model is built: per tensor whether a backend that reads in place took it, and every weight a copying backend took.
+// A tensor `files` names is adopted with its file and offset (Backend::adopt_file).
 struct WeightPlan {
     std::vector<char> host_reads;
     std::vector<Upload> uploads;
     std::vector<char> resident;   // per tensor, whether its bytes are the loader's own host data rather than the file's, adopted at once and never streamed; empty for none
     std::vector<char> composite;  // per tensor, whether its bytes are made at load (format/hf_quant.hpp) rather than read; empty for none
     std::vector<char> made_host;  // per composite, whether a host took the bytes made for it, which then stay
+    std::vector<std::pair<std::shared_ptr<const format::FileReader>, uint64_t>> files;
 };
 
 // load_model's adoption hook: a backend that reads in place adopts a weight where it lies, and one that copies adopts it at once unless `defer` gives a weight not plan.resident storage to stream into (plan.uploads).
@@ -183,6 +186,7 @@ inline AdoptWeight planning_adopt(const ModelWeights& weights, size_t backends, 
         }
         if (b.reads_in_place()) {
             plan.host_reads[i] = !resident && !composite;
+            if (i < plan.files.size() && plan.files[i].first) return b.adopt_file(t.data, t.bytes, plan.files[i].first, plan.files[i].second);
             return b.adopt(t.data, t.bytes);
         }
         if (!later) return copied(b.adopt(t.data, t.bytes));
@@ -531,7 +535,8 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
     std::optional<PlannedModel> placement;
     if (!lookups.empty()) {
         if (report) report({"fit"});
-        placement = plan_placement(weights, backends, request, options, lookups);
+        // Under a device expert cache every mode but direct leaves the CPU's experts as the file's pages, read from the file; otherwise they are mapped and warmed, or copied by direct, into memory the fit counts.
+        placement = plan_placement(weights, backends, request, options, lookups, mode != LoadMode::direct && request.expert_cache);
     }
     // A table read from its file reads through its own reader, so the payload is mapped only for weights a host reads in place; the table never joins the stream or the warming.
     if (mode == LoadMode::mapped || (mode == LoadMode::automatic && host)) gguf::map_payload(file);
@@ -581,12 +586,31 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
     const format::LoadProgress progress = [&](size_t completed, size_t total) {
         if (report) report({"weights", completed, total});
     };
+    // Under a device expert cache, the CPU layers' expert stacks are read from their files at the picked experts' offsets, by the ring's misses and the CPU alike, so the load neither reads nor warms them.
+    // Without the cache they stay mapped and warmed, since a read per step copies every picked expert where a warm mapping copies nothing; direct gives the host its own copy.
+    WeightPlan plan;
+    plan.files.resize(file.tensors.size());
+    if (mode != LoadMode::direct && request.expert_cache && adds_host_for_experts(backends, request)) {
+        std::vector<std::shared_ptr<const format::FileReader>> buffered(paths.size());
+        for (size_t l = 0; l < architecture.layers.size(); ++l) {
+            if (!ffn_on_host(request, architecture.layers, l)) continue;
+            for (const Role& role : architecture.layers[l].roles) {
+                if (role.kind != RoleKind::experts || !role.tensor || external[*role.tensor]) continue;
+                const format::FileSpan span = file.span(*role.tensor);
+                const size_t f = file_index(span.file);
+                if (!buffered[f]) {
+                    buffered[f] = std::make_shared<const format::FileReader>(paths[f]);
+                    gguf::check_size(file, paths[f], buffered[f]->size());
+                }
+                plan.files[*role.tensor] = {buffered[f], span.offset};
+            }
+        }
+    }
     if (mode == LoadMode::mapped) {
         std::vector<size_t> warmed;
-        for (size_t i : every) if (!external[i]) warmed.push_back(i);
+        for (size_t i : every) if (!external[i] && !plan.files[i].first) warmed.push_back(i);
         detail::warm(file, warmed, progress);
     }
-    WeightPlan plan;
     plan.resident = resident;
     plan.composite = composite;
     plan.made_host.assign(file.tensors.size(), 0);
@@ -647,7 +671,7 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
             }
             if (plan.host_reads[i] && mode == LoadMode::direct) hosted.push_back(i);
             else if (copied[i]) streamed.push_back(i);
-            else if (plan.host_reads[i]) warmed.push_back(i);
+            else if (plan.host_reads[i] && !plan.files[i].first) warmed.push_back(i);
         }
         in_file_order(streamed);
         in_file_order(hosted);
@@ -751,6 +775,8 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
             progress(0, 0);
         }
     }
+    for (size_t i = 0; i < plan.files.size(); ++i)
+        if (plan.files[i].first && plan.host_reads[i]) loaded->times.read_at += file.span(i).bytes;
     // With no host reading a weight the host's copy goes, and otherwise the tensors no host reads leave its working set.
     if (std::find(plan.host_reads.begin(), plan.host_reads.end(), 1) == plan.host_reads.end()) {
         file.release_payload();

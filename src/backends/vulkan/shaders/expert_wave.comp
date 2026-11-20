@@ -1,0 +1,101 @@
+#version 450
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_ballot : require
+// A wave of the device expert cache (backend.hpp ExpertSlots, kernels/f32.gpu llmx_expert_wave), one workgroup of 64: up to `ring` picked experts not in slots, lowest id first, each take the slot ranked first by class then age.
+// The classes are free, not picked, pulled this step and done, hit and done; a slot whose expert the step still needs is never taken, and a wave of none writes its ticket itself.
+layout(local_size_x = 64) in;
+layout(push_constant) uniform P { uint n_expert; uint slots; uint ring; uint seq; uint owner; uint age; uint counts; uint flags; uint half_at; } p;
+layout(set = 0, binding = 0) buffer S { uint state[]; };
+layout(set = 0, binding = 1) coherent buffer X { uint xchg[]; };
+const uint kPicked = 1u, kDone = 2u, kPulled = 4u;
+shared uint want_s[64], best_slot[64], best_hi[64], best_lo[64], counts_s[64];
+// v's exclusive rank over the workgroup's lanes by subgroup ballots, and the workgroup's total.
+uint rank(bool v, out uint total) {
+    uvec4 bal = subgroupBallot(v);
+    if (subgroupElect()) counts_s[gl_SubgroupID] = subgroupBallotBitCount(bal);
+    barrier();
+    uint before = 0u, all = 0u;
+    for (uint w = 0u; w < gl_NumSubgroups; ++w) {
+        before += w < gl_SubgroupID ? counts_s[w] : 0u;
+        all += counts_s[w];
+    }
+    barrier();
+    total = all;
+    return before + subgroupBallotExclusiveBitCount(bal);
+}
+bool less(uint ah, uint al, uint as, uint bh, uint bl, uint bs) { return ah < bh || (ah == bh && (al < bl || (al == bl && as < bs))); }
+void main() {
+    const uint t = gl_LocalInvocationID.x, h = p.half_at;
+    // The wants, 64 experts a pass, kept in id order by their ranks.
+    uint n = 0u;
+    for (uint base = 0u; base < p.n_expert && n < p.ring; base += 64u) {
+        const uint e = base + t;
+        const bool want = e < p.n_expert && (state[p.flags + e] & (kPicked | kDone)) == kPicked && state[1u + e] == 0u;
+        uint total;
+        const uint r = rank(want, total);
+        if (want && n + r < p.ring) want_s[n + r] = e;
+        n += total;
+    }
+    n = min(n, p.ring);
+    memoryBarrierShared();
+    barrier();
+    const uint clock = state[0];
+    uint taken = 0u;
+    for (uint i = 0u; i < n; ++i) {
+        // A slot's key is (class, age, slot); a lane with no slot left keeps the largest key.
+        uint kh = 0xffffffffu, kl = 0xffffffffu, s = 0xffffffffu;
+        for (uint u = t; u < p.slots; u += 64u) {
+            const uint o = state[p.owner + u];
+            uint c = 0u, a = 0u;
+            if (o != 0u) {
+                const uint f = state[p.flags + o - 1u];
+                if ((f & (kPicked | kDone)) == kPicked) continue;
+                c = (f & kPicked) == 0u ? 1u : (f & kPulled) != 0u ? 2u : 3u;
+                a = state[p.age + u];
+            }
+            if (less(c, a, u, kh, kl, s)) {
+                kh = c;
+                kl = a;
+                s = u;
+            }
+        }
+        best_hi[t] = kh;
+        best_lo[t] = kl;
+        best_slot[t] = s;
+        barrier();
+        for (uint w = 32u; w > 0u; w >>= 1u) {
+            if (t < w && less(best_hi[t + w], best_lo[t + w], best_slot[t + w], best_hi[t], best_lo[t], best_slot[t])) {
+                best_hi[t] = best_hi[t + w];
+                best_lo[t] = best_lo[t + w];
+                best_slot[t] = best_slot[t + w];
+            }
+            barrier();
+        }
+        const uint b = best_slot[0];
+        if (b == 0xffffffffu) break;
+        if (t == 0u) {
+            const uint e = want_s[i], old = state[p.owner + b];
+            if (old != 0u) state[1u + old - 1u] = 0u;
+            state[1u + e] = b + 1u;
+            state[p.owner + b] = e + 1u;
+            state[p.age + b] = clock;
+            state[p.flags + e] |= kPulled;
+            xchg[h + 4u + 2u * taken] = (b << 16) | e;
+        }
+        ++taken;
+        memoryBarrierBuffer();
+        barrier();
+    }
+    if (t == 0u) {
+        state[p.counts + 1u] += taken;
+        state[p.counts + 2u + (p.seq & 1u)] = taken;
+        xchg[h + 2u] = taken;
+        xchg[h + 3u] = p.seq;
+        // A wave of none ends its own hold: the ticket's high word, then its low word, the seq.
+        if (taken == 0u) {
+            atomicExchange(xchg[h + 1u], 0u);
+            memoryBarrierBuffer();
+            atomicExchange(xchg[h], p.seq);
+        }
+    }
+}

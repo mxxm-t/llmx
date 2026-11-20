@@ -80,6 +80,7 @@ inline VulkanBackend::ScratchSizes VulkanBackend::scratch_sizes(const PassWidths
         z[3] = size_mul(size_mul(entries, w.expert_out), sizeof(float));
         z[4] = size_mul(size_add(size_mul(4, size_add((entries + 1) / 2, entries)), entries), sizeof(uint32_t));
         z[6] = sizeof(uint32_t);
+        if (w.expert_cache) z[12] = size_mul(entries, sizeof(uint32_t));
     }
     if (prof.prefer_integer_dot) z[5] = kMxCopyBytes;
     if (w.logit_rows && w.vocab > kVulkanArgmaxSlice) z[7] = size_mul(size_mul(w.logit_rows, (w.vocab + kVulkanArgmaxSlice - 1) / kVulkanArgmaxSlice), 3 * sizeof(uint32_t));
@@ -92,7 +93,7 @@ inline VulkanBackend::ScratchSizes VulkanBackend::scratch_sizes(const PassWidths
 
 inline std::shared_ptr<VulkanBuffer>* VulkanBackend::scratch_buffer(size_t i) {
     std::shared_ptr<VulkanBuffer>* const held[kScratchBuffers] = {&scratch_, &select_state_, &parts_, &moe_out_, &moe_tab_, &mx_copy_, &moe_count_, &argmax_parts_,
-                                                                  &twins_[0].buffer, &twins_[1].buffer, &twins_[2].buffer, &twins_[3].buffer};
+                                                                  &twins_[0].buffer, &twins_[1].buffer, &twins_[2].buffer, &twins_[3].buffer, &expert_ids_};
     return held[i];
 }
 
@@ -149,7 +150,8 @@ inline size_t VulkanBackend::resident_bytes(uint32_t type, size_t nin, size_t ro
 
 inline BufferPtr VulkanBackend::alloc(size_t bytes, Memory where) {
     drop_tags();
-    auto b = std::make_shared<VulkanBuffer>(dev_, bytes, where == Memory::host_visible);
+    auto b = std::make_shared<VulkanBuffer>(dev_, bytes, where != Memory::device, where == Memory::host_coherent);
+    if (bytes && where == Memory::host_coherent) std::memset(b->mapped(), 0, bytes);
     if (bytes && !b->host_visible()) {
         // Zeroed like every other allocation, in stream order.
         // The slot holds the buffer until the fill retires, so a caller may drop it before anything is submitted.
@@ -207,6 +209,7 @@ inline void VulkanBackend::read(const Buffer& src_b, size_t off, void* dst, size
     if (src.host_visible()) {
         sync();
         if (submitter_) submitter_->raise();
+        ExpertRing::raise(expert_ring_, *this, "vulkan: ");
         std::memcpy(dst, (const uint8_t*)src.mapped() + off, bytes);
         return;
     }
@@ -222,6 +225,7 @@ inline void VulkanBackend::read(const Buffer& src_b, size_t off, void* dst, size
         barrier(cmd);
         wait(flush());
         if (submitter_) submitter_->raise();
+        ExpertRing::raise(expert_ring_, *this, "vulkan: ");
         std::memcpy((uint8_t*)dst + done, st.mapped(), n);
         done += n;
     }

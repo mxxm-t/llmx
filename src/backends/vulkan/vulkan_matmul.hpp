@@ -592,25 +592,44 @@ inline void VulkanBackend::matmul_experts(std::initializer_list<Projection> proj
 
 inline void VulkanBackend::matmul_experts_add(WeightView weight, CSlice X, Slice Y, size_t nin, size_t nout, size_t nrows,
                                               const Routing& routing, RowRuns runs, Dtype dtype) {
+    if (!(nrows * routing.k)) return;
+    const OpSteps steps(*this);
+    routed_parts(weight, X, nin, nout, nrows, routing, runs, dtype);
+    combine_parts(Y, nout, nrows, routing);
+}
+
+// Each entry's product into moe_out_, an entry of no expert left as it was; moe_out_ grows only here, so parts written by earlier calls of a step stay until its combine.
+inline void VulkanBackend::routed_parts(WeightView weight, CSlice X, size_t nin, size_t nout, size_t nrows, const Routing& routing, RowRuns runs, Dtype dtype) {
     const uint32_t type = weight.type;
     const size_t k = routing.k, entries = nrows * k;
     if (!entries) return;
     const OpSteps steps(*this);
     check_matrix(type, weight.data, nin, size_mul(routing.n_expert, nout));
     check_weight_scales(weight, nin, nout, routing.n_expert);
-    if (floats_from(X) < entries * nin || floats_from(Y) < nrows * nout || floats_from(routing.ids) < entries ||
-        floats_from(routing.weights) < entries)
-        throw std::runtime_error("vulkan: matmul operand outside its allocation");
+    if (floats_from(X) < entries * nin || floats_from(routing.ids) < entries) throw std::runtime_error("vulkan: matmul operand outside its allocation");
     if (!moe_out_ || moe_out_->size() < entries * nout * sizeof(float)) grow(moe_out_, entries * nout * sizeof(float));
     expert_runs(type, nrows, runs, [&](size_t first, size_t count, bool tile) {
-        const Slice part{moe_out_.get(), first * k * nout};
-        const Projection one{weight, part, nout};
-        routed_call({&one}, at_float(X, first * k * nin), nin, count * k, count, k, at_float(routing.ids, first * k),
-                    routing.n_expert, tile, dtype, 1);
-        const uint32_t pc[3] = {u32(count), u32(nout), u32(k)};
-        dispatch(K_MOE_COMBINE, {bind(at_float(Y, first * nout)), bind(CSlice(part)), bind(at_float(routing.weights, first * k)), bind(at_float(routing.ids, first * k))},
-                 pc, sizeof(pc), groups(count * nout, 256), 1, 0, {count * nout});
+        const Projection one{weight, Slice{moe_out_.get(), first * k * nout}, nout};
+        routed_call({&one}, at_float(X, first * k * nin), nin, count * k, count, k, at_float(routing.ids, first * k), routing.n_expert, tile, dtype, 1);
     });
+}
+
+// moe_out_'s parts, each row's weighted sum in j order joining Y, in as many dispatches as the workgroup count limit asks; an entry of no expert adds nothing.
+inline void VulkanBackend::combine_parts(Slice Y, size_t nout, size_t nrows, const Routing& routing) {
+    const size_t k = routing.k, entries = nrows * k;
+    if (!entries || !nout) return;
+    const OpSteps steps(*this);
+    if (floats_from(Y) < nrows * nout || floats_from(routing.ids) < entries || floats_from(routing.weights) < entries || !moe_out_ ||
+        moe_out_->size() < entries * nout * sizeof(float))
+        throw std::runtime_error("vulkan: matmul operand outside its allocation");
+    const size_t per = std::max<size_t>(1, size_t(dev_->props.limits.maxComputeWorkGroupCount[0]) * 256 / nout);
+    for (size_t first = 0; first < nrows; first += per) {
+        const size_t count = std::min(per, nrows - first);
+        const uint32_t pc[3] = {u32(count), u32(nout), u32(k)};
+        dispatch(K_MOE_COMBINE, {bind(at_float(Y, first * nout)), bind(CSlice(moe_out_.get(), first * k * nout)), bind(at_float(routing.weights, first * k)),
+                                 bind(at_float(routing.ids, first * k))},
+                 pc, sizeof(pc), groups(count * nout, 256), 1, 0, {count * nout});
+    }
 }
 
 // One routed call over `nrows` token rows, k entries each, whose X has `xcols` columns: entry e reads column e / per, per being k when X is the token rows and 1 when it holds a column per entry.

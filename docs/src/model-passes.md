@@ -22,6 +22,7 @@ A failure part way through a cut pass drops the lanes it sent (`Collective::drop
 `cut_record` records the layers part by part, each part's mixer or feed-forward part, then its sum sent on its lane (`Collective::send`), the sum finished and joined only before that part's next part, so one part's sum crosses while the other part's work runs; the second part's layer is recorded after the first's on every member's one queue, so it reads the cache and state the first wrote, and nothing waits on the host between parts.
 The cut gives the whole pass's bits, which `tests/cut_passes.hpp` holds on CPU and Vulkan groups.
 
+A layer with a device expert cache (`ExpertCache`, `Placement::expert_slots`) runs its feed-forward block on its mixer's device in `single_record`, never crossing to the host: the step pulls its missing experts into the slots through the device's ring and runs its entries in rounds of what the slots hold ([expert_ring](backends-expert_ring.md)).
 `single_record` and `group_record` start every lookup of their stage before recording the layer operations and finish each before its layer's mixers, so the layers before it record and run while the rows are read.
 The architecture's `lookup_ids`
 fills dedicated IDs from the pass and its preceding-token snapshots;

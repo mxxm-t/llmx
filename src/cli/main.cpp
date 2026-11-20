@@ -91,6 +91,7 @@ struct ExecOptions {
     int kv_tokens = 0;            // the KV pool's total token budget, --kv-tokens; 0 is the model context, or for serve what the devices hold
     int cpu_moe = 0;              // routed layers whose experts run on the CPU beside a device: the first N, -1 all
     int moe_stream_from = 0;      // prompt length from which those experts are copied to the device for a pass; 0 never
+    uint64_t expert_cache = 0;    // the most device bytes for slots of those experts, which every step reads them through; 0 none
     infer::LoadMode load_mode{};  // how weights are read; the default is the loader's first mode
     infer::LookupStorage lookup_storage = infer::LookupStorage::automatic; // bounded lookup table storage policy
     bool verbose = false;         // the prompt token count, the thread counts, a split's plan, progress, generate's KV line and perplexity's per-window lines
@@ -547,6 +548,7 @@ bool exec_flag(int argc, char** argv, int& i, ExecOptions& exec, bool batch_thre
     else if (f == "--n-cpu-moe") exec.cpu_moe = int_arg(argc, argv, i, a, 0);
     else if (f == "--cpu-moe") exec.cpu_moe = -1;
     else if (f == "--moe-stream-from") exec.moe_stream_from = count_arg(argc, argv, i, a, 0);
+    else if (f == "--expert-cache") exec.expert_cache = bytes_arg(argc, argv, i, a);
     else if (f == "--threads") exec.threads = int_arg(argc, argv, i, a, 0);
     else if (batch_threads && f == "--threads-batch") exec.threads_batch = int_arg(argc, argv, i, a, 0);
     else if (f == "--ubatch") exec.ubatch = count_arg(argc, argv, i, a, 1);
@@ -587,7 +589,12 @@ std::string load_timing(const infer::LoadTimes& t) {
     } else {
         std::snprintf(line, sizeof line, "load: %s; construct %.2f s\n", infer::load_mode_name(t.mode), t.construct);
     }
-    return line;
+    std::string text = line;
+    if (t.read_at) {
+        std::snprintf(line, sizeof line, "load: %.2f GiB of experts on the CPU read from their files as they are routed to\n", double(t.read_at) / double(size_t(1) << 30));
+        text += line;
+    }
+    return text;
 }
 
 // The device specs the flags name, after the refusals the flags alone decide, which every model command meets before a file is read or a server listens.
@@ -595,13 +602,14 @@ std::vector<std::string> exec_specs(const ExecOptions& exec) {
     // Only experts on the CPU are streamed, and the flags alone say whether there are any.
     if (exec.moe_stream_from && !exec.cpu_moe) throw UsageError("--moe-stream-from streams the experts on the CPU; give --n-cpu-moe or --cpu-moe");
     if (exec.yarn_original && !exec.yarn) throw UsageError("--yarn-original-ctx is the length --yarn scales from; give --yarn");
+    if (exec.expert_cache && !exec.cpu_moe) throw UsageError("--expert-cache caches the experts on the CPU; give --n-cpu-moe or --cpu-moe");
     const auto specs = backend::device_specs(exec.device);
     tensor_groups(exec, specs);
     return specs;
 }
 
 // The logits rows a command's prompt passes keep when it scores every row of them, as `logits` and `perplexity` do: a pass's prompt tokens.
-size_t prompt_logit_rows(const ExecOptions& exec) { return (size_t)(exec.ubatch > 0 ? exec.ubatch : infer::kDefaultUbatch); }
+size_t prompt_logit_rows(const ExecOptions& exec) { return (size_t)infer::pass_ubatch(exec.ubatch, (size_t)exec.expert_cache); }
 
 // Open a model file as the flags ask, through infer::load_model: devices made first so a bad flag fails before the file is read, the model placed for its ubatch plus `decode_rows` generated tokens a pass and `logit_rows` logits rows.
 // The other parameters (threads, profiled, history_tokens, slots, timed, checkpoints, drafter, drafter_file, shared, argmax_passes, history) are described in docs/src/cli-main.md, open_model.
@@ -629,6 +637,7 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
     request.width = (size_t)exec.tensor_width;
     request.cpu_moe = exec.cpu_moe;
     request.stream_from = (size_t)exec.moe_stream_from;
+    request.expert_cache = (size_t)exec.expert_cache;
     request.lookup_storage = exec.lookup_storage;
     request.host_budget = host_budget;
     request.ubatch = exec.ubatch;
@@ -1684,7 +1693,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
         if (batch_threads) page
             << "  --threads-batch N, -tb  CPU prefill workers. Default follows --threads\n";
         page
-            << "  --ubatch N              Prompt tokens read in one pass. A longer prompt is read in slices (default: " << infer::kDefaultUbatch << ")\n"
+            << "  --ubatch N              Prompt tokens read in one pass. A longer prompt is read in slices (default: " << infer::kDefaultUbatch << ", " << infer::kCachedUbatch << " with --expert-cache)\n"
             << "  --kv-tokens N           Tokens of conversation memory (KV cache), in whole blocks, backed at load.\n"
             << "                          A server's requests share them (default: the model context; for serve,\n"
             << "                          what the devices' free memory holds)\n"
@@ -1695,6 +1704,11 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --moe-stream-from N     Copy those experts to the device for a prompt of\n"
             << "                          at least N tokens. Use 0 to disable this (default: " << defaults.moe_stream_from << ").\n"
             << "                          Generated tokens and one-token prompts stay on CPU.\n"
+            << "  --expert-cache SIZE     Most device bytes for slots of those experts, 4gb = 4 GiB,\n"
+            << "                          each layer taking what its device has room for: a step\n"
+            << "                          pulls a missing expert from the file or host memory and\n"
+            << "                          runs on the device (default: 0, none; not with\n"
+            << "                          --moe-stream-from).\n"
             << "  --lookup-storage S      Bounded lookup tables: auto, device or file (default: " << infer::lookup_storage_name(defaults.lookup_storage) << ")\n"
             << "                          Device keeps the whole table on the devices, giving up KV room if it must.\n"
             << "                          File reads the rows from the model file. Auto takes device where it fits\n"

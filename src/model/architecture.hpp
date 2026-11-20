@@ -323,6 +323,7 @@ struct Step {
     const backend::StateView* states = nullptr;
     size_t state_layer = 0;
     backend::Dtype dtype = backend::Dtype::f16;
+    const backend::ExpertSlots* experts = nullptr;  // a cached layer's device expert slots (Placement::expert_slots), its row's stacks then holding slots
     // Which of the layer's update phases a call of recur runs (LayerPlan::recur_phases), every one when -1, as the mixer runs it.
     int phase = -1;
     // The tensor group the part runs on (docs/TENSOR-SPLIT.md, section 4.3): its width, each member's weights its shard (Role::shard) and its heads that share of the plan's.

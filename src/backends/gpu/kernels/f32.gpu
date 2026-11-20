@@ -3567,14 +3567,14 @@ __device__ inline float select_score(const float* row, unsigned i, unsigned mode
     return best;
 }
 constexpr unsigned kWaves = kThreads / kWave;
-// v's exclusive rank over the block's threads by wave ballots, and the block's total.
-__device__ unsigned block_rank(bool v, unsigned& total, unsigned* counts) {
+// v's exclusive rank over the block's N threads by wave ballots, and the block's total.
+template <unsigned N = kThreads> __device__ unsigned block_rank(bool v, unsigned& total, unsigned* counts) {
     const unsigned long long b = wave_ballot(v);
     const unsigned lane = threadIdx.x % kWave, wave = threadIdx.x / kWave;
     if (lane == 0) counts[wave] = (unsigned)__popcll(b);
     __syncthreads();
     unsigned before = 0, all = 0;
-    for (unsigned w = 0; w < kWaves; ++w) before += w < wave ? counts[w] : 0u, all += counts[w];
+    for (unsigned w = 0; w < N / kWave; ++w) before += w < wave ? counts[w] : 0u, all += counts[w];
     __syncthreads();
     total = all;
     return before + (unsigned)__popcll(b & ((1ull << lane) - 1ull));
@@ -5165,4 +5165,158 @@ extern "C" __global__ void __launch_bounds__(kThreads, 1) llmx_delta_step(DeltaS
         }
     }
     GPU_CODE_END(llmx_delta_step_end);
+}
+
+// The device expert cache (backend.hpp ExpertSlots, ExpertRing), the Vulkan backend's expert_mark, expert_wave, expert_pull and expert_round in the same layout and order.
+// A step marks its picked experts, then each wave gives up to `ring` missing experts slots and the reader fills the ring, the pull copies them in, and a round runs the entries whose experts are in.
+constexpr unsigned kExpertPicked = 1u, kExpertDone = 2u, kExpertPulled = 4u;
+
+// A step's first kernel, one block: clear the flags, advance the clock, mark each picked expert, and count and refresh the picked experts already in slots.
+extern "C" __global__ void llmx_expert_mark(const unsigned* ids, unsigned* state, unsigned n_expert, unsigned entries, unsigned age, unsigned counts, unsigned flags) {
+    __shared__ unsigned clock_s;
+    const unsigned t = threadIdx.x;
+    for (unsigned e = t; e < n_expert; e += kThreads) state[flags + e] = 0;
+    if (t == 0) clock_s = state[0] = state[0] + 1;
+    __syncthreads();
+    for (unsigned j = t; j < entries; j += kThreads)
+        if (ids[j] < n_expert) state[flags + ids[j]] = kExpertPicked;
+    __syncthreads();
+    unsigned hits = 0;
+    for (unsigned e = t; e < n_expert; e += kThreads)
+        if (state[flags + e] && state[1 + e]) {
+            state[age + state[1 + e] - 1] = clock_s;
+            ++hits;
+        }
+    if (hits) atomicAdd(state + counts, hits);
+}
+
+// A wave, one block of 64: up to `ring` (at most 64) picked experts not yet in slots, lowest id first, each take the slot ranked first by (free, not picked, pulled this step and done, hit and done) then age.
+// A slot whose expert the step still needs is never taken; the pulls go to the exchange half `xchg` the reader reads, tagged with `seq`, and a wave of none writes its ticket itself.
+extern "C" __global__ void __launch_bounds__(64) llmx_expert_wave(unsigned* state, unsigned* xchg, unsigned n_expert, unsigned slots, unsigned ring, unsigned long long seq, unsigned owner,
+                                                                  unsigned age, unsigned counts, unsigned flags) {
+    __shared__ unsigned long long best_key[64];
+    __shared__ unsigned best_slot[64], want_s[64], rank_s[64 / kWave];
+    const unsigned t = threadIdx.x;
+    // The wants, 64 experts a pass, kept in id order by their ranks.
+    unsigned n = 0;
+    for (unsigned base = 0; base < n_expert && n < ring; base += 64) {
+        const unsigned e = base + t;
+        const bool want = e < n_expert && (state[flags + e] & (kExpertPicked | kExpertDone)) == kExpertPicked && state[1 + e] == 0;
+        unsigned total = 0;
+        const unsigned r = block_rank<64>(want, total, rank_s);
+        if (want && n + r < ring) want_s[n + r] = e;
+        n += total;
+    }
+    n = n < ring ? n : ring;
+    __syncthreads();
+    const unsigned clock = state[0];
+    unsigned taken = 0;
+    for (unsigned i = 0; i < n; ++i) {
+        unsigned long long k = ~0ull;
+        unsigned s = 0xffffffffu;
+        for (unsigned u = t; u < slots; u += 64) {
+            const unsigned o = state[owner + u];
+            unsigned long long key;
+            if (o == 0) {
+                key = 0;
+            } else {
+                const unsigned f = state[flags + o - 1];
+                if ((f & (kExpertPicked | kExpertDone)) == kExpertPicked) continue;
+                const unsigned long long cls = !(f & kExpertPicked) ? 1 : (f & kExpertPulled) ? 2 : 3;
+                key = (cls << 32) | state[age + u];
+            }
+            if (key < k) k = key, s = u;
+        }
+        best_key[t] = k;
+        best_slot[t] = s;
+        __syncthreads();
+        for (unsigned w = 32; w > 0; w >>= 1) {
+            if (t < w && (best_key[t + w] < best_key[t] || (best_key[t + w] == best_key[t] && best_slot[t + w] < best_slot[t]))) {
+                best_key[t] = best_key[t + w];
+                best_slot[t] = best_slot[t + w];
+            }
+            __syncthreads();
+        }
+        const unsigned b = best_slot[0];
+        if (b == 0xffffffffu) break;
+        if (t == 0) {
+            const unsigned e = want_s[i], old = state[owner + b];
+            if (old != 0) state[1 + old - 1] = 0;
+            state[1 + e] = b + 1;
+            state[owner + b] = e + 1;
+            state[age + b] = clock;
+            state[flags + e] |= kExpertPulled;
+            atomic_store_relaxed_system(xchg + 4 + 2 * taken, (b << 16) | e);
+        }
+        ++taken;
+        __threadfence_block();
+        __syncthreads();
+    }
+    if (t == 0) {
+        state[counts + 1] += taken;
+        state[counts + 2 + (seq & 1)] = taken;
+        atomic_store_relaxed_system(xchg + 2, taken);
+        atomic_store_relaxed_system(xchg + 3, (unsigned)seq);
+        if (!taken) {
+            fence_acquire_system();
+            atomic_store_release_system((unsigned long long*)xchg, seq);
+        }
+    }
+}
+
+// The three stacks' ring entries and slots of a cache step, an expert's 16-byte units in each.
+struct ExpertStacks {
+    const uint4* ring[3];
+    uint4* dst[3];
+    unsigned long long stride[3];
+};
+
+// A wave's copies from the ring into slots once the reader has filled them: block (x, y) copies chunk x % chunks of stack y for pull x / chunks.
+// The ticket is read here: one below `seq` (a wait whose bound ended) or with its top bit (a failed read) copies nothing and sets the fault word the host reads.
+extern "C" __global__ void llmx_expert_pull(const unsigned* xchg, unsigned* fault, ExpertStacks st, unsigned chunks, unsigned long long chunk, unsigned long long seq, const unsigned* pulls) {
+    __shared__ unsigned word_s, entry_s, go_s;
+    const unsigned p = blockIdx.x / chunks;
+    // A block past the wave's pulls, which the wave left in device memory, ends without reading the exchange, which is host memory (docs/src/backends-expert_ring.md).
+    if (p >= *pulls) return;
+    if (threadIdx.x == 0) {
+        go_s = 0;
+        if (p < atomic_load_acquire_system(xchg + 2)) {
+            const unsigned long long ticket = atomic_load_acquire_system((const unsigned long long*)xchg);
+            if (ticket < seq || (ticket >> 63)) {
+                if (p == 0 && blockIdx.x % chunks == 0 && blockIdx.y == 0) atomic_store_relaxed_system(fault, 1u);
+            } else {
+                word_s = atomic_load_acquire_system(xchg + 4 + 2 * p);
+                entry_s = atomic_load_acquire_system(xchg + 5 + 2 * p);
+                go_s = 1;
+            }
+        }
+    }
+    __syncthreads();
+    if (!go_s) return;
+    const unsigned word = word_s, entry = entry_s, y = blockIdx.y;
+    const unsigned long long stride = st.stride[y], from = (unsigned long long)entry * stride, to = (unsigned long long)(word >> 16) * stride;
+    const unsigned long long first = (blockIdx.x % chunks) * chunk, last = first + chunk < stride ? first + chunk : stride;
+    for (unsigned long long i = first + threadIdx.x; i < last; i += kThreads) st.dst[y][to + i] = st.ring[y][from + i];
+}
+
+// A round's entries, one block: an entry whose expert the step still needs and is in a slot reads that slot, every other entry none; then those experts are done.
+// The last round stores the count of picked experts still outside a slot at `unplaced`, which the host reads as a fault: a short budget never drops a contribution silently.
+extern "C" __global__ void llmx_expert_round(const unsigned* ids, unsigned* out, unsigned* state, unsigned* unplaced, unsigned n_expert, unsigned entries, unsigned flags, unsigned last) {
+    __shared__ unsigned left_s;
+    const unsigned t = threadIdx.x;
+    if (t == 0) left_s = 0;
+    for (unsigned j = t; j < entries; j += kThreads) {
+        const unsigned e = ids[j];
+        out[j] = e < n_expert && (state[flags + e] & kExpertDone) == 0 && state[1 + e] ? state[1 + e] - 1 : kNoExpert;
+    }
+    __syncthreads();
+    unsigned left = 0;
+    for (unsigned e = t; e < n_expert; e += kThreads)
+        if ((state[flags + e] & (kExpertPicked | kExpertDone)) == kExpertPicked) {
+            if (state[1 + e]) state[flags + e] |= kExpertDone;
+            else ++left;
+        }
+    if (last && left) atomicAdd(&left_s, left);
+    __syncthreads();
+    if (t == 0 && left_s) atomic_store_relaxed_system(unplaced, left_s);
 }

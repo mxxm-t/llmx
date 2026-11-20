@@ -16,6 +16,8 @@
 // Backends own storage and parallelize primitive ops; models use buffer handles and own multi-device placement.
 // The execution and ownership contracts are in docs/DEVICE-EXECUTION.md.
 
+namespace format { class FileReader; }
+
 namespace backend {
 
 // Storage owned by the backend that allocated it.
@@ -27,6 +29,9 @@ public:
     // Non-null for nonempty host-addressable allocations: Memory::host_visible and all host-backend storage.
     // What it points at is current only after wait() or sync().
     virtual const void* host_ptr() const = 0;
+    // The file whose bytes at file_offset() are this buffer's, for a weight adopted with its file (Backend::adopt_file), else null.
+    virtual const format::FileReader* file() const { return nullptr; }
+    virtual uint64_t file_offset() const { return 0; }
 };
 using BufferPtr = std::shared_ptr<Buffer>;
 
@@ -48,9 +53,9 @@ inline size_t size_add(size_t a, size_t b) {
     return a + b;
 }
 
-// device memory may be unreachable from the host; host_visible permits host_ptr() access after retirement.
-// Both use the same storage on a host backend.
-enum class Memory { device, host_visible };
+// device memory may be unreachable from the host; host_visible permits host_ptr() access after retirement, and host_coherent is host memory the device and the host read while the other writes (the expert ring's).
+// All use the same storage on a host backend.
+enum class Memory { device, host_visible, host_coherent };
 
 // A submission.
 // `submit()` hands everything enqueued so far to the device and returns one; `wait()` blocks until that submission has retired.
@@ -185,6 +190,36 @@ struct MoeShared {
     float limit = 0.0f;  // silu_mul's clamp, 0 for none
     GluForm form = GluForm::silu;
 };
+// A layer's device expert cache (MoeStep::slots, Placement::expert_slots): `slots` experts of each stack in device memory, the state choosing them, and each stack's host source.
+// A step pulls its missing experts into slots through the device's ring in waves and runs its entries in rounds of what the slots hold (docs/src/backends-backend.md, moe_step).
+struct ExpertSlots {
+    Slice state;
+    std::weak_ptr<Buffer> state_owner;  // the state's buffer, at offset 0, which the ring zeroes on a fault while it lives
+    size_t slots = 0, n_expert = 0;
+    // The state's words, its one layout: the step clock, map[n_expert] (slot + 1, 0 none), owner[slots] (expert + 1, 0 none), age[slots], the counts, then flags[n_expert].
+    // The counts are the picked experts found in slots, the experts the waves pulled and each ring half's last wave's pulls, which its pull reads from device memory; faults and unplaced experts are the ring's (ExpertRing::faulted).
+    size_t owner_at() const { return 1 + n_expert; }
+    size_t age_at() const { return owner_at() + slots; }
+    size_t counts_at() const { return age_at() + slots; }
+    size_t flags_at() const { return counts_at() + 4; }
+    size_t words() const { return flags_at() + n_expert; }
+    struct Stack {
+        const Buffer* dst = nullptr;
+        const uint8_t* host = nullptr;  // the first expert in host memory
+        size_t stride = 0;              // an expert's bytes
+        const format::FileReader* file = nullptr;  // where given, the file the ring reads misses from, the first expert at file_at (Buffer::file)
+        uint64_t file_at = 0;
+    } stack[3];
+    // The ring's work for the layer, which its reader adds to: waves, the time it waited for a wave to retire and then read its experts, and the bytes it read.
+    // Of those, one-row steps' (decode) alone: the steps, the experts their waves pulled and the reads, during which the step's pull holds the device.
+    struct RingCounts {
+        std::atomic<uint64_t> waves{0}, wait_ns{0}, read_ns{0}, bytes{0};
+        std::atomic<uint64_t> one_steps{0}, one_pulled{0}, one_read_ns{0};
+    };
+    RingCounts* counts = nullptr;
+    // Experts read from a file are read in pieces of this many bytes over a pool, by the ring's reader and the CPU's read_experts.
+    static constexpr size_t kPiece = size_t(2) << 20;
+};
 // The F32 router's n_expert scores into router.out, a row's k picks and weights, each stack's n_expert matrices of gate.rows rows writing k rows a token, and the slot the SiLU writes.
 // `rule` picks and weighs the experts, `limit` clamps their GLU (0 for none) and `form` is the GLU's, `zero` clears y first and `scratch` holds the GLU's entry runs.
 struct MoeStep {
@@ -200,6 +235,7 @@ struct MoeStep {
     std::vector<RowRun>* scratch;
     float limit = 0.0f;
     GluForm form = GluForm::silu;
+    const ExpertSlots* slots = nullptr;  // the layer's device expert cache, or none
 };
 
 enum class NormGate : uint8_t { silu, sigmoid };
@@ -556,6 +592,7 @@ struct PassWidths {
     size_t sparse_named = 0;            // a sink attention row's named entries, 0 without one
     size_t index_compression = 0;       // the indexer's positions a score, 0 without an indexer
     size_t routed = 0;                  // routed slots a row, 0 without experts
+    bool expert_cache = false;          // routed layers run through the device expert cache, whose round names each entry's slot
     size_t expert_in = 0, expert_out = 0;   // a routed slot's widest input row (its act) and output row
     size_t shared_ff = 0;               // the fused routed step's shared act row, 0 without one
     size_t product_in = 0;              // the widest row a product reads
@@ -711,6 +748,11 @@ public:
     // Make src reachable by this backend's ops.
     // A backend that reads in place (reads_in_place) borrows src for the returned buffer's life and does not read it inside adopt; one that copies has consumed src when adopt returns, so the caller may release it then.
     virtual BufferPtr adopt(const void* src, size_t bytes) = 0;
+    // A weight whose `bytes` at src are also the bytes at `offset` of `file`: a backend that reads in place may read the parts an op uses from the file instead, and any other adopts src.
+    virtual BufferPtr adopt_file(const void* src, size_t bytes, std::shared_ptr<const format::FileReader> file, uint64_t offset) {
+        (void)file, (void)offset;
+        return adopt(src, bytes);
+    }
 
     // Storage for a weight the caller fills with write before any op reads it; it need not be zeroed, and the backend keeps it as it keeps an adopted weight.
     virtual BufferPtr alloc_weight(size_t bytes) { return alloc(bytes); }
@@ -1005,10 +1047,13 @@ public:
         matmul(m.router.weight, h, m.router.out, nin, m.router.rows, rows, runs, Dtype::f32);
         route_experts(m.router.out, rows, m.router.rows, m.k, m.rule, m.ids, m.weights);
     }
+    // Whether moe_step runs a step under a device expert cache (MoeStep::slots), which a placement with --expert-cache asks of its device before it is built.
+    virtual bool caches_experts() const { return false; }
 
     // A routed feed-forward step over the normed rows h (MoeStep): routing, the experts' SwiGLU and weighted down sum, then a shared expert's SwiGLU under its row gate, joining y.
     // The base runs those ops in that order; a device may fuse them where it gives the same bits.
     virtual void moe_step(const MoeStep& m, CSlice h, Slice y, size_t nin, size_t rows, RowRuns runs = {}, Dtype dtype = Dtype::f16) {
+        if (m.slots) throw std::runtime_error("backend: no device expert cache on this backend");
         if (m.zero) repeat_row(y, *m.zero, rows, nin);
         const size_t n_expert = m.router.rows, ff = m.gate.rows;
         moe_router(m, h, nin, rows, runs);
@@ -1020,6 +1065,10 @@ public:
         for (size_t i = 0; i < runs.n; ++i) entry_runs.push_back(RowRun{runs.runs[i].end * m.k, runs.runs[i].extent});
         silu_mul(m.act, m.gate.out, m.up.out, rows * m.k * ff, m.limit, {entry_runs.data(), entry_runs.size()}, m.form);
         matmul_experts_add(m.down, m.act, y, ff, nin, rows, routing, runs, dtype);
+        moe_shared(m, h, y, nin, rows, runs, dtype);
+    }
+    // A step's shared expert, its SwiGLU under its row gate joining y, where it has one.
+    void moe_shared(const MoeStep& m, CSlice h, Slice y, size_t nin, size_t rows, RowRuns runs, Dtype dtype) {
         if (!m.shared) return;
         const MoeShared& s = *m.shared;
         const bool gated = s.row_gate.weight.data.buffer != nullptr;

@@ -65,7 +65,118 @@ inline const MoeBuild* VulkanBackend::moe_build(const MoeStep& m, size_t nin, si
     return build;
 }
 
+// D1 of the fused step: the router's and the row gate's F32 rows, then the routing by the last workgroup.
+inline void VulkanBackend::moe_route_step(const MoeStep& m, CSlice h, size_t nin, size_t rows, bool normalize) {
+    const size_t n_expert = m.router.rows, k = m.k, entries = rows * k;
+    const MoeShared* s = m.shared;
+    const uint32_t S = dev_->caps.subgroup_size;
+    if (!moe_count_) {
+        // Zeroed once in stream order; every call's last workgroup sets it back to zero.
+        grow(moe_count_, sizeof(uint32_t));
+        VkCommandBuffer cmd = open();
+        settle(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT);
+        dev_->fn.vkCmdFillBuffer(cmd, moe_count_->handle(), 0, VK_WHOLE_SIZE, 0);
+        barrier(cmd);
+    }
+
+    {
+        const RowPlan plan = row_plan(quant::GGML_TYPE_F32, nin, Dtype::f32);
+        const int variant = rows == 1 ? 1 : 0;
+        const uint32_t per_group = (256 / S) * sg_rows(plan, variant), cols = build_cols(plan.kernel, variant);
+        const uint32_t gr = u32(groups(n_expert, per_group)), gg = s ? 1u : 0u, gy = u32((rows + cols - 1) / cols);
+        const uint32_t pc[26] = {u32(nin), u32(rows), 0, 0, plan.cluster, S / plan.cluster, s ? 2u : 1u,
+                                 u32(n_expert), quant::GGML_TYPE_F32, 0, 0, 1, quant::GGML_TYPE_F32, 0, gr, 0, 0, 0, 0, 0, 0, 0,
+                                 u32(n_expert), u32(k), normalize ? 1u : 0u, (gr + gg) * gy};
+        const VkDescriptorBufferInfo sc = bind(m.router.out), hf = bind(h), rw = bind(m.router.weight.data);
+        const VkDescriptorBufferInfo sg = s ? bind(s->row_gate.out) : sc, gw = s ? bind(s->row_gate.weight.data) : rw;
+        dispatch(moe_route_kernel(n_expert), {sc, sg, sc, rw, gw, rw, rw, gw, rw, rw, gw, rw, hf, rw, gw, rw, hf, hf, hf, hf, hf, hf,
+                                             sc, bind(m.ids), bind(m.weights), VkDescriptorBufferInfo{moe_count_->handle(), 0, VK_WHOLE_SIZE}},
+                 pc, sizeof(pc), gr + gg, gy, variant, {rows * n_expert, s ? rows : 0, rows * n_expert, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                                       0, entries, entries, 1});
+        group_tag_ = GroupTag{};
+    }
+}
+
+// A cached step (ExpertSlots): route as the step without the cache would, mark the picks, then rounds of waves and products in ExpertRing::run's order.
+// Each round's down products stay parts in moe_out_ until one combine in j order, then the shared expert joins y as the base's ops add it.
+inline void VulkanBackend::cached_step(const MoeStep& m, CSlice h, Slice y, size_t nin, size_t rows, RowRuns runs, Dtype dtype) {
+    const ExpertSlots& c = *m.slots;
+    const size_t n_expert = m.router.rows, k = m.k, ff = m.gate.rows, entries = size_mul(rows, k);
+    if (n_expert != c.n_expert || c.slots > 0xffff || n_expert > 0xffff || m.gate.weight.scales.buffer || m.up.weight.scales.buffer || m.down.scales.buffer)
+        throw std::runtime_error("vulkan: an expert cache step of another expert count, over 65535 slots or experts, or of scaled stacks");
+    const OpSteps steps(*this);
+    ExpertRing& ring = ExpertRing::of(expert_ring_, *this, c, "vulkan: ");
+    constexpr size_t chunk = 65536;
+    ExpertRing::Source src{};
+    uint32_t strides[3];
+    size_t chunks = 0;
+    for (int i = 0; i < 3; ++i) {
+        const ExpertSlots::Stack& st = c.stack[i];
+        if (st.stride % 16 || !st.host || bytes_from(CSlice(st.dst, 0)) < c.slots * st.stride || st.stride > ring.entry(i))
+            throw std::runtime_error("vulkan: an expert cache stack off its alignment, outside its allocation or wider than the ring");
+        strides[i] = u32(st.stride / 16);
+        src.at[i] = st.host;
+        src.stride[i] = st.stride;
+        src.file[i] = st.file;
+        src.file_at[i] = st.file_at;
+        chunks = std::max<size_t>(chunks, groups(st.stride, chunk));
+    }
+    ExpertRing::count_step(src, c, rows);
+    // The routing the step without the cache takes: the fused route where that step fuses, else the base's.
+    const bool fused = m.rule.score == RouteRule::Score::softmax && m.limit == 0.0f && !(m.shared && m.shared->limit != 0.0f) && moe_build(m, nin, rows, runs, dtype);
+    if (m.zero) repeat_row(y, *m.zero, rows, nin);
+    if (fused) {
+        moe_route_step(m, h, nin, rows, m.rule.softmax_only("vulkan"));
+    } else {
+        moe_router(m, h, nin, rows, runs);
+    }
+    if (!expert_ids_ || expert_ids_->size() < entries * sizeof(uint32_t)) grow(expert_ids_, entries * sizeof(uint32_t));
+    const uint32_t ne = u32(n_expert), en = u32(entries), sl = u32(c.slots), hw = u32(ring.half()), fl = u32(c.flags_at());
+    const VkDescriptorBufferInfo state = bind(c.state), xchg = bind(CSlice(&ring.exchange_buffer(), 0)), round_ids = bind(CSlice(expert_ids_.get(), 0));
+    const size_t xwords = ExpertRing::words(ring.half());
+    const uint32_t mc[5] = {ne, en, u32(c.age_at()), u32(c.counts_at()), fl};
+    dispatch(K_EXPERT_MARK, {bind(m.ids), state}, mc, sizeof(mc), 1, 1, 0, {0, c.words()});
+    const uint32_t ticks = (uint32_t)std::min<double>(4.0e9, kRingWaitMs * 1.0e6 / std::max(dev_->timestamp_ns, 1e-3));
+    const auto wave = [&] {
+        const uint64_t seq = ring.next();
+        const uint32_t wc[9] = {ne, sl, hw, uint32_t(seq), u32(c.owner_at()), u32(c.age_at()), u32(c.counts_at()), fl, u32(ring.half_at(seq))};
+        dispatch(K_EXPERT_WAVE, {state, xchg}, wc, sizeof(wc), 1, 1, 0, {c.words(), xwords});
+        ring.request(submit(), seq, src);
+        return seq;
+    };
+    // The hold spins on the half's ticket, which the reader writes once the wave's experts are in the ring, then the pull copies them into their slots.
+    const auto whole = [&](const Buffer* b) { return bind(CSlice(b, 0)); };
+    const auto pull = [&](uint64_t seq) {
+        const size_t at = ring.half_at(seq);
+        const uint32_t hc[2] = {uint32_t(seq), ticks};
+        dispatch(K_HOLD, {bind(CSlice(&ring.exchange_buffer(), at))}, hc, sizeof(hc), 1);
+        const uint32_t pc[9] = {u32(chunks), u32(chunk / 16), strides[0], strides[1], strides[2], u32(at), uint32_t(seq), u32(ExpertRing::kFault), u32(c.counts_at() + 2 + (seq & 1))};
+        dispatch(K_EXPERT_PULL, {xchg, whole(&ring.entries(0)), whole(&ring.entries(1)), whole(&ring.entries(2)), whole(c.stack[0].dst), whole(c.stack[1].dst),
+                                 whole(c.stack[2].dst), state},
+                 pc, sizeof(pc), u32(ring.half() * chunks), 3);
+    };
+    const auto round = [&](size_t, bool last) {
+        const uint32_t rc[5] = {ne, en, fl, last ? 1u : 0u, u32(ExpertRing::kUnplaced)};
+        dispatch(K_EXPERT_ROUND, {bind(m.ids), round_ids, state, xchg}, rc, sizeof(rc), 1, 1, 0, {0, entries, c.words(), xwords});
+    };
+    if (!moe_out_ || moe_out_->size() < entries * nin * sizeof(float)) grow(moe_out_, entries * nin * sizeof(float));
+    std::vector<RowRun>& entry_runs = *m.scratch;
+    entry_runs.clear();
+    for (size_t i = 0; i < runs.n; ++i) entry_runs.push_back(RowRun{runs.runs[i].end * k, runs.runs[i].extent});
+    // A round's products: entries outside it read no expert, so their parts in moe_out_ keep the rounds before, which nothing else writes until the combine.
+    const auto products = [&] {
+        const Routing routing{CSlice(expert_ids_.get(), 0), m.weights, k, c.slots};
+        matmul_experts({m.gate, m.up}, h, nin, rows, routing, runs, dtype);
+        silu_mul(m.act, m.gate.out, m.up.out, entries * ff, m.limit, {entry_runs.data(), entry_runs.size()}, m.form);
+        routed_parts(m.down, m.act, ff, nin, rows, routing, runs, dtype);
+    };
+    ExpertRing::run(ring.plan(entries, n_expert, c.slots), wave, pull, round, products);
+    combine_parts(y, nin, rows, Routing{m.ids, m.weights, k, n_expert});
+    moe_shared(m, h, y, nin, rows, runs, dtype);
+}
+
 inline void VulkanBackend::moe_step(const MoeStep& m, CSlice h, Slice y, size_t nin, size_t rows, RowRuns runs, Dtype dtype) {
+    if (m.slots) return cached_step(m, h, y, nin, rows, runs, dtype);
     // The fused step has the softmax rule, no clamp and the silu GLU; another rule, a clamp or another GLU runs the base's ops.
     if (m.rule.score != RouteRule::Score::softmax || m.limit != 0.0f || m.form != GluForm::silu || (m.shared && (m.shared->limit != 0.0f || m.shared->form != GluForm::silu))) return Backend::moe_step(m, h, y, nin, rows, runs, dtype);
     const bool normalize = m.rule.softmax_only("vulkan");
@@ -105,32 +216,7 @@ inline void VulkanBackend::moe_step(const MoeStep& m, CSlice h, Slice y, size_t 
             return Backend::moe_step(m, h, y, nin, rows, runs, dtype);
     }
     if (m.zero && bytes_from(CSlice(m.zero, 0)) < E * sizeof(float)) throw std::runtime_error("vulkan: routed step zero row outside its allocation");
-    if (!moe_count_) {
-        // Zeroed once in stream order; every call's last workgroup sets it back to zero.
-        grow(moe_count_, sizeof(uint32_t));
-        VkCommandBuffer cmd = open();
-        settle(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT);
-        dev_->fn.vkCmdFillBuffer(cmd, moe_count_->handle(), 0, VK_WHOLE_SIZE, 0);
-        barrier(cmd);
-    }
-
-    // D1: the router's and the row gate's F32 rows, then the routing by the last workgroup.
-    {
-        const RowPlan plan = row_plan(quant::GGML_TYPE_F32, nin, Dtype::f32);
-        const int variant = rows == 1 ? 1 : 0;
-        const uint32_t per_group = (256 / S) * sg_rows(plan, variant), cols = build_cols(plan.kernel, variant);
-        const uint32_t gr = u32(groups(n_expert, per_group)), gg = s ? 1u : 0u, gy = u32((rows + cols - 1) / cols);
-        const uint32_t pc[26] = {u32(nin), u32(rows), 0, 0, plan.cluster, S / plan.cluster, s ? 2u : 1u,
-                                 u32(n_expert), quant::GGML_TYPE_F32, 0, 0, 1, quant::GGML_TYPE_F32, 0, gr, 0, 0, 0, 0, 0, 0, 0,
-                                 u32(n_expert), u32(k), normalize ? 1u : 0u, (gr + gg) * gy};
-        const VkDescriptorBufferInfo sc = bind(m.router.out), hf = bind(h), rw = bind(m.router.weight.data);
-        const VkDescriptorBufferInfo sg = s ? bind(s->row_gate.out) : sc, gw = s ? bind(s->row_gate.weight.data) : rw;
-        dispatch(moe_route_kernel(n_expert), {sc, sg, sc, rw, gw, rw, rw, gw, rw, rw, gw, rw, hf, rw, gw, rw, hf, hf, hf, hf, hf, hf,
-                                             sc, bind(m.ids), bind(m.weights), VkDescriptorBufferInfo{moe_count_->handle(), 0, VK_WHOLE_SIZE}},
-                 pc, sizeof(pc), gr + gg, gy, variant, {rows * n_expert, s ? rows : 0, rows * n_expert, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                                       0, entries, entries, 1});
-        group_tag_ = GroupTag{};
-    }
+    moe_route_step(m, h, nin, rows, normalize);
     const Routing routing{m.ids, m.weights, k, n_expert};
     std::vector<RowRun>& entry_runs = *m.scratch;
     entry_runs.clear();

@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "backends/backend.hpp"
+#include "backends/expert_ring.hpp"
 #include "backends/cpu/cpu_backend.hpp"
 #include "core/host_memory.hpp"
 #include "model/weights.hpp"
@@ -397,7 +398,8 @@ struct PlacementRequest {
     std::vector<int> shares;          // each backend's proportion of the layers; empty to fit them to the devices' free memory
     int cpu_moe = 0;                  // the routed layers whose experts run on a CPU placed before the devices, -1 for every one
     size_t stream_from = 0;           // with experts on the CPU, the prompt length from which they are copied to the device (Placement::stream_from)
-    int ubatch = 0;                   // prompt tokens a pass takes, kDefaultUbatch when 0
+    size_t expert_cache = 0;          // with experts on the CPU, device bytes for their slots (Placement::expert_slots), 0 for none
+    int ubatch = 0;                   // prompt tokens a pass takes, pass_ubatch's default when 0
     size_t decode_rows = 0;           // generated tokens a pass may carry beside a prompt's: a server's decoding requests
     size_t draft_rows = 0;            // draft rows a pass may carry beside a prompt's and the generated tokens': a server's verifies
     size_t slots = 0;                 // passes the caller keeps in flight (Model::reserve_passes), each with a handoff buffer on every stage but the last, two at least, which a split's fit counts
@@ -523,7 +525,7 @@ inline bool adds_host_for_experts(const std::vector<backend::BackendPtr>& backen
 
 // The rows of a pass the fit counts: a ubatch of prompt rows, the generated tokens' and a verify's drafts.
 inline size_t fitted_rows(const PlacementRequest& request) {
-    return (size_t)(request.ubatch > 0 ? request.ubatch : kDefaultUbatch) + request.decode_rows + request.draft_rows;
+    return (size_t)pass_ubatch(request.ubatch, request.expert_cache) + request.decode_rows + request.draft_rows;
 }
 
 // The rows of the replies' arena a server keeps beside its passes' above one pass in flight: its generated tokens' and a verify's drafts (Scheduler, Model::reserve_passes).
@@ -561,6 +563,121 @@ inline bool host_reads_in_place(const std::vector<backend::BackendPtr>& backends
 }
 
 // Whether the request puts routed layer l's feed-forward block on the CPU beside its devices: the first `cpu_moe` routed layers, or every one, whichever device runs their mixers.
+inline bool ffn_on_host(const PlacementRequest& request, const std::vector<LayerPlan>& layers, size_t l);
+
+// The most slots each layer of experts on the CPU keeps on its device under --expert-cache, the SIZE's cap: its bytes spread evenly over those layers by their largest expert, at most every expert.
+// `expert`, where given, takes the largest expert's bytes.
+inline size_t expert_slots(const ModelWeights& weights, const ModelPlan& plan, const PlacementRequest& request, size_t* expert_out = nullptr) {
+    if (!request.expert_cache) return 0;
+    size_t layers = 0, expert = 0, n_expert = 0;
+    for (size_t l = 0; l < plan.layers.size(); ++l) {
+        if (!ffn_on_host(request, plan.layers, l)) continue;
+        ++layers;
+        size_t bytes = 0;
+        for (const Role& role : plan.layers[l].roles)
+            if (role.stream == Stream::window && role.tensor && role.experts) {
+                bytes += weights.tensors[*role.tensor].bytes / role.experts;
+                n_expert = std::max<size_t>(n_expert, role.experts);
+            }
+        expert = std::max(expert, bytes);
+    }
+    if (!layers || !expert) return 0;
+    // A pull word names its slot and expert in 16 bits each (llmx_expert_wave); slots never outnumber experts.
+    if (n_expert > 0xffff) throw std::runtime_error("--expert-cache: " + std::to_string(n_expert) + " experts a layer, more than the 65535 the cache names");
+    const size_t slots = std::min(n_expert, request.expert_cache / layers / expert);
+    if (!slots) throw std::runtime_error("--expert-cache: " + std::to_string(request.expert_cache) + " bytes hold no expert a layer, which takes " + std::to_string(expert));
+    if (expert_out) *expert_out = expert;
+    return slots;
+}
+
+// The host memory the device expert caches' rings take, a ring a device of 2 * ExpertRing::kHalf entries of the largest expert, which the fit counts beside the split's host memory.
+inline size_t expert_rings(const ModelWeights& weights, const ModelPlan& plan, const PlacementRequest& request, size_t devices) {
+    size_t expert = 0;
+    if (!expert_slots(weights, plan, request, &expert)) return 0;
+    return backend::size_mul(devices, backend::size_mul(2 * backend::ExpertRing::kHalf, expert));
+}
+
+// The plan the devices hold with experts on the CPU: those layers' feed-forward roles go, but for the copies a streamed layer adopts on its mixer's device (Stream::copy).
+inline ModelPlan device_held_plan(const ModelPlan& plan, const PlacementRequest& request) {
+    ModelPlan held = plan;
+    const bool streamed = request.expert_cache || request.stream_from;
+    for (size_t l = 0; l < held.layers.size(); ++l)
+        if (ffn_on_host(request, plan.layers, l))
+            for (Role& role : held.layers[l].roles)
+                if (role.part == Part::ffn && !(streamed && role.stream == Stream::copy)) role.tensor.reset();
+    return held;
+}
+
+// One cached layer's slots as the device allocates them (backend::ExpertSlots): the slots' state words and `n` experts of each window stack of the largest cached layer, whose expert takes `expert` bytes (expert_slots).
+inline std::vector<Matrix> slot_matrices(const ModelWeights& weights, const ModelPlan& plan, const PlacementRequest& request, size_t expert, size_t n) {
+    std::vector<std::pair<uint32_t, size_t>> stacks;
+    size_t n_expert = 0;
+    for (size_t l = 0; l < plan.layers.size(); ++l) {
+        if (!ffn_on_host(request, plan.layers, l)) continue;
+        std::vector<std::pair<uint32_t, size_t>> s;
+        size_t bytes = 0;
+        for (const Role& role : plan.layers[l].roles)
+            if (role.stream == Stream::window && role.tensor && role.experts) {
+                const TensorView& t = weights.tensors[*role.tensor];
+                s.push_back({t.type, t.bytes / role.experts});
+                bytes += t.bytes / role.experts;
+                n_expert = std::max<size_t>(n_expert, role.experts);
+            }
+        if (bytes == expert && stacks.empty()) stacks = std::move(s);
+    }
+    backend::ExpertSlots state;
+    state.slots = n, state.n_expert = n_expert;
+    std::vector<Matrix> out{Matrix{quant::GGML_TYPE_F32, 0, 1, backend::size_mul(state.words(), sizeof(uint32_t)), false}};
+    for (const auto& [type, stride] : stacks) out.push_back(Matrix{type, 0, 1, backend::size_mul(n, stride), false});
+    return out;
+}
+
+// Under --expert-cache each cached layer's footprint keeps one slot, so neither the KV budget nor the split takes the room an expert a layer needs (cached_slots gives the slots the rest).
+inline void reserve_slot(Footprint& fp, const ModelWeights& weights, const ModelPlan& plan, const PlacementRequest& request) {
+    size_t expert = 0;
+    if (!request.expert_cache || !request.cpu_moe || !expert_slots(weights, plan, request, &expert)) return;
+    const std::vector<Matrix> one = slot_matrices(weights, plan, request, expert, 1);
+    fp.widths.expert_cache = true;
+    for (size_t l = 0; l < fp.layers.size() && l < plan.layers.size(); ++l)
+        if (ffn_on_host(request, plan.layers, l)) fp.layers[l].insert(fp.layers[l].end(), one.begin(), one.end());
+}
+
+// The slots each layer of experts on the CPU keeps on its mixer's device (Placement::expert_slots): what the split leaves the device, spread over its cached layers as it allocates them (DeviceBudget::resident).
+// No layer takes more than the SIZE's cap (expert_slots); a device whose free memory is unknown takes the cap, and one with no room for an expert a layer is refused.
+inline std::vector<size_t> cached_slots(const ModelWeights& weights, const ModelPlan& plan, const PlacementRequest& request, const LayerSplit& split, const std::vector<DeviceBudget>& devices) {
+    std::vector<size_t> slots(plan.layers.size(), 0);
+    size_t expert = 0;
+    const size_t cap = expert_slots(weights, plan, request, &expert);
+    if (!cap) return slots;
+    const auto layer_bytes = [&](const DeviceBudget& device, size_t n) {
+        size_t b = 0;
+        for (const Matrix& m : slot_matrices(weights, plan, request, expert, n)) b = backend::size_add(b, device.resident ? device.resident(m) : m.bytes);
+        return b;
+    };
+    for (size_t d = 0; d < split.stages.size(); ++d) {
+        const LayerSplit::Stage& st = split.stages[d];
+        size_t layers = 0;
+        for (const auto& [f, c] : st.runs)
+            for (int l = f; l < f + c; ++l) layers += ffn_on_host(request, plan.layers, (size_t)l) ? 1 : 0;
+        if (!layers) continue;
+        size_t n = cap;
+        if (devices[d].bytes) {
+            const size_t kept = backend::size_mul(layers, layer_bytes(devices[d], 1));
+            const size_t used = backend::size_add(backend::size_add(st.weights > kept ? st.weights - kept : 0, st.cache), st.other);
+            const size_t room = *devices[d].bytes > used ? *devices[d].bytes - used : 0;
+            n = std::min(cap, room / layers / expert);
+            while (n && backend::size_mul(layers, layer_bytes(devices[d], n)) > room) --n;
+        }
+        if (!n)
+            throw std::runtime_error("--expert-cache: " + devices[d].name + " has no room beside its layers for an expert of each of its " + std::to_string(layers) + " cached layers, which takes " +
+                                     std::to_string(expert) + " bytes");
+        for (const auto& [f, c] : st.runs)
+            for (int l = f; l < f + c; ++l)
+                if (ffn_on_host(request, plan.layers, (size_t)l)) slots[(size_t)l] = n;
+    }
+    return slots;
+}
+
 inline bool ffn_on_host(const PlacementRequest& request, const std::vector<LayerPlan>& layers, size_t l) {
     if (!layers[l].routed) return false;
     size_t before = 0;
@@ -612,21 +729,14 @@ inline size_t kv_search_bound(size_t context, std::optional<size_t> free, size_t
 inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan, const std::vector<backend::BackendPtr>& backends,
                               const PlacementRequest& request, ModelOptions options, size_t* given_up = nullptr,
                               std::vector<DeviceBudget>* read = nullptr, std::string* kept_context = nullptr,
-                              size_t host_bytes = 0, const ModelWeights* resident = nullptr) {
+                              size_t host_bytes = 0, const ModelWeights* resident = nullptr, std::optional<size_t> host_room = core::host_memory_available()) {
     size_t block = 1;
     for (const auto& b : backends) {
         if (!b) throw std::runtime_error("inference: missing backend");
         block = std::max(block, b->kv_layout().block_tokens);
     }
-    // What the devices hold of a plan: beside experts on the CPU, not those layers' feed-forward blocks.
-    const auto held_of = [&](ModelPlan p) {
-        if (adds_host_for_experts(backends, request))
-            for (size_t l = 0; l < p.layers.size(); ++l)
-                if (ffn_on_host(request, plan.layers, l))
-                    for (Role& role : p.layers[l].roles)
-                        if (role.part == Part::ffn) role.tensor.reset();
-        return p;
-    };
+    // What the devices hold of a plan beside experts on the CPU (device_held_plan).
+    const auto held_of = [&](const ModelPlan& p) { return adds_host_for_experts(backends, request) ? device_held_plan(p, request) : p; };
     // The no-drafter fit reads the plan without the embedded drafter, whose roles, cache and arena slots only drafting takes.
     ModelPlan undrafted = plan.drafter ? plan_model(weights) : ModelPlan{};
     if (plan.drafter) settle_cache(undrafted, options);
@@ -640,6 +750,8 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
     const std::optional<size_t> logits = request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt;
     std::string why;
     size_t kept = options.checkpoint_slots;
+    // A cache of no slot is refused here by name rather than as a fit that does not hold (reserve_slot).
+    if (request.expert_cache && request.cpu_moe) expert_slots(weights, plan, request);
     const auto fits = [&](size_t tokens) {
         ModelOptions o = options;
         o.kv_tokens = tokens;
@@ -648,7 +760,8 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
             try {
                 Footprint fp = footprint(source, *fitting, o, request.width);
                 fp.host_state = backend::size_add(fp.host_state, host_bytes);
-                split_layers(fp, group_budgets(budgets, request.width, sum_width(plan)), rows, request.shares, core::host_memory_available(),
+                reserve_slot(fp, weights, plan, request);
+                split_layers(fp, group_budgets(budgets, request.width, sum_width(plan)), rows, request.shares, host_room,
                              std::max<size_t>(1, request.slots), logits, reply_rows(request), request.rounds);
                 return true;
             } catch (const std::runtime_error& e) {
@@ -803,7 +916,8 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
     const size_t need = history_need(request, plan.context_length, block);
     if (tokens < need)
         throw std::runtime_error("placement: the devices hold " + std::to_string(tokens) + " KV tokens beside the model, fewer than the " + std::to_string(need) +
-                                 " the request needs (" + why + ")");
+                                 " the request needs (" + why + ")" +
+                                 (request.expert_cache && request.ubatch <= 0 ? "; under --expert-cache a prompt pass takes " + std::to_string(kCachedUbatch) + " rows, so give --ubatch 512 or a larger --n-cpu-moe" : ""));
     options.kv_tokens = tokens;
     options.kv_backed = true;
     options.checkpoint_slots = kept;
@@ -811,7 +925,7 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
 }
 
 // Gives each table read from its file its share of the rows' budget (host_shares) by its bytes a token, at most the rows of kRowStoreTokens tokens and every row the table has.
-inline void hold_rows(const ModelPlan& plan, const std::vector<LookupCandidate>& candidates, std::optional<size_t> given) {
+inline void hold_rows(const ModelPlan& plan, const std::vector<LookupCandidate>& candidates, std::optional<size_t> given, std::optional<size_t> host_room) {
     std::vector<size_t> per_token(candidates.size(), 0), cap(candidates.size(), 0);
     size_t caps = 0;
     long double weight = 0;
@@ -826,7 +940,7 @@ inline void hold_rows(const ModelPlan& plan, const std::vector<LookupCandidate>&
         weight += (long double)per_token[i] * (long double)t.row_bytes();
     }
     // A table whose part reaches its cap takes the cap, and what it leaves goes to the others by their bytes a token.
-    size_t left = host_shares(given, core::host_memory_available(), caps).rows;
+    size_t left = host_shares(given, host_room, caps).rows;
     std::vector<size_t> give(candidates.size(), 0);
     std::vector<char> capped(candidates.size(), 0);
     for (bool again = true; again && weight > 0;) {
@@ -849,13 +963,18 @@ inline void hold_rows(const ModelPlan& plan, const std::vector<LookupCandidate>&
 // The placement over one backend or split by layers over several, with the first `cpu_moe` routed layers' experts on a CPU beside them, before model buffers exist.
 // The CPU is device 0 of an experts placement, so the thread count the model reports is the host's; the mixers, the dense blocks, the embedding and the head stay on the devices.
 inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<backend::BackendPtr> backends, PlacementRequest request,
-                                   ModelOptions options, const std::vector<LookupCandidate>& candidates = {}) {
+                                   ModelOptions options, const std::vector<LookupCandidate>& candidates = {}, bool experts_mapped = false,
+                                   std::optional<size_t> host_room = core::host_memory_available()) {
     if (backends.empty()) throw std::runtime_error("placement: no device");
     if (!request.width || backends.size() % request.width)
         throw std::runtime_error("placement: a tensor width of " + std::to_string(request.width) + " needs whole groups of devices, and " + std::to_string(backends.size()) + " were given");
     if (request.width > 1 && request.cpu_moe) throw std::runtime_error(std::string(request.cpu_moe < 0 ? "--cpu-moe" : "--n-cpu-moe") + ": not with a tensor split");
     if (request.stream_from && !request.cpu_moe)
         throw std::runtime_error("--moe-stream-from: only experts on the CPU are streamed; give --n-cpu-moe or --cpu-moe");
+    if (request.expert_cache && !request.cpu_moe) throw std::runtime_error("--expert-cache: only experts on the CPU are cached; give --n-cpu-moe or --cpu-moe");
+    if (request.expert_cache && std::any_of(backends.begin(), backends.end(), [](const backend::BackendPtr& b) { return b && b->is_cpu(); }))
+        throw std::runtime_error("--expert-cache: not with the CPU as a device; the cache holds experts on a Vulkan, ROCm or CUDA device");
+    if (request.expert_cache && request.stream_from) throw std::runtime_error("--expert-cache: not with --moe-stream-from; the cache already runs a prompt's experts on the device");
     ModelPlan plan = plan_model(weights, request.drafter);
     settle_cache(plan, options);
     std::optional<ModelWeights> bounded;
@@ -889,7 +1008,7 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
         bounded->tensors[candidate.tensor].row_source = candidate.file;
     }
     // A table the request puts on the devices reads nothing from its file, so only the others hold rows.
-    if (request.lookup_storage != LookupStorage::device) hold_rows(plan, candidates, request.host_budget);
+    if (request.lookup_storage != LookupStorage::device) hold_rows(plan, candidates, request.host_budget, host_room);
     // A width the model's shards cannot take is refused by its name here, before the fit reads a member's shards, and so is a malformed split.
     shard::check_plan(plan, weights.tensors, request.width);
     check_split(backends.size() / request.width, request.shares);
@@ -926,9 +1045,9 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
         resident = weights;
         for (const LookupCandidate& candidate : candidates) resident->tensors[candidate.tensor].row_source.reset();
     }
-    // A lookup's host admission counts the expert payload already retained beside the device as well.
+    // A lookup's host admission counts the expert payload the host holds in its own memory beside the device as well; experts read in place from the mapping are page cache the kernel reclaims and count nothing.
     size_t host_experts = 0;
-    if (!candidates.empty() && adds_host_for_experts(backends, request)) {
+    if (!candidates.empty() && adds_host_for_experts(backends, request) && !experts_mapped) {
         std::vector<size_t> counted;
         for (size_t l = 0; l < plan.layers.size(); ++l)
             if (ffn_on_host(request, plan.layers, l))
@@ -944,7 +1063,7 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
     std::vector<DeviceBudget> budgets;
     const size_t asked = kv_tokens(plan, options);
     options = fitted_kv(bounded ? *bounded : weights, plan, backends, request, options, &placed.checkpoint_kv_tokens, &budgets,
-                        &placed.kv_kept_context, host_experts, resident ? &*resident : nullptr);
+                        &placed.kv_kept_context, host_experts, resident ? &*resident : nullptr, host_room);
     placed.kv_cut = kv_tokens(plan, options) < asked;
     backend::BackendPtr host;
     std::vector<backend::BackendPtr> all = backends;
@@ -961,13 +1080,7 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
     // All choices use the baseline fit's KV budget and the same reading of free memory; a table read from its file costs only its row staging.
     std::optional<LayerSplit> selected;
     if (!candidates.empty()) {
-        ModelPlan held = plan;
-        if (adds_host_for_experts(backends, request))
-            for (size_t l = 0; l < held.layers.size(); ++l)
-                if (ffn_on_host(request, plan.layers, l))
-                    for (Role& role : held.layers[l].roles)
-                        if (role.part == Part::ffn) role.tensor.reset();
-        const std::optional<size_t> host_room = core::host_memory_available();
+        const ModelPlan held = adds_host_for_experts(backends, request) ? device_held_plan(plan, request) : plan;
         const auto lookup_footprint = [&] {
             ModelWeights choice = *bounded;
             for (size_t i = 0; i < candidates.size(); ++i)
@@ -1041,18 +1154,16 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
         if (request.cpu_moe && !experts_host)
             throw std::runtime_error(experts_flag + ": not with the CPU as a device of a split; list the devices without the CPU, or the CPU alone");
         const size_t rows = fitted_rows(request);
-        ModelPlan held = plan;
-        if (experts_host)
-            for (size_t l = 0; l < held.layers.size(); ++l)
-                if (ffn_on_host(request, plan.layers, l))
-                    for (Role& role : held.layers[l].roles)
-                        if (role.part == Part::ffn) role.tensor.reset();
-        const Footprint fp = footprint(weights, held, options, request.width);
+        Footprint fp = footprint(weights, experts_host ? device_held_plan(plan, request) : plan, options, request.width);
+        if (experts_host) reserve_slot(fp, weights, plan, request);
+        // A device expert cache's rings take host memory beside the split; its slots take what the split leaves each device (cached_slots).
+        const size_t rings = experts_host ? expert_rings(weights, plan, request, backends.size()) : 0;
+        const std::optional<size_t> room = host_room ? std::optional<size_t>(*host_room > rings ? *host_room - rings : 0) : std::nullopt;
         std::optional<LayerSplit> split;
         std::exception_ptr refused;
         auto fit = [&] {
             try {
-                split = split_layers(fp, group_budgets(budgets, request.width, sum_width(plan)), rows, request.shares, core::host_memory_available(), request.slots,
+                split = split_layers(fp, group_budgets(budgets, request.width, sum_width(plan)), rows, request.shares, room, request.slots,
                                      request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt, reply_rows(request), request.rounds);
                 return true;
             } catch (const std::runtime_error&) {
@@ -1073,6 +1184,11 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
             ++place.embed_device;
             ++place.output_device;
             place.stream_from = request.stream_from;
+            if (request.expert_cache) {
+                for (size_t d = 0; d < backends.size(); ++d)
+                    if (!backends[d]->caches_experts()) throw std::runtime_error("--expert-cache: the device has no expert cache; it runs on a Vulkan, ROCm or CUDA device");
+                place.expert_slots = cached_slots(weights, plan, request, *split, group_budgets(budgets, request.width, sum_width(plan)));
+            }
         }
     } else if (!experts_host) {
         placed.placement = Placement{};
@@ -1085,6 +1201,19 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
         place.stream_from = request.stream_from;
         for (size_t l = 0; l < n_layer; ++l)
             if (ffn_on_host(request, plan.layers, l)) place.ffn_device[l] = 0;
+        if (request.expert_cache) {
+            if (!backends[0]->caches_experts()) throw std::runtime_error("--expert-cache: the device has no expert cache; it runs on a Vulkan, ROCm or CUDA device");
+            // The device's room is what the split of its one stage leaves, the rings counted in the host's.
+            const ModelPlan held = device_held_plan(plan, request);
+            const size_t rings = expert_rings(weights, plan, request, 1);
+            const std::optional<size_t> room = host_room ? std::optional<size_t>(*host_room > rings ? *host_room - rings : 0) : std::nullopt;
+            const std::vector<DeviceBudget> one = group_budgets(budgets, request.width, sum_width(plan));
+            Footprint fp = footprint(weights, held, options, request.width);
+            reserve_slot(fp, weights, plan, request);
+            const LayerSplit split = split_layers(fp, one, fitted_rows(request), request.shares, room, request.slots,
+                                                  request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt, reply_rows(request));
+            place.expert_slots = cached_slots(weights, plan, request, split, one);
+        }
         placed.placement = std::move(place);
     }
     placed.backends = std::move(all);
@@ -1109,7 +1238,8 @@ inline PlacedModel construct_model(const ModelWeights& weights, PlannedModel pla
 inline std::vector<size_t> reserve_scratch(const ModelWeights& weights, const PlannedModel& planned, const PlacementRequest& request) {
     const Placement& pl = planned.placement;
     const size_t width = std::max<size_t>(1, pl.width), rows = fitted_rows(request);
-    const Footprint fp = footprint(weights, planned.architecture, planned.options, width);
+    Footprint fp = footprint(weights, planned.architecture, planned.options, width);
+    reserve_slot(fp, weights, planned.architecture, request);
     std::vector<bool> used(planned.backends.size(), false);
     const auto use = [&](int first) {
         for (size_t m = 0; m < width && size_t(first) + m < used.size(); ++m) used[size_t(first) + m] = true;
@@ -1173,7 +1303,7 @@ inline PlacedModel build_fitted(const ModelWeights& weights, PlannedModel planne
         std::vector<size_t> short_by(backends.size(), 0);
         std::exception_ptr failed;
         try {
-            PlacedModel placed = construct_model(weights, planned, request.ubatch, adopt);
+            PlacedModel placed = construct_model(weights, planned, pass_ubatch(request.ubatch, request.expert_cache), adopt);
             const std::vector<size_t> arenas = reserve_scratch(weights, planned, request);
             for (size_t d = 0; again && d < backends.size(); ++d) {
                 if (!device(backends[d]) || !per_block[d]) continue;

@@ -25,6 +25,7 @@
 #include "core/fp16.hpp"
 #include "core/host_memory.hpp"
 #include "format/weight_scales.hpp"
+#include "format/file_reader.hpp"
 #include "quant/model_formats.hpp"
 #include "quant/quant.hpp"
 
@@ -37,17 +38,22 @@ namespace backend {
 class CpuBuffer final : public Buffer {
 public:
     explicit CpuBuffer(size_t bytes) : owned_(bytes), size_(bytes) { ptr_ = owned_.data(); }
-    CpuBuffer(const void* adopted, size_t bytes)
-        : size_(bytes), ptr_(const_cast<void*>(adopted)) {}
+    CpuBuffer(const void* adopted, size_t bytes, std::shared_ptr<const format::FileReader> file = nullptr, uint64_t file_offset = 0)
+        : size_(bytes), ptr_(const_cast<void*>(adopted)), file_(std::move(file)), file_offset_(file_offset) {}
 
     size_t size() const override { return size_; }
     const void* host_ptr() const override { return ptr_; }
     void* host_address() const { return ptr_; }
+    // The file whose bytes at file_offset() are this buffer's, for a weight adopted with its file (Backend::adopt_file), else null.
+    const format::FileReader* file() const override { return file_.get(); }
+    uint64_t file_offset() const override { return file_offset_; }
 
 private:
     core::HostPages owned_;
     size_t size_ = 0;
     void* ptr_ = nullptr;
+    std::shared_ptr<const format::FileReader> file_;
+    uint64_t file_offset_ = 0;
 };
 
 // KV block size selected by the screening in docs/KV-CACHE.md.
@@ -357,6 +363,12 @@ public:
     BufferPtr adopt(const void* src, size_t bytes) override {
         if (!src && bytes) throw std::runtime_error("backend: adopting null storage");
         return std::make_shared<CpuBuffer>(src, bytes);
+    }
+
+    // Expert stacks read from their file read the picked experts at their offsets (read_experts); every other op reads src in place.
+    BufferPtr adopt_file(const void* src, size_t bytes, std::shared_ptr<const format::FileReader> file, uint64_t offset) override {
+        if (!src && bytes) throw std::runtime_error("backend: adopting null storage");
+        return std::make_shared<CpuBuffer>(src, bytes, std::move(file), offset);
     }
 
     BufferPtr wrap_host(void* memory, size_t bytes) override { return memory ? std::make_shared<CpuBuffer>(memory, bytes) : nullptr; }
@@ -3049,7 +3061,12 @@ public:
             step_entries_.push_back((uint32_t)i);
         }
         // (2) the routed gate and up rows of every entry with their SiLU, and the shared expert's SiLU under its row gate.
-        const Mat gate = mat(m.gate.weight, nin, ff, E), up = mat(m.up.weight, nin, ff, E), down = mat(m.down, ff, nin, E);
+        Mat gate = mat(m.gate.weight, nin, ff, E), up = mat(m.up.weight, nin, ff, E), down = mat(m.down, ff, nin, E);
+        {
+            std::vector<char> used(E, 0);
+            for (uint32_t i : step_entries_) used[ids[i]] = 1;
+            read_experts({&gate, &up, &down}, used);
+        }
         float *gout = at(m.gate.out), *uout = at(m.up.out), *act = at(m.act), *sact = s ? at(s->act) : nullptr;
         const size_t GR = 32, per_entry = (ff + GR - 1) / GR, gate_tasks = step_entries_.size() * per_entry;
         tasks(gate_tasks + (s ? rows : 0), [&](size_t t) {
@@ -3057,8 +3074,8 @@ public:
                 const size_t i = step_entries_[t / per_entry], e = ids[i], o0 = (t % per_entry) * GR;
                 for (size_t o = o0; o < std::min(ff, o0 + GR); ++o) {
                     const size_t at_o = i * ff + o;
-                    gout[at_o] = q8::dot(gate.type, gate.data + e * gate.stride + o * gate.row_bytes, xq8_, i / k);
-                    uout[at_o] = q8::dot(up.type, up.data + e * up.stride + o * up.row_bytes, xq8_, i / k);
+                    gout[at_o] = q8::dot(gate.type, gate.matrix(e) + o * gate.row_bytes, xq8_, i / k);
+                    uout[at_o] = q8::dot(up.type, up.matrix(e) + o * up.row_bytes, xq8_, i / k);
                     act[at_o] = swiglu(gout[at_o], uout[at_o], m.limit, m.form);
                 }
                 return;
@@ -3086,7 +3103,7 @@ public:
                     for (size_t j = 0; j < k; ++j) {
                         const size_t i = r * k + j;
                         if (ids[i] == kNoExpert) continue;
-                        const float p = q8::dot(down.type, down.data + ids[i] * down.stride + o * down.row_bytes, act_q8_, i);
+                        const float p = q8::dot(down.type, down.matrix(ids[i]) + o * down.row_bytes, act_q8_, i);
                         sum += wts[i] * p;
                     }
                     Y[r * nin + o] += sum;
@@ -3099,18 +3116,58 @@ public:
     }
 
 private:
-    // One expert stack's storage: `count` matrices of `rows` rows of `nin` values.
+    // One expert stack's storage: `count` matrices of `rows` rows of `nin` values, matrix e in place or where read_experts read it.
     struct Mat {
         uint32_t type = 0;
         const uint8_t* data = nullptr;
         size_t row_bytes = 0, stride = 0;
+        const format::FileReader* file = nullptr;   // the stack's file, read from at file_at, for a buffer adopted with it
+        uint64_t file_at = 0;
+        std::vector<const uint8_t*> read;           // each read expert's matrix, empty when the call reads in place
+        const uint8_t* matrix(size_t e) const { return read.empty() ? data + e * stride : read[e]; }
     };
     static Mat mat(const WeightView& w, size_t nin, size_t rows, size_t count) {
         Mat m{w.type, nullptr, quant::row_bytes(w.type, nin), 0};
         m.stride = size_mul(rows, m.row_bytes);
         span(*w.data.buffer, w.data.offset * sizeof(float), size_mul(count, m.stride));
         m.data = (const uint8_t*)bytes_at(w.data);
+        if (const auto* b = dynamic_cast<const CpuBuffer*>(w.data.buffer); b && b->file()) {
+            m.file = b->file();
+            m.file_at = b->file_offset() + w.data.offset * sizeof(float);
+        }
         return m;
+    }
+
+    // The bytes a call reads into staging at most; a worker reads ExpertSlots::kPiece at a time.
+    static constexpr size_t kExpertsRead = size_t(1) << 30;
+    // Each stack read from its file gets the experts `used` marks read at their offsets into its own staging, in pieces over the pool: a few large reads where its mapping would fault a page at a time.
+    // A call whose picked matrices pass kExpertsRead, such as a long prompt's every expert, reads them in place instead (docs/src/backends-cpu.md, Experts read from their files).
+    void read_experts(std::initializer_list<Mat*> stacks, const std::vector<char>& used) {
+        const size_t picked = (size_t)std::count(used.begin(), used.end(), char(1));
+        size_t bytes = 0;
+        for (const Mat* m : stacks) if (m->file) bytes += size_mul(picked, m->stride);
+        if (!bytes || bytes > kExpertsRead) return;
+        struct Piece { const Mat* m; uint64_t from; uint8_t* to; size_t n; };
+        std::vector<Piece> pieces;
+        size_t k = 0;
+        for (Mat* m : stacks) {
+            std::vector<uint8_t>& staging = staged_[k++];
+            if (!m->file) continue;
+            if (staging.size() < picked * m->stride) staging.resize(picked * m->stride);
+            m->read.assign(used.size(), nullptr);
+            uint8_t* to = staging.data();
+            for (size_t e = 0; e < used.size(); ++e) {
+                if (!used[e]) continue;
+                m->read[e] = to;
+                for (size_t o = 0; o < m->stride; o += ExpertSlots::kPiece)
+                    pieces.push_back({m, m->file_at + e * m->stride + o, to + o, std::min(ExpertSlots::kPiece, m->stride - o)});
+                to += m->stride;
+            }
+        }
+        tasks(pieces.size(), [&](size_t t) {
+            const Piece& p = pieces[t];
+            if (p.m->file->read(p.from, p.to, p.n) != p.n) throw std::runtime_error("backend: short read of an expert from " + p.m->file->path());
+        });
     }
 
     // Whether moe_step takes the three dispatches: generated tokens' rows alone, an F32 router and row gate, and every other product on the decode dots.
@@ -3337,14 +3394,17 @@ private:
     void expert_products(WeightView weight, size_t n_expert, const float* X, size_t xrows, size_t per, size_t k,
                          float* out, size_t nin, size_t nout, const Grouping& g, const std::vector<char>& decode, Dtype dtype) {
         const uint32_t type = weight.type;
-        const CSlice data_s = weight.data;
         const bool fp8 = type == quant::GGML_TYPE_F8_E4M3;
         const float* scales = fp8 ? fp8_scales(weight, nin, nout, n_expert) : weight_scales(weight, n_expert);
         // Each expert's scales: its NVFP4 one, or its F8_E4M3 grid.
         const size_t scale_stride = fp8 ? weight.scale_count / n_expert : weight.scale_count == 1 ? 0 : 1;
-        const size_t row_bytes = quant::row_bytes(type, nin), stride = size_mul(nout, row_bytes);
-        span(*data_s.buffer, data_s.offset * sizeof(float), size_mul(n_expert, stride));
-        const uint8_t* data = (const uint8_t*)bytes_at(data_s);
+        Mat stack = mat(weight, nin, nout, n_expert);
+        const size_t row_bytes = stack.row_bytes;
+        if (stack.file) {
+            std::vector<char> used(n_expert, 0);
+            for (size_t e = 0; e < n_expert; ++e) used[e] = g.start[e + 1] > g.start[e];
+            read_experts({&stack}, used);
+        }
         if (fp8) X = fp8_input(X, size_mul(xrows, nin), dtype);
         const bool q8 = quantized_dots(type, nin, dtype);
         // MXFP4 prompts retain original activations, as the plain prompt product does.
@@ -3377,7 +3437,7 @@ private:
                 std::vector<float> wide(fp8 ? nin : 0);
                 for (size_t r = r0; r < r1; ++r) {
                     const size_t s = r / nout, o = r - s * nout, i = single[s];
-                    const uint8_t* w = data + expert_of[s] * stride + o * row_bytes;
+                    const uint8_t* w = stack.matrix(expert_of[s]) + o * row_bytes;
                     if (fp8) {
                         fp8_widen(w, wide.data(), nin);
                         const float* g = scales + expert_of[s] * scale_stride + (o >> weight.scale_shift) * (nin / quant::F8_E4M3_SCALE_INPUTS);
@@ -3401,7 +3461,7 @@ private:
             auto work = [&](int) {
                 for (size_t t = next.fetch_add(1); t < tasks; t = next.fetch_add(1)) {
                     const size_t e = busy[t / per_expert], o0 = (t % per_expert) * R, o1 = std::min(nout, o0 + R);
-                    q8::dot_block(type, data + e * stride + o0 * row_bytes, row_bytes, o1 - o0, xq8_, expert_rows_.data() + first[e],
+                    q8::dot_block(type, stack.matrix(e) + o0 * row_bytes, row_bytes, o1 - o0, xq8_, expert_rows_.data() + first[e],
                                   first[e + 1] - first[e], expert_outs_.data() + first[e], o0);
                 }
             };
@@ -3430,9 +3490,9 @@ private:
             for (size_t t = next.fetch_add(1); t < tasks; t = next.fetch_add(1)) {
                 const size_t e = busy[t / per_expert], o0 = (t % per_expert) * R, o1 = std::min(nout, o0 + R);
                 const uint32_t* b = batch.data() + first[e];
-                if (fp8) fp8_rows(w, data + e * stride, nin, o0, o1, scales + e * scale_stride, weight.scale_shift, first[e + 1] - first[e],
+                if (fp8) fp8_rows(w, stack.matrix(e), nin, o0, o1, scales + e * scale_stride, weight.scale_shift, first[e + 1] - first[e],
                                   [&](size_t c) { return X + (b[c] / per) * nin; }, [&](size_t c) { return out + (size_t)b[c] * nout; });
-                else float_rows(w, type, qt, data + e * stride, row_bytes, nin, o0, o1, scales ? scales + e * scale_stride : nullptr, first[e + 1] - first[e],
+                else float_rows(w, type, qt, stack.matrix(e), row_bytes, nin, o0, o1, scales ? scales + e * scale_stride : nullptr, first[e + 1] - first[e],
                                 [&](size_t c) { return X + (b[c] / per) * nin; }, [&](size_t c) { return out + (size_t)b[c] * nout; });
             }
         };
@@ -3483,6 +3543,7 @@ private:
     std::vector<float*> prompt_outs_;   // where each prompt column's products go
     q8::PromptPairs prompt_pairs_;
     q8::Activations xq8_;      // the quantized activations of the last decode call
+    std::array<std::vector<uint8_t>, 3> staged_;   // the experts read_experts read, one staging a stack of a call
     q8::Activations act_q8_, shared_q8_;   // moe_step's routed and shared SiLU outputs
     std::vector<uint32_t> step_entries_;   // moe_step's entries with an expert
     // Resolve a slice once per op so the kernels receive plain float arrays.

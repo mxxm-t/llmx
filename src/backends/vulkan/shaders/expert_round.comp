@@ -1,0 +1,31 @@
+#version 450
+// A round of the device expert cache (kernels/f32.gpu llmx_expert_round), one workgroup: an entry whose expert the step still needs and is in a slot reads that slot, every other entry none; then those experts are done.
+// The last round stores the count of picked experts still outside a slot at `unplaced`, which the host reads as a fault, so a short budget never drops a contribution silently.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint n_expert; uint entries; uint flags; uint last; uint unplaced; } p;
+layout(set = 0, binding = 0) readonly buffer I { uint ids[]; };
+layout(set = 0, binding = 1) writeonly buffer O { uint out_ids[]; };
+layout(set = 0, binding = 2) buffer S { uint state[]; };
+layout(set = 0, binding = 3) coherent buffer X { uint xchg[]; };
+const uint kPicked = 1u, kDone = 2u, kNone = 0xffffffffu;
+shared uint left_s;
+void main() {
+    const uint t = gl_LocalInvocationID.x;
+    if (t == 0u) left_s = 0u;
+    for (uint j = t; j < p.entries; j += 256u) {
+        const uint e = ids[j];
+        out_ids[j] = e < p.n_expert && (state[p.flags + e] & kDone) == 0u && state[1u + e] != 0u ? state[1u + e] - 1u : kNone;
+    }
+    memoryBarrierBuffer();
+    barrier();
+    uint left = 0u;
+    for (uint e = t; e < p.n_expert; e += 256u)
+        if ((state[p.flags + e] & (kPicked | kDone)) == kPicked) {
+            if (state[1u + e] != 0u) state[p.flags + e] |= kDone;
+            else ++left;
+        }
+    if (p.last != 0u && left != 0u) atomicAdd(left_s, left);
+    memoryBarrierShared();
+    barrier();
+    if (t == 0u && left_s != 0u) atomicExchange(xchg[p.unplaced], left_s);
+}

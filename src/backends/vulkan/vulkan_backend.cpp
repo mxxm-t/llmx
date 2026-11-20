@@ -1,6 +1,7 @@
 // Vulkan backend over one compute queue (docs/VULKAN.md).
 // Operations record into a command-buffer ring whose slots retire by timeline tickets.
 #include "backends/device_profile.hpp"
+#include "backends/expert_ring.hpp"
 #include "backends/kv_storage.hpp"
 #include "backends/vulkan/vulkan_backend.hpp"
 #include "backends/vulkan/vulkan_buffer.hpp"
@@ -924,6 +925,8 @@ public:
         Device& d = *dev_;
         if (submitter_) submitter_->drain();
         hold_release();
+        // The ring's reader waits on this backend's tickets, so it ends before the device is idle and the queue goes.
+        expert_ring_.reset();
         d.fn.vkDeviceWaitIdle(d.device);
         for (auto& p : pending_) p.clear();
         for (auto& a : arena_) a.buffer.reset();
@@ -1593,6 +1596,7 @@ public:
         return false;
     }
     void raise(Ticket t) override {
+        ExpertRing::raise(expert_ring_, *this, "vulkan: ");
         if (!submitter_ || !lost(t)) return;
         submitter_->raise();
         throw std::runtime_error("vulkan: the submission of these results failed");
@@ -1763,6 +1767,7 @@ public:
         }
         wait(tickets_.last());
         copies_done(copy_value_);
+        if (expert_ring_) expert_ring_->drain();
         // Every slot has retired, so the buffers kept for their work go now rather than when each slot is reopened, as a model given up after a failed build needs (build_fitted).
         if (!open_) for (auto& p : pending_) p.clear();
     }
@@ -2527,6 +2532,15 @@ public:
     void routed_call(const std::vector<const Projection*>& live, CSlice X, size_t nin, size_t xcols, size_t nrows, size_t k,
                      CSlice ids, size_t n_expert, bool tile, Dtype dtype, size_t per = 0);
     void moe_step(const MoeStep& m, CSlice h, Slice y, size_t nin, size_t rows, RowRuns runs = {}, Dtype dtype = Dtype::f16) override;
+    void routed_parts(WeightView weight, CSlice X, size_t nin, size_t nout, size_t nrows, const Routing& routing, RowRuns runs, Dtype dtype);
+    void combine_parts(Slice Y, size_t nout, size_t nrows, const Routing& routing);
+    void moe_route_step(const MoeStep& m, CSlice h, size_t nin, size_t rows, bool normalize);
+    // The device expert cache (ExpertSlots): the mark, wave, pull and round kernels, a pull's hold on its wave's ticket bounded by the device's clock, and a ring in host memory the device reads past its caches.
+    // A device without that memory, a device clock or 64-byte storage offsets, where a half of the exchange starts, keeps no cache.
+    bool caches_experts() const override {
+        return dev_->device_clock && dev_->uncached_memory && dev_->props.limits.minStorageBufferOffsetAlignment <= ExpertRing::kAlign * sizeof(uint32_t);
+    }
+    void cached_step(const MoeStep& m, CSlice h, Slice y, size_t nin, size_t rows, RowRuns runs, Dtype dtype);
     const MoeBuild* moe_build(const MoeStep& m, size_t nin, size_t rows, RowRuns runs, Dtype dtype) const;
     // The decode rows a fused routed step takes at most, the columns the decode-column checks reach.
     static constexpr size_t kMoeStepRows = 64;
@@ -2878,8 +2892,12 @@ private:
     std::shared_ptr<VulkanBuffer> moe_out_;   // a routed down projection's slots before they are combined
     std::shared_ptr<VulkanBuffer> moe_tab_;   // a routed tile call's grouping (shaders/moe_group.comp)
     std::shared_ptr<VulkanBuffer> moe_count_; // the fused routed step's finished workgroups, zero between calls (shaders/moe_step_route.comp)
+    std::shared_ptr<VulkanBuffer> expert_ids_;  // a cached step's round: each entry's slot, or none
+    // The device's expert ring (cached_step, ExpertRing::of) and a pull's hold in device clock ticks.
+    std::unique_ptr<ExpertRing> expert_ring_;
+    static constexpr int kRingWaitMs = 2000;   // the longest a pull's hold waits for the reader, below the kernel driver's job timeout
     // The scratch buffers in one order, what passes of widths `w` grow each to, and the bytes the device takes for a buffer at the units probe_memory read.
-    static constexpr size_t kScratchBuffers = 12;
+    static constexpr size_t kScratchBuffers = 13;
     using ScratchSizes = std::array<size_t, kScratchBuffers>;
     ScratchSizes scratch_sizes(const PassWidths& w) const;
     std::shared_ptr<VulkanBuffer>* scratch_buffer(size_t i);

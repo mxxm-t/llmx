@@ -20,7 +20,9 @@
 #include <mutex>
 #include <thread>
 
+#include "core/cpus.hpp"
 #include "core/host_memory.hpp"
+#include "core/job_threads.hpp"
 #include "format/gguf.hpp"
 #include "backends/backend.hpp"
 #include "model/weights.hpp"
@@ -72,6 +74,8 @@ struct Placement {
     // A routed layer with its feed-forward block on a host and its mixer on a device runs a prompt of at least this many tokens on the device, its experts copied there for each pass.
     // It counts a prompt's whole length (BatchEntry::extent), so a prompt takes one path however it is sliced (row_class); zero keeps every run on the host, and 1 streams what 2 does, since an extent of 1 never streams.
     size_t stream_from = 0;
+    // By layer, the experts such a layer keeps in slots on its mixer's device, which its steps read them through (backend::ExpertSlots); empty, or zero for a layer, keeps its experts on the host.
+    std::vector<size_t> expert_slots;
     // A tensor split (docs/TENSOR-SPLIT.md): each device named above is the first member of a group of `width` consecutive backends that run its roles together, each member its shard of every split role; 1 is one device a name.
     size_t width = 1;
 };
@@ -413,6 +417,10 @@ struct ExecContext {
 
 // Prompt tokens a pass takes by default (Model::set_ubatch), and so the prompt rows a placement is fitted for.
 inline constexpr int kDefaultUbatch = 512;
+// Under a device expert cache a prompt pass copies each layer's picked experts to the device once, so a wider pass copies fewer a token (docs/src/model-runtime.md).
+inline constexpr int kCachedUbatch = 2048;
+// The prompt tokens a pass takes: `ubatch` where given, else the default for a placement with or without an expert cache.
+inline int pass_ubatch(int ubatch, size_t expert_cache) { return ubatch > 0 ? ubatch : expert_cache ? kCachedUbatch : kDefaultUbatch; }
 
 // The positions a model's caches are budgeted for: the options' tokens, else the whole context.
 inline size_t kv_tokens(const ModelPlan& plan, const ModelOptions& options) {
@@ -644,7 +652,7 @@ public:
             const LayerPlan& layer = plan_.layers[l];
             const size_t a = device_index(place_.mixer_device[l]), f = device_index(place_.ffn_device[l]);
             // Experts read in place on the host beside a mixer on a device that copies its weights.
-            bool streamed = layer.routed && place_.stream_from && a != f && !backends[a]->reads_in_place() && backends[f]->reads_in_place();
+            bool streamed = layer.routed && (place_.stream_from || !place_.expert_slots.empty()) && a != f && !backends[a]->reads_in_place() && backends[f]->reads_in_place();
             for (const Role& role : layer.roles) {
                 if (role.tensor && weights.tensors[*role.tensor].row_source) {
                     const TensorView& t = weights.tensors[*role.tensor];
@@ -961,8 +969,42 @@ public:
     }
 
     ~Model() {
+        expert_cache_report();
         release_holds();
         retire();
+    }
+
+    // The device expert caches' counts over the model's life on stderr (Placement::expert_slots), a line a layer and one for all: picked experts a step found in slots and experts its waves pulled.
+    // Beside them the ring's counts (ExpertSlots::RingCounts): waves, the reader's wait for a wave to retire, its reads and their bytes, then one-row steps' pulls a step and reads a step, the device's hold on them.
+    void expert_cache_report() noexcept {
+        try {
+            struct Sum {
+                uint64_t hits = 0, misses = 0, waves = 0, wait = 0, read = 0, bytes = 0, steps = 0, pulled = 0, held = 0;
+            } all;
+            size_t slots = 0;
+            const auto line = [](const std::string& what, size_t slots, const Sum& s, uint64_t steps) {
+                std::fprintf(stderr, "expert cache%s: %zu slots, %llu picked experts in slots, %llu pulled, hit rate %.1f%%, %llu waves, %.1f ms waiting for waves, %.1f ms reading %.1f MiB, "
+                             "%llu one-row steps, %.2f pulled a step, %.1f ms reading for them, %.3f ms a step\n",
+                             what.c_str(), slots, (unsigned long long)s.hits, (unsigned long long)s.misses, s.hits + s.misses ? 100.0 * double(s.hits) / double(s.hits + s.misses) : 0.0,
+                             (unsigned long long)s.waves, double(s.wait) * 1e-6, double(s.read) * 1e-6, double(s.bytes) / double(1 << 20), (unsigned long long)steps,
+                             steps ? double(s.pulled) / double(steps) : 0.0, double(s.held) * 1e-6, steps ? double(s.held) * 1e-6 / double(steps) : 0.0);
+            };
+            for (size_t l = 0; l < caches_.size(); ++l) {
+                if (caches_[l].row.empty()) continue;
+                const backend::ExpertSlots& c = caches_[l].slots;
+                uint32_t counts[2] = {};
+                devices_[(size_t)stream_device_[l]]->b->read(*c.state.buffer, c.counts_at() * sizeof(uint32_t), counts, sizeof(counts));
+                const backend::ExpertSlots::RingCounts& r = *caches_[l].counts;
+                const Sum s{counts[0], counts[1], r.waves.load(), r.wait_ns.load(), r.read_ns.load(), r.bytes.load(), r.one_steps.load(), r.one_pulled.load(), r.one_read_ns.load()};
+                if (s.hits + s.misses) line(" layer " + std::to_string(l), c.slots, s, s.steps);
+                slots += c.slots;
+                all.hits += s.hits, all.misses += s.misses, all.waves += s.waves, all.wait += s.wait, all.read += s.read, all.bytes += s.bytes;
+                all.steps = std::max(all.steps, s.steps), all.pulled += s.pulled, all.held += s.held;
+            }
+            // For all layers a one-row step is a token: the most steps any layer took.
+            if (all.hits + all.misses) line("", slots, all, all.steps);
+        } catch (...) {
+        }
     }
 
     // Sequences hold the pools' addresses, so a Model is neither copied nor moved.
@@ -1609,6 +1651,14 @@ private:
     std::vector<int> stream_device_;
     std::vector<std::vector<Weight>> stream_;
     std::vector<std::vector<backend::BufferPtr>> windows_;   // per device, a buffer per window role in role order, sized to the largest streamed layer's
+    // A streamed layer's device expert cache (Placement::expert_slots): its row with slot stacks for the window roles, the buffers it holds and the backend's view; an empty row where it has none.
+    struct ExpertCache {
+        std::vector<Weight> row;
+        std::vector<backend::BufferPtr> keep;
+        backend::ExpertSlots slots{};
+        std::shared_ptr<backend::ExpertSlots::RingCounts> counts;   // the ring reader's counts, made with the slots
+    };
+    std::vector<ExpertCache> caches_;
     std::vector<Weight> drafter_;                // an embedded drafter's roles by role id, each on its device (drafter_device)
     size_t drafter_kv_ = 0;                      // its first KV layer in the head's device's storage (ModelPlan::draft_kv_layers)
     std::vector<size_t> drafter_state_;          // per group's first device, its state layer in that device's storage, SIZE_MAX where it holds none
@@ -1846,7 +1896,7 @@ private:
         // The windows are allocated with the weights, so a pass never fails for want of one.
         std::vector<std::vector<size_t>> sizes(n_devices);
         for (size_t l = 0; l < n_layer; ++l) {
-            if (stream_device_[l] < 0) continue;
+            if (stream_device_[l] < 0 || !place_.stream_from) continue;
             std::vector<size_t>& s = sizes[(size_t)stream_device_[l]];
             size_t k = 0;
             for (const Role& role : plan_.layers[l].roles) {
@@ -1860,7 +1910,7 @@ private:
         for (size_t d = 0; d < n_devices; ++d)
             for (size_t bytes : sizes[d]) windows_[d].push_back(devices_[d]->b->alloc(bytes));
         for (size_t l = 0; l < n_layer; ++l) {
-            if (stream_device_[l] < 0) continue;
+            if (stream_device_[l] < 0 || !place_.stream_from) continue;
             size_t k = 0;
             for (const Role& role : plan_.layers[l].roles) {
                 if (role.stream != Stream::window) continue;
@@ -1869,6 +1919,42 @@ private:
                 weight.data = windows_[device][k++];
                 if (weight.scale_count) weight.scales = take(*weights.tensors[*role.tensor].scale, device);
             }
+        }
+        // The device expert caches (Placement::expert_slots): each streamed layer's window roles as slot stacks on its mixer's device, whose ring copies misses from the host stacks.
+        caches_.assign(n_layer, {});
+        for (size_t l = 0; l < n_layer && l < place_.expert_slots.size(); ++l) {
+            if (stream_device_[l] < 0 || !place_.expert_slots[l]) continue;
+            backend::Backend& b = *devices_[(size_t)stream_device_[l]]->b;
+            ExpertCache& c = caches_[l];
+            const size_t slots = place_.expert_slots[l];
+            c.row = stream_[l];
+            c.slots.slots = slots;
+            size_t k = 0, n_expert = 0;
+            for (const Role& role : plan_.layers[l].roles) {
+                if (role.stream != Stream::window) continue;
+                const Weight& host = home_[l][role.id];
+                if (k == 3 || role.kind != RoleKind::experts || host.scale_count)
+                    throw std::runtime_error("--expert-cache: layer " + std::to_string(l) + " has a stack the cache does not hold");
+                n_expert = role.experts;
+                const size_t stride = host.data->size() / n_expert;
+                if (host.data->size() % n_expert || !host.data->host_ptr())
+                    throw std::runtime_error("--expert-cache: layer " + std::to_string(l) + " has a stack the host does not hold whole experts of");
+                backend::BufferPtr dst = b.alloc(backend::size_mul(slots, stride));
+                c.row[role.id].data = dst;
+                c.slots.stack[k] = {dst.get(), (const uint8_t*)host.data->host_ptr(), stride, host.data->file(), host.data->file_offset()};
+                ++k;
+                c.keep.push_back(dst);
+            }
+            if (k != 3) throw std::runtime_error("--expert-cache: layer " + std::to_string(l) + " has not three expert stacks");
+            c.slots.n_expert = n_expert;
+            c.counts = std::make_shared<backend::ExpertSlots::RingCounts>();
+            c.slots.counts = c.counts.get();
+            const std::vector<uint32_t> zero(c.slots.words(), 0);
+            backend::BufferPtr state = b.alloc(zero.size() * sizeof(uint32_t));
+            b.write(*state, 0, zero.data(), zero.size() * sizeof(uint32_t));
+            c.slots.state = {state.get(), 0};
+            c.slots.state_owner = state;
+            c.keep.push_back(state);
         }
     }
 

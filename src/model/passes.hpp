@@ -798,6 +798,14 @@ inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s, size_t lay
             ffn_split(ctx, p, cur, l);
             continue;
         }
+        // A cached layer's experts run on the mixer's device through its slots (Placement::expert_slots), a step of more experts than slots in rounds.
+        if (stream_device_[(size_t)l] == (int)cur && !caches_[(size_t)l].row.empty()) {
+            ExpertCache& c = caches_[(size_t)l];
+            Step step = part(ctx, p, cur, c.row.data(), plan_.layers[(size_t)l].kind, 0, p.rows, all, l);
+            step.experts = &c.slots;
+            arch_->ffn(step);
+            continue;
+        }
         const size_t f = (size_t)place_.ffn_device[(size_t)l];
         if (f != cur) { cross(ctx, p, cur, f, 0, p.rows, l + 1); cur = f; }
         arch_->ffn(part(ctx, p, cur, home_[(size_t)l].data(), plan_.layers[(size_t)l].kind, 0, p.rows, all, l));

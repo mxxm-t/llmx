@@ -4603,7 +4603,7 @@ A tensor-width-2 sum in place of one row whose width is a multiple of 1280 pushe
 - README is unchanged, since it carries no KV-budget or `--kv-tokens` text; [USAGE](USAGE.md) owns that text.
 - Before the rebase, on main 929f042c6 (/opt/claude-work/moeoff46/k.log), serve's pool on that Flash-Next placement went 146496 -> 145408 KV tokens.
 
-**Left.** F2DEV's review of the rebased branch and its landing. The arena shortfall with `--expert-cache 6gb` needs the device expert cache, which only the ring branch's WIP has, so it is checked there.
+**Left.** Nothing; the arena shortfall with `--expert-cache 6gb` is checked by the ring's landing (Device expert cache through a ring on every GPU backend, below), where the cache over two MI50s builds and runs its prompts.
 
 **Gotchas.** A device keeps every state layer's mark rows in one buffer; the footprint gives each layer's share as a buffer, which prices it at least as taken.
 
@@ -4617,6 +4617,131 @@ A tensor-width-2 sum in place of one row whose width is a multiple of 1280 pushe
   Qwen3-0.6B Q8_0 greedy `generate --temp 0 -n 128` gives the same 128 tokens on main and the branch on the CPU and on one MI50 (the pp and tg timing lines left out; the single-file path is the only one the change reaches, so no timing round);
   `llmx info` on the real set /zpool1/models/MiniMax-M3.1-Flash-UD-Q8_K_XL-00001-of-00007.gguf reads 1359 tensors on the branch, the `split.tensors.count` of its first shard (which holds 0 tensors and ends at byte 8243070, 30 past a multiple of 32), and main refuses it with `GGUF data section exceeds file extent`.
 - **Left:** nothing; the hosted run at the head that lands.
+## Device expert cache through a ring on every GPU backend (2026-11-15 to 2026-11-20, MOEOFF28 to MOEOFF51, branch moe/expert-ring-fit rebased onto main 83ac07728 from 98821a764, with moe/expert-cache-land below in one commit; F2DEV's reviews of 10:52 and 18:07, COORD's decision of 19:08, Fable's review of 2026-11-20; lands by fast-forward as two commits, the tests and then the change)
+
+- **Goal:** experts held on the host run on the device on Vulkan, ROCm and CUDA, a step's missing experts read from their files into a ring the device pulls from, so DeepSeek-V4.1-Flash MXFP4 on eight MI50s under a 40 GiB host cap beats the maya and Strata MI50 forks on the same model, quant, cards and budget (maya 44.3 pp / 17.1 tg tok/s).
+- **Done:** `backends/expert_ring.hpp` ([expert_ring](src/backends-expert_ring.md)), the one owner of the ring for every GPU backend: its host-coherent exchange and entries (`Memory::host_coherent`), the reader thread and its pool, the schedule both backends record (`ExpertRing::run`: wave g + 1 before pull g, the next round's first wave before this round's products), and the fault reset (`ExpertRing::of`).
+  The kernels are the GPU core's `llmx_expert_mark`, `llmx_expert_wave` (64 threads, 64 experts a pass), `llmx_expert_pull` and `llmx_expert_round` in `kernels/f32.gpu` and their Vulkan ports `expert_mark/wave/pull/round.comp`; a step's rounds keep their down products as parts until one combine in entry order, so several rounds give one round's bits.
+  The device waits on a wave's ticket through a stream wait on ROCm and CUDA (`hold_wait`) and the `hold` shader on Vulkan; the reader reads misses from the stacks' files where the loader adopted them with their file, and from host memory otherwise.
+  Slots come from each device's room after the split, at most the `--expert-cache` cap a layer (`cached_slots`), and the rings are counted in the host's room (`expert_rings`).
+  The split counts each streamed layer's `Stream::copy` roles on its device (`device_held_plan`) and the slots are priced as the device allocates them (`DeviceBudget::resident`): without either, DeepSeek-V4.1-Flash's 2048-row prompt arena found 1.22 GB of its 2.13 GB on eight MI50s, the shared experts and router (0.81 GiB a device) and 2 MiB units of the stacks (0.1 GiB) having gone to slots (MOEOFF38).
+  `expert_cache_report` prints each layer's hits, pulls, waves, reader wait, read time and bytes (`ExpertSlots::RingCounts`), and for one-row steps the pulls a step and the reading a step, the device's hold on a decode pull (MOEOFF34, the owner's prefetch question of 20:08).
+  A GPU core ticket's waiter leaves its event slot before `record` reuses it (`slot_ticket_`, `syncing_`): a ring reader in `wait()` on a slot recorded again waited for the later ticket, whose work waited on the reader, so ROCm hung once a prompt pass recorded more than 1024 tickets (Qwen3.6-35B-A3B pp128 and up on one MI50; gpu-core holds it, MOEOFF35).
+  The KV fit leaves each cached layer one slot, priced as the device allocates it (`slot_matrices`), before the budget takes the rest (`fitted_kv`), so `serve --expert-cache` without `--kv-tokens` fits a full device rather than refusing it no slot (`expert_cache_room` in arch-deepseek4).
+  A pull's workgroups past the wave's pulls end on a count the wave leaves in the state, in device memory, and one thread a workgroup reads the host-memory exchange otherwise: every thread reading it made a pull of nothing cost 0.7 ms on an MI50.
+- **Review (Fable, 2026-11-20, of the head rebased onto main 6770182ad), each finding rechecked against the code:** `cached_slots` still read a stage's `first`, which main's stage rounds replaced by `runs`, so the rebased head did not build; it now walks each stage's runs, as `placement_for` does.
+  A pull fault was thrown only at the next cached step, after the faulted pass's results were read: `ExpertRing::raise` now throws it at the backend's next check of results as well (`read` and `raise` on the GPU core and Vulkan), once the device is idle and the states zeroed.
+  The reader could still count into a model's `RingCounts` or read its host stacks after the model went: each backend's `sync` now drains it (`ExpertRing::drain`), and the ring keeps the states it zeroes on a fault as weak references (`ExpertSlots::state_owner`).
+  `--device cpu --cpu-moe --expert-cache` built no cache silently and is now refused by name (`model-validation`); the ring starts over before its seq passes 2^31, since a Vulkan pull compares its low word; the ticket store takes a full fence; the cached step routes through `Backend::moe_router` like the uncached one, so the GPU core's one-launch decode router is shared; `exchange()`, unused, is gone.
+  Kept as found: a cached layer split is not pipelined, since a cached layer's feed-forward device is the CPU's in the placement though it runs beside its mixer (Left, below).
+- **Where it runs (F2DEV 18:07, change 6):** ROCm through the GPU core and Vulkan through its shader ports, the same slots and bits; CUDA builds the same core and has not run it on a device; a layer split keeps a ring a device and each layer's slots on its own device; a tensor split is refused (`--cpu-moe` and `--n-cpu-moe` refuse a width above 1), so entries following each member's stride is the change that would lift it; server decode at 16 streams is a cell of the timing round; the CPU has no expert cache and no ring, its experts read by `read_experts`.
+- **Reuse (COORD 19:08):** the reader's pool is `core::JobThreads`, the pool the scheduler's sampling and Vulkan tensor groups use; the loader's `infer::ReadRing` and `model`'s weight-row readers sit above `backends/` and serve another shape (pieces in order into the ring's own pages for one consumer), so the ring cannot call them, and it reads through the same `format::FileReader::read`.
+  The ring's memory is `Backend::alloc(bytes, Memory::host_coherent)`, which replaced the GPU core's `alloc_coherent` and Vulkan's direct uncached `VulkanBuffer`s, and `ExpertRing::of` replaced each backend's own `expert_ring` with its ring buffers, entry widths and served states.
+  The piece size is `ExpertSlots::kPiece`, shared with the CPU's `read_experts`; the device's ticket wait is `hold_wait` (the collectives' word wait) and Vulkan's `hold` shader (the held queue's); the wait is `Backend::wait`.
+- **Measured, the ticket wait on ROCm (moeoff33/wb.out on the MI50 machine, two MI50s, unprofiled, three repetitions):** a pending `hipStreamWaitValue64` on another stream of the same device or on another device leaves launches at 1.6 to 2.6 us each, empty kernels and 4 MiB copies alike, as with none or with a spin kernel polling the same word; kernels queued behind the wait drain at 1.27 us each after its release, and release to a kernel done takes 7.3 us for the stream wait and 7.2 us for a polling kernel.
+  The 62 us against 12 us launches seen under rocprofv3 (QWEN37) is the profiler's, so ROCm keeps the stream wait and needs no polling pull.
+- **Measured, Qwen3.6-35B-A3B Q4_K_M on one MI50 (pp512 tg64 r2, tok/s, hostwait clean, moeoff35/g on the MI50 machine):** tg64 at `--cpu-moe --expert-cache 64gb` (91.5% hits with the cold fill): Vulkan 23.2 and 18.8 before the pull change, 34.2 and 42.5 with one read a workgroup, 112.6 all on the device; ROCm 56.7 with the hang fix alone, 71.1 and 76.9 with one read a workgroup, 95.5 all on the device; pp512 at 64gb went 344 to 540-602 on Vulkan and 745 to 1007-1011 on ROCm.
+  At `--expert-cache 3gb` (60% hits) decode is bound by the reader's reads, 75 to 170 ms a token.
+- **Measured, the gate (DeepSeek-V4.1-Flash MXFP4, eight MI50s, 40 GiB host cap, ROCm int8, `--cpu-moe --expert-cache 256gb --lookup-storage file`, one run a cell in three rounds, tok/s, hostwait clean; moeoff33/g and moeoff39/g on the MI50 machine):**
+  | cell | parent e98381ab9 | ring | maya |
+  |---|---|---|---|
+  | pp2048 | 28.7 / 17.5 / 12.7 | 243.8 / 246.1 / 243.5 | 34.0 / 39.3 / 20.8 / 45.3 |
+  | tg512 after it | 8.10 / 6.69 / 4.66 | 23.33 / 23.71 / 23.31 | 15.0 / 18.5 / 12.9 / 18.8 |
+  | pp512 | 18.6 / 11.5 / 11.4 | 251.0 / 252.7 / 250.1 | 23.4 / 38.7 / 29.4 |
+  | tg64 after it | 4.67 / 3.70 / 3.41 | 24.86 / 25.01 / 25.01 | 14.0 / 17.4 / 4.7 |
+  A 48-token greedy generate of a 562-token prompt gives the all-VRAM run's ids (fe69d69f8d79) with the ring; before the fit counted the copies and allocation units, pp2048 ran out of device memory in its prompt arena.
+- **Landing gates, the ring's fix (MOEOFF63 to MOEOFF67, rig, one MI50 ROCm per block, never renderD137, bench `--r 1 --p 512 --n 128 --threads 8`, tok/s, hostwait recorded; A base2 3d9d9c0af, B the unfixed ring 229f133ca, C the fix 837e70c85; logs /opt/claude-work/moeoff66/out):** the rule (GORULE3) was written before the runs; the host gate timed out in all 16 blocks (4 build slots busy), the blocks ran as planned and are kept.
+  | cell (8 blocks, A C C A; Q36 `--cpu-moe` A C B C A) | A | C | C/A | result |
+  |---|---|---|---|---|
+  | Qwen3.6-35B-A3B Q4_K_M `--cpu-moe`, pp512 | 12.22 | 15.04 | 1.231 | PASS |
+  | same, tg128 | 2.40 | 2.71 | 1.129 | PASS; B 1.07, C/B 2.53, C above B in 14 of 14 pairs |
+  | same file on the device, pp512 / tg128 | 1392.65 / 75.28 | 1366.25 / 75.40 | 0.981 / 1.002 | PASS |
+  | Qwen3-14B Q4_K_M on the device, pp512 / tg128 | 496.10 / 47.14 | 489.58 / 47.59 | 0.987 / 1.010 | FAIL by the rule under load (A-A runs of a block differ by up to 40 percent in tg128), Fable a69cf4b5: noise, the change touches no dense path; the scorer also dropped 3 runs whose bench line had no leading newline |
+  The Q36 `--cpu-moe` cell has six runs with empty logs (host load), so its pair counts are short. The dense cell was rerun under a rule written first (GORULE4: 16 blocks A C C A, `--r 3`, 32 pairs, fixed parser):
+  | Qwen3-14B Q4_K_M on the device | A | C | C/A | median paired | pairs below 0.99 | A-A band | result |
+  |---|---|---|---|---|---|---|---|
+  | pp512 | 503.90 | 503.72 | 1.000 | 1.000 | 0 of 32 | 0.005 | PASS |
+  | tg128 | 53.60 | 54.10 | 1.009 | 1.010 | 5 of 32 | 0.011 | PASS |
+  Identity, Qwen3.8-Flash-Next UD-Q4_K_XL, `--ubatch 512`, 128 greedy ids (cards per run):
+  | arm | ROCm | Vulkan |
+  |---|---|---|
+  | base2, 2 cards, shares 29,19 (30,18), `--n-cpu-moe 16` | 5b1153a0f4b6 | 411cf11256d7 |
+  | base2, every expert on 3 cards | 8102c979d251 | 411cf11256d7 |
+  | base2, `--n-cpu-moe 16` on 3 cards | 5b1153a0f4b6 | 411cf11256d7 |
+  | C, `--n-cpu-moe 16 --expert-cache 6gb`, 2 cards, twice | 8102c979d251 both | 411cf11256d7 both |
+  | C, every expert on 3 cards | 8102c979d251 | 411cf11256d7 |
+  The ring's ids equal base2 with every expert on a device; the ROCm difference from the CPU-expert path is that path's, as Fable aefc4a37 read it. Qwen3.6 `--cpu-moe` and `--expert-cache 3gb` ids adc1553038bb on ROCm and Vulkan, equal to base2 on the device.
+- **Rebase onto 83ac07728 (MOEOFF68, 2026-11-24):** the gate tables above are the old-tree evidence (main 98821a764); main changed kernels and place.hpp since, so the timing round reruns once at the landing stack head, not here.
+  The rebase resolved one conflict, the kernel-name list in `backend_core.hpp`, which now holds main's `llmx_kv_index_all` and the four `llmx_expert_*` kernels.
+  Rebuilt on gfx906 ROCm and Vulkan; docs and dead-code pass on a copy of the tree; CTest passes `placement`, `model-validation`, `backend-group`, `load-progress`, `arch-deepseek4` and `deepseek4-ops`, ROCm `rocm-runtime`, `backend-rocm`, `backend-rocm-sixteen`, `backend-rocm-scratch` and `rocm-isa`, and the 21 Vulkan tests.
+  Identity against main 83ac07728 built the same way (128 greedy ids, one MI50, Qwen3.6-35B-A3B Q4_K_M): main on the device, ring `--cpu-moe` and ring `--cpu-moe --expert-cache 3gb` all give adc1553038bb on ROCm and Vulkan; Qwen3.8-Flash-Next `--ubatch 512`: main with every expert on 3 cards, ring `--n-cpu-moe 16 --expert-cache 6gb` on 2 cards twice, give 8102c979d251 on ROCm and 411cf11256d7 on Vulkan.
+- **Left:** the 16-stream server cell at `--kv-tokens 20480`, maya's context (moeoff40/t on the MI50 machine); the all-hit decode floor with `fused_step` off; the `--moe-stream-from` window's fit, which fills a device the same way and leaves its window no room (MOEOFF38), on a path main has.
+  `bench --p 2048` under the cache is refused by name on Qwen3.8-Flash-Next UD-Q4_K_XL over two MI50s at `--n-cpu-moe 16 --expert-cache 6gb`: the fit gives 1920 KV tokens beside the 2048-row cached ubatch arena (MOEOFF50); the refusal now names `--ubatch 512` and a larger `--n-cpu-moe`, which run it today; a fit that shrinks the cached ubatch before it refuses is a policy change of its own (about seven sites read `pass_ubatch` from the request) and, with the KV cut to the device, would leave the cache about one slot a layer (Fable, 2026-11-20; ideas.md).
+  A cached layer split is not pipelined (`Model::pipelined_` asks each layer's feed-forward device to be its stage's, and a cached layer's is the CPU's in the placement), so prompt passes over two devices run their stages in turn (Fable's review); CUDA has not run the cache on a device.
+- **Gotchas:** a pull reads host memory at the link's rate, about 14 to 15 GB/s on an MI50; on ZFS a buffered read comes from the ARC (16 GiB on the MI50 machine), which no cgroup is charged for.
+
+## Device expert cache, `--expert-cache` (2026-11-14 to 2026-11-15, MOEOFF13 to MOEOFF24, branch moe/expert-cache-land; F2DEV's review of 2026-11-14 21:50; lands inside moe/expert-ring's commit, its window and fill replaced by the ring above)
+
+- **Goal:** experts held in host memory beside one device run on the device, decode and prompts, with the bits of every expert on the device, faster than `--n-cpu-moe`; the owner's gate is beating Strata and project-maya on the same model, quant, hardware and memory budget.
+- **Done:** `--expert-cache SIZE` with `--n-cpu-moe` or `--cpu-moe` on Vulkan devices, one or a layer split: a window of a layer's every expert, then the same number of slots in each cached layer (`expert_slots` in `model/place.hpp`).
+  A step of no more entries than slots routes on the device, `expert_assign.comp` gives misses least recently used slots and `expert_pull.comp` copies them from host memory; a wider step, a prompt's, marks its picked experts and `expert_fill.comp` copies them into the window from the slots or the host (`backends-vulkan.md`, the device expert cache).
+  The host stacks move at load into host memory the device allocated (`Model::import_experts`), since an import of the host's own pages was revalidated by the kernel driver at every submission (290 ms a token).
+  Over a layer split the fit counts each cached layer's slots on its device and a window on every device.
+  Refused by name: no experts on the CPU, `--moe-stream-from` beside it, a budget of no slot, a layer of more than 65535 experts (a pull word names slot and expert in 16 bits each), expert stacks with a scale companion, and a device without `caches_experts()` (ROCm, CUDA and the CPU).
+  Under the cache `--ubatch` defaults to 2048 (`kCachedUbatch`, `pass_ubatch` in `model/runtime.hpp`), which the fit, the built model and the CLI's logit rows all take, since each prompt pass pays its fill once.
+- **Measured** (Qwen3.6-35B-A3B Q4_K_M, one MI50 Vulkan, `--cpu-moe --expert-cache 5014290432`, host contended, hostwait recorded, /opt/claude-work/moeoff13/m20/out on the MI50 machine): greedy `generate -n 64` of a 732-token prompt byte-identical to all on the device, its prompt at 214 tok/s against 28.6 with the prompt's experts on the CPU.
+  pp512 493.2 tok/s against 29.4 before (prompt experts on the CPU) and 1296.1 all on the device; pp2048 491.9 against 33.2 and 1248.2; pp2048 at `--ubatch 2048` 942.1 against 1516.3, since each pass pays its fill once.
+  tg128 56.7 tok/s at 55 slots (the window takes 6 of the 61 slots the same budget gave), 57.6 before in the same round, 97.3 all on the device; hit rate 83.1 percent over a bench.
+- **Measured, the default pass** (same model, device and budget, quiet host, two interleaved rounds, /opt/claude-work/moeoff13/m21q/out-q1 and out-q2): pp2048 467.7 / 468.1 tok/s at 512 a pass (before), 674.4 / 674.4 at `--ubatch 1024`, 927.0 / 926.8 at the new default 2048, all on the device 1247.9 / 1248.3.
+  pp512 499.1 / 498.1 before, 499.1 / 489.3 after (one pass either way), 1270.9 / 1300.7 all on the device; tg128 61.4 / 61.4 before, 61.5 / 61.5 after, 119.6 / 119.3 all on the device; greedy text byte-identical to all on the device.
+- **Measured, Qwen3.8-Flash-Next UD-Q4_K_XL over two MI50s with 40 GiB of host memory** (llmx Vulkan `--device vulkan:0,vulkan:1 --lookup-storage file --threads 8`, `--p 512 --n 128`, binary 1adede6bbd5e566a; Strata upstream HIP helper mode `--expert-cache auto --expert-cache-device1 auto --spec 2 --prefill 512 --gpu 0,1`, its `sh0` form adding `--pcie-frac 0`; both from containers with `--memory 40g`; two interleaved rounds in opposite order, /opt/claude-work/moeoff13/m21/fnt on the MI50 machine), prefill / decode tok/s, round 1 / round 2:
+  | cell | pp512 | tg128 | hostwait, run-queue wait round 1 / 2 |
+  |---|---|---|---|
+  | llmx, `--n-cpu-moe 16 --expert-cache 6gb` | 289.4 / 289.4 | 28.6 / 30.0 | 305 / 301 s |
+  | llmx, same at `--ubatch 512` | 289.2 / 289.3 | 29.9 / 30.6 | 515 / 81 s |
+  | llmx, `--n-cpu-moe 16`, experts on the CPU | 83.5 / 83.6 | 4.7 / 5.5 | 153 / 223 s |
+  | Strata upstream, helper mode | 12.5 / 15.4 | 3.4 / 4.8 | 368 / 351 s |
+  | Strata upstream, helper mode `--pcie-frac 0` | 14.1 / 17.2 | 3.7 / 5.7 | 530 / 322 s |
+
+  Every cell ran contended by the rig's definition (run-queue wait above 100 ms; the host's ZFS read threads and kcompactd were the top consumers throughout), so the cells are kept as measured; the two rounds agree to 0.1 percent on prefill and to about 5 percent on decode for the cached llmx cells.
+  Strata's output-changing defaults stay on (K-quant experts' prompt on int8 MMQ, `--pcie-frac` auto 0.40, `--spec` suffix drafts) and no Strata MTP runtime was prepared for this file; the columns of the MI50 forks of Strata and project-maya follow from FORKS1's cells (/opt/claude-work/forks1/report.md) and are not in this table.
+  The `--n-cpu-moe 20 --expert-cache 6gb` cell exited 137 in both rounds: the kernel's global out-of-memory killer (constraint none, not this container's 40 GiB cap) killed `llmx-f` at 32 GiB resident while a compile on the host had taken the free memory (dmesg 21:15:54 and 21:17:32), so it has no figures here; the earlier contended round read 268.0 / 27.6 for it (m20/fn).
+- **Rejected, decode overlap on a second queue** (MOEOFF21b, code and numbers on gitea `research/moe-guess-ahead-rejected`): a decode step guessed the next cached layer's picks by its router on this layer's normed rows and a second compute queue (RADV gives the MI50 four) pulled them ahead, bit-exact.
+  The guesses cover 63, 76 and 82 percent of the misses at 8, 12 and 16 a row, but tg128 fell from 60.0 to 55.8 (4 guesses) and 49.8 (8): the second queue's shader copies share the link with the main queue's misses and slowed its kernels (`matmul_row_k4_dot_1col` 182 to 272 ms over 64 tokens), and a flush and a guess a layer cost about 1.35 ms a token by themselves.
+- **Landing gates** (head rebased onto main 929f042c6 over ROCm, CUDA and documentation commits; both arms built the same way from git archive, Vulkan Release, `llmx 0.1.0+unknown`, head sha256 238cd9265a9b9975 numerics 282ba84522a84dc6, main 5cd04101ed0227d3; /opt/claude-work/moeoff13/m24 on the MI50 machine, and m23 for the same code on main c0d13585c):
+
+  | Check | Result |
+  |---|---|
+  | Greedy ids against main without the cache, Qwen3-0.6B Q8_0 64 tokens and Qwen3.6-35B-A3B Q4_K_M 32 tokens of a 3000-byte prompt (m23) | identical on the CPU and on one MI50 Vulkan |
+  | CTest without the device tests | 83 of 83 at m23; 82 of 83 at m24, `server-resume` failing once at load average 46 (its victim paused after 177 recomputed rows) and then passing 3 of 3 on the head and 3 of 3 on main |
+  | CTest, Vulkan tests on two MI50s | 20 of 20 |
+  | Suite on the CPU (m23) and on vulkan:0 (m23) | every component PASS but `docs` and `moe` (both fixed, below) and `reference-generator`, whose numpy was built for Python 3.12 under the container's 3.13, an environment fault the hosted run holds |
+  | `dead-code`, `docs`, `cli`, `moe` on the CPU (m24) | PASS |
+  | `moe` on vulkan:0 and over vulkan:0,vulkan:1 (m24) | PASS: 12 generated tokens 63 hits and 15 misses, a chat of two turns 19 hits, 17 misses and 5 prompt experts from slots, each identical to the experts all on the device |
+  | Radeon VII check, Windows, fresh build `0.1.0+gb38b28ab616b` numerics 282ba84522a84dc6 | CTest 104 of 104, suite on vulkan:0 48 of 48 PASS, the cache check's chat case included (the test fix applied over that build) |
+
+  The landing run found two faults in the cache check, fixed here: it asked the logits case, one prompt pass with nothing to count, for a count line, and the chat's second turn passed the fixture's 16-token context, now 64 for the cache fixture alone.
+  Timing round against main without `--expert-cache`, the path main has (one MI50 Vulkan, three interleaved rounds m b, b m, m b, median and rounds; the CPU at 8 threads, four rounds, mean and rounds; tok/s, every cell contended by hostwait, the run-queue wait in brackets for the CPU):
+
+  | cell | main | head | change |
+  |---|---|---|---|
+  | Qwen3-0.6B Q8_0 Vulkan pp512 | 8694.1 (8694.1, 8546.9, 8760.7) | 8723.7 (8723.7, 8631.5, 8762.5) | +0.3% |
+  | Qwen3-0.6B Q8_0 Vulkan tg128 | 337.4 (337.4, 301.1, 368.8) | 312.9 (356.6, 229.4, 312.9) | -7.3% |
+  | Qwen3.6-35B-A3B Q4_K_M Vulkan pp512 | 1297.0 (1295.1, 1297.9, 1297.0) | 1297.1 (1297.1, 1298.2, 1296.0) | 0.0% |
+  | Qwen3.6-35B-A3B Q4_K_M Vulkan tg128 | 107.7 (101.2, 115.7, 107.7) | 107.6 (110.8, 104.3, 107.6) | -0.1% |
+  | Qwen3-0.6B Q8_0 CPU pp512, mean of four | 221.8 (232.65, 218.99, 231.65, 203.77) [3.3, 11.6, 8.8, 17.7 s] | 226.9 (232.15, 214.34, 228.20, 232.80) [2.2, 11.5, 4.3, 4.1 s] | +2.3% |
+  | Qwen3-0.6B Q8_0 CPU tg128, mean of four | 30.4 (37.49, 27.69, 31.66, 24.75) | 32.7 (36.06, 27.20, 33.35, 34.03) | +7.6% |
+
+  The CPU rows are a later round of four, m b, b m, m b, b m, at a load average of 11 to 19 (/opt/claude-work/moeoff13/m24/tc), every cell still contended by hostwait; the first round's CPU cells, at a load average of 46, measured the host and are in m24/t.
+  Without the cache the change adds one pointer to the routed step's arguments and moves a page decommit into a function, with ids identical.
+  After F2DEV's approval three findings went into this commit: the docs name the refusal of scaled expert stacks and of `--moe-stream-from`, and the fit refuses a layer of more than 65535 experts; `model-validation` holds the new refusal, and `dead-code`, `docs`, `cli` and `moe` on vulkan:0 pass on that head (m24/out/fx*.txt).
+- **Left (as of this landing; superseded by the ring block above, which runs ROCm, sizes slots from each device's room and reads misses from the files):** ROCm `pull_experts`, kept refused by name for now: the GPU core (`gpu/backend_core.hpp`, shared with CUDA) needs its own assign, pull, mark and fill kernels in `gpu/kernels` over `port.h`, a host allocation the device reads for the copies, and the fused routed step over slot stacks, a step of its own with ROCm device checks; several decoding sequences beyond the slots fall back to the fill.
+  Open never-wait work (the landing review): a miss still serialises assign, pull and the matrix product on the one queue, a device-side dependency, so the pass never waits for the host but the product waits for the copy.
+  Three steps remove that wait: a miss policy that reads a missing expert straight from the imported host stack in the product instead of copying it first, a promotion into its slot after the pass, off the critical path, and decode copies on a DMA (transfer) queue fed by a host thread beside the device, the one overlap not yet tried.
+  Open owner gate, recorded and not waived, since reference comparisons belong to the phase's final gate (AGENTS.md, Merge gates): the MI50 forks of Strata and project-maya on Qwen3.8-Flash-Next UD-Q4_K_XL at the same cards and 40 GiB budget, FORKS1's picks rpcribari/Strata `int6` (primary), VlDubr/strata-mi50 `mi50` and nicholas631/project-maya `feat/hip-gfx906-minimax-ep4-ds4-dspark8` (PR mw00/project-maya#889), as columns beside the table above (/opt/claude-work/forks1/report.md on the MI50 machine).
+  The hand check is the `moe` component on one Vulkan device and on a layer split of two (`--device vulkan:0 --only moe`, `--device vulkan:0,vulkan:1 --only moe`); no hosted runner has a device, and the hosted run holds the refusals (`model-validation`, `cli`).
+- **Gotchas:** a pull or fill reads host memory at the link's rate, about 14 to 15 GB/s on an MI50; the window costs one layer's every expert of the budget (about 525 MB on Qwen3.6-35B-A3B Q4_K_M).
+  The cache copies bare expert stacks only: stacks with a scale companion, DeepSeek-V4.1's MXFP4 experts, are refused at the build ("has a stack the cache does not hold") and by the Vulkan routed step, so DeepSeek-V4.1 runs `--n-cpu-moe` without `--expert-cache` until the slots carry scales.
 
 ## ROCm F16, Q4_0 and Q4_1 weights (2026-11-14, ROCMGAP1 to ROCMGAP7, branch rocmgap/types, rebased onto main 9724cd436)
 

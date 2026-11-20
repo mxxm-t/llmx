@@ -36,6 +36,10 @@ placement contracts in `docs/EXECUTION.md`.
   buffer's life and does not read it inside `adopt`; one that copies has
   consumed the source when `adopt` returns, so the caller may release it
   then.
+  `adopt_file(src, bytes, file, offset)` adopts a weight whose bytes are also
+  those at `offset` of `file`: a backend that reads in place may read the
+  parts an op uses from the file instead (the CPU's expert stacks,
+  `docs/src/backends-cpu.md`), and any other adopts `src`.
 - `alloc_weight(bytes)`: storage for a weight the caller fills with `write`
   before any op reads it. It need not be zeroed, and a backend keeps it as it
   keeps an adopted weight (Vulkan's padded F32 copies). The default is `alloc`.
@@ -283,6 +287,8 @@ placement contracts in `docs/EXECUTION.md`.
 - `moe_router(m, h, nin, rows, runs)`: the step's routing, the router's F32 product into its scores and `route_experts` under `m.rule`; a device may form both in one launch where it gives the same bits.
 - `moe_step(m, h, y, nin, rows, runs, dtype)`: a routed feed-forward step, `MoeStep` its operands: the F32 router into its scores, `route_experts` under `m.rule`, `matmul_experts` for gate and up, the routed `silu_mul` at `m.limit` and `m.form` over runs of `end * k` (built in `m.scratch`) and `matmul_experts_add` into `y`, then, with `m.shared` (`MoeShared`), the row gate's F32 product in the step's dtype where the expert has one, `matmul_group` for its gate and up, `silu_mul` at its `limit` and `form`, `sigmoid_mul` by the row gate, and `matmul_add` into `y`; `m.zero`, a row of zeros, clears `y` first through `repeat_row`. Its projections and down weights carry `WeightView`s, including optional scale storage, through both the base operations and device override; Vulkan's fused step refuses a rule other than softmax and a clamp by name before it builds, and ROCm, which keeps the base, refuses them in its `route_experts` and `silu_mul`.
   The base runs exactly those calls in that order, so a backend that does not override it, the CPU among them, computes what the routed layers computed before the op; a device overrides it where it fuses the step with the same bits (`backends-vulkan.md`, the fused routed step), and calls the base otherwise.
+  With `m.slots` (`ExpertSlots`, a layer's device expert cache) a device that `caches_experts()` routes as without slots, then pulls the step's missing experts into the layer's slots through its ring in waves and runs the entries in rounds of what the slots hold, each round's down products kept apart until one combine in entry order, so the experts run through the same kernels over the same bytes as with every expert on the device ([expert_ring](backends-expert_ring.md)); the base throws, and Vulkan, ROCm and CUDA have it.
+  `ExpertSlots` owns its state's layout, `owner_at`, `age_at`, `counts_at` (the picked experts found in slots, the experts the waves pulled and each ring half's last wave's pulls), `flags_at` and `words`, which the model allocates and reads its counts by and the backend pushes to its kernels, and `RingCounts`, the ring reader's counts a layer; `Memory::host_coherent` is the host memory the ring's exchange and entries take.
 - `repeat_row(dst, row, rows, width)`: copies a row of `width` floats into each of `rows` rows of dst, then doubles the copied rows, so clearing rows takes no host buffer or per-token upload; the base `moe_step` and qwen4exp's injection into a tensor group's partial rows use it.
 - The ops of the qwen35 layers, whose math is in [QWEN35](../QWEN35.md), The forward pass, with `norm_rope_partial` above.
   The CPU (`backends-cpu.md`) and Vulkan (`backends-vulkan.md`) implement them. ROCm does not advertise the qwen35 state ops, so placement there is refused before execution.

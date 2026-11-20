@@ -3,6 +3,7 @@
 // The host never waits inside a pass: it waits only where a caller asks for a ticket, a read, or a ring of host memory it reuses; a vendor's translation unit instantiates it once (rocm/rocm_backend.cpp).
 #include "backends/backend.hpp"
 #include "backends/device_profile.hpp"
+#include "backends/expert_ring.hpp"
 #include "backends/gpu/gpu_backend.hpp"
 #include "backends/gpu/kernels/shapes.h"
 #include "backends/kv_storage.hpp"
@@ -200,16 +201,16 @@ struct Graves {
     }
 };
 
-// Device memory from hipMalloc, pinned host memory the device reads in place (Memory::host_visible), or the caller's host memory registered with HIP (wrap_host).
+// Device memory from hipMalloc, pinned host memory the device reads in place (Memory::host_visible, coherent for Memory::host_coherent), or the caller's host memory registered with HIP (wrap_host).
 // Dropped, HIP's memory goes to the backend's graves, while the caller's is unregistered at once, once the stream's copies naming it retire, since the caller may free it as soon as the view is gone (Backend::wrap_host).
 template <class Api>
 class GpuBuffer final : public Buffer {
 public:
-    GpuBuffer(size_t bytes, bool host, std::shared_ptr<Graves<Api>> graves) : size_(bytes), host_(host), graves_(std::move(graves)) {
+    GpuBuffer(size_t bytes, bool host, std::shared_ptr<Graves<Api>> graves, bool coherent = false) : size_(bytes), host_(host), graves_(std::move(graves)) {
         if (!bytes) return;
         // Whole words: the prompt tile reads a Q8_0 quarter as aligned words, the last of which may run past a buffer's final block.
         const size_t words = (bytes + 3) & ~size_t(3);
-        if (host) Api::check(Api::host_malloc(&p_, words, false), "host_malloc");
+        if (host) Api::check(Api::host_malloc(&p_, words, coherent), "host_malloc");
         else Api::check(Api::malloc(&p_, words), "malloc");
         device_ = p_;
         if (host) Api::check(Api::host_device_pointer(&device_, p_), "host_device_pointer");
@@ -327,6 +328,7 @@ public:
         try { flush(); } catch (const std::exception&) {}
         (void)Api::set_device(dev_.index);
         (void)Api::stream_sync(stream_);
+        ring_.reset();
         {
             std::lock_guard<std::mutex> lock(graves_->m);
             graves_->tickets = nullptr;
@@ -441,17 +443,17 @@ public:
         Api::check(Api::set_device(dev_.index), "set_device");
         std::shared_ptr<GpuBuffer<Api>> b;
         try {
-            b = std::make_shared<GpuBuffer<Api>>(bytes, where == Memory::host_visible, graves_);
+            b = std::make_shared<GpuBuffer<Api>>(bytes, where != Memory::device, graves_, where == Memory::host_coherent);
         } catch (const std::runtime_error&) {
             // Dropped memory whose covering ticket is recorded goes back first, which waits for the whole stream; a drop since the last ticket waits for the next.
             // Nothing is recorded here, since alloc may run beside the thread that records.
             if (!graves_->settle()) throw;
-            b = std::make_shared<GpuBuffer<Api>>(bytes, where == Memory::host_visible, graves_);
+            b = std::make_shared<GpuBuffer<Api>>(bytes, where != Memory::device, graves_, where == Memory::host_coherent);
         }
         forget_twins();
         if (!bytes) return b;
         // KV growth and the model read a fresh buffer as zeros.
-        if (where == Memory::host_visible) std::memset(b->data(), 0, bytes);
+        if (where != Memory::device) std::memset(b->data(), 0, bytes);
         else hold_fill(b->data(), bytes);
         return b;
     }
@@ -486,9 +488,15 @@ public:
         // The event is recorded before the ticket is handed out, so a waiter on another thread never reads a slot not yet recorded for it.
         const Ticket t = tickets_.last() + 1;
         const size_t i = t % kEvents;
-        if (t > kEvents) wait(t - kEvents);
+        if (t > kEvents) {
+            wait(t - kEvents);
+            // A thread still in wait() on the slot would synchronise on the ticket recorded next, behind work that may need it (the expert ring's reader), so the slot is closed and its waiters, on an event already done, leave first.
+            slot_ticket_[i].store(0, std::memory_order_seq_cst);
+            while (syncing_[i].load(std::memory_order_seq_cst)) std::this_thread::yield();
+        }
         if (!started_) start();
         Api::check(Api::event_record(events_[i], stream_), "event_record");
+        slot_ticket_[i].store(t, std::memory_order_release);
         tickets_.take();
         graves_->recorded();
         opened_ = started_ = asked_ = waited_ = false;
@@ -537,9 +545,13 @@ public:
     }
     void wait(Ticket t) noexcept override {
         if (tickets_.settled(t)) return;
-        if (t + kEvents <= tickets_.last()) return tickets_.retired(t);
         std::atomic<uint32_t>& held = syncing_[t % kEvents];
-        held.fetch_add(1, std::memory_order_acq_rel);
+        held.fetch_add(1, std::memory_order_seq_cst);
+        // A slot holds another ticket only once t retired (record).
+        if (slot_ticket_[t % kEvents].load(std::memory_order_seq_cst) != t) {
+            held.fetch_sub(1, std::memory_order_acq_rel);
+            return tickets_.retired(t);
+        }
         const typename Api::Error e = Api::event_sync(events_[t % kEvents]);
         held.fetch_sub(1, std::memory_order_acq_rel);
         if (e != Api::kSuccess) remember(e, "a submission");
@@ -565,11 +577,13 @@ public:
             try { record(); } catch (const std::exception&) {}
         }
         wait(tickets_.last());
+        if (ring_) ring_->drain();
     }
-    // Results read in place after wait(t): the first failure the device reported throws.
+    // Results read in place after wait(t): the first failure the device reported throws, then an expert cache fault.
     void raise(Ticket t) override {
         (void)t;
         raise_failed();
+        ExpertRing::raise(ring_, *this, Api::prefix);
     }
 
     void read(const Buffer& src_b, size_t off, void* dst, size_t bytes) override {
@@ -579,6 +593,7 @@ public:
         if (src.host_ptr()) {
             sync();
             raise_failed();
+            ExpertRing::raise(ring_, *this, Api::prefix);
             std::memcpy(dst, (const uint8_t*)src.data() + off, bytes);
             return;
         }
@@ -588,6 +603,7 @@ public:
             hold_copy(st, (const uint8_t*)src.data() + off + done, n, Api::kToHost);
             wait(submit());
             raise_failed();
+            ExpertRing::raise(ring_, *this, Api::prefix);
             std::memcpy((uint8_t*)dst + done, st, n);
             done += n;
         }
@@ -1831,16 +1847,25 @@ public:
     }
     // The slots' products land in scratch, then each row's weighted sum in slot order joins Y (kernels/f32.gpu, llmx_moe_combine).
     void matmul_experts_add(WeightView weight, CSlice X, Slice Y, size_t nin, size_t nout, size_t nrows, const Routing& routing, RowRuns runs, Dtype dtype) override {
-        const size_t k = routing.k, entries = size_mul(nrows, k);
-        if (!entries || !nout) return;
+        if (!size_mul(nrows, routing.k) || !nout) return;
+        routed_parts(weight, X, nin, nout, nrows, routing, runs, dtype);
+        combine_parts(Y, nout, nrows, routing);
+    }
+    // Each entry's product into moe_out_, an entry of no expert left as it was.
+    void routed_parts(WeightView weight, CSlice X, size_t nin, size_t nout, size_t nrows, const Routing& routing, RowRuns runs, Dtype dtype) {
+        const size_t entries = size_mul(nrows, routing.k);
         check_runs(nrows, runs);
         span(*X.buffer, X.offset * sizeof(float), size_mul(size_mul(entries, nin), sizeof(float)));
-        span(*Y.buffer, Y.offset * sizeof(float), size_mul(size_mul(nrows, nout), sizeof(float)));
-        span(*routing.weights.buffer, routing.weights.offset * sizeof(float), size_mul(entries, sizeof(float)));
         const size_t out_bytes = moe_out_bytes(entries, nout);
         if (!moe_out_ || moe_out_->size() < out_bytes) moe_out_ = alloc(out_bytes, Memory::device);
         const Projection one{weight, Slice{moe_out_.get(), 0}, nout};
         routed_runs(&one, 1, X, nin, nrows, routing, true, runs, dtype);
+    }
+    // moe_out_'s parts, each row's weighted sum in j order, joining Y.
+    void combine_parts(Slice Y, size_t nout, size_t nrows, const Routing& routing) {
+        const size_t k = routing.k, entries = size_mul(nrows, k);
+        span(*Y.buffer, Y.offset * sizeof(float), size_mul(size_mul(nrows, nout), sizeof(float)));
+        span(*routing.weights.buffer, routing.weights.offset * sizeof(float), size_mul(entries, sizeof(float)));
         float* y = f32(Y);
         const float* part = (const float*)as_gpu<Api>(*moe_out_).data();
         const float* w = f32(routing.weights);
@@ -2274,9 +2299,80 @@ public:
         const auto lean = q5 ? kMoeStepUpQ5K : kMoeStepUpQ4K, wide = q5 ? kMoeStepUpQ5KW : kMoeStepUpQ4KW;
         return grid <= resident(step_up_per_cu_[q5], wide) ? wide : lean;
     }
+    // The device expert cache (ExpertSlots): the f32 module's mark, wave, pull and round kernels, and a ring a device whose reader fills the waves' misses (backends/expert_ring.hpp).
+    bool caches_experts() const override { return kernels_[kExpertWave] != nullptr; }
+    // A cached step: route, mark the picks, then rounds of waves and products, each round's down products kept as parts until one combine in j order (docs/src/backends-gpu.md, expert cache).
+    // The waves, pulls, rounds and products run in ExpertRing::run's order, the two ring halves alternating.
+    void cached_step(const MoeStep& m, CSlice h, Slice y, size_t nin, size_t rows, RowRuns runs, Dtype dtype) {
+        const ExpertSlots& c = *m.slots;
+        const size_t n_expert = m.router.rows, k = m.k, ff = m.gate.rows, entries = size_mul(rows, k);
+        if (n_expert != c.n_expert || c.slots > 0xffff || n_expert > 0xffff || m.gate.weight.scales.buffer || m.up.weight.scales.buffer || m.down.scales.buffer)
+            throw std::runtime_error(Api::prefix + "an expert cache step of another expert count, over 65535 slots or experts, or of scaled stacks");
+        ExpertRing& ring = ExpertRing::of(ring_, *this, c, Api::prefix);
+        constexpr size_t chunk = 65536;
+        ExpertStacks st{};
+        ExpertRing::Source src{};
+        size_t chunks = 0;
+        for (int i = 0; i < 3; ++i) {
+            const ExpertSlots::Stack& s = c.stack[i];
+            if (s.stride % 16 || !s.host || s.dst->size() < c.slots * s.stride || s.stride > ring.entry(i))
+                throw std::runtime_error(Api::prefix + "an expert cache stack off its alignment, outside its allocation or wider than the ring");
+            st.ring[i] = (const void*)as_gpu<Api>(ring.entries(i)).device_ptr();
+            st.dst[i] = (void*)as_gpu<Api>(*s.dst).data();
+            st.stride[i] = s.stride / 16;
+            src.at[i] = s.host;
+            src.stride[i] = s.stride;
+            src.file[i] = s.file;
+            src.file_at[i] = s.file_at;
+            chunks = std::max<size_t>(chunks, (s.stride + chunk - 1) / chunk);
+        }
+        ExpertRing::count_step(src, c, rows);
+        if (m.zero) repeat_row(y, *m.zero, rows, nin);
+        moe_router(m, h, nin, rows, runs);
+        if (!expert_ids_ || expert_ids_->size() < entries * sizeof(unsigned)) expert_ids_ = alloc(entries * sizeof(unsigned), Memory::device);
+        unsigned* state = (unsigned*)f32(c.state);
+        unsigned* ids = (unsigned*)f32(m.ids);
+        unsigned* round_ids = (unsigned*)as_gpu<Api>(*expert_ids_).data();
+        uint32_t* xchg = (uint32_t*)as_gpu<Api>(ring.exchange_buffer()).device_ptr();
+        const unsigned ne = u32(n_expert), en = u32(entries), sl = u32(c.slots), hw = u32(ring.half()), ch = u32(chunks), fl = u32(c.flags_at());
+        const unsigned long long units = chunk / 16;
+        launch_writing({{state, c.words()}}, kExpertMark, 1, 1, Args((const unsigned*)ids, state, ne, en, u32(c.age_at()), u32(c.counts_at()), fl));
+        const auto wave = [&] {
+            const uint64_t seq = ring.next();
+            launch_writing({{state, c.words()}}, kExpertWave, 1, 1,
+                           Args(state, xchg + ring.half_at(seq), ne, sl, hw, (unsigned long long)seq, u32(c.owner_at()), u32(c.age_at()), u32(c.counts_at()), fl), 1, 64);
+            ring.request(submit(), seq, src);
+            return seq;
+        };
+        const auto pull = [&](uint64_t seq) {
+            uint32_t* half = xchg + ring.half_at(seq);
+            hold_wait((uint64_t*)half, seq);
+            launch(kExpertPull, u32(ring.half() * chunks), 3, Args((const unsigned*)half, (unsigned*)xchg + ExpertRing::kFault, st, ch, units, (unsigned long long)seq, (const unsigned*)state + c.counts_at() + 2 + (seq & 1)));
+        };
+        const size_t out_bytes = moe_out_bytes(entries, nin);
+        if (!moe_out_ || moe_out_->size() < out_bytes) moe_out_ = alloc(out_bytes, Memory::device);
+        std::vector<RowRun>& entry_runs = *m.scratch;
+        entry_runs.clear();
+        for (size_t i = 0; i < runs.n; ++i) entry_runs.push_back(RowRun{runs.runs[i].end * k, runs.runs[i].extent});
+        const auto round = [&](size_t, bool last) {
+            launch_writing({{round_ids, entries}, {state, c.words()}}, kExpertRound, 1, 1,
+                           Args((const unsigned*)ids, round_ids, state, (unsigned*)xchg + ExpertRing::kUnplaced, ne, en, fl, u32(last)));
+        };
+        // A round's products: entries outside it read no expert, so their parts in moe_out_ keep the rounds before, which nothing else writes until the combine.
+        const auto products = [&] {
+            const Routing routing{Slice{expert_ids_.get(), 0}, m.weights, k, c.slots};
+            matmul_experts({m.gate, m.up}, h, nin, rows, routing, runs, dtype);
+            silu_mul(m.act, m.gate.out, m.up.out, entries * ff, m.limit, {entry_runs.data(), entry_runs.size()}, m.form);
+            routed_parts(m.down, m.act, ff, nin, rows, routing, runs, dtype);
+        };
+        ExpertRing::run(ring.plan(entries, n_expert, c.slots), wave, pull, round, products);
+        combine_parts(y, nin, rows, Routing{m.ids, m.weights, k, n_expert});
+        moe_shared(m, h, y, nin, rows, runs, dtype);
+    }
     // Where fused_step holds, a step is three launches (docs/src/backends-gpu.md): route with row gate and twin of h, every gate and up with their SiLU, the down with combine and shared down.
     // Each output keeps the bits of the base's ops (Backend::moe_step), which run every other step.
     void moe_step(const MoeStep& m, CSlice h, Slice y, size_t nin, size_t rows, RowRuns runs = {}, Dtype dtype = Dtype::f16) override {
+        if (m.slots) return cached_step(m, h, y, nin, rows, runs, dtype);
         if (!fused_step(m, h, nin, rows, runs, dtype)) return Backend::moe_step(m, h, y, nin, rows, runs, dtype);
         check_runs(rows, runs);
         const MoeShared& s = *m.shared;
@@ -2429,7 +2525,7 @@ private:
                   kRowsExactF32, kRowsExactQ8, kRowsExactQ4K, kRowsExactQ5K, kRowsExactQ6K, kRowsExactQ50, kRowsExactQ40, kRowsExactQ41, kRowsExactQ51, kRowsExactBF16, kRowsExactF16, kRowsExactIQ4NL, kRowsExactMXFP4, kRowsExactNVFP4, kRowsExactQ2K, kRowsExactQ3K, kRowsExactIQ4XS, kRowsExactIQ2XXS, kRowsExactIQ2XS, kRowsExactIQ2S, kRowsExactIQ3XXS, kRowsExactIQ3S, kRowsExactIQ1S, kRowsExactIQ1M, kRowsExactTQ10, kRowsExactTQ20, kRowsExactQ10, kRowsExactQ20, kRowsExactF8, kSparseVecG4, kSparseVec256G4, kColsF32x4, kColsF32x8, kColsBF16x4, kColsBF16x8, kColsF16x4, kColsF16x8, kMoeStepRoute,
                   kHcCoeffsCollapse, kHcExpand, kModelFormatQdq, kTopkRows, kCompressPool, kIndexerScores, kIndexerScoresTile, kIndexerScoresInt, kRawIndexScores, kPoolWrite, kSparseScoresFew16, kSparseValuesFew16, kSparseScoresFew8, kSparseValuesFew8, kSparseScoresFew4, kSparseValuesFew4, kSparseScoresFew2, kSparseValuesFew2, kSparseScoresFew32, kSparseValuesFew16x2, kSparseScoresTile, kSparseValuesTile, kSparseScoresTile32, kSparseValuesTile32, kRouteSqrtSoftplus, kRouteStepF32, kRouteStepBF16,
 
-                  kNormRopeForm, kDeltaStep, kMixRows, kLayerNormRows, kGelu, kAddBias, kAttentionChunkWindow, kAttentionVecWindow, kAttentionVec256Window, kUnitRows, kSigmoidGateRows, kMatmulAtIds, kChainPick,
+                  kNormRopeForm, kDeltaStep, kMixRows, kLayerNormRows, kGelu, kAddBias, kAttentionChunkWindow, kAttentionVecWindow, kAttentionVec256Window, kUnitRows, kSigmoidGateRows, kMatmulAtIds, kChainPick, kExpertMark, kExpertWave, kExpertPull, kExpertRound,
                   kRows16x1, kRows16x2, kRows16x2r4, kRows16x4, kRows16x4r4, kRows16x8, kRows16x8r4, kRows16x16, kTile16,
                   kRows8x1, kRows8x2, kRows8x2r4, kRows8x4, kRows8x4r4, kRows8x8, kRows8x8r4, kRows8x16, kTile8, kTileReduce,
                   kHalf8x1, kHalf8x1p, kHalf8x1r2, kHalf8x1s1, kHalf8x1r2s1, kHalf8x1r2s4, kHalf8x1h2, kHalf8x1h3, kHalf8x1h4, kHalf8x1h5, kHalf8x1h2p, kHalf8x1h3p, kHalf8x1h4p, kHalf8x1h5p, kHalf8x2, kHalf8x2r4, kHalf8x4, kHalf8x4r4, kHalf8x8, kHalf8x8r4, kHalf8x16, kHalf8x16r4, kHalf8x9, kHalf8x10, kHalf8x11, kHalf8x12, kHalf8x13, kHalf8x14, kHalf8x15, kTile16Tall, kTile8Tall, kRouted16, kRouted8, kRoutedHalf8, kRoutedHalf8s1, kGrouped16x2, kGrouped16x4, kGrouped16x8, kGrouped8x2, kGrouped8x4, kGrouped8x8, kGroupedHalf8x2, kGroupedHalf8x4, kGroupedHalf8x8, kRoutedTile16, kRoutedTile8, kRoutedNarrow16, kRoutedNarrow8, kRoutedStream8, kRoutedThinMXFP416,
@@ -2466,7 +2562,7 @@ private:
                                                            "llmx_twin16", "llmx_twin8", "llmx_silu_mul_twin16_major", "llmx_silu_mul_twin8_major",
                                                            "llmx_rms_norm_16_twin16_major", "llmx_rms_norm_16_twin8_major", "llmx_rms_norm_32_twin16_major",
                                                            "llmx_rms_norm_32_twin8_major", "llmx_attention_vec_major", "llmx_attention_vec_merge_major",
-                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_group_chain", "llmx_group_shares", "llmx_group_copies", "llmx_group_arm", "llmx_group_add_check", "llmx_group_push", "llmx_group_take", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_kv_index_all", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_attention_gated256", "llmx_attention_gated_merge256", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_argmax_part", "llmx_argmax_pick", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q4_0", "llmx_routed_q4_1", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_f16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_routed_nvfp4", "llmx_routed_q2_k", "llmx_routed_q3_k", "llmx_routed_iq4_xs", "llmx_routed_iq2_xxs", "llmx_routed_iq2_xs", "llmx_routed_iq2_s", "llmx_routed_iq3_xxs", "llmx_routed_iq3_s", "llmx_routed_iq1_s", "llmx_routed_iq1_m", "llmx_routed_tq1_0", "llmx_routed_tq2_0", "llmx_routed_q1_0", "llmx_routed_q2_0", "llmx_routed_f8_e4m3", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q4_0", "llmx_matmul_rows_q4_1", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_f16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_matmul_rows_nvfp4", "llmx_matmul_rows_q2_k", "llmx_matmul_rows_q3_k", "llmx_matmul_rows_iq4_xs", "llmx_matmul_rows_iq2_xxs", "llmx_matmul_rows_iq2_xs", "llmx_matmul_rows_iq2_s", "llmx_matmul_rows_iq3_xxs", "llmx_matmul_rows_iq3_s", "llmx_matmul_rows_iq1_s", "llmx_matmul_rows_iq1_m", "llmx_matmul_rows_tq1_0", "llmx_matmul_rows_tq2_0", "llmx_matmul_rows_q1_0", "llmx_matmul_rows_q2_0", "llmx_matmul_rows_f8_e4m3", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols4_f32", "llmx_matmul_cols8_f32", "llmx_matmul_cols4_bf16", "llmx_matmul_cols8_bf16", "llmx_matmul_cols4_f16", "llmx_matmul_cols8_f16", "llmx_moe_step_route", "llmx_hc_coeffs_collapse", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_indexer_scores_tile", "llmx_indexer_scores_int", "llmx_raw_index_scores", "llmx_pool_write", "llmx_sparse_scores_few16", "llmx_sparse_values_few16", "llmx_sparse_scores_few8", "llmx_sparse_values_few8", "llmx_sparse_scores_few4", "llmx_sparse_values_few4", "llmx_sparse_scores_few2", "llmx_sparse_values_few2", "llmx_sparse_scores_few32", "llmx_sparse_values_few16x2", "llmx_sparse_scores_tile", "llmx_sparse_values_tile", "llmx_sparse_scores_tile32", "llmx_sparse_values_tile32", "llmx_route_sqrt_softplus", "llmx_route_step_f32", "llmx_route_step_bf16", "llmx_norm_rope_form", "llmx_delta_step", "llmx_mix_rows", "llmx_layer_norm_rows", "llmx_gelu", "llmx_add_bias", "llmx_attention_chunk_window", "llmx_attention_vec_window", "llmx_attention_vec256_window", "llmx_unit_rows", "llmx_sigmoid_gate_rows", "llmx_matmul_at_ids", "llmx_chain_pick", "llmx_q8_0_rows16_1",
+                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_group_chain", "llmx_group_shares", "llmx_group_copies", "llmx_group_arm", "llmx_group_add_check", "llmx_group_push", "llmx_group_take", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_kv_index_all", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_attention_gated256", "llmx_attention_gated_merge256", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_argmax_part", "llmx_argmax_pick", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q4_0", "llmx_routed_q4_1", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_f16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_routed_nvfp4", "llmx_routed_q2_k", "llmx_routed_q3_k", "llmx_routed_iq4_xs", "llmx_routed_iq2_xxs", "llmx_routed_iq2_xs", "llmx_routed_iq2_s", "llmx_routed_iq3_xxs", "llmx_routed_iq3_s", "llmx_routed_iq1_s", "llmx_routed_iq1_m", "llmx_routed_tq1_0", "llmx_routed_tq2_0", "llmx_routed_q1_0", "llmx_routed_q2_0", "llmx_routed_f8_e4m3", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q4_0", "llmx_matmul_rows_q4_1", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_f16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_matmul_rows_nvfp4", "llmx_matmul_rows_q2_k", "llmx_matmul_rows_q3_k", "llmx_matmul_rows_iq4_xs", "llmx_matmul_rows_iq2_xxs", "llmx_matmul_rows_iq2_xs", "llmx_matmul_rows_iq2_s", "llmx_matmul_rows_iq3_xxs", "llmx_matmul_rows_iq3_s", "llmx_matmul_rows_iq1_s", "llmx_matmul_rows_iq1_m", "llmx_matmul_rows_tq1_0", "llmx_matmul_rows_tq2_0", "llmx_matmul_rows_q1_0", "llmx_matmul_rows_q2_0", "llmx_matmul_rows_f8_e4m3", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols4_f32", "llmx_matmul_cols8_f32", "llmx_matmul_cols4_bf16", "llmx_matmul_cols8_bf16", "llmx_matmul_cols4_f16", "llmx_matmul_cols8_f16", "llmx_moe_step_route", "llmx_hc_coeffs_collapse", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_indexer_scores_tile", "llmx_indexer_scores_int", "llmx_raw_index_scores", "llmx_pool_write", "llmx_sparse_scores_few16", "llmx_sparse_values_few16", "llmx_sparse_scores_few8", "llmx_sparse_values_few8", "llmx_sparse_scores_few4", "llmx_sparse_values_few4", "llmx_sparse_scores_few2", "llmx_sparse_values_few2", "llmx_sparse_scores_few32", "llmx_sparse_values_few16x2", "llmx_sparse_scores_tile", "llmx_sparse_values_tile", "llmx_sparse_scores_tile32", "llmx_sparse_values_tile32", "llmx_route_sqrt_softplus", "llmx_route_step_f32", "llmx_route_step_bf16", "llmx_norm_rope_form", "llmx_delta_step", "llmx_mix_rows", "llmx_layer_norm_rows", "llmx_gelu", "llmx_add_bias", "llmx_attention_chunk_window", "llmx_attention_vec_window", "llmx_attention_vec256_window", "llmx_unit_rows", "llmx_sigmoid_gate_rows", "llmx_matmul_at_ids", "llmx_chain_pick", "llmx_expert_mark", "llmx_expert_wave", "llmx_expert_pull", "llmx_expert_round", "llmx_q8_0_rows16_1",
 
                                                            "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_2_r4", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_4_r4",
                                                            "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_8_r4", "llmx_q8_0_rows16_16", "llmx_q8_0_tile16", "llmx_q8_0_rows8_1",
@@ -2906,11 +3002,11 @@ private:
         return {base, d, d + total};
     }
     // The scratch buffers in one order, and what passes of widths `w` grow each to.
-    static constexpr size_t kScratchBuffers = 15;
+    static constexpr size_t kScratchBuffers = 16;
     using ScratchSizes = std::array<size_t, kScratchBuffers>;
     BufferPtr* scratch_buffer(size_t i) {
         BufferPtr* const held[kScratchBuffers] = {&parts_, &sparse_, &moe_out_, &step_counter_, &step_twin_, &moe_tab_, &delta_counter_, &staged_,
-                                                  &partials_, &scores_, &argmax_parts_, &select_state_, &hc_scratch_, &twin_[0], &twin_[1]};
+                                                  &partials_, &scores_, &argmax_parts_, &select_state_, &hc_scratch_, &twin_[0], &twin_[1], &expert_ids_};
         return held[i];
     }
     ScratchSizes scratch_sizes(const PassWidths& w) const {
@@ -2934,6 +3030,7 @@ private:
             z[2] = moe_out_bytes(entries, w.expert_out);
             // The grouped builds take groups of 2 entries at the least, and every entry may be the one of its expert.
             z[5] = moe_tab_bytes(size_add((entries + 1) / 2, entries), entries);
+            if (w.expert_cache) z[15] = size_mul(entries, sizeof(unsigned));
         }
         if (w.shared_ff && dot_module_) {
             z[3] = 64;
@@ -3345,6 +3442,16 @@ private:
         unsigned long long first, per, n_expert;
     };
     static_assert(sizeof(RoutedCall) == 184 && offsetof(RoutedCall, ids) == 152 && offsetof(RoutedCall, n_expert) == 176, "RoutedCall is the kernel's layout");
+    // The host's copy of kernels/f32.gpu's ExpertStacks, field for field: each stack's ring entries and slots, and its expert's 16-byte units.
+    struct ExpertStacks {
+        const void* ring[3];
+        void* dst[3];
+        unsigned long long stride[3];
+    };
+    static_assert(sizeof(ExpertStacks) == 72 && offsetof(ExpertStacks, dst) == 24 && offsetof(ExpertStacks, stride) == 48, "kernels/f32.gpu's ExpertStacks");
+    // The exchange words the kernels and the reader share (ExpertRing): a half's 64-bit ticket first, so hold_wait reads it in place.
+    static_assert(ExpertRing::kAlign % 2 == 0 && ExpertRing::kPairs % 2 == 0 && ExpertRing::kTicket == 0 && ExpertRing::kPulls == 2 && ExpertRing::kTag == 3,
+                  "kernels/f32.gpu's llmx_expert_wave and llmx_expert_pull exchange words");
     // The host's copies of the fused moe_step's calls (kernels/f32.gpu, MfRoute, and kernels/int16.gpu, MfGateUpS and MfDown), field for field.
     // The host's copy of llmx_delta_step's argument (kernels/f32.gpu, DeltaStepArgs), field for field.
     struct DeltaStepArgs {
@@ -4144,6 +4251,9 @@ private:
     std::array<Kept, 2> kept_{};   // the newer first
     size_t twin_slot_ = 0;   // the slot of the twin the last product read
     BufferPtr moe_out_;   // a routed down projection's slots before they join the residual
+    BufferPtr expert_ids_;  // a cached step's round: each entry's slot, or none
+    // The device's expert ring (cached_step, ExpertRing::of).
+    std::unique_ptr<ExpertRing> ring_;
     BufferPtr delta_counter_;   // llmx_delta_step's (view, K head) counters, zero between launches
     BufferPtr step_counter_, step_twin_;   // the fused launches' finished blocks (moe_step's route, moe_router), zero between launches, and the fused moe_step's shared act's twin
     unsigned* step_counter() {
@@ -4169,7 +4279,8 @@ private:
     size_t rows_per_block_ = kThreads / dev_.caps.subgroup_size;   // the row kernel's output rows a block, a wave each
     std::array<typename Api::Function, kKernels> kernels_{};
     std::array<typename Api::Event, kEvents> events_{};
-    std::array<std::atomic<uint32_t>, kEvents> syncing_{};   // per event slot, the threads in its synchronise (done)
+    std::array<std::atomic<uint32_t>, kEvents> syncing_{};   // per event slot, the threads in its synchronise (done, record)
+    std::array<std::atomic<Ticket>, kEvents> slot_ticket_{};   // per event slot, the ticket recorded in it, 0 while record reuses it
     std::array<typename Api::Event, kEvents> starts_{};   // each ticket's first operation after its cross-device waits, timed against events_ (busy_ms)
     Ring args_, stage_, pass_;   // the argument ring, the staging ring, and pass_arg's ring in device memory
     std::array<Upload, kUploads> uploads_{};

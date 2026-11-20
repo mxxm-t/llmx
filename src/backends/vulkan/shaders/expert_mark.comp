@@ -1,0 +1,29 @@
+#version 450
+// The device expert cache's first kernel of a step (backend.hpp ExpertSlots, kernels/f32.gpu llmx_expert_mark): clear the flags, advance the clock, mark each picked expert, and count and refresh the picked experts already in slots.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint n_expert; uint entries; uint age; uint counts; uint flags; } p;
+layout(set = 0, binding = 0) readonly buffer I { uint ids[]; };
+layout(set = 0, binding = 1) buffer S { uint state[]; };
+const uint kPicked = 1u;
+shared uint clock_s;
+void main() {
+    const uint t = gl_LocalInvocationID.x;
+    for (uint e = t; e < p.n_expert; e += 256u) state[p.flags + e] = 0u;
+    if (t == 0u) {
+        clock_s = state[0] + 1u;
+        state[0] = clock_s;
+    }
+    memoryBarrierBuffer();
+    barrier();
+    for (uint j = t; j < p.entries; j += 256u)
+        if (ids[j] < p.n_expert) state[p.flags + ids[j]] = kPicked;
+    memoryBarrierBuffer();
+    barrier();
+    uint hits = 0u;
+    for (uint e = t; e < p.n_expert; e += 256u)
+        if (state[p.flags + e] != 0u && state[1u + e] != 0u) {
+            state[p.age + state[1u + e] - 1u] = clock_s;
+            ++hits;
+        }
+    if (hits != 0u) atomicAdd(state[p.counts], hits);
+}

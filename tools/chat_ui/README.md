@@ -206,6 +206,7 @@ active branch. **Browse saved files** adds selected files to the current draft.
   Sending clears only the submitted draft, preserving newer typing. Signing out
   clears this tab's ordinary drafts. Temporary chat drafts stay in memory and
   are discarded on refresh, as the composer explains.
+- Ctrl+K (Command+K on macOS) activates **New conversation** from the companion navigation and focuses the composer.
 - New conversation reuses the current empty conversation and keeps its unsent
   text and attachments. A first blank chat keeps the settings already entered.
   Starting a new conversation from an existing populated one uses the companion

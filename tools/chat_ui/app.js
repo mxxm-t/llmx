@@ -1557,7 +1557,10 @@
         event.preventDefault(); (event.shiftKey ? last : first).focus();
       }
     }
-    if (modalDrawer !== $('inspector') && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); newChat().catch(error => toast(error.message)); }
+    if (modalDrawer !== $('inspector') && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+      event.preventDefault();
+      document.querySelector('[data-action="new"]').click();
+    }
     if (event.target.matches('[role=tab]') && ['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); const tabs = ['activity', 'stats', 'settings']; const index = (tabs.indexOf(S.tab) + (event.key === 'ArrowRight' ? 1 : 2)) % 3; showTab(tabs[index]); $('tab-' + tabs[index]).focus(); }
   });
   window.addEventListener('resize', () => {

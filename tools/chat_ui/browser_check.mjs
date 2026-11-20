@@ -321,14 +321,21 @@ async function checkNewChatShortcut() {
     for (const type of ['keyDown', 'keyUp']) await cdp('Input.dispatchKeyEvent', {type, key:'k', code:'KeyK', modifiers:2});
   };
   const creates = () => apiMutations.filter(request => request.method === 'POST' && new URL(request.url).pathname === '/api/chats').length;
+  const navigate = async view => {
+    if (await evaluate("document.documentElement.dataset.compact==='true'")) {
+      await pointerClick('#sidebar-toggle');
+      await wait("document.querySelector('#sidebar').getBoundingClientRect().left>=0", 'navigation drawer opened');
+    }
+    await pointerClick('.global-nav [data-view=' + view + ']');
+  };
   const before = creates();
-  await pointerClick('.global-nav [data-view=workbench]');
+  await navigate('workbench');
   await shortcut();
   await wait("document.querySelector('#app').dataset.view==='chat' && document.activeElement.id==='draft' && document.querySelector('#welcome').checkVisibility()", 'new chat shortcut opens Chat and focuses the draft');
   assert.equal(creates(), before + 1, 'new chat shortcut creates one conversation');
   const id = await evaluate("document.querySelector('.chat-item.active').dataset.chat");
   await fill('#draft', 'Unsent keyboard draft');
-  await pointerClick('.global-nav [data-view=preferences]');
+  await navigate('preferences');
   await shortcut();
   await wait("document.querySelector('#app').dataset.view==='chat' && document.activeElement.id==='draft'", 'repeat shortcut returns to the empty conversation');
   assert.equal(await evaluate("document.querySelector('.chat-item.active').dataset.chat"), id);

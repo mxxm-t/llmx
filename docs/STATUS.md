@@ -3,9 +3,9 @@
 ## New conversation keyboard shortcut (2026-11-21)
 
 - **Goal:** Make the displayed New conversation shortcut open Chat from other companion views and preserve an empty draft on repeat.
-- **Done:** The button goes through the shell's navigation handler. The shortcut calls the data operation directly.
-- **Left:** Exercise keyboard navigation from Saved files and Settings, then qualify the shared action.
-- **Gotchas:** Keep the dialog and drawer keyboard guards and the existing rule for reusing an empty conversation.
+- **Done:** Ctrl+K and Command+K activate the existing New conversation button. Both its navigation and draft reuse behavior now apply to the shortcut.
+- **Checks:** Chrome reproduced the failure on main. After the fix, invoking the shortcut from Saved files opened Chat and focused the draft. Repeating it from Settings preserved the text, kept the same conversation and made no second create request.
+- **Landing:** Fast-forward after the Windows and Linux Chat workspace checks.
 
 ## Chat browser test startup (2026-11-21)
 

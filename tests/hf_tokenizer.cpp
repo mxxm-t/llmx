@@ -139,11 +139,13 @@ int main() {
         }
         {
             // A Qwen 3.5 file: the qwen35 Split pattern, repeated as tokenizer_config.json's pretokenize_regex, and a token only added_tokens_decoder adds, taken as an added token.
+            // Qwen 3.6 adds response_template, how a reply is parsed, which changes no encoding.
             ++cases;
             gguf::GGUFModel m;
             const std::string qwen35 =
                 R"((?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\\r\\n\\p{L}\\p{N}]?[\\p{L}\\p{M}]+|\\p{N}| ?[^\\s\\p{L}\\p{M}\\p{N}]+[\\r\\n]*|\\s*[\\r\\n]+|\\s+(?!\\S)|\\s+)";
-            const std::string decoder = R"("special":true},"15":{"content":"<|audio|>","special":true}},"pretokenize_regex":")" + qwen35 + "\"";
+            const std::string decoder = R"("special":true},"15":{"content":"<|audio|>","special":true}},"pretokenize_regex":")" + qwen35 +
+                R"(","response_template":{"defaults":{"role":"assistant"},"start_anchor":"<|im_start|>assistant\n"})";
             m.kv = read(directory({pattern_json, qwen35}, {"\"special\":true}}", decoder}));
             const gguf::MetaValue& tokens = key(m, "tokenizer.ggml.tokens");
             const gguf::MetaValue& types = key(m, "tokenizer.ggml.token_type");

@@ -231,7 +231,8 @@ inline KeyValues read_keys(const std::string& dir, const jmini::Value& config, u
         {"clean_up_tokenization_spaces", "false"}, {"eos_token", nullptr}, {"errors", "\"replace\""}, {"model_max_length", nullptr},
         {"pad_token", nullptr}, {"split_special_tokens", "false"}, {"tokenizer_class", nullptr}, {"unk_token", nullptr},
         {"extra_special_tokens", nullptr}, {"_commit_hash", nullptr}, {"max_length", nullptr}, {"stride", nullptr}, {"truncation_side", nullptr},
-        {"truncation_strategy", nullptr}, {"padding_side", nullptr}, {"pretokenize_regex", nullptr}});
+        {"truncation_strategy", nullptr}, {"padding_side", nullptr}, {"pretokenize_regex", nullptr},
+        {"response_template", nullptr}});
     // The slow tokenizer's split pattern, which Qwen 3.5 files repeat, must be the fast one's.
     if (const jmini::Value* slow = tc.get("pretokenize_regex"); slow && (!slow->isString() || slow->str != regex->str))
         throw std::runtime_error("tokenizer_config.json pretokenize_regex differs from tokenizer.json's Split pattern");

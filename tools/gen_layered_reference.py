@@ -1,7 +1,8 @@
 """The layered HF reference: HF's own Qwen3, Qwen3-MoE, Qwen3.5 and Qwen3.5-MoE modules, one decoder layer's weights in memory at a time.
 
     python tools/gen_layered_reference.py goldens --repo Qwen/Qwen3.5-9B --revision SHA --gguf FILE.gguf --output-dir DIR [--gguf-repo REPO --gguf-revision SHA] [--file-exact]
-    python tools/gen_layered_reference.py equality --output FILE [--repo REPO --revision SHA --layers N]
+    python tools/gen_layered_reference.py equality --output FILE [--repo REPO --revision SHA --layers N | --fp8-fixture] [--attention-chunk N]
+    python tools/gen_layered_reference.py depth --repo REPO --revision SHA --inputs DIR --output-dir DIR [--attention-chunk 512]
 
 From the 9B up, a qwen35 model's float32 forward does not fit host memory whole.
 This runs the calls of transformers' Qwen3_5TextModel.forward in its order: the embedding, the model's own rotary embedding and masks, each decoder layer, the final norm and the head.
@@ -16,6 +17,9 @@ With --file-exact the modules take the GGUF's own weights instead, each layer's 
 equality runs a checkpoint both ways, HF's full forward and the layered one, on every input the goldens take, and records the SHA-256 of each one's logits: by default Qwen/Qwen3.5-0.8B at the qwen35 tokenizer golden's commit, whole.
 --layers N cuts both to the checkpoint's first N decoder layers, so a model whose full float32 forward does not fit memory is compared on the layers it has.
 It exits nonzero unless every pair and every parameter is equal, and tests/reference_generator.py holds the committed records to that.
+--fp8-fixture compares the safetensors component's tiny Qwen 3.6 FP8 directory, layered, with its float32 twin of the decoded values, whole, which equal it bit for bit since each E4M3 code times its BF16 scale is exact in float32.
+--attention-chunk N runs the layered forward's attention in chunks of N queries and the full forward's whole, so equality holds the chunked attention to eager's.
+depth runs long sequences, such as the raw and chat-template 16k ones, on the checkpoint's weights with attention in chunks of 512 queries, since a 16k row's whole score matrix does not fit memory, and writes the logits at each continuation's positions.
 
 Both run offline from the HF cache, which must already hold the checkpoint at the commit given.
 They need the qwen35 reference venv that docs/ASSETS.md lists, and tools/gen_baseline.py's check of it refuses other versions and an installed kernels, fla or causal_conv1d package, which HF would run in place of its torch code for the linear-attention layers.
@@ -144,7 +148,9 @@ def checkpoint_plan(directory, model, cut=None):
         if name in plan:
             raise SystemExit("%s: %s and %s both give %s" % (directory, plan[name][1], key, name))
         plan[name] = (stored[key], key)
-    stray = [key for key in unexpected if not (not direct and generator.QWEN35_UNUSED.match(key)) and not past_cut(key, cut)]
+    # An FP8 weight's block scales are read with it (Layered.read).
+    stray = [key for key in unexpected if not (not direct and generator.QWEN35_UNUSED.match(key)) and not past_cut(key, cut)
+             and not (key.endswith(".weight_scale_inv") and key[:-len("_scale_inv")] in stored)]
     if stray:
         raise SystemExit("%s: %d checkpoint keys the model neither takes nor ignores, such as %s" % (directory, len(stray), stray[0]))
     tied = {"lm_head.weight"} if model.config.tie_word_embeddings else set()
@@ -250,9 +256,10 @@ class Layered:
     With `gguf`, the weights are that file's own (FileWeights) and the checkpoint gives the model's config and parameter names.
     run() computes the logits of a list of token rows; calling it as a model, model(ids, use_cache=False), returns the logits run() computed for those ids."""
 
-    def __init__(self, torch, directory, layers=None, gguf=None):
+    def __init__(self, torch, directory, layers=None, gguf=None, attention_chunk=None):
         import transformers
         self.torch = torch
+        self.attention_chunk = attention_chunk
         self.directory = directory
         self.file = FileWeights(gguf) if gguf else None
         causal, config = text_model(transformers, directory, layers)
@@ -276,6 +283,10 @@ class Layered:
             self.plan, self.unexpected = {}, []
         else:
             self.plan, self.unexpected = checkpoint_plan(directory, self.model, layers)
+        # The block scales of an FP8 checkpoint's weights, by the weight's key.
+        self.scales = {key[:-len("_scale_inv")]: key for key in self.unexpected if key.endswith(".weight_scale_inv")}
+        self.fp8 = 0
+        self.chunked_calls = 0
         self.logits = {}
 
     def experts(self):
@@ -299,8 +310,25 @@ class Layered:
             with safe_open(os.path.join(self.directory, file), framework="pt", device="cpu") as reader:
                 for name, (source, key) in where.items():
                     if source == file:
-                        tensors[name] = reader.get_tensor(key).to(dtype=self.torch.float32, copy=True)
+                        tensor = reader.get_tensor(key)
+                        tensors[name] = self.fp8_weight(reader, key, tensor) if key in self.scales else tensor.to(dtype=self.torch.float32, copy=True)
         return tensors
+
+    def fp8_weight(self, reader, key, codes):
+        """An FP8 weight [out, in] as tests/spec_decode.py decodes its E4M3 codes, each times the scale of its 128 x 128 block, in float32, where the product is exact."""
+        import numpy
+        import spec_decode
+        if codes.dtype != self.torch.float8_e4m3fn:
+            raise SystemExit("%s has block scales but holds %s, not E4M3 codes" % (key, codes.dtype))
+        rows, cols = codes.shape
+        raw = codes.contiguous().view(self.torch.uint8).numpy().tobytes()
+        values = spec_decode.decode_numpy(spec_decode.F8_E4M3, raw, rows * cols).reshape(rows, cols)
+        scale = reader.get_tensor(self.scales[key]).to(dtype=self.torch.float32).numpy()
+        if scale.shape != ((rows + 127) // 128, cols // 128) or cols % 128:
+            raise SystemExit("%s: block scales of shape %s do not cover %s" % (key, scale.shape, (rows, cols)))
+        grid = numpy.repeat(numpy.repeat(scale, 128, axis=0)[:rows], 128, axis=1)
+        self.fp8 += 1
+        return self.torch.from_numpy(numpy.ascontiguousarray(values * grid, dtype=numpy.float32))
 
     def load(self, module, prefix):
         """Give `module`, named `prefix` in the model, its parameters from the checkpoint."""
@@ -312,8 +340,49 @@ class Layered:
     def release(self, module):
         module.to("meta")
 
-    def run(self, rows, on_layer=None):
-        """The logits at every position of each [1, N] row in `rows` that has none yet, computed layer by layer; `on_layer(name, module)` sees each decoder layer and the final norm while their weights are loaded."""
+    @contextmanager
+    def attention(self):
+        """With `attention_chunk`, HF's eager attention runs its queries in chunks of that many rows: each chunk's scores, mask, float32 softmax and values as eager_attention_forward computes them for those rows, over every key.
+        The whole score matrix of a 16k row (heads x N x N floats) does not fit memory, a chunk's does; the modeling module's eager_attention_forward is swapped while the forward runs and restored after."""
+        if not self.attention_chunk:
+            yield
+            return
+        torch, chunk = self.torch, self.attention_chunk
+        modeling = sys.modules[type(self.model).__module__]
+        eager = modeling.eager_attention_forward
+
+        def chunked(module, query, key, value, attention_mask, scaling, dropout=0.0, **kwargs):
+            self.chunked_calls += 1
+            key_states = modeling.repeat_kv(key, module.num_key_value_groups).transpose(2, 3)
+            value_states = modeling.repeat_kv(value, module.num_key_value_groups)
+            if attention_mask is not None and attention_mask.shape[2] != query.shape[2]:
+                raise SystemExit("an attention mask of %d query rows for %d queries" % (attention_mask.shape[2], query.shape[2]))
+            # torch multiplies 1 to 3 rows another way than more, with other float32 sums, so a tail under 4 rows joins the chunk before it.
+            rows = query.shape[2]
+            starts = list(range(0, rows, chunk))
+            if len(starts) > 1 and rows - starts[-1] < 4:
+                starts.pop()
+            outputs = []
+            for start, end in zip(starts, starts[1:] + [rows]):
+                weights = torch.matmul(query[:, :, start:end], key_states) * scaling
+                if attention_mask is not None:
+                    weights = weights + attention_mask[:, :, start:end, :key_states.shape[-1]]
+                weights = torch.nn.functional.softmax(weights, dim=-1, dtype=torch.float32).to(query.dtype)
+                weights = torch.nn.functional.dropout(weights, p=dropout, training=module.training)
+                outputs.append(torch.matmul(weights, value_states))
+            return torch.cat(outputs, dim=2).transpose(1, 2).contiguous(), None
+        modeling.eager_attention_forward = chunked
+        try:
+            yield
+        finally:
+            modeling.eager_attention_forward = eager
+
+    def run(self, rows, on_layer=None, keep=0):
+        """The logits of each [1, N] row in `rows` that has none yet, computed layer by layer, at its last `keep` positions as HF's logits_to_keep gives them, every position for 0; `on_layer(name, module)` sees each decoder layer and the final norm while their weights are loaded."""
+        with self.attention():
+            self.forward(rows, on_layer, keep)
+
+    def forward(self, rows, on_layer, keep):
         if self.moe or self.qwen3:
             # HF owns its complete attention, mask, rotary and layer forward.
             # Load and release its modules around those calls, without recreating that math.
@@ -330,7 +399,7 @@ class Layered:
                     for ids in rows:
                         key = tuple(ids[0].tolist())
                         if key not in self.logits:
-                            self.logits[key] = self.model(ids, use_cache=False).logits
+                            self.logits[key] = self.model(ids, use_cache=False, logits_to_keep=keep).logits
             return
         from transformers.masking_utils import create_causal_mask, create_recurrent_attention_mask
         torch = self.torch
@@ -371,7 +440,7 @@ class Layered:
                 on_layer("model.norm", text.norm)
             for (key, _), state in zip(todo, states):
                 hidden = text.norm(state["hidden"])
-                self.logits[key] = self.model.lm_head(hidden[:, slice(0, None), :])
+                self.logits[key] = self.model.lm_head(hidden[:, slice(-keep, None), :])
             self.release(text.norm)
             self.release(self.model.lm_head)
 
@@ -534,7 +603,7 @@ def label_golden(path, extra, comment=COMMENT):
 def writer_args(args, weights=None):
     """The arguments tools/gen_baseline.py's golden writers read, for the checkpoint and GGUF of a goldens run, with the `weights` record of a file-exact one."""
     return SimpleNamespace(repo=args.repo, revision=args.revision, threads=args.threads, output_dir=args.output_dir,
-                           gguf_repo=args.gguf_repo, gguf_file=os.path.basename(args.gguf),
+                           gguf_repo=args.gguf_repo, gguf_file=os.path.basename(args.gguf) if args.gguf else None,
                            weights_gguf=args.gguf if weights else None, weights=weights)
 
 
@@ -553,7 +622,7 @@ def goldens(args):
     start = time.time()
     checkpoint = None if (moe or kind == "qwen3") and args.file_exact else safetensors_sha256(directory)
     gguf = {"gguf_repo": args.gguf_repo, "gguf_file": os.path.basename(args.gguf), "gguf_revision": args.gguf_revision,
-            "gguf_sha256": file_sha256(args.gguf), "gguf_bytes": os.path.getsize(args.gguf)}
+            "gguf_sha256": file_sha256(args.gguf), "gguf_bytes": os.path.getsize(args.gguf)} if args.gguf else {}
     print("hashed the checkpoint and the GGUF in %.1f s" % (time.time() - start), flush=True)
     tok = AutoTokenizer.from_pretrained(args.repo, revision=args.revision, local_files_only=True)
     rows = reference_rows(tok)
@@ -562,21 +631,24 @@ def goldens(args):
     start = time.time()
     if args.file_exact:
         return file_exact(args, torch, transformers, tok, rows, layered, gguf, start)
-    provenance = Provenance(args.gguf, layered.model.config)
+    # A checkpoint llmx reads as a directory, such as an FP8 one, has no GGUF to label its goldens; the weight files' SHA-256 do.
+    provenance = Provenance(args.gguf, layered.model.config) if args.gguf else None
     layered.run([ids for _, ids in rows], on_layer=provenance)
     print("layered forward: %d rows, %d distinct, %.1f s, peak RSS %.2f GiB"
           % (len(rows), len(layered.logits), time.time() - start, peak_gib()), flush=True)
-    print("GGUF provenance: %s" % json.dumps(provenance.record()), flush=True)
+    if provenance:
+        print("GGUF provenance: %s" % json.dumps(provenance.record()), flush=True)
     writer = writer_args(args)
     os.makedirs(args.output_dir, exist_ok=True)
     generator.gen_tokenizer(writer, os.path.join(directory, "tokenizer.json"))
     generator.gen_logits(writer, (torch, transformers, tok, layered))
     generator.gen_perplexity(writer, (torch, transformers, tok, layered))
-    reference = {"layered": {
-        "weights": "the checkpoint's own bf16 safetensors widened to float32, not the GGUF's",
-        "safetensors_sha256": checkpoint,
-        "unexpected_keys_ignored": len(layered.unexpected),
-        "gguf_provenance": provenance.record()}}
+    weights = "the checkpoint's own bf16 safetensors widened to float32" + (", not the GGUF's" if args.gguf else "")
+    if layered.fp8:
+        weights += ", and its %d FP8 weights as tests/spec_decode.py decodes their E4M3 codes times their block scales" % layered.fp8
+    reference = {"layered": {"weights": weights, "safetensors_sha256": checkpoint, "unexpected_keys_ignored": len(layered.unexpected)}}
+    if provenance:
+        reference["layered"]["gguf_provenance"] = provenance.record()
     if layered.experts():
         reference["layered"]["experts_implementation"] = layered.experts()
     label_golden(os.path.join(args.output_dir, "baseline_tokenizer.json"), gguf)
@@ -616,21 +688,36 @@ def file_exact(args, torch, transformers, tok, rows, layered, gguf, start):
     print("peak RSS %.2f GiB" % peak_gib(), flush=True)
 
 
+def fp8_fixture(root):
+    """The tiny Qwen 3.6 FP8 directory of the safetensors component, E4M3 codes under BF16 block scales, and its twin of the same weights in float32 without a quantization_config: (FP8 directory, twin directory)."""
+    import safetensors_dir as writer
+    spec = writer.QWEN35_FP8
+    raw, values, _ = writer.qwen35_fp8(spec, "block")
+    top = {"quantization_config": writer.qwen35_fp8_quantization(spec)}
+    fp8 = writer.qwen35_directory(os.path.join(root, "fp8"), spec, {"dtype": "bfloat16"}, raw=raw, top_change=top)
+    return fp8, writer.qwen35_directory(os.path.join(root, "twin"), spec, {"dtype": "float32"}, raw=values)
+
+
 def equality(args):
-    directory = snapshot(args.repo, args.revision)
+    if args.fp8_fixture:
+        import tempfile
+        directory, whole = fp8_fixture(tempfile.mkdtemp(prefix="layered-fp8-"))
+        source, revision = {"pretrained_model_name_or_path": whole}, None
+    else:
+        directory = snapshot(args.repo, args.revision)
+        source, revision = {"pretrained_model_name_or_path": args.repo, "revision": args.revision}, args.revision
     torch, transformers = runtime(args.threads, directory)
     from transformers import AutoTokenizer
-    tok = AutoTokenizer.from_pretrained(args.repo, revision=args.revision, local_files_only=True)
+    tok = AutoTokenizer.from_pretrained(directory if args.fp8_fixture else args.repo, revision=revision, local_files_only=True)
     rows = reference_rows(tok)
     check_tokenizer(tok, directory)
-    layered = Layered(torch, directory, args.layers)
+    layered = Layered(torch, directory, args.layers, attention_chunk=args.attention_chunk)
     start = time.time()
     layered.run([ids for _, ids in rows])
     layered_seconds = time.time() - start
     causal, config = text_model(transformers, directory, args.layers)
     precision = {"torch_dtype" if layered.moe or layered.qwen3 else "dtype": torch.float32}
-    full, info = causal.from_pretrained(args.repo, revision=args.revision, config=config, **precision,
-                                        attn_implementation="eager", output_loading_info=True, local_files_only=True)
+    full, info = causal.from_pretrained(**source, config=config, **precision, attn_implementation="eager", output_loading_info=True, local_files_only=True)
     full.eval()
     if info["missing_keys"] or any(not (not layered.moe and generator.QWEN35_UNUSED.match(k)) and not past_cut(k, args.layers) for k in info["unexpected_keys"]):
         raise SystemExit("from_pretrained misses %s or takes unexpected %s" % (sorted(info["missing_keys"]), sorted(info["unexpected_keys"])[:4]))
@@ -655,8 +742,11 @@ def equality(args):
     full_seconds = time.time() - start
     record = {
         "_comment": "Written by tools/gen_layered_reference.py equality. Do not hand-edit.",
-        "reference_repo": args.repo, "reference_revision": args.revision,
+        "reference_repo": "tests/safetensors_dir.py QWEN35_FP8, block scales, against its float32 twin" if args.fp8_fixture else args.repo,
+        "reference_revision": revision,
         "reference_dtype": "float32", "attention": "eager", "device": "cpu", "threads": args.threads,
+        "layered_attention": "eager in chunks of %d queries" % args.attention_chunk if args.attention_chunk else "eager",
+        "layered_chunked_attention_calls": layered.chunked_calls,
         "torch_version": torch.__version__, "transformers_version": transformers.__version__,
         "parameters": len(state), "parameters_equal": equal,
         "inv_freq_equal": bool(torch.equal(full.model.rotary_emb.inv_freq, layered.rotary.inv_freq)),
@@ -667,13 +757,80 @@ def equality(args):
         record["decoder_layers"] = "the first %d, of which %d full attention" % (args.layers, full_attention)
     if layered.experts():
         record["experts_implementation"] = layered.experts()
+    if layered.fp8:
+        record["fp8_weights"] = layered.fp8
     record["cases"] = cases
     generator._write(args.output, record)
     same = all(c["full_sha256"] == c["layered_sha256"] for c in cases) and equal == len(state) and record["inv_freq_equal"]
+    same = same and (layered.fp8 > 0) == bool(args.fp8_fixture)
     print("wrote %s: %d of %d rows and %d of %d parameters equal; layered %.1f s, full forward %.1f s, peak RSS %.2f GiB"
           % (args.output, sum(c["full_sha256"] == c["layered_sha256"] for c in cases), len(cases), equal, len(state),
              layered_seconds, full_seconds, peak_gib()), flush=True)
     return 0 if same else 1
+
+
+def read_ids(path):
+    with open(path, encoding="utf-8") as f:
+        return [int(x) for x in f.read().split()]
+
+
+def depth(args):
+    """The logits of each input sequence, its prompt then its continuation but the last token, at the continuation's positions: the long-context reference the 16k checks compare against (docs/PRECISION.md, Independent HF depth acceptance)."""
+    import numpy
+    directory = snapshot(args.repo, args.revision)
+    torch, transformers = runtime(args.threads, directory)
+    sequences, inputs = {}, {}
+    for variant in sorted(os.listdir(args.inputs)):
+        where = os.path.join(args.inputs, variant)
+        if os.path.isdir(where):
+            prompt, continuation = read_ids(os.path.join(where, "prompt.ids")), read_ids(os.path.join(where, "continuation.ids"))
+            if not prompt or not continuation:
+                raise SystemExit("%s has an empty prompt or continuation" % where)
+            sequences[variant] = (prompt, continuation)
+            inputs[variant] = {name: file_sha256(os.path.join(where, name)) for name in ("prompt.ids", "continuation.ids")}
+    if not sequences:
+        raise SystemExit("%s holds no input directories" % args.inputs)
+    keep = {len(continuation) for _, continuation in sequences.values()}
+    if len(keep) != 1:
+        raise SystemExit("%s: continuations of %s tokens; one run keeps one count of positions" % (args.inputs, sorted(keep)))
+    keep = keep.pop()
+    checkpoint = safetensors_sha256(directory)
+    layered = Layered(torch, directory, attention_chunk=args.attention_chunk)
+    vocab = layered.model.config.vocab_size
+    os.makedirs(args.output_dir, exist_ok=True)
+    report = {"_comment": "Written by tools/gen_layered_reference.py depth. Do not hand-edit.",
+              "reference_repo": args.repo, "reference_revision": args.revision, "safetensors_sha256": checkpoint,
+              "reference_dtype": "float32", "attention": "eager in chunks of %d queries" % args.attention_chunk,
+              "device": "cpu", "threads": args.threads, "torch_version": torch.__version__, "transformers_version": transformers.__version__,
+              "producer_sha256": file_sha256(os.path.abspath(__file__)), "cells": []}
+    # One layered pass runs every sequence, so each layer's weights are read once.
+    start = time.time()
+    layered.run([torch.tensor([prompt + continuation[:-1]]) for prompt, continuation in sequences.values()], keep=keep)
+    seconds = time.time() - start
+    for variant, (prompt, continuation) in sequences.items():
+        values = layered.logits[tuple(prompt + continuation[:-1])][0].float().numpy()
+        if values.shape != (len(continuation), vocab) or not numpy.isfinite(values).all():
+            raise SystemExit("%s: logits of shape %s, or not all finite" % (variant, values.shape))
+        logits = torch.from_numpy(values)
+        top = logits.topk(args.top, dim=-1)
+        wide = logits.double()
+        nll = torch.logsumexp(wide, -1) - wide[torch.arange(len(continuation)), torch.tensor(continuation)]
+        npy = os.path.join(args.output_dir, variant + ".npy")
+        numpy.save(npy, values)
+        cell = {"variant": variant, "inputs_sha256": inputs[variant], "prompt_tokens": len(prompt), "positions": list(range(len(prompt) - 1, len(prompt) + len(continuation) - 1)),
+                "top_ids": top.indices.tolist(), "top_logits": top.values.tolist(), "target_nll": nll.tolist(), "mean_nll": float(nll.mean()),
+                "logits_sha256": file_sha256(npy)}
+        generator._write(os.path.join(args.output_dir, variant + ".json"), cell)
+        report["cells"].append({k: cell[k] for k in ("variant", "inputs_sha256", "prompt_tokens", "mean_nll", "logits_sha256")})
+        print("%s: %d + %d tokens, mean NLL %.6f" % (variant, len(prompt), len(continuation), cell["mean_nll"]), flush=True)
+    full = layered.model.config.layer_types.count("full_attention") if hasattr(layered.model.config, "layer_types") else layered.model.config.num_hidden_layers
+    if layered.chunked_calls != full * len(sequences):
+        raise SystemExit("the chunked attention ran %d times, not once per full-attention layer and sequence (%d)" % (layered.chunked_calls, full * len(sequences)))
+    report["chunked_attention_calls"], report["fp8_weights"] = layered.chunked_calls, layered.fp8
+    report["seconds"], report["peak_rss_gib"] = seconds, peak_gib()
+    print("layered forward %.1f s, peak RSS %.2f GiB" % (seconds, peak_gib()), flush=True)
+    generator._write(os.path.join(args.output_dir, "report.json"), report)
+    return 0
 
 
 def parse_args(argv=None):
@@ -682,7 +839,7 @@ def parse_args(argv=None):
     make = kinds.add_parser("goldens", help="write the tokenizer, logit and perplexity goldens for a GGUF from its HF checkpoint")
     make.add_argument("--repo", required=True, help="HF repository of the checkpoint")
     make.add_argument("--revision", required=True, help="full 40-character commit SHA of the checkpoint")
-    make.add_argument("--gguf", required=True, help="the GGUF the goldens are for, which they record and whose F32 tensors are compared with the checkpoint's")
+    make.add_argument("--gguf", help="the GGUF the goldens are for, which they record and whose F32 tensors are compared with the checkpoint's; without it they are for the checkpoint read as a directory")
     make.add_argument("--gguf-repo", help="the Hub repository the GGUF comes from, when it is known")
     make.add_argument("--gguf-revision", help="that repository's full commit SHA")
     make.add_argument("--output-dir", required=True, help="directory for the three goldens, or with --file-exact the logit and perplexity goldens")
@@ -694,6 +851,16 @@ def parse_args(argv=None):
     check.add_argument("--revision", default=EQUALITY_REVISION, help="full 40-character commit SHA of the checkpoint (default: %s)" % EQUALITY_REVISION)
     check.add_argument("--layers", type=int, help="cut both forwards to the checkpoint's first N decoder layers (default: all)")
     check.add_argument("--threads", type=int, default=6, help="CPU threads (default: 6)")
+    check.add_argument("--attention-chunk", type=int, help="run the layered forward's attention in chunks of this many queries, the full forward's whole (default: whole)")
+    check.add_argument("--fp8-fixture", action="store_true", help="compare the safetensors component's tiny FP8 directory, layered, with its float32 twin, whole, in place of a checkpoint")
+    deep = kinds.add_parser("depth", help="write the logits of long input sequences at their continuations' positions")
+    deep.add_argument("--repo", required=True, help="HF repository of the checkpoint")
+    deep.add_argument("--revision", required=True, help="full 40-character commit SHA of the checkpoint")
+    deep.add_argument("--inputs", required=True, help="directory of one directory per sequence, each with prompt.ids and continuation.ids, token ids separated by spaces")
+    deep.add_argument("--output-dir", required=True, help="directory for each sequence's .npy and .json and report.json")
+    deep.add_argument("--attention-chunk", type=int, default=512, help="queries an attention chunk takes (default: 512)")
+    deep.add_argument("--top", type=int, default=8, help="top logits each position's .json keeps (default: 8)")
+    deep.add_argument("--threads", type=int, default=6, help="CPU threads (default: 6)")
     args = parser.parse_args(argv)
     if args.threads < 1:
         parser.error("--threads must be positive")
@@ -704,10 +871,16 @@ def parse_args(argv=None):
             parser.error("%s must be a full 40-character lowercase commit SHA" % flag)
     if args.kind == "equality" and args.layers is not None and args.layers < 1:
         parser.error("--layers must be positive")
+    if args.kind == "equality" and args.fp8_fixture and (args.layers or args.repo != EQUALITY_REPO or args.revision != EQUALITY_REVISION):
+        parser.error("--fp8-fixture takes no --repo, --revision or --layers")
+    if getattr(args, "attention_chunk", None) is not None and args.attention_chunk < 4:
+        parser.error("--attention-chunk must be at least 4, since torch multiplies fewer rows another way")
     if args.kind == "goldens":
         if args.gguf_revision and not args.gguf_repo:
             parser.error("--gguf-revision needs --gguf-repo")
-        if not os.path.isfile(args.gguf):
+        if args.gguf is None and (args.file_exact or args.gguf_repo):
+            parser.error("--file-exact and --gguf-repo need --gguf")
+        if args.gguf is not None and not os.path.isfile(args.gguf):
             parser.error("--gguf %s is not a file" % args.gguf)
         args.output_dir = os.path.abspath(args.output_dir)
         if os.path.normcase(os.path.realpath(args.output_dir)) == os.path.normcase(os.path.realpath(generator.OUT_DIR)):
@@ -720,7 +893,7 @@ def main(argv=None):
     if args.kind == "goldens":
         goldens(args)
         return 0
-    return equality(args)
+    return depth(args) if args.kind == "depth" else equality(args)
 
 
 if __name__ == "__main__":

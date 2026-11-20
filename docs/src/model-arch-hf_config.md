@@ -27,7 +27,9 @@ A name may carry a transform, which `apply` makes a composite (`gguf::GGUFModel:
 - the V heads in tiled order ([QWEN35](../QWEN35.md), V heads in tiled order): `VHeads::rows`, `rows_after_qk` (the rows after the 2 Hk Dk of q and k) or `columns` name the rows or columns indexed by V head, and with Hv above Hk the composite's `order` moves whole heads, as `reorder` (the type kept, whole rows or runs of a head's columns copied at once) or with the transform; a 1-D tensor that only moves is widened as it moves, since the loader widens every other 16-bit vector.
   With Hv = Hk nothing moves and a linear stays a view of the file.
 
-A transform refuses a tensor that is quantized or not F32, BF16 or F16, so a permuted FP8 linear is refused by name until a step reads it.
+A transform refuses a tensor that is quantized or not F32, BF16, F16 or F8_E4M3, and an F8_E4M3 weight only moves (`reorder`, one byte an element), never takes an arithmetic transform.
+An FP8 weight's scale grid (`hf_quant::fp8_grid`) skips the names pass's V-head order; once every weight has its order, `detail::follow_weights` gives each grid of a moved weight the order of its scale units (`unit_order`): a scale a row moves with its row, a block of 128 rows or 128 inputs moves whole, and one scale for the tensor stays, while a channel grid of a weight that moves by column stays.
+`unit_order` refuses by name a weight whose V heads split a scale unit (Dv not a multiple of 128 under block scales, or q and k's 2 Hk Dk rows off a block edge) and keeps a partial last block last, so such a checkpoint is refused rather than regridded.
 
 A tied head (`tie_word_embeddings: true`) stored beside the embedding as `lm_head.weight` is dropped, with a file it held alone (`GGUFModel::erase_tensors`), since the HF model ties the head to the embedding and ignores it; Qwen/Qwen3-0.6B stores one. A tied head that is a quantized linear (a composite, [hf_quant](format-hf_quant.md)) is refused by name instead.
 An FP8 linear's scale grid, the composite `X.scale` beside `X.weight`, takes the name its weight's row gives, with `.scale` for `.weight`.

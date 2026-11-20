@@ -54,6 +54,7 @@ check their own type support; unknown and retired storage IDs are refused.
   refuses a tensor offset that is not float-aligned; each shard's data
   starts at a float-aligned offset.
 - `append(m, other)`: the tensors of `other`, a file `read_gguf` read, joined to `m`'s as files after its own, each tensor in its file as before, so the two load as one payload; `other`'s metadata is not taken, and a name both hold is refused with nothing changed. The loader joins a drafter's MTP blocks so (`infer::spec::join_blocks`).
+- `permute(src, out, width, rows, size, order, columns)`: the one owner of a composite's order, `rows` rows of `width` elements of `size` bytes, output row n (or column n with `columns`) from the source's row or column `order[n]`, a whole row or a run of consecutive columns per memcpy; `hf::transform`'s `reorder` calls it with the element size of the tensor's type (4, 2, or 1 for F8_E4M3) and `hf_quant::repack` with 4 for an FP8 grid that follows its weight ([hf_config](model-arch-hf_config.md)).
 - `block_of(name)`: the block a tensor named as GGUF names a block's tensors (`blk.N.`) belongs to, or nothing for a tensor of no block.
 - `read_gguf(path)` / `write_gguf(m, path, data = {})` with the on-disk layout:
   header, metadata KVs, contiguous tensor infos, then an aligned data section

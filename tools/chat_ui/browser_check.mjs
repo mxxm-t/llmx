@@ -820,6 +820,9 @@ try {
         messages.push({id:'p'+i,parent_id:i?'a'+(i-1):null,role:'user',content:'Prompt '+i});
         messages.push({id:'a'+i,parent_id:'p'+i,role:'assistant',content:'Answer ['+i+']', reasoning:'Private reasoning marker'});
       }
+      const upload = name => ({name,type:'text/plain',text:'Private attachment body'});
+      Object.assign(messages.find(m=>m.id==='p16'), {content:'', attachments:[upload('summary.md'), upload('budget[1].csv')]});
+      messages.find(m=>m.id==='p22').attachments = [upload('notes.txt'), upload('notes.md')];
       messages.push({id:'other',parent_id:'p26',role:'assistant',content:'Alternate branch marker'});
       return ChatShell.api('/import','POST',{version:1,chat:{title:'Navigation fixture',active_leaf:'a26'},messages});
     })()`);
@@ -850,10 +853,23 @@ try {
     assert.equal(await evaluate("document.querySelector('#find-message-count').textContent"), '54 messages, newest first');
     const speaker = value => evaluate(`{ const field=document.querySelector('#find-message-role'); field.value=${JSON.stringify(value)}; field.dispatchEvent(new Event('change')); }`);
     await speaker('user');
+    assert.match(await evaluate("document.querySelector('#find-message-list').innerText"), /summary\.md/);
+    await fill('#find-message-query','notes.');
+    assert.equal(await evaluate("document.querySelectorAll('.find-message-result').length"), 1, 'two matching filenames on one prompt');
+    await speaker('assistant');
+    assert.equal(await evaluate("document.querySelectorAll('.find-message-result').length"), 0);
+    await speaker('user');
+    await fill('#find-message-query','BUDGET[1]');
+    assert.equal(await evaluate("document.querySelector('.find-message-result mark')?.textContent"), 'budget[1]');
+    await pointerClick('.find-message-result');
+    assert.equal(await evaluate("document.activeElement.matches('article.message.user') && !!document.activeElement.querySelector('[aria-label=\"Read attachment budget[1].csv\"]')"), true, 'focused the file-only prompt');
+    await pointerClick('.topbar [data-action=chat-menu]');
+    await pointerClick('#action-menu [data-action=find-message]');
+    await speaker('user');
     await pointerClick('#find-message-more');
     assert.equal(await evaluate("document.querySelectorAll('.find-message-result').length"), 27);
     assert.match(await evaluate("document.activeElement.textContent"), /Prompt 1$/);
-    for (const query of ['Private reasoning marker','Alternate branch marker','.*']) {
+    for (const query of ['Private reasoning marker','Private attachment body','Alternate branch marker','.*']) {
       await fill('#find-message-query', query);
       assert.equal(await evaluate("document.querySelector('#find-message-count').textContent"), 'No matching messages');
     }
@@ -897,7 +913,7 @@ try {
     }
     assert.match(transcript, /^# Navigation fixture/);
     assert.match(transcript, /## You\n\nPrompt 0\n\n## Assistant\n\nAnswer \[0\]/);
-    assert.doesNotMatch(transcript, /Private reasoning marker|Alternate branch marker|Unsent draft/);
+    assert.doesNotMatch(transcript, /Private reasoning marker|Private attachment body|budget\[1\]|summary\.md|Alternate branch marker|Unsent draft/);
     assert.equal(apiMutations.length, writes, 'search changed server state');
     assert.deepEqual(errors, [], 'message navigation browser errors');
     console.log('PASS: prompt index, page two, literal match, branch isolation, focus and draft preservation');

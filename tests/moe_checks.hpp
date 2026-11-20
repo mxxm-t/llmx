@@ -111,7 +111,7 @@ struct Moe {
         const bool i8 = dt == Dtype::int8, quarter = quarter_form(type, nin, i8);
         const double from = type == quant::GGML_TYPE_Q8_0 ? (i8 ? 0 : 1.25) : type == quant::GGML_TYPE_Q4_K || type == quant::GGML_TYPE_Q5_K ? (i8 ? 1.25 : 2.5)
                           : type == quant::GGML_TYPE_Q6_K || type == quant::GGML_TYPE_Q3_K || type == quant::GGML_TYPE_Q2_K || type == quant::GGML_TYPE_Q5_0 ? 1.25
-                          : type == quant::GGML_TYPE_IQ4_NL || type == quant::GGML_TYPE_IQ4_XS || type == quant::GGML_TYPE_IQ2_XXS || type == quant::GGML_TYPE_IQ2_XS || type == quant::GGML_TYPE_IQ2_S || type == quant::GGML_TYPE_IQ3_XXS || type == quant::GGML_TYPE_IQ3_S || type == quant::GGML_TYPE_MXFP4 ? 0.3125
+                          : type == quant::GGML_TYPE_IQ4_NL || type == quant::GGML_TYPE_IQ4_XS || type == quant::GGML_TYPE_IQ2_XXS || type == quant::GGML_TYPE_IQ2_XS || type == quant::GGML_TYPE_IQ2_S || type == quant::GGML_TYPE_IQ3_XXS || type == quant::GGML_TYPE_IQ3_S || type == quant::GGML_TYPE_IQ1_S || type == quant::GGML_TYPE_IQ1_M || type == quant::GGML_TYPE_Q1_0 || type == quant::GGML_TYPE_Q2_0 || type == quant::GGML_TYPE_MXFP4 ? 0.3125
                           : type == quant::GGML_TYPE_Q4_0 ? 5.0 : type == quant::GGML_TYPE_Q4_1 ? (quarter ? 2.5 : 5.0) : quarter ? 1.25 : (i8 ? 1.25 : 5.0);
         // The half-block form's calls of at most one entry an expert take the one-column build an entry where it fills its steps.
         const size_t blocks = nin / 32, sub = wave;
@@ -120,10 +120,10 @@ struct Moe {
     }
 
     // The prompt extent from which a routed build takes the routed tile, the backend's `TwinKernels::tile_from`: 32, but 128 for block-int16 gate and up.
-    // Q8_0, IQ4_NL, IQ4_XS, the IQ2 and IQ3 types and MXFP4 keep 32 there, and Q4_0's and Q4_1's block-int16 down takes 128 too.
+    // Q8_0, IQ4_NL, IQ4_XS, the IQ1, IQ2 and IQ3 types, Q1_0, Q2_0 and MXFP4 keep 32 there, and Q4_0's and Q4_1's block-int16 down takes 128 too.
     size_t tile_from_at(uint32_t type, Dtype dt, bool down) {
         const bool q4 = type == quant::GGML_TYPE_Q4_0 || type == quant::GGML_TYPE_Q4_1;
-        return (down && !q4) || dt == Dtype::int8 || type == quant::GGML_TYPE_Q8_0 || type == quant::GGML_TYPE_IQ4_NL || type == quant::GGML_TYPE_IQ4_XS || type == quant::GGML_TYPE_IQ2_XXS || type == quant::GGML_TYPE_IQ2_XS || type == quant::GGML_TYPE_IQ2_S || type == quant::GGML_TYPE_IQ3_XXS || type == quant::GGML_TYPE_IQ3_S ||
+        return (down && !q4) || dt == Dtype::int8 || type == quant::GGML_TYPE_Q8_0 || type == quant::GGML_TYPE_IQ4_NL || type == quant::GGML_TYPE_IQ4_XS || type == quant::GGML_TYPE_IQ2_XXS || type == quant::GGML_TYPE_IQ2_XS || type == quant::GGML_TYPE_IQ2_S || type == quant::GGML_TYPE_IQ3_XXS || type == quant::GGML_TYPE_IQ3_S || type == quant::GGML_TYPE_IQ1_S || type == quant::GGML_TYPE_IQ1_M || type == quant::GGML_TYPE_Q1_0 || type == quant::GGML_TYPE_Q2_0 ||
                type == quant::GGML_TYPE_MXFP4 ? 32 : 128;
     }
 

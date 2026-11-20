@@ -155,7 +155,7 @@ inline std::vector<uint8_t> typed_matrix(uint32_t type, size_t nin, size_t rows,
 // The table's types beside F32 without twins, which take their exact product in every class.
 inline bool exact_only(uint32_t type) {
     return type == quant::GGML_TYPE_BF16 || type == quant::GGML_TYPE_F16 ||
-           type == quant::GGML_TYPE_IQ1_S || type == quant::GGML_TYPE_IQ1_M || type == quant::GGML_TYPE_TQ1_0 || type == quant::GGML_TYPE_TQ2_0 || type == quant::GGML_TYPE_Q1_0 || type == quant::GGML_TYPE_Q2_0;
+           type == quant::GGML_TYPE_TQ1_0 || type == quant::GGML_TYPE_TQ2_0;
 }
 
 // Flash-Next's projection shapes, input by output, that a type's rows fill whole: the K-quants' 256-value blocks the 2560- and 6144-wide rows, the 32-value types the 640-wide expert down rows too.
@@ -251,10 +251,10 @@ inline std::vector<uint8_t> one_hot_q8(size_t nin, size_t b, size_t j) {
 }
 
 // A block's min for its sub-block: Q4_K's and Q5_K's dmin times the 6-bit min as the format packs them, Q4_1's and Q5_1's min, Q2_K's dmin times the larger 4-bit min of the sub-block's halves.
-// Q6_K, Q3_K, Q4_0, Q5_0, IQ4_NL, IQ4_XS, the IQ2 and IQ3 types and MXFP4 have none.
+// Q6_K, Q3_K, Q4_0, Q5_0, IQ4_NL, IQ4_XS, the IQ1, IQ2 and IQ3 types, Q1_0, Q2_0 and MXFP4 have none.
 inline float k_min(uint32_t type, const uint8_t* block, int sub) {
     if (type == quant::GGML_TYPE_Q6_K || type == quant::GGML_TYPE_Q3_K || type == quant::GGML_TYPE_Q4_0 || type == quant::GGML_TYPE_Q5_0 || type == quant::GGML_TYPE_IQ4_NL || type == quant::GGML_TYPE_IQ4_XS ||
-        type == quant::GGML_TYPE_IQ2_XXS || type == quant::GGML_TYPE_IQ2_XS || type == quant::GGML_TYPE_IQ2_S || type == quant::GGML_TYPE_IQ3_XXS || type == quant::GGML_TYPE_IQ3_S || type == quant::GGML_TYPE_MXFP4 ||
+        type == quant::GGML_TYPE_IQ2_XXS || type == quant::GGML_TYPE_IQ2_XS || type == quant::GGML_TYPE_IQ2_S || type == quant::GGML_TYPE_IQ3_XXS || type == quant::GGML_TYPE_IQ3_S || type == quant::GGML_TYPE_IQ1_S || type == quant::GGML_TYPE_IQ1_M || type == quant::GGML_TYPE_Q1_0 || type == quant::GGML_TYPE_Q2_0 || type == quant::GGML_TYPE_MXFP4 ||
         type == quant::GGML_TYPE_NVFP4)
         return 0.0f;
     if (type == quant::GGML_TYPE_Q2_K) return f16_to_f32(uint16_t(block[82] | (block[83] << 8))) * float(std::max(block[2 * sub] >> 4, block[2 * sub + 1] >> 4));
@@ -298,10 +298,12 @@ inline bool quarter_form(uint32_t type, size_t nin, size_t W, bool int8) {
 }
 
 // Widths whose rows take every lane cluster a type's rule gives (kernels/int16.gpu, k_rows): lane units below the wave, at the Q4_K and Q5_K cap, above it and not a multiple of the cluster.
-// The 32-value twin types' also lie each side of the lane form's switches on a 64-lane wave (one lane at 1024 and 2048, quarter at 1056 and 2080); 37 outputs, which no block's rows divide.
+// The 32-value twin types' also lie each side of the lane form's switches on a 64-lane wave (one lane at 1024 and 2048, quarter at 1056 and 2080); 64- and 128-value types take one and three blocks, and 37 outputs no block's rows divide.
 inline std::vector<std::array<size_t, 2>> cluster_shapes(uint32_t type) {
-    const bool k = quant::storage_type(type)->block_size == 256;
-    const std::vector<size_t> widths = k ? std::vector<size_t>{256, 512, 768, 1024, 4096} : std::vector<size_t>{32, 64, 96, 640, 1024, 1056, 2048, 2080, 4096};
+    const size_t b = quant::storage_type(type)->block_size;
+    const std::vector<size_t> widths = b == 256 ? std::vector<size_t>{256, 512, 768, 1024, 4096}
+                                       : b == 32 ? std::vector<size_t>{32, 64, 96, 640, 1024, 1056, 2048, 2080, 4096}
+                                                 : std::vector<size_t>{b, 3 * b, 640, 1024, 2048, 4096};
     std::vector<std::array<size_t, 2>> out;
     for (size_t nin : widths) out.push_back({nin, 37});
     return out;

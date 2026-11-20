@@ -203,6 +203,31 @@ This test-only correction lands by fast-forward with the companion workflow.
 - **Checks:** The independent Chrome regression failed in 59.797 seconds before the fix and passed in 54.855 seconds after it. The combined browser fixture over public main `2ea30d410` passed in 66.845 seconds, including both themes at 1440, 390 and 320 pixels and 200 percent CSS zoom. Desktop preference, transient Settings access, mobile drawer state and toggle geometry passed. JavaScript syntax, whitespace and independent integration review passed. Dead-code passed with 17 expected findings and 20 planted faults in 34.8 seconds; docs passed with zero findings and 29 planted faults in 31.8 seconds and runs once more after this record.
 - **Landing:** Fast-forward from `2ea30d410` after final documentation validation and a fresh main check. This is static presentation only, with no server, runtime, API or numerical changes. The existing docs CLI remains applicable because native source and build inputs are unchanged. Full Markdown review checks references to details, temporary labels and layout; the companion README and TESTS own the updated behavior. Receipts are in `scratch/reading-landing/`, with independent matched screenshots in the main workspace's `scratch/chat-reading-layout/`.
 - **Gotchas:** Composer Settings and the narrow drawer are transient. Only explicit docked Details actions save the preference. Long titles can still truncate. Chrome emulation does not establish physical phone or Safari coverage. Settings semantics and history search remain separate audit work.
+## Landing stack land-20261121 (2026-11-20 to 2026-11-21, LAND88 and LAND89, Done)
+
+**What lands.** Five groups of 21 commits on main 6770182ad, by fast-forward, in this order: rocgap (12: the exact families of NVFP4, Q2_K, Q3_K, IQ4_XS, the IQ2 and IQ3 types, IQ1, Q1_0, Q2_0 and TQ, F8_E4M3, then the twin families and their CUDA twin checks, the F8_E4M3 gather's NaN and the low-bit twins), keff (4: the prompt K tile's shared words, its step reads, biased 8-bit sums and its staging), norm-held (the held RMS norm inlined), vllm28 (the host's directory tensors made side by side, and the dense Qwen 3.5 or 3.6 Hugging Face directory read as the qwen35 GGUF), head4 (the Q8_0 decode builds of 2 to 8 columns, then ROCm prompts of 2 to 8 rows on those builds).
+
+**Hand resolutions.**
+1. `backend_core.hpp` kernel enum and name lists: union with main's kGroupPush and kGroupTake and kHcEntry and kHcEntry8, enum and names kept parallel.
+2. `int16.gpu`: rocgap's KFactor and staging's KPairs both kept.
+3. `docs/TESTS.md`, `docs/src/backends-gpu.md` and `f32.gpu` (norm-held): context-only merges, the code patches byte-identical to the originals.
+4. few-cols: rocgap moved q8_columns_bits into `tests/twin_checks.hpp`, so its test change (2 to 16 columns, a sentinel past the columns, q8_columns_bits_at 1024 and 2560) is ported there; product_twin keeps staging's tile sums and few-cols' half_span.
+5. crossover, `tests/backend_rocm.cpp`: twin_types keeps rocgap's longer type list inside crossover's prompt_rows_below=2 wrap and restore, prompt_crossover joins both main() lists, and staging's `tiles` predicate in product_twin becomes `!on_rows(extent)` so short prompts take the row builds.
+
+**Fixes the gates found.** The comment of `hf_config.hpp` named the qwen35 document, which arch-boundary refuses in a shared header, so the name is gone (in the vllm28 commit). `tests/cuda_sass.py` lists `llmx_rms_norm_16_twin`: the held norm's K reads before its first sum leave 8 bytes of stack in the two 16-level twin builds at sm_80's 32 registers, where main's build has none; no CUDA card has timed it and the spill is listed with that reason (in the norm-held commit).
+
+**Identity against main 6770182ad** (Qwen3-0.6B, Qwen3-8B and Qwen3.6-27B on ROCm f16 and int8, and the 27B on the CPU): every cell SAME except the ROCm 2-word and 5-word prompts (short2, short5), which the crossover moves to the row builds, on all three models and both classes. The CPU cells are all SAME.
+
+| Check | Result |
+|---|---|
+| Builds R, V, C, CUDA 12.9.1 | all build, 0 errors; the CUDA build needs 24 GB and one job |
+| CTest CPU, Vulkan, ROCm on one MI50 | CPU 90/91, Vulkan 111/112, ROCm 94/95; the failures are placement (twice, under load; 3 of 3 pass alone on main's and the stack's CPU builds and it passes in hosted CTest) and backend-rocm's 600 s limit under load |
+| CTest CUDA gpu-port, gpu-core, cuda-driver, cuda-sass | pass after the spill listing; backend-cuda skips without a card |
+| Suite on ROCm | every component PASS or SKIP; arch-boundary, docs, dead-code and version re-run PASS on the final tree |
+| Timing, one MI50, pp512 tok/s main to stack | Qwen3.6-27B f16 224 to 259, int8 325 to 391, tg128 unchanged within noise; Qwen3-0.6B pp512 inside the run's spread |
+
+Known and not part of the stack: ROCm refuses F8_E4M3 safetensors on main, and the server-resume-cache race.
+Owed: the Radeon VII check on Windows, which needs the owner's go.
 ## Landing stack land-20261120 (2026-11-19 to 2026-11-20, LAND83 to LAND86, Done)
 
 **What lands.** The two stacks land together by fast-forward of main ce2b0603b, onto which LAND86 rebased them: land-20261118 (its record below, 21 commits) and on it land-20261119, 27 commits in this order: fix/tile256-denominator; backlog2 suite-tw2, docs-folds, slice-stale-points (test, then the fix), rocm-reduce-cap, disk-cache-device-order (test, then the fix), job-wait-line (test, then the fix), weight-scales and fp-contract; REUSE5 host-growth-step, wrap-host-view-drop and server-short-followup; QDEV45 hc-entry-invariant (llmx_hc_entry, then the invariant); FUSE3 norm-barriers; VKNORM1 vulkan-norm-barriers; ATTN2 decode-head-groups-2; fix/draft-divergence (the failing late_totals test, then the fix); fix/drafting-set-stderr; cuda97/profile.

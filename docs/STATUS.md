@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Chat browser test startup (2026-11-21)
+
+- **Goal:** Let a slow DevTools page list finish within the browser startup deadline.
+- **Done:** Windows CI reported a listening Chrome process but never obtained a page target. The fixture caps each HTTP request at 500 ms inside a 30-second startup budget.
+- **Left:** Reproduce delayed discovery and run the affected browser check on Windows and Linux.
+- **Gotchas:** The hosted log does not identify the response latency. Preserve the total startup deadline and the reported failure.
+
 ## Chat workspace and conversation navigation (2026-11-21)
 
 - **Goal:** Make Chat a practical working surface for composing, resuming conversations and finding material in a reply history.

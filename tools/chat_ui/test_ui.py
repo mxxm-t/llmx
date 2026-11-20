@@ -155,11 +155,21 @@ class BrowserTests(unittest.TestCase):
             self.skipTest("Real browser check requires Node 22+ and Chrome/Chromium/Edge")
         return node, chrome
 
-    def test_find_in_conversation_in_chrome(self):
+    def test_find_in_conversation_after_slow_browser_start(self):
         node, chrome = self.browser_executables()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            self.run_focused_browser(node, chrome, root, "message-find", ("--message-find-only",), [])
+            delay_page_list = root / "delay-page-list.cjs"
+            delay_page_list.write_text(
+                "const original = globalThis.fetch;\n"
+                "globalThis.fetch = async (url, options) => {\n"
+                "  if (new URL(url).pathname === '/json/list') await new Promise(resolve => setTimeout(resolve, 750));\n"
+                "  return original(url, options);\n"
+                "};\n",
+                encoding="ascii",
+            )
+            self.run_focused_browser(node, chrome, root, "message-find", ("--message-find-only",), [],
+                                     node_options=("--require", str(delay_page_list)))
 
     def test_pdf_attachment_in_chrome(self):
         node, chrome = self.browser_executables()
@@ -222,7 +232,7 @@ class BrowserTests(unittest.TestCase):
                 self.assertEqual([request["messages"][-1] for request in BrowserUpstream.requests],
                                  [{"role": "user", "content": "Browser plain-text prompt"}])
 
-    def run_focused_browser(self, node, chrome, root, name, arguments, replies):
+    def run_focused_browser(self, node, chrome, root, name, arguments, replies, node_options=()):
         with BrowserUpstream.lock:
             BrowserUpstream.requests = []
             BrowserUpstream.replies = replies
@@ -238,7 +248,7 @@ class BrowserTests(unittest.TestCase):
             try:
                 artifacts = Path(__file__).resolve().parents[2] / "scratch" / "chat-ui-browser" / name
                 artifacts.mkdir(parents=True, exist_ok=True)
-                result = subprocess.run([node, str(Path(__file__).with_name("browser_check.mjs")),
+                result = subprocess.run([node, *node_options, str(Path(__file__).with_name("browser_check.mjs")),
                     "http://127.0.0.1:%d" % server.server_address[1], chrome,
                     str(root / f"profile-{name}"), str(artifacts), *arguments, "--fixture-upstream=" + upstream_url],
                     capture_output=True, text=True, timeout=120)

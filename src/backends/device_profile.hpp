@@ -79,6 +79,8 @@ struct DeviceProfile {
     size_t tile_from_8bit = 32, tile_from_8bit_narrow = 64, tile_from_other = 64;
     size_t tile_from_other_narrow = 64;
     size_t tile_narrow_nin = 4096;
+    // GPU core only: prompt extent below which a dense product takes the decode row builds, a column each, rather than the tile; 2 puts every prompt on the tile (docs/src/backends-gpu.md, prompt crossover).
+    size_t prompt_rows_below = 2;
     // Prompt extent from which a routed projection takes the tile kernel over each expert's rows rather than the row kernel per entry, by weight family (the Vulkan weight descriptor): F32, Q8_0 and Q6_K, then Q4_0 and Q4_1, Q4_K and Q5_K.
     size_t moe_tile_from = 32, moe_tile_from_q4 = 96, moe_tile_from_q4k = 64, moe_tile_from_q5k = 48;
     // Splitting a row's attention history across workgroups: parts of this many tokens, the part doubling until at most this many cover the row, for heads 128 wide and narrower and for 256 wide (docs/STATUS.md), each at most 256.
@@ -140,6 +142,7 @@ inline const TunedDevice* tuned_devices(size_t& count) {
              p.q8_decode_one_row_below_16bit = 1280;
          }},
         {"MI60 / MI50", "HIP", [](DeviceProfile& p) {
+             p.prompt_rows_below = 9;
              p.tile_tall_per_cu = 6;
              p.qtile_tall_from = 4096;
              p.qtile_tall_from_8bit = 4096;

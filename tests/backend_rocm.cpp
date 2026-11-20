@@ -489,12 +489,17 @@ void exact_rows(Backend& g) {
                               quant::GGML_TYPE_IQ1_S, quant::GGML_TYPE_IQ1_M, quant::GGML_TYPE_TQ1_0, quant::GGML_TYPE_TQ2_0, quant::GGML_TYPE_Q1_0, quant::GGML_TYPE_Q2_0},
                             rocm_take_launches, require);
 }
+// At prompt_rows_below 2, so a prompt of 2 rows takes the tile it takes on devices without the crossover; prompt_crossover holds the rows below it.
 void twin_types(Backend& g, Backend& c) {
+    DeviceProfile& profile = rocm_profile(g);
+    const size_t keep = profile.prompt_rows_below;
+    profile.prompt_rows_below = 2;
     twin_checks::twin_types(g, c, {quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_IQ4_NL,
                                    quant::GGML_TYPE_MXFP4, quant::GGML_TYPE_Q3_K, quant::GGML_TYPE_Q2_K, quant::GGML_TYPE_IQ4_XS, quant::GGML_TYPE_IQ2_XXS, quant::GGML_TYPE_IQ2_XS, quant::GGML_TYPE_IQ3_S,
                                    quant::GGML_TYPE_IQ2_S, quant::GGML_TYPE_IQ3_XXS, quant::GGML_TYPE_IQ1_S, quant::GGML_TYPE_IQ1_M,
                                    quant::GGML_TYPE_Q1_0, quant::GGML_TYPE_Q2_0},
                             {Dtype::f16, Dtype::int8}, rocm_device(0).caps.subgroup_size, rocm_take_launches, [](uint32_t, Dtype, size_t, size_t, size_t) { return false; }, require);
+    profile.prompt_rows_below = keep;
 }
 
 // The 8-bit tile's offset types and IQ4_NL take their term in one fma against the scale times 1.5 * 2^23 (docs/PRECISION.md, Biased sums in the 8-bit HIP tile).
@@ -1769,6 +1774,95 @@ void attention_twins(Backend& g, Dtype dt) {
 }
 
 // Every pair of extents of one class gives the same bits, through a matmul and through attention after a history (row_classes.hpp's shapes).
+// Prompts shorter than the profile's prompt_rows_below take the decode row builds with the one-column call's bits, and from it the tile, a run-less call by its rows' count (cases in docs/TESTS.md, backend-rocm).
+void prompt_crossover(Backend& g) {
+    DeviceProfile& profile = rocm_profile(g);
+    const size_t keep = profile.prompt_rows_below, from = 9, nout = 300;
+    profile.prompt_rows_below = 2;
+    require(g.row_class(2) != g.row_class(1) && g.row_class(8) == g.row_class(9), "at prompt_rows_below 2 a prompt of 2 to 9 rows is one tile class");
+    profile.prompt_rows_below = from;
+    require(g.row_class(from - 1) != g.row_class(from) && g.row_class(from - 1) == g.row_class(2) && g.row_class(from - 1) != g.row_class(1), "the crossover's two sides are classes of their own, never a generated token's");
+    const auto tiles = [](const std::map<std::string, size_t>& ran) {
+        size_t n = 0;
+        for (const auto& [k, v] : ran) n += k.rfind("llmx_q8_0_tile", 0) == 0 ? v : 0;
+        return n;
+    };
+    for (Dtype dt : {Dtype::int8, Dtype::f16})
+        for (size_t nin : {size_t(1024), size_t(1056)}) {
+            const std::string what = std::string(dt == Dtype::int8 ? "int8" : "f16") + ", rows " + std::to_string(nin) + " wide";
+            const size_t cols = 14 + (from - 1) + from;
+            const std::vector<uint8_t> w = q8_matrix(nin, nout, 61);
+            const std::vector<float> x = row_classes::values(cols * nin, 62);
+            auto wb = g.adopt(w.data(), w.size()), xb = g.adopt(x.data(), x.size() * 4), y = g.alloc(nout * cols * 4), y1 = g.alloc(nout * cols * 4);
+            const WeightView wv{quant::GGML_TYPE_Q8_0, {wb.get(), 0}};
+            std::vector<float> one(nout * cols);
+            for (size_t c = 0; c < cols; ++c) {
+                const RowRun rr{1, 1};
+                g.matmul(wv, {xb.get(), c * nin}, {y1.get(), 0}, nin, nout, 1, {&rr, 1}, dt);
+                const std::vector<float> r = read(g, *y1, nout);
+                std::copy(r.begin(), r.end(), one.begin() + std::ptrdiff_t(c * nout));
+            }
+            // 14 decode columns, a prompt of from - 1 rows across the chunk edge, then a prompt of `from` rows on the tile.
+            const RowRun runs[3] = {{14, 1}, {14 + from - 1, from - 1}, {cols, from}};
+            rocm_take_launches(g);
+            g.matmul(wv, {xb.get(), 0}, {y.get(), 0}, nin, nout, cols, {runs, 3}, dt);
+            const auto ran = rocm_take_launches(g);
+            const std::vector<float> mixed = read(g, *y, nout * cols);
+            const size_t short_end = 14 + from - 1;
+            require(std::memcmp(mixed.data(), one.data(), nout * short_end * 4) == 0, what + ": decode columns and a short prompt across a chunk edge have the one-column bits");
+            const RowRun alone{from, from};
+            g.matmul(wv, {xb.get(), short_end * nin}, {y1.get(), 0}, nin, nout, from, {&alone, 1}, dt);
+            require(std::memcmp(read(g, *y1, nout * from).data(), mixed.data() + short_end * nout, nout * from * 4) == 0, what + ": a prompt at the crossover in a mixed call has its bits alone");
+            require(tiles(ran) == 1, what + ": a mixed call launches the tile once, for the prompt at the crossover");
+            // Run-less calls: below the crossover each row a column, from it the tile with the bits it gives at prompt_rows_below 2.
+            for (size_t rows = 2; rows <= 16; ++rows) {
+                rocm_take_launches(g);
+                g.matmul(wv, {xb.get(), 0}, {y.get(), 0}, nin, nout, rows, {}, dt);
+                const auto r = rocm_take_launches(g);
+                const std::string at = what + ", a run-less call of " + std::to_string(rows) + " rows";
+                if (rows < from) {
+                    require(tiles(r) == 0 && std::memcmp(read(g, *y, nout * rows).data(), one.data(), nout * rows * 4) == 0, at + " takes the row builds with the one-column bits");
+                } else {
+                    const std::vector<float> now = read(g, *y, nout * rows);
+                    profile.prompt_rows_below = 2;
+                    g.matmul(wv, {xb.get(), 0}, {y.get(), 0}, nin, nout, rows, {}, dt);
+                    profile.prompt_rows_below = from;
+                    require(tiles(r) == 1 && std::memcmp(now.data(), read(g, *y, nout * rows).data(), nout * rows * 4) == 0, at + " takes the tile with the bits it has at prompt_rows_below 2");
+                }
+            }
+            // A norm's twin read by a short prompt's product: once a product has read one, the norm writes it and the product makes none.
+            const std::vector<float> nw = row_classes::values(nin, 63);
+            auto nb = g.adopt(nw.data(), nw.size() * 4), ob = g.alloc(5 * nin * 4);
+            const RowRun five{5, 5};
+            size_t twins = 0;
+            for (int pass = 0; pass < 2; ++pass) {
+                g.rms_norm_rows({ob.get(), 0}, {xb.get(), 0}, {nb.get(), 0}, 5, nin, nin, 1e-6f, {&five, 1});
+                rocm_take_launches(g);
+                g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, nin, nout, 5, {&five, 1}, dt);
+                twins = 0;
+                for (const auto& [k, v] : rocm_take_launches(g)) twins += k.rfind("llmx_twin", 0) == 0 ? v : 0;
+            }
+            require(twins == 0, what + ": a short prompt's product reads its norm's twin without making one");
+        }
+    // Products of two rows at the extents about the crossover: one class, one set of bits.
+    std::vector<std::vector<float>> out;
+    std::vector<size_t> extents;
+    const std::vector<uint8_t> w = q8_matrix(1024, 64, 64);
+    const std::vector<float> x = row_classes::values(2 * 1024, 65);
+    auto wb = g.adopt(w.data(), w.size()), xb = g.adopt(x.data(), x.size() * 4), y = g.alloc(64 * 2 * 4);
+    for (size_t e = 2; e <= from + 2; ++e) {
+        const RowRun rr{2, e};
+        g.matmul({quant::GGML_TYPE_Q8_0, {wb.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, 1024, 64, 2, {&rr, 1}, Dtype::int8);
+        out.push_back(read(g, *y, 64 * 2));
+    }
+    bool ok = true;
+    for (size_t i = 0; i < out.size(); ++i)
+        for (size_t j = i + 1; j < out.size(); ++j)
+            if (g.row_class(i + 2) == g.row_class(j + 2)) ok = ok && same(out[i], out[j]);
+    require(ok, "extents of one class about the crossover give one set of bits");
+    profile.prompt_rows_below = keep;
+}
+
 void classes(Backend& g) {
     require(g.row_class(1) != g.row_class(2), "a generated token is a class of its own");
     size_t pairs = 0;
@@ -3634,6 +3728,7 @@ int main(int argc, char** argv) {
             biased_edges(*g);
             bits().q8_decode_bits(*g);
             bits().q8_columns_bits(*g);
+            prompt_crossover(*g);
             bits().mxfp4_decode_bits(*g);
             twin_checks::nvfp4_scales(*g, *c, rocm_take_launches, require);
             twin_checks::fp8_grids(*g, *c, rocm_take_launches, require);
@@ -3651,6 +3746,7 @@ int main(int argc, char** argv) {
         biased_edges(*g);
         bits().q8_decode_bits(*g);
         bits().q8_columns_bits(*g);
+        prompt_crossover(*g);
         bits().mxfp4_decode_bits(*g);
         twin_checks::nvfp4_scales(*g, *c, rocm_take_launches, require);
         twin_checks::fp8_grids(*g, *c, rocm_take_launches, require);

@@ -1104,6 +1104,44 @@ README gains the rope-scaling line (models that declare YaRN and `--yarn F`), wh
 - **Left:** the review and the Radeon VII check (AGENTS.md, Merge gates); CUDA builds the same kernel source and gets the same inlining; Vulkan's norm shader has no calls and is unaffected.
 - **Gotchas:** the other kernels that still make calls (`delta_step`, `matmul_q8_0`, `matmul_f16`, `routed_q8_0`, `route_step_*`) were not changed; `gated_delta_rule` inlined gave no measurable pass change on 27B.
   HIP eager launches keep kernel arguments in host memory (HIP_FORCE_DEV_KERNARG has no effect on gfx906 with ROCm 7.2.1), so every kernel's first argument load is a PCIe round trip of about 0.8 us more than from VRAM; the same pass as a HIP graph runs 0.6B 1.88 ms and 27B 38.83 ms against 2.21 and 39.7 eager. That is a separate, larger change of the launch path, not part of this branch.
+## ROCm prompt crossover (2026-11-20, HEAD2, HEAD3, HEAD4 then HEAD5, branch perf/rocm-prompt-crossover on perf/rocm-few-columns)
+
+**Done:** a dense product's prompt run shorter than the profile's `prompt_rows_below` runs on the decode row builds, a column each, in place of the tile (`on_rows`, `backends/gpu/backend_core.hpp`); the default 2 keeps every prompt on the tile, so CUDA and untuned HIP devices are unchanged, and the MI50 HIP row sets 9.
+`twin_map`, `product_twin` and `row_class` read the one predicate, so the twin's producers and the products agree; such a prompt takes the row-class split digit 0, which no extent on the tile has, and a call without runs is one run, on the rows below the crossover and from it on the tile at an extent of the crossover itself (`on_rows(nbatch) ? 1 : max(2, prompt_rows_below)`), so run-less calls of 9 or more rows keep main's split and bits.
+It covers the weight types with a twin (Q8_0, the K, Q4/Q5 and IQ4_NL blocks and MXFP4); F32, F16 and BF16 weights keep their own paths.
+Only whole prompts of 2 to 8 rows change bits on an MI50: pp2 to pp8, short completions in the server and log-probabilities of 2 to 8 tokens; a run's extent is its sequence's length at the run's end (`model/runtime.hpp`), so the last rows of a longer prompt's slice and a later turn's few new tokens stay on the tile with main's bits, and generated rows, draft verifies and prompts of 9 rows or more keep theirs. The class edge at 9 means the server's cache matches rows computed at extents 2 to 8 only with extents 2 to 8, so at most 8 rows are computed again.
+A run-less product of 2 to 8 rows changes only where its weight has a twin: DeepSeek-V4.1's two run-less products, the DSpark Markov head over a draft's sequences (`deepseek4/dspark.hpp`) and the indexer's pooled keys (`deepseek4/model.hpp`), are BF16 in the shipped files and keep their bits.
+`prompt_crossover` (`tests/backend_rocm.cpp`, docs/TESTS.md) holds the classes, the named builds at the edge and every column of a crossing run against its one-column call, and `twin_types` runs at `prompt_rows_below` 2 so its 2-row prompts keep covering the tile.
+
+Rows against the tile on one MI50, us per call (head3/out/sw9.sum, sw10.sum, sw11.txt): at 2 to 8 rows the row builds win for Q8_0, Q4_0, Q4_K, Q6_K, Q4_1, Q5_0, Q5_1, Q5_K and IQ4_NL at every measured width, in f16 and int8 (Q4_K int8 1024x151936 at 8 rows 606 against 1091, Q8_0 int8 6144x2560 54 against 104); at 9 rows the 9-to-16-column builds take over and the tile wins on most shapes, so 9 is the one value that gains for every type.
+Recorded losses: Q8_0 int8 320x10240 at 5 to 8 rows, 33 against the tile's 30 us; MXFP4 int8 1024x151936 at 5 to 8 rows, about 970 against 850 us, and MXFP4 int8 6144x2560 at 7 and 8 rows, 105 and 112 against 104 us.
+
+One MI50, ROCm, the base perf/rocm-few-columns against the branch, `bench --p N --n 1 --r 20`, prompt tok/s, two interleaved rounds (head4/out/x/pp*.txt on the rig):
+
+| Model | pp2 | pp3 | pp4 | pp5 | pp6 | pp7 | pp8 |
+|---|---|---|---|---|---|---|---|
+| Qwen3-0.6B Q8_0 | 277 / 672 (2.43x) | 423 / 962 (2.27x) | 556 / 1247 (2.24x) | 691 / 1204 (1.74x) | 828 / 1432 (1.73x) | 958 / 1674 (1.75x) | 1093 / 1886 (1.73x) |
+| Qwen3.5-0.8B Q4_K_M | 195 / 511 (2.62x) | 289 / 651 (2.25x) | 382 / 852 (2.23x) | 473 / 654 (1.38x) | 567 / 776 (1.37x) | 657 / 891 (1.36x) | 739 / 1015 (1.37x) |
+
+Eight concurrent 8-token completions on the server, Qwen3-0.6B Q8_0: 89.0 and 96.6 ms median on the base, 68.3 and 67.3 on the branch (srv-*.txt).
+
+**Gates:** on one MI50, against few-columns 767ff6dd's code (head4/fc, built as 5f00c2c1); evidence under /opt/claude-work/head6/out and /opt/claude-work/head4/out/x on the rig.
+
+| Check | Result |
+|---|---|
+| ROCm build of cb99e428 (llmx 0.1.0+gcb99e4285688), which differs from the head by comments and docs | 0 errors |
+| CTest ROCm, one MI50 | 94/94 (jc-ctest.txt) |
+| Logits, per-token logits, greedy and lookup drafts of 7, Qwen3-0.6B Q8_0 on the CPU and rocm:0 at int8 and auto | 20 of 24 cells byte identical; the 4 others are the rocm 2- and 5-word prompts, as expected (head4/ident/xo6) |
+| HF logit golden (suite `baseline`), rocm:0 int8 and f16 | PASS (jc-hf-*.txt) |
+| `docs` and `dead-code` at the head | PASS |
+| Carried from 4f93d0bc, before the fix that keeps run-less calls of 9 rows or more on the tile and the test's tile count: 16k long-context raw and chat against file-exact HF at int8 and f16, the pp2 to pp8 and server timings above, and the suite on rocm:0 | long context PASS at both; suite PASS but `docs` (a comment since shortened), `safetensors` (fails on main too, ROCm refuses F8_E4M3 weights) and `server` (timed out under host load, as on few-columns) |
+
+Reviewed by Fable. The change lands by fast-forward.
+
+**Left:** a per-type crossover of 17 for Q8_0 and Q6_K, whose rows still win at 9 to 16 rows, needs a type-aware `twin_map`.
+On a sidecar whose Markov head has a twin, its run-less call takes its kernel by how many sequences draft together, from 2 on main and from 9 here, so its bits follow that count; the shipped BF16 head does not reach it.
+README unchanged (kernel choice only).
+
 ## ROCm few decode columns (2026-11-20, HEAD1, HEAD2, HEAD3 then HEAD4, branch perf/rocm-few-columns on main a274cfd62)
 
 **Done:** the Q8_0 half-block decode builds of 2 to 8 columns over 8-bit activations (`q8_0_rows_half`, `kernels/int16.gpu`) issue the weights' words with their twin loads before anything waits on them, the eight-column build, two groups of four columns, issuing both groups' twin loads first and keeping two buffers of a group's twin so group g + G's loads arrive under group g's products, and address a column's twin by a 32-bit offset from the call's first column.

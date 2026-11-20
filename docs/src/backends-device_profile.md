@@ -16,6 +16,7 @@ vendor name.
 - `TunedDevice`, `tuned_devices()`: the devices and drivers the profile was tuned on, keyed by a substring of each name, each row with a function that assigns the numbers measured there by name.
   It is the table to extend when bringing up hardware, with the sweeps in `docs/VULKAN.md`.
 - `profile_for(caps)`: the defaults, tuned by the first row whose device and driver both match; a row that prefers the integer dot applies only where the device has it.
+- `prompt_rows_below`: read by the GPU core alone (ROCm, CUDA), the prompt extent below which a dense product runs on the decode row builds rather than the tile; the default 2 puts every prompt on the tile, and the MI50 HIP row's 9 is where the row builds stop winning for every weight type (docs/STATUS.md, ROCm prompt crossover).
 - `tile_from_for`, `tile_rows_for`: the batch rows from which a matmul of the selected family and width takes the tile, and a tile's height from the call's shape and the device's compute units.
 - `rows_a_cluster(caps, rows, lanes, cap, waves_per_cu)`: the rows a cluster of `lanes` lanes takes in a decode row call of `rows` output rows, the most of 4, 2 and 1 up to the kernel's `cap` whose clusters give each compute unit `waves_per_cu` subgroups, counted as rows / r, then times lanes over the subgroup.
   ROCm's `row_build` asks it at a whole subgroup and a cap of 4 with `row_four_waves_per_cu`, the Vulkan one-column builds at their cluster with that number times their kernel's class (docs/VULKAN.md, Kernels); it knows no kernel.

@@ -406,8 +406,11 @@ public:
             if (t.twin)
                 for (const auto& role : t.twin->tile_from)
                     for (size_t from : role) routed += extent >= from;
-        return 2 + (extent >= dev_.profile.attention_tile_rows ? 1 : 0) + 2 * (routed + (entries * std::size(kTypes) + 1) * split_tiles_of(extent));
+        // A prompt on the row builds takes the split digit 0, which no extent on the tile has.
+        return 2 + (extent >= dev_.profile.attention_tile_rows ? 1 : 0) + 2 * (routed + (entries * std::size(kTypes) + 1) * (on_rows(extent) ? 0 : split_tiles_of(extent)));
     }
+    // Whether a run of this extent takes the decode row builds, a column each: a generated row, or a prompt shorter than the profile's crossover.
+    bool on_rows(size_t extent) const { return extent == 1 || extent < dev_.profile.prompt_rows_below; }
     // The column tiles the tile's inner split is chosen for: the prompt's own, counted up to 512 rows, as the Vulkan tile counts them.
     static size_t split_tiles_of(size_t extent) { return (std::min<size_t>(extent, 512) + kTileRows - 1) / kTileRows; }
 
@@ -976,7 +979,7 @@ public:
         span(*d.conv_w.buffer, d.conv_w.offset * sizeof(float), size_mul(size_mul(C, kConvTaps), sizeof(float)));
         for (const CSlice& g : {d.a, d.dt_bias}) span(*g.buffer, g.offset * sizeof(float), size_mul(Hv, sizeof(float)));
         span(*d.norm.buffer, d.norm.offset * sizeof(float), size_mul(sh.v_dim, sizeof(float)));
-        // Generated rows give the same bits in any group, so they take qkv and gate as one; a prompt's tile splits by the group's outputs, so its rows take the base's two products.
+        // Generated rows give the same bits in any group, so they take qkv and gate as one; a prompt, a short one on the rows included, takes the base's two products, since the tile splits by the group's outputs.
         unordered(true);
         if (generated_rows(rows, runs)) matmul_group({d.qkv, d.gate}, mixed, nin, rows, runs, dtype);
         else {
@@ -3036,9 +3039,9 @@ private:
         }
     };
     static_assert(sizeof(TwinMap) == 120 && offsetof(TwinMap, pad) == 84 && offsetof(TwinMap, total) == 116, "TwinMap is the kernels' layout");
-    // The twin's layout from each run's kernel: generated rows row after row, a prompt's rows block-major and padded to an odd multiple of 4 (docs/src/backends-gpu.md).
+    // The twin's layout from each run's kernel: rows on the row builds (generated rows and short prompts) row after row, a tile prompt's rows block-major and padded to an odd multiple of 4 (docs/src/backends-gpu.md).
     // It moves where a value lies, never the value; without a prompt's run, or past the map's regions, every row lies row after row.
-    static TwinMap twin_map(RowRuns runs, size_t rows, size_t nin) {
+    TwinMap twin_map(RowRuns runs, size_t rows, size_t nin) const {
         TwinMap m{};
         m.blocks = (unsigned)(nin / 32);
         size_t total = 0, begin = 0;
@@ -3046,7 +3049,7 @@ private:
         bool major = false;
         for (size_t r = 0; r < runs.n && begin < rows; ++r) {
             const size_t end = std::min(runs.runs[r].end, rows);
-            const bool tile = runs.runs[r].extent != 1;
+            const bool tile = !on_rows(runs.runs[r].extent);
             if (end <= begin) continue;
             if (n && (m.pad[n - 1] != 0) == tile) {
                 if (tile) total -= size_t(m.pad[n - 1]) * m.blocks;
@@ -3433,15 +3436,15 @@ private:
         c.cluster = row_cluster(rk, nin);
         return c;
     }
-    // The twin of X, then each run on its kernel: generated rows on the row kernel, kColumns at a time, a prompt's rows on the tile.
-    // Without runs a call of one row is a generated row and any other a prompt's.
+    // The twin of X, then each run on its kernel: generated rows and prompts below the crossover on the row kernel, kColumns at a time, longer prompts' rows on the tile.
+    // Without runs a call is one run, on the row kernel below the crossover and from it on the tile at a split of one column tile, an extent of the crossover itself.
     void product_twin(const TwinKernels& tk, const Proj* proj, size_t nproj, CSlice X, size_t nin, size_t nbatch, bool accumulate, RowRuns runs, bool twin, bool int8) {
         const size_t qsize = int8 ? 1 : 2;
-        const RowRun whole[1] = {{nbatch, nbatch == 1 ? size_t(1) : size_t(2)}};
+        const RowRun whole[1] = {{nbatch, on_rows(nbatch) ? size_t(1) : std::max<size_t>(2, dev_.profile.prompt_rows_below)}};
         const RowRuns all = runs.n ? runs : RowRuns{whole, 1};
         TwinMap map = twin_map(all, nbatch, nin);
         bool tiles = false;
-        for (size_t r = 0; r < all.n; ++r) tiles = tiles || all.runs[r].extent != 1;
+        for (size_t r = 0; r < all.n; ++r) tiles = tiles || !on_rows(all.runs[r].extent);
         if (tiles) want_sums_ = tk.tile_sums;
         half_span(!int8 ? 0 : nin / 32 % 2 ? 1 : 2, std::min(nbatch, kColumns), nin);
         const auto [q0, d0, s0] = twin_of(X, nbatch, nin, int8, map, twin, tiles && tk.tile_sums);
@@ -3453,20 +3456,21 @@ private:
             if (end <= begin || end > nbatch) throw std::runtime_error(Api::prefix + "row runs out of order or past the call");
             // Adjacent runs share launches where both take the same kernel and split, one per sequence otherwise: a decode column, and a tile row, gives the same bits in any call.
             const auto same = [&](const RowRun& a, const RowRun& b) {
-                return (a.extent == 1) == (b.extent == 1) && (a.extent == 1 || split_tiles_of(a.extent) == split_tiles_of(b.extent));
+                return on_rows(a.extent) == on_rows(b.extent) && (on_rows(a.extent) || split_tiles_of(a.extent) == split_tiles_of(b.extent));
             };
             while (r + 1 < all.n && same(all.runs[r], all.runs[r + 1]) && all.runs[r + 1].end > end && all.runs[r + 1].end <= nbatch) end = all.runs[++r].end;
             for (size_t at = begin; at < end;) {
                 // int8 rows of an even block count take the half-block order, on word loads; the F16 class keeps the quarter layout, measured faster for its widened weights (docs/STATUS.md).
                 const int form = !int8 ? 0 : nin / 32 % 2 ? 1 : 2;
-                const size_t rows = all.runs[r].extent == 1 ? std::min(end - at, kColumns) : end - at;
+                const bool columns = on_rows(all.runs[r].extent);
+                const size_t rows = columns ? std::min(end - at, kColumns) : end - at;
                 size_t first = 0;
                 unsigned xrow = 0, xblock = 0;
                 map.locate(at, first, xrow, xblock);
                 const uint8_t* q = q0 + first * 32 * qsize;
                 const float* d = d0 + first;
                 const void* xs = (const uint8_t*)s0 + first * 4 * qsize;
-                if (all.runs[r].extent == 1) {
+                if (columns) {
                     // One launch for the group's projections, their output rows one after another.
                     const TwinKernels& rk = row_form(tk, nin, int8);
                     RowCall c = row_call(proj, nproj, at, rk, nin);

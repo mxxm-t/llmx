@@ -513,6 +513,7 @@
   }
   function findMessage() {
     const dialog = $('find-message-dialog'), query = $('find-message-query'), list = $('find-message-list'), more = $('find-message-more');
+    const role = $('find-message-role');
     const messages = dialogueMessages().reverse();
     let matches = [], shown = 0;
     function appendPage() {
@@ -539,18 +540,20 @@
       const pattern = term ? new RegExp(escaped, 'iu') : null;
       matches = [];
       for (const message of messages) {
-        if (!pattern && message.role !== 'user') continue;
+        if (role.value !== 'all' && message.role !== role.value) continue;
         const hit = pattern?.exec(message.content);
         if (!pattern || hit) matches.push({message, at: hit?.index || 0, length: hit?.[0].length || 0});
       }
       const count = matches.length;
-      $('find-message-count').textContent = term ? (count ? count + ' matching message' + (count === 1 ? '' : 's') : 'No matching messages') : (count ? 'Your prompts, newest first' : 'Type to search assistant replies');
+      $('find-message-count').textContent = count ? count + (term ? ' matching message' : ' message') + (count === 1 ? '' : 's') + ', newest first' : 'No matching messages';
       shown = 0;
       list.replaceChildren();
       appendPage();
       list.scrollTop = 0;
     }
     query.value = '';
+    role.value = 'all';
+    role.onchange = filter;
     query.oninput = filter;
     query.onkeydown = event => {
       if (event.key === 'Enter' && !event.isComposing) {
@@ -566,7 +569,7 @@
     dialog.onclose = () => {
       if (dialog.open) return;
       query.value = '';
-      query.oninput = query.onkeydown = more.onclick = list.onclick = dialog.onclose = null;
+      role.onchange = query.oninput = query.onkeydown = more.onclick = list.onclick = dialog.onclose = null;
       list.replaceChildren();
     };
     filter();
@@ -639,10 +642,14 @@
     if (typeof value !== 'string') return value;
     try { return JSON.parse(value); } catch (_) { return value; }
   }
+  function validWorkspacePath(path) {
+    return typeof path === 'string' && path && [...path].length <= 240 && !/[:\\\x00-\x1f]/.test(path)
+      && path.split('/').every(part => part && part !== '.' && part !== '..');
+  }
   function workspaceToolTarget(call, result, parts) {
     if (call.name === 'workspace_write') {
       const path = toolJson(call.arguments)?.path;
-      if (typeof path !== 'string' || !path || [...path].length > 240 || /[:\\\x00-\x1f]/.test(path) || path.split('/').some(part => !part || part === '.' || part === '..')) return null;
+      if (!validWorkspacePath(path)) return null;
       const error = call.error || (result?.isError && parts.length === 1 && parts[0]?.type === 'text' && parts[0].text);
       const conflict = typeof error === 'string' && (error === 'Workspace changed. Reload before saving'
         || error === 'Wait for the active command to finish or cancel it' || /^Workspace revision is \d+\./.test(error));
@@ -654,37 +661,54 @@
     if (parts.length !== 1 || parts[0]?.type !== 'text') return null;
     const value = toolJson(parts[0].text);
     if (call.name === 'workspace_run' && typeof value?.id === 'string' && /^[0-9a-f]{32}$/.test(value.id)) return {jobId: value.id};
-    if (result.isError) return null;
-    if (call.name === 'workspace_read' && typeof value?.path === 'string' && value.path) return {path: value.path};
+    if (result?.isError) return null;
+    if (call.name === 'workspace_read' && call.status === 'completed' && validWorkspacePath(value?.path)) return {path: value.path};
     return null;
   }
   let workspaceFileRead;
-  function workspaceWriteFile(target, wrap) {
+  function workspaceFileActions(target, fromRead) {
     const row = node('div', 'workspace-tool-file');
-    const name = node('code', '', target.path);
-    const label = target.savedCopy ? 'Open saved copy' : 'Open file';
-    const open = node('button', 'secondary-button workspace-tool-view-file', label);
-    open.type = 'button'; open.setAttribute('aria-label', label + ' ' + target.path);
+    const openLabel = target.savedCopy ? 'Open saved copy' : 'Open file';
+    const open = node('button', fromRead ? 'workspace-tool-open' : 'workspace-tool-view-file');
+    const attach = node('button', 'workspace-tool-attach');
     const error = node('p', 'error-text workspace-tool-file-error');
     error.setAttribute('role', 'alert'); error.hidden = true;
-    row.append(name, open, error);
-    open.addEventListener('click', async () => {
-      if (open.getAttribute('aria-busy') === 'true') return;
+    for (const [control, label, glyph] of [
+      [open, openLabel, 'M9 5h10v10m-1-9L7 17M6 5H4v15h15v-3'],
+      [attach, 'Attach to draft', 'm8 12 6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l9-9']
+    ]) {
+      control.type = 'button';
+      control.title = control === attach ? 'Attach the current saved copy of ' + target.path + ' to the draft' : label + ' ' + target.path;
+      control.setAttribute('aria-label', control.title);
+      const caption = node('span', '', control === attach ? 'Attach' : label);
+      if (control === attach) caption.append(node('span', 'file-action-suffix', ' to draft'));
+      control.append(icon(glyph), caption); row.append(control);
+    }
+    row.append(error);
+    row.addEventListener('click', async event => {
+      const control = event.target.closest('button');
+      if (!control || control.getAttribute('aria-busy') === 'true') return;
+      if (control === open && fromRead) { window.ChatWorkspace.openToolResult(target); return; }
+      const draft = control === attach ? projectDraft() : null;
       workspaceFileRead?.abort();
       const request = new AbortController(), generation = S.generation;
       workspaceFileRead = request; error.hidden = true;
-      open.setAttribute('aria-busy', 'true'); open.setAttribute('aria-disabled', 'true');
+      control.setAttribute('aria-busy', 'true'); control.setAttribute('aria-disabled', 'true');
       const leave = event => { if (event.detail !== 'chat') request.abort(); };
       const expire = () => request.abort();
       document.addEventListener('companion:view', leave);
       document.addEventListener('companion:unauthorized', expire, {once: true});
-      const isCurrent = () => !request.signal.aborted && S.generation === generation && wrap.isConnected
+      const isCurrent = () => !request.signal.aborted && S.generation === generation && row.isConnected
         && $('app').dataset.view === 'chat' && !document.querySelector('dialog[open]');
       try {
         const signal = AbortSignal.any([request.signal, AbortSignal.timeout(10000)]);
         const file = await api('/workspace/file?path=' + encodeURIComponent(target.path), 'GET', undefined, signal);
         if (!isCurrent()) return;
         if (file.path !== target.path || typeof file.content !== 'string') throw new Error('Invalid saved file response.');
+        if (draft) {
+          draft.apply({files: [{path: file.path, text: file.content}]}, false);
+          $('draft').focus(); return;
+        }
         const basename = target.path.split('/').at(-1), html = /\.html?$/i.test(basename);
         const language = html ? 'html' : basename.match(/\.([^.]+)$/)?.[1];
         window.ChatArtifacts.open({name: basename, source: file.content, language}, {
@@ -693,14 +717,15 @@
       } catch (problem) {
         if (isCurrent()) {
           error.textContent = problem.status === 404 ? 'This saved file is no longer available.'
-            : problem.name === 'TimeoutError' ? 'Opening the saved file timed out. Try again.' : 'Could not open the saved file.';
+            : problem.name === 'TimeoutError' ? 'Reading the saved file timed out. Try again.'
+            : draft ? problem.message : 'Could not open the saved file.';
           error.hidden = false;
         }
       } finally {
         document.removeEventListener('companion:view', leave);
         document.removeEventListener('companion:unauthorized', expire);
         if (workspaceFileRead === request) workspaceFileRead = null;
-        open.removeAttribute('aria-busy'); open.removeAttribute('aria-disabled');
+        control.removeAttribute('aria-busy'); control.removeAttribute('aria-disabled');
       }
     });
     return row;
@@ -709,32 +734,38 @@
     const wrap = node('div', 'tool-call'); wrap.dataset.toolCall = call.id || ''; const detail = node('details'); const summary = node('summary'); summary.tabIndex = 0;
     const status = node('span', 'badge' + (call.error ? ' error' : ''), call.status || 'pending');
     status.dataset.status = call.status || 'pending';
-    summary.append(icon('m8 8-4 4 4 4m8-8 4 4-4 4m-3-10-2 12', 'tool-symbol'), node('span', 'tool-name', call.name || 'Call'), status);
-    const body = node('div', 'tool-body'); body.append(node('div', 'section-label', 'ARGUMENTS'), node('pre', '', json(call.arguments ?? {})));
     const result = toolJson(call.result), parts = Array.isArray(result?.content) ? result.content : [];
-    const write = call.name === 'workspace_write' ? workspaceToolTarget(call, result, parts) : null;
+    const target = workspaceToolTarget(call, result, parts);
+    const fromRead = call.name === 'workspace_read';
+    const name = target?.path ? (fromRead ? 'Read' : target.savedCopy ? 'Write failed' : 'Wrote') : call.name || 'Call';
+    const body = node('div', 'tool-body');
+    if (target?.path) {
+      summary.append(node('span', 'tool-name tool-file-verb', name), node('code', 'tool-file-path', target.path), status);
+      body.append(node('code', 'tool-operation', call.name));
+      wrap.append(workspaceFileActions(target, fromRead));
+    } else {
+      summary.append(icon('m8 8-4 4 4 4m8-8 4 4-4 4m-3-10-2 12', 'tool-symbol'), node('span', 'tool-name', name), status);
+    }
+    body.append(node('div', 'section-label', 'ARGUMENTS'), node('pre', '', json(call.arguments ?? {})));
     if (call.result !== undefined) {
       body.append(node('div', 'section-label', 'RESULT'));
       const full = json(result); const readable = parts.filter(part => part?.type === 'text' && typeof part.text === 'string').map(part => part.text).join('\n\n');
       const preview = readable || full; body.append(node('pre', '', preview.slice(0, 16384) + (preview.length > 16384 ? '\n[Preview truncated]' : '')));
       const structured = node('details'); structured.append(node('summary', '', 'Structured result'), node('pre', '', full.slice(0, 16384) + (full.length > 16384 ? '\n[Preview truncated]' : ''))); body.append(structured);
       if (full.length > 16384 || preview.length > 16384) { const download = node('button', 'secondary-button', 'Download full result'); download.type = 'button'; download.addEventListener('click', () => { const url = URL.createObjectURL(new Blob([full], {type: 'application/json'})); const link = node('a'); link.href = url; link.download = 'tool-result.json'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }); body.append(download); }
-      if (['workspace_list', 'workspace_read', 'workspace_run'].includes(call.name)) {
-        const target = workspaceToolTarget(call, result, parts);
-        const label = target?.path ? 'Open file' : target?.jobId ? 'Open job output' : 'Open saved files';
+      if (!target?.path && ['workspace_list', 'workspace_read', 'workspace_run'].includes(call.name)) {
+        const label = target?.jobId ? 'Open job output' : 'Open saved files';
         const open = node('button', 'secondary-button workspace-tool-open', label);
         open.type = 'button'; open.addEventListener('click', () => window.ChatWorkspace.openToolResult(target));
-        const link = node('div', 'workspace-tool-file');
-        if (target?.path) link.append(node('code', '', target.path));
+        const link = node('div', 'workspace-tool-link');
         link.append(open); wrap.append(link);
       }
     }
     if (call.error) body.append(node('p', 'error-text', json(call.error)));
     if (call.duration_ms !== undefined) body.append(node('small', 'muted', number(call.duration_ms, ' ms')));
-    if (write) {
-      wrap.append(workspaceWriteFile(write, wrap));
+    if (call.name === 'workspace_write' && target?.path) {
       const edit = node('button', 'secondary-button workspace-tool-open', 'Open in Workspace');
-      edit.type = 'button'; edit.addEventListener('click', () => window.ChatWorkspace.openToolResult(write)); body.append(edit);
+      edit.type = 'button'; edit.addEventListener('click', () => window.ChatWorkspace.openToolResult(target)); body.append(edit);
     }
     detail.append(summary, body); wrap.prepend(detail);
     if (call.status === 'approval') {
@@ -860,9 +891,7 @@
             if (nextWrap && body && nextSummary && summary) {
               keepDetail.querySelector(':scope > .tool-body')?.replaceWith(body);
               keepDetail.open = next.open;
-              summary.querySelector('.tool-name').textContent = nextSummary.querySelector('.tool-name').textContent;
-              const badge = summary.querySelector('.badge'), nextBadge = nextSummary.querySelector('.badge');
-              badge.textContent = nextBadge.textContent; badge.dataset.status = nextBadge.dataset.status; badge.className = nextBadge.className;
+              summary.replaceChildren(...nextSummary.childNodes);
               const stableWrap = keepDetail.closest('.tool-call');
               reconcileChildren(stableWrap, nextWrap, [[next, keepDetail]]);
               preserved.push([nextWrap, stableWrap]);
@@ -1305,7 +1334,7 @@
     const chat = S.chat?.id, generation = S.generation, revision = composerRevision, system = $('setting-system').value;
     return {system, apply(context, copyInstructions) {
       if (chat !== S.chat?.id || generation !== S.generation || revision !== composerRevision || system !== $('setting-system').value || $('app').dataset.view !== 'chat')
-        throw new Error('The conversation or draft changed. Open the picker again.');
+        throw new Error('The conversation or draft changed. Choose the file or project again.');
       const pending = [];
       for (const {path, text} of context.files) {
         const name = workspaceName(path);
@@ -1515,7 +1544,7 @@
     finally { chatCreating(false); }
   }
   document.addEventListener('click', event => {
-    const el = event.target.closest('[data-action],[data-chat],[data-tab],[data-prompt]'); if (!el) return;
+    const el = event.target.closest('[data-action],[data-chat],[data-tab]'); if (!el) return;
     const execute = async () => {
       if (el.dataset.action) await action(el.dataset.action, el);
       else if (el.dataset.chat) {
@@ -1524,11 +1553,7 @@
             && (document.activeElement === el || document.activeElement === document.body)) $('chat-title').focus({preventScroll: true});
       }
       else if (el.dataset.tab) showTab(el.dataset.tab);
-      else if (el.dataset.prompt) {
-        const draft = $('draft');
-        draft.setRangeText(el.dataset.prompt, draft.selectionStart, draft.selectionEnd, 'end');
-        composerRevision++; resizeDraft(); el.closest('details').open = false; draft.focus();
-      }
+
     };
     execute().catch(error => toast(error.message));
   });
@@ -1538,6 +1563,23 @@
   $('setting-reply-limit').addEventListener('change', () => { renderReplyLimit(); if (!$('setting-max_tokens').disabled) $('setting-max_tokens').focus(); });
   $('draft').addEventListener('keydown', event => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); send().catch(error => banner(error.message)); } });
   $('draft').addEventListener('paste', event => { const files = Array.from(event.clipboardData?.files || []); if (files.length) { event.preventDefault(); attach(files).catch(error => toast(error.message)); } });
+  const chatStage = document.querySelector('.chat-stage'), dropHint = $('file-drop-hint');
+  chatStage.addEventListener('dragover', event => {
+    if (!event.dataTransfer.types.includes('Files')) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+    dropHint.hidden = false;
+  });
+  chatStage.addEventListener('dragleave', event => {
+    if (!chatStage.contains(event.relatedTarget)) dropHint.hidden = true;
+  });
+  chatStage.addEventListener('drop', event => {
+    dropHint.hidden = true;
+    if (!event.dataTransfer.types.includes('Files')) return;
+    event.preventDefault();
+    const files = Array.from(event.dataTransfer.files);
+    if (files.length) attach(files).catch(error => toast(error.message));
+  });
   $('file-input').addEventListener('change', event => { attach(Array.from(event.target.files)).catch(error => toast(error.message)); event.target.value = ''; });
   $('import-input').addEventListener('change', async event => { const file = event.target.files[0]; event.target.value = ''; if (!file) return; try { if (file.size > 32 * 1024 * 1024) throw new Error('Import must be smaller than 32 MB.'); const chat = await api('/import', 'POST', JSON.parse(await file.text())); await refreshChats(); await openChat(chat.id || chat.chat?.id); toast('Conversation imported.'); } catch (error) { toast('Import failed: ' + error.message); } });
   $('search').addEventListener('input', queueChatSearch);
@@ -1548,6 +1590,12 @@
   $('login-form').addEventListener('submit', async event => { event.preventDefault(); const submit = event.target.querySelector('button'); submit.disabled = true; try { await api('/login', 'POST', {password: $('password').value}); $('password').value = ''; $('login-error').textContent = ''; $('login-dialog').close(); await initialize(); } catch (error) { $('login-error').textContent = error.message; } finally { submit.disabled = false; } });
   document.addEventListener('keydown', event => {
     if (event.defaultPrevented || document.querySelector('dialog[open]')) return;
+    if ((event.ctrlKey || event.metaKey) && event.shiftKey && !event.altKey && event.key.toLowerCase() === 'f' &&
+        !modalDrawer && $('app').dataset.view === 'chat' && S.messages.length) {
+      event.preventDefault();
+      findMessage();
+      return;
+    }
     if (modalDrawer && event.key === 'Escape') { event.preventDefault(); closeDrawers(); return; }
     if (modalDrawer && event.key === 'Tab') {
       const controls = Array.from(modalDrawer.querySelectorAll('a[href],button,input,textarea,select,details > summary:first-child,[tabindex]'))

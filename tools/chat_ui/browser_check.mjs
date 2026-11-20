@@ -269,6 +269,8 @@ function workspaceWriteCases(path, missing, revision, files) {
   const call = (id, target) => ({id:'linked-'+id, name:'workspace_write', arguments:JSON.stringify({path:target,content:'Unapplied write proposal.',revision:revision-1})});
   const stale = (id, target) => ({...call(id,target), status:'failed', error:'Workspace revision is '+revision+'. Reload before saving.'});
   return [
+    {id:'linked-verified-read', name:'workspace_read', arguments:JSON.stringify({path}), status:'completed',
+      result:{content:[{type:'text', text:JSON.stringify({path,content:'Earlier tool output'})}]}},
     {...call('write',path), status:'completed', result:{content:[{type:'text',text:JSON.stringify({revision,files})}]}},
     stale('stale-write',path), stale('missing-write',missing), stale('unsafe-write','../outside.txt'),
   ];
@@ -296,7 +298,32 @@ async function checkChatSavedWriteActions(filename, source) {
   }
   await pointerClick(action('missing-write'));
   await wait("document.querySelector('[data-tool-call=linked-missing-write] .workspace-tool-file-error')?.checkVisibility() && /no longer available/.test(document.querySelector('[data-tool-call=linked-missing-write] .workspace-tool-file-error').textContent)", 'missing saved-file write feedback');
-  assert.equal(await evaluate("!document.querySelector('[data-tool-call=linked-unsafe-write] :is(.workspace-tool-open,.workspace-tool-view-file)') && !document.querySelector('#artifact-dialog').open"), true, 'an invalid or unavailable path opened a file');
+  assert.equal(await evaluate("!document.querySelector('[data-tool-call=linked-unsafe-write] :is(.workspace-tool-open,.workspace-tool-view-file,.workspace-tool-attach)') && !document.querySelector('#artifact-dialog').open"), true, 'an invalid or unavailable path opened a file');
+
+  const attach = id => '[data-tool-call="linked-'+id+'"] .workspace-tool-attach';
+  const saved = 'JSON.parse(sessionStorage.getItem('+JSON.stringify('llmx-draft:'+original.chat)+'))';
+  await pointerClick(attach('verified-read'));
+  await wait(saved + '?.attachments?.length===1', 'current saved file attached from read result');
+  assert.deepEqual(await evaluate(saved + '.attachments'), [{name:filename.replaceAll('/',':'),type:'text/plain',text:source}]);
+  for (const id of ['write','stale-write']) {
+    await pointerClick(attach(id));
+    await wait("document.activeElement.id==='draft'", 'attach action returns focus to draft');
+    assert.equal(await evaluate("document.querySelectorAll('#attachments .attachment-pill').length"), 1, 'repeated file actions duplicated the attachment');
+  }
+  assert.deepEqual(await currentChat(), expected, 'attaching changed the conversation or unsent message');
+  await pointerClick('#attachments [data-action=remove-attachment]');
+  const fileURL = '/api/workspace/file?path=' + encodeURIComponent(filename);
+  await evaluate("(() => { const fetchFile=window.fetch; window.releaseToolFile=null; window.fetch=async (...args)=>{ " +
+    "const response=await fetchFile(...args); if(args[0]!=="+JSON.stringify(fileURL)+")return response; " +
+    "window.fetch=fetchFile; await new Promise(resolve=>window.releaseToolFile=resolve); return response; }; })()");
+  await pointerClick(attach('write'));
+  await wait("typeof window.releaseToolFile==='function'", 'saved-file response held for draft edit');
+  await fill('#draft', 'Newer unsent text');
+  await evaluate('window.releaseToolFile()');
+  await wait("document.querySelector('[data-tool-call=linked-write] .workspace-tool-file-error')?.checkVisibility()", 'changed draft kept while reading saved file');
+  assert.equal(await evaluate("document.querySelectorAll('#attachments .attachment-pill').length"), 0);
+  assert.equal(await evaluate("document.querySelector('#draft').value"), 'Newer unsent text');
+  await fill('#draft', expected.draft);
 
   const inspectorOpened = await evaluate("document.querySelector('#inspector').checkVisibility()");
   const initialTab = await evaluate("document.querySelector('#inspector [role=tab][aria-selected=true]')?.id");
@@ -366,15 +393,7 @@ async function checkHomeLanding() {
     const recent = await evaluate("fetch('/api/chats').then(r=>r.json()).then(({chats})=>chats.filter(c=>!c.archived && c.active_leaf).sort((a,b)=>b.updated-a.updated).slice(0,3).map(c=>c.id))");
     assert.deepEqual(await evaluate("Array.from(document.querySelectorAll('#recent-list button'), b=>b.dataset.chat)"), recent, 'landing lists recent populated chats by update time');
     if (view === 'chat') {
-      assert.equal(await evaluate("document.querySelector('.prompt-starters').open"), false);
-      const unsent = await evaluate("document.querySelector('#draft').value");
-      await fill('#draft', 'Two storage formats');
-      await evaluate("document.querySelector('#draft').setSelectionRange(0,0)");
-      await pointerClick('.prompt-starters summary'); await pointerClick('.starter-options button');
-      assert.equal(await evaluate("document.querySelector('#draft').value"), 'Compare these options, including cost, constraints and tradeoffs: Two storage formats');
-      assert.equal(await evaluate("document.activeElement.id==='draft' && !document.querySelector('.prompt-starters').open"), true);
-      await fill('#draft', unsent);
-      await pointerClick('.landing-actions [data-action=attach-files]');
+      await pointerClick('#welcome [data-action=attach-files]');
       await wait("document.querySelector('#saved-file-dialog').open", 'open saved files from the landing');
       await pointerClick('#saved-file-cancel');
     }
@@ -792,7 +811,7 @@ try {
     await wait("document.querySelector('[data-tool-call=linked-write]')", 'saved write outcomes');
     await checkChatSavedWriteActions(filename, source);
     assert.deepEqual(errors, [], 'saved write action browser exceptions');
-    console.log('PASS: completed and stale write read saved text in Chat, safe missing and invalid paths, and Attachments inspector opens saved file picker');
+    console.log('PASS: tool results open current saved files and attach their contents once, preserve later draft edits, and handle missing or invalid files');
   } else if (process.argv.includes('--message-find-only')) {
     await signIn();
     const chat = await evaluate(`(async () => {
@@ -810,10 +829,27 @@ try {
     await wait("document.querySelectorAll('.message.user').length===27", 'selected branch');
     await fill('#draft', 'Unsent draft');
     const writes = apiMutations.length;
+    await evaluate(`{
+      const pane = document.querySelector('.chat-stage');
+      const transfer = new DataTransfer();
+      transfer.items.add(new File(['first'], 'one.txt', {type:'text/plain'}));
+      transfer.items.add(new File(['second'], 'two.md', {type:'text/markdown'}));
+      pane.dispatchEvent(new DragEvent('dragover', {dataTransfer:transfer, cancelable:true}));
+      if (!document.querySelector('#file-drop-hint').checkVisibility()) throw Error('No file drop feedback');
+      pane.dispatchEvent(new DragEvent('drop', {dataTransfer:transfer, cancelable:true}));
+      const text = new DataTransfer();
+      text.setData('text/plain','ordinary dragged text');
+      if (!pane.dispatchEvent(new DragEvent('drop',{dataTransfer:text,cancelable:true}))) throw Error('Text drop intercepted');
+    }`);
+    await wait("document.querySelectorAll('#attachments .attachment-pill').length === 2", 'both dropped files attached');
+    assert.equal(await evaluate("document.querySelector('#file-drop-hint').hidden && document.querySelector('#draft').value === 'Unsent draft'"), true);
     await pointerClick('.topbar [data-action=chat-menu]');
     await pointerClick('#action-menu [data-action=find-message]');
     assert.equal(await evaluate("document.activeElement.id"), 'find-message-query');
     assert.equal(await evaluate("document.querySelectorAll('.find-message-result').length"), 25);
+    assert.equal(await evaluate("document.querySelector('#find-message-count').textContent"), '54 messages, newest first');
+    const speaker = value => evaluate(`{ const field=document.querySelector('#find-message-role'); field.value=${JSON.stringify(value)}; field.dispatchEvent(new Event('change')); }`);
+    await speaker('user');
     await pointerClick('#find-message-more');
     assert.equal(await evaluate("document.querySelectorAll('.find-message-result').length"), 27);
     assert.match(await evaluate("document.activeElement.textContent"), /Prompt 1$/);
@@ -822,10 +858,16 @@ try {
       assert.equal(await evaluate("document.querySelector('#find-message-count').textContent"), 'No matching messages');
     }
     await fill('#find-message-query','ANSWER [3]');
+    assert.equal(await evaluate("document.querySelectorAll('.find-message-result').length"), 0);
+    await speaker('assistant');
     assert.equal(await evaluate("document.querySelector('.find-message-result mark').textContent"), 'Answer [3]');
     await pointerClick('.find-message-result');
     assert.equal(await evaluate("document.activeElement.matches('article.message.assistant') && document.activeElement.innerText.includes('Answer [3]')"), true);
     assert.equal(await evaluate("document.querySelector('#draft').value"), 'Unsent draft');
+    await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'F',code:'KeyF',modifiers:10,windowsVirtualKeyCode:70});
+    await wait("document.querySelector('#find-message-dialog').open", 'conversation find shortcut');
+    assert.equal(await evaluate("document.querySelector('#find-message-role').value"), 'all');
+    await pointerClick('#find-message-dialog button[type=submit]');
     await evaluate(`(async () => {
       const open = () => {
         document.querySelector('.topbar [data-action=chat-menu]').click();
@@ -1474,6 +1516,7 @@ try {
   await wait("document.querySelector('#scroll-region').scrollHeight - document.querySelector('#scroll-region').clientHeight >= 180", 'long transcript in a short viewport');
   await evaluate("document.querySelector('#scroll-region').scrollTop=0");
   await wait("!document.querySelector('#jump-bottom').hidden", 'jump control available above latest reply');
+  assert.equal(await evaluate("document.querySelector('#jump-bottom').getBoundingClientRect().top >= document.querySelector('#scroll-region').getBoundingClientRect().bottom"), true, 'jump control obscures transcript actions');
   await pointerClick('#chat-home');
   await wait("!document.querySelector('#welcome').hidden && document.querySelector('#jump-bottom').hidden", 'home clears the previous transcript jump');
   await cdp('Emulation.setDeviceMetricsOverride', {width:1440,height:1000,deviceScaleFactor:1,mobile:false});
@@ -2924,7 +2967,7 @@ try {
   await click('.topbar [data-action="chat-menu"]');
   assert.deepEqual(await evaluate("Array.from(document.querySelectorAll('#action-menu button')).map(b=>b.dataset.action)"), ['find-message', 'transcript', 'export', 'delete'], 'temporary menu actions');
   await pointerClick('#action-menu [data-action=find-message]');
-  assert.equal(await evaluate("document.querySelector('#find-message-list button')?.dataset.target === document.querySelector('.message.user')?.dataset.message"), true, 'temporary search found its private prompt');
+  assert.equal(await evaluate("Array.from(document.querySelectorAll('#find-message-list button')).some(b=>b.dataset.target===document.querySelector('.message.user')?.dataset.message)"), true, 'temporary search found its private prompt');
   await pointerClick('#find-message-dialog button[type=submit]');
   await screenshot('temporary-chat-desktop.png');
   await cdp('Emulation.setDeviceMetricsOverride', {width: 360, height: 800, deviceScaleFactor: 1, mobile: true});

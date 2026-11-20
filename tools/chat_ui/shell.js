@@ -252,7 +252,7 @@ window.ChatShell = (() => {
   document.addEventListener('companion:unauthorized', () => { $('monitor-frame').removeAttribute('src'); if (!$('login-dialog').open) $('login-dialog').showModal(); });
   document.addEventListener('click', event => {
     const control = event.target.closest('button[data-view]'); if (control) show(control.dataset.view);
-    if (event.target.closest('[data-chat],[data-action="new"],[data-action="temporary"],[data-prompt]')) show('chat');
+    if (event.target.closest('[data-chat],[data-action="new"],[data-action="temporary"]')) show('chat');
     if (event.target.closest('[data-action="logout"]')) $('monitor-frame').removeAttribute('src');
   }, true);
   $('preferences-chat-settings').addEventListener('click', () => { show('chat'); document.querySelector('[data-action="settings"]').click(); });

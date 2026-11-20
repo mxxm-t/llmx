@@ -16,7 +16,9 @@ not retried automatically.
 
 ## Work on files
 
-When a tool saves a file, its name and **Open file** appear in the conversation.
+When a tool reads or writes a workspace file, its path appears in the conversation.
+Choose **Attach to draft** to include the current saved text in your follow-up.
+**Open file** on a read takes you to the editor. On a write it opens the saved file for inspection.
 HTML opens in Preview. Choose Source to read the saved text, or Download to keep a copy.
 If a write hits a revision conflict, **Open saved copy** opens the version currently in the workspace.
 If that path has no saved file, the conversation shows a message beside the filename.
@@ -195,7 +197,6 @@ and folder. Search shows matching conversations in one list. The chat landing
 page lists up to three recently updated conversations with messages. Archived
 conversations stay in the archive. Select a recent conversation to reopen its
 active branch. **Browse saved files** adds selected files to the current draft.
-**Prompt starters** inserts a task prompt at the cursor for editing before sending.
 
 - Unsent text, attachments and edit targets stay with each ordinary conversation
   when you switch chats or select the same chat again. They are saved in this
@@ -224,7 +225,7 @@ active branch. **Browse saved files** adds selected files to the current draft.
   continues in its original conversation if you navigate away while admission
   or snapshot refresh is pending; its completion does not reconnect or scroll
   the newly selected view.
-- Choose **Conversation actions > Find in conversation** to jump to an earlier prompt or search the current branch's prompts and replies. Select a result to focus its message. Search runs in the browser and leaves the draft intact.
+- Choose **Conversation actions > Find in conversation** or press Ctrl+Shift+F (Command+Shift+F on macOS). Choose **My prompts** or **Assistant replies** to browse by speaker, or type to narrow the results. Select a result to focus that message on the current branch. Your unsent draft stays in the composer.
 - **Conversation actions > Download Markdown** saves the current branch's prompt and reply text in reading order. It leaves out tool payloads, reasoning, attachments and unsent drafts. Use **Export JSON** for a backup with branches.
 - Each sidebar row has a compact anchored actions menu for rename, pin/unpin,
   move to folder, duplicate, archive/restore, export and delete. Actions target
@@ -271,7 +272,8 @@ active branch. **Browse saved files** adds selected files to the current draft.
   A focused message action stays focused across message updates while its
   action and target remain available.
   It does not execute model HTML or JavaScript.
-- Attach up to eight files, including UTF-8 text/code, PNG/JPEG images and
+- Drop files onto the conversation or choose them from the attachment menu.
+  Attach up to eight files, including UTF-8 text/code, PNG/JPEG images and
   selected PDF text when the [PDF reader](#optional-pdf-text-reader) is installed. Text is included
   in full with its file name. Select a sent text attachment to read the saved copy. Limits are
   2 MiB per text file, 8 MiB per image and 10 MiB total decoded attachments.

@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Chat reading and follow-up work (2026-11-21)
+
+- **Goal:** Make long conversations easier to read, find earlier answers and reuse files from tool results in a follow-up.
+- **Done:** Chat opens at the composer with recent conversations and saved files. File results show their path, Open and Attach together. Dropping files on the chat uses the device attachment path. Conversation search filters the active branch by speaker. Jump to latest sits below the composer.
+- **Checks:** Chrome covered both themes at 320, 390, 768 and 1440 px. Two completed file results used 74 px on desktop and 94 px at 390 px, down from 144 and 184 px. The browser tests exercise file drops, tool-result attachments, draft changes during a read, branch isolation, keyboard search and focus.
+- **Landing:** Fast-forward after the dedicated Linux and Windows Chat workspace checks. The standalone browser change uses the existing companion and runtime APIs.
+
 ## New conversation keyboard shortcut (2026-11-21)
 
 - **Goal:** Make the displayed New conversation shortcut open Chat from other companion views and preserve an empty draft on repeat.

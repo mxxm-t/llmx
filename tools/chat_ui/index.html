@@ -125,14 +125,17 @@
           <div id="scroll-region" class="scroll-region">
             <section id="messages" class="messages" aria-label="Messages"></section>
             <div id="welcome" class="welcome">
-              <h1>Compose a message</h1>
+              <h1><label for="draft">New message</label></h1>
+              <button type="button" class="text-button saved-files-shortcut" data-action="attach-files" aria-haspopup="dialog" aria-controls="saved-file-dialog">
+                <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 7V5h6l2 2h10v12H3Z"/></svg>Browse saved files
+              </button>
             </div>
           </div>
           <div class="composer-area">
-            <button id="jump-bottom" class="jump-bottom" data-action="bottom" hidden>Jump to latest &darr;</button>
             <div id="edit-note" class="edit-note" hidden>Editing creates a new branch.<button data-action="cancel-edit">Cancel edit</button></div>
             <div id="attachments" class="attachments"></div>
             <form id="composer" class="composer">
+              <span id="file-drop-hint" role="status" hidden>Drop files to attach to this message</span>
               <textarea id="draft" rows="1" aria-label="Message" placeholder="Write a message..." maxlength="1000000"></textarea>
               <div class="composer-toolbar">
                 <div class="composer-left">
@@ -161,19 +164,6 @@
               </div>
             </form>
             <div class="landing-tools">
-              <div class="landing-actions">
-                <button type="button" class="text-button" data-action="attach-files" aria-haspopup="dialog" aria-controls="saved-file-dialog">
-                  <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 7V5h6l2 2h10v12H3Z"/></svg>Browse saved files
-                </button>
-                <details class="prompt-starters">
-                  <summary>Prompt starters</summary>
-                  <div class="starter-options">
-                    <button type="button" data-prompt="Compare these options, including cost, constraints and tradeoffs: ">Compare options</button>
-                    <button type="button" data-prompt="Build a step-by-step plan for this task: ">Plan a task</button>
-                    <button type="button" data-prompt="Explain this concept and give me a concrete example: ">Explain a concept</button>
-                  </div>
-                </details>
-              </div>
               <section id="recent-conversations" aria-labelledby="recent-title" hidden>
                 <h2 id="recent-title">Recent conversations</h2>
                 <nav id="recent-list" aria-labelledby="recent-title"></nav>
@@ -181,6 +171,7 @@
             </div>
             <div class="composer-caption">
               <span id="run-caption">Enter to send <span class="caption-separator">/</span> Shift + Enter for a new line</span>
+              <button id="jump-bottom" class="jump-bottom" data-action="bottom" hidden>Jump to latest &darr;</button>
             </div>
           </div>
         </div>
@@ -302,7 +293,10 @@
     <dialog id="find-message-dialog" aria-labelledby="find-message-title">
       <form method="dialog" class="dialog-content">
         <h2 id="find-message-title">Find in conversation</h2>
-        <label class="field">Search messages<input id="find-message-query" type="search" maxlength="256" autocomplete="off" autofocus></label>
+        <div class="find-message-controls">
+          <label class="field">Search messages<input id="find-message-query" type="search" maxlength="256" autocomplete="off" autofocus></label>
+          <label class="field">Show<select id="find-message-role"><option value="all">All messages</option><option value="user">My prompts</option><option value="assistant">Assistant replies</option></select></label>
+        </div>
         <p class="muted fine-print" id="find-message-count" role="status"></p>
         <div id="find-message-list"></div>
         <div class="conversation-form-actions"><button type="button" id="find-message-more" class="secondary-button" hidden>Show more</button><button class="secondary-button" type="submit">Close</button></div>

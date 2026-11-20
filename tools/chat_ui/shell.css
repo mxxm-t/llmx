@@ -1227,5 +1227,3 @@
 .conversation-form-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .conversation-form-actions button { min-height: 38px; padding: 8px 16px; }
 .tool-body > .workspace-tool-open { margin-top: 8px; }
-.workspace-tool-file .secondary-button { border-color:transparent; padding:4px 7px; color:var(--secondary); }
-.workspace-tool-file .secondary-button:hover { border-color:var(--border); color:var(--text); }

@@ -2682,25 +2682,21 @@ void keeps_paused_donor(const Make& make, const bpe::Tokenizer& tok, uint32_t vo
     bool given = false;
     {
         server::Scheduler sched(*model, tok, 3, 64);
-        std::mutex handles;
-        std::shared_ptr<server::Request> hb;
         std::vector<uint32_t> ids = b.prompt;
         const std::vector<uint32_t> rest = prompt_of(11, 2 * kBlock, vocab);
         ids.insert(ids.end(), rest.begin(), rest.end());
+        // All three submitted before the scheduler starts, as in started_together, so their prompts share its first pass and B reaches its step at 384 tokens before A, whose step then pauses B.
+        // Submitted while it runs, A could be admitted alone and B's prompt sliced beside A's replies, so A's step came first and B stalled instead.
+        std::vector<std::shared_ptr<server::Request>> hs;
+        for (const Req& r : {a, b, c}) hs.push_back(sched.submit(r.prompt, params_of(r)));
+        const std::shared_ptr<server::Request> hb = hs[1];
         sched.on_retire = [&](const server::Scheduler::Retired&) {
-            std::lock_guard<std::mutex> lock(handles);
-            if (given || !hb || sched.stats().paused == 0) return;
+            if (given || sched.stats().paused == 0) return;
             sched.follow(hb, ids, true);
             given = true;
         };
         std::thread runner([&] { sched.run(); });
         try {
-            std::vector<std::shared_ptr<server::Request>> hs;
-            {
-                std::lock_guard<std::mutex> lock(handles);
-                for (const Req& r : {a, b, c}) hs.push_back(sched.submit(r.prompt, params_of(r)));
-                hb = hs[1];
-            }
             for (auto& h : hs) got.push_back(drain(*h));
             s = sched.stats();
         } catch (...) {
@@ -2718,6 +2714,39 @@ void keeps_paused_donor(const Make& make, const bpe::Tokenizer& tok, uint32_t vo
     std::cout << "server-resume: " << what << ": its donor taken back whole\n";
 }
 
+// The store's writes held at their "write" step (DiskOptions::fault) while `held`, each counted as it reaches the store, until let_go.
+struct WriteHold {
+    std::mutex m;
+    std::condition_variable cv;
+    bool held = true;
+    size_t entered = 0;
+    static std::shared_ptr<WriteHold> on(server::DiskOptions& options, bool held = true) {
+        auto h = std::make_shared<WriteHold>();
+        h->held = held;
+        options.fault = [h](const char* step) {
+            std::unique_lock<std::mutex> lk(h->m);
+            if (std::string(step) != "write") return false;
+            ++h->entered;
+            h->cv.notify_all();
+            h->cv.wait(lk, [&] { return !h->held; });
+            return false;
+        };
+        return h;
+    }
+    // Whether a write reached the store within a minute.
+    bool reached() {
+        std::unique_lock<std::mutex> lk(m);
+        return cv.wait_for(lk, std::chrono::minutes(1), [&] { return entered > 0; });
+    }
+    void let_go() {
+        {
+            std::lock_guard<std::mutex> lk(m);
+            held = false;
+        }
+        cv.notify_all();
+    }
+};
+
 // A turn-end write in flight when its donor is trimmed (F2DEV, 2026-10-22): one request of 600 prompt and 200 generated tokens, its donor of seven blocks beyond a host tier a byte short of a slab, the next turn's ids the prompt's four blocks.
 // With the donor's whole write held at the store across the trim, it stops and the prefix is written again, so no file holds the rows let go; a write whole before the trim stays.
 void trim_stops_write(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
@@ -2727,29 +2756,8 @@ void trim_stops_write(const Make& make, const bpe::Tokenizer& tok, uint32_t voca
         server::DiskOptions options = disk.options(uint64_t(1) << 30);
         // The job waits for the whole file's read of its 512 rows however slowly the runner reads, so it forks them rather than reading them again beside the read's donor.
         options.read_wait = std::chrono::seconds(60);
-        struct Hold {
-            std::mutex m;
-            std::condition_variable cv;
-            bool held = true;
-            size_t entered = 0;
-        };
-        auto hold = std::make_shared<Hold>();
-        hold->held = in_flight;
-        options.fault = [hold](const char* step) {
-            std::unique_lock<std::mutex> lk(hold->m);
-            if (std::string(step) != "write") return false;
-            ++hold->entered;
-            hold->cv.notify_all();
-            hold->cv.wait(lk, [&] { return !hold->held; });
-            return false;
-        };
-        const auto let_go = [hold] {
-            {
-                std::lock_guard<std::mutex> lk(hold->m);
-                hold->held = false;
-            }
-            hold->cv.notify_all();
-        };
+        const auto hold = WriteHold::on(options, in_flight);
+        const auto let_go = [hold] { hold->let_go(); };
         const Req first{prompt_of(5, 600, vocab), 200};
         auto model = make(4096, 0);
         server::Scheduler sched(*model, tok, 2, 64, 0, false, model->host_bytes(kBlock) - 1, nullptr, 0, true, options);
@@ -2759,8 +2767,7 @@ void trim_stops_write(const Make& make, const bpe::Tokenizer& tok, uint32_t voca
             const auto h = sched.submit(first.prompt, params_of(first));
             drain(*h);
             if (in_flight) {
-                std::unique_lock<std::mutex> lk(hold->m);
-                require(hold->cv.wait_for(lk, std::chrono::minutes(1), [&] { return hold->entered > 0; }), what + ": the donor's write did not reach the store");
+                require(hold->reached(), what + ": the donor's write did not reach the store");
             } else {
                 within_a_minute([&] { return sched.stats().moves[(size_t)server::Move::write_whole] >= 1; }, what + ": the donor's file whole");
             }
@@ -2804,30 +2811,9 @@ void count_keeps_writing(const Make& make, const bpe::Tokenizer& tok, uint32_t v
     DiskRoot disk("count-writing");
     server::DiskOptions options = disk.options(uint64_t(1) << 30);
     options.idle = std::chrono::hours(1);
-    // The writes' chunks wait while `held`.
-    struct Hold {
-        std::mutex m;
-        std::condition_variable cv;
-        bool held = true;
-        bool waiting = false;
-    };
-    auto hold = std::make_shared<Hold>();
-    options.fault = [hold](const char* step) {
-        std::unique_lock<std::mutex> lk(hold->m);
-        if (std::string(step) == "write") {
-            hold->waiting = true;
-            hold->cv.notify_all();
-            hold->cv.wait(lk, [&] { return !hold->held; });
-        }
-        return false;
-    };
-    const auto release = [&] {
-        {
-            std::lock_guard<std::mutex> lk(hold->m);
-            hold->held = false;
-        }
-        hold->cv.notify_all();
-    };
+    // The writes' chunks wait while held.
+    const auto hold = WriteHold::on(options);
+    const auto release = [&] { hold->let_go(); };
     size_t reused = 0, reads = 0;
     std::vector<Reply> got;
     {
@@ -2837,10 +2823,7 @@ void count_keeps_writing(const Make& make, const bpe::Tokenizer& tok, uint32_t v
         try {
             within_a_minute([&] { return sched.stats().disk_ready; }, what + ": the disk tier made");
             got.push_back(drain(*sched.submit(a.prompt, params_of(a))));
-            {
-                std::unique_lock<std::mutex> lk(hold->m);
-                require(hold->cv.wait_for(lk, std::chrono::minutes(1), [&] { return hold->waiting; }), what + ": A's write not started within a minute");
-            }
+            require(hold->reached(), what + ": A's write not started within a minute");
             got.push_back(drain(*sched.submit(b.prompt, params_of(b))));
             release();
             within_a_minute([&] { return !sched.stats().disk_in_flight; }, what + ": A's write ended");
@@ -5826,6 +5809,8 @@ void boundary_is_not_a_history(const gguf::GGUFModel& mixed, Behind arm) {
     server::DiskOptions options = disk.options(uint64_t(1) << 30);
     options.keep = true;
     options.idle = std::chrono::seconds(1);
+    // At once, the turn's write is held at the store until the other request has asked for its room, so that request waits for it however fast the write would be.
+    const auto hold = arm == Behind::at_once ? WriteHold::on(options) : nullptr;
     const Req t1{prompt_of(5, 700, v), 20}, small{prompt_of(9, 500, v), 20};
     Req t2;
     size_t reused = 0;
@@ -5835,7 +5820,8 @@ void boundary_is_not_a_history(const gguf::GGUFModel& mixed, Behind arm) {
         auto model = make(1024, 16);
         require(model->host_bytes(768) > cap && model->host_bytes(768, false) <= cap, what + ": the fixture's history is not larger than the tier with a state that fits it");
         pool = model.get();
-        server::Scheduler sched(*model, tok, 2, 64, 0, false, cap, nullptr, 0, false, options);
+        // Timed, so the test sees the scheduler's rounds.
+        server::Scheduler sched(*model, tok, 2, 64, 0, hold != nullptr, cap, nullptr, 0, false, options);
         std::thread runner([&] { sched.run(); });
         try {
             const auto h1 = sched.submit(t1.prompt, params_of(t1));
@@ -5849,8 +5835,16 @@ void boundary_is_not_a_history(const gguf::GGUFModel& mixed, Behind arm) {
                 within_a_minute([&] { return sched.stats().reprefills == 1 && sched.stats().boundaries == 1; }, what + ": the reply read again and its boundary kept");
                 within_a_minute([&] { return sched.stats().disk_states >= 1 && !sched.stats().disk_in_flight; }, what + ": the history written while idle");
             }
+            if (hold) require(hold->reached(), what + ": the turn's write did not reach the store");
             written = sched.stats();
-            drain(*sched.submit(small.prompt, params_of(small)));
+            const auto hs = sched.submit(small.prompt, params_of(small));
+            if (hold) {
+                // A round that ends after the submission may have begun before it, so the one after it is the first sure to have looked at the request; its wait wakes the next round.
+                const uint64_t rounds = sched.stats().timing.rounds;
+                within_a_minute([&] { return sched.stats().timing.rounds >= rounds + 2; }, what + ": a round begun after the other request arrived");
+                hold->let_go();
+            }
+            drain(*hs);
             taken = sched.stats();
             const std::vector<uint32_t> tail = prompt_of(7, 30, v);
             t2.prompt.insert(t2.prompt.end(), tail.begin(), tail.end());
@@ -5861,6 +5855,7 @@ void boundary_is_not_a_history(const gguf::GGUFModel& mixed, Behind arm) {
             reused = h2->reused();
             after = sched.stats();
         } catch (...) {
+            if (hold) hold->let_go();
             sched.stop();
             runner.join();
             pool = nullptr;
@@ -5878,8 +5873,9 @@ void boundary_is_not_a_history(const gguf::GGUFModel& mixed, Behind arm) {
         require(reused == 768 && after.disk_hits == 1 && !after.disk_refused && !taken.lost_before_written && written.boundaries == 1, what + ": " + seen + ", against 768 reused from one history read and nothing refused or lost");
     else
         // The other request waits for the history's write before it takes the room, so nothing is lost and the turn reads the prompt's 640 whole-block rows back, no job having read the reply.
-        require(reused == 640 && after.disk_hits == 1 && !taken.lost_before_written && !written.disk_entries && taken.room_waits >= 1,
-                what + ": " + seen + ", " + std::to_string(taken.room_waits) + " waits, against 640 reused from one history read, nothing lost and the other request waiting");
+        require(reused == 640 && after.disk_hits == 1 && !taken.lost_before_written && !written.disk_entries && taken.room_waits >= 1 && !taken.room_wait_timeouts,
+                what + ": " + seen + ", " + std::to_string(written.disk_entries) + " files before the other request, " + std::to_string(taken.room_waits) + " waits, " +
+                    std::to_string(taken.room_wait_timeouts) + " at their bound, against 640 reused from one history read, nothing lost, no file and the other request waiting for the write");
     if (arm == Behind::views)
         require(*made > 0 && !*elsewhere, what + ": " + std::to_string(elsewhere->load()) + " of " + std::to_string(made->load()) + " views of the read's slots dropped on another thread than their stage's");
     std::cout << "server-resume: " << what << ": " << seen << "\n";

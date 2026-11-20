@@ -527,6 +527,28 @@ A saved tool result opens the latest file in the editor or resumes unsaved chang
   The layer split (width 1, 64 heads a card, so the 64-head build) is flat: main 2134.63 and 2132.32, the branch 2137.03 and 2138.29.
 - **Left:** `backend-cuda sparse_tile_pair` at the next CUDA card session, the suite on a device and the hosted run at the landing head; README unchanged (kernel speed only).
 - **Gotchas:** the 64-head and 32-head builds decode the same 640 kept rows a query row, so halving the heads does not halve the pair: Fable's fit of the 128- and 512-row slopes puts about 1.7 ms of the 4.91 in the per-row decode and staging, the target for a decoded-once copy of the kept rows.
+## server-resume-cache's two racing cases (2026-11-21, RESFLK1 then RESFLK2, branch fix/server-resume-race on main c494eea6f; tests, CMake and docs only, lands by fast-forward as one commit)
+
+**Goal.** server-resume-cache stopped failing one run in a few, at the at_once arm of boundary_is_not_a_history and at keeps_paused_donor, with no server bug behind either.
+
+**Done.** at_once holds store writes at the write fault step (WriteHold, shared with trim_stops_write and count_keeps_writing), takes the request submitted behind them only once a write has reached the store, and releases them after the scheduler has timed two rounds; it also requires room_wait_timeouts == 0. keeps_paused_donor submits A, B and C before the scheduler starts, as started_together does, because submitted while it runs A can be admitted alone and B sits out 34 passes beside A and is never paused (scheduler.hpp admission and policy.hpp slicing, Fable). The backend-rocm CTest limit goes from 600 to 1200 s (508 and 583 s measured under load). docs/TESTS.md names both.
+
+| Case, 50 runs each, host load average 43 | main c494eea6f | fix 6ea82da8b |
+|---|---|---|
+| at_once | 7 fail | 0 fail |
+| keeps_paused_donor | 3 fail | 0 fail |
+| keeps_paused_donor with B and C submitted late on purpose (10 runs) | 10 fail, 0 pauses, 34 stalls | not run |
+
+| Gate on the fix | Result |
+|---|---|
+| docs and dead-code, built binary | PASS |
+| CPU CTest -j4 | 91/91 |
+| server-resume-cache alone, 3 runs | 146, 147 and 159 s, all pass |
+| suite --only server, vulkan:0 on one MI50 | PASS, host wait not contended |
+
+**Left.** Nothing for this change. serve() has the same start race, untried (ideas.md).
+
+**Gotchas.** The failure needs load: it did not show in idle runs. The late variant is a scratch harness, not in the branch.
 
 ## Chat message actions (2026-11-19)
 

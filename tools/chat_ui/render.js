@@ -16,6 +16,16 @@ window.ChatRender = (() => {
     shape.setAttribute('d', path); svg.append(shape);
     return svg;
   }
+  function link(label, destination, base, allowMail = false) {
+    if (typeof destination !== 'string' || !destination) return null;
+    try {
+      const url = new URL(destination, base);
+      if (!['http:', 'https:'].includes(url.protocol) && !(allowMail && url.protocol === 'mailto:')) return null;
+      const anchor = node('a', '', label);
+      anchor.href = url.href; anchor.target = '_blank'; anchor.rel = 'noopener noreferrer';
+      return anchor;
+    } catch { return null; }
+  }
   function inline(text, target) {
     const re = /`[^`\n]+`|\*\*[^*\n]+\*\*|\*[^*\n]+\*|(!?)\[([^\]\n]*)\]\(((?:[^\s()]|\([^\s()]*\))+)\)/g;
     let pos = 0;
@@ -27,18 +37,9 @@ window.ChatRender = (() => {
       else if (token[0] === '*') target.append(node('em', '', token.slice(1, -1)));
       else {
         const [, image, label, destination] = match;
-        let content = document.createTextNode(image ? label.trim() || 'Open image' : label || token);
-        if (image || label) {
-          try {
-            const url = new URL(destination, location.href);
-            if (url.protocol === 'http:' || url.protocol === 'https:' || (!image && url.protocol === 'mailto:')) {
-              const a = node('a');
-              a.href = url.href; a.target = '_blank'; a.rel = 'noopener noreferrer';
-              a.append(content); content = a;
-            }
-          } catch (_) { /* Keep the text for invalid links. */ }
-        }
-        target.append(content);
+        const caption = image ? label.trim() || 'Open image' : label || token;
+        const anchor = (image || label) && link(caption, destination, location.href, !image);
+        target.append(anchor || document.createTextNode(caption));
       }
       pos = match.index + token.length;
     }
@@ -236,5 +237,5 @@ window.ChatRender = (() => {
   }
   function number(value, suffix = '') { return typeof value === 'number' && Number.isFinite(value) ? new Intl.NumberFormat(undefined, {maximumFractionDigits: 2}).format(value) + suffix : 'Unavailable'; }
   function json(value) { return typeof value === 'string' ? value : JSON.stringify(value, null, 2); }
-  return {node, icon, markdown, updateMarkdown, number, json};
+  return {node, icon, link, markdown, updateMarkdown, number, json};
 })();

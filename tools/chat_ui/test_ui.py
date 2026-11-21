@@ -242,6 +242,11 @@ class BrowserTests(unittest.TestCase):
             self.run_focused_browser(node, chrome, root, "message-find", ("--message-find-only",), [reply],
                                      node_options=("--require", str(delay_page_list)))
 
+    def test_image_search_tool_results(self):
+        node, chrome = self.browser_executables()
+        with tempfile.TemporaryDirectory() as directory:
+            self.run_focused_browser(node, chrome, Path(directory), "image-results", ("--image-results-only",), [])
+
     def test_open_saved_tool_result_in_editor(self):
         node, chrome = self.browser_executables()
         with tempfile.TemporaryDirectory() as directory:

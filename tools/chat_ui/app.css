@@ -1250,6 +1250,31 @@ kbd {
 .tool-body>.section-label {
   margin:7px 0 3px
 }
+.tool-image-results {
+  list-style:none;
+  margin:0 0 8px;
+  padding:0;
+}
+.tool-image-results li {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:space-between;
+  gap:0 16px;
+  padding:5px 0;
+}
+.tool-image-results li + li { border-top:1px solid var(--line); }
+.tool-image-results a {
+  display:inline-flex;
+  align-items:center;
+  min-height:28px;
+  overflow-wrap:anywhere;
+  text-underline-offset:3px;
+}
+.tool-image-results li > a { font-size:13px; font-weight:600; }
+.tool-image-results li > span { display:flex; gap:14px; }
+.tool-image-results li > span a { color:var(--muted); }
+.tool-image-results a:is(:hover, :focus-visible) { color:var(--text); }
 .tool-body pre {
   font-size:11px;
   margin:0 0 7px;

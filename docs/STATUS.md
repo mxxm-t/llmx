@@ -24,6 +24,17 @@ name and reopen the saved conversation with focus in its composer.
 - Matched Chrome views covered 1440 px light and 320 px dark layouts. The saved-context and full workspace browser checks passed, including file and project review, mobile navigation and 200 percent zoom.
 - Reviewed the Chat documentation against the new entry points. The docs and dead-code components passed. Landing uses a fast-forward after the scoped Chat workspace checks.
 
+## Image search results in Chat (2026-11-21)
+
+A completed tool result with image URLs now displays titles, source and
+thumbnail links in its detail. The raw response remains available. Reading
+the result makes no image requests. This change lands by fast-forward after
+the standalone Chat workspace checks.
+
+The Chrome fixture checks MCP JSON text and structured results, the list
+limit, unsupported URLs, failed and unrelated calls, and phone and desktop
+layouts. See [Chat tools](../tools/chat_ui/README.md).
+
 ## JavaScript module attachments in Chat (2026-11-21)
 
 The device picker and the attachment reader share the list of text file

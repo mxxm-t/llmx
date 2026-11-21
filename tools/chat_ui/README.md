@@ -496,6 +496,16 @@ execute concurrently; at most 16 tool calls per model reply and 16 model/tool
 rounds per run are accepted. The companion permits at most eight saved-chat
 runs and eight temporary-chat runs at once.
 
+Open a completed image-search call in the transcript to see its result links.
+Select a title to open the image, **Source** to visit its page or **Thumbnail**
+to open the smaller image when supplied. These links open in a new tab.
+Chat loads no remote images when you open the result.
+
+A tool can return an `images` array in MCP structured content or as JSON in a
+single text block. Each entry can supply `title`, `image_url`, `thumbnail_url`
+and `source_url`. The list previews up to 20 entries. **Structured result**
+keeps the raw response available.
+
 The activity view keeps the full bounded tool result. A result larger than
 64 KiB is explicitly shortened before it enters the next model prompt; the
 model sees a truncation notice. This prevents a large result silently consuming

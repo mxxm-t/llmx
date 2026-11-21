@@ -1137,6 +1137,38 @@
     });
     return row;
   }
+  function imageResultLinks(result, parts) {
+    const payload = result?.structuredContent ?? (parts.length === 1 && parts[0]?.type === 'text'
+      && typeof parts[0].text === 'string' && parts[0].text.length <= 65536 ? toolJson(parts[0].text) : result);
+    if (!Array.isArray(payload?.images) || !payload.images.length) return null;
+    const list = node('ul', 'tool-image-results');
+    list.setAttribute('aria-label', 'Image search results');
+    for (const item of payload.images.slice(0, 20)) {
+      if (!item || typeof item !== 'object') continue;
+      const title = typeof item.title === 'string' && item.title.trim();
+      const image = window.ChatRender.link(title || 'Open image', item.image_url);
+      const thumbnail = window.ChatRender.link(image ? 'Thumbnail' : title || 'Open thumbnail', item.thumbnail_url);
+      if (!image && !thumbnail) continue;
+      const row = node('li'), links = node('span');
+      row.append(image || thumbnail);
+      const source = window.ChatRender.link('Source', item.source_url);
+      if (source) {
+        if (title) source.setAttribute('aria-label', 'Source for ' + title);
+        links.append(source);
+      }
+      if (image && thumbnail && image.href !== thumbnail.href) {
+        if (title) thumbnail.setAttribute('aria-label', 'Thumbnail for ' + title);
+        links.append(thumbnail);
+      }
+      if (links.childElementCount) row.append(links);
+      list.append(row);
+    }
+    if (!list.childElementCount) return null;
+    if (payload.images.length <= 20) return list;
+    const group = node('div');
+    group.append(list, node('small', 'muted', 'The full result includes more entries.'));
+    return group;
+  }
   function toolRow(call, message) {
     const wrap = node('div', 'tool-call'); wrap.dataset.toolCall = call.id || ''; const detail = node('details'); const summary = node('summary'); summary.tabIndex = 0;
     const status = node('span', 'badge' + (call.error ? ' error' : ''), call.status || 'pending');
@@ -1157,7 +1189,9 @@
     if (call.result !== undefined) {
       body.append(node('div', 'section-label', 'RESULT'));
       const full = json(result); const readable = parts.filter(part => part?.type === 'text' && typeof part.text === 'string').map(part => part.text).join('\n\n');
-      const preview = readable || full; body.append(node('pre', '', preview.slice(0, 16384) + (preview.length > 16384 ? '\n[Preview truncated]' : '')));
+      const preview = readable || full;
+      const images = call.status === 'completed' && !call.error && !result?.isError && imageResultLinks(result, parts);
+      body.append(images || node('pre', '', preview.slice(0, 16384) + (preview.length > 16384 ? '\n[Preview truncated]' : '')));
       const structured = node('details'); structured.append(node('summary', '', 'Structured result'), node('pre', '', full.slice(0, 16384) + (full.length > 16384 ? '\n[Preview truncated]' : ''))); body.append(structured);
       if (full.length > 16384 || preview.length > 16384) {
         const download = node('button', 'secondary-button', 'Download full result');

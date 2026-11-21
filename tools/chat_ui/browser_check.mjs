@@ -1349,7 +1349,63 @@ try {
   await cdp('Emulation.setDeviceMetricsOverride', {width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false});
   await cdp('Emulation.setEmulatedMedia', {features: [{name: 'prefers-color-scheme', value: 'dark'}]});
   await navigateDocument(url);
-  if (process.argv.includes('--write-file-actions-only')) {
+  if (process.argv.includes('--image-results-only')) {
+    await signIn();
+    const origin = 'https://pictures.example.invalid';
+    const title = 'Northern lights <b>in winter</b>';
+    const sourcePage = process.argv.find(arg=>arg.startsWith('--fixture-upstream=')).slice('--fixture-upstream='.length)+'/v1/models';
+    const payload = {query:'aurora', images:[
+      {title, image_url:origin+'/aurora.jpg', thumbnail_url:origin+'/thumb.jpg', source_url:sourcePage},
+      {title:'Clouds', image_url:'ftp://example.invalid/clouds', thumbnail_url:origin+'/clouds.png'},
+      {title:'No image', source_url:origin+'/no-image'}
+    ]};
+    const mcp = {content:[{type:'text', text:JSON.stringify(payload)}]};
+    const makeCall = (id, result, status='completed') => ({id, name:'local_search_images', arguments:'{}', status, result});
+    const calls = [makeCall('text-result',mcp),makeCall('structured',{structuredContent:payload,content:[]}),
+      makeCall('failed',{...mcp,isError:true},'failed'),makeCall('empty',{images:[]}),makeCall('ordinary',{value:42}),
+      makeCall('many',{images:Array.from({length:21},(_,i)=>({image_url:origin+'/'+i}))})];
+    const chat = await evaluate(`ChatShell.api('/import','POST',${JSON.stringify({version:1,chat:{title:'Image search history',active_leaf:'image-answer'},messages:[
+      {id:'image-answer',parent_id:null,role:'assistant',content:'Search complete.',tool_calls:calls}
+    ]})})`);
+    await reloadDocument();
+    await wait(`document.querySelector('[data-chat="${chat.id}"]')`, 'imported search history');
+    await pointerClick(`[data-chat="${chat.id}"]`);
+    const tool = '[data-tool-call="text-result"]';
+    await wait(`document.querySelector('${tool}')`, 'image search tool');
+    await pointerClick(tool+' > details > summary');
+    const list = tool+' .tool-image-results';
+    const visible = await evaluate(`Array.from(document.querySelectorAll('${list} a'), a=>[a.textContent,a.href,a.target,a.rel])`);
+    const expected = [[title,origin+'/aurora.jpg'],['Source',sourcePage],['Thumbnail',origin+'/thumb.jpg'],['Clouds',origin+'/clouds.png']];
+    assert.deepEqual(visible,expected.map(([label,href])=>[label,href,'_blank','noopener noreferrer']));
+    assert.equal(await evaluate(`document.querySelector('${list} b')`),null);
+    assert.equal(await evaluate("document.querySelectorAll('[data-tool-call=structured] .tool-image-results li').length"),2);
+    assert.equal(await evaluate("document.querySelectorAll('[data-tool-call=many] .tool-image-results li').length"),20);
+    assert(await evaluate("document.querySelector('[data-tool-call=many] .tool-body').textContent.includes('more entries')"));
+    for (const id of ['failed','empty','ordinary'])
+      assert.equal(await evaluate(`document.querySelector('[data-tool-call="${id}"] .tool-image-results')`),null);
+    assert(await evaluate(`document.querySelector('${tool} .tool-body details pre').textContent.includes('No image')`));
+    for (const width of [320,1440]) {
+      await cdp('Emulation.setDeviceMetricsOverride',{width,height:800,deviceScaleFactor:1,mobile:width===320});
+      await wait(`innerWidth===${width}`, 'image result viewport');
+      await evaluate(`document.querySelector('${list}').scrollIntoView({block:'center'})`);
+      assert(await evaluate(`Array.from(document.querySelectorAll('${list} a')).every(a=>{
+        const r=a.getBoundingClientRect(); return r.width>0 && r.left>=0 && r.right<=innerWidth && a.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));
+      })`),'image links reachable at '+width);
+      await screenshot('image-results-'+width+'.png');
+    }
+    assert.equal(browserRequests.some(request=>new URL(request.url).origin===origin),false,'opening results fetched a remote image');
+    assert.equal((await cdp('Target.getTargets')).targetInfos.some(tab=>tab.url===sourcePage),false);
+    await pointerClick(list+' a[aria-label^="Source for"]');
+    const deadline = Date.now()+5000;
+    let opened;
+    while (Date.now()<deadline && !opened) {
+      opened = (await cdp('Target.getTargets')).targetInfos.find(tab=>tab.url===sourcePage);
+      if (!opened) await delay(50);
+    }
+    assert(opened,'source click navigated a new tab to the fixture page');
+    await cdp('Target.closeTarget',{targetId:opened.targetId});
+    console.log('PASS: image links, source opened in a new tab, MCP envelopes, raw results, fallback and phone layout');
+  } else if (process.argv.includes('--write-file-actions-only')) {
     await signIn();
     const filename = 'nested/saved & exact.txt', source = 'Saved bytes \u00e9\n';
     const chat = await evaluate(`(async () => {

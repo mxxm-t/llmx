@@ -370,6 +370,59 @@ async function checkNewChatShortcut() {
   assert.equal(creates(), before + 1, 'repeat shortcut duplicated an empty conversation');
   await fill('#draft', '');
 }
+async function checkPromptOutline() {
+  const key = async (key, code) => {
+    for (const type of ['keyDown','keyUp']) {
+      await cdp('Input.dispatchKeyEvent',{type,key,code:key,windowsVirtualKeyCode:code,text: type === 'keyDown' && key === 'Enter' ? '\r' : ''});
+    }
+  };
+  const menu = '.topbar [data-action=chat-menu]';
+  const open = async () => {
+    await pointerClick(menu);
+    await pointerClick('#action-menu [data-action=outline]');
+    await wait("document.querySelector('#find-message-dialog').open && document.activeElement.matches('.find-message-result')", 'outline focused');
+  };
+  await evaluate("document.querySelectorAll('#messages .message.user')[16].scrollIntoView({block:'center'})");
+  await evaluate("document.querySelector("+JSON.stringify(menu)+").focus({preventScroll:true})");
+  await key('Enter',13);
+  await wait("document.activeElement.dataset.action==='find-message'", 'conversation menu focused its first action');
+  await key('ArrowDown',40);
+  assert.equal(await evaluate("document.activeElement.dataset.action"),'outline');
+  await key('Enter',13);
+  await wait("document.querySelector('#find-message-dialog').open", 'open outline using keyboard');
+  assert.equal(await evaluate("document.querySelector('#find-message-title').textContent"), 'Conversation outline');
+  assert.match(await evaluate("document.activeElement.textContent"), /summary\.md, budget\[1\]\.csv/);
+  assert.equal(await evaluate("document.activeElement.getAttribute('aria-current')"), 'location');
+  assert.equal(await evaluate("document.querySelectorAll('.find-message-result').length"), 25);
+  assert.equal(await evaluate("document.querySelector('#find-message-count').textContent"), 'Turns 1 to 25 of 27');
+  assert.doesNotMatch(await evaluate("document.querySelector('#find-message-list').innerText"), /Inactive prompt branch|Private attachment body|Answer \[/);
+  await screenshot('conversation-outline-desktop.png');
+  await key('End',35);
+  assert.match(await evaluate("document.activeElement.textContent"), /Prompt 26$/);
+  await key('Home',36);
+  assert.match(await evaluate("document.activeElement.textContent"), /Prompt 0$/);
+  await pointerClick('#find-message-more');
+  assert.match(await evaluate("document.activeElement.textContent"), /Prompt 25$/);
+  await key('ArrowUp',38);
+  assert.match(await evaluate("document.activeElement.textContent"), /Prompt 24$/);
+  await key('ArrowDown',40); await key('Enter',13);
+  assert.equal(await evaluate("document.activeElement.matches('article.message.user') && document.activeElement.innerText.includes('Prompt 25')"), true);
+  await cdp('Emulation.setDeviceMetricsOverride',{width:320,height:600,deviceScaleFactor:1,mobile:true});
+  await wait("document.documentElement.dataset.compact==='true'", 'phone outline');
+  await open();
+  await key('End',35);
+  await pointerClick('#find-message-earlier');
+  const theme = await evaluate("document.documentElement.dataset.theme");
+  await evaluate("document.documentElement.dataset.theme='light'");
+  await screenshot('conversation-outline-phone.png');
+  await evaluate("document.documentElement.dataset.theme="+JSON.stringify(theme));
+  assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth && document.querySelector('#find-message-dialog').getBoundingClientRect().right<=innerWidth && !document.querySelector('#find-message-query').checkVisibility()"),true);
+  await key('Escape',27);
+  await wait("!document.querySelector('#find-message-dialog').open && document.activeElement.dataset.action==='chat-menu'", 'Escape restores conversation menu trigger');
+  assert.equal(await evaluate("document.querySelector('#draft').value==='Unsent draft' && document.querySelectorAll('#attachments .attachment-pill').length===2"), true);
+  await cdp('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+  await wait("document.documentElement.dataset.compact==='false'", 'desktop after outline');
+}
 async function checkHomeLanding() {
   const selected = await evaluate("document.querySelector('.chat-item.active')?.dataset.chat");
   assert(selected, 'home landing check requires a saved conversation');
@@ -933,10 +986,14 @@ try {
         messages.push({id:'a'+i,parent_id:'p'+i,role:'assistant',content:'Answer ['+i+']', reasoning:'Private reasoning marker'});
       }
       messages.find(m=>m.id==='a24').content = 'First paragraph.\\n\\n~~~python\\nprint(24)\\n#' + 'x'.repeat(240) + '\\n~~~\\n\\nFinal paragraph.';
+      const questions = ['Which items affect the release budget?', 'Compare the hosting costs for the two deployment options.',
+        'Summarize the remaining assumptions to verify before launch and list the evidence we would need to revise the estimates.'];
+      questions.forEach((content,i) => { messages.find(message => message.id==='p'+(i+13)).content = content; });
       const upload = name => ({name,type:'text/plain',text:'Private attachment body'});
       Object.assign(messages.find(m=>m.id==='p16'), {content:'', attachments:[upload('summary.md'), upload('budget[1].csv')]});
       messages.find(m=>m.id==='p22').attachments = [upload('notes.txt'), upload('notes.md')];
       messages.push({id:'other',parent_id:'p26',role:'assistant',content:'Alternate branch marker'});
+      messages.push({id:'hidden-prompt',parent_id:'other',role:'user',content:'Inactive prompt branch'});
       return ChatShell.api('/import','POST',{version:1,chat:{title:'Navigation fixture',active_leaf:'a26'},messages});
     })()`);
     await reloadDocument();
@@ -977,6 +1034,7 @@ try {
     }`);
     await wait("document.querySelectorAll('#attachments .attachment-pill').length === 2", 'both dropped files attached');
     assert.equal(await evaluate("document.querySelector('#file-drop-hint').hidden && document.querySelector('#draft').value === 'Unsent draft'"), true);
+    await checkPromptOutline();
     await pointerClick('.topbar [data-action=chat-menu]');
     await pointerClick('#action-menu [data-action=find-message]');
     assert.equal(await evaluate("document.activeElement.id"), 'find-message-query');
@@ -1086,7 +1144,7 @@ try {
     await pointerClick(wrap);
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.artifact-source pre')).whiteSpace"), 'pre');
     assert.deepEqual(errors, [], 'message navigation browser errors');
-    console.log('PASS: prompt index, page two, literal match, branch isolation, focus and draft preservation');
+    console.log('PASS: conversation outline ordering, current turn, pagination, keyboard jump and Escape, plus find, export and draft preservation');
   } else if (process.argv.includes('--workflow-only')) {
     await signIn();
     await send('Browser workflow prompt');
@@ -3175,7 +3233,11 @@ try {
   assert.equal(await evaluate("fetch('/api/chats').then(r=>r.json()).then(d=>d.chats.length)"), savedBeforeTemporary, 'temporary chat leaked into history');
   assert.equal(await evaluate("getComputedStyle(document.querySelector('.composer')).borderTopStyle"), 'dashed', 'temporary composer missing its visual marker');
   await click('.topbar [data-action="chat-menu"]');
-  assert.deepEqual(await evaluate("Array.from(document.querySelectorAll('#action-menu button')).map(b=>b.dataset.action)"), ['find-message', 'transcript', 'export', 'delete'], 'temporary menu actions');
+  assert.deepEqual(await evaluate("Array.from(document.querySelectorAll('#action-menu button')).map(b=>b.dataset.action)"), ['find-message', 'outline', 'transcript', 'export', 'delete'], 'temporary menu actions');
+  await pointerClick('#action-menu [data-action=outline]');
+  assert.equal(await evaluate("document.activeElement.dataset.target===document.querySelector('.message.user').dataset.message"), true, 'temporary outline focuses its private prompt');
+  await pointerClick('#find-message-dialog button[type=submit]');
+  await click('.topbar [data-action="chat-menu"]');
   await pointerClick('#action-menu [data-action=find-message]');
   assert.equal(await evaluate("Array.from(document.querySelectorAll('#find-message-list button')).some(b=>b.dataset.target===document.querySelector('.message.user')?.dataset.message)"), true, 'temporary search found its private prompt');
   await pointerClick('#find-message-dialog button[type=submit]');

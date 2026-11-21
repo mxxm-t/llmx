@@ -242,6 +242,7 @@ active branch. **Browse saved files** adds selected files to the current draft.
   the newly selected view.
 - Scroll up to read an earlier turn. Once chat stops following the reply, **Jump to latest** appears below the message box. Select it to resume following.
 - Select a passage in an answer and choose **Quote in reply** below it. With no selection, the action quotes the whole answer. The quote goes at the end of your draft, ready for a follow-up question.
+- **Conversation actions > Conversation outline** lists your prompts in reading order on the active branch. It opens at the turn you are reading. Use Up or Down to move, Home or End to reach the first or last turn, and Enter to jump. File-only prompts show their filenames. Longer conversations have pages of 25 turns.
 - Choose **Conversation actions > Find in conversation** or press Ctrl+Shift+F (Command+Shift+F on macOS). Search message text or an attachment's filename on the current branch. **My prompts** includes messages that contain only a file. Choose a result to jump to the original message with your draft intact.
 - **Conversation actions > Download Markdown** saves the current branch's prompt and reply text in reading order. It leaves out tool payloads, reasoning, attachments and unsent drafts. Use **Export JSON** for a backup with branches.
 - Each sidebar row has a compact anchored actions menu for rename, pin/unpin,

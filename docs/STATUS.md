@@ -6,6 +6,14 @@
 - Done: Chat honors Markdown column alignment, uses tabular figures and displays escaped pipes inside cells. Header and divider counts must agree. Short rows keep their missing columns empty.
 - Checks: Chrome reproduced the failure on main and passed the corrected table and full workspace fixture. A five-column comparison fit at 320, 390, 768 and 1440 px. The docs and dead-code checks passed.
 - Landing: Fast-forward after the scoped Chat workspace checks. The renderer still passes every cell through its safe inline formatter.
+## Conversation outline (2026-11-21)
+
+- Goal: Jump between prompts on the active branch in reading order.
+- Done: Conversation actions opens a chronological outline in the existing navigation dialog. It focuses the turn nearest the middle of the transcript, includes filenames for file-only prompts and renders up to 25 turns per page.
+- Checks: The hosted conversation-finder Chrome fixture covers 27 prompts, an inactive branch, keyboard opening, page crossings, Home and End, focus after a jump and Escape, a 320 px layout and preservation of draft text and two attachments. The focused fixture, JavaScript syntax checks, docs and dead-code passed locally.
+- The full workspace fixture also opens the outline in a temporary chat and checks that its private prompt has focus. The old four-action menu assertion caught the additional entry in run 44858189510.
+- Landing: Fast-forward after the scoped Linux and Windows Chat workspace checks.
+- Gotchas: An outline shows the selected branch at the time it opens. Arrow keys browse the outline while Enter moves the transcript.
 
 ## Jump to the latest chat turn (2026-11-21)
 

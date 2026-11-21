@@ -289,7 +289,7 @@ window.ChatShell = (() => {
       const control = node('button', item.danger ? 'danger' : ''); control.type = 'button'; control.setAttribute('role', 'menuitem');
       control.dataset.action = item.action; control.disabled = Boolean(item.disabled); control.tabIndex = -1;
       const paths = {rename: 'm16 3 5 5-12 12-6 1 1-6Z M14 5l5 5', pin: 'm9 3 6 0-1 6 4 4H6l4-4Z M12 13v8', folder: 'M3 6h7l2 2h9v12H3Z', duplicate: 'M8 8h13v13H8Z M16 8V3H3v13h5', archive: 'M3 3h18v5H3Z M5 8v13h14V8 M9 12h6', export: 'M12 3v12 M7 10l5 5 5-5 M4 16v5h16v-5', delete: 'M3 6h18 M9 6V3h6v3 M5 6l1 15h12l1-15 M10 10v7 M14 10v7',
-        transcript: 'M4 4h10M4 9h8M17 5v12m-4-4 4 4 4-4M4 20h16', 'find-message': 'M16 16l5 5M18 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z', 'attach-device': 'M3 4h18v12H3Z M8 21h8 M12 16v5', 'attach-files': 'M6 3h8l4 4v14H6Z M14 3v5h4 M9 13h6 M9 16h6', 'attach-project': 'M3 6h7l2 2h9v12H3Z'};
+        outline: 'M4 5h2m3 0h11M4 12h2m3 0h11M4 19h2m3 0h11', transcript: 'M4 4h10M4 9h8M17 5v12m-4-4 4 4 4-4M4 20h16', 'find-message': 'M16 16l5 5M18 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z', 'attach-device': 'M3 4h18v12H3Z M8 21h8 M12 16v5', 'attach-files': 'M6 3h8l4 4v14H6Z M14 3v5h4 M9 13h6 M9 16h6', 'attach-project': 'M3 6h7l2 2h9v12H3Z'};
       control.append(icon(paths[item.action], 'conversation-menu-icon'), node('span', '', item.label));
       control.addEventListener('click', event => { event.stopPropagation(); closeMenu(); select(item.action); }); panel.append(control);
     });

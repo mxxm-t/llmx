@@ -1424,6 +1424,20 @@ dialog {
 .find-message-result:hover, .find-message-result:focus-visible { background:var(--hover) }
 .find-message-result strong { color:var(--muted); font-size:12px; font-weight:500 }
 .find-message-result mark { background:transparent; color:inherit; font-weight:700; text-decoration:underline }
+.prompt-outline .dialog-content { padding:clamp(14px,3vw,22px); gap:8px }
+.prompt-outline .dialog-content :is(h2,p) { margin:0 }
+.prompt-outline #find-message-list { scrollbar-width:thin }
+.prompt-outline .conversation-form-actions { flex-wrap:wrap }
+.prompt-outline .find-message-result {
+  grid-template-columns:2rem minmax(0,1fr) auto;
+  align-items:baseline;
+  padding:9px 8px
+}
+.prompt-outline .find-message-result strong { text-align:end; font-variant-numeric:tabular-nums }
+.prompt-outline .find-message-result span { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden }
+.prompt-outline .find-message-result[aria-current] { background:var(--inset); box-shadow:inset 2px 0 var(--muted) }
+.prompt-outline .find-message-result small { color:var(--muted); font-size:11px }
+.prompt-outline .find-message-result:focus-visible { outline-offset:-2px }
 dialog::backdrop {
   background:#0009;
   backdrop-filter:blur(5px)

@@ -298,8 +298,8 @@
           <label class="field">Show<select id="find-message-role"><option value="all">All messages</option><option value="user">My prompts</option><option value="assistant">Assistant replies</option></select></label>
         </div>
         <p class="muted fine-print" id="find-message-count" role="status"></p>
-        <div id="find-message-list"></div>
-        <div class="conversation-form-actions"><button type="button" id="find-message-more" class="secondary-button" hidden>Show more</button><button class="secondary-button" type="submit">Close</button></div>
+        <div id="find-message-list" role="group" aria-labelledby="find-message-title"></div>
+        <div class="conversation-form-actions"><button type="button" id="find-message-earlier" class="secondary-button" hidden>Earlier turns</button><button type="button" id="find-message-more" class="secondary-button" hidden>Show more</button><button class="secondary-button" type="submit">Close</button></div>
       </form>
     </dialog>
     <dialog id="saved-file-dialog" aria-labelledby="saved-file-title">

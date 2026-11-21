@@ -491,6 +491,7 @@
     const openTranscript = anchor.closest('.topbar') && S.messages.length;
     if (openTranscript) {
       items.unshift({action: 'find-message', label: 'Find in conversation'});
+      if (path().some(message => message.role === 'user')) items.splice(1, 0, {action: 'outline', label: 'Conversation outline'});
       items.push({action: 'transcript', label: 'Download Markdown', separator: true});
     }
     items.push({action: 'export', label: 'Export JSON', separator: !openTranscript}, {action: 'delete', label: chat.temporary ? 'End temporary chat' : 'Delete conversation', danger: true, separator: true, disabled: Boolean(chat.temporary && (currentRun() || S.busy))});
@@ -511,10 +512,62 @@
     target.focus({preventScroll: true});
     target.scrollIntoView({block: 'center', behavior: 'instant'});
   }
-  function findMessage() {
+  function showPromptOutline(prompts, list, earlier, later) {
+    const region = $('scroll-region'), middle = region.getBoundingClientRect().top + region.clientHeight / 2;
+    const articles = $('messages').querySelectorAll(':scope > .message.user');
+    let currentId = articles[0]?.dataset.message;
+    for (const article of articles) {
+      if (article.getBoundingClientRect().top > middle) break;
+      currentId = article.dataset.message;
+    }
+    const current = Math.max(0, prompts.findIndex(message => message.id === currentId)), size = 25;
+    let first = -1;
+    function select(index) {
+      const start = Math.floor(index / size) * size;
+      if (start !== first) {
+        first = start;
+        const rows = document.createDocumentFragment();
+        for (let i = first; i < Math.min(first + size, prompts.length); i++) {
+          const message = prompts[i], item = node('button', 'find-message-result');
+          item.type = 'button'; item.tabIndex = -1; item.dataset.target = message.id;
+          const label = message.content?.trim() || (message.attachments || []).map(file => file.name).join(', ') || 'Empty prompt';
+          const snippet = label.length > 160 ? label.slice(0, 157) + '...' : label;
+          const ordinal = node('strong', '', String(i + 1));
+          ordinal.setAttribute('aria-label', 'Turn ' + (i + 1));
+          item.append(ordinal, node('span', '', snippet));
+          if (i === current) {
+            item.setAttribute('aria-current', 'location');
+            item.append(node('small', '', 'Current'));
+          }
+          rows.append(item);
+        }
+        list.replaceChildren(rows);
+        earlier.hidden = first === 0; later.hidden = first + size >= prompts.length;
+        const count = prompts.length;
+        $('find-message-count').textContent = count > size
+          ? 'Turns ' + (first + 1) + ' to ' + Math.min(first + size, count) + ' of ' + count
+          : count + (count === 1 ? ' turn' : ' turns');
+      }
+      const previous = list.querySelector('[tabindex="0"]'), item = list.children[index - first];
+      if (previous) previous.tabIndex = -1;
+      if (item) { item.tabIndex = 0; item.focus(); }
+    }
+    list.onkeydown = event => {
+      const item = event.target.closest('button[data-target]');
+      if (!item || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      const index = first + Array.prototype.indexOf.call(list.children, item);
+      const next = {ArrowUp: index - 1, ArrowDown: index + 1, Home: 0, End: prompts.length - 1}[event.key];
+      if (typeof next !== 'number') return;
+      event.preventDefault(); select(Math.max(0, Math.min(next, prompts.length - 1)));
+    };
+    earlier.onclick = () => select(Math.max(0, first - size));
+    later.onclick = () => select(first + size);
+    select(current);
+  }
+  function findMessage(outline = false) {
     const dialog = $('find-message-dialog'), query = $('find-message-query'), list = $('find-message-list'), more = $('find-message-more');
-    const role = $('find-message-role');
-    const entries = dialogueMessages().reverse().map(message => ({
+    const role = $('find-message-role'), earlier = $('find-message-earlier'), messages = dialogueMessages();
+    const entries = outline ? [] : messages.reverse().map(message => ({
       message, fields: [message.content, ...(message.attachments || []).map(file => file.name)]
     }));
     let matches = [], shown = 0;
@@ -559,6 +612,13 @@
       appendPage();
       list.scrollTop = 0;
     }
+    dialog.classList.toggle('prompt-outline', outline);
+    $('find-message-title').textContent = outline ? 'Conversation outline' : 'Find in conversation';
+    dialog.querySelector('.find-message-controls').hidden = outline;
+    if (outline) list.setAttribute('aria-description', 'Use Up and Down to move between turns and Enter to jump.');
+    else list.removeAttribute('aria-description');
+    earlier.hidden = true; earlier.onclick = list.onkeydown = null;
+    more.textContent = outline ? 'Later turns' : 'Show more';
     query.value = '';
     role.value = 'all';
     role.onchange = filter;
@@ -577,12 +637,12 @@
     dialog.onclose = () => {
       if (dialog.open) return;
       query.value = '';
-      role.onchange = query.oninput = query.onkeydown = more.onclick = list.onclick = dialog.onclose = null;
+      role.onchange = query.oninput = query.onkeydown = earlier.onclick = more.onclick = list.onclick = list.onkeydown = dialog.onclose = null;
       list.replaceChildren();
     };
-    filter();
     dialog.showModal();
-    query.focus();
+    if (outline) showPromptOutline(messages.filter(message => message.role === 'user'), list, earlier, more);
+    else { filter(); query.focus(); }
   }
   function replyGroups() {
     const groups = []; let prompt = '', previous = null;
@@ -1440,7 +1500,7 @@
     if (name === 'temporary') return temporaryChat();
     if (name === 'end-temporary') return leaveTemporary();
     if (name === 'reply-detail') return jumpToMessage(el.dataset.id);
-    if (name === 'find-message') return findMessage();
+    if (name === 'find-message' || name === 'outline') return findMessage(name === 'outline');
     if (name === 'transcript') {
       const title = S.chat.title || 'Conversation';
       const turns = dialogueMessages().filter(m => m.content);

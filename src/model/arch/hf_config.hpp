@@ -234,7 +234,7 @@ inline void follow_weights(gguf::GGUFModel& m) {
     for (auto& [i, c] : m.composites) {
         if (c.kind != hf_quant::fp8_grid) continue;
         const std::string& g = m.tensors[i].name;
-        const auto w = names.find(g.substr(0, g.size() - 6) + ".weight");
+        const auto w = names.find(hf_quant::fp8_weight_of(g));
         if (w == names.end()) throw std::logic_error("hf: FP8 grid " + g + " has no weight");
         const auto wc = m.composites.find(w->second);
         if (wc == m.composites.end() || wc->second.kind != reorder || c.parts[0].first.n_elements() == 1) continue;

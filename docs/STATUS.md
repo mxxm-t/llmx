@@ -622,6 +622,26 @@ This test-only correction lands by fast-forward with the companion workflow.
 - **Checks:** The independent Chrome regression failed in 59.797 seconds before the fix and passed in 54.855 seconds after it. The combined browser fixture over public main `2ea30d410` passed in 66.845 seconds, including both themes at 1440, 390 and 320 pixels and 200 percent CSS zoom. Desktop preference, transient Settings access, mobile drawer state and toggle geometry passed. JavaScript syntax, whitespace and independent integration review passed. Dead-code passed with 17 expected findings and 20 planted faults in 34.8 seconds; docs passed with zero findings and 29 planted faults in 31.8 seconds and runs once more after this record.
 - **Landing:** Fast-forward from `2ea30d410` after final documentation validation and a fresh main check. This is static presentation only, with no server, runtime, API or numerical changes. The existing docs CLI remains applicable because native source and build inputs are unchanged. Full Markdown review checks references to details, temporary labels and layout; the companion README and TESTS own the updated behavior. Receipts are in `scratch/reading-landing/`, with independent matched screenshots in the main workspace's `scratch/chat-reading-layout/`.
 - **Gotchas:** Composer Settings and the narrow drawer are transient. Only explicit docked Details actions save the preference. Long titles can still truncate. Chrome emulation does not establish physical phone or Safari coverage. Settings semantics and history search remain separate audit work.
+## Landing stack land-20261122 (2026-11-21, LAND90 and LAND91, rebased onto main abb36a8cf, ready to land)
+
+**What lands.** Three commits on main c494eea6f, by fast-forward: bypass norm-rope-kv (the k head's cache block, slot and v value read before the norm), vllm-formats qwen35-fp8 (the Qwen3.6-27B-FP8 directory on the CPU, Vulkan and ROCm, its V-side FP8 linears moved with their scale blocks), and this record. Keff staging 5 and 6 are not in it, the int16.gpu Q3_K tile fix is pending for the next stack.
+
+**Fixes the gates found.** `hf_config.hpp` named the tensor ".weight" in follow_weights, which arch-boundary refuses in a shared header, so it calls hf_quant::fp8_weight_of. `tests/baseline_qwen35.py` goldens_for read `gguf_files` from every golden directory and raised KeyError on the 27B-FP8 goldens, which hold their text and ids inline, so it skips a directory without the key (reference-consumer's Qwen35QualityConsumer).
+
+**Identity against main c494eea6f** (Qwen3-0.6B Q8_0, Qwen3.5-0.8B Q4_K_M, Qwen3.6-27B Q4_K_M; CPU, ROCm f16 and int8 on one MI50; the 27B on the CPU in a mapped load): every cell SAME, 8 prompts per cell.
+
+| Check | Result |
+|---|---|
+| Builds R, V, C, CUDA 12.9.1 | all build; the first CUDA build was killed by the host's memory (not a verdict), the rerun at 28 GB and two jobs built |
+| CTest CPU, Vulkan | 91/91, 112/112 |
+| CTest ROCm, one MI50 | 94/95; backend-rocm exceeds its 600 s limit, and run alone it takes 10 min 35 s on the stack and 11 min 36 s on main with the same two FAILs on both, "the NVFP4 checks ran llmx_nvfp4_tile16" and "tile8", which are on main c494eea6f itself (nvfp4_scales uses products of 5 rows or fewer, which take the row builds where prompt_rows_below is 9) and are fixed in the next stack |
+| CTest CUDA gpu-port, gpu-core, cuda-driver, cuda-sass | 5/5 pass; backend-cuda skips without a card |
+| Suite on ROCm | every component PASS or SKIP but arch-boundary and reference-consumer, the two fixed above and re-run PASS with dead-code, docs, version, safetensors and qwen35 on the final tree |
+| Qwen3.6-27B-FP8 on the CPU against HF (baseline_qwen35.py) | 63 of 63 checks pass |
+| Suite safetensors on rocm:0 | the FP8 directories' logits and the qwen35 FP8 directory run on ROCm and pass, worst 0.00000000 at f32 and 0.00118100 at f16 (0.00023800 for qwen35 FP8), no SKIP |
+| Timing, one MI50, pp512 tok/s main to stack | Qwen3.6-27B f16 257.1 to 260.8, int8 391.0 to 393.0; tg128 25.6 to 27.5 and 29.5 to 29.4; Qwen3-0.6B f16 8090 to 7990, int8 10217 to 10192 (inside the run's spread) |
+
+Radeon VII check: not required: the stack changes no Vulkan or Windows device code (AGENTS.md, Merge gates).
 ## Landing stack land-20261121 (2026-11-20 to 2026-11-21, LAND88 and LAND89, Done)
 
 **What lands.** Five groups of 21 commits on main 6770182ad, by fast-forward, in this order: rocgap (12: the exact families of NVFP4, Q2_K, Q3_K, IQ4_XS, the IQ2 and IQ3 types, IQ1, Q1_0, Q2_0 and TQ, F8_E4M3, then the twin families and their CUDA twin checks, the F8_E4M3 gather's NaN and the low-bit twins), keff (4: the prompt K tile's shared words, its step reads, biased 8-bit sums and its staging), norm-held (the held RMS norm inlined), vllm28 (the host's directory tensors made side by side, and the dense Qwen 3.5 or 3.6 Hugging Face directory read as the qwen35 GGUF), head4 (the Q8_0 decode builds of 2 to 8 columns, then ROCm prompts of 2 to 8 rows on those builds).
@@ -646,7 +666,7 @@ This test-only correction lands by fast-forward with the companion workflow.
 | Timing, one MI50, pp512 tok/s main to stack | Qwen3.6-27B f16 224 to 259, int8 325 to 391, tg128 unchanged within noise; Qwen3-0.6B pp512 inside the run's spread |
 
 Known and not part of the stack: ROCm refuses F8_E4M3 safetensors on main, and the server-resume-cache race.
-Owed: the Radeon VII check on Windows, which needs the owner's go.
+Radeon VII check: not required: the stack changes no Vulkan or Windows device code (AGENTS.md, Merge gates).
 ## Landing stack land-20261120 (2026-11-19 to 2026-11-20, LAND83 to LAND86, Done)
 
 **What lands.** The two stacks land together by fast-forward of main ce2b0603b, onto which LAND86 rebased them: land-20261118 (its record below, 21 commits) and on it land-20261119, 27 commits in this order: fix/tile256-denominator; backlog2 suite-tw2, docs-folds, slice-stale-points (test, then the fix), rocm-reduce-cap, disk-cache-device-order (test, then the fix), job-wait-line (test, then the fix), weight-scales and fp-contract; REUSE5 host-growth-step, wrap-host-view-drop and server-short-followup; QDEV45 hc-entry-invariant (llmx_hc_entry, then the invariant); FUSE3 norm-barriers; VKNORM1 vulkan-norm-barriers; ATTN2 decode-head-groups-2; fix/draft-divergence (the failing late_totals test, then the fix); fix/drafting-set-stderr; cuda97/profile.

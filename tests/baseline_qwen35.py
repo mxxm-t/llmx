@@ -162,9 +162,9 @@ def goldens_for(file):
     """The directory of the model goldens made for the pinned file `file`, which lists it in each of them, and those goldens by name."""
     for directory in sorted({name.split("/")[0] for name in GOLDEN_SHA256 if "/" in name} - set(FILE_EXACT.values())):
         docs = {name.split("/")[1]: load_golden(name) for name in GOLDEN_SHA256 if name.startswith(directory + "/")}
-        if all(file in doc["gguf_files"] for doc in docs.values()):
+        if all(file in doc.get("gguf_files", ()) for doc in docs.values()):
             return directory, docs
-        require(not any(file in doc["gguf_files"] for doc in docs.values()), "%s lists %s in only some of its goldens" % (directory, file))
+        require(not any(file in doc.get("gguf_files", ()) for doc in docs.values()), "%s lists %s in only some of its goldens" % (directory, file))
     raise ValueError("no qwen35 goldens are made for " + file)
 
 

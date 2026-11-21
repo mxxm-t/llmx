@@ -346,11 +346,11 @@ class Workspace:
             self._require_project_files(paths)
             return dict(self._read_files(paths), project=deepcopy(project))
 
-    def _editable(self, revision, conflict="Workspace changed. Reload before saving"):
+    def _editable(self, revision, conflict="Workspace changed. Reload before saving", *, stale_error=ValueError):
         if self.control is not None:
             raise ValueError("Wait for the active command to finish or cancel it")
         if type(revision) is not int or revision != self.state["revision"]:
-            raise ValueError(conflict)
+            raise stale_error(conflict)
 
     def write(self, path, content, revision, delete=False, *, agent_edit=False, base=None):
         with self.lock:
@@ -373,12 +373,31 @@ class Workspace:
                 del updated[path]
             else:
                 updated[path] = content
-            state = dict(self.state, files=checked_files(updated), revision=current + 1)
-            if agent_edit:
-                state["checkpoints"] = self._checkpoints_with("Before agent edit: " + path[:90])
-            self._save(state)
-            self.state = state
+            self._save_files(updated, "Before agent edit: " + path[:90] if agent_edit else None)
             return dict(self.files(), status="saved") if agent_edit else self.snapshot()
+
+    def _save_files(self, files, checkpoint=None):
+        state = dict(self.state, files=checked_files(files), revision=self.state["revision"] + 1)
+        if checkpoint:
+            state["checkpoints"] = self._checkpoints_with(checkpoint)
+        self._save(state)
+        self.state = state
+
+    def import_files(self, entries, revision):
+        with self.lock:
+            self._editable(revision, "Workspace changed. Refresh the import review.", stale_error=ProjectConflict)
+            if not isinstance(entries, list) or not 1 <= len(entries) <= MAX_FILES:
+                raise ValueError("Choose between 1 and %d text files to import" % MAX_FILES)
+            updated = dict(self.state["files"])
+            for entry in entries:
+                if not isinstance(entry, dict) or set(entry) != {"path", "content"}:
+                    raise ValueError("Each imported file needs a path and content")
+                path = file_path(entry["path"])
+                if path in updated:
+                    raise ValueError("File path already in use: " + path)
+                updated[path] = entry["content"]
+            self._save_files(updated)
+            return self.snapshot()
 
     def _checkpoints_with(self, label):
         point = dict(id=uuid.uuid4().hex, label=label.strip(), created=time.time(), files=dict(self.state["files"]))

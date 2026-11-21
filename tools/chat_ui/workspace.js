@@ -10,7 +10,12 @@
   const terminal = job => ['completed', 'failed', 'cancelled'].includes(job.status);
   function control(label, cls, listener) { const button = node('button', cls || 'secondary-button', label); button.type = 'button'; if (listener) button.addEventListener('click', () => Promise.resolve().then(listener).catch(showError)); return button; }
   const toolbar = node('div', 'view-toolbar'); const back = control('Back to Chat', 'text-button workspace-back', returnToChat);
-  const headingActions = node('div', 'workspace-actions'); const revisionLabel = node('span', 'workspace-revision'); const refresh = control('Refresh', '', refreshWorkspace); const newFile = control('New file', 'primary-button', createFile); headingActions.append(revisionLabel, refresh, newFile); toolbar.append(back, headingActions);
+  const headingActions = node('div', 'workspace-actions'), revisionLabel = node('span', 'workspace-revision');
+  const refresh = control('Refresh', '', refreshWorkspace), newFile = control('New file', 'primary-button', createFile);
+  const importFiles = control('Import', '', openImport);
+  importFiles.disabled = true; importFiles.id = 'workspace-import';
+  importFiles.setAttribute('aria-haspopup', 'dialog'); importFiles.setAttribute('aria-controls', 'workspace-import-dialog');
+  headingActions.append(revisionLabel, refresh, importFiles, newFile); toolbar.append(back, headingActions);
   const sections = node('nav', 'workspace-sections'); sections.id = 'workspace-sections'; sections.setAttribute('aria-label', 'Workspace sections');
   const error = node('div', 'view-notice workspace-error'); error.setAttribute('role', 'alert'); error.tabIndex = -1; error.hidden = true;
   const limits = node('details', 'workspace-limits'), limitsText = node('p');
@@ -78,7 +83,7 @@
     section = next;
     for (const button of sections.children) button.setAttribute('aria-pressed', String(button.dataset.section === next));
     for (const [key, panel] of Object.entries(panels)) panel.hidden = key !== next;
-    newFile.hidden = next !== 'files';
+    newFile.hidden = importFiles.hidden = next !== 'files';
     if (next === 'projects') loadProjects();
   }
   function returnToChat(focusId = 'chat-title') {
@@ -258,7 +263,7 @@
       fileList.append(button);
     }
     if (query && !matches.length) fileList.append(node('p', 'workspace-empty', 'No matching files.'));
-    newFile.disabled = !state.snapshot;
+    newFile.disabled = importFiles.disabled = !state.snapshot;
     filePanel.hidden = !files.length;
     if (!state.snapshot) {
       startTitle.textContent = 'Workspace files'; startNote.textContent = 'Loading saved files...';
@@ -266,7 +271,7 @@
     }
     layout.classList.toggle('has-files', Boolean(files.length));
     startTitle.textContent = files.length ? 'Choose a file to edit' : 'No saved files yet';
-    startNote.textContent = files.length ? 'Select a saved file to edit it, preview it or attach its current text to Chat.' : 'Choose New file to start here. To keep code from a reply, open its code block in Chat and choose Edit in workspace.';
+    startNote.textContent = files.length ? 'Select a saved file to edit it, preview it or attach its current text to Chat.' : 'Import local text files or choose New file. To keep code from a reply, open its code block in Chat and choose Edit in workspace.';
   }
   function renderCheckpoints() {
     checkpoints.replaceChildren(); const list = state.snapshot?.checkpoints || [];
@@ -312,10 +317,144 @@
     while (state.loading) {
       try { await state.loading; } catch { /* The older caller reports its failure; this caller still needs a refresh. */ }
     }
-    const loading = api('/workspace'); state.loading = loading;
-    try { const snapshot = await loading; clearError(); applySnapshot(snapshot); if (!state.path) state.revision = state.snapshot.revision; }
+    const previous = state.snapshot, loading = api('/workspace'); state.loading = loading;
+    try {
+      const snapshot = await loading; clearError();
+      if (state.snapshot === previous || snapshot.revision >= state.snapshot.revision) applySnapshot(snapshot);
+      if (!state.path) state.revision = state.snapshot.revision;
+    }
     finally { state.loading = null; }
   }
+  const importPart = id => document.getElementById('workspace-import-' + id);
+  const importDialog = importPart('dialog'), importList = importPart('list'), filterImport = importPart('filter');
+  const importStatus = importPart('summary'), importError = importPart('error'), confirmImport = importPart('submit');
+  const importRefresh = importPart('refresh'), cancelImport = importPart('cancel'), importMore = importPart('more');
+  const localFiles = document.getElementById('workspace-local-files'), localFolder = document.getElementById('workspace-local-folder');
+  const chooseFiles = document.getElementById('workspace-choose-files'), chooseFolder = document.getElementById('workspace-choose-folder');
+  const dependencyFolders = new Set(['node_modules', 'vendor', '__pycache__', 'site-packages']);
+  let importing = null;
+
+  function importProblem(text = '') { importError.textContent = text; importError.hidden = !text; }
+  function openImport() {
+    if (importDialog.open || !state.snapshot) return;
+    importing = {snapshot: state.snapshot, entries: [], shown: 40, phase: 'review', stale: false};
+    localFiles.value = localFolder.value = filterImport.value = '';
+    importPart('note').textContent = 'Choose UTF-8 text files. A folder lets you select individual paths.';
+    importProblem(); importList.replaceChildren(); updateImportList(); importDialog.showModal();
+  }
+  function updateImportList() {
+    const {entries, shown} = importing;
+    const term = filterImport.value.trim().toLowerCase();
+    const matches = entries.filter(item => item.path.toLowerCase().includes(term));
+    const rows = document.createDocumentFragment();
+    for (const entry of matches.slice(0, shown)) {
+      const label = node('label'), box = node('input');
+      box.type = 'checkbox'; box.value = entry.path; box.checked = entry.selected;
+      box.addEventListener('change', () => { entry.selected = box.checked; importProblem(); updateImportControls(); });
+      label.append(box, node('span', '', entry.path), node('small', '', bytes(entry.file.size))); rows.append(label);
+    }
+    if (entries.length && !matches.length) rows.append(node('p', 'workspace-empty', 'No matching paths.'));
+    importList.replaceChildren(rows);
+    importList.hidden = !entries.length; importPart('search').hidden = !entries.length;
+    importMore.hidden = matches.length <= shown;
+    updateImportControls();
+  }
+  function updateImportControls() {
+    const {entries, snapshot, phase, stale} = importing;
+    const busy = phase !== 'review', selected = entries.filter(entry => entry.selected);
+    chooseFiles.disabled = chooseFolder.disabled = filterImport.disabled = importList.disabled = importMore.disabled = busy;
+    cancelImport.disabled = phase === 'saving'; importRefresh.hidden = !stale; importRefresh.disabled = busy;
+    const policy = snapshot.execution?.limits || {}, saved = new Set(snapshot.files.map(file => file.path)), names = new Set();
+    let size = 0, issue = '';
+    for (const {path, file} of selected) {
+      size += file.size;
+      if (saved.has(path)) issue ||= path + ' already exists. Uncheck it to continue.';
+      if (names.has(path)) issue ||= 'Two selected files use ' + path + '. Choose only one.';
+      if (state.isNew && (state.path === path || path.startsWith(state.path + '/') || state.path.startsWith(path + '/')))
+        issue ||= path + ' conflicts with the unsaved editor file.';
+      if (file.size > policy.file_bytes) issue ||= path + ' exceeds the ' + bytes(policy.file_bytes) + ' file limit.';
+      names.add(path);
+    }
+    if (selected.length + saved.size > policy.files) issue ||= 'The workspace file limit is ' + policy.files + '.';
+    if (size + snapshot.files.reduce((sum, file) => sum + file.size, 0) > policy.project_bytes)
+      issue ||= 'The workspace size limit is ' + bytes(policy.project_bytes) + '.';
+    const count = selected.length;
+    const total = count + ' selected, ' + bytes(size);
+    importStatus.textContent = phase === 'reading' ? 'Reading selected files...' : phase === 'saving' ? 'Saving files...' : entries.length ? total + (issue ? '. ' + issue : '') : '';
+    confirmImport.textContent = count ? 'Import ' + count + (count === 1 ? ' file' : ' files') : 'Import';
+    confirmImport.disabled = !count || busy || stale || Boolean(issue);
+  }
+  function chooseImport(input, folder) {
+    if (!importing || importing.phase !== 'review') return;
+    const entries = []; let omitted = 0;
+    for (const file of input.files) {
+      const parts = folder ? file.webkitRelativePath.split('/') : [file.name];
+      if (folder && (parts.length < 2 || parts.some(part => part.startsWith('.')) ||
+          parts.slice(0,-1).some(part => dependencyFolders.has(part.toLowerCase())) || /^(thumbs\.db|desktop\.ini)$/i.test(file.name))) { omitted++; continue; }
+      entries.push({file, path: folder ? parts.slice(1).join('/') : file.name, selected: !folder});
+    }
+    importing.entries = entries.sort((a,b) => a.path.localeCompare(b.path));
+    importing.shown = 40; filterImport.value = ''; input.value = '';
+    importPart('note').textContent = folder ? 'Choose files to include. Paths start inside the chosen folder.' +
+      (omitted ? ' Omitted ' + omitted + ' hidden, system or dependency ' + (omitted === 1 ? 'entry.' : 'entries.') : '') : 'Review the selected files before importing.';
+    if (!entries.length) importPart('note').textContent += ' No files available.';
+    importProblem(); updateImportList();
+  }
+  chooseFiles.addEventListener('click', () => localFiles.click());
+  chooseFolder.hidden = !('webkitdirectory' in localFolder);
+  chooseFolder.addEventListener('click', () => localFolder.click());
+  localFiles.addEventListener('change', () => chooseImport(localFiles, false));
+  localFolder.addEventListener('change', () => chooseImport(localFolder, true));
+  filterImport.addEventListener('input', () => { importing.shown = 40; updateImportList(); });
+  importMore.addEventListener('click', () => {
+    const start = importing.shown; importing.shown += 40; updateImportList(); importList.querySelectorAll('input')[start]?.focus();
+  });
+  cancelImport.addEventListener('click', () => importDialog.close());
+  importDialog.addEventListener('cancel', event => { if (importing?.phase === 'saving') event.preventDefault(); });
+  importDialog.addEventListener('close', () => {
+    if (importDialog.open) return;
+    importing = null; localFiles.value = localFolder.value = ''; importList.replaceChildren();
+  });
+  importRefresh.addEventListener('click', async () => {
+    const review = importing;
+    review.phase = 'refreshing'; updateImportControls();
+    try {
+      await load();
+      if (review !== importing || !importDialog.open) return;
+      review.snapshot = state.snapshot; review.stale = false; importProblem();
+    } catch (problem) { if (review === importing) importProblem(problem.message); }
+    finally { if (review === importing) { review.phase = 'review'; updateImportControls(); } }
+  });
+  importPart('form').addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!importing || confirmImport.disabled) return;
+    const review = importing, revision = review.snapshot.revision;
+    const current = () => review === importing && importDialog.open;
+    review.phase = 'reading'; importProblem(); updateImportControls();
+    try {
+      const files = [];
+      for (const {file, path} of review.entries.filter(item => item.selected)) {
+        const data = await file.arrayBuffer();
+        if (!current()) return;
+        let content;
+        try { content = new TextDecoder('utf-8', {fatal:true, ignoreBOM:true}).decode(data); }
+        catch { throw new Error(path + ' is not valid UTF-8 text.'); }
+        if (content.includes('\0')) throw new Error(path + ' contains a NUL byte. Choose a text file.');
+        files.push({path, content});
+      }
+      review.phase = 'saving'; updateImportControls();
+      const saved = await api('/workspace/files', 'POST', {revision, files});
+      if (!current()) return;
+      if (state.revision === revision) state.revision = saved.revision;
+      if (saved.revision >= state.snapshot.revision) applySnapshot(saved);
+      clearError(); importDialog.close(); importFiles.focus();
+    } catch (problem) {
+      if (!current()) return;
+      review.stale = problem.status === 409;
+      importProblem(problem.message || 'Could not import the selected files.');
+    } finally { if (current()) { review.phase = 'review'; updateImportControls(); } }
+  });
+  document.addEventListener('companion:unauthorized', () => { if (importDialog.open) importDialog.close(); });
   async function openFile(path, ready) {
     const selection = ++state.selection;
     const isCurrent = () => selection === state.selection && (!ready || viewLoad === ready);
@@ -441,7 +580,7 @@
   document.addEventListener('keydown', event => { if (document.querySelector('dialog[open]')) return; if (document.getElementById('app').dataset.view === 'workbench' && section === 'files' && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); if (!save.disabled) saveFile().catch(showError); } });
   document.addEventListener('companion:view', event => {
     if (event.detail === 'workbench') { viewLoad = load(); viewLoad.catch(showError); if (section === 'projects') loadProjects(); }
-    else { viewLoad = null; clearTimeout(state.timer); state.timer = null; }
+    else { viewLoad = null; clearTimeout(state.timer); state.timer = null; if (importDialog.open) importDialog.close(); }
   });
   async function openToolResult(target) {
     window.ChatShell.show('workbench');

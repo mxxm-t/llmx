@@ -407,6 +407,18 @@
 .workspace-section-heading > span {
   font-size: 10px;
 }
+#workspace-import-dialog { width: 36rem; max-width: min(36rem, 94vw); }
+#workspace-import-form { padding: clamp(14px, 3vw, 24px); gap: 9px; }
+#workspace-import-form :is(h2,p) { margin: 0; }
+.workspace-import-sources, #workspace-import-form .dialog-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+#workspace-import-list { min-width: 0; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 5px; overflow: auto; max-height: 36dvh; }
+#workspace-import-list label { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 8px; align-items: center; min-height: 38px; padding: 6px 9px; cursor: pointer; overflow-wrap: anywhere; }
+#workspace-import-list label + label { border-top: 1px solid var(--line); }
+#workspace-import-list label:has(:checked) { background: var(--inset); }
+#workspace-import-list label:focus-within { outline: 2px solid var(--accent); outline-offset: -2px; }
+#workspace-import-list input { width: auto; }
+#workspace-import-list small { color: var(--muted); }
+#workspace-import-more { align-self: flex-start; }
 .workspace-files {
   border-right: 1px solid var(--border);
   min-width: 0;

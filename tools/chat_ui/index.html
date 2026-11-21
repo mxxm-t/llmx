@@ -312,6 +312,28 @@
         <div class="conversation-form-actions"><button type="button" id="find-message-earlier" class="secondary-button" hidden>Earlier turns</button><button type="button" id="find-message-more" class="secondary-button" hidden>Show more</button><button class="secondary-button" type="submit">Close</button></div>
       </form>
     </dialog>
+    <dialog id="workspace-import-dialog" aria-labelledby="workspace-import-title">
+      <form id="workspace-import-form" class="dialog-content">
+        <h2 id="workspace-import-title">Import text files</h2>
+        <div class="workspace-import-sources">
+          <button id="workspace-choose-files" type="button" class="secondary-button" autofocus>Choose files</button>
+          <button id="workspace-choose-folder" type="button" class="secondary-button">Choose folder</button>
+          <input id="workspace-local-files" type="file" multiple hidden>
+          <input id="workspace-local-folder" type="file" webkitdirectory multiple hidden>
+        </div>
+        <p id="workspace-import-note"></p>
+        <label class="field" id="workspace-import-search" hidden>Find a path<input id="workspace-import-filter" type="search" autocomplete="off"></label>
+        <fieldset id="workspace-import-list" aria-label="Files to import" hidden></fieldset>
+        <button id="workspace-import-more" type="button" class="text-button" hidden>Show more paths</button>
+        <p id="workspace-import-summary" role="status"></p>
+        <p id="workspace-import-error" class="error-text" role="alert" hidden></p>
+        <div class="dialog-actions">
+          <button id="workspace-import-cancel" type="button" class="secondary-button">Cancel</button>
+          <button id="workspace-import-refresh" type="button" class="secondary-button" hidden>Refresh review</button>
+          <button id="workspace-import-submit" type="submit" class="primary-button" disabled>Import</button>
+        </div>
+      </form>
+    </dialog>
     <dialog id="saved-file-dialog" aria-labelledby="saved-file-title">
       <form class="dialog-content" id="saved-file-form">
         <h2 id="saved-file-title">Attach saved files</h2>

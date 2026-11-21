@@ -88,6 +88,23 @@ class WorkspaceTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
+    def test_import_batch_is_create_only_and_atomic(self):
+        workspace = Workspace(self.temp.name)
+        entry = {"path": "src/empty.txt", "content": ""}
+        existing = {"path": "saved.txt", "content": "original"}
+        baseline = workspace.write(existing["path"], existing["content"], 0)
+        for entries in ([entry, existing], [entry, entry], [entry, {"path": "src", "content": "x"}],
+                        [entry, {"path": "bad.bin", "content": "\0"}], [], [entry, {}]):
+            with self.subTest(entries=entries), self.assertRaises(ValueError):
+                workspace.import_files(entries, 1)
+            self.assertEqual(workspace.snapshot(), baseline)
+        with self.assertRaises(ValueError):
+            workspace.import_files([entry], 0)
+        with patch.object(workspace, "_save", side_effect=OSError("disk full")), self.assertRaises(OSError):
+            workspace.import_files([entry], 1)
+        self.assertEqual(workspace.snapshot(), baseline)
+        self.assertEqual(Workspace(self.temp.name).snapshot(), baseline)
+
     def test_checkpoint_diff_keeps_missing_newlines_and_empty_files(self):
         workspace = Workspace(self.temp.name)
 

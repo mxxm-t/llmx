@@ -234,6 +234,30 @@ class WorkspaceHTTPTests(unittest.TestCase):
                                {"path": "src/main.py", "revision": current + 2}, self.cookie)
         self.assertEqual(removed[0], 200)
 
+    def test_import_local_files_preserves_paths_text_and_revision(self):
+        route = "/api/workspace/files"
+        files = [{"path": "site/index.html", "content": '<link rel="stylesheet" href="css/site.css"><script src="js/app.js"></script>'},
+                 {"path": "site/js/app.js", "content": "const loaded = true;"},
+                 {"path": "site/css/site.css", "content": "\ufeffbody {}\r\n"},
+                 {"path": "site/empty.txt", "content": ""}]
+        body = {"revision": 0, "files": files}
+        self.assertEqual(self.request("POST", route, body)[0], 401)
+        cookie = self.login()
+        self.assertEqual(self.request("POST", route, body, cookie, {"Origin": "https://other.invalid"})[0], 403)
+        result = self.request("POST", route, body, cookie)
+        self.assertEqual(result[0], 200, result[2])
+        self.assertEqual(self.json_body(result)["revision"], 1)
+        paths = "&".join("path=" + file["path"] for file in files)
+        self.assertEqual(self.json_body(self.request("GET", route + "?" + paths, cookie=cookie))["files"],
+                         [{"path": file["path"], "text": file["content"]} for file in files])
+        preview = self.request("POST", "/api/previews", {"html": files[0]["content"], "workspace_path": files[0]["path"]}, cookie)
+        self.assertEqual(preview[0], 200, preview[2])
+        assembled = self.json_body(preview)["workspace"]
+        self.assertEqual(assembled["revision"], 1)
+        self.assertEqual(assembled["assets"], ["site/css/site.css", "site/js/app.js"])
+        self.assertEqual(self.request("POST", route, body, cookie)[0], 409)
+        self.assertEqual(self.json_body(self.request("GET", route, cookie=cookie))["revision"], 1)
+
     def test_saved_workspace_file_picker_lists_metadata_and_reads_ordered_batches(self):
         route = "/api/workspace/files"
         self.assertEqual(self.request("GET", route)[0], 401)

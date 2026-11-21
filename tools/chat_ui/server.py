@@ -27,7 +27,7 @@ from monitor import ASSETS, Monitor
 from optional_features import OptionalFeatures
 import pdf_reader
 from project_preview import MAX_PREVIEW_BYTES, assemble
-from workspace import MAX_SELECTED_FILES, ProjectConflict, Workspace, WorkspaceTools
+from workspace import MAX_PROJECT, MAX_SELECTED_FILES, ProjectConflict, Workspace, WorkspaceTools
 
 
 ROOT = Path(__file__).resolve().parent
@@ -648,6 +648,10 @@ class Handler(BaseHTTPRequestHandler):
         parts = path.split("/")[3:]
         if not parts and method == "GET":
             return self._json(workspace.snapshot())
+        if parts == ["files"] and method == "POST" and not query:
+            # Allow six bytes per escaped text byte plus the paths and JSON framing.
+            body = self._body(7 * MAX_PROJECT)
+            return self._json(workspace.import_files(body.get("files"), body.get("revision")))
         if parts == ["files"] and method == "GET":
             if not query:
                 return self._json(workspace.files())

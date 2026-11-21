@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Import local text files into Saved files (2026-11-21)
+
+- Goal: Bring an existing multi-file project into the editor while preserving its relative paths.
+- Done: Saved files imports selected local text files in one revision. Folder selection preserves relative paths and starts unchecked. The existing workspace owner validates the entire batch before publishing it.
+- Checks: All 29 workspace and HTTP tests passed locally. Chrome covered selection, cancellation, stale revisions, conflicts with an unsaved editor and preservation of UTF-8, BOM and line endings. A web project preview resolved imported CSS and JavaScript. A separate limit check imported 8 MiB and rejected a further byte without changing the revision.
+- Landing: Fast-forward after the scoped Linux and Windows Chat workspace checks. Import changes the standalone companion only.
+
 ## Render completed Markdown once during streaming (2026-11-21)
 
 - Goal: Keep a long answer or reasoning section responsive as later text arrives.

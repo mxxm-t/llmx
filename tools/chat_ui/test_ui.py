@@ -155,6 +155,28 @@ class BrowserTests(unittest.TestCase):
             self.skipTest("Real browser check requires Node 22+ and Chrome/Chromium/Edge")
         return node, chrome
 
+    def test_workspace_file_import_in_chrome(self):
+        node, chrome = self.browser_executables()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fixtures = root / "inputs"
+            files = {
+                "empty.txt": b"", "a.txt": b"ordinary\r\n", "pending.txt": b"not the editor draft",
+                "z-invalid.txt": b"\xff", "binary.txt": b"text\0tail",
+                "large.txt": b"x" * (1024 * 1024 + 1),
+                "Field project/docs/notes.md": "\ufeffH\u00e4llo\r\nmiddle\rlast\n".encode(),
+                "Field project/src/helper.txt": b"helper", "Field project/omit.txt": b"unselected",
+                "Field project/.env": b"private", "Field project/.git/config": b"private",
+                "Field project/node_modules/pkg/index.js": b"dependency",
+                "Excluded/.private": b"private",
+            }
+            for name, data in files.items():
+                file = fixtures / name
+                file.parent.mkdir(parents=True, exist_ok=True)
+                file.write_bytes(data)
+            self.run_focused_browser(node, chrome, root, "workspace-import",
+                                     (str(fixtures), "--workspace-import-only"), [])
+
     def test_chat_home_saved_context(self):
         node, chrome = self.browser_executables()
         with tempfile.TemporaryDirectory() as directory:

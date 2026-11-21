@@ -60,6 +60,14 @@ Open a code block and choose **Edit in workspace** to name the file. If the path
 For example, save a generated web page there, edit it, preview it with its
 saved stylesheet, then attach the edited HTML to a draft.
 
+To bring a local project into **Saved files**, choose **Import**. Pick individual
+text files or a folder and review the paths before confirming. File picks start
+checked. For a folder, check the files to include. Hidden entries and common
+dependency directories are omitted from folder picks. Folder imports keep paths relative to the selected folder, so HTML, CSS and JavaScript can
+keep their existing relative links. Checked files are saved together. A name
+collision or a stale workspace revision leaves the whole batch unsaved.
+Importing files does not attach them to a conversation.
+
 Start in **Files** to create or edit a file. **Find a file** filters saved paths
 by filename or folder while keeping your editor open. Use **Projects** to group files
 with instructions, **Commands** to run against saved files in a configured

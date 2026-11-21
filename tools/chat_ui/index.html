@@ -122,6 +122,17 @@
         </aside>
         <div id="banner" class="banner" role="status" hidden></div>
         <div class="chat-stage">
+          <nav id="reading-navigation" aria-label="Conversation navigation" hidden>
+            <div class="reading-controls">
+              <span id="reading-position"></span>
+              <button type="button" id="conversation-contents" data-action="outline" aria-haspopup="dialog" aria-controls="find-message-dialog">
+                <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 5h13M8 12h10M8 19h13M3 5h.1M3 12h.1M3 19h.1"/></svg>Contents
+              </button>
+              <button type="button" data-action="find-message" aria-haspopup="dialog" aria-controls="find-message-dialog" aria-label="Find in conversation">
+                <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>Find
+              </button>
+            </div>
+          </nav>
           <div id="scroll-region" class="scroll-region">
             <section id="messages" class="messages" aria-label="Messages"></section>
             <div id="welcome" class="welcome">
@@ -303,6 +314,10 @@
     <dialog id="find-message-dialog" aria-labelledby="find-message-title">
       <form method="dialog" class="dialog-content">
         <h2 id="find-message-title">Find in conversation</h2>
+        <div id="outline-modes" role="group" aria-label="Outline contents" hidden>
+          <button id="outline-turns" type="button" aria-pressed="true">Prompts <span></span></button>
+          <button id="outline-headings" type="button" aria-pressed="false">Reply headings <span></span></button>
+        </div>
         <div class="find-message-controls">
           <label class="field">Message text or filename<input id="find-message-query" type="search" maxlength="256" autocomplete="off" autofocus></label>
           <label class="field">Show<select id="find-message-role"><option value="all">All messages</option><option value="user">My prompts</option><option value="assistant">Assistant replies</option></select></label>

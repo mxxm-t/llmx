@@ -784,6 +784,34 @@ kbd {
 .full {
   width:100%
 }
+#reading-navigation {
+  flex:none;
+  width:100%;
+  max-width:var(--reading-width);
+  margin-inline:auto;
+  padding-inline:var(--page-edge)
+}
+.reading-controls {
+  display:flex;
+  align-items:center;
+  gap:4px;
+  padding:4px 0;
+  border-bottom:1px solid var(--line);
+  color:var(--muted);
+  font-size:13px
+}
+#reading-position { flex:1; font-variant-numeric:tabular-nums }
+.reading-controls button {
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  min-height:32px;
+  padding:3px 8px;
+  border-radius:4px;
+  color:var(--secondary)
+}
+.reading-controls button:hover,.reading-controls button:focus-visible { color:var(--text); background:var(--hover) }
+.reading-controls svg { width:15px; height:15px }
 .messages {
   container-type:inline-size;
   max-width:var(--reading-width);
@@ -896,6 +924,28 @@ kbd {
 .markdown h3 { font-size:18px }
 .markdown h4 { font-size:16px }
 .markdown h5,.markdown h6 { font-size:15px }
+.message.assistant > .markdown > :is(h2,h3) {
+  margin-block:1.4em .45em;
+  font-weight:650;
+  line-height:1.3;
+  letter-spacing:-.025em
+}
+.message.assistant > .markdown > h2 {
+  font-size:clamp(21px,2vw,25px);
+  text-wrap:balance
+}
+.message.assistant > .markdown > h2:not(:first-child) {
+  padding-top:.8em;
+  border-top:1px solid var(--line)
+}
+.message.assistant > .markdown > :is(h2,h3):first-child { margin-top:0 }
+.message.assistant > .markdown :is(h2,h3,h4,h5,h6)[tabindex="-1"] {
+  scroll-margin-block:16px
+}
+.message.assistant > .markdown :is(h2,h3,h4,h5,h6):focus {
+  outline:2px solid var(--accent);
+  outline-offset:3px
+}
 .markdown code {
   font-family:ui-monospace,SFMono-Regular,Consolas,monospace;
   font-size:.86em;
@@ -1403,7 +1453,34 @@ dialog {
   max-width:min(400px,90vw);
   width:400px
 }
-#find-message-dialog { width:36rem; max-width:min(36rem,94vw) }
+#find-message-dialog {
+  width:40rem;
+  max-width:min(40rem,calc(100vw - 20px));
+  max-height:calc(100dvh - 20px);
+  border-radius:9px
+}
+#find-message-dialog::backdrop { backdrop-filter:none }
+#find-message-dialog .dialog-content { padding:clamp(14px,2.5vw,24px); gap:10px }
+#find-message-dialog .dialog-content :is(h2,p) { margin:0 }
+#outline-modes {
+  display:flex;
+  gap:16px;
+  border-bottom:1px solid var(--line)
+}
+#outline-modes button {
+  display:flex;
+  align-items:baseline;
+  gap:6px;
+  min-height:39px;
+  padding:8px 0;
+  margin-bottom:-1px;
+  color:var(--muted);
+  border-bottom:2px solid transparent;
+  font-size:14px;
+  font-weight:500
+}
+#outline-modes button[aria-pressed=true] { color:var(--text); border-color:var(--text) }
+#outline-modes button span { color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums }
 .find-message-controls { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end; gap:12px }
 .find-message-controls input { min-width:0; width:100% }
 @media(max-width:480px) { .find-message-controls { grid-template-columns:minmax(0,1fr) } }
@@ -1422,8 +1499,6 @@ dialog {
 .find-message-result:hover, .find-message-result:focus-visible { background:var(--hover) }
 .find-message-result strong { color:var(--muted); font-size:12px; font-weight:500 }
 .find-message-result mark { background:transparent; color:inherit; font-weight:700; text-decoration:underline }
-.prompt-outline .dialog-content { padding:clamp(14px,3vw,22px); gap:8px }
-.prompt-outline .dialog-content :is(h2,p) { margin:0 }
 .prompt-outline #find-message-list { scrollbar-width:thin }
 .prompt-outline .conversation-form-actions { flex-wrap:wrap }
 .prompt-outline .find-message-result {
@@ -1435,6 +1510,24 @@ dialog {
 .prompt-outline .find-message-result span { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden }
 .prompt-outline .find-message-result[aria-current] { background:var(--inset); box-shadow:inset 2px 0 var(--muted) }
 .prompt-outline .find-message-result small { color:var(--muted); font-size:11px }
+.prompt-outline .find-message-result:has(.outline-excerpt) .outline-label { display:block; min-width:0 }
+.prompt-outline .outline-excerpt {
+  display:block;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:12px;
+  font-weight:400
+}
+.prompt-outline .find-message-result[data-heading] { grid-template-columns:4rem minmax(0,1fr) auto }
+.prompt-outline .find-message-result[data-heading] strong { text-align:start }
+.prompt-outline .find-message-result[data-level=H2] span { font-weight:600 }
+.prompt-outline .find-message-result[data-level=H3] span { padding-inline-start:8px }
+.prompt-outline .find-message-result:is([data-level=H4],[data-level=H5],[data-level=H6]) span { padding-inline-start:16px }
+@media(max-height:520px) {
+  #find-message-dialog .dialog-content { gap:5px; padding-block:9px }
+  #find-message-list { max-height:33dvh }
+}
 .prompt-outline .find-message-result:focus-visible { outline-offset:-2px }
 dialog::backdrop {
   background:#0009;
@@ -1545,6 +1638,7 @@ dialog::backdrop {
     padding-left:25px;
     padding-right:25px
   }
+  #reading-navigation { padding-inline:25px }
   .messages {
     padding-left:25px;
     padding-right:25px
@@ -1625,6 +1719,9 @@ dialog::backdrop {
   .composer-divider {
     display:none
   }
+  #reading-navigation { padding-inline:16px }
+  .reading-controls { padding-block:0 }
+  .reading-controls button { min-height:40px }
   .messages {
     padding:16px 16px 8px
   }

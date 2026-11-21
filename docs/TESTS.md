@@ -143,6 +143,9 @@ The browser checks that pending approval opens the full arguments for review
 after a collapsed preparation and after reload, with separate actions for one
 call, a remembered allowance in the same reply, and denial. Settings shows
 each tool's policy and description on separate lines.
+The conversation navigation fixture checks the current turn, prompt and reply-heading
+indexes, repeated headings, their focus destinations and draft preservation in both
+themes at desktop and phone widths.
 The same browser fixture checks nested Markdown lists, starting numbers, mixed ordered/bullet children, indented code and wrapped text, tabs, bounded deep-list fallback and partial streamed prefixes. It verifies that following paragraphs stay outside the list, model HTML remains text and nested content fits desktop/mobile layouts in both themes.
 Request-identity checks cover metadata arriving before text, persistence and replay, distinct tool-round identities, rejection of malformed or late metadata, absence on older upstreams and removal on chat import. These use a controlled upstream; the runtime producer has a separate server component check.
 The companion engine tests exercise an exact native HTTP 413 after a tool result, the same messages and tools on a bounded retry with the remaining reply room, and preservation of stored reply settings, request identity and usage. Controls cover an ordinary first request, an unrelated HTTP 413, exhausted context, a smaller explicit cap and partial output.

@@ -1209,6 +1209,16 @@ try {
         messages.push({id:'p'+i,parent_id:i?'a'+(i-1):null,role:'user',content:'Prompt '+i});
         messages.push({id:'a'+i,parent_id:'p'+i,role:'assistant',content:'Answer ['+i+']', reasoning:'Private reasoning marker'});
       }
+      const message = id => messages.find(m => m.id === id);
+      message('p12').content = '# Costs to review';
+      message('a12').tool_calls = [{id:'costs',name:'echo',arguments:'## Tool argument heading',status:'completed'}];
+      messages.splice(messages.indexOf(message('p13')),0,{id:'tool',parent_id:'a12',role:'tool',content:'## Tool result heading',tool_call_id:'costs'});
+      message('p13').parent_id = 'tool';
+      message('a13').content = '## Fixed costs\\n\\nThe monthly baseline covers the production database, backups and the minimum compute allocation.\\n\\n### Open questions\\n\\nConfirm whether the quoted rates include the standby instance.';
+      message('a14').reasoning = '## Private reasoning marker';
+      message('a14').content = '## Hosting options\\n\\nThe managed service covers scheduled backups. Self-hosting adds the cost of on-call support.\\n\\n### Open questions\\n\\nAsk both providers for their bandwidth and restore fees.\\n\\n### Open questions\\n\\nRecord who owns the recovery drill for each option.';
+      message('a15').content = '## Launch checklist\\n\\nVerify the backup retention period and the traffic estimate before signing the contract.';
+      message('a25').content += '\\n\\n~~~md\\n## Fenced heading\\n~~~';
       messages.find(m=>m.id==='a24').content = 'First paragraph.\\n\\n~~~python\\nprint(24)\\n#' + 'x'.repeat(240) + '\\n~~~\\n\\nFinal paragraph.';
       const questions = ['Which items affect the release budget?', 'Compare the hosting costs for the two deployment options.',
         'Summarize the remaining assumptions to verify before launch and list the evidence we would need to revise the estimates.'];
@@ -1216,12 +1226,45 @@ try {
       const upload = name => ({name,type:'text/plain',text:'Private attachment body'});
       Object.assign(messages.find(m=>m.id==='p16'), {content:'', attachments:[upload('summary.md'), upload('budget[1].csv')]});
       messages.find(m=>m.id==='p22').attachments = [upload('notes.txt'), upload('notes.md')];
-      messages.push({id:'other',parent_id:'p26',role:'assistant',content:'Alternate branch marker'});
+      messages.push({id:'other',parent_id:'p26',role:'assistant',content:'## Alternate branch marker'});
       messages.push({id:'hidden-prompt',parent_id:'other',role:'user',content:'Inactive prompt branch'});
       return ChatShell.api('/import','POST',{version:1,chat:{title:'Navigation fixture',active_leaf:'a26'},messages});
     })()`);
+    const plainChat = await evaluate(`ChatShell.api('/import','POST',{version:1,chat:{title:'Plain reply',active_leaf:'a'},
+      messages:[{id:'p',role:'user',content:'Plain prompt'},{id:'a',parent_id:'p',role:'assistant',content:'Plain reply'}]})`);
     await reloadDocument();
     await wait(`document.querySelector('[data-chat="${chat.id}"]')`, 'imported conversation');
+    await pointerClick(`[data-chat="${plainChat.id}"]`);
+    await wait("document.querySelector('.message.assistant')?.textContent.includes('Plain reply')", 'plain conversation');
+    const contents = '#conversation-contents[data-action=outline]';
+    const key = async (key, code) => {
+      for (const type of ['keyDown','keyUp']) await cdp('Input.dispatchKeyEvent',
+        {type,key,code:key,windowsVirtualKeyCode:code,text:type==='keyDown' && key==='Enter' ? '\r' : ''});
+    };
+    const accessible = async selector => {
+      const {root} = await cdp('DOM.getDocument');
+      const {nodeId} = await cdp('DOM.querySelector',{nodeId:root.nodeId,selector});
+      const {nodes} = await cdp('Accessibility.getPartialAXTree',{nodeId,fetchRelatives:false});
+      return nodes[0];
+    };
+    const closeContents = async () => {
+      await key('Escape',27);
+      await wait("!document.querySelector('#find-message-dialog').open && document.activeElement.id==='conversation-contents'", 'Escape returns to Contents');
+    };
+    const mode = async (selector,pressed,count) => {
+      const button = await accessible(selector);
+      assert.equal(button.role.value,'button');
+      assert.equal(await evaluate(`document.querySelector(${JSON.stringify(selector)}).getAttribute('aria-pressed')`),String(pressed));
+      assert([button.name?.value,button.description?.value].join(' ').split(/\D+/).includes(String(count)), 'accessible mode count: '+button.name?.value);
+    };
+    const plainWrites = apiMutations.length;
+    await pointerClick(contents);
+    await pointerClick('#outline-headings');
+    assert.equal(await evaluate("document.querySelector('#find-message-list [data-target]')"), null);
+    assert.match(await evaluate("document.querySelector('#find-message-dialog').innerText"), /no (?:reply )?headings/i);
+    assert.equal(await evaluate("document.querySelector('#outline-headings').getAttribute('aria-pressed')"),'true');
+    await closeContents();
+    assert.equal(apiMutations.length, plainWrites, 'opening empty headings changed the chat');
     await pointerClick(`[data-chat="${chat.id}"]`);
     await wait("document.querySelectorAll('.message.user').length===27", 'selected branch');
     await fill('#draft', 'Unsent draft');
@@ -1259,6 +1302,104 @@ try {
     await wait("document.querySelectorAll('#attachments .attachment-pill').length === 2", 'both dropped files attached');
     assert.equal(await evaluate("document.querySelector('#file-drop-hint').hidden && document.querySelector('#draft').value === 'Unsent draft'"), true);
     await checkPromptOutline();
+    const ids = await evaluate("Array.from(document.querySelectorAll('#messages .message.assistant'), m => m.dataset.message)");
+    const expected = [
+      [ids[13],0,'Fixed costs'], [ids[13],1,'Open questions'], [ids[14],0,'Hosting options'],
+      [ids[14],1,'Open questions'], [ids[14],2,'Open questions'], [ids[15],0,'Launch checklist'],
+    ];
+    const duplicateRow = index => `#find-message-list [data-target="${ids[14]}"][data-heading="${index}"]`;
+    for (const [width,height] of [[1440,1000],[320,800]]) {
+      await cdp('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width===320});
+      await wait(`innerWidth===${width} && document.documentElement.dataset.compact==='${width===320}'`, 'contents viewport');
+      const title = await accessible(contents);
+      assert.equal(title.role.value,'button');
+      assert.match(title.name.value,/contents|outline/i);
+      const header = await evaluate(`(() => {
+        const visible = Array.from(document.querySelectorAll('.topbar button,.topbar #connection,#reading-navigation button,#reading-position')).filter(el => el.checkVisibility());
+        return visible.map(el => {
+          const {left,right,top,bottom,width,height} = el.getBoundingClientRect();
+          return {name:el.id || el.dataset.action,left,right,top,bottom,hit:el.contains(document.elementFromPoint(left+width/2,top+height/2))};
+        });
+      })()`);
+      assert(header.some(control=>control.name==='conversation-contents'), 'missing visible Contents control');
+      for (const [index,control] of header.entries()) {
+        assert(control.hit && control.left>=0 && control.right<=width, 'clipped header control: '+JSON.stringify(control));
+        for (const other of header.slice(index+1)) {
+          assert(control.right<=other.left || other.right<=control.left || control.bottom<=other.top || other.bottom<=control.top,
+            'overlapping header controls: '+JSON.stringify([control,other]));
+        }
+      }
+      for (const theme of ['light','dark']) {
+        await cdp('Emulation.setEmulatedMedia',{features:[{name:'prefers-color-scheme',value:theme}]});
+        await wait(`document.documentElement.dataset.theme==='${theme}'`, 'contents theme');
+        const current = await evaluate(`{const p=document.querySelectorAll('#messages .message.user')[14];
+          p.scrollIntoView({block:'center',behavior:'instant'}); p.dataset.message}`);
+        await wait("document.querySelector('#reading-position').textContent==='Turn 15 of 27'", 'reading position after scrolling');
+        await screenshot(`contents-chat-${width}-${theme}.png`);
+        if (theme==='dark') {
+          await evaluate("document.querySelector('#conversation-contents').focus()");
+          await key('Enter',13);
+        } else await pointerClick(contents);
+        await wait(`document.activeElement.dataset.target==='${current}' && document.activeElement.getAttribute('aria-current')==='location'`, 'current prompt from Contents');
+        await mode('#outline-turns',true,27);
+        await mode('#outline-headings',false,6);
+        await screenshot(`contents-turns-${width}-${theme}.png`);
+        await pointerClick('#outline-headings');
+        await mode('#outline-turns',false,27);
+        await mode('#outline-headings',true,6);
+        const rows = await evaluate("Array.from(document.querySelectorAll('#find-message-list [data-target]'), row=>[row.dataset.target,Number(row.dataset.heading),row.innerText])");
+        assert.deepEqual(rows.map(([id,index])=>[id,index]),expected.map(([id,index])=>[id,index]), 'only active-branch reply headings, in reading order');
+        rows.forEach((row,index)=>assert(row[2].includes(expected[index][2]), 'heading label: '+row[2]));
+        for (const [index,label] of [[1,/1 of 2\s*·\s*Ask both providers/],[2,/2 of 2\s*·\s*Record who owns/]]) {
+          assert.match(rows[index+2][2],label,'visible duplicate heading label');
+          assert.match((await accessible(duplicateRow(index))).name.value,label,'accessible duplicate heading label');
+        }
+        assert.equal(await evaluate("document.querySelector('#find-message-list [aria-current=location]')"),null,'a prompt cannot mark an earlier reply heading as current');
+        assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth && document.querySelector('#find-message-dialog').getBoundingClientRect().right<=innerWidth"),true);
+        await screenshot(`contents-headings-${width}-${theme}.png`);
+        await closeContents();
+      }
+    }
+    for (const index of [1,2]) {
+      await evaluate("document.querySelector('#scroll-region').scrollTop=0");
+      await wait("document.querySelector('#reading-position').textContent==='Turn 1 of 27'", 'start before jumping to a distant heading');
+      await pointerClick(contents);
+      await pointerClick('#outline-headings');
+      await pointerClick(duplicateRow(index));
+      assert.equal(await evaluate(`(() => {
+        const heading = document.activeElement, reply = document.querySelector('[data-message="${ids[14]}"]');
+        const bounds = heading.getBoundingClientRect(), region = document.querySelector('#scroll-region').getBoundingClientRect();
+        return !document.querySelector('#find-message-dialog').open && heading.textContent==='Open questions' &&
+          heading===reply.querySelectorAll(':scope > .markdown :is(h1,h2,h3,h4,h5,h6)')[${index}] && bounds.top>=region.top && bounds.bottom<=region.bottom;
+      })()`),true,'jump to the correct identically named heading '+index);
+    }
+    await evaluate("document.activeElement.scrollIntoView({block:'center',behavior:'instant'})");
+    await pointerClick(contents);
+    await pointerClick('#outline-headings');
+    assert.equal(await evaluate(`document.querySelector('#find-message-list [aria-current=location]')?.matches('[data-target="${ids[14]}"][data-heading="2"]')`),true,'exact current heading within a reply');
+    assert.equal(await evaluate('document.activeElement.id'),'outline-headings');
+    await key('Tab',9);
+    assert.equal(await evaluate("document.activeElement.matches('#find-message-list [data-heading]')"),true);
+    await key('End',35);
+    await key('Enter',13);
+    assert.equal(await evaluate(`document.activeElement.closest('article')?.dataset.message==='${ids[15]}' && document.activeElement.textContent==='Launch checklist'`),true);
+    await pointerClick(contents);
+    await pointerClick('#outline-headings');
+    await evaluate(`{
+      const original=document.querySelector('[data-message="${ids[15]}"] > .markdown :is(h2,h3,h4,h5,h6)');
+      const updated=original.cloneNode(); updated.textContent='Revised checklist'; original.replaceWith(updated);
+    }`);
+    await pointerClick(`#find-message-list [data-target="${ids[15]}"][data-heading="0"]`);
+    assert.equal(await evaluate(`document.activeElement.matches('article[data-message="${ids[15]}"]') && !document.querySelector('#find-message-dialog').open`),true,'stale heading falls back to its reply');
+    assert.match(await evaluate("document.querySelector('#toast').innerText"),/heading changed/i);
+    assert.equal(await evaluate("document.querySelector('#draft').value==='Unsent draft' && document.querySelectorAll('#attachments .attachment-pill').length===2"),true);
+    assert.equal(apiMutations.length,writes,'navigating reply headings changed server state');
+    await pointerClick('#reading-navigation [data-action=find-message]');
+    await wait("document.activeElement.id==='find-message-query'", 'direct Find focuses search');
+    await key('Escape',27);
+    await wait("document.activeElement.matches('#reading-navigation [data-action=find-message]')", 'Escape returns to Find');
+    await cdp('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+    await wait("document.documentElement.dataset.compact==='false'", 'desktop after heading navigation');
     await pointerClick('.topbar [data-action=chat-menu]');
     await pointerClick('#action-menu [data-action=find-message]');
     assert.equal(await evaluate("document.activeElement.id"), 'find-message-query');
@@ -1368,7 +1509,7 @@ try {
     await pointerClick(wrap);
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.artifact-source pre')).whiteSpace"), 'pre');
     assert.deepEqual(errors, [], 'message navigation browser errors');
-    console.log('PASS: conversation outline ordering, current turn, pagination, keyboard jump and Escape, plus find, export and draft preservation');
+    console.log('PASS: active-branch turns and reply headings, duplicate heading targets, keyboard focus, narrow controls, find, export and draft preservation');
   } else if (process.argv.includes('--workspace-import-only')) {
     await signIn();
     await checkWorkspaceImport();

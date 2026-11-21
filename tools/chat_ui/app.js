@@ -504,65 +504,149 @@
     return selected;
   }
   function dialogueMessages() { return path().filter(m => m.role === 'user' || m.role === 'assistant'); }
-  function jumpToMessage(id) {
-    const target = $('messages').querySelector('[data-message="' + CSS.escape(id) + '"]');
-    if (!target) return;
+  function focusTranscript(target, block) {
+    if (!target?.isConnected) return;
     closeDrawers(false);
     target.tabIndex = -1;
     target.focus({preventScroll: true});
-    target.scrollIntoView({block: 'center', behavior: 'instant'});
+    target.scrollIntoView({block, behavior: 'instant'});
   }
-  function showPromptOutline(prompts, list, earlier, later) {
-    const region = $('scroll-region'), middle = region.getBoundingClientRect().top + region.clientHeight / 2;
-    const articles = $('messages').querySelectorAll(':scope > .message.user');
-    let currentId = articles[0]?.dataset.message;
-    for (const article of articles) {
-      if (article.getBoundingClientRect().top > middle) break;
-      currentId = article.dataset.message;
+  function jumpToMessage(id) {
+    focusTranscript($('messages').querySelector('[data-message="' + CSS.escape(id) + '"]'), 'center');
+  }
+  function readingMidpoint() {
+    const region = $('scroll-region');
+    return region.getBoundingClientRect().top + region.clientHeight / 2;
+  }
+  function readingIndex(elements, middle) {
+    let low = 0, high = elements.length;
+    while (low < high) {
+      const index = Math.floor((low + high) / 2);
+      if (elements[index].getBoundingClientRect().top <= middle) low = index + 1;
+      else high = index;
     }
-    const current = Math.max(0, prompts.findIndex(message => message.id === currentId)), size = 25;
-    let first = -1;
-    function select(index) {
+    return Math.max(0, low - 1);
+  }
+  let turnArticles = [], readingFrame = 0;
+  function syncReadingPosition() {
+    if (readingFrame || $('reading-navigation').hidden) return;
+    readingFrame = requestAnimationFrame(() => {
+      readingFrame = 0;
+      if ($('reading-navigation').hidden || $('app').dataset.view !== 'chat') return;
+      const count = turnArticles.length;
+      const text = count ? 'Turn ' + (readingIndex(turnArticles, readingMidpoint()) + 1) + ' of ' + count : 'Conversation';
+      if ($('reading-position').textContent !== text) $('reading-position').textContent = text;
+    });
+  }
+  const answerHeadings = ':scope > .markdown :is(h2,h3,h4,h5,h6)';
+  function showOutline(messages, list, earlier, later) {
+    const byId = new Map(messages.map(message => [message.id, message]));
+    const turns = [], headings = [], labels = new Map();
+    for (const article of $('messages').children) {
+      const id = article.dataset.message, message = byId.get(id);
+      if (message?.role === 'user') {
+        const label = message.content?.trim() || (message.attachments || []).map(file => file.name).join(', ') || 'Empty prompt';
+        turns.push({id, label, element: article, number: turns.length + 1});
+        labels.clear();
+      } else if (message?.role === 'assistant') {
+        article.querySelectorAll(answerHeadings).forEach((element, heading) => {
+          const label = element.textContent.trim();
+          if (!label) return;
+          const repeats = labels.get(label) || {count: 0};
+          repeats.count++; labels.set(label, repeats);
+          headings.push({id, label, element, heading, number: turns.length, repeats, occurrence: repeats.count});
+        });
+      }
+    }
+    const prompts = $('outline-turns'), sections = $('outline-headings');
+    prompts.querySelector('span').textContent = turns.length;
+    sections.querySelector('span').textContent = headings.length;
+    let entries, byHeading, first, current, atLocation;
+    const size = 25;
+    function select(index, focus = true) {
       const start = Math.floor(index / size) * size;
       if (start !== first) {
         first = start;
         const rows = document.createDocumentFragment();
-        for (let i = first; i < Math.min(first + size, prompts.length); i++) {
-          const message = prompts[i], item = node('button', 'find-message-result');
-          item.type = 'button'; item.tabIndex = -1; item.dataset.target = message.id;
-          const label = message.content?.trim() || (message.attachments || []).map(file => file.name).join(', ') || 'Empty prompt';
-          const snippet = label.length > 160 ? label.slice(0, 157) + '...' : label;
-          const ordinal = node('strong', '', String(i + 1));
-          ordinal.setAttribute('aria-label', 'Turn ' + (i + 1));
-          item.append(ordinal, node('span', '', snippet));
-          if (i === current) {
+        for (let i = first; i < Math.min(first + size, entries.length); i++) {
+          const entry = entries[i], item = node('button', 'find-message-result');
+          item.type = 'button'; item.tabIndex = -1; item.dataset.target = entry.id;
+          const number = node('strong', '', byHeading ? (entry.number ? 'Turn ' + entry.number : 'Reply') : String(entry.number));
+          if (byHeading) {
+            item.dataset.heading = entry.heading;
+            item.dataset.level = entry.element.tagName;
+          } else number.setAttribute('aria-label', 'Turn ' + entry.number);
+          const snippet = entry.label.length > 160 ? entry.label.slice(0, 157) + '...' : entry.label;
+          const title = node('span', 'outline-label', snippet);
+          if (entry.repeats?.count > 1) {
+            const next = entry.element.nextElementSibling;
+            const excerpt = next?.matches('p,ul,ol,blockquote') ? next.textContent.trim().slice(0, 110) : '';
+            const position = entry.occurrence + ' of ' + entry.repeats.count;
+            title.append(node('small', 'outline-excerpt', position + (excerpt ? ' \u00b7 ' + excerpt : '')));
+          }
+          item.append(number, title);
+          if (i === current && atLocation) {
             item.setAttribute('aria-current', 'location');
             item.append(node('small', '', 'Current'));
           }
+          item.onclick = () => {
+            $('find-message-dialog').close();
+            if (entry.element.isConnected && (!byHeading || entry.element.textContent.trim() === entry.label))
+              return focusTranscript(entry.element, byHeading ? 'start' : 'center');
+            const article = $('messages').querySelector('[data-message="' + CSS.escape(entry.id) + '"]');
+            const heading = byHeading && article?.querySelectorAll(answerHeadings)[entry.heading];
+            if (heading && heading.textContent.trim() === entry.label) focusTranscript(heading, 'start');
+            else if (article) {
+              focusTranscript(article, 'start');
+              if (byHeading) toast('This heading changed. Showing its reply.');
+            }
+          };
           rows.append(item);
         }
         list.replaceChildren(rows);
-        earlier.hidden = first === 0; later.hidden = first + size >= prompts.length;
-        const count = prompts.length;
-        $('find-message-count').textContent = count > size
-          ? 'Turns ' + (first + 1) + ' to ' + Math.min(first + size, count) + ' of ' + count
-          : count + (count === 1 ? ' turn' : ' turns');
+        earlier.hidden = first === 0; later.hidden = first + size >= entries.length;
+        const count = entries.length, unit = byHeading ? 'heading' : 'turn';
+        $('find-message-count').textContent = !count ? (byHeading ? 'No reply headings on this branch.' : 'No prompts on this branch.')
+          : count > size ? (byHeading ? 'Headings ' : 'Turns ') + (first + 1) + ' to ' + Math.min(first + size, count) + ' of ' + count
+          : count + ' ' + unit + (count === 1 ? '' : 's');
       }
       const previous = list.querySelector('[tabindex="0"]'), item = list.children[index - first];
       if (previous) previous.tabIndex = -1;
-      if (item) { item.tabIndex = 0; item.focus(); }
+      if (item) {
+        item.tabIndex = 0;
+        if (focus) item.focus();
+        else item.scrollIntoView({block:'nearest'});
+      }
     }
+    function choose(headingsMode, focus) {
+      byHeading = headingsMode;
+      entries = byHeading ? headings : turns;
+      first = -1;
+      const middle = readingMidpoint();
+      current = readingIndex(entries.map(entry => entry.element), middle);
+      const heading = byHeading && entries[current]?.element;
+      atLocation = !byHeading || (heading && heading.getBoundingClientRect().top <= middle &&
+        heading.closest('.message').getBoundingClientRect().bottom >= middle);
+      prompts.setAttribute('aria-pressed', String(!byHeading)); sections.setAttribute('aria-pressed', String(byHeading));
+      list.setAttribute('aria-description', 'Use Up and Down to move, and Enter to jump.');
+      earlier.textContent = byHeading ? 'Earlier headings' : 'Earlier turns';
+      later.textContent = byHeading ? 'Later headings' : 'Later turns';
+      list.onclick = null;
+      select(current, focus);
+      if (focus && !entries.length) (byHeading ? sections : prompts).focus();
+    }
+    prompts.onclick = () => choose(false, false); sections.onclick = () => choose(true, false);
     list.onkeydown = event => {
       const item = event.target.closest('button[data-target]');
       if (!item || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
       const index = first + Array.prototype.indexOf.call(list.children, item);
-      const next = {ArrowUp: index - 1, ArrowDown: index + 1, Home: 0, End: prompts.length - 1}[event.key];
+      const next = {ArrowUp: index - 1, ArrowDown: index + 1, Home: 0, End: entries.length - 1}[event.key];
       if (typeof next !== 'number') return;
-      event.preventDefault(); select(Math.max(0, Math.min(next, prompts.length - 1)));
+      event.preventDefault(); select(Math.max(0, Math.min(next, entries.length - 1)));
     };
     earlier.onclick = () => select(Math.max(0, first - size));
     later.onclick = () => select(first + size);
-    select(current);
+    choose(!turns.length && Boolean(headings.length), true);
   }
   function findMessage(outline = false) {
     const dialog = $('find-message-dialog'), query = $('find-message-query'), list = $('find-message-list'), more = $('find-message-more');
@@ -615,8 +699,8 @@
     dialog.classList.toggle('prompt-outline', outline);
     $('find-message-title').textContent = outline ? 'Conversation outline' : 'Find in conversation';
     dialog.querySelector('.find-message-controls').hidden = outline;
-    if (outline) list.setAttribute('aria-description', 'Use Up and Down to move between turns and Enter to jump.');
-    else list.removeAttribute('aria-description');
+    $('outline-modes').hidden = !outline;
+    list.removeAttribute('aria-description');
     earlier.hidden = true; earlier.onclick = list.onkeydown = null;
     more.textContent = outline ? 'Later turns' : 'Show more';
     query.value = '';
@@ -637,11 +721,11 @@
     dialog.onclose = () => {
       if (dialog.open) return;
       query.value = '';
-      role.onchange = query.oninput = query.onkeydown = earlier.onclick = more.onclick = list.onclick = list.onkeydown = dialog.onclose = null;
+      $('outline-turns').onclick = $('outline-headings').onclick = role.onchange = query.oninput = query.onkeydown = earlier.onclick = more.onclick = list.onclick = list.onkeydown = dialog.onclose = null;
       list.replaceChildren();
     };
     dialog.showModal();
-    if (outline) showPromptOutline(messages.filter(message => message.role === 'user'), list, earlier, more);
+    if (outline) showOutline(messages, list, earlier, more);
     else { filter(); query.focus(); }
   }
   function replyGroups() {
@@ -951,6 +1035,7 @@
       if (wanted.has(id)) articles.set(id, el);
       else { el.remove(); S.fingerprint.delete(id); }
     }
+    turnArticles = [];
     selected.forEach((message, index) => {
       const siblings = childrenByParent.get(message.parent_id).filter(m => m.role === message.role);
       const fingerprint = JSON.stringify(messageKey(message, true)) + siblings.map(m => m.id).join();
@@ -992,6 +1077,7 @@
         } else { container.append(replacement); old = replacement; articles.set(message.id, old); }
         S.fingerprint.set(message.id, fingerprint);
       }
+      if (message.role === 'user') turnArticles.push(old);
       const previous = selected[index - 1];
       const continuation = message.role === 'assistant' && previous?.role === 'assistant' && Boolean(message.run_id) && message.run_id === previous.run_id;
       old.classList.toggle('continuation', continuation);
@@ -1003,6 +1089,7 @@
     const run = currentRun();
     if (run) { const live = node('div', 'live-state'); live.append(node('span', 'status-dot'), node('span', 'live-phase', run.status === 'approval' ? 'Waiting for your approval' : 'Working'), node('span', 'live-metrics'), node('span', 'run-elapsed')); container.append(live); }
     $('welcome').hidden = selected.length > 0; $('messages').hidden = selected.length === 0 && !run;
+    $('reading-navigation').hidden = !selected.length;
     $('chat-title').textContent = S.chat ? S.chat.title || 'Untitled conversation' : 'Chat';
     $('chat-title').disabled = !S.chat;
     const temporaryMode = Boolean(S.chat?.temporary);
@@ -1445,6 +1532,7 @@
     return region.scrollHeight - region.scrollTop - region.clientHeight <= Math.min(120, region.clientHeight / 3);
   }
   function syncJump() {
+    syncReadingPosition();
     $('jump-bottom').hidden = !$('welcome').hidden || followsLatest();
   }
   function bottom() { const region = $('scroll-region'); region.scrollTop = region.scrollHeight; syncJump(); }

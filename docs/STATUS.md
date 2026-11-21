@@ -11,6 +11,12 @@
 - Done: Desktop history stays in the sidebar. The compact landing keeps recent chats within reach. The blank chat shows one draft heading and a workspace file or project picker. Rename becomes available when a chat exists.
 - Checks: The Chrome home test opened saved context, preserved the draft and checked both layouts with a populated history.
 - Gotchas: The logo must preserve an unsent draft and temporary chat must keep saved history private.
+## Navigate sections in a reply (2026-11-21)
+
+- Goal: Give a populated conversation visible reading controls and a way to jump inside a long answer.
+- Done: The reading bar tracks the current turn and opens Contents or Find. Contents indexes prompts and rendered answer headings on the active branch. Repeated headings within a turn show their occurrence and an excerpt when available.
+- Checks: The focused Chrome fixture passed at 1440 and 320 pixels in both themes. It selected each of two identically named headings in one answer, checked keyboard and accessibility labels, preserved the draft and attachments, and verified fallback to the owning reply when a heading changed.
+- Landing: Fast-forward after the scoped Linux and Windows Chat workspace checks. The reading bar and index operate entirely in the browser.
 
 ## Import local text files into Saved files (2026-11-21)
 

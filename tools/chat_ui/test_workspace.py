@@ -88,6 +88,27 @@ class WorkspaceTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
+    def test_checkpoint_diff_keeps_missing_newlines_and_empty_files(self):
+        workspace = Workspace(self.temp.name)
+        def write(path, content, delete=False):
+            workspace.write(path, content, workspace.files()["revision"], delete)
+        write("a.txt", "before")
+        write("b.txt", "")
+        write("line.txt", "one\r\ntwo\n")
+        checkpoint = workspace.checkpoint("before")["checkpoints"][-1]["id"]
+        self.assertEqual(workspace.diff(checkpoint)["diff"], "")
+        write("a.txt", "after")
+        write("b.txt", "", delete=True)
+        write("c.txt", "")
+        write("line.txt", "one\r\ntwo")
+        self.assertEqual(workspace.diff(checkpoint)["diff"], (
+            "--- checkpoint/a.txt\n+++ workspace/a.txt\n@@ -1 +1 @@\n"
+            "-before\n\\ No newline at end of file\n+after\n\\ No newline at end of file\n"
+            "Deleted empty file: b.txt\nAdded empty file: c.txt\n"
+            "--- checkpoint/line.txt\n+++ workspace/line.txt\n@@ -1,2 +1,2 @@\n"
+            " one\r\n-two\n+two\n\\ No newline at end of file\n"
+        ))
+
     def wait_job(self, workspace, job_id, timeout=2):
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:

@@ -1003,7 +1003,8 @@
     const run = currentRun();
     if (run) { const live = node('div', 'live-state'); live.append(node('span', 'status-dot'), node('span', 'live-phase', run.status === 'approval' ? 'Waiting for your approval' : 'Working'), node('span', 'live-metrics'), node('span', 'run-elapsed')); container.append(live); }
     $('welcome').hidden = selected.length > 0; $('messages').hidden = selected.length === 0 && !run;
-    $('chat-title').textContent = S.chat?.title || 'New conversation';
+    $('chat-title').textContent = S.chat ? S.chat.title || 'Untitled conversation' : 'Chat';
+    $('chat-title').disabled = !S.chat;
     const temporaryMode = Boolean(S.chat?.temporary);
     $('temporary-notice').hidden = !temporaryMode;
     $('temporary-button').querySelector('.chat-create-label').textContent = temporaryMode ? 'Normal chat' : 'Temporary chat';
@@ -1453,7 +1454,10 @@
   function canFocusDrawerControl(el) {
     return el && !el.matches(':disabled') && !el.closest('[inert]') && el.checkVisibility({visibilityProperty: true});
   }
-  function viewHeading() { return $('app').dataset.view === 'chat' ? $('chat-title') : $('shell-title'); }
+  function viewHeading() {
+    if ($('app').dataset.view !== 'chat') return $('shell-title');
+    return $('chat-title').disabled ? $('draft') : $('chat-title');
+  }
   function updateShade(opener, destination) {
     const app = $('app'), sidebar = $('sidebar'), details = $('inspector');
     const detailsOpen = app.dataset.view === 'chat' && !app.classList.contains('inspector-closed');

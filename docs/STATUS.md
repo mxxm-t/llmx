@@ -5,6 +5,12 @@
 - Goal: Exercise the stale editor Save at the intended viewport after import.
 - Evidence: In GitHub Actions run 44868701513 the Windows post-merge job opened the discard dialog before the expected stale-save error. Linux passed. The failing browser still showed unsaved edits at revision 6.
 - Done: A Chrome layout probe found the Save coordinates landed on pending.txt after the resize. The check now exercises the dirty editor at the same phone width as the import, then waits for the desktop shell layout before leaving Saved files.
+## Chat landing and history navigation (2026-11-21)
+
+- Goal: Give the draft one clear heading and use the sidebar for desktop conversation history.
+- Done: Desktop history stays in the sidebar. The compact landing keeps recent chats within reach. The blank chat shows one draft heading and a workspace file or project picker. Rename becomes available when a chat exists.
+- Checks: The Chrome home test opened saved context, preserved the draft and checked both layouts with a populated history.
+- Gotchas: The logo must preserve an unsent draft and temporary chat must keep saved history private.
 
 ## Import local text files into Saved files (2026-11-21)
 

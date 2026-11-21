@@ -300,6 +300,7 @@ kbd {
   font-weight:600;
   max-width:100%
 }
+.title-button:disabled { opacity:1; cursor:default }
 .topbar-actions {
   display:flex;
   align-items:center;
@@ -371,12 +372,12 @@ kbd {
 }
 .landing-tools {
   display:none;
-  grid-template-columns:repeat(auto-fit,minmax(min(100%,19rem),1fr));
   gap:24px clamp(22px,3vw,40px);
   margin-top:30px
 }
 .workspace:not([data-temporary=true]) .chat-stage:has(#welcome:not([hidden])) .landing-tools { display:grid }
 .landing-tools section { min-width:0 }
+:root[data-compact=false] #recent-conversations { display:none }
 .landing-collection-head,#recent-title {
   min-height:36px;
   display:flex;
@@ -390,9 +391,9 @@ kbd {
   letter-spacing:-.015em;
   margin:0
 }
-.landing-sources { display:flex; align-items:center; gap:2px }
-.landing-sources button { min-height:30px; padding:3px 9px; border-radius:4px; color:var(--muted); font-size:12px }
-.landing-sources button[aria-pressed=true] { color:var(--text); background:var(--surface); font-weight:600 }
+.landing-sources { display:flex; align-items:center; gap:8px }
+.landing-sources button { min-height:30px; padding:3px 4px; border-bottom:2px solid transparent; color:var(--muted); font-size:12px }
+.landing-sources button[aria-pressed=true] { color:var(--text); border-bottom-color:currentColor; font-weight:600 }
 .landing-sources button:hover,.recent-chat:hover,.landing-context-row:hover { background:var(--inset); color:var(--text) }
 #recent-list,#landing-context-list { border-top:1px solid var(--line) }
 #landing-context-list:empty { border:0 }

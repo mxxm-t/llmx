@@ -430,6 +430,11 @@ async function checkLandingContext() {
   const shown = selector => wait('document.querySelector('+JSON.stringify(selector)+')?.checkVisibility()', selector);
   const empty = text => wait('document.querySelector("#landing-context-status").innerText==='+JSON.stringify(text), text);
   await empty('No saved files yet.');
+  await evaluate("ChatShell.api('/import','POST',{version:1,chat:{title:'Resume this draft',active_leaf:'reply'},messages:[{id:'reply',role:'assistant',content:'Saved reply'}]})");
+  await reloadDocument();
+  await shown('.chat-item[data-chat]');
+  assert.equal(await evaluate("document.querySelector('#recent-list button').textContent.includes('Resume this draft') && !document.querySelector('#recent-conversations').checkVisibility()"), true, 'desktop history is in the sidebar');
+  assert.equal(await evaluate("document.querySelector('#chat-title').disabled"), true, 'an unsaved chat has no rename action');
   assert.equal(await evaluate("document.querySelector('#landing-context-browse').checkVisibility() && !document.querySelector('.temporary-saved-files').checkVisibility()"),true,'ordinary landing shows one browse shortcut');
   await fill('#draft','Review the release notes.');
   await pointerClick(source('projects'));
@@ -449,6 +454,7 @@ async function checkLandingContext() {
   })()`);
   await pointerClick('.workspace-back');
   await shown(row('Release review'));
+  await screenshot('home-context-1440.png');
   const writes = apiMutations.length, streams = runStreams.length;
   const contextReads = () => browserRequests.filter(r=>new URL(r.url).pathname.endsWith('/context')).length;
   assert.equal(contextReads(),0,'home fetched project file bodies before selection');
@@ -477,6 +483,8 @@ async function checkLandingContext() {
   await cdp('Emulation.setDeviceMetricsOverride',{width:320,height:700,deviceScaleFactor:1,mobile:true});
   await wait("document.documentElement.dataset.compact==='true'",'narrow home');
   await pointerClick(source('files')); await shown(row('brief/outline.md'));
+  await shown('.recent-chat');
+  assert.match(await evaluate("document.querySelector('.recent-chat').textContent"), /Resume this draft/);
   await screenshot('home-context-320.png');
   assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth && document.querySelector('.landing-context-row').getBoundingClientRect().right<=innerWidth"),true);
   await evaluate("ChatShell.api('/workspace').then(s=>ChatShell.api('/workspace/delete','POST',{path:'brief/outline.md',revision:s.revision}))");
@@ -666,7 +674,7 @@ async function checkHomeLanding() {
       await wait("document.querySelector('#saved-file-dialog').open", 'open saved files from the landing');
       await pointerClick('#saved-file-cancel');
     }
-    const fromRecent = recent.includes(selected);
+    const fromRecent = recent.includes(selected) && await evaluate("document.querySelector('#recent-conversations').checkVisibility()");
     await pointerClick((fromRecent ? '.recent-chat' : '.chat-item')+'[data-chat="'+selected+'"]');
     await wait(`document.querySelector('.chat-item.active')?.dataset.chat===${JSON.stringify(selected)} && document.querySelector('#draft').value===${JSON.stringify(marker)} && document.querySelector('.message.assistant')`, 'restore saved transcript and draft after leaving ' + view);
     if (fromRecent) assert.equal(await evaluate("document.activeElement.id"), 'chat-title', 'resuming from the landing focuses the conversation');
@@ -2447,7 +2455,7 @@ try {
   await click('[data-action="archive-view"]');
   await checkNewChatShortcut();
   await click('.topbar [data-action="chat-menu"]'); await click('[data-action="delete"]'); await closeAction('#conversation-submit');
-  await wait("document.querySelector('#chat-title').textContent==='New conversation'", 'confirmed delete');
+  await wait("document.querySelector('#chat-title').disabled && document.querySelector('#chat-title').textContent==='Chat'", 'confirmed delete');
   await cdp('Emulation.setDeviceMetricsOverride', {width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false});
   const createGeometry = await evaluate(`Array.from(document.querySelectorAll('#sidebar .new-chat')).map(button => {
     const label = button.querySelector('.chat-create-label').getBoundingClientRect(); const box = button.getBoundingClientRect();
@@ -3508,7 +3516,7 @@ try {
   await wait("document.querySelector('#temporary-notice').hidden && sessionStorage.getItem('llmx-temporary-chat')===null && !document.querySelector('#temporary-button').disabled", 'leaving discards temporary chat');
   assert.equal(await evaluate("document.querySelector('#temporary-button .chat-create-label').textContent"), 'Temporary chat', 'normal conversation label not restored');
   assert.equal(await evaluate("fetch('/api/chats').then(r=>r.json()).then(d=>d.chats.length)"), savedBeforeTemporary, 'temporary toggle created an empty saved conversation');
-  assert.equal(await evaluate("document.querySelector('#chat-title').textContent==='New conversation' && document.querySelector('.chat-item.active')===null"), true, 'leaving temporary mode did not return to the blank normal view');
+  assert.equal(await evaluate("document.querySelector('#chat-title').disabled && document.querySelector('#chat-title').textContent==='Chat' && document.querySelector('.chat-item.active')===null"), true, 'leaving temporary mode did not return to the blank normal view');
   assert.equal(await evaluate(`fetch('/api/chats/${temporaryId}').then(r=>r.status)`), 404, 'temporary transcript retained after exit');
   if (await detailsOpen()) await click(detailsToggle);
   const chatHeader = [];

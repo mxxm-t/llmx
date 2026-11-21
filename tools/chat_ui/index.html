@@ -88,7 +88,7 @@
             </svg>
           </button>
           <div class="chat-heading">
-            <button id="chat-title" data-action="rename" class="title-button">New conversation</button>
+            <button id="chat-title" data-action="rename" class="title-button" disabled>Chat</button>
           </div>
           <div class="shell-heading" hidden>
             <h1 id="shell-title" tabindex="-1">Monitor</h1>
@@ -125,7 +125,7 @@
           <div id="scroll-region" class="scroll-region">
             <section id="messages" class="messages" aria-label="Messages"></section>
             <div id="welcome" class="welcome">
-              <h1><label for="draft">New message</label></h1>
+              <h1><label for="draft">New conversation</label></h1>
               <button type="button" class="text-button temporary-saved-files" data-action="attach-files" aria-haspopup="dialog" aria-controls="saved-file-dialog">Browse saved files</button>
             </div>
           </div>
@@ -168,7 +168,7 @@
               </section>
               <section id="landing-context" aria-labelledby="landing-context-heading">
                 <div class="landing-collection-head">
-                  <h2 id="landing-context-heading">Add to draft</h2>
+                  <h2 id="landing-context-heading">Attach from workspace</h2>
                   <div class="landing-sources" role="group" aria-label="Workspace source">
                     <button type="button" data-source="files" aria-pressed="true">Files</button>
                     <button type="button" data-source="projects" aria-pressed="false">Projects</button>

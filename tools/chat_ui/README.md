@@ -216,10 +216,10 @@ draft of the conversation you left and adds no empty row to chat history.
 Ending a temporary chat still uses its existing confirmation.
 
 The sidebar highlights the current view and groups saved conversations by pin
-and folder. Search shows matching conversations in one list. The chat landing
-page lists up to three recently updated conversations with messages. Archived
+and folder. Search shows matching conversations in one list. On a phone, the chat landing
+page also lists up to three recently updated conversations with messages. Archived
 conversations stay in the archive. Select a recent conversation to reopen its
-active branch. Beside recent conversations, **Add to draft** lists up to three
+active branch. Below the composer, **Attach from workspace** lists up to three
 saved files or projects by name. Select a file to open the picker with that path
 checked, or a project to review its current files and optional instructions.
 **Browse saved files** and **Browse projects** open the full lists. When the

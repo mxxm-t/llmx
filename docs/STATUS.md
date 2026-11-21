@@ -1,37 +1,5 @@
 # llmx - Development Status
 
-## Mobile workspace file selection in the chat browser check
-
-On Windows the Files tab moved 24 px while the draft resized after the switch to a phone viewport. Clicking the first position on the settled layout reproduced the hosted timeout with Projects still selected. The browser check now waits for stable target bounds and checks the tab selection before reading the file list. The scoped fix lands by fast-forward after the workspace checks.
-
-## Reuse sent attachments in a follow-up
-
-- Goal: Attach the exact text or image from an earlier message to the current draft.
-- Done: The attachment menu lists files by name and turn on the selected branch. Sent text and image viewers can add their saved copy to the current draft. The composer preserves draft text and other files, deduplicates the same copy and reports a filename conflict before changing anything.
-- Checks: The workspace browser test exercises both formats, separate branches, same-name files from two turns, identical and conflicting versions, keyboard focus and zero writes to the server. The change lands by fast-forward after the scoped workspace checks.
-## Conversation reading and writing surfaces
-
-Prompts have a neutral background. Answers use a common reading width for
-prose and code, with locally rendered serif section headings. The composer
-groups its controls below the text. The four main views sit under the wordmark
-in both visual and keyboard order.
-
-- Chrome covered reading, reasoning and tool replies, branch actions, passage navigation, draft recovery, the history drawer and keyboard navigation. The complete workspace journey passed, including 200 percent zoom.
-- A geometry check covered 320, 390, 640, 768, 1024, 1280 and 1440 px. Prose and code had matching widths throughout, from 288 to 621 px. Each viewport fit its composer and draft text.
-- Reviewed the sidebar documentation and the matched light and dark browser captures. The presentation change lands by fast-forward after its scoped checks.
-
-## Original-size attachment images
-
-- Goal: Read fine detail in a large image from a phone or a narrow viewer.
-- Done: The existing viewer fits PNG and JPEG images, offers Actual size for scaled images and scrolls larger images within its bounds.
-- Checks: Chrome checks original dimensions, keyboard panning, both scroll axes, refit after resize and original downloads. The static viewer change lands by fast-forward after its workspace checks.
-
-## Inspect attachments before sending
-
-- Goal: Open the exact text or image in the current draft without sending or removing it.
-- Done: Draft filenames open the selected text or image before sending. Sent attachments use the same viewer. PNG and JPEG downloads retain the original bytes.
-- Checks: Chrome reads HTML as literal text, opens both image types by keyboard, checks dimensions, downloaded bytes, focus, unchanged draft contents and separate removal at 320 and 1440 pixels. Find indexes the filename on the thumbnail and highlights it in the transcript. The feature lands by fast-forward after the scoped workspace checks.
-- Checks: Chrome reads HTML as literal text, opens both image types by keyboard, checks dimensions, downloaded bytes, focus, unchanged draft contents and separate removal at 320 and 1440 pixels. The feature lands by fast-forward after the scoped workspace checks.
 ## New conversation and unsent drafts (2026-11-21)
 
 The new conversation view places saved files and projects beside the composer
@@ -12345,6 +12313,10 @@ Step 6, the head split, was measured on 2, 3, 4 and 8 cards and not merged (the 
 
 | Feature                                  | Status   |
 |------------------------------------------|----------|
+| [Chat reading layout and navigation](../tools/chat_ui/README.md#conversations) | Done on `0ce9374a2`. Chrome checked the transcript, tools, branches, keyboard navigation and 200% zoom. Prose and code shared a 288 to 621 px reading width across seven viewports from 320 to 1440 px. [Workspace checks](https://github.com/mxxm-t/llmx/actions/runs/44894464007). |
+| [Find and reuse a sent attachment](../tools/chat_ui/README.md#conversations) | Done on `fa8197474`. Files are listed by turn on the selected branch. Chrome checked text and image reuse, both versions of a filename, conflict handling, focus and zero server writes. [Workspace checks](https://github.com/mxxm-t/llmx/actions/runs/44894464007). |
+| [Inspect attachments before and after sending](../tools/chat_ui/README.md#conversations) | Done on `6cc5e11e7`, with original-size images on `ee9ebca2a`. Chrome checked literal text, filename search, original PNG and JPEG downloads, keyboard panning, refit on resize and draft preservation at 320 and 1440 px. [Windows and Linux checks on main](https://github.com/mxxm-t/llmx/actions/runs/44893046406). |
+| Mobile Files-tab browser check | Fixed on `374bd4402`. During the switch to phone layout the tab moved 24 px. The test waits for stable bounds, clicks and verifies selection. [Original Windows failure](https://github.com/mxxm-t/llmx/actions/runs/44895022962), [passing Windows and Linux checks on main](https://github.com/mxxm-t/llmx/actions/runs/44896386862). |
 | [Workspace editor and draft attachments](#workspace-editor-and-draft-attachments-2026-11-21-done) | Done on `977570511`. |
 | [Chat composition, grouped tool replies and saved project files](../tools/chat_ui/README.md) | Done on `b90125aa7`. Chrome checked 320, 390 and 1440 px in both themes. [Windows and Linux companion checks](https://github.com/mxxm-t/llmx/actions/runs/44822701326) passed. |
 | [Saved-chat reply status and refresh focus](benchmarks/companion-status-focus-20261118.md) | Done |

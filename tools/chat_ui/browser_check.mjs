@@ -868,6 +868,7 @@ try {
     const remove = '.workspace-editor-actions .danger';
     const deletes = () => apiMutations.filter(request => request.url.endsWith('/api/workspace/delete')).length;
     const beforeDiscard = deletes();
+    assert.equal(await evaluate("document.querySelector('.workspace-editor-actions .danger').textContent"), 'Discard');
     await pointerClick(remove);
     await closeAction('#conversation-cancel');
     assert.equal(await evaluate("document.querySelector('#workspace-editor').value"), 'print(42)', 'cancel kept the unsaved draft');
@@ -875,6 +876,7 @@ try {
     await pointerClick('#conversation-submit');
     await wait("!document.querySelector('#action-dialog').open || document.querySelector('#conversation-error').textContent", 'discard outcome');
     assert.equal(deletes(), beforeDiscard, 'discarding an unsaved file sent a saved-file deletion');
+    await wait("document.activeElement.textContent === 'New file'", 'focus returns to New file after discard');
     assert.equal(await evaluate("document.querySelector('#workspace-editor').disabled && document.querySelector('.workspace-error').hidden"), true);
     assert.equal(await evaluate("(async () => (await ChatShell.api('/workspace/file?path=race.py')).content)()"), 'other tab');
     await openSnippet();
@@ -2664,6 +2666,7 @@ try {
   await wait("typeof window.releaseWorkspaceSave==='function'", 'actual workspace save response held');
   await fill('#workspace-editor', 'Newer unsaved workspace text');
   assert.equal(await evaluate("document.querySelector('#workspace-save').disabled && document.querySelector('#workspace-save').getAttribute('aria-busy')==='true'"), true, 'typing re-enabled a pending save');
+  assert.equal(await evaluate("document.querySelector('.workspace-editor-actions .danger').disabled"), true, 'file removal must wait for the pending save');
   await evaluate('window.releaseWorkspaceSave()');
   await wait("document.querySelector('.workspace-revision').textContent==='Revision '+window.workspaceSaveResult.revision", 'save metadata refresh');
   assert.equal(await evaluate("document.querySelector('#workspace-editor').value"), 'Newer unsaved workspace text');

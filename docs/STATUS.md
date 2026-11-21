@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Discarding an unsaved workspace file (2026-11-21)
+
+- Goal: Discard a new editor buffer locally and reserve Delete for saved files.
+- Done: New files offer Discard. Saved files offer Delete. Cancelling preserves the buffer. Confirming returns focus to New file. Both actions wait for a pending save to finish.
+- Checks: On main, Chrome observed a workspace deletion request for an unsaved buffer. On the fix, discarding issued zero deletions and preserved a same-named file created by another tab. Deleting a saved file issued one request and removed that file.
+- Landing: Fast-forward after the scoped Chat workspace checks.
+
 ## Editing a generated file at an existing path (2026-11-21)
 
 - Goal: Show when a generated snippet will replace an existing workspace file.

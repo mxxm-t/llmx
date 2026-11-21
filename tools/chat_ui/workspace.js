@@ -205,7 +205,9 @@
   async function canReplace() { return !dirty() || Boolean(await window.ChatShell.conversationForm({title: 'Discard unsaved changes?', description: 'Discard the unsaved changes in ' + state.path + '?', destructive: true, submit: 'Discard'})); }
   function fileLanguage(path) { const ext = path.split('.').pop().toLowerCase(); return ({htm: 'html', py: 'python', js: 'javascript', ts: 'typescript', sh: 'bash', rs: 'rust', md: 'markdown', patch: 'diff'})[ext] || ext; }
   function updateEditor() {
-    dirtyLabel.hidden = !dirty(); const enabled = Boolean(state.path); for (const button of [preview, download, remove]) button.disabled = !enabled; save.disabled = !enabled || !dirty() || state.saving; save.setAttribute('aria-busy', String(state.saving));
+    dirtyLabel.hidden = !dirty(); const enabled = Boolean(state.path); for (const button of [preview, download]) button.disabled = !enabled; save.disabled = !enabled || !dirty() || state.saving; save.setAttribute('aria-busy', String(state.saving));
+    remove.textContent = state.isNew ? 'Discard' : 'Delete';
+    remove.disabled = !enabled || state.saving;
     attach.disabled = !enabled || state.attaching; attach.setAttribute('aria-busy', String(state.attaching));
     preview.textContent = fileLanguage(state.path) === 'html' ? 'Preview HTML' : 'View source';
     fileLabel.textContent = state.path;
@@ -328,14 +330,25 @@
     } finally { state.saving = false; updateEditor(); }
   }
   async function deleteFile() {
-    const path = state.path, revision = state.revision;
-    if (!path) return;
+    const {path, revision, isNew} = state;
+    if (!path || state.saving) return;
     const selection = ++state.selection;
-    await window.ChatShell.conversationForm({title: 'Delete workspace file?', description: 'Delete ' + path + ' from the managed workspace?', destructive: true, submit: 'Delete'}, async () => {
-      await api('/workspace/delete', 'POST', {path, revision});
-      if (selection === state.selection) { state.path = ''; state.original = ''; state.isNew = false; editor.value = ''; editor.disabled = true; }
-      await load(); updateEditor();
+    const action = isNew ? 'Discard' : 'Delete';
+    const confirmed = await window.ChatShell.conversationForm({
+      title: isNew ? 'Discard unsaved file?' : 'Delete workspace file?',
+      description: isNew ? 'Discard your unsaved edits to ' + path + '?' : 'Delete ' + path + ' from the managed workspace?',
+      destructive: true, submit: action
+    }, async () => {
+      if (selection !== state.selection) return;
+      if (!isNew) await api('/workspace/delete', 'POST', {path, revision});
+      if (selection === state.selection) {
+        state.path = ''; state.original = ''; state.isNew = false;
+        editor.value = ''; editor.disabled = true;
+        clearError(); updateEditor(); renderFiles();
+      }
+      if (!isNew) await load();
     });
+    if (confirmed && selection === state.selection && !view.hidden && section === 'files') newFile.focus();
   }
   function openArtifact() {
     if (!state.path) return;

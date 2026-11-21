@@ -103,6 +103,15 @@ public:
         std::lock_guard<std::mutex> lk(mu_);
         owners_.erase(std::remove_if(owners_.begin(), owners_.end(), [&](const auto& o) { return o.first == owner; }), owners_.end());
     }
+    // The failure not yet given out, null without one, and whether an owner is left to recover from it at a hand-over.
+    std::exception_ptr pending() {
+        std::lock_guard<std::mutex> lk(mu_);
+        return failed_;
+    }
+    bool owned() {
+        std::lock_guard<std::mutex> lk(mu_);
+        return !owners_.empty();
+    }
 
     // The group's collectives with an open batch of tagged sums, which the next submission of any member closes together (VulkanCollective::close_open); recording thread only.
     std::vector<VulkanCollective*> open_batches;
@@ -1380,11 +1389,12 @@ public:
         submitter_.reset();
     }
     // After a failed queue call: drops the waits left without a signal and, once earlier work has finished, moves the timeline past the tickets given up.
+    // Its flush gives out no failure, so a teardown may give a member up while the failure waits for the group's next hand-over.
     void give_up() noexcept {
         waits_.clear();
         wait_values_.clear();
         if (open_) {
-            try { flush(); } catch (const std::exception& e) {
+            try { flush(false); } catch (const std::exception& e) {
                 std::fprintf(stderr, "vulkan: %s; the device is lost\n", e.what());
                 std::abort();
             }

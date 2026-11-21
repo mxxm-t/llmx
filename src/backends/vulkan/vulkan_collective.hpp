@@ -178,9 +178,10 @@ public:
     Slice partial(size_t member) override { return {partial_.at(member).get(), 0}; }
 
     // An open batch of tagged sums is closed first; an abort its receivers report turns the route off and is thrown by the next sum, since a wait cannot throw.
+    // The close does not give out a queue-thread failure, which the next hand-over then throws.
     void wait(size_t back) noexcept override {
         if (!runs_.empty()) {
-            try { close_open(*submitter_, nullptr, true); } catch (const std::exception&) {}
+            try { close_open(*submitter_, nullptr, false); } catch (...) {}
         }
         const std::vector<Ticket>& sum = back ? before_ : last_;
         for (size_t m = 0; m < sum.size(); ++m) members_[m]->wait(sum[m]);
@@ -642,14 +643,22 @@ private:
         try { make_semaphores(); } catch (const std::exception&) { destroy_semaphores(); }
     }
     // The queue thread's calls go first, then the member threads: release drains members they call; the context that holds a collective goes before the model's backends.
-    // Safe on what a throwing constructor left: each step undoes only what was made, and each member routed is given back.
+    // Safe on what a throwing constructor left, each step undoing only what was made and each member routed given back; a pending queue-thread failure is kept (docs/src/backends-vulkan.md).
     void dismantle() noexcept {
         if (!runs_.empty()) {
-            try { close_open(*submitter_, nullptr, true); } catch (const std::exception&) {}
+            try { close_open(*submitter_, nullptr, false); } catch (...) {}
         }
         if (submitter_) {
             submitter_->disown(this);
             submitter_->drain();
+            if (const std::exception_ptr e = submitter_->pending()) {
+                for (VulkanBackend* m : members_) m->give_up();
+                if (!submitter_->owned()) {
+                    try { std::rethrow_exception(e); } catch (const std::exception& x) {
+                        std::fprintf(stderr, "vulkan: %s; the tensor group ended before it was given out\n", x.what());
+                    } catch (...) {}
+                }
+            }
         }
         threads_.reset();
         release();
@@ -665,14 +674,11 @@ private:
         routed_ = 0;
     }
     // Every member drained first, so no submission still waits on, signals or reads what goes.
-    // An open tagged batch is dropped: its senders and gates submitted without receivers abort at the cap.
+    // An open tagged batch closes with the group's others, whose pushes share its members' streams; one whose receivers cannot be recorded is dropped, and its senders abort at the cap.
     void release() noexcept {
-        if (submitter_) {
-            std::vector<VulkanCollective*>& open = submitter_->open_batches;
-            open.erase(std::remove(open.begin(), open.end(), this), open.end());
+        if (!runs_.empty()) {
+            try { close_open(*submitter_, nullptr, false); } catch (...) {}
         }
-        if (!runs_.empty()) ++gen_;
-        runs_.clear();
         for (VulkanBackend* m : members_) m->sync();
         if (submitter_) submitter_->drain();
         for (size_t t = 0; t < rtimeline_.size(); ++t) wait_received(t, received_);

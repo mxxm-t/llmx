@@ -1274,6 +1274,19 @@ try {
   assert.equal(await evaluate("document.querySelector('.brand-wordmark').getBoundingClientRect().height"), 30, 'sidebar wordmark height');
   assert.equal(await evaluate("(async()=>{const img=new Image();img.src='/logo.svg';await img.decode();return img.naturalWidth>0})()"), true, 'wordmark asset decoded');
   await screenshot('desktop-empty.png');
+  const comparison = await evaluate(String.raw`(() => {
+    const md = ChatRender.markdown('| Operation | Unit | Before | After |\n| :--- | :---: | ---: | ---: |\n| Read \\| write | **ms** | 19 | 8 |\n| Pending | ms |\n| Extra | ms | 2 | 1 | discard |');
+    document.body.append(md);
+    const rows = Array.from(md.querySelectorAll('tr'), row => Array.from(row.cells, cell => cell.textContent));
+    const align = Array.from(md.querySelector('tbody tr').cells, cell => getComputedStyle(cell).textAlign);
+    const bold = md.querySelector('td strong')?.textContent;
+    const headers = Array.from(md.querySelectorAll('th'), cell => cell.scope);
+    md.remove();
+    const invalid = ['| --- | words |', '| --- |'].map(line => !!ChatRender.markdown('| A | B |\n' + line).querySelector('table'));
+    return {rows, align, bold, headers, invalid};
+  })()`);
+  assert.deepEqual(comparison, {rows:[['Operation','Unit','Before','After'],['Read | write','ms','19','8'],['Pending','ms','',''],['Extra','ms','2','1']],
+    align:['left','center','right','right'], bold:'ms', headers:['col','col','col','col'], invalid:[false,false]}, 'comparison table layout');
   const stableMarkdown = await evaluate(String.raw`(() => {
     const samples=['# Title\n\nParagraph with **bold**.\n\n- Item\n  - Nested\n\n\x60\x60\x60python\nprint(1)\n\x60\x60\x60\n\nTail', '| First | Second |\n| --- | --- |\n| A | B |\n\n> Quote\n\n<script>literal</script>'];
     for(const source of samples){

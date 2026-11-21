@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Chat comparison tables (2026-11-21)
+
+- Goal: Keep measurements aligned with their headers, including comparisons with literal pipes in a label.
+- Done: Reproduced the parser splitting escaped pipes and ignoring Markdown column alignment.
+- Left: Cover the renderer in the browser, implement the table rules and verify narrow layouts.
+- Gotcha: Model text is untrusted and must still go through the safe inline renderer.
+
 ## Jump to the latest chat turn (2026-11-21)
 
 - Goal: Let a reader return to the latest message when automatic following has stopped, without moving the composer.

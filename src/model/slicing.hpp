@@ -355,23 +355,49 @@ private:
         return {};
     }
     // Each stage's line through `band`'s own points of prefills `since` to before `until`; none unless every stage has one.
-    std::vector<StageLine> band_fit(size_t band, size_t stages, size_t since, size_t until) const {
+    // A stage whose own points give no line of positive costs takes the band's shape, the ratio of fixed cost to cost a row of one line through every stage's points, scaled to its own points, and is set in `shaped` (docs/src/model-slicing.md).
+    std::vector<StageLine> band_fit(size_t band, size_t stages, size_t since, size_t until, std::vector<bool>* shaped = nullptr) const {
         const auto it = points_.find(band);
         if (it == points_.end() || it->second.size() != stages) return {};
         std::vector<StageLine> l;
-        std::vector<LinePoint> kept;
-        for (const auto& points : it->second) {
-            kept.clear();
-            for (const Point& p : points)
-                if (p.prefill >= since && p.prefill < until) kept.push_back(p.at);
-            const auto line = fit_line(kept);
-            if (!line) return {};
-            l.push_back(*line);
+        std::vector<std::vector<LinePoint>> kept(stages);
+        std::vector<LinePoint> all;
+        std::vector<size_t> missed;
+        if (shaped) shaped->assign(stages, false);
+        for (size_t s = 0; s < stages; ++s) {
+            for (const Point& p : it->second[s])
+                if (p.prefill >= since && p.prefill < until) kept[s].push_back(p.at);
+            const auto line = fit_line(kept[s]);
+            if (!line) missed.push_back(s);
+            l.push_back(line.value_or(StageLine{}));
+        }
+        if (missed.empty()) return l;
+        // Each stage's points scaled by its mean time a row, so the shape is not the costliest stage's alone.
+        for (size_t s = 0; s < stages; ++s) {
+            double ms = 0, rows = 0;
+            for (const LinePoint& p : kept[s])
+                if (p.ms > 0 && p.weight > 0) ms += p.weight * p.ms, rows += p.weight * p.rows;
+            if (!(ms > 0 && rows > 0)) return {};
+            for (LinePoint p : kept[s]) {
+                p.ms *= rows / ms;
+                all.push_back(p);
+            }
+        }
+        const auto shape = fit_line(all);
+        if (!shape) return {};
+        const double ratio = shape->fixed_ms / shape->row_ms;
+        for (const size_t s : missed) {
+            double ms = 0, cost = 0;
+            for (const LinePoint& p : kept[s])
+                if (p.ms > 0 && p.weight > 0 && p.slices > 0) ms += p.weight * p.ms * (ratio * p.slices + p.rows), cost += p.weight * (ratio * p.slices + p.rows) * (ratio * p.slices + p.rows);
+            if (!(ms > 0 && cost > 0)) return {};
+            l[s].row_ms = ms / cost, l[s].fixed_ms = ratio * l[s].row_ms;
+            if (shaped) (*shaped)[s] = true;
         }
         return l;
     }
 
-    // Drops the points of the oldest prefills in the `seen` bands while they keep a band from a fit, or their own lines miss `prefill`'s points, as a cold first prefill's do.
+    // Drops the points of the oldest prefills in the `seen` bands while they keep a band from a fit, give no line where the band fits only through the shape, or their own lines miss `prefill`'s points, as a cold first prefill's do.
     // A stage misses when its mean time on `prefill`'s slices is off by more than kCalibrationShare of the band's least fixed cost, more than the calibration absorbs; dropping restarts the bands' calibration (docs/src/model-slicing.md).
     bool shed(size_t stages, const std::vector<size_t>& seen, size_t prefill) {
         std::vector<size_t> ids;
@@ -383,13 +409,30 @@ private:
         const auto fits = [&](size_t since) {
             return std::all_of(seen.begin(), seen.end(), [&](size_t b) { return !fit(b, stages, since).empty(); });
         };
+        // Only stages with lines of their own decide: a line from the band's shape misses a curved stage's points at new sizes, and shedding on it restarts the calibration every other prefill.
         const auto meets = [&](size_t since) {
             for (const size_t b : seen) {
-                const auto l = band_fit(b, stages, since, prefill);
-                if (l.empty()) continue;
+                std::vector<bool> shaped;
+                const auto l = band_fit(b, stages, since, prefill, &shaped);
+                if (l.empty()) {
+                    // Older points without a line keep their prefills unless every stage has them at several sizes and the band's whole fit needs the shape, as a cold first prefill's mix does, so a band first reached sheds no other band.
+                    bool sizes = true;
+                    for (const auto& points : points_[b]) {
+                        double rows = -1;
+                        size_t sized = 0;
+                        for (const Point& p : points)
+                            if (p.prefill >= since && p.prefill < prefill && p.at.rows != rows) rows = p.at.rows, ++sized;
+                        sizes = sizes && sized > 1;
+                    }
+                    std::vector<bool> whole;
+                    if (!sizes || band_fit(b, stages, since, std::numeric_limits<size_t>::max(), &whole).empty() || std::none_of(whole.begin(), whole.end(), [](bool x) { return x; })) continue;
+                    return false;
+                }
                 double least = std::numeric_limits<double>::infinity();
-                for (const StageLine& x : l) least = std::min(least, x.fixed_ms);
+                for (size_t s = 0; s < stages; ++s)
+                    if (!shaped[s]) least = std::min(least, l[s].fixed_ms);
                 for (size_t s = 0; s < stages; ++s) {
+                    if (shaped[s]) continue;
                     double off = 0, count = 0;
                     for (const Point& p : points_[b][s])
                         if (p.prefill == prefill) off += p.at.ms - l[s].fixed_ms * p.at.slices - l[s].row_ms * p.at.rows, count += p.at.slices;

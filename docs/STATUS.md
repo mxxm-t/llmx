@@ -5,6 +5,12 @@
 - Goal: Continue from a model-written file in the conversation to its workspace editor.
 - Done: Open in editor takes a saved tool result to its original workspace path. The workspace loads the latest saved file or resumes a dirty buffer for the same path.
 - Checks: Chrome covers the HTML preview, a change made after opening it, an earlier file read arriving after the editor resumes, conflict results, the discard dialog and preserving the chat draft. The feature lands by fast-forward after the scoped workspace checks.
+## Attach the current editor file to a draft
+
+- Goal: Keep a single, unambiguous copy of a workspace path in the chat draft.
+- Done: The project picker checks for conflicting file versions. The editor currently uses device upload behavior.
+- Left: Exercise repeated editor attachment and align it with the workspace path rule.
+- Gotchas: A different, unsaved version must stay in the editor if the draft already contains a copy.
 
 ## Chat history sections
 

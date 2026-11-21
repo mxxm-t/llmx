@@ -271,9 +271,14 @@ keeps **Browse saved files** available and loads the list when you open it.
 - In either index, Up and Down move between entries, Home and End reach the first
   or last entry, and Enter jumps. Longer indexes have pages of 25 entries.
   **Conversation actions > Conversation outline** opens the same index.
-- Choose **Find** in the reading bar, **Conversation actions > Find in conversation**
-  or Ctrl+Shift+F (Command+Shift+F on macOS) to search message text and attachment
-  filenames on the current branch. Choose a result to jump to its message.
+- Choose **Find** in the reading bar or press Ctrl+Shift+F (Command+Shift+F on
+  macOS). Search message text and attachment names on the current branch. Choosing
+  a result highlights its first visible match. Use **Previous match** or **Next match**
+  to step through occurrences in reading order, including repeated text in the same
+  answer. F3 advances, Shift+F3 goes back, and Escape closes the search. Select
+  the search term to edit it. The bar updates as replies stream. A filename match
+  on an image outlines the image. Browsers without custom text highlights outline
+  the matching block. A result marked **Markdown** jumps to the message whose source matches.
 - **Conversation actions > Download Markdown** saves the current branch's prompt and reply text in reading order. It leaves out tool payloads, reasoning, attachments and unsent drafts. Use **Export JSON** for a backup with branches.
 - The header actions menu appears when a saved or temporary conversation is open.
   Each sidebar row has a compact anchored actions menu for rename, pin/unpin,
@@ -296,13 +301,14 @@ keeps **Browse saved files** available and loads the list when you open it.
   saved settings. You can keep editing while Save or a reply request is
   pending. Wait for that request to finish before submitting another change
   for the same chat.
-- The speaker and time appear above each turn. An inset rule marks the prompt.
-  Copy and Edit sit beside the speaker on wide screens and below the prompt
-  on narrow ones. Their icons share the styling, keyboard focus and touch targets
+- Wide conversations have a speaker and time column beside the messages. On a
+  narrow screen those labels appear above the text. An inset rule marks each
+  prompt. Copy and Edit appear below it. Their icons share the styling, keyboard focus and touch targets
   used by Retry, Statistics and the branch arrows under a reply. Statistics
   stays highlighted while its panel is open.
   Assistant prose uses shorter lines on wide screens, while code and tables
-  retain the space they need.
+  retain the space they need. Attached files appear inside the draft box with their sizes.
+  The draft grows as its text wraps when the available width changes.
   Consecutive model calls in a tool-assisted reply share a heading and a side
   rule. Each call keeps its own actions and expandable details. One statistics
   icon covers the reply, including its tool-related model calls.

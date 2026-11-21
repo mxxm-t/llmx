@@ -6,6 +6,12 @@
 - Done: Folder, pinned and recent sections fold using native disclosure controls. Counts come from the listed conversations. Search includes closed groups and the archive keeps its own expansion state.
 - Checks: The focused Chrome test covers keyboard and phone navigation, search, archive and a user folder named Pinned.
 - Gotchas: Section state lasts while the page is open.
+## Find passages while reading a conversation (2026-11-21)
+
+- Goal: Move between occurrences of text on the selected branch and keep the transcript and draft easy to read.
+- Done: Choosing a search result highlights the actual passage and shows its position. Previous, Next, F3 and Shift+F3 traverse formatted text, code and attachment names. Live replies update the count while the reader stays at the selected passage. Wide transcripts have a speaker and time column. Actions sit below each message, and attached files share the draft box.
+- Checks: Chrome verified five visible occurrences across four messages, excluded private reasoning, tested repeated matches, retained the draft and text selection, and stepped to a new match after 45 paragraphs streamed. Both themes were checked at 320 and 1440 pixels. A 46 px input previously clipped 68 px of draft text after narrowing the viewport. The composer now remeasures on width changes and preserves selection and its 220 px height cap.
+- Landing: Fast-forward after the scoped Linux and Windows Chat workspace checks. The finder operates on the open conversation in the browser.
 
 ## Keyboard return from Saved files (2026-11-21)
 

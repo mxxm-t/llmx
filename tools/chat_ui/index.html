@@ -119,7 +119,7 @@
         <div id="banner" class="banner" role="status" hidden></div>
         <div class="chat-stage">
           <nav id="reading-navigation" aria-label="Conversation navigation" hidden>
-            <div class="reading-controls">
+            <div id="reading-default" class="reading-controls">
               <span id="reading-position"></span>
               <button type="button" id="conversation-contents" data-action="outline" aria-haspopup="dialog" aria-controls="find-message-dialog">
                 <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 5h13M8 12h10M8 19h13M3 5h.1M3 12h.1M3 19h.1"/></svg>Contents
@@ -127,6 +127,15 @@
               <button type="button" data-action="find-message" aria-haspopup="dialog" aria-controls="find-message-dialog" aria-label="Find in conversation">
                 <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>Find
               </button>
+            </div>
+            <div id="passage-navigation" class="reading-controls" role="group" aria-label="Search matches" hidden>
+              <button type="button" id="passage-edit" aria-label="Edit search" aria-describedby="passage-query" aria-haspopup="dialog" aria-controls="find-message-dialog">
+                <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><span id="passage-query"></span>
+              </button>
+              <span id="passage-position" role="status"></span>
+              <button type="button" id="passage-previous" aria-label="Previous match" title="Previous match (Shift+F3)"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></svg></button>
+              <button type="button" id="passage-next" aria-label="Next match" title="Next match (F3)"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+              <button type="button" id="passage-close" aria-label="Close search" title="Close search (Escape)"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
             </div>
           </nav>
           <div id="scroll-region" class="scroll-region">
@@ -138,8 +147,8 @@
           </div>
           <div class="composer-area">
             <div id="edit-note" class="edit-note" hidden>Editing creates a new branch.<button data-action="cancel-edit">Cancel edit</button></div>
-            <div id="attachments" class="attachments"></div>
             <form id="composer" class="composer">
+              <div id="attachments" class="attachments"></div>
               <span id="file-drop-hint" role="status" hidden>Drop files to attach to this message</span>
               <textarea id="draft" rows="1" aria-label="Message" placeholder="Write a message..." maxlength="1000000"></textarea>
               <div class="composer-toolbar">
@@ -148,6 +157,7 @@
                     <svg viewBox="0 0 24 24">
                       <path d="m8 12 6-6a4 4 0 0 1 6 6L10 22a6 6 0 0 1-8-8L12 4M6 16l10-10"/>
                     </svg>
+                    <span class="attach-label">Attach</span>
                   </button>
                   <button type="button" class="context-shortcut" data-action="attach-project" aria-haspopup="dialog" aria-controls="project-context-dialog" title="Use a saved project" aria-label="Use a saved project"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 7V5h6l2 2h10v12H3Z"/></svg><span>Project</span></button>
                   <span class="composer-divider"></span>

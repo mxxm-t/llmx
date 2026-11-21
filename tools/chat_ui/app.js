@@ -133,7 +133,7 @@
   }
   function currentRun() { return S.runs.find(r => !terminal(r.status)); }
   function closeStream() { if (S.stream) S.stream.close(); S.stream = null; }
-  document.addEventListener('companion:unauthorized', () => { closeStream(); closeDrawers(false); });
+  document.addEventListener('companion:unauthorized', () => { closeStream(); closePassages(); closeDrawers(false); });
   function connection(text, offline = false) { const el = $('connection'); el.replaceChildren(node('span', 'status-dot'), document.createTextNode(text)); el.classList.toggle('offline', offline); document.querySelector('.inspector-bottom').replaceChildren(node('span', 'status-dot'), document.createTextNode(offline ? text : 'Connected to the model server')); }
   function settings() {
     const value = {model: $('model').value, system: $('setting-system').value};
@@ -422,6 +422,7 @@
     const data = snapshot || await chatSnapshot(id); if (generation !== S.generation) return;
     rememberDraft(); flushDrafts();
     closeStream();
+    closePassages();
     S.chat = data.chat; S.messages = data.messages || []; S.runs = data.runs || []; S.edit = null; S.fingerprint.clear(); S.inspectorKey = '';
     snapshotBanner();
     restoreDraft();
@@ -458,6 +459,7 @@
     } finally { chatCreating(false); }
   }
   function clearChat({keepDraft = false} = {}) {
+    closePassages();
     hideReplyStats();
     pdfSelection?.abort();
     const old = S.chat;
@@ -667,22 +669,175 @@
     later.onclick = () => select(first + size);
     choose(!turns.length && Boolean(headings.length), true);
   }
-  function findMessage(outline = false) {
+  function literalPattern(term, flags) {
+    return new RegExp(Array.from(term, ch => '^$\\.*+?()[]{}|'.includes(ch) ? '\\' + ch : ch).join(''), flags);
+  }
+  function searchEntries(messages, cache) {
+    const data = new Map(messages.map(message => [message.id, message])), entries = [];
+    for (const article of $('messages').children) {
+      const message = data.get(article.dataset.message);
+      if (!message) continue;
+      const fingerprint = S.fingerprint.get(message.id), saved = cache.get(article);
+      if (saved && saved.fingerprint === fingerprint) { entries.push({message, article, fields:saved.fields}); continue; }
+      const fields = [];
+      for (const block of article.querySelectorAll(':scope > .message-attachments > *, :scope > .markdown > *')) {
+        let runs = cache.get(block);
+        if (!runs) {
+          runs = [];
+          const filename = block.parentElement.classList.contains('message-attachments');
+          if (block.tagName === 'IMG') runs.push({text:block.alt, element:block, nodes:[], filename});
+          else {
+            const walker = document.createTreeWalker(block, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
+              acceptNode: item => item.classList?.contains('code-heading') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT
+            });
+            let field;
+            for (let item = walker.nextNode(); item; item = walker.nextNode()) {
+              if (item.nodeName === 'BR') { field = null; continue; }
+              if (item.nodeType !== Node.TEXT_NODE || !item.length) continue;
+              const element = item.parentElement.closest('p,li,td,th,pre,blockquote,h2,h3,h4,h5,h6') || block;
+              if (!field || field.element !== element) {
+                field = {text:'', element, nodes:[], filename};
+                runs.push(field);
+              }
+              field.text += item.data; field.nodes.push(item);
+            }
+          }
+          cache.set(block, runs);
+        }
+        for (const field of runs) fields.push(field);
+      }
+      cache.set(article, {fingerprint, fields});
+      entries.push({message, article, fields});
+    }
+    return entries;
+  }
+
+  let passage = null, passageTimer = null;
+  function clearPassageMark() {
+    window.CSS.highlights?.delete('chat-passage');
+    passage?.marked?.classList.remove('passage-target');
+  }
+  function closePassages(focus = false) {
+    if (!passage) return;
+    clearTimeout(passageTimer); passageTimer = null;
+    clearPassageMark(); passage = null;
+    $('passage-navigation').hidden = true; $('reading-default').hidden = false;
+    $('passage-query').textContent = $('passage-position').textContent = '';
+    $('passage-edit').removeAttribute('title');
+    if (focus) $('reading-default').querySelector('[data-action=find-message]').focus({preventScroll:true});
+  }
+  function passageRange(field, at, length) {
+    let offset = 0, range;
+    for (const text of field.nodes) {
+      const end = offset + text.length;
+      if (!range && at < end) { range = document.createRange(); range.setStart(text, at - offset); }
+      if (range && at + length <= end) { range.setEnd(text, at + length - offset); return range; }
+      offset = end;
+    }
+    return null;
+  }
+  function showPassage(index, scroll, focus = false) {
+    const {rows, total, pattern} = passage;
+    clearPassageMark();
+    const position = $('passage-position');
+    if (!total) {
+      position.textContent = 'No matches'; passage.index = 0;
+      $('passage-next').disabled = $('passage-previous').disabled = true;
+      return;
+    }
+    $('passage-next').disabled = $('passage-previous').disabled = total < 2;
+    index = (index + total) % total;
+    const row = rows.find(item => item.start + item.count > index);
+    pattern.lastIndex = 0;
+    let hit;
+    for (let i = row.start; i <= index; i++) hit = pattern.exec(row.field.text);
+    const {element} = row.field, range = passageRange(row.field, hit.index, hit[0].length);
+    if (range && window.CSS.highlights && window.Highlight) CSS.highlights.set('chat-passage', new Highlight(range));
+    else { element.classList.add('passage-target'); passage.marked = element; }
+    passage.index = index; passage.field = row.field; passage.local = index - row.start;
+    const label = (index + 1) + ' of ' + total;
+    if (position.textContent !== label) position.textContent = label;
+    if (focus) { closeDrawers(false); row.article.tabIndex = -1; row.article.focus({preventScroll:true}); }
+    if (!scroll) return;
+    const rect = range?.getBoundingClientRect() || element.getBoundingClientRect();
+    const horizontal = element.closest('pre,.table-scroll');
+    if (horizontal) {
+      const bounds = horizontal.getBoundingClientRect();
+      if (rect.left < bounds.left || rect.right > bounds.right) horizontal.scrollLeft += rect.left - bounds.left - 12;
+    }
+    const region = $('scroll-region'), bounds = region.getBoundingClientRect();
+    region.scrollTop += rect.top - bounds.top - (region.clientHeight - Math.min(rect.height, region.clientHeight)) / 2;
+  }
+  function indexPassages(entries, target) {
+    const {role, pattern, counts, field, index} = passage;
+    let total = 0, selected = null;
+    const rows = [];
+    for (const {message, article, fields} of entries) {
+      if (role !== 'all' && role !== message.role) continue;
+      for (const part of fields) {
+        let count = counts.get(part);
+        if (count === undefined) {
+          pattern.lastIndex = 0; count = 0;
+          while (pattern.test(part.text)) count++;
+          counts.set(part, count);
+        }
+        if (!count) continue;
+        if (selected === null && message.id === target) selected = total;
+        if (!target && part === field) selected = total + Math.min(passage.local, count - 1);
+        rows.push({article, field:part, count, start:total}); total += count;
+      }
+    }
+    passage.total = total; passage.rows = rows;
+    return selected ?? Math.min(index, Math.max(0, total - 1));
+  }
+  function refreshPassages() {
+    if (!passage || passageTimer !== null) return;
+    passageTimer = setTimeout(() => {
+      passageTimer = null;
+      const entries = searchEntries(dialogueMessages(), passage.cache);
+      showPassage(indexPassages(entries), false);
+    }, 180);
+  }
+  function startPassages(term, role, id, cache) {
+    closePassages();
+    passage = {term, role, cache, counts:new WeakMap(), pattern:literalPattern(term,'giu'), rows:[], index:0};
+    const index = indexPassages(searchEntries(dialogueMessages(), cache), id);
+    if (!passage.rows.some(row => row.article.dataset.message === id)) {
+      closePassages(); jumpToMessage(id); return;
+    }
+    $('reading-default').hidden = true; $('passage-navigation').hidden = false;
+    $('passage-query').textContent = term; $('passage-edit').title = 'Edit search: ' + term;
+    showPassage(index, true, true);
+  }
+  function stepPassage(direction) {
+    if (!passage) return;
+    if (passageTimer !== null) {
+      clearTimeout(passageTimer); passageTimer = null;
+      passage.index = indexPassages(searchEntries(dialogueMessages(), passage.cache));
+    }
+    showPassage(passage.index + direction, true);
+  }
+  $('passage-previous').onclick = () => stepPassage(-1);
+  $('passage-next').onclick = () => stepPassage(1);
+  $('passage-close').onclick = () => closePassages(true);
+  $('passage-edit').onclick = () => { if (passage) findMessage(false, passage); };
+
+  function findMessage(outline = false, previous = null) {
     const dialog = $('find-message-dialog'), query = $('find-message-query'), list = $('find-message-list'), more = $('find-message-more');
     const role = $('find-message-role'), earlier = $('find-message-earlier'), messages = dialogueMessages();
-    const entries = outline ? [] : messages.reverse().map(message => ({
-      message, fields: [message.content, ...(message.attachments || []).map(file => file.name)]
-    }));
+    const cache = new WeakMap(), entries = outline ? [] : searchEntries(messages, cache).reverse();
     let matches = [], shown = 0;
     function appendPage() {
       const start = shown;
-      for (const {message, text, filename, at, length} of matches.slice(start, start + 25)) {
+      for (const {message, text, filename, raw, at, length} of matches.slice(start, start + 25)) {
         const item = node('button', 'find-message-result');
         item.type = 'button';
         item.dataset.target = message.id;
+        if (raw && length) item.dataset.source = 'true';
         const from = Math.max(0, at - 40), end = Math.min(text.length, at + length + 100);
         const excerpt = node('span');
         if (filename) excerpt.append('File: ');
+        else if (raw && length) excerpt.append('Markdown: ');
         excerpt.append((from ? '...' : '') + text.slice(from, at));
         if (length) excerpt.append(node('mark', '', text.slice(at, at + length)));
         excerpt.append(text.slice(at + length, end) + (end < text.length ? '...' : ''));
@@ -695,16 +850,17 @@
     }
     function filter() {
       const term = query.value.trim();
-      const escaped = Array.from(term, ch => '^$\\.*+?()[]{}|'.includes(ch) ? '\\' + ch : ch).join('');
-      const pattern = term ? new RegExp(escaped, 'iu') : null;
+      const pattern = term ? literalPattern(term, 'iu') : null;
       matches = [];
       for (const {message, fields} of entries) {
         if (role.value !== 'all' && message.role !== role.value) continue;
-        for (const [i, text] of fields.entries()) {
+        const source = {text:message.content, source:true};
+        const searchable = pattern ? [...fields, source] : [source, ...fields];
+        for (const {text, filename, source: raw} of searchable) {
           if (!text) continue;
           const hit = pattern?.exec(text);
           if (pattern && !hit) continue;
-          matches.push({message, text, filename: i > 0, at: hit?.index || 0, length: hit?.[0].length || 0});
+          matches.push({message, text, filename, raw, at: hit?.index || 0, length: hit?.[0].length || 0});
           break;
         }
       }
@@ -722,8 +878,8 @@
     list.removeAttribute('aria-description');
     earlier.hidden = true; earlier.onclick = list.onkeydown = null;
     more.textContent = outline ? 'Later turns' : 'Show more';
-    query.value = '';
-    role.value = 'all';
+    query.value = previous?.term || '';
+    role.value = previous?.role || 'all';
     role.onchange = filter;
     query.oninput = filter;
     query.onkeydown = event => {
@@ -735,7 +891,11 @@
     more.onclick = appendPage;
     list.onclick = event => {
       const item = event.target.closest('button[data-target]');
-      if (item) { dialog.close(); jumpToMessage(item.dataset.target); }
+      if (!item) return;
+      const term = query.value.trim();
+      dialog.close();
+      if (term && !item.dataset.source) startPassages(term, role.value, item.dataset.target, cache);
+      else { closePassages(); jumpToMessage(item.dataset.target); }
     };
     dialog.onclose = () => {
       if (dialog.open) return;
@@ -744,7 +904,7 @@
       list.replaceChildren();
     };
     dialog.showModal();
-    if (outline) showOutline(messages, list, earlier, more);
+    if (outline) { closePassages(); showOutline(messages, list, earlier, more); }
     else { filter(); query.focus(); }
   }
   function replyGroups() {
@@ -1135,7 +1295,7 @@
       if (control) { control.dataset.reply = group.id; control.hidden = index !== group.calls.length - 1; control.setAttribute('aria-expanded', String(replyStats?.id === group.id)); }
     }));
     positionReplyStats(); syncLiveMetrics(); renderInspector(); renderContextLimits(); tick();
-    syncJump(); if (nearBottom) requestAnimationFrame(bottom);
+    syncJump(); refreshPassages(); if (nearBottom && !passage) requestAnimationFrame(bottom);
   }
   function syncLiveMetrics() {
     const run = currentRun();
@@ -1461,7 +1621,7 @@
     if (currentRun()) throw new Error('Stop the current response before changing branches.');
     let leaf = id; const seen = new Set();
     while (!seen.has(leaf)) { seen.add(leaf); const children = S.messages.filter(m => m.parent_id === leaf); if (!children.length) break; leaf = children.at(-1).id; }
-    await patchChat({active_leaf: leaf}); bottom();
+    await patchChat({active_leaf: leaf}); closePassages(); bottom();
   }
   function renderAttachments() {
     const root = $('attachments'); root.replaceChildren(); let total = 0;
@@ -1560,7 +1720,14 @@
     $('jump-bottom').hidden = !$('welcome').hidden || followsLatest();
   }
   function bottom() { const region = $('scroll-region'); region.scrollTop = region.scrollHeight; syncJump(); }
-  function resizeDraft() { const el = $('draft'); el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 220) + 'px'; rememberDraft(); }
+  function resizeDraft() {
+    const draft = $('draft');
+    draft.style.overflowY = 'hidden';
+    draft.style.height = 'auto';
+    const height = draft.scrollHeight;
+    draft.style.height = Math.min(height, 220) + 'px';
+    draft.style.overflowY = height > 220 ? 'auto' : 'hidden';
+  }
   function showTab(name) { S.tab = name; document.querySelectorAll('[data-tab]').forEach(el => { el.setAttribute('aria-selected', String(el.dataset.tab === name)); el.tabIndex = el.dataset.tab === name ? 0 : -1; }); for (const tab of ['activity', 'stats', 'settings']) $('panel-' + tab).hidden = tab !== name; syncLiveMetrics(); renderContextLimits(); }
   function usesDetailsDrawer() { return document.documentElement.dataset.compact === 'true' || window.innerWidth <= 1200; }
   function canFocusDrawerControl(el) {
@@ -1801,7 +1968,15 @@
     execute().catch(error => toast(error.message));
   });
   $('composer').addEventListener('submit', event => { event.preventDefault(); send().catch(error => banner(error.message)); });
-  $('draft').addEventListener('input', () => { composerRevision++; resizeDraft(); });
+  $('draft').addEventListener('input', () => { composerRevision++; resizeDraft(); rememberDraft(); });
+  let composerWidth = 0;
+  const composerSize = new ResizeObserver(([entry]) => {
+    const width = entry.contentRect.width;
+    if (width === composerWidth) return;
+    composerWidth = width;
+    if (width > 0) requestAnimationFrame(resizeDraft);
+  });
+  composerSize.observe($('composer'));
   $('model').addEventListener('change', () => { snapshotBanner(); render(); });
   $('setting-reply-limit').addEventListener('change', () => { renderReplyLimit(); if (!$('setting-max_tokens').disabled) $('setting-max_tokens').focus(); });
   $('draft').addEventListener('keydown', event => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); send().catch(error => banner(error.message)); } });
@@ -1839,6 +2014,12 @@
       findMessage();
       return;
     }
+    if (passage && !modalDrawer && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      if (event.key === 'F3') { event.preventDefault(); stepPassage(event.shiftKey ? -1 : 1); return; }
+      if (event.key === 'Escape') {
+        event.preventDefault(); closePassages(!event.target.closest('input,textarea,[contenteditable=true]')); return;
+      }
+    }
     if (modalDrawer && event.key === 'Escape') { event.preventDefault(); closeDrawers(); return; }
     if (modalDrawer && event.key === 'Tab') {
       const controls = Array.from(modalDrawer.querySelectorAll('a[href],button,input,textarea,select,details > summary:first-child,[tabindex]'))
@@ -1869,7 +2050,7 @@
     }
   });
   document.addEventListener('companion:view', event => {
-    if (event.detail !== 'chat') pdfSelection?.abort();
+    if (event.detail !== 'chat') { pdfSelection?.abort(); closePassages(); }
     if (modalDrawer && (modalDrawer === $('sidebar') || event.detail !== 'chat')) closeDrawers(window.ChatShell.viewFocusTarget());
     else updateShade();
     renderLiveMetrics();

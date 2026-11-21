@@ -218,7 +218,10 @@ class BrowserTests(unittest.TestCase):
                 "};\n",
                 encoding="ascii",
             )
-            self.run_focused_browser(node, chrome, root, "message-find", ("--message-find-only",), [],
+            survey = " Keep checking the station.\n\n" + "Record the water depth and wind at each marker.\n\n" * 45
+            reply = [text_event("A **tide** window opens in the morning."), "WAIT",
+                     text_event(survey + "A tide window opens again at dusk.")]
+            self.run_focused_browser(node, chrome, root, "message-find", ("--message-find-only",), [reply],
                                      node_options=("--require", str(delay_page_list)))
 
     def test_edit_generated_file_at_existing_path(self):

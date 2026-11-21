@@ -147,6 +147,9 @@ The browser checks that pending approval opens the full arguments for review
 after a collapsed preparation and after reload, with separate actions for one
 call, a remembered allowance in the same reply, and denial. Settings shows
 each tool's policy and description on separate lines.
+The passage finder fixture checks repeated occurrences, a phrase split by inline
+formatting, code and attachment names, desktop and phone layouts, keyboard navigation,
+selection preservation and the unsent draft.
 The conversation navigation fixture checks the current turn, prompt and reply-heading
 indexes, repeated headings, their focus destinations and draft preservation in both
 themes at desktop and phone widths.

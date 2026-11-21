@@ -371,6 +371,157 @@ async function checkNewChatShortcut() {
   assert.equal(creates(), before + 1, 'repeat shortcut duplicated an empty conversation');
   await fill('#draft', '');
 }
+async function checkSpeakerLayout(width) {
+  const layout = await evaluate(`['user','assistant'].map(role=>{
+    const article=document.querySelector('.message.'+role),header=article.querySelector('.message-header').getBoundingClientRect();
+    const body=article.querySelector(':scope > .markdown').getBoundingClientRect(),actions=article.querySelector('.message-actions').getBoundingClientRect();
+    return {headerLeft:header.right<=body.left+1,headerAbove:header.bottom<=body.top+1,
+      actionsBelow:actions.top>=body.bottom-1,actionsAligned:Math.abs(actions.left-body.left)<=1};
+  })`);
+  assert(layout.every(turn=>width===1440 ? turn.headerLeft : turn.headerAbove),'speaker placement at '+width+': '+JSON.stringify(layout));
+  assert(layout[0].actionsBelow && (width!==1440 || layout[0].actionsAligned),'prompt actions below the text at '+width+': '+JSON.stringify(layout[0]));
+}
+async function checkPassageNavigation() {
+  const term = 'tide window';
+  const chat = await evaluate(`ChatShell.api('/import','POST',{version:1,chat:{title:'Harbor survey plan',active_leaf:'t'},messages:${JSON.stringify([
+    {id:'p1',role:'user',content:'How should we use the tide window for our morning survey?'},
+    {id:'a1',parent_id:'p1',role:'assistant',content:'## Morning survey plan\n\nUse the **tide** window to inspect the outer markers before the channel begins to drain. Start at the harbor entrance and work back toward shelter.\n\n### Field checklist\n\n- Photograph the marker from the channel side.\n- Record the time and water depth alongside the photograph.\n- Compare the gauge reading with the harbor station.\n\n~~~text\ncheck("tide window")\n~~~\n\nKeep the instrument case closed between readings.'},
+    {id:'p2',parent_id:'a1',role:'user',content:'Please use the attached observations to refine the route.',attachments:[{name:'tide window.csv',type:'text/plain',text:'Private attachment tide window'}]},
+    {id:'a2',parent_id:'p2',role:'assistant',content:'## Route adjustment\n\nThe tide **window** closes first at the eastern marker. Visit it before checking the sheltered pier.',reasoning:'Private reasoning tide window',tool_calls:[{id:'lookup',name:'echo',arguments:'Private arguments tide window',status:'completed'}]},
+    {id:'t',parent_id:'a2',role:'tool',content:'Private result tide window',tool_call_id:'lookup'},
+    {id:'other',parent_id:'p2',role:'assistant',content:'Alternate route tide window'},
+  ])}})`);
+  await reloadDocument();
+  await wait(`document.querySelector('[data-chat="${chat.id}"]')`,'passage fixture in history');
+  await pointerClick(`[data-chat="${chat.id}"]`);
+  await wait("document.querySelectorAll('.message.assistant').length===2",'active survey conversation');
+  await fill('#draft','I will check the harbor gauge before we launch.');
+  const reply = await evaluate("document.querySelector('.message.assistant').dataset.message");
+  const find = '#reading-navigation [data-action=find-message]';
+  const open = async () => {
+    await pointerClick(find);
+    await wait("document.activeElement.id==='find-message-query'", 'passage finder focused');
+    await fill('#find-message-query',term);
+  };
+  const activate = async () => {
+    await open();
+    assert.equal(await evaluate("document.querySelectorAll('#find-message-list [data-target]').length"),4,'one result per visible matching message');
+    await pointerClick(`#find-message-list [data-target="${reply}"]`);
+  };
+  const press = async (key, modifiers=0) => {
+    for (const type of ['keyDown','keyUp']) await cdp('Input.dispatchKeyEvent',{type,key,code:key,modifiers,windowsVirtualKeyCode:key==='Escape'?27:114});
+  };
+  const highlight = () => evaluate(`(() => {
+    const ranges = [...(CSS.highlights.get('chat-passage') || [])];
+    if (ranges.length!==1) return null;
+    const range=ranges[0], parent=range.startContainer.parentElement,region=document.querySelector('#scroll-region').getBoundingClientRect();
+    const bounds=range.getBoundingClientRect();
+    return {text:range.toString(),article:parent.closest('.message')?.dataset.message,inline:range.startContainer!==range.endContainer && !!parent.closest('strong'),
+      code:!!parent.closest('pre code'),file:!!parent.closest('.attachment-pill'),visible:bounds.top>=region.top-1 && bounds.bottom<=region.bottom+1,
+      position:document.querySelector('#passage-position').textContent};
+  })()`);
+  const writes = apiMutations.length;
+  const draftSize = () => evaluate(`new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    const el=document.querySelector('#draft');resolve({height:el.clientHeight,content:el.scrollHeight,start:el.selectionStart,end:el.selectionEnd});
+  })))`);
+  await evaluate("document.querySelector('#draft').setSelectionRange(3,9)");
+  for (const [width,height] of [[1440,1000],[320,800]]) {
+    await cdp('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width===320});
+    await wait(`innerWidth===${width} && document.documentElement.dataset.compact==='${width===320}'`,'survey reading viewport');
+    await checkSpeakerLayout(width);
+    const size = await draftSize();
+    assert(size.height>=size.content,'draft clipped at '+width+': '+JSON.stringify(size));
+    assert.deepEqual([size.start,size.end],[3,9],'resizing changed the draft selection');
+    for (const theme of ['light','dark']) {
+      await cdp('Emulation.setEmulatedMedia',{features:[{name:'prefers-color-scheme',value:theme}]});
+      await wait(`document.documentElement.dataset.theme==='${theme}'`,'survey reading theme');
+      await evaluate(`{const region=document.querySelector('#scroll-region'),heading=document.querySelector('.message.assistant > .markdown h3');
+        region.scrollTop+=heading.getBoundingClientRect().top-region.getBoundingClientRect().top-Math.min(105,region.clientHeight*.18);}`);
+      await screenshot(`passage-reader-${width}-${theme}.png`);
+      await activate();
+      assert.deepEqual(await highlight(),{text:term,article:reply,inline:true,code:false,file:false,visible:true,position:'2 of 5'});
+      assert.equal(await evaluate(`document.activeElement.dataset.message==='${reply}'`),true);
+      const fit = await evaluate(`(() => {
+        const composer=document.querySelector('#composer').getBoundingClientRect();
+        return document.documentElement.scrollWidth<=innerWidth && composer.left>=0 && composer.right<=innerWidth && composer.bottom<=innerHeight &&
+          ['#passage-edit','#passage-previous','#passage-next','#passage-close','#send'].every(s=>{
+            const button=document.querySelector(s),r=button.getBoundingClientRect();
+            return r.left>=0 && r.right<=innerWidth && button.contains(document.elementFromPoint(r.left+r.width/2,r.top+r.height/2));
+          });
+      })()`);
+      assert.equal(fit,true,'passage controls and composer fit at '+width);
+      await screenshot(`passage-found-${width}-${theme}.png`);
+      await press('Escape');
+      await wait(`document.activeElement.matches('${find}') && !CSS.highlights.has('chat-passage')`,'escape clears passage and restores Find');
+    }
+  }
+  await activate();
+  await evaluate(`{const range=document.createRange();range.selectNodeContents(document.querySelector('.message.assistant > .markdown h3'));
+    const selection=getSelection();selection.removeAllRanges();selection.addRange(range);}`);
+  await press('F3');
+  assert.equal((await highlight()).code,true,'F3 advances to the fenced code text');
+  assert.equal(await evaluate('getSelection().toString()'),'Morning survey plan','passage navigation changed the reader selection');
+  await press('F3',8);
+  assert.equal((await highlight()).inline,true,'Shift+F3 goes back across inline markup');
+  await pointerClick('#passage-next');
+  assert.equal(await evaluate('document.activeElement.id'),'passage-next');
+  await pointerClick('#passage-next');
+  assert.equal((await highlight()).file,true,'filename passage excludes the attachment body');
+  await pointerClick('#passage-next');
+  const last = await highlight();
+  assert.equal(last.position,'5 of 5');
+  assert.equal(last.visible,true,'cycling scrolls the selected passage into the transcript viewport');
+  await pointerClick('#passage-next');
+  assert.equal((await highlight()).position,'1 of 5','forward wrap');
+  await pointerClick('#passage-previous');
+  assert.equal((await highlight()).position,'5 of 5','backward wrap');
+  await pointerClick('#passage-close');
+  await wait(`document.activeElement.matches('${find}') && !CSS.highlights.has('chat-passage')`,'Close returns to Find');
+  await open();
+  await evaluate("{const filter=document.querySelector('#find-message-role');filter.value='assistant';filter.dispatchEvent(new Event('change'))}");
+  assert.equal(await evaluate("document.querySelectorAll('#find-message-list [data-target]').length"),2,'role filter selects replies');
+  await pointerClick(`#find-message-list [data-target="${reply}"]`);
+  assert.equal((await highlight()).position,'1 of 3','role filter bounds the reading strip');
+  await pointerClick('#passage-edit');
+  assert.deepEqual(await evaluate("[document.activeElement.id,document.querySelector('#find-message-query').value,document.querySelector('#find-message-role').value]"),['find-message-query',term,'assistant']);
+  await fill('#find-message-query','**tide**');
+  await pointerClick(`#find-message-list [data-target="${reply}"]`);
+  assert.equal(await evaluate(`document.activeElement.dataset.message==='${reply}' && !CSS.highlights.has('chat-passage') && !document.querySelector('#passage-navigation').checkVisibility()`),true,'raw Markdown match jumps to its message');
+  await open(); await fill('#find-message-query','');
+  await pointerClick(`#find-message-list [data-target="${reply}"]`);
+  assert.equal(await evaluate(`document.activeElement.dataset.message==='${reply}' && !CSS.highlights.has('chat-passage') && !document.querySelector('#passage-navigation').checkVisibility()`),true,'empty query jumps to the message');
+  assert.equal(await evaluate("document.querySelector('#draft').value"),'I will check the harbor gauge before we launch.');
+  assert.equal(apiMutations.length,writes,'passage navigation changed server state');
+  await cdp('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+  await wait("document.documentElement.dataset.compact==='false'",'desktop draft after phone navigation');
+  const restored = await draftSize();
+  assert(restored.height>=restored.content,'draft clipped after returning to desktop: '+JSON.stringify(restored));
+  assert.deepEqual([restored.start,restored.end],[3,9]);
+  await fill('#draft','Chart observation.\n'.repeat(50));
+  const long = await draftSize();
+  assert(long.height<=220 && long.content>long.height,'long draft should scroll under its height cap: '+JSON.stringify(long));
+  await pointerClick('[data-action=new]');
+  await wait("document.querySelector('#welcome').checkVisibility() && !document.querySelector('#draft').value",'new conversation for a streamed passage');
+  await send('Check the latest station reading.');
+  await wait("document.querySelector('.message.assistant > .markdown')?.innerText.includes('opens in the morning') && !document.querySelector('#stop').hidden",'first visible streamed occurrence');
+  await fill('#draft','Keep the chart for tomorrow.');
+  await open();
+  await pointerClick('#find-message-list [data-target]');
+  assert.equal((await highlight()).position,'1 of 1');
+  const upstream = process.argv.find(arg=>arg.startsWith('--fixture-upstream=')).slice('--fixture-upstream='.length);
+  assert.equal((await fetch(upstream+'/browser-step',{signal:AbortSignal.timeout(4000)})).status,204);
+  await wait("document.querySelector('#passage-position').textContent==='1 of 2' && document.querySelector('#stop').hidden",'passages update when the streamed paragraph is replaced');
+  assert.equal(await evaluate("Array.from(CSS.highlights.get('chat-passage'))[0].startContainer.isConnected"),true);
+  assert.equal((await highlight()).visible,true,'stream growth scrolled the selected passage out of view');
+  await pointerClick('#passage-next');
+  const finalHit=await highlight();
+  assert.equal(finalHit.position,'2 of 2');
+  assert.equal(finalHit.visible,true,'new streamed passage is visible after advancing');
+  await pointerClick('.global-nav [data-view=workbench]');
+  await wait("!CSS.highlights.has('chat-passage') && document.querySelector('#passage-navigation').hidden",'leaving Chat clears passage navigation');
+  await pointerClick('.global-nav [data-view=chat]');
+  assert.equal(await evaluate("document.querySelector('#draft').value"),'Keep the chart for tomorrow.');
+}
 async function checkPromptOutline() {
   const key = async (key, code) => {
     for (const type of ['keyDown','keyUp']) {
@@ -1341,6 +1492,7 @@ try {
     console.log('PASS: keyboard and mobile folder navigation, archive and search');
   } else if (process.argv.includes('--message-find-only')) {
     await signIn();
+    await checkPassageNavigation();
     const chat = await evaluate(`(async () => {
       const messages = [];
       for (let i=0;i<27;i++) {
@@ -1369,7 +1521,9 @@ try {
       return ChatShell.api('/import','POST',{version:1,chat:{title:'Navigation fixture',active_leaf:'a26'},messages});
     })()`);
     const plainChat = await evaluate(`ChatShell.api('/import','POST',{version:1,chat:{title:'Plain reply',active_leaf:'a'},
-      messages:[{id:'p',role:'user',content:'Plain prompt'},{id:'a',parent_id:'p',role:'assistant',content:'Plain reply'}]})`);
+      messages:[{id:'p',role:'user',content:'Plain prompt',attachments:[{name:'estuary photo.png',type:'image/png',
+        data:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aBy0AAAAASUVORK5CYII='}]},
+        {id:'a',parent_id:'p',role:'assistant',content:'Plain reply'}]})`);
     await reloadDocument();
     await wait(`document.querySelector('[data-chat="${chat.id}"]')`, 'imported conversation');
     await pointerClick(`[data-chat="${plainChat.id}"]`);
@@ -1402,7 +1556,13 @@ try {
     assert.match(await evaluate("document.querySelector('#find-message-dialog').innerText"), /no (?:reply )?headings/i);
     assert.equal(await evaluate("document.querySelector('#outline-headings').getAttribute('aria-pressed')"),'true');
     await closeContents();
-    assert.equal(apiMutations.length, plainWrites, 'opening empty headings changed the chat');
+    await pointerClick('#reading-navigation [data-action=find-message]');
+    await fill('#find-message-query','estuary photo');
+    await pointerClick('#find-message-list [data-target]');
+    assert.equal(await evaluate(`{const image=document.querySelector('img[alt="estuary photo.png"]'),style=getComputedStyle(image);
+      document.querySelector('#passage-position').textContent==='1 of 1' && image.naturalWidth===1 && parseFloat(style.outlineWidth)>0 && style.outlineStyle!=='none'}`),true,'image filename match visibly outlines the attachment');
+    await pointerClick('#passage-close');
+    assert.equal(apiMutations.length, plainWrites, 'navigating headings and image filenames changed the chat');
     await pointerClick(`[data-chat="${chat.id}"]`);
     await wait("document.querySelectorAll('.message.user').length===27", 'selected branch');
     await fill('#draft', 'Unsent draft');
@@ -1647,7 +1807,7 @@ try {
     await pointerClick(wrap);
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.artifact-source pre')).whiteSpace"), 'pre');
     assert.deepEqual(errors, [], 'message navigation browser errors');
-    console.log('PASS: active-branch turns and reply headings, duplicate heading targets, keyboard focus, narrow controls, find, export and draft preservation');
+    console.log('PASS: streamed and rendered passages, scoped navigation, draft reflow, transcript layout, turn and heading outlines, find and export');
   } else if (process.argv.includes('--workspace-import-only')) {
     await signIn();
     await checkWorkspaceImport();
@@ -2332,17 +2492,7 @@ try {
       await cdp('Emulation.setTouchEmulationEnabled', {enabled:false});
     } else await pointerClick('[data-action=reply-stats]');
     await wait("document.querySelector('.stats-hint').textContent.startsWith('Pinned')", 'click or touch pins statistics');
-    assert.equal(await evaluate(`(() => {
-      const prompt=document.querySelector('.message.user>.markdown');
-      const style=getComputedStyle(prompt), article=prompt.parentElement;
-      const header=article.querySelector('.message-header').getBoundingClientRect();
-      const actions=article.querySelector('.message-actions').getBoundingClientRect();
-      const wide=getComputedStyle(article).display==='grid';
-      const placed=wide ? header.right<=actions.left && actions.bottom<=prompt.getBoundingClientRect().top
-                        : actions.top>=prompt.getBoundingClientRect().bottom;
-      return placed && style.backgroundColor==='rgba(0, 0, 0, 0)' && parseFloat(style.borderInlineStartWidth)>0
-        && prompt.previousElementSibling.getBoundingClientRect().bottom<=prompt.getBoundingClientRect().top;
-    })()`), true, 'prompt needs a reading edge and a separate heading');
+    await checkSpeakerLayout(width);
     await screenshot('reply-statistics-'+width+'-'+theme+'.png');
     await click('[data-action=copy-stats]');
     await wait("document.querySelector('#toast').textContent==='Statistics copied.'", 'statistics copy confirmation');

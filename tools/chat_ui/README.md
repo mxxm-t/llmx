@@ -450,7 +450,7 @@ The operator can attach MCP servers over HTTP. Create a private JSON file:
 {
   "servers": [
     {
-      "name": "workspace",
+      "name": "images",
       "url": "http://127.0.0.1:9100/mcp",
       "approval": true
     }
@@ -458,7 +458,24 @@ The operator can attach MCP servers over HTTP. Create a private JSON file:
 }
 ```
 
-Pass it as `--tools PATH`. Optional `headers` supply server credentials. They
+For an existing Python tool, you can run its method in a separate MCP server.
+For example, save this beside your own `searxng_images.py` and run it in the
+Python environment where the tool and the MCP Python SDK are installed:
+
+```python
+from mcp.server.fastmcp import FastMCP
+from searxng_images import Tools
+
+images = Tools()
+server = FastMCP("images", host="127.0.0.1", port=9100, stateless_http=True, json_response=True)
+server.add_tool(images.search_images)
+server.run(transport="streamable-http")
+```
+
+The tool's search URL must be reachable from that process. The example
+configuration above connects Chat to the adapter on the same host.
+
+Pass the JSON configuration file as `--tools PATH`. Optional `headers` supply server credentials. They
 are never included in the browser's configuration response. Settings groups tools
 by connection and shows its discovery status, available tool count, last check,
 duration and error. Built-in Workspace tools stay available when an MCP server

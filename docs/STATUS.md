@@ -26,6 +26,14 @@ name and reopen the saved conversation with focus in its composer.
 
 ## Image search results in Chat (2026-11-21)
 
+The Python MCP SDK can return a tool's JSON string twice, once as text and
+once inside a result wrapper. Chat reads the text when the structured
+response has no image list. An explicit structured list takes precedence,
+including an empty list. Chrome reproduced the missing links on main and
+checked their targets after the fix. The documented adapter was also
+discovered and called over loopback HTTP with MCP Python SDK 1.12.3.
+This fix lands by fast-forward after the scoped Chat checks.
+
 A completed tool result with image URLs now displays titles, source and
 thumbnail links in its detail. The raw response remains available. Reading
 the result makes no image requests. This change lands by fast-forward after

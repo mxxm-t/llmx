@@ -1138,8 +1138,11 @@
     return row;
   }
   function imageResultLinks(result, parts) {
-    const payload = result?.structuredContent ?? (parts.length === 1 && parts[0]?.type === 'text'
-      && typeof parts[0].text === 'string' && parts[0].text.length <= 65536 ? toolJson(parts[0].text) : result);
+    let payload = result?.structuredContent ?? result;
+    if (!Array.isArray(payload?.images) && parts.length === 1 && parts[0]?.type === 'text'
+        && typeof parts[0].text === 'string' && parts[0].text.length <= 65536) {
+      payload = toolJson(parts[0].text);
+    }
     if (!Array.isArray(payload?.images) || !payload.images.length) return null;
     const list = node('ul', 'tool-image-results');
     list.setAttribute('aria-label', 'Image search results');

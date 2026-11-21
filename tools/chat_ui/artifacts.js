@@ -169,8 +169,9 @@ window.ChatArtifacts = (() => {
     else code.replaceChildren(highlight(current.source, current.language));
     previewButton.hidden = readOnlyAttachment || (current.language !== 'html' && !/\.html?$/i.test(current.name));
     copy.textContent = 'Copy';
-    edit.hidden = readOnlyAttachment || !allowWorkspaceEdit;
-    edit.textContent = workspacePath ? 'Open in editor' : 'Edit in workspace';
+    edit.hidden = !allowWorkspaceEdit;
+    edit.textContent = readOnlyAttachment ? 'Edit a copy' : workspacePath ? 'Open in editor' : 'Edit in workspace';
+    edit.title = readOnlyAttachment ? 'Open a copy in the workspace editor' : edit.textContent;
     if (!dialog.open) dialog.showModal();
     if (initialPreview && !previewButton.hidden) { previewButton.focus(); showPreview(); }
     else sourceButton.focus();

@@ -1040,7 +1040,7 @@
         return $('draft');
       };
       if (image) window.ChatArtifacts.openImage(name, attachment.data, addToDraft);
-      else window.ChatArtifacts.open({name, source: attachment.text}, {readOnlyAttachment: true, addToDraft});
+      else window.ChatArtifacts.open({name, source: attachment.text}, {readOnlyAttachment: true, allowWorkspaceEdit: !S.chat?.temporary, addToDraft});
     });
     return open;
   }

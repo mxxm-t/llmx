@@ -683,7 +683,7 @@
       if (!current()) return;
       const snapshot = state.snapshot;
       const artifact = event.detail;
-      const path = await window.ChatShell.conversationForm({title: 'Edit generated file',
+      const path = await window.ChatShell.conversationForm({title: 'Edit in workspace',
         description: 'Choose a path for this file.', label: 'File path', maxLength: 240, value: artifact.name, submit: 'Edit'});
       if (!path || !current()) return;
       let existing;
@@ -692,7 +692,7 @@
         if (!current()) return;
         if (existing.content !== artifact.source) {
           const replace = await window.ChatShell.conversationForm({title: 'Replace saved file?',
-            description: path + ' already exists. Open the generated text in the editor? Save will replace the file.',
+            description: path + ' already exists. Open this copy in the editor? Save will replace the file.',
             destructive: true, submit: 'Edit replacement'});
           if (!replace || !current()) return;
         }

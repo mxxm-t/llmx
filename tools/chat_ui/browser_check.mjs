@@ -238,10 +238,10 @@ async function checkSentSource(name, source, exportName) {
       visible:code.checkVisibility(),
       editable:code.isContentEditable || Array.from(dialog.querySelectorAll('textarea,input,[contenteditable]')).some(control=>control.checkVisibility()),
       preview:dialog.querySelector('#artifact-preview-tab').checkVisibility() || Boolean(dialog.querySelector('iframe')),
-      edit:Array.from(dialog.querySelectorAll('button')).some(button=>button.textContent.includes('Edit in workspace') && button.checkVisibility()),
+      editCopy:Array.from(dialog.querySelectorAll('button')).some(button=>button.textContent==='Edit a copy' && button.checkVisibility()),
       markup:code.childElementCount,
     };
-  })()`), {name, source, visible:true, editable:false, preview:false, edit:false, markup:0});
+  })()`), {name, source, visible:true, editable:false, preview:false, editCopy:true, markup:0});
   assert.equal(await evaluate('typeof window.sentHtmlRan'), 'undefined', 'uploaded HTML executed in the companion');
   if (exportName) {
     const exported = await evaluate(`(async () => {
@@ -1443,9 +1443,11 @@ try {
     await wait(draftSnapshot+".attachments?.length===3",'draft files stored');
     const before=await evaluate(draftSnapshot);
     const textButton='#attachments [aria-label="Read attachment page.html"]';
+    const editCopy='#artifact-dialog .artifact-toolbar-actions button:first-child';
     assert(await evaluate(`Boolean(document.querySelector(${JSON.stringify(textButton)}))`),'unsent file has no read control');
     await pointerClick(textButton);
     await wait("document.querySelector('#artifact-dialog').open",'draft source viewer');
+    assert.equal(await evaluate(`document.querySelector(${JSON.stringify(editCopy)}).checkVisibility()`),true,'draft source offers an editable workspace copy');
     assert.equal(await evaluate("document.querySelector('.artifact-source code').textContent"),source);
     assert.equal(await evaluate("document.querySelector('.artifact-source code').childElementCount"),0);
     assert.equal(await evaluate("document.querySelector('#artifact-preview-tab').checkVisibility()"),false);
@@ -1536,6 +1538,7 @@ try {
     await pointerClick(sentImage);
     await wait("document.querySelector('#artifact-dialog').open && document.querySelector('.artifact-image').naturalWidth===640", 'inspect sent image');
     const reuse='#artifact-add-to-draft', draftFiles='#attachments .attachment-pill';
+    assert.equal(await evaluate(`document.querySelector(${JSON.stringify(editCopy)}).checkVisibility()`),false,'image viewer has no text editor action');
     const writes=apiMutations.length;
     await pointerClick(reuse);
     await wait("document.activeElement.id==='draft' && !document.querySelector('#artifact-dialog').open",'return to follow-up');
@@ -1568,7 +1571,31 @@ try {
     await wait("document.querySelector('.artifact-status').textContent.includes('Remove the existing page.html')",'different version kept');
     await wait(stored+".attachments[1]?.text==='Changed'",'preserve the newer draft file');
     assert.equal(apiMutations.length,writes,'attachment reuse wrote server state');
-    console.log('PASS: inspect draft files, download original images, find sent attachments by turn and reuse them in a follow-up');
+    assert.equal(await evaluate(`document.querySelector(${JSON.stringify(editCopy)}).checkVisibility()`),true,'sent source offers an editable workspace copy');
+    await cdp('Emulation.setDeviceMetricsOverride',{width:320,height:720,deviceScaleFactor:1,mobile:true});
+    await wait("innerWidth===320 && document.documentElement.dataset.compact==='true'",'phone attachment viewer');
+    assert(await evaluate(`{const r=document.querySelector(${JSON.stringify(editCopy)}).getBoundingClientRect();r.width>0 && r.left>=0 && r.right<=innerWidth}`),'edit copy fits the phone viewer');
+    await pointerClick(editCopy);
+    await wait("document.querySelector('#action-dialog').open && document.querySelector('#conversation-value').value==='page.html'",'attachment filename in editor');
+    await fill('#conversation-value','site/page.html');
+    await pointerClick('#conversation-submit');
+    await wait("document.activeElement.id==='workspace-editor'",'attachment opened in editor');
+    assert.equal(await evaluate("document.querySelector('#workspace-editor').value"),source.replaceAll('\r\n','\n'));
+    assert.equal(await evaluate("ChatShell.api('/workspace').then(s=>s.files.length)"),0,'opening a copy saved a file');
+    await pointerClick('#workspace-save');
+    await wait("document.querySelector('#workspace-save').disabled",'workspace saved');
+    const copy=await evaluate("ChatShell.api('/workspace/file?path=site%2Fpage.html')");
+    assert.equal(copy.content,source,'saved copy lost attachment bytes');
+    await pointerClick('.workspace-back');
+    assert.equal(await evaluate("document.querySelector('#draft').value"),'Follow-up question');
+    const original=await evaluate(`ChatShell.api('/chats/'+${JSON.stringify(saved.id)}).then(chat=>chat.messages.find(m=>m.content==='Reference image').attachments)`);
+    assert.deepEqual(original,messageFiles,'opening a workspace copy modified the sent attachment');
+    await pointerClick('#temporary-button');
+    await wait("document.querySelector('#app').dataset.temporary==='true'",'temporary chat ready');
+    await evaluate("ChatComposer.attach([new File(['Ephemeral'], 'temp.txt',{type:'text/plain'})])");
+    await pointerClick('#attachments [aria-label="Read attachment temp.txt"]');
+    assert.equal(await evaluate(`document.querySelector(${JSON.stringify(editCopy)}).checkVisibility()`),false,'temporary attachment offers persistent editing');
+    console.log('PASS: review and reuse attachments, save an independent workspace copy and preserve the draft and original message');
   } else if (process.argv.includes('--editor-attachments-only')) {
     await signIn();
     await evaluate("ChatShell.api('/workspace/file','POST',{path:'notes/plan.txt',content:'Original',revision:0})");
@@ -3739,7 +3766,7 @@ try {
   const fileWritesBeforeArtifactCancel = apiMutations.filter(item => item.url.endsWith('/api/workspace/file')).length;
   await evaluate("document.dispatchEvent(new CustomEvent('companion:artifact-edit',{detail:{name:'generated.py',source:'print(1)'}}))");
   await wait("document.querySelector('#action-dialog').open", 'generated-file edit dialog');
-  assert.equal(await evaluate("document.querySelector('#action-dialog-title').textContent"), 'Edit generated file');
+  assert.equal(await evaluate("document.querySelector('#action-dialog-title').textContent"), 'Edit in workspace');
   assert.equal(await evaluate("document.querySelector('#conversation-value').value"), 'generated.py');
   await closeAction('#conversation-cancel');
   assert.equal(apiMutations.filter(item => item.url.endsWith('/api/workspace/file')).length, fileWritesBeforeArtifactCancel, 'cancelled generated-file edit wrote a file');

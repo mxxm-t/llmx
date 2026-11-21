@@ -3747,6 +3747,20 @@ try {
   assert.equal(await evaluate("document.querySelector('#monitor-frame').contentDocument.documentElement.dataset.theme"), 'light', 'monitor theme mismatch');
   assert.equal(await evaluate("getComputedStyle(document.querySelector('#monitor-frame').contentDocument.querySelector('body>header')).display"), 'none', 'duplicate monitor header');
   assert.equal(await evaluate("document.querySelector('#monitor-frame').contentDocument.querySelector('link[rel=icon]').getAttribute('href')"), '/favicon.svg', 'monitor favicon matches chat');
+  async function checkMonitorPalette() {
+    const comparison = await evaluate(`(() => {
+      const doc = document.querySelector('#monitor-frame').contentDocument;
+      const pill = doc.createElement('span'); pill.className = 'small-pill'; doc.body.append(pill);
+      const pairs = [['.sidebar','header','backgroundColor'],['.composer','.card','backgroundImage'],
+        ['.send-button','.small-pill','backgroundColor'],['.send-button','.small-pill','color']];
+      const mismatches = pairs.filter(([shell, monitor, property]) =>
+        getComputedStyle(document.querySelector(shell))[property] !== doc.defaultView.getComputedStyle(doc.querySelector(monitor))[property]);
+      pill.remove();
+      return {mismatches, external: Array.from(doc.links).some(a => a.textContent.trim() === 'Open WebUI')};
+    })()`);
+    assert.deepEqual(comparison, {mismatches:[],external:false}, 'Chat controls must use Monitor surfaces and accents');
+  }
+  await checkMonitorPalette();
   const lightPanels = await evaluate(`(() => {
     const doc = document.querySelector('#monitor-frame').contentDocument;
     const root = doc.createElement('div'); doc.body.append(root);
@@ -3778,6 +3792,7 @@ try {
   await pointerClick('#view-preferences [data-action="theme"]');
   assert.equal(await evaluate('document.documentElement.dataset.theme'), 'dark');
   await wait("document.querySelector('#monitor-frame').contentDocument.documentElement.dataset.theme==='dark'", 'monitor returns to dark');
+  await checkMonitorPalette();
   await pointerClick('#view-preferences [data-action="theme"]');
   assert(luminance(await evaluate('getComputedStyle(document.body).backgroundColor')) > 0.5, 'Settings toggle did not render a light page');
   await reloadDocument();

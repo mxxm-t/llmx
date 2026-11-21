@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## Jump to the latest chat turn (2026-11-21)
+
+- Goal: Let a reader return to the latest message when automatic following has stopped, without moving the composer.
+- Done: On a short phone viewport the current button stays hidden with 136 px unread and changes the composer position by 14 px when it appears.
+- Checks: The failing Chrome case reproduces the missing control. The fix uses the same distance for automatic following and the button, bounded by one third of the transcript height. At 320 by 360 the composer stays at the same position at the bottom and with 150 or 240 px unread. Jump returns to the bottom with the draft intact.
+- The first placement overlapped transcript actions in hosted run 44854839276. The final placement reserves the footer row. Both the targeted and full browser fixtures pass locally. A streamed reply kept the reader at 2529 px across another chunk and followed later text after Jump.
+- Landing: Fast-forward after the scoped Linux and Windows Chat workspace checks.
+
 ## Workspace editor line endings (2026-11-21)
 
 - Goal: Opening a file preserves its stored bytes and starts clean, including files saved with Windows line endings. Depends on the file review action for its draft comparison test.

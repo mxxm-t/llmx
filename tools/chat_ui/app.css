@@ -427,7 +427,7 @@ kbd {
   width:100%;
   max-width:var(--reading-width);
   margin:0 auto;
-  padding:12px var(--page-edge) 16px
+  padding:12px var(--page-edge) 6px
 }
 .chat-stage:has(#welcome:not([hidden])) .composer-area {
   padding-top:0;
@@ -535,8 +535,9 @@ kbd {
   gap:10px;
   font-size:9px;
   color:var(--faint);
-  margin-top:6px;
-  padding:0 2px
+  min-height:28px;
+  margin-top:2px;
+  padding-inline-start:2px
 }
 .composer-caption strong {
   color:var(--muted);
@@ -1592,7 +1593,7 @@ dialog::backdrop {
   .context-shortcut span { display:none }
   .context-shortcut { height:40px; width:40px; padding:0; border-color:transparent }
   .composer-area {
-    padding:10px 16px 16px
+    padding:10px 16px 6px
   }
   .composer-caption {
     font-size:8px;

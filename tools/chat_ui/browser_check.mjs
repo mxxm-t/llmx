@@ -955,6 +955,7 @@ try {
     assert.equal((await jumpState()).available, true, 'reader outside the auto-follow range has no way to jump');
     await setBottomDistance(240);
     assert.equal((await jumpState()).composerTop, atLatest.composerTop, 'Jump to latest moved the composer');
+    assert.equal(await evaluate("Math.round(document.querySelector('#jump-bottom').getBoundingClientRect().right-document.querySelector('#composer').getBoundingClientRect().right)"), 0, 'jump button and composer should align');
     await pointerClick('#jump-bottom');
     await wait("document.querySelector('#jump-bottom').hidden", 'jumped back to latest');
     assert.equal(await evaluate("(()=>{const r=document.querySelector('#scroll-region');return r.scrollHeight-r.scrollTop-r.clientHeight<2;})()"), true);

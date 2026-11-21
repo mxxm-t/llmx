@@ -872,7 +872,7 @@
     return [nextActions, actions];
   }
   function render() {
-    const region = $('scroll-region'); const nearBottom = region.scrollHeight - region.scrollTop - region.clientHeight < 120;
+    const nearBottom = followsLatest();
     const selected = path().filter(m => m.role !== 'tool'); const container = $('messages'); const wanted = new Set(selected.map(m => m.id));
     container.querySelectorAll('[data-message]').forEach(el => { if (!wanted.has(el.dataset.message)) { el.remove(); S.fingerprint.delete(el.dataset.message); } });
     selected.forEach((message, index) => {
@@ -1361,9 +1361,12 @@
     }};
   }
   window.ChatComposer = {attach, workspaceName, projectDraft, formatAttachmentSize};
-  function syncJump() {
+  function followsLatest() {
     const region = $('scroll-region');
-    $('jump-bottom').hidden = !$('welcome').hidden || region.scrollHeight - region.scrollTop - region.clientHeight < 180;
+    return region.scrollHeight - region.scrollTop - region.clientHeight <= Math.min(120, region.clientHeight / 3);
+  }
+  function syncJump() {
+    $('jump-bottom').hidden = !$('welcome').hidden || followsLatest();
   }
   function bottom() { const region = $('scroll-region'); region.scrollTop = region.scrollHeight; syncJump(); }
   function resizeDraft() { const el = $('draft'); el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 220) + 'px'; rememberDraft(); }

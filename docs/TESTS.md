@@ -141,6 +141,8 @@ The server component also checks the runtime producer, on a model of the tensor-
 The companion browser fixture controls monitor events while an actual model-call stream stays open. It checks first/duplicate/missing samples, measured prompt and generation rates, zero work, connection failure, view and page-restoration subscription lifetimes, completion cleanup and mobile light/dark layout. Dashboard rate tests load the same shared `request_rates.js` used by both views.
 Chrome also opens CRLF, CR and mixed-ending files, checks they start clean, reviews edits and verifies the saved bytes.
 
+The conversation search fixture also scrolls a long transcript in a 320 by 360 viewport. It checks access to Jump to latest, a stationary composer and a preserved draft.
+
 The generated-file fixture reviews the draft diff, closes it with focus on Review changes and verifies the saved bytes before saving. The workspace HTTP test checks the diff against the current file, validation, and an unchanged workspace revision.
 
 The workspace browser fixture holds an actual file-write response while typing or selecting another file, verifies the saved bytes and unsaved indicator, prevents duplicate saves, and checks that a successful save keeps its revision through a failed metadata refresh. It also checks that the isolated HTML preview uses the unsaved editor buffer, Back to Chat keeps that buffer and focuses the conversation, and checkpoint history is accessible without crowding the 320-pixel layout.

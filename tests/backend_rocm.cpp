@@ -2470,9 +2470,45 @@ void hc_entry_rows(Backend& g, bool with_inj) {
     std::cout << "backend-rocm: 1, 2, 3, 4, 8 and 9 generated rows in one call" << (with_inj ? " with inject gates" : "") << " give each row the bytes llmx_hc_entry gives it alone, and beside a prompt run too\n";
 }
 
+// A launch that issues a held inject at the chunk keeps its own arguments: the inject's flush must not leave it reading the bytes the launches after it write.
+// Seven adds and the inject fill an idle device's first chunk of 8, so the inject goes from inside the next add's hold and that add is the first of the next chunk.
+void inject_at_chunk() {
+    BackendPtr b = make_rocm_backend(0);
+    rocm_profile(*b).dispatch_chunk = 64;
+    const size_t n = 1024, E = 1280;
+    const std::vector<float> one(n, 1.0f), zero(E, 0.0f);
+    auto ones = b->alloc(n * 4), pad = b->alloc(n * 4), x = b->alloc(E * 4), blk = b->alloc(E * 4), gate = b->alloc(64);
+    std::vector<BufferPtr> ys;
+    b->write(*ones, 0, one.data(), n * 4);
+    b->write(*pad, 0, one.data(), n * 4);
+    for (int i = 0; i < 9; ++i) {
+        ys.push_back(b->alloc(n * 4));
+        const std::vector<float> v(n, (float)(i + 1));
+        b->write(*ys.back(), 0, v.data(), n * 4);
+    }
+    b->write(*x, 0, zero.data(), E * 4);
+    b->write(*blk, 0, zero.data(), E * 4);
+    b->write(*gate, 0, zero.data(), 4);
+    b->sync();
+    for (int i = 0; i < 7; ++i) b->add({pad.get(), 0}, {ones.get(), 0}, n);
+    b->inject_streams({x.get(), 0}, {blk.get(), 0}, {gate.get(), 0}, 1, 1, E);
+    for (int i = 0; i < 9; ++i) b->add({ys[i].get(), 0}, {ones.get(), 0}, n);
+    b->wait(b->submit());
+    bool exact = read(*b, *pad, n) == std::vector<float>(n, 8.0f);
+    std::string got;
+    for (int i = 0; i < 9; ++i) {
+        const std::vector<float> y = read(*b, *ys[i], n);
+        exact = exact && y == std::vector<float>(n, (float)(i + 2));
+        got += " " + std::to_string((int)y[0]);
+    }
+    require(exact, "the adds around a held inject issued at the chunk gave other sums (want 2 to 10, got" + got + ")");
+    std::cout << "backend-rocm: a launch that issues a held inject at the chunk keeps its own arguments\n";
+}
+
 // llmx_hc_entry, a generated row's inject and mix as one launch, at widths 1 and 2 against the host golden of the entry rule, with the flush paths between them giving the entry's bytes.
 // A refused entry launch throws and turns its group conservative, and a sum on members no entry mix reached stays one llmx_group_sum launch.
 void hc_entry() {
+    inject_at_chunk();
     real_launch = hip().hipModuleLaunchKernel;
     std::vector<BackendPtr> d = rocm_devices(2);
     const size_t H = 4, E = 2560, L = 320, R = H * E;

@@ -575,6 +575,97 @@ async function checkPromptOutline() {
   await cdp('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
   await wait("document.documentElement.dataset.compact==='false'", 'desktop after outline');
 }
+async function checkWideChat() {
+  const prose = 'The eastern survey route follows the breakwater before returning through the main channel. Follow the current markers and check for changes to the approach depth. ';
+  const columns = Array.from({length: 13}, (_, i) => `Station ${String(i + 1).padStart(2, '0')}`);
+  const table = [columns, columns.map(() => '---'), columns.map((_, i) => `${(3.1 + i / 10).toFixed(1)} m`)]
+    .map(row => '| ' + row.join(' | ') + ' |').join('\n');
+  const command = 'llmx bench --model harbor-survey.gguf --prompt-tokens 2048 --gen-tokens 128 --device cpu --threads 12';
+  const content = `## Eastern survey route\n\n${prose.repeat(2)}\n\n~~~sh\n${command}\n${'# ' + 'field '.repeat(42)}\n~~~\n\n${table}`;
+  const chat = await evaluate(`(async () => {
+    const {revision} = await ChatShell.api('/workspace');
+    await ChatShell.api('/workspace/file', 'POST', {revision, path:'harbor/survey.md', content:'Route and station notes.'});
+    return ChatShell.api('/import', 'POST', {version:1, chat:{title:'Harbor survey',active_leaf:'a'}, messages:[
+      {id:'p', role:'user', content:'Compare the survey stations and show the command for checking a 2048-token prompt.'},
+      {id:'a', parent_id:'p', role:'assistant', content:${JSON.stringify(content)}, reasoning:${JSON.stringify(prose.repeat(3))}}
+    ]});
+  })()`);
+  await reloadDocument();
+  await wait("document.querySelector('.landing-context-row')", 'saved file on the landing page');
+  const selector = `.chat-item[data-chat="${chat.id}"]`;
+  const inspector = async open => {
+    if (await evaluate("!document.querySelector('#app').classList.contains('inspector-closed')") !== open) {
+      await pointerClick(`${open ? '.topbar' : '#inspector'} [data-action=inspector]`);
+    }
+    await wait(`document.querySelector('#inspector').checkVisibility()===${open}`, 'requested details pane state');
+  };
+  const resize = async (width, mobile) => {
+    await cdp('Emulation.setDeviceMetricsOverride', {width,height:1000,deviceScaleFactor:1,mobile});
+    await wait(`innerWidth===${width} && document.documentElement.dataset.compact==='${mobile}'`, 'matched viewport');
+  };
+  const geometry = () => evaluate(`(() => {
+    const rect = selector => {
+      const node = document.querySelector(selector);
+      if (!node?.checkVisibility()) return null;
+      const {left,right,top,width} = node.getBoundingClientRect();
+      return {left,right,top,width,scroll:node.scrollWidth,client:node.clientWidth};
+    };
+    return {
+      stage: rect('.chat-stage'), composer: rect('#composer'), area: rect('.composer-area'),
+      context: rect('#landing-context'), nav: rect('#reading-default'), transcript: rect('.message.user'),
+      prose: rect('.assistant > .markdown > p'), reasoning: rect('.reasoning .markdown p'),
+      rich: rect('.assistant > .markdown'), code: rect('.assistant > .markdown .code-block pre'),
+      table: rect('.assistant > .markdown .table-scroll'), overflow: document.documentElement.scrollWidth > innerWidth
+    };
+  })()`);
+  const desktop = [1440,1920,2560].flatMap(width => [true,false].map(open => ({width,open})));
+  const viewports = [...desktop,{width:1024,open:false},{width:320,open:false}];
+  const landing = [], conversation = [];
+  for (const settings of viewports) {
+    const {width,open} = settings;
+    await resize(width,width===320);
+    await inspector(open);
+    landing.push({...settings, ...await geometry()});
+    if (width !== 1920) await screenshot(`landing-${width}-${open ? 'open' : 'closed'}.png`);
+  }
+  await resize(1440,false);
+  await pointerClick(selector);
+  await wait("document.querySelector('.assistant .table-scroll') && document.querySelector('#reading-navigation').checkVisibility()", 'rendered survey conversation');
+  await pointerClick('.reasoning summary');
+  await wait("document.querySelector('.reasoning[open] .markdown p')?.checkVisibility()", 'expanded reasoning');
+  for (const settings of viewports) {
+    const {width,open} = settings;
+    await resize(width,width===320);
+    await inspector(open);
+    conversation.push({...settings, ...await geometry()});
+    if (width !== 1920 || open) await screenshot(`conversation-${width}-${open ? 'open' : 'closed'}.png`);
+  }
+  const evidence = {landing,conversation};
+  await writeFile(path.join(artifacts,'geometry.json'), JSON.stringify(evidence,null,2) + '\n');
+
+  for (const {width,open,stage,composer,context,area,overflow} of landing) {
+    const label = `${width}, dock ${open}`;
+    assert(!overflow && composer.left >= stage.left && context.right <= stage.right, `landing fits at ${label}`);
+    if (width < 1440) assert(context.top > composer.top && context.left === composer.left, `landing stacks at ${label}`);
+    else assert(context.left > composer.right && context.top < composer.top, `landing grid at ${label}`);
+    if (width >= 1920) assert(area.width > 1090 && composer.width > 710, `landing uses wider pane at ${label}`);
+  }
+  for (const {width,open,stage,composer,nav,transcript,prose,reasoning,rich,code,table,overflow} of conversation) {
+    const label = `${width}, dock ${open}`;
+    assert(!overflow && nav.left === composer.left && nav.right === composer.right, `reading controls align with composer at ${label}`);
+    assert(Math.abs(transcript.left-composer.left)<=10 && Math.abs(transcript.right-composer.right)<=10, `transcript aligns with composer at ${label}`);
+    assert(prose.width <= 750 && reasoning.width <= 650 && table.width <= rich.width + 1, `readable prose and contained table at ${label}`);
+    assert(code.scroll > code.client && code.width <= rich.width + 1, `long code scrolls inside its own block at ${label}`);
+    if (width === 320 || width === 1440 && open) {
+      assert(table.scroll > table.client, `wide table scrolls inside its own wrapper at ${label}`);
+    }
+    if (width === 1440 && open) assert(composer.width >= 793, 'docked 1440 px layout preserves the prior composer width');
+    if (stage.width >= 1100) {
+      assert(composer.width > 850 && code.width > prose.width + 100 && table.width > prose.width + 100, `wide content grows with pane at ${label}`);
+    }
+  }
+}
+
 async function checkLandingDrafts() {
   const homeDraft = 'Prepare a route for the afternoon survey.';
   const textDraft = 'Check the eastern marker before the tide turns.';
@@ -2397,6 +2488,10 @@ try {
     await checkWorkspaceImport();
     assert.deepEqual(errors, [], 'workspace import browser exceptions');
     console.log('PASS: reviewed native multi-file and folder import, atomic retry, byte preservation, editor conflicts and responsive keyboard controls');
+  } else if (process.argv.includes('--wide-layout-only')) {
+    await signIn(); await checkWideChat();
+    assert.deepEqual(errors, [], 'wide Chat browser exceptions');
+    console.log('PASS: pane-relative landing and conversation widths, readable prose, contained wide code and tables, and aligned reading controls');
   } else if (process.argv.includes('--landing-drafts-only')) {
     await signIn(); await checkLandingDrafts();
     assert.deepEqual(errors,[],'ordinary landing browser exceptions');

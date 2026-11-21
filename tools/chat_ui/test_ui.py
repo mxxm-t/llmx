@@ -201,6 +201,11 @@ class BrowserTests(unittest.TestCase):
             attachment.write_bytes(b"station,depth\r\nE2,4.1\r\n")
             self.run_focused_browser(node, chrome, root, "landing-review", (str(attachment), "--landing-drafts-only"), [])
 
+    def test_chat_wide_layout(self):
+        node, chrome = self.browser_executables()
+        with tempfile.TemporaryDirectory() as directory:
+            self.run_focused_browser(node, chrome, Path(directory), "wide-layout", ("--wide-layout-only",), [])
+
     def test_download_saved_project_in_chrome(self):
         node, chrome = self.browser_executables()
         members = {"docs/notes.md": "\ufeffH\u00e4llo\r\nmixed\rlast\n", "src/\u00e9t\u00e9/notes.md": "second file\n",

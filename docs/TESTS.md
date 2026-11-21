@@ -186,6 +186,10 @@ Conversation settings checks cover the blank composer, reuse of the current empt
 Workspace tool tests exercise server-owned write preconditions for unrelated edits, simultaneous proposals, same-file conflicts, reads, deletion and recreation.
 The browser opens completed and conflicting writes from Chat, checks the saved text, missing files and unsafe paths, and opens the file picker from conversation settings.
 The browser distinguishes navigation hover from the selected section in both themes.
+The wide Chat fixture measures the landing page and active transcript at 1440,
+1920 and 2560 pixels with Conversation details open and closed. It checks
+composer and reading-control alignment, bounded prose and expanded reasoning,
+locally scrolling code and tables, and stacked landing sections at 1024 and 320 pixels.
 The full browser subprocess has a 300-second outer limit for the expanded fixture; individual CDP and assertion waits keep their 12-second limits and no retries.
 Protocol timeouts retain the caller stack. The Chat workspace workflow uploads browser fixture screenshots on failure for seven days; a timeout remains a failed test.
 Failure JSON and Chrome stderr are saved before screenshot capture, so an unresponsive renderer does not erase the original diagnostics.

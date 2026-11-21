@@ -50,8 +50,6 @@ input,textarea,select {
   display:grid;
   --document-font:Charter,"Bitstream Charter",Georgia,"Times New Roman",serif;
   --rail-width:248px;
-  --reading-width:886px;
-  --page-edge:clamp(24px,3.3vw,54px);
   grid-template-columns:var(--rail-width) minmax(0,1fr) 304px;
   height:100dvh;
   overflow:hidden
@@ -338,6 +336,9 @@ kbd {
   color:var(--text)
 }
 .chat-stage {
+  container:chat-stage / inline-size;
+  --reading-width:clamp(936px,88cqi,1680px);
+  --page-edge:clamp(24px,4cqi,54px);
   min-height:0;
   flex:1;
   display:flex;
@@ -347,11 +348,11 @@ kbd {
   flex:1;
   overflow-y:auto;
   overscroll-behavior:contain;
+  scrollbar-gutter:stable both-edges;
   scrollbar-width:thin;
   scrollbar-color:var(--border) transparent
 }
 .chat-stage:has(#welcome:not([hidden])) {
-  container:landing / inline-size;
   overflow:auto;
   scrollbar-width:thin
 }
@@ -451,11 +452,13 @@ kbd {
   padding-top:clamp(28px,7vh,72px);
   padding-bottom:32px
 }
-.workspace[data-temporary=false] .chat-stage:has(#welcome:not([hidden])) .composer-area { max-width:1090px }
-@container landing (min-width:840px) {
-  .workspace[data-temporary=false] .composer-area {
+.workspace[data-temporary=false] .chat-stage:has(#welcome:not([hidden])) .composer-area {
+  --reading-width:clamp(1090px,94cqi,1484px)
+}
+@container chat-stage (min-width:840px) {
+  .workspace[data-temporary=false] .chat-stage:has(#welcome:not([hidden])) .composer-area {
     display:grid;
-    grid-template-columns:minmax(0,1fr) minmax(225px,29%);
+    grid-template-columns:minmax(0,1fr) clamp(225px,29%,330px);
     align-items:start;
     column-gap:clamp(32px,4cqi,52px)
   }
@@ -477,7 +480,6 @@ kbd {
   border-radius:6px;
   background:var(--card-background)
 }
-.chat-stage:has(#welcome[hidden]) { --reading-width:936px }
 .composer #draft-notice { margin:6px 12px 0 }
 .chat-stage:has(#welcome:not([hidden])) #draft { min-height:104px }
 #composer:has(#file-drop-hint:not([hidden])) {
@@ -905,6 +907,7 @@ kbd {
   display:none
 }
 .message.user {
+  --prose-width:88ch;
   padding:10px 12px 3px;
   border-radius:4px;
   background:var(--raised)
@@ -941,8 +944,13 @@ kbd {
   font-size:16px;
   line-height:1.65
 }
-.message.assistant>.markdown>:is(p,ul,ol,blockquote,.code-block,.table-scroll) {
-  max-width:72ch
+.message .markdown > :is(p,ul,ol,blockquote,h2,h3,h4,h5,h6,hr) {
+  max-width:var(--prose-width,72ch)
+}
+.message .markdown > :is(.code-block,.table-scroll) {
+  width:fit-content;
+  min-width:min(100%,72ch);
+  max-width:100%
 }
 @container (min-width:620px) {
   .message {
@@ -1075,6 +1083,7 @@ kbd {
 .markdown table {
   width:100%;
   border-collapse:collapse;
+  overflow-wrap:break-word;
   font-variant-numeric:tabular-nums;
   font-size:13px
 }
@@ -1718,13 +1727,14 @@ dialog::backdrop {
   }
 }
 @media(min-width:1600px) {
-  .workspace { --rail-width:272px; --reading-width:900px }
+  .workspace { --rail-width:272px }
 }
 @media(max-width:1200px) {
   .workspace {
     --rail-width:225px;
     grid-template-columns:var(--rail-width) minmax(0,1fr)
   }
+  .chat-stage { --page-edge:25px }
   .inspector {
     position:fixed;
     right:0;
@@ -1740,15 +1750,6 @@ dialog::backdrop {
   .topbar {
     padding:0 25px
   }
-  .composer-area {
-    padding-left:25px;
-    padding-right:25px
-  }
-  #reading-navigation { padding-inline:25px }
-  .messages {
-    padding-left:25px;
-    padding-right:25px
-  }
   .connection {
     display:none
   }
@@ -1760,6 +1761,7 @@ dialog::backdrop {
   .main {
     width:100%
   }
+  .chat-stage { --page-edge:16px }
   .sidebar {
     position:fixed;
     left:0;
@@ -1806,7 +1808,7 @@ dialog::backdrop {
   .context-shortcut span { display:none }
   .context-shortcut { height:40px; width:40px; padding:0; border-color:transparent }
   .composer-area {
-    padding:10px 16px 6px
+    padding-block:10px 6px
   }
   .composer-caption {
     font-size:8px;
@@ -1822,7 +1824,6 @@ dialog::backdrop {
   .composer-divider {
     display:none
   }
-  #reading-navigation { padding-inline:16px }
   .reading-controls { padding-block:0 }
   .reading-controls button { min-height:40px }
   #passage-navigation button:not(#passage-edit) { width:40px }
@@ -1830,7 +1831,7 @@ dialog::backdrop {
   .composer-left #attach-source { width:40px; padding:0 }
 
   .messages {
-    padding:16px 16px 8px
+    padding-bottom:8px
   }
   .markdown {
     font-size:13px

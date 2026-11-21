@@ -8,6 +8,30 @@ Connection headings use the discovered names with an initial capital. Stored
 tool selections retain their identifiers. Chrome covers the docked toggle
 and modal drawer focus. Landing uses a fast-forward after the scoped checks.
 
+## Chat on wide screens
+
+**Goal.** Use more of the Chat pane for the transcript and composer while
+keeping prose easy to read.
+
+**Done.** The transcript, composer and reading controls share a pane-relative
+width. The landing grid gives most of the extra room to the composer. Code
+and tables grow to their content and scroll locally. Reply prose retains its
+72ch measure, which also bounds expanded reasoning.
+
+**Checks.** Chrome measured the active composer at 1920 px with Conversation
+details open and closed, from 828 px in both states to 1075 and 1342 px. At
+2560 px it grew from 828 to 1572 px in both states. The landing composer went
+from 645 to 994 px at 2560 px. Fixtures cover both dock states at 1440, 1920
+and 2560 px, tablet and phone layouts, alignment and wide block overflow.
+Reviewed matching desktop screenshots and the phone layout. Evidence is in
+`scratch/chat-wide-layout/` and `scratch/chat-ui-browser/wide-layout/`.
+
+The change lands by fast-forward after the scoped Chat workspace checks.
+
+**Gotchas.** Conversation details changes the available width when docked
+and overlays Chat at narrower widths. The Markdown review updates Chat's
+usage and test documentation for these presentation changes.
+
 ## Chat and Monitor surfaces
 
 Chat uses the dashboard page background in the conversation, card surface on the composer, header surface on the

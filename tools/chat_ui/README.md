@@ -224,6 +224,10 @@ Select the llmx wordmark to return to the Chat landing page. This keeps the
 draft of the conversation you left and adds no empty row to chat history.
 Ending a temporary chat still uses its existing confirmation.
 
+The transcript, reading controls and composer grow together as the Chat pane
+gets wider. Reply prose keeps a readable line length, and wide code blocks and
+tables use the extra room and scroll within their own blocks when needed.
+
 **Unsent drafts** lists other saved conversations with unfinished messages in
 this browser tab. Each row shows the conversation title and a text excerpt or
 attachment name. Select a row to resume typing with its attachments and edit

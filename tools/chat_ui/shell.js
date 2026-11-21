@@ -264,7 +264,7 @@ window.ChatShell = (() => {
   new MutationObserver(themeMonitor).observe(document.documentElement, {attributes: true, attributeFilter: ['data-theme']});
   window.addEventListener('resize', fitViewport); fitViewport();
   let menuAnchor = null;
-  let actionFormOpen = false;
+  let pendingActionForm = null;
   function restoreMenuFocus(origin) {
     const rowId = origin?.matches('.chat-row-menu') ? origin.dataset.id : null;
     const candidates = [origin];
@@ -316,11 +316,12 @@ window.ChatShell = (() => {
   });
   document.addEventListener('pointerdown', event => { if (!$('action-menu').contains(event.target) && !menuAnchor?.contains(event.target)) closeMenu(false); }, true);
   window.addEventListener('resize', () => closeMenu());
-  function conversationForm({title, description = '', label = '', value = '', maxLength = 200, folders = [], destructive = false, submit = 'Save'}, save) {
-    if (actionFormOpen) return Promise.resolve(undefined);
-    actionFormOpen = true;
-    closeMenu(); const dialog = $('action-dialog'), origin = document.activeElement;
-    if (dialog.open) { actionFormOpen = false; return Promise.resolve(undefined); }
+  function conversationForm(options, save) {
+    const dialog = $('action-dialog');
+    if (dialog.open) return Promise.resolve(undefined);
+    if (pendingActionForm) return pendingActionForm.then(() => conversationForm(options, save));
+    const {title, description = '', label = '', value = '', maxLength = 200, folders = [], destructive = false, submit = 'Save'} = options;
+    closeMenu(); const origin = document.activeElement;
     $('action-dialog-title').textContent = title; $('action-dialog-description').textContent = description;
     $('conversation-field').hidden = !label; $('conversation-label').textContent = label;
     const input = $('conversation-value'); input.value = value; input.maxLength = maxLength; input.setCustomValidity(''); input.disabled = !label; input.required = Boolean(label && label !== 'Folder');
@@ -330,11 +331,12 @@ window.ChatShell = (() => {
     $('conversation-error').textContent = ''; confirm.disabled = false; cancel.disabled = false;
     dialog.oncancel = event => { if (confirm.disabled) event.preventDefault(); };
     let result;
-    return new Promise(resolve => {
+    pendingActionForm = new Promise(resolve => {
       dialog.onclose = () => {
+        dialog.onclose = null;
         const focused = document.activeElement;
         if (focused === document.body || dialog.contains(focused)) restoreMenuFocus(origin);
-        actionFormOpen = false; resolve(result);
+        pendingActionForm = null; resolve(result);
       };
       cancel.onclick = () => dialog.close();
       $('conversation-form').onsubmit = async event => {
@@ -346,6 +348,7 @@ window.ChatShell = (() => {
       };
       input.oninput = () => input.setCustomValidity(''); dialog.showModal(); if (label) { input.focus(); input.select(); } else cancel.focus();
     });
+    return pendingActionForm;
   }
   function backupStatus(text, failed = false) { $('backup-status').textContent = text; $('backup-status').hidden = false; $('backup-status').classList.toggle('error-text', failed); }
   $('backup-download').addEventListener('click', async () => {

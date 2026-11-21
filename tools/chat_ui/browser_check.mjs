@@ -4195,8 +4195,21 @@ try {
   await wait("document.querySelector('#app').dataset.view==='preferences' && window.ChatShell && window.ChatShell.config!==null", 'backup restore reload');
   await click('.global-nav [data-view="workbench"]');
   await wait("document.querySelector('.workspace-revision').textContent==='Revision 0'", 'workspace load');
-  const modalOwner = await evaluate("(async()=>{const first=window.ChatShell.conversationForm({title:'Dialog owner probe',label:'Name',value:'first'});document.querySelector('#action-dialog').close();const second=window.ChatShell.conversationForm({title:'Overlapping form',label:'Name',value:'second'});await first;return {settled:true,secondAccepted:(await second)!==undefined};})()");
-  assert.deepEqual(modalOwner, {settled: true, secondAccepted: false}, 'shared dialog allowed overlapping ownership');
+  const modalOwner = await evaluate(`(async () => {
+    const dialog = document.querySelector('#action-dialog');
+    const open = title => window.ChatShell.conversationForm({title, label:'Name', value:'first'});
+    const first = open('Dialog owner probe');
+    const overlap = await open('Overlapping form');
+    const keptFirst = dialog.open && document.querySelector('#action-dialog-title').textContent === 'Dialog owner probe';
+    dialog.close();
+    const successor = open('Next form');
+    await first;
+    const openedNext = dialog.open && document.querySelector('#action-dialog-title').textContent === 'Next form';
+    if (dialog.open) dialog.close();
+    await successor;
+    return {keptFirst, rejectedOverlap:overlap === undefined, openedNext};
+  })()`);
+  assert.deepEqual(modalOwner, {keptFirst:true, rejectedOverlap:true, openedNext:true}, 'shared dialog ownership during close and reopen');
   await checkEmptyWorkspace();
   assert.equal(await evaluate("document.querySelector('#action-dialog-title').textContent"), 'New workspace file');
   assert.equal(await evaluate("document.activeElement.id"), 'conversation-value', 'new-file dialog did not focus its field');

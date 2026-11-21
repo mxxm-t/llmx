@@ -2,10 +2,13 @@
 
 ## Reopening an editor confirmation
 
-- Goal: Protect the unsaved editor when a second attachment is opened immediately after canceling its predecessor.
-- Done: Reproduced the missing discard prompt by postponing the native dialog close notification. Delaying the file save response preserved the editor changes.
-- Left: Verify rapid cancellation and reopening in Chrome and fix the shared modal owner.
-- Gotchas: A closed native dialog can still have an undelivered close event.
+The shared confirmation form finishes a closed dialog's pending close event
+before opening the next request. Chrome reproduced a dropped request when
+canceling a discard prompt and immediately reopening an attachment. The
+regression checks that the second discard prompt opens, its submit reaches
+the filename dialog and Escape returns focus to the attachment. Delaying
+the file save response preserved the editor changes. Landing uses a
+fast-forward after the scoped Chat checks.
 
 ## Workspace tool timing
 

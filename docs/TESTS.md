@@ -185,6 +185,7 @@ It also holds Retry admission and snapshot responses across navigation, checking
 Conversation settings checks cover the blank composer, reuse of the current empty chat, fresh defaults after a populated chat, saving an unavailable model choice, pending admission, and persistence through Send and Retry without a separate save. A held settings save targets its original chat and preserves the destination's edits.
 Workspace tool tests exercise server-owned write preconditions for unrelated edits, simultaneous proposals, same-file conflicts, reads, deletion and recreation.
 The browser opens completed and conflicting writes from Chat, checks the saved text, missing files and unsafe paths, and opens the file picker from conversation settings.
+The saved-file editor check measures the gap between a zero-duration write and its file action.
 The browser distinguishes navigation hover from the selected section in both themes.
 The wide Chat fixture measures the landing page and active transcript at 1440,
 1920 and 2560 pixels with Conversation details open and closed. It checks

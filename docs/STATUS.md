@@ -1,5 +1,11 @@
 # llmx - Development Status
 
+## Workspace tool timing
+
+The expanded workspace write result leaves 12 px between elapsed time and
+Open in Workspace. The saved-file browser check reproduced the original 0 px
+gap for a 0 ms write. This lands by fast-forward after the Chat checks.
+
 ## Conversation settings toggle
 
 The composer settings button toggles its open panel and switches from another

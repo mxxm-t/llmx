@@ -1261,6 +1261,7 @@ kbd {
   padding:8px 13px 12px;
   font-size:11px
 }
+.tool-body > small:has(+ .workspace-tool-open) { margin-inline-end:12px }
 .tool-body>.section-label {
   margin:7px 0 3px
 }

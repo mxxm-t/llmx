@@ -1,28 +1,15 @@
 # llmx - Development Status
 
-## Replace an edited file in the current draft
+## Workspace editor and draft attachments (2026-11-21, Done)
 
-- Goal: Update a draft attachment directly from the file editor while preserving its position and other draft content.
-- Done: A single conflicting text attachment offers Replace in draft in the editor. Confirmation updates its slot and returns focus to the composer. Editing again dismisses the offer.
-- Checks: Chrome exercises a full draft, a changed draft, the combined attachment size limit, preserved saved file contents and keyboard acceptance. The feature lands by fast-forward after the scoped workspace checks.
+A saved tool result opens the latest file in the editor or resumes unsaved changes to the same path. Attaching a file twice keeps one copy. When the draft contains one older text attachment for that path, **Replace in draft** updates the existing slot and returns focus to the message. The saved file retains its contents. [Workspace usage](../tools/chat_ui/README.md#work-on-files)
 
-## Send editor text to a conversation
-
-- Goal: Preserve a workspace editor attachment's text regardless of its filename.
-- Done: The editor preserves the leading UTF-8 byte-order mark and sends workspace text through the text reader even if its filename ends in .pdf.
-- Checks: Chrome reproduced the lost mark and the refused attachment on main. It checks both files against their original text and verifies the saved-file picker reuses the same copies. The fix lands by fast-forward after the scoped workspace checks.
-- Gotcha: The workspace holds text. A PDF uploaded from a device has its own page-selection workflow.
-
-## Open saved chat results in the editor
-
-- Goal: Continue from a model-written file in the conversation to its workspace editor.
-- Done: Open in editor takes a saved tool result to its original workspace path. The workspace loads the latest saved file or resumes a dirty buffer for the same path.
-- Checks: Chrome covers the HTML preview, a change made after opening it, an earlier file read arriving after the editor resumes, conflict results, the discard dialog and preserving the chat draft. The feature lands by fast-forward after the scoped workspace checks.
-## Attach the current editor file to a draft
-
-- Goal: Keep a single, unambiguous copy of a workspace path in the chat draft.
-- Done: The editor and project picker share the workspace attachment check. Identical copies reuse their existing slot. A different version keeps the editor open and identifies the attachment to remove.
-- Checks: Chrome reproduced two copies on main. It checks reuse at the eight-file limit, a conflicting unsaved edit, a late refresh and attaching the revised text without saving the file. Chrome also reproduced a lost click when that refresh moved the button between press and release. Returning to the editor now clears the old conflict before the controls can be clicked. The fix lands by fast-forward after the scoped workspace checks.
+| Check | Result |
+| --- | --- |
+| Open a saved tool result | Chrome covered a late file read, a changed saved file and switching away from an unsaved edit. [Windows and Linux checks](https://github.com/mxxm-t/llmx/actions/runs/44879395395) |
+| Attach from the editor or picker | Attaching the same file from the editor reused its slot in a full eight-file draft. Chrome also checked that a refresh kept the conflict visible and the attachment button under the pointer. [Windows and Linux checks](https://github.com/mxxm-t/llmx/actions/runs/44882654936) |
+| Preserve workspace text | The editor retained the UTF-8 byte-order mark and CRLF endings. Selecting the same text in the picker reused the attachment. A workspace file named `notes.pdf` arrived as text. PDF uploads from a device still use the page picker. [Windows and Linux checks](https://github.com/mxxm-t/llmx/actions/runs/44883430256) |
+| Replace from the editor | Keyboard activation preserved draft text and attachment order. A stale action or replacement exceeding 10 MiB kept the original. The change landed by fast-forward at `977570511`. [Windows and Linux checks](https://github.com/mxxm-t/llmx/actions/runs/44885090495) |
 
 ## Chat history sections
 
@@ -12313,6 +12300,7 @@ Step 6, the head split, was measured on 2, 3, 4 and 8 cards and not merged (the 
 
 | Feature                                  | Status   |
 |------------------------------------------|----------|
+| [Workspace editor and draft attachments](#workspace-editor-and-draft-attachments-2026-11-21-done) | Done on `977570511`. |
 | [Chat composition, grouped tool replies and saved project files](../tools/chat_ui/README.md) | Done on `b90125aa7`. Chrome checked 320, 390 and 1440 px in both themes. [Windows and Linux companion checks](https://github.com/mxxm-t/llmx/actions/runs/44822701326) passed. |
 | [Saved-chat reply status and refresh focus](benchmarks/companion-status-focus-20261118.md) | Done |
 | [Companion browser failure evidence](benchmarks/companion-status-focus-20261118.md) | Done |

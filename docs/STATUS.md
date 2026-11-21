@@ -24,6 +24,16 @@ name and reopen the saved conversation with focus in its composer.
 - Matched Chrome views covered 1440 px light and 320 px dark layouts. The saved-context and full workspace browser checks passed, including file and project review, mobile navigation and 200 percent zoom.
 - Reviewed the Chat documentation against the new entry points. The docs and dead-code components passed. Landing uses a fast-forward after the scoped Chat workspace checks.
 
+## JavaScript module attachments in Chat (2026-11-21)
+
+The device picker and the attachment reader share the list of text file
+extensions. Both accept JavaScript modules with `.mjs` and `.cjs` names.
+
+The Chrome regression failed on main and passed with the fix. It selected
+one module with an application MIME type and one with an uppercase suffix
+and no MIME type, then checked the filenames and exact source in the draft.
+This companion change lands by fast-forward after the Chat workspace checks.
+
 ## Workspace editor and draft attachments (2026-11-21, Done)
 
 The [companion API contract](../tools/chat_ui/CONTRACT.md#routes) now documents atomic file import and comparison of unsaved text. The workspace HTTP tests cover both routes. This documentation correction lands by fast-forward.

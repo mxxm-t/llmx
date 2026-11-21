@@ -14,6 +14,7 @@
   }
   const $ = id => document.getElementById(id);
   const baseFileTypes = $('file-input').accept;
+  const textFileExtensions = new Set(baseFileTypes.split(',').filter(type => type.startsWith('.')));
   let pdfSelection = null;
   const systemTheme = window.matchMedia('(prefers-color-scheme: light)');
   const storedTheme = localStorage.getItem('llmx-theme');
@@ -1745,7 +1746,7 @@
       if (['image/png', 'image/jpeg'].includes(file.type)) {
         if (file.size > 8 * 1024 * 1024) throw new Error(file.name + ' is larger than 8 MiB.');
         const data = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('Could not read ' + file.name)); reader.readAsDataURL(file); }); pending.push({name: file.name, type: file.type, data});
-      } else if (file.type.startsWith('text/') || /\.(txt|md|csv|json|py|js|ts|jsx|tsx|cpp|hpp|h|c|rs|go|java|sh|ps1|html|css|xml|log|yaml|yml|toml|ini|sql)$/i.test(file.name)) {
+      } else if (file.type.startsWith('text/') || textFileExtensions.has(file.name.toLowerCase().match(/\.[^.]+$/)?.[0])) {
         if (file.size > 2 * 1024 * 1024 + 3) throw new Error(file.name + ' is larger than 2 MiB.');
         const bytes = await file.arrayBuffer(); let text; try { text = new TextDecoder('utf-8', {fatal: true, ignoreBOM: fromWorkspace}).decode(bytes); } catch (_) { throw new Error(file.name + ' must be UTF-8 text.'); }
         if (text.includes('\u0000')) throw new Error(file.name + ' looks like a binary file.');

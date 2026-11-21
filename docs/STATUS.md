@@ -5,6 +5,16 @@
 - Goal: Attach the exact text or image from an earlier message to the current draft.
 - Done: The attachment menu lists files by name and turn on the selected branch. Sent text and image viewers can add their saved copy to the current draft. The composer preserves draft text and other files, deduplicates the same copy and reports a filename conflict before changing anything.
 - Checks: The workspace browser test exercises both formats, separate branches, same-name files from two turns, identical and conflicting versions, keyboard focus and zero writes to the server. The change lands by fast-forward after the scoped workspace checks.
+## Conversation reading and writing surfaces
+
+Prompts have a neutral background. Answers use a common reading width for
+prose and code, with locally rendered serif section headings. The composer
+groups its controls below the text. The four main views sit under the wordmark
+in both visual and keyboard order.
+
+- Chrome covered reading, reasoning and tool replies, branch actions, passage navigation, draft recovery, the history drawer and keyboard navigation. The complete workspace journey passed, including 200 percent zoom.
+- A geometry check covered 320, 390, 640, 768, 1024, 1280 and 1440 px. Prose and code had matching widths throughout, from 288 to 621 px. Each viewport fit its composer and draft text.
+- Reviewed the sidebar documentation and the matched light and dark browser captures. The presentation change lands by fast-forward after its scoped checks.
 
 ## Original-size attachment images
 

@@ -227,8 +227,10 @@ target restored. The draft in **New conversation** stays available when you
 return. The list appears only when a draft is available and excludes archived
 and temporary conversations.
 
-The sidebar highlights the current view and groups saved conversations by pin
-and folder. Select a group heading to collapse or expand it. The archive keeps its own open groups.
+The sidebar places Chat, Saved files, Monitor and Settings under the llmx
+wordmark. The current view is highlighted. Below New conversation, saved chats
+are grouped by pin and folder. Select a group heading to collapse or expand
+it. The archive keeps its own open groups.
 Search shows matches in one list, including conversations in collapsed groups. On a phone, the chat landing
 page also lists up to three recently updated conversations with messages. Archived
 conversations stay in the archive. Select a recent conversation to reopen its

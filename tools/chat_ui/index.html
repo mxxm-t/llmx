@@ -27,17 +27,6 @@
           <button id="sidebar-close" class="icon mobile-only" data-action="close-drawers" aria-label="Close navigation"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
           <button id="chat-home" class="brand-home" type="button" data-action="home" aria-label="llmx Chat home" title="Chat home"><span class="brand-wordmark" aria-hidden="true"></span></button>
         </div>
-        <button class="new-chat" data-action="new" disabled aria-busy="true">
-          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-          <span class="chat-create-label">New conversation</span>
-          <kbd>Ctrl K</kbd>
-        </button>
-        <div class="library-heading">
-          <span id="library-title">Conversations</span>
-          <button id="archive-toggle" class="text-button" data-action="archive-view">Show archive</button>
-        </div>
-        <label class="search-box"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><input id="search" type="search" maxlength="256" placeholder="Search conversations" aria-label="Search conversations"></label>
-        <nav id="chat-list" class="chat-list" aria-label="Chat history"></nav>
         <nav class="global-nav" aria-label="Main navigation">
           <button data-view="chat" aria-current="page">
             <svg viewBox="0 0 24 24">
@@ -68,6 +57,17 @@
             <span>Settings</span>
           </button>
         </nav>
+        <button class="new-chat" data-action="new" disabled aria-busy="true">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+          <span class="chat-create-label">New conversation</span>
+          <kbd>Ctrl K</kbd>
+        </button>
+        <div class="library-heading">
+          <span id="library-title">Conversations</span>
+          <button id="archive-toggle" class="text-button" data-action="archive-view">Show archive</button>
+        </div>
+        <label class="search-box"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><input id="search" type="search" maxlength="256" placeholder="Search conversations" aria-label="Search conversations"></label>
+        <nav id="chat-list" class="chat-list" aria-label="Chat history"></nav>
         <div class="sidebar-footer">
           <div class="footer-actions">
             <button data-action="import" class="text-button">Import</button>

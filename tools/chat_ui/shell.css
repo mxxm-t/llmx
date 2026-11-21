@@ -2,7 +2,7 @@
   width: 76px;
   height: 30px;
 }
-.sidebar { background: var(--inset); }
+.sidebar { background: color-mix(in srgb, var(--inset) 58%, var(--bg)); }
 .topbar { background: var(--header); }
 .settings-card,
 .metric-card,
@@ -63,21 +63,21 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0,1fr));
   flex: none;
-  gap: 2px 4px;
-  margin: 10px 0 3px;
-  padding: 9px 0;
-  border-top: 1px solid var(--border);
+  gap: 3px 4px;
+  margin: 0 0 17px;
+  padding: 0 0 13px;
+  border-bottom: 1px solid var(--line);
 }
 .global-nav button {
   display: flex;
   align-items: center;
   gap: 8px;
   min-height: 32px;
-  padding: 5px 9px;
-  border-radius: 5px;
+  padding: 5px 8px;
+  border-radius: 4px;
   color: var(--muted);
   text-align: left;
-  font-size: 12px;
+  font-size: 13px;
 }
 .global-nav button:hover { color: var(--text); background: var(--surface); }
 .global-nav button[aria-current=page] { color: var(--text); background: var(--hover); font-weight: 600; }
@@ -1108,14 +1108,18 @@
   flex: 1;
   min-width: 0;
   margin-bottom: 0;
-  border-radius: 8px 0 0 8px;
+  padding: 9px 8px;
+  border-radius: 4px 0 0 4px;
+  color: var(--secondary);
+  font-size: 13px;
 }
+.chat-row .chat-item.active { color: var(--text); font-weight: 600; }
 .chat-row-menu {
   flex: 0 0 36px;
   align-self: stretch;
   height: auto;
   margin: 0;
-  border-radius: 0 8px 8px 0;
+  border-radius: 0 4px 4px 0;
   background: transparent;
   color: var(--muted);
   font-size: 18px;
@@ -1131,7 +1135,7 @@
 }
 .chat-row:not(.active):focus-within {
   background: var(--hover);
-  border-radius: 8px;
+  border-radius: 4px;
 }
 .chat-row:not(.active):focus-within .chat-item,
 .chat-row:not(.active):focus-within .chat-row-menu {

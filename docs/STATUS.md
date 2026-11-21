@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Long chat rendering (2026-11-21)
+
+- Goal: Keep an incoming reply responsive when the chat already contains hundreds of turns.
+- Done: Each render collects the visible message elements and groups messages by parent once. The branch controls and reply statistics reuse those results. At 300 turns, a one-word update made one transcript-wide selector lookup, down from 901.
+- Timing: Local headless Chrome, one short prompt and answer per turn. Pooled median JavaScript time across 16 updates per arm, in main/candidate/candidate/main order: 20 turns 0.90/0.90 ms, 100 turns 2.95/1.80 ms, 300 turns 18.85/6.60 ms. The two candidate medians at 300 turns were 11.50 and 5.50 ms. System CPU sampled at 27-42 percent across arms. These measurements exclude paint, network and model time.
+- Checks: The chat workspace browser fixtures exercise branch order, focused actions, tool continuations, reply statistics and long-chat navigation. Landing is by fast-forward after the scoped checks on Linux and Windows.
+
 ## Chat comparison tables (2026-11-21)
 
 - Goal: Keep measurements aligned with their headers, including comparisons with literal pipes in a label.

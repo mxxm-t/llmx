@@ -848,7 +848,7 @@
     }
     return wrap;
   }
-  function messageView(message) {
+  function messageView(message, siblings) {
     const el = node('article', 'message ' + message.role); el.dataset.message = message.id;
     const header = node('div', 'message-header');
     header.append(node('span', '', message.role === 'assistant' ? 'Assistant' : message.role === 'tool' ? 'Tool result' : 'You'));
@@ -884,7 +884,6 @@
       quote.addEventListener('mousedown', event => { if (event.button === 0) event.preventDefault(); });
       actions.append(quote);
     }
-    const siblings = S.messages.filter(m => m.role === message.role && m.parent_id === message.parent_id);
     if (siblings.length > 1) {
       const index = siblings.findIndex(m => m.id === message.id); const branch = node('span', 'branch-switch');
       const prev = actionIcon('Previous branch', 'branch', siblings[(index + siblings.length - 1) % siblings.length].id, 'M15 18l-6-6 6-6', 'branch-action');
@@ -934,13 +933,25 @@
   function render() {
     const nearBottom = followsLatest();
     const selected = path().filter(m => m.role !== 'tool'); const container = $('messages'); const wanted = new Set(selected.map(m => m.id));
-    container.querySelectorAll('[data-message]').forEach(el => { if (!wanted.has(el.dataset.message)) { el.remove(); S.fingerprint.delete(el.dataset.message); } });
+    const childrenByParent = new Map();
+    for (const message of S.messages) {
+      const children = childrenByParent.get(message.parent_id);
+      if (children) children.push(message);
+      else childrenByParent.set(message.parent_id, [message]);
+    }
+    const articles = new Map();
+    for (const el of container.querySelectorAll(':scope > .message')) {
+      const id = el.dataset.message;
+      if (wanted.has(id)) articles.set(id, el);
+      else { el.remove(); S.fingerprint.delete(id); }
+    }
     selected.forEach((message, index) => {
-      const fingerprint = JSON.stringify(messageKey(message, true)) + S.messages.filter(m => m.parent_id === message.parent_id && m.role === message.role).map(m => m.id).join();
-      let old = container.querySelector('[data-message="' + CSS.escape(message.id) + '"]');
+      const siblings = childrenByParent.get(message.parent_id).filter(m => m.role === message.role);
+      const fingerprint = JSON.stringify(messageKey(message, true)) + siblings.map(m => m.id).join();
+      let old = articles.get(message.id);
       if (S.fingerprint.get(message.id) !== fingerprint || !old) {
         const disclosures = new Map(old ? Array.from(old.querySelectorAll('details[data-disclosure]'), detail => [detail.dataset.disclosure, detail]) : []);
-        const replacement = messageView(message);
+        const replacement = messageView(message, siblings);
         replacement.querySelectorAll('details[data-disclosure]').forEach(detail => {
           const previous = disclosures.get(detail.dataset.disclosure);
           const enteringApproval = detail.open && !previous?.parentElement.querySelector('.approval');
@@ -972,7 +983,7 @@
           }
           if (preserved.length) reconcileChildren(old, replacement, preserved);
           else old.replaceChildren(...replacement.childNodes);
-        } else { container.append(replacement); old = replacement; }
+        } else { container.append(replacement); old = replacement; articles.set(message.id, old); }
         S.fingerprint.set(message.id, fingerprint);
       }
       const previous = selected[index - 1];
@@ -1001,7 +1012,7 @@
     if ($('app').dataset.view === 'chat') document.title = (S.chat?.title ? S.chat.title + ' / ' : '') + 'llmx Chat';
     const groups = replyGroups();
     groups.forEach(group => group.calls.forEach((m, index) => {
-      const control = container.querySelector('[data-message="' + CSS.escape(m.id) + '"] [data-action=reply-stats]');
+      const control = articles.get(m.id)?.querySelector('[data-action=reply-stats]');
       if (control) { control.dataset.reply = group.id; control.hidden = index !== group.calls.length - 1; control.setAttribute('aria-expanded', String(replyStats?.id === group.id)); }
     }));
     positionReplyStats(); syncLiveMetrics(); renderInspector(); renderContextLimits(); tick();

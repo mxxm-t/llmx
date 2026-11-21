@@ -368,44 +368,66 @@ __device__ void q8_0_half_held(const RowCall& rc, const signed char* q, const fl
     const unsigned blocks = (unsigned)(nin / 32), hl = lane & 1;
     const unsigned long long o = (unsigned long long)blockIdx.x * (kThreads / lanes) + threadIdx.x / lanes;
     const unsigned span = lanes / 2, b0 = lane >> 1;
-    int4 xq[NS];
+    // The twin goes into LDS once a block, so a wave loads only its row's weights; every wave meets the barrier, a wave past the call's rows loading the last row.
+    constexpr int XQ = NS * 64, XF = (XQ + kThreads - 1) / kThreads;
+    static_assert(NS * 32 <= kThreads, "a thread stages at most one block scale");
+    __shared__ int4 sq[XQ];
+    __shared__ float sd[NS * 32];
+    int4 fq[XF];
+    float fd = 0.0f;
+#pragma unroll
+    for (int i = 0; i < XF; ++i) {
+        const unsigned t = threadIdx.x + i * kThreads;
+        fq[i] = t < 2 * blocks ? *(const int4*)(q + 16ull * t) : int4{0, 0, 0, 0};
+    }
+    if (threadIdx.x < blocks) fd = dx[threadIdx.x];
+    const unsigned long long oc = o < rc.total ? o : rc.total - 1;
+    // The weight base is the wave's, in scalar registers; the output pointer stays per lane, since both in scalar form took 48 us against 8 at 2048 rows of 2048 on an MI50.
+    const unsigned* w = (const unsigned*)row_of(rc, first_lane((unsigned)oc), blocks * kQ8).w;
+    gpu_words<4> t4[NS];
+    unsigned t5[NS];
+    // Steps past the row's blocks load its last block and add nothing, so no step branches and every load issues before the first wait.
+#pragma unroll
+    for (int d = 0; d < NS; ++d) {
+        const unsigned bd = b0 + d * span, bc = bd < blocks ? bd : blocks - 1, start = bc * kQ8 + 18 * hl, sh = start & 2, wi = start >> 2;
+        t4[d] = *(const gpu_words<4>*)(w + wi);
+        t5[d] = w[wi + 3 + (hl == 0 || sh ? 1 : 0)];
+    }
+    schedule_barrier();
+#pragma unroll
+    for (int i = 0; i < XF; ++i) {
+        const unsigned t = threadIdx.x + i * kThreads;
+        if (t < 2 * blocks) sq[t] = fq[i];
+    }
+    if (threadIdx.x < blocks) sd[threadIdx.x] = fd;
+    __syncthreads();
+    if (o >= rc.total) return;
+    // Every step's twin and scale leave LDS before the first product, so the reads issue together.
+    int4 xs[NS];
     float xd[NS];
 #pragma unroll
     for (int d = 0; d < NS; ++d) {
-        const unsigned bd = b0 + d * span;
-        xq[d] = bd < blocks ? *(const int4*)(q + (unsigned long long)bd * 32 + 16 * hl) : int4{0, 0, 0, 0};
-        xd[d] = bd < blocks ? dx[bd] : 0.0f;
-    }
-    if (o >= rc.total) return;
-    // The weight base is the wave's, in scalar registers; the output pointer stays per lane, since both in scalar form took 48 us against 8 at 2048 rows of 2048 on an MI50.
-    const unsigned* w = (const unsigned*)row_of(rc, first_lane((unsigned)o), blocks * kQ8).w;
-    gpu_words<4> t4[NS];
-    unsigned t5[NS];
-#pragma unroll
-    for (int d = 0; d < NS; ++d) {
-        const unsigned bd = b0 + d * span, start = bd * kQ8 + 18 * hl, sh = start & 2, wi = start >> 2;
-        if (bd < blocks) {
-            t4[d] = *(const gpu_words<4>*)(w + wi);
-            t5[d] = w[wi + 3 + (hl == 0 || sh ? 1 : 0)];
-        }
+        const unsigned bd = b0 + d * span, bc = bd < blocks ? bd : blocks - 1;
+        xs[d] = sq[2 * bc + hl];
+        xd[d] = sd[bc];
     }
     float acc = 0.0f;
 #pragma unroll
     for (int d = 0; d < NS; ++d) {
-        const unsigned bd = b0 + d * span, start = bd * kQ8 + 18 * hl, sh = start & 2, s0 = sh + 2 * (1 - hl);
-        // Both lanes of a block take or skip a step together, so the scale's exchange reads an active partner.
-        if (bd >= blocks) continue;
+        const unsigned bd = b0 + d * span, bc = bd < blocks ? bd : blocks - 1, start = bc * kQ8 + 18 * hl, sh = start & 2, s0 = sh + 2 * (1 - hl);
+        const int4 xq = xs[d];
         const bool next = s0 == 4;
         const unsigned t0 = t4[d].x, t1 = t4[d].y, t2 = t4[d].z, t3 = t4[d].w, t5d = t5[d];
         const unsigned u0 = next ? t1 : t0, u1 = next ? t2 : t1, u2 = next ? t3 : t2, u3 = next ? t5d : t3, n = s0 & 3;
-        int s = word_dot((int)byte_align(u1, u0, n), xq[d].x, 0, (signed char)0);
-        s = word_dot((int)byte_align(u2, u1, n), xq[d].y, s, (signed char)0);
-        s = word_dot((int)byte_align(u3, u2, n), xq[d].z, s, (signed char)0);
-        s = word_dot((int)byte_align(t5d, u3, n), xq[d].w, s, (signed char)0);
+        int s = word_dot((int)byte_align(u1, u0, n), xq.x, 0, (signed char)0);
+        s = word_dot((int)byte_align(u2, u1, n), xq.y, s, (signed char)0);
+        s = word_dot((int)byte_align(u3, u2, n), xq.z, s, (signed char)0);
+        s = word_dot((int)byte_align(t5d, u3, n), xq.w, s, (signed char)0);
         const int own = (int)(t0 >> (8 * sh)) & 0xffff;
         const int partner = pair_lane(own);
         const float dw = __half2float(__ushort_as_half((unsigned short)(hl ? partner : own)));
-        acc = fmaf(dw * xd[d], (float)s, acc);
+        const float next_acc = fmaf(dw * xd[d], (float)s, acc);
+        acc = bd < blocks ? next_acc : acc;
     }
     const float v = wave_sum(acc);
     if (lane == 0) {

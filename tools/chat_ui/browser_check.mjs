@@ -741,8 +741,18 @@ async function checkLandingContext() {
   assert.equal(apiMutations.length,writes,'home selections changed saved state');
   assert.equal(runStreams.length,streams,'home selections submitted the draft');
   await cdp('Emulation.setDeviceMetricsOverride',{width:320,height:700,deviceScaleFactor:1,mobile:true});
-  await wait("document.documentElement.dataset.compact==='true'",'narrow home');
-  await pointerClick(source('files')); await shown(row('brief/outline.md'));
+  const filesTab = source('files');
+  await wait(`(async () => {
+    if (innerWidth !== 320 || document.documentElement.dataset.compact !== 'true') return false;
+    const tab = document.querySelector(${JSON.stringify(filesTab)});
+    const before = tab.getBoundingClientRect();
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const after = tab.getBoundingClientRect();
+    return before.x === after.x && before.y === after.y && before.width === after.width && before.height === after.height;
+  })()`, 'Files tab settled after the phone layout and draft resize');
+  await pointerClick(filesTab);
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(filesTab)}).getAttribute('aria-pressed')`),'true','phone pointer selected Files');
+  await shown(row('brief/outline.md'));
   assert.equal(await evaluate("document.querySelector('#landing-context-heading').textContent"),'Attach from workspace');
   await shown('.recent-chat');
   assert.match(await evaluate("document.querySelector('.recent-chat').textContent"), /Resume this draft/);

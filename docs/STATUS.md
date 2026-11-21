@@ -1,5 +1,9 @@
 # llmx - Development Status
 
+## Mobile workspace file selection in the chat browser check
+
+On Windows the Files tab moved 24 px while the draft resized after the switch to a phone viewport. Clicking the first position on the settled layout reproduced the hosted timeout with Projects still selected. The browser check now waits for stable target bounds and checks the tab selection before reading the file list. The scoped fix lands by fast-forward after the workspace checks.
+
 ## Reuse sent attachments in a follow-up
 
 - Goal: Attach the exact text or image from an earlier message to the current draft.

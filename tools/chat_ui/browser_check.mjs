@@ -1318,6 +1318,55 @@ try {
     assert.equal(await evaluate("ChatShell.api('/workspace').then(s=>s.revision)"), revision, 'opening the editor wrote workspace data');
     assert.deepEqual(errors, [], 'saved write action browser exceptions');
     console.log('PASS: tool results open the latest saved file in the editor, preserve unsaved edits and chat drafts, and handle missing or invalid files');
+  } else if (process.argv.includes('--draft-viewer-only')) {
+    await signIn();
+    await fill('#draft','Keep this draft.');
+    const source = '<b>Source only</b>\r\n';
+    await evaluate(`(async () => {
+      const canvas=document.createElement('canvas'); canvas.width=24; canvas.height=12;
+      const image=type=>new Promise(resolve=>canvas.toBlob(resolve,type));
+      await ChatComposer.attach([new File([${JSON.stringify(source)}],'page.html',{type:'text/html'}),
+        new File([await image('image/png')],'plot.png',{type:'image/png'}),
+        new File([await image('image/jpeg')],'scan.jpg',{type:'image/jpeg'})]);
+    })()`);
+    const mutations=apiMutations.length;
+    const draftSnapshot="JSON.parse(sessionStorage.getItem('llmx-draft:new')||'{}')";
+    await wait(draftSnapshot+".attachments?.length===3",'draft files stored');
+    const before=await evaluate(draftSnapshot);
+    const textButton='#attachments [aria-label="Read attachment page.html"]';
+    assert(await evaluate(`Boolean(document.querySelector(${JSON.stringify(textButton)}))`),'unsent file has no read control');
+    await pointerClick(textButton);
+    await wait("document.querySelector('#artifact-dialog').open",'draft source viewer');
+    assert.equal(await evaluate("document.querySelector('.artifact-source code').textContent"),source);
+    assert.equal(await evaluate("document.querySelector('.artifact-source code').childElementCount"),0);
+    assert.equal(await evaluate("document.querySelector('#artifact-preview-tab').checkVisibility()"),false);
+    await click('#artifact-dialog [aria-label="Close artifact"]');
+    await wait(`document.activeElement.matches(${JSON.stringify(textButton)})`, 'focus returns to draft filename');
+    for (const [width,theme,name] of [[320,'light','plot.png'],[1440,'dark','scan.jpg']]) {
+      await cdp('Emulation.setDeviceMetricsOverride',{width,height:800,deviceScaleFactor:1,mobile:width===320});
+      await wait(`innerWidth===${width} && document.documentElement.dataset.compact==='${width===320}'`,'attachment viewport ready');
+      await evaluate(`document.documentElement.dataset.theme='${theme}'`);
+      const selector='#attachments [aria-label="View image '+name+'"]';
+      await evaluate(`document.querySelector(${JSON.stringify(selector)}).focus()`);
+      await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,text:'\r'});
+      await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
+      await wait("document.querySelector('#artifact-dialog').open && document.querySelector('#artifact-dialog img')?.naturalWidth===24",'inspect local image bytes');
+      assert.equal(await evaluate("document.querySelector('#artifact-dialog h2').textContent"),name);
+      assert(await evaluate("document.querySelector('#artifact-dialog img').checkVisibility() && document.documentElement.scrollWidth<=innerWidth"));
+      assert.equal(await evaluate("document.querySelector('#artifact-source-tab').checkVisibility()"),false);
+      await screenshot('draft-image-'+width+'.png');
+      await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+      await wait(`!document.querySelector('#artifact-dialog').open && document.activeElement.matches(${JSON.stringify(selector)})`, 'close image with keyboard');
+      await wait("!document.querySelector('#artifact-dialog img[src]')",'release closed image');
+    }
+    await pointerClick(textButton);
+    await wait("document.querySelector('.artifact-source code').checkVisibility()", 'switch back from image to text');
+    await click('#artifact-dialog [aria-label="Close artifact"]');
+    assert.deepEqual(await evaluate(draftSnapshot),before);
+    assert.equal(apiMutations.length,mutations,'review sent or changed server data');
+    await pointerClick('#attachments [aria-label="Remove plot.png"]');
+    await wait(draftSnapshot+".attachments?.length===2",'remove remains separate');
+    console.log('PASS: read draft text as source and inspect local PNG/JPEG with keyboard and focus return');
   } else if (process.argv.includes('--editor-attachments-only')) {
     await signIn();
     await evaluate("ChatShell.api('/workspace/file','POST',{path:'notes/plan.txt',content:'Original',revision:0})");

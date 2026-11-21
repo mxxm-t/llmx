@@ -178,6 +178,11 @@ class BrowserTests(unittest.TestCase):
             self.run_focused_browser(node, chrome, root, "workspace-import",
                                      (str(fixtures), "--workspace-import-only"), [])
 
+    def test_review_draft_attachments(self):
+        node, chrome = self.browser_executables()
+        with tempfile.TemporaryDirectory() as directory:
+            self.run_focused_browser(node, chrome, Path(directory), "draft-viewer", ("--draft-viewer-only",), [])
+
     def test_editor_attachment_versions(self):
         node, chrome = self.browser_executables()
         with tempfile.TemporaryDirectory() as directory:

@@ -35,6 +35,18 @@ The Chrome fixture checks MCP JSON text and structured results, the list
 limit, unsupported URLs, failed and unrelated calls, and phone and desktop
 layouts. See [Chat tools](../tools/chat_ui/README.md).
 
+## Cancelling a workspace copy from Chat (2026-11-21)
+
+Cancelling **Edit a copy** returns to the conversation and its attachment.
+The filename and replacement dialogs restore the original chat control when
+it is still present. Saved files selects the editor after the user confirms.
+
+The Chrome regression reproduced the filename cancellation failure on main.
+It checks cancelling the discard, filename and replacement prompts with an
+unsent chat draft and a dirty editor, and checks the saved file and the
+absence of writes. This companion fix lands by fast-forward after the Chat
+workspace checks.
+
 ## JavaScript module attachments in Chat (2026-11-21)
 
 The device picker and the attachment reader share the list of text file

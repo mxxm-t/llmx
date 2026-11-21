@@ -671,13 +671,17 @@
   document.addEventListener('visibilitychange', () => { if (!document.hidden && document.getElementById('app').dataset.view === 'workbench') load().catch(showError); });
   document.addEventListener('companion:artifact-edit', async event => {
     if (event.detail.workspacePath) return openToolResult({path: event.detail.workspacePath});
-    selectSection('files');
+    const origin = document.activeElement;
+    const fromChat = document.getElementById('app').dataset.view === 'chat';
     const selection = ++state.selection;
     if (!await canReplace() || selection !== state.selection) return;
     const previousText = editor.value;
     window.ChatShell.show('workbench');
     const loading = viewLoad;
     const current = () => selection === state.selection && viewLoad === loading;
+    const cancel = () => {
+      if (fromChat && current()) returnToChat(origin?.isConnected && origin !== document.body ? origin : null);
+    };
     try {
       await loading;
       if (!current()) return;
@@ -685,7 +689,8 @@
       const artifact = event.detail;
       const path = await window.ChatShell.conversationForm({title: 'Edit in workspace',
         description: 'Choose a path for this file.', label: 'File path', maxLength: 240, value: artifact.name, submit: 'Edit'});
-      if (!path || !current()) return;
+      if (!path) return cancel();
+      if (!current()) return;
       let existing;
       if (snapshot.files.some(file => file.path === path)) {
         existing = await api('/workspace/file?path=' + encodeURIComponent(path));
@@ -694,11 +699,13 @@
           const replace = await window.ChatShell.conversationForm({title: 'Replace saved file?',
             description: path + ' already exists. Open this copy in the editor? Save will replace the file.',
             destructive: true, submit: 'Edit replacement'});
-          if (!replace || !current()) return;
+          if (!replace) return cancel();
+          if (!current()) return;
         }
       }
-      if (editor.value !== previousText && !await canReplace()) return;
+      if (editor.value !== previousText && !await canReplace()) return cancel();
       if (!current()) return;
+      selectSection('files');
       state.path = path;
       state.original = existing?.content ?? '';
       state.isNew = !existing;

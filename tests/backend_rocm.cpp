@@ -502,6 +502,15 @@ void twin_types(Backend& g, Backend& c) {
     profile.prompt_rows_below = keep;
 }
 
+// At prompt_rows_below 2, so its products of up to 5 rows reach the tile kernels the check requires to have run.
+void nvfp4_scales(Backend& g, Backend& c) {
+    DeviceProfile& profile = rocm_profile(g);
+    const size_t keep = profile.prompt_rows_below;
+    profile.prompt_rows_below = 2;
+    twin_checks::nvfp4_scales(g, c, rocm_take_launches, require);
+    profile.prompt_rows_below = keep;
+}
+
 // The 8-bit tile's offset types, IQ4_NL and the types whose decode sets no min take their term in one fma against the scale times 1.5 * 2^23 (docs/PRECISION.md, Biased sums in the 8-bit HIP tile).
 // An infinite weight scale gives NaN at each output it reaches, where a multiply gave an infinity, and leaves the other outputs' bits.
 void biased_edges(Backend& g) {
@@ -3469,7 +3478,7 @@ int main(int argc, char** argv) {
             bits().q8_columns_bits(*g);
             prompt_crossover(*g);
             bits().mxfp4_decode_bits(*g);
-            twin_checks::nvfp4_scales(*g, *c, rocm_take_launches, require);
+            nvfp4_scales(*g, *c);
             twin_checks::fp8_grids(*g, *c, rocm_take_launches, require);
             std::cout << (failures ? "backend-rocm types: FAIL\n" : "backend-rocm types: PASS\n");
             return failures ? 1 : 0;
@@ -3487,7 +3496,7 @@ int main(int argc, char** argv) {
         bits().q8_columns_bits(*g);
         prompt_crossover(*g);
         bits().mxfp4_decode_bits(*g);
-        twin_checks::nvfp4_scales(*g, *c, rocm_take_launches, require);
+        nvfp4_scales(*g, *c);
         twin_checks::fp8_grids(*g, *c, rocm_take_launches, require);
         attention(*g, *c);
         classes(*g);

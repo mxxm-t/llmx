@@ -549,6 +549,10 @@ A saved tool result opens the latest file in the editor or resumes unsaved chang
 **Left.** Nothing for this change. serve() has the same start race, untried (ideas.md).
 
 **Gotchas.** The failure needs load: it did not show in idle runs. The late variant is a scratch harness, not in the branch.
+## NVFP4 tile witnesses on an MI50 (2026-11-21)
+
+- **Goal:** Make `backend-rocm` pass its two NVFP4 kernel-name witnesses on an MI50 again.
+- **Done:** `nvfp4_scales` issues products of at most 5 rows, which an MI50 sends to the row builds below `prompt_rows_below` 9, so `llmx_nvfp4_tile16` and `llmx_nvfp4_tile8` never ran. The ROCm test now runs it at `prompt_rows_below` 2, as `twin_types` does. Tests only.
 
 ## Chat message actions (2026-11-19)
 

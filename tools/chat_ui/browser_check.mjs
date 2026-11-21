@@ -900,6 +900,27 @@ try {
     assert.equal(deletes(), beforeDiscard + 1, 'deleting the saved file sent one deletion');
     assert.equal(await evaluate("(async () => (await ChatShell.api('/workspace')).files.some(file => file.path === 'artifact.py'))()"), false);
     assert.deepEqual(errors, [], 'generated file browser errors');
+    for (const [label,source,edited,expected] of [
+      ['windows','one\r\ntwo\r\n','one\nchanged\nthree\n','one\r\nchanged\r\nthree\r\n'],
+      ['mac','one\rtwo','one\nchanged','one\rchanged'],
+      ['mixed','one\r\ntwo\nthree\rfour','one\ninserted\ntwo\nthree\nfour','one\r\ninserted\r\ntwo\nthree\rfour'],
+    ]) {
+      const name = label + '.txt';
+      await evaluate(`(async()=>{const s=await ChatShell.api('/workspace');await ChatShell.api('/workspace/file','POST',{path:${JSON.stringify(name)},content:${JSON.stringify(source)},revision:s.revision});ChatWorkspace.openFiles();})()`);
+      await wait(`document.querySelector('.workspace-file[title="${name}"]')`, 'saved line-ending fixture');
+      await pointerClick('.workspace-file[title="' + name + '"]');
+      await wait(`document.querySelector('.workspace-file-path').textContent===${JSON.stringify(name)}`, 'open line-ending fixture');
+      assert.equal(await evaluate("document.querySelector('#workspace-save').disabled"), true, 'untouched ' + label + ' file was marked edited');
+      await fill('#workspace-editor', edited);
+      await pointerClick('#workspace-review');
+      await wait("document.querySelector('#artifact-dialog').open", 'review line endings');
+      const stored = () => evaluate(`ChatShell.api('/workspace/file?path=${name}').then(f=>f.content)`);
+      assert.equal(await stored(),source);
+      await pointerClick('#artifact-dialog [aria-label="Close artifact"]');
+      await pointerClick('#workspace-save');
+      await wait("document.querySelector('#workspace-save').disabled && document.querySelector('.unsaved-indicator').hidden", 'saved line endings');
+      assert.equal(await stored(),expected,label+' editor changed newline style');
+    }
     console.log('PASS: saved generated file collision, cancellation and deliberate replacement');
   } else if (process.argv.includes('--message-find-only')) {
     await signIn();

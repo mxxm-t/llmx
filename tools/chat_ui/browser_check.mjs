@@ -865,6 +865,26 @@ try {
     await pointerClick('#workspace-save');
     await wait("document.querySelector('.workspace-error').checkVisibility()", 'stale creation refused');
     assert.equal(await evaluate("(async () => (await ChatShell.api('/workspace/file?path=race.py')).content)()"), 'other tab');
+    const remove = '.workspace-editor-actions .danger';
+    const deletes = () => apiMutations.filter(request => request.url.endsWith('/api/workspace/delete')).length;
+    const beforeDiscard = deletes();
+    await pointerClick(remove);
+    await closeAction('#conversation-cancel');
+    assert.equal(await evaluate("document.querySelector('#workspace-editor').value"), 'print(42)', 'cancel kept the unsaved draft');
+    await pointerClick(remove);
+    await pointerClick('#conversation-submit');
+    await wait("!document.querySelector('#action-dialog').open || document.querySelector('#conversation-error').textContent", 'discard outcome');
+    assert.equal(deletes(), beforeDiscard, 'discarding an unsaved file sent a saved-file deletion');
+    assert.equal(await evaluate("document.querySelector('#workspace-editor').disabled && document.querySelector('.workspace-error').hidden"), true);
+    assert.equal(await evaluate("(async () => (await ChatShell.api('/workspace/file?path=race.py')).content)()"), 'other tab');
+    await openSnippet();
+    await pointerClick('#conversation-submit');
+    await wait("!document.querySelector('#action-dialog').open && document.activeElement.id === 'workspace-editor'", 'existing identical file reopened');
+    assert.equal(await evaluate("document.querySelector('.workspace-editor-actions .danger').textContent"), 'Delete');
+    await pointerClick(remove);
+    await closeAction('#conversation-submit');
+    assert.equal(deletes(), beforeDiscard + 1, 'deleting the saved file sent one deletion');
+    assert.equal(await evaluate("(async () => (await ChatShell.api('/workspace')).files.some(file => file.path === 'artifact.py'))()"), false);
     assert.deepEqual(errors, [], 'generated file browser errors');
     console.log('PASS: saved generated file collision, cancellation and deliberate replacement');
   } else if (process.argv.includes('--message-find-only')) {

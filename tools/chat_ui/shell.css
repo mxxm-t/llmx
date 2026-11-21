@@ -867,10 +867,21 @@
   display: flex;
   flex-direction: column;
 }
+.artifact-image-view {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.artifact-image-view.actual-size .artifact-image {
+  max-width: none;
+  max-height: none;
+}
 .artifact-image {
   display: block;
+  flex: none;
   max-width: 100%;
-  max-height: 62dvh;
+  max-height: 100%;
   object-fit: contain;
   margin: auto;
 }

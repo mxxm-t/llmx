@@ -47,7 +47,9 @@ window.ChatArtifacts = (() => {
   const previewButton = node('button', '', 'Preview'); previewButton.type = 'button'; previewButton.setAttribute('role', 'tab'); previewButton.setAttribute('aria-selected', 'false'); previewButton.id = 'artifact-preview-tab';
   modes.append(sourceButton, previewButton);
   const actions = node('div', 'artifact-toolbar-actions'); const edit = node('button', 'secondary-button'); edit.type = 'button'; const copy = node('button', 'secondary-button', 'Copy'); const save = node('button', 'secondary-button', 'Download'); const wrap = node('button', 'secondary-button', 'Wrap lines'); wrap.type = 'button';
-  actions.append(edit, wrap, copy, save); toolbar.append(modes, actions);
+  const actualSize = node('button', 'secondary-button', 'Actual size');
+  actualSize.type = 'button'; actualSize.id = 'artifact-actual-size'; actualSize.hidden = true;
+  actions.append(edit, wrap, copy, actualSize, save); toolbar.append(modes, actions);
   const status = node('div', 'artifact-status'); status.setAttribute('role', 'status'); status.hidden = true;
   const content = node('div', 'artifact-content'); const sourcePanel = node('div', 'artifact-source'); sourcePanel.setAttribute('role', 'tabpanel'); sourcePanel.setAttribute('aria-labelledby', sourceButton.id); const pre = node('pre'); const code = node('code'); pre.append(code); sourcePanel.append(pre);
   const previewPanel = node('div', 'artifact-preview'); previewPanel.hidden = true; previewPanel.setAttribute('role', 'tabpanel'); previewPanel.setAttribute('aria-labelledby', previewButton.id);
@@ -55,8 +57,10 @@ window.ChatArtifacts = (() => {
   const projectInfo = node('details'); projectInfo.hidden = true; previewNote.append(projectInfo);
   const projectSummary = node('summary'); const projectAssets = node('p'); projectInfo.append(projectSummary, projectAssets);
   const consolePanel = node('details', 'artifact-console'); const consoleSummary = node('summary', '', 'Console / 0 entries'); const consoleOutput = node('div', 'artifact-console-output'); consoleOutput.setAttribute('aria-live', 'polite'); consolePanel.append(consoleSummary, consoleOutput); previewPanel.append(previewNote, consolePanel);
-  const picture = node('img', 'artifact-image'); picture.hidden = true;
-  content.append(sourcePanel, previewPanel, picture); dialog.append(header, toolbar, status, content); document.body.append(dialog);
+  const imageView = node('div', 'artifact-image-view'); imageView.hidden = true;
+  imageView.setAttribute('role', 'region'); imageView.setAttribute('aria-label', 'Image');
+  const picture = node('img', 'artifact-image'); imageView.append(picture);
+  content.append(sourcePanel, previewPanel, imageView); dialog.append(header, toolbar, status, content); document.body.append(dialog);
   function stopPreview() { previewVersion++; bridgeToken = ''; if (frame) frame.remove(); frame = null; }
   function showSource() {
     stopPreview(); wrap.hidden = false; sourcePanel.hidden = false; previewPanel.hidden = true; status.hidden = true;
@@ -101,6 +105,31 @@ window.ChatArtifacts = (() => {
       frame.addEventListener('load', () => { if (version === previewVersion) { status.hidden = true; } }); previewPanel.insertBefore(frame, consolePanel);
     } catch (error) { if (version === previewVersion) { status.textContent = error.message; status.hidden = false; } }
   }
+  function setActualSize(enabled) {
+    imageView.classList.toggle('actual-size', enabled);
+    actualSize.setAttribute('aria-pressed', String(enabled));
+    if (enabled) imageView.tabIndex = 0;
+    else {
+      imageView.removeAttribute('tabindex');
+      imageView.scrollTo(0, 0);
+    }
+  }
+  function updateImageSize() {
+    if (imageView.hidden) return;
+    const bounds = imageView.getBoundingClientRect();
+    const fits = !picture.naturalWidth || (picture.naturalWidth <= bounds.width && picture.naturalHeight <= bounds.height);
+    if (fits) {
+      if (document.activeElement === actualSize || document.activeElement === imageView) close.focus({preventScroll: true});
+      setActualSize(false);
+    }
+    actualSize.hidden = fits;
+  }
+  function closeImage() {
+    imageView.hidden = true; actualSize.hidden = true;
+    setActualSize(false); picture.removeAttribute('src'); picture.alt = '';
+  }
+  actualSize.addEventListener('click', () => setActualSize(!imageView.classList.contains('actual-size')));
+  new ResizeObserver(updateImageSize).observe(imageView);
   function openImage(name, data) {
     stopPreview();
     const png = data.startsWith('data:image/png;');
@@ -111,21 +140,23 @@ window.ChatArtifacts = (() => {
     title.textContent = name; subtitle.textContent = type;
     modes.hidden = true; sourcePanel.hidden = true; previewPanel.hidden = true;
     wrap.hidden = true; copy.hidden = true; edit.hidden = true; status.hidden = true;
-    picture.alt = name; picture.src = data; picture.hidden = false;
+    actualSize.hidden = true; setActualSize(false);
+    imageView.hidden = false; picture.alt = name; picture.src = data;
     if (!dialog.open) dialog.showModal();
     close.focus();
   }
   picture.addEventListener('load', () => {
-    if (!picture.hidden && current?.data)
-      subtitle.textContent = current.type + ' / ' + picture.naturalWidth + ' x ' + picture.naturalHeight + ' px';
+    if (imageView.hidden || !current?.data) return;
+    subtitle.textContent = current.type + ' / ' + picture.naturalWidth + ' x ' + picture.naturalHeight + ' px';
+    updateImageSize();
   });
   picture.addEventListener('error', () => {
-    if (picture.hidden) return;
-    picture.hidden = true; status.textContent = 'This image could not be displayed.'; status.hidden = false;
+    if (imageView.hidden) return;
+    closeImage(); status.textContent = 'This image could not be displayed.'; status.hidden = false;
   });
   function open(artifact, {initialPreview = false, allowWorkspaceEdit = true, workspacePath = '', readOnlyAttachment = false} = {}) {
     current = {name: filename(artifact.name, artifact.language), language: language(artifact.language), source: String(artifact.source ?? ''), workspacePath};
-    modes.hidden = false; copy.hidden = false; picture.hidden = true; picture.removeAttribute('src');
+    modes.hidden = false; copy.hidden = false; closeImage();
     const displayName = readOnlyAttachment ? artifact.name : current.name;
     if (readOnlyAttachment && /\.pdf$/i.test(displayName)) current.name = current.name.slice(0, 176) + '.txt';
     setWrap(['text', 'txt', 'md', 'markdown'].includes(current.language));
@@ -142,7 +173,7 @@ window.ChatArtifacts = (() => {
   }
   close.addEventListener('click', () => dialog.close()); dialog.addEventListener('close', () => {
     if (dialog.open) return;
-    stopPreview(); picture.hidden = true; picture.removeAttribute('src'); picture.alt = '';
+    stopPreview(); closeImage();
     current = null; code.replaceChildren(); consoleOutput.replaceChildren();
   }); sourceButton.addEventListener('click', showSource); previewButton.addEventListener('click', showPreview);
   modes.addEventListener('keydown', event => { if (['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); event.stopPropagation(); if (!previewButton.hidden && event.target === sourceButton) { previewButton.focus(); showPreview(); } else { sourceButton.focus(); showSource(); } } });

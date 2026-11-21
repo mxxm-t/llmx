@@ -1469,11 +1469,23 @@ try {
         const zoomed=await bounds();
         assert.equal(zoomed.width,640); assert.equal(zoomed.height,360);
         assert(zoomed.overflow>0); assert.equal(zoomed.page,width);
-        await evaluate("document.querySelector('.artifact-image').parentElement.scrollLeft=10000");
-        assert.equal((await bounds()).left,zoomed.overflow);
+        await evaluate("document.querySelector('.artifact-image-view').focus()");
+        await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'ArrowRight',code:'ArrowRight',windowsVirtualKeyCode:39});
+        await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'ArrowRight',code:'ArrowRight',windowsVirtualKeyCode:39});
+        await wait("document.querySelector('.artifact-image-view').scrollLeft>0",'pan image with keyboard');
+        await cdp('Emulation.setDeviceMetricsOverride',{width:320,height:320,deviceScaleFactor:1,mobile:true});
+        await wait("document.querySelector('.artifact-image-view').scrollHeight>document.querySelector('.artifact-image-view').clientHeight",'short viewport scrolls vertically');
+        const farEdge=await evaluate("(() => {const v=document.querySelector('.artifact-image-view');v.scrollTo(10000,10000);return {x:v.scrollLeft,y:v.scrollTop,maxX:v.scrollWidth-v.clientWidth,maxY:v.scrollHeight-v.clientHeight};})()");
+        assert.equal(farEdge.x,farEdge.maxX); assert.equal(farEdge.y,farEdge.maxY);
+        await cdp('Emulation.setDeviceMetricsOverride',{width,height:800,deviceScaleFactor:1,mobile:true});
         await pointerClick(actual);
-        assert.equal((await bounds()).width,fitted.width);
+        await wait(`document.querySelector('.artifact-image').getBoundingClientRect().width===${fitted.width}`,'return to fitted image width');
         assert.equal((await bounds()).left,0);
+        await pointerClick(actual);
+        await cdp('Emulation.setDeviceMetricsOverride',{width:1440,height:800,deviceScaleFactor:1,mobile:false});
+        await wait("!document.querySelector('#artifact-actual-size').checkVisibility() && document.querySelector('#artifact-actual-size').getAttribute('aria-pressed')==='false'",'clear actual size when the image fits after resize');
+        await cdp('Emulation.setDeviceMetricsOverride',{width,height:800,deviceScaleFactor:1,mobile:true});
+        await wait("document.querySelector('#artifact-actual-size').checkVisibility()", 'size control after narrowing');
       } else {
         assert.equal((await bounds()).width,640);
         assert.equal(await evaluate(`document.querySelector('${actual}').checkVisibility()`),false,'fitting image needs no size switch');

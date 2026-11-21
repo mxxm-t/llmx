@@ -342,7 +342,7 @@ keeps **Browse saved files** available and loads the list when you open it.
 - Drop files onto the conversation or choose them from the attachment menu.
   Attach up to eight files, including UTF-8 text/code, PNG/JPEG images and
   selected PDF text when the [PDF reader](#optional-pdf-text-reader) is installed. Text is included
-  in full with its file name. Select a filename in your draft to inspect the copy that will be sent. Text opens as read-only source. A PNG or JPEG opens with its dimensions and a download of the original image. The same viewer opens attachments in sent messages. Close it to return to the file, or choose Remove beside a draft file to leave it out. Limits are
+  in full with its file name. Select a filename in your draft to inspect the copy that will be sent. Text opens as read-only source. A PNG or JPEG opens fitted to the viewer, with its dimensions and a download of the original image. If the image was scaled down, choose **Actual size** to inspect its detail. Scroll or swipe to pan. Choose **Actual size** again to fit the image. The same viewer opens attachments in sent messages. Close it to return to the file, or choose Remove beside a draft file to leave it out. Limits are
   2 MiB per text file, 8 MiB per image and 10 MiB total decoded attachments.
   Hover over Attach or focus it with the keyboard for the file types. The
   Attachments section in Conversation Settings shows the limits on any device.

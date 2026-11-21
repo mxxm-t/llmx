@@ -1,5 +1,11 @@
 # llmx - Development Status
 
+## Original-size attachment images
+
+- Goal: Read fine detail in a large image from a phone or a narrow viewer.
+- Done: The existing viewer fits PNG and JPEG images, offers Actual size for scaled images and scrolls larger images within its bounds.
+- Checks: Chrome checks original dimensions, keyboard panning, both scroll axes, refit after resize and original downloads. The static viewer change lands by fast-forward after its workspace checks.
+
 ## Inspect attachments before sending
 
 - Goal: Open the exact text or image in the current draft without sending or removing it.

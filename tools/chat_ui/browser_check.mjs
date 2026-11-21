@@ -464,6 +464,10 @@ async function checkLandingContext() {
   })()`);
   await pointerClick('.workspace-back');
   await shown(row('Release review'));
+  assert.equal(await evaluate("document.activeElement.id"), 'draft', 'Back to Chat should resume the unsent draft');
+  await cdp('Input.insertText', {text:' Next step.'});
+  assert.equal(await evaluate("document.querySelector('#draft').value"), 'Review the release notes. Next step.');
+  await fill('#draft', 'Review the release notes.');
   await screenshot('home-context-1440.png');
   const writes = apiMutations.length, streams = runStreams.length;
   const contextReads = () => browserRequests.filter(r=>new URL(r.url).pathname.endsWith('/context')).length;

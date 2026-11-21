@@ -45,6 +45,10 @@ save and authenticated HTTP import without partial changes. A preview resolves
 the imported HTML file's relative CSS and JavaScript links at the saved revision.
 Chrome checks that reviewing a directory reads no file contents, that only checked
 paths are imported and that an unsaved editor keeps its conflict protection.
+Project archive checks open the ZIP, verify its selected paths and UTF-8 bytes,
+and exercise authentication, empty projects and missing files. Chrome downloads
+the archive to disk after a project rename. The check opens it and compares
+every member with the saved text while the editor still has unsaved changes.
 The Chat home browser check opens named files and projects, confirms their draft
 attachments, and verifies stale selections, switching sources during a read,
 project creation and temporary-chat reloads.

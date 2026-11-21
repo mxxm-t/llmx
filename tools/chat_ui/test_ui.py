@@ -11,6 +11,7 @@ import threading
 import time
 from http.server import ThreadingHTTPServer
 import unittest
+import zipfile
 from unittest.mock import patch
 
 import install_pdf_reader
@@ -181,6 +182,23 @@ class BrowserTests(unittest.TestCase):
         node, chrome = self.browser_executables()
         with tempfile.TemporaryDirectory() as directory:
             self.run_focused_browser(node, chrome, Path(directory), "home-context", ("--home-context-only",), [])
+
+    def test_download_saved_project_in_chrome(self):
+        node, chrome = self.browser_executables()
+        members = {"docs/notes.md": "\ufeffH\u00e4llo\r\nmixed\rlast\n", "src/\u00e9t\u00e9/notes.md": "second file\n",
+                   "src/empty.txt": ""}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fixture = root / "members.json"
+            fixture.write_text(json.dumps(members), encoding="utf-8")
+            self.run_focused_browser(node, chrome, root, "project-download", (str(fixture), "--project-download-only"), [])
+            archive = root / "llmx-Release-review.zip"
+            with zipfile.ZipFile(archive) as bundle:
+                self.assertCountEqual(bundle.namelist(), members.keys())
+                for name, content in members.items():
+                    self.assertEqual(bundle.read(name), content.encode("utf-8"), name)
+            artifacts = Path(__file__).resolve().parents[2] / "scratch" / "chat-ui-browser" / "project-download"
+            shutil.copyfile(archive, artifacts / archive.name)
 
     def test_find_in_conversation_after_slow_browser_start(self):
         node, chrome = self.browser_executables()

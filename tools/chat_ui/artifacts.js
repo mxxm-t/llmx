@@ -27,9 +27,16 @@ window.ChatArtifacts = (() => {
     fragment.append(document.createTextNode(text.slice(end))); return fragment;
   }
   function filename(name, lang) { return String(name || 'artifact.' + (extensions[language(lang)] || 'txt')).replace(/[\\/:*?"<>|\x00-\x1f]/g, '_').slice(0, 180); }
+  function downloadBlob(blob, name) {
+    const url = URL.createObjectURL(blob);
+    const link = node('a');
+    link.href = url;
+    link.download = name;
+    try { link.click(); } finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
+  }
   function download(source, name, lang) {
-    const url = URL.createObjectURL(new Blob([source], {type: language(lang) === 'html' ? 'text/html;charset=utf-8' : 'text/plain;charset=utf-8'}));
-    const a = node('a'); a.href = url; a.download = filename(name, lang); a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    const type = language(lang) === 'html' ? 'text/html;charset=utf-8' : 'text/plain;charset=utf-8';
+    downloadBlob(new Blob([source], {type}), filename(name, lang));
   }
   const dialog = node('dialog', 'artifact-dialog'); dialog.id = 'artifact-dialog'; dialog.setAttribute('aria-label', 'Artifact viewer');
   const header = node('header', 'artifact-header'); const titles = node('div'); const title = node('h2', '', 'Artifact'); const subtitle = node('p', '', 'Source file'); titles.append(title, subtitle);
@@ -122,5 +129,5 @@ window.ChatArtifacts = (() => {
     if (!frame || event.source !== frame.contentWindow || event.origin !== 'null' || !data || typeof data !== 'object' || data.channel !== 'llmx-preview' || data.token !== bridgeToken || !['log', 'info', 'warn', 'error'].includes(data.kind) || typeof data.text !== 'string' || data.text.length > 16384 || consoleOutput.children.length >= 256) return;
     consoleOutput.append(node('pre', 'console-' + data.kind, data.text)); consoleSummary.textContent = 'Console / ' + consoleOutput.children.length + ' entries'; if (data.kind === 'error') consolePanel.open = true;
   });
-  return {open, download, highlight, language};
+  return {open, download, downloadBlob, highlight, language};
 })();

@@ -555,9 +555,24 @@
 .workspace-project-list:not(:empty) {
   margin-bottom: 10px;
 }
-.workspace-project-row {
+.workspace-project-list > li {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding-block: 3px;
+}
+.workspace-project-list > li + li { border-top: 1px solid var(--line); }
+.workspace-project-download {
+  flex: none;
+  min-height: 36px;
+  white-space: nowrap;
+}
+.workspace-project-download[aria-busy=true] { cursor: progress; }
+.workspace-project-row {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  justify-content: flex-start;
   align-items: center;
   gap: 12px;
   min-height: 40px;
@@ -566,6 +581,10 @@
   border-radius: 7px;
   font-size: 12px;
   text-align: left;
+}
+@media (max-width: 480px) {
+  .workspace-project-row { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .workspace-project-download { min-height: 40px; }
 }
 .workspace-project-row:hover {
   background: var(--surface);

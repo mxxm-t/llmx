@@ -676,6 +676,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"ok": True})
             if len(parts) == 3 and parts[2] == "context" and method == "GET":
                 return self._json(workspace.project_context(parts[1]))
+            if len(parts) == 3 and parts[2] == "archive" and method == "GET":
+                name, data = workspace.project_archive(parts[1])
+                slug = re.sub(r"[^a-zA-Z0-9_-]+", "-", name).strip("-_") or parts[1]
+                self._headers(200, "application/zip", len(data),
+                              {"Content-Disposition": f'attachment; filename="llmx-{slug}.zip"'})
+                return self.wfile.write(data)
         if parts == ["file"] and method == "GET":
             params = parse_qs(query, keep_blank_values=True, strict_parsing=True)
             if set(params) != {"path"} or len(params["path"]) != 1:

@@ -11,6 +11,7 @@ import tarfile
 import threading
 import time
 import uuid
+import zipfile
 
 
 MAX_FILE = 1024 * 1024
@@ -345,6 +346,16 @@ class Workspace:
             paths = project["paths"]
             self._require_project_files(paths)
             return dict(self._read_files(paths), project=deepcopy(project))
+
+    def project_archive(self, project_id):
+        snapshot = self.project_context(project_id)
+        if not snapshot["files"]:
+            raise ValueError("This project has no saved files to download.")
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED, compresslevel=1) as archive:
+            for item in snapshot["files"]:
+                archive.writestr(item["path"], item["text"].encode("utf-8"))
+        return snapshot["project"]["name"], buffer.getvalue()
 
     def _editable(self, revision, conflict="Workspace changed. Reload before saving", *, stale_error=ValueError):
         if self.control is not None:

@@ -1,6 +1,6 @@
 /* Real Chrome integration without npm packages. Invoked by test_ui.py. */
 import {spawn} from 'node:child_process';
-import {readFile, writeFile, mkdir} from 'node:fs/promises';
+import {readFile, writeFile, mkdir, readdir} from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 
@@ -1104,6 +1104,84 @@ try {
     await checkChatSavedWriteActions(filename, source);
     assert.deepEqual(errors, [], 'saved write action browser exceptions');
     console.log('PASS: tool results open current saved files and attach their contents once, preserve later draft edits, and handle missing or invalid files');
+  } else if (process.argv.includes('--project-download-only')) {
+    await signIn();
+    const members = JSON.parse(await readFile(fixture,'utf8'));
+    const projectName = 'Release draft for the winter field trial and project handover';
+    const projectIds = await evaluate(`(async () => {
+      const api = ChatShell.api, members = ${JSON.stringify(members)};
+      const files = Object.entries(members).map(([path,content])=>({path,content}));
+      files.push({path:'unrelated.txt',content:'Outside the selected project'});
+      const {revision} = await api('/workspace');
+      await api('/workspace/files','POST',{revision,files});
+      const project = async (name,paths) => (await api('/workspace/projects','POST',{name,paths,instructions:'Local project instructions'})).project.id;
+      return [await project(${JSON.stringify(projectName)},Object.keys(members)),await project('Instructions only',[]),await project('Other files',['unrelated.txt'])];
+    })()`);
+    await fill('#draft','Unsent chat draft');
+    await pointerClick('.global-nav [data-view=workbench]');
+    await wait("document.querySelector('.workspace-file[title=\"docs/notes.md\"]')", 'project member available in editor');
+    await pointerClick('.workspace-file[title="docs/notes.md"]');
+    await wait("document.querySelector('.workspace-file-path').textContent==='docs/notes.md'", 'open saved project member');
+    await fill('#workspace-editor','Uncommitted editor text');
+    await selectWorkspaceSection('projects');
+    const row = id => `.workspace-project-list li:has(.workspace-project-row[data-project="${id}"])`;
+    const download = id => row(id)+' .workspace-project-download';
+    const target = download(projectIds[0]);
+    await wait(`document.querySelector(${JSON.stringify(target)})?.checkVisibility()`, 'download control on the selected project');
+    assert.equal(await evaluate(`!!document.querySelector(${JSON.stringify(download(projectIds[1]))})`),false,'instructions-only project has no archive action');
+    for (const [id,name] of [[projectIds[0],projectName],[projectIds[2],'Other files']]) {
+      assert.deepEqual(await evaluate(`{const b=document.querySelector(${JSON.stringify(download(id))}); [b.textContent.trim(),b.getAttribute('aria-label')]}`),['Download ZIP','Download ZIP for '+name]);
+    }
+    await screenshot('project-download-1440.png');
+    await cdp('Emulation.setDeviceMetricsOverride',{width:320,height:800,deviceScaleFactor:1,mobile:true});
+    await wait("innerWidth===320 && document.documentElement.dataset.compact==='true'", 'narrow project actions');
+    assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true);
+    const projectControls = await evaluate(`Array.from(document.querySelectorAll('${row(projectIds[0])} button'), button => {
+      const r=button.getBoundingClientRect();
+      return {fits:r.left>=0 && r.right<=innerWidth && r.top>=0 && r.bottom<=innerHeight,
+        hit:button.contains(document.elementFromPoint(r.left+r.width/2,r.top+r.height/2))};
+    })`);
+    assert.deepEqual(projectControls,[{fits:true,hit:true},{fits:true,hit:true}],'edit and download controls on a narrow screen');
+    await screenshot('project-download-320.png');
+    const [id] = projectIds, route = '/api/workspace/projects/'+id+'/archive';
+    await evaluate(`ChatShell.api('/workspace/projects/${id}','PATCH',{version:1,name:'Release review',paths:${JSON.stringify(Object.keys(members))}})`);
+    const downloadPath = path.join(path.dirname(fixture),'downloads');
+    await mkdir(downloadPath);
+    await cdp('Browser.setDownloadBehavior',{behavior:'allow',downloadPath});
+    const responses = [];
+    socket.addEventListener('message', event => {
+      const {method,params} = JSON.parse(event.data);
+      if (method==='Network.responseReceived' && new URL(params.response.url).pathname===route) responses.push(params.response);
+    });
+    const preserved = async writes => {
+      assert.deepEqual(await evaluate(`[document.activeElement.matches(${JSON.stringify(target)}),document.querySelector('#workspace-editor').value,
+        !document.querySelector('.unsaved-indicator').hidden,document.querySelector('#draft').value]`),[true,'Uncommitted editor text',true,'Unsent chat draft']);
+      assert.equal(apiMutations.length,writes,'downloading changed server state');
+    };
+    const writes = apiMutations.length;
+    await pointerClick(target);
+    const filename = 'llmx-Release-review.zip';
+    const downloaded = path.join(downloadPath,filename);
+    await wait(async () => {
+      try { return (await readFile(downloaded)).subarray(0,4).equals(Buffer.from('PK\x03\x04')); }
+      catch (error) { if (error.code==='ENOENT') return false; throw error; }
+    }, 'download under the current server project name');
+    assert.equal(responses.length,1);
+    assert.equal(responses[0].status,200);
+    assert.equal(responses[0].mimeType,'application/zip');
+    const disposition = Object.entries(responses[0].headers).find(([key])=>key.toLowerCase()==='content-disposition');
+    assert.equal(disposition?.[1],'attachment; filename="'+filename+'"');
+    await preserved(writes);
+    await evaluate("(async()=>{const {revision}=await ChatShell.api('/workspace'); await ChatShell.api('/workspace/delete','POST',{revision,path:'src/empty.txt'});})()");
+    const writesAfterRemoval = apiMutations.length;
+    await pointerClick(target);
+    await wait("document.querySelector('.workspace-project-status.error-text')?.innerText.includes('src/empty.txt')", 'missing selected file explained');
+    assert.deepEqual(responses.map(response=>response.status),[200,409]);
+    await preserved(writesAfterRemoval);
+    assert.deepEqual(await readdir(downloadPath),[filename],'missing members must not download a partial ZIP');
+    await writeFile(path.join(path.dirname(fixture),filename),await readFile(downloaded));
+    assert.deepEqual(errors,[],'project download browser exceptions');
+    console.log('PASS: a named project download uses the server filename, preserves focus and drafts, and reports a missing file without a partial archive');
   } else if (process.argv.includes('--generated-file-only')) {
     await signIn();
     const read = () => evaluate("ChatShell.api('/workspace/file?path=artifact.py')");

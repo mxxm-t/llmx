@@ -346,7 +346,7 @@ window.ChatShell = (() => {
   function backupStatus(text, failed = false) { $('backup-status').textContent = text; $('backup-status').hidden = false; $('backup-status').classList.toggle('error-text', failed); }
   $('backup-download').addEventListener('click', async () => {
     $('backup-download').disabled = true;
-    try { const response = await fetch('/api/backup', {credentials: 'same-origin'}); if (!response.ok) { if (response.status === 401) document.dispatchEvent(new CustomEvent('companion:unauthorized')); const data = await response.json(); throw new Error(data.error || 'Backup failed.'); } const url = URL.createObjectURL(await response.blob()); const link = node('a'); link.href = url; link.download = 'llmx-chat-' + new Date().toISOString().slice(0, 10) + '.sqlite3'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); backupStatus('Conversation backup downloaded.'); }
+    try { const response = await fetch('/api/backup', {credentials: 'same-origin'}); if (!response.ok) { if (response.status === 401) document.dispatchEvent(new CustomEvent('companion:unauthorized')); const data = await response.json(); throw new Error(data.error || 'Backup failed.'); } window.ChatArtifacts.downloadBlob(await response.blob(), 'llmx-chat-' + new Date().toISOString().slice(0, 10) + '.sqlite3'); backupStatus('Conversation backup downloaded.'); }
     catch (error) { backupStatus(error.message, true); } finally { $('backup-download').disabled = false; }
   });
   $('backup-restore').addEventListener('click', () => $('backup-file').click());

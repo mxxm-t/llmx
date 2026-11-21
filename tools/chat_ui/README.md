@@ -96,6 +96,12 @@ sizes and saved revision. Check the instructions box if you want them to
 replace this conversation's system instructions, then choose **Add to draft**.
 You can remove attachments before sending.
 
+In **Saved files > Projects**, choose **Download ZIP** beside a project to keep
+a local copy. The archive contains its selected files at their saved relative
+paths. Save your editor changes first if you want them in the download.
+Project instructions stay in the companion. If a selected file has been deleted,
+restore it or remove its path from the project before downloading.
+
 Each use takes a snapshot. Editing a saved file later affects the next use.
 The draft and previously sent messages retain their copies. Applying the same
 files twice keeps one copy. If the draft already contains a different version

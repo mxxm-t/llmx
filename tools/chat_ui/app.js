@@ -904,7 +904,12 @@
       const full = json(result); const readable = parts.filter(part => part?.type === 'text' && typeof part.text === 'string').map(part => part.text).join('\n\n');
       const preview = readable || full; body.append(node('pre', '', preview.slice(0, 16384) + (preview.length > 16384 ? '\n[Preview truncated]' : '')));
       const structured = node('details'); structured.append(node('summary', '', 'Structured result'), node('pre', '', full.slice(0, 16384) + (full.length > 16384 ? '\n[Preview truncated]' : ''))); body.append(structured);
-      if (full.length > 16384 || preview.length > 16384) { const download = node('button', 'secondary-button', 'Download full result'); download.type = 'button'; download.addEventListener('click', () => { const url = URL.createObjectURL(new Blob([full], {type: 'application/json'})); const link = node('a'); link.href = url; link.download = 'tool-result.json'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }); body.append(download); }
+      if (full.length > 16384 || preview.length > 16384) {
+        const download = node('button', 'secondary-button', 'Download full result');
+        download.type = 'button';
+        download.addEventListener('click', () => window.ChatArtifacts.downloadBlob(new Blob([full], {type: 'application/json'}), 'tool-result.json'));
+        body.append(download);
+      }
       if (!target?.path && ['workspace_list', 'workspace_read', 'workspace_run'].includes(call.name)) {
         const label = target?.jobId ? 'Open job output' : 'Open saved files';
         const open = node('button', 'secondary-button workspace-tool-open', label);
@@ -1677,7 +1682,11 @@
         data.chat.title = (chat.title || 'Conversation').slice(0, 193) + ' (copy)';
         await api('/import', 'POST', data); await refreshChats(); toast('Conversation duplicated.');
       }
-      if (name === 'export') { const response = await fetch('/api/chats/' + encodeURIComponent(chat.id) + '/export'); if (!response.ok) throw new Error('Export failed.'); const url = URL.createObjectURL(await response.blob()); const a = node('a'); a.href = url; a.download = (chat.title || 'conversation').replace(/[^a-z0-9_-]/gi, '_') + '.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
+      if (name === 'export') {
+        const response = await fetch('/api/chats/' + encodeURIComponent(chat.id) + '/export');
+        if (!response.ok) throw new Error('Export failed.');
+        window.ChatArtifacts.downloadBlob(await response.blob(), (chat.title || 'conversation').replace(/[^a-z0-9_-]/gi, '_') + '.json');
+      }
       return;
     }
     if (!S.chat) return;

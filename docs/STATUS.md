@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Download saved project files (2026-11-21)
+
+- Goal: Download a named project in one ZIP with its relative paths.
+- Done: Download ZIP in Saved files > Projects packages the named project from one saved revision. Chromium downloaded the archive under the current project name after an external rename. A missing member produced a 409 and no second download.
+- Checks: Thirty workspace and HTTP tests passed. The browser download matched all three expected paths and their bytes, including a nested Unicode name, mixed line endings and an empty file. The 320 and 1440 px layouts kept the action reachable. Landing is by fast-forward after the Windows and Linux Chat workspace checks.
+- Gotchas: Chat instructions and unsaved edits do not belong in the file archive.
+
 ## Conversation actions on an unsaved draft (2026-11-21)
 
 - Goal: Offer conversation actions only when there is a conversation to manage.

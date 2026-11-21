@@ -149,6 +149,10 @@ These routes share the chat session and mutation-header rules.
   in the saved path order. Resolution reads one locked file revision. If any
   selected path is missing, it returns 409 with the missing paths and no file
   texts. Create and update require every selected path to exist at save time.
+- `GET /api/workspace/projects/ID/archive`: downloads the selected saved files as
+  `application/zip` with an attachment filename. Relative paths and UTF-8 bytes
+  come from one workspace revision. A missing project returns 404, a missing
+  selected file returns 409, and an empty selection returns 400.
 - `POST /api/workspace/checkpoints` with `{label}`: checkpoint and return snapshot. `POST /api/workspace/checkpoints/ID/restore` with `{revision}` restores after first checkpointing the current files.
 - `GET /api/workspace/diff?checkpoint=ID`: `{diff}` with a unified text diff.
 - `POST /api/workspace/jobs` with `{command}`: `{job}`. `GET /api/workspace/jobs/ID` reads it; `POST /api/workspace/jobs/ID/cancel` with `{}` requests cancellation.

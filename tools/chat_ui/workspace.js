@@ -101,13 +101,43 @@
     projectNew.disabled = !available;
     projectList.querySelectorAll('button').forEach(button => { button.disabled = !available; });
   }
+  async function downloadProject(project, button) {
+    if (button.hasAttribute('aria-busy')) return;
+    button.setAttribute('aria-busy', 'true');
+    button.setAttribute('aria-disabled', 'true');
+    setProjectStatus('');
+    try {
+      const response = await fetch('/api/workspace/projects/' + encodeURIComponent(project.id) + '/archive', {credentials: 'same-origin'});
+      if (!response.ok) {
+        if (response.status === 401) document.dispatchEvent(new CustomEvent('companion:unauthorized'));
+        const problem = await response.json().catch(() => null);
+        throw new Error(problem?.error || 'Could not download the project (' + response.status + ').');
+      }
+      if (response.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase() !== 'application/zip')
+        throw new Error('The server did not return a ZIP archive.');
+      const filename = /(?:^|;)\s*filename="([^"]+)"/i.exec(response.headers.get('Content-Disposition') || '')?.[1] || 'llmx-project.zip';
+      window.ChatArtifacts.downloadBlob(await response.blob(), filename);
+      if (button.isConnected && !projectList.hidden) setProjectStatus('Download started for ' + filename + '.');
+    } catch (problem) {
+      if (button.isConnected && !projectList.hidden) setProjectStatus(problem.message || 'Could not download the project.', true);
+    } finally {
+      button.removeAttribute('aria-disabled');
+      button.removeAttribute('aria-busy');
+    }
+  }
   function renderProjects() {
     projectList.replaceChildren();
     for (const project of [...(projectState.items || [])].sort((a, b) => a.name.localeCompare(b.name))) {
       const row = node('li'); const button = control('', 'workspace-project-row', () => editProject(project));
       button.dataset.project = project.id;
       button.append(node('strong', '', project.name), node('span', 'muted', number(project.paths.length) + (project.paths.length === 1 ? ' path' : ' paths')));
-      row.append(button); projectList.append(row);
+      row.append(button);
+      if (project.paths.length) {
+        const download = control('Download ZIP', 'secondary-button workspace-project-download', () => downloadProject(project, download));
+        download.setAttribute('aria-label', 'Download ZIP for ' + project.name);
+        row.append(download);
+      }
+      projectList.append(row);
     }
     updateProjectControls();
   }

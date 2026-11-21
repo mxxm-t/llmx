@@ -1,10 +1,12 @@
 import http.client
+import io
 import json
 import os
 import tempfile
 import threading
 import time
 import unittest
+import zipfile
 from base64 import b64encode
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -288,6 +290,34 @@ class WorkspaceHTTPTests(unittest.TestCase):
         missing = self.request("GET", route + "?path=src/index.js&path=missing.txt", cookie=self.cookie)
         self.assertEqual(missing[0], 404)
         self.assertEqual(set(self.json_body(missing)), {"error"})
+
+    def test_project_archive_contains_selected_saved_files(self):
+        workspace = self.app.workspace
+        entries = {"src/brief.txt": "\ufeffFirst line\r\nAnother line\n", "notes/brief.txt": "",
+                   "pages/caf\u00e9.html": "<p>\u00e9</p>", "other.txt": "Unselected"}
+        workspace.import_files([dict(path=path, content=text) for path, text in entries.items()], 0)
+        paths = ["pages/caf\u00e9.html", "notes/brief.txt", "src/brief.txt"]
+        project = workspace.save_project(dict(name='Release / "review"', paths=paths, instructions="Private instructions"))
+        route = "/api/workspace/projects/" + project["id"] + "/archive"
+        cookie = self.login()
+        before = workspace.snapshot()
+        self.assertEqual(self.request("GET", route)[0], 401)
+        status, headers, body = self.request("GET", route, cookie=cookie)
+        self.assertEqual(status, 200, body[:100])
+        self.assertEqual(headers["content-type"], "application/zip")
+        self.assertEqual(headers["content-disposition"], 'attachment; filename="llmx-Release-review.zip"')
+        self.assertEqual(int(headers["content-length"]), len(body))
+        with zipfile.ZipFile(io.BytesIO(body)) as archive:
+            self.assertEqual(archive.namelist(), paths)
+            self.assertEqual([archive.read(path) for path in paths], [entries[path].encode() for path in paths])
+        self.assertEqual(before, workspace.snapshot())
+        workspace.write(paths[0], "", before["revision"], delete=True)
+        missing = self.request("GET", route, cookie=cookie)
+        self.assertEqual(missing[0], 409)
+        self.assertIn(paths[0], self.json_body(missing)["error"])
+        empty = workspace.save_project(dict(name="Empty", paths=[]))
+        self.assertEqual(self.request("GET", route.replace(project["id"], empty["id"]), cookie=cookie)[0], 400)
+        self.assertEqual(self.request("GET", route.replace(project["id"], "absent"), cookie=cookie)[0], 404)
 
     def test_projects_routes_auth_round_trip_and_version_conflicts(self):
         route = "/api/workspace/projects"

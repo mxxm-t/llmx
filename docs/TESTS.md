@@ -187,6 +187,9 @@ Workspace tool tests exercise server-owned write preconditions for unrelated edi
 The browser opens completed and conflicting writes from Chat, checks the saved text, missing files and unsafe paths, and opens the file picker from conversation settings.
 The saved-file editor check measures the gap between a zero-duration write and its file action.
 The browser distinguishes navigation hover from the selected section in both themes.
+The Chat history fixture follows Chrome Back and Forward through saved chats,
+the Chat landing page and the other top-level views. It checks reload,
+unavailable conversations, draft restoration and temporary-chat privacy.
 The wide Chat fixture measures the landing page and active transcript at 1440,
 1920 and 2560 pixels with Conversation details open and closed. It checks
 composer and reading-control alignment, bounded prose and expanded reasoning,

@@ -17,6 +17,18 @@ through the full history before reaching the footer.
 - At 1440 x 900 the 28 px rows left 524 px for history. At 320 x 700 the 40 px rows left 242 px. The 667 x 375 landscape check reached the last chat and the footer without overlap.
 - Hosted Chrome could publish the new viewport dimensions before the companion sized its drawer. The geometry check waits for the drawer to reach the viewport height before scrolling to its footer.
 - Reviewed the sidebar [usage](../tools/chat_ui/README.md#conversations). The presentation change lands by fast-forward after its scoped checks.
+## Chat browser history
+
+**Goal.** Restore top-level views and saved conversations with browser Back,
+Forward and reload.
+
+**Done.** The Chrome regression failed on main. Selecting a saved
+conversation left the browser history index at 1, where it expected 2.
+
+**Left.** Connect navigation to the existing view and conversation owners,
+and check storage and temporary-chat behavior.
+
+**Gotchas.** Temporary chat identifiers stay in this tab's session storage.
 
 ## Conversation settings toggle
 

@@ -201,6 +201,11 @@ class BrowserTests(unittest.TestCase):
             attachment.write_bytes(b"station,depth\r\nE2,4.1\r\n")
             self.run_focused_browser(node, chrome, root, "landing-review", (str(attachment), "--landing-drafts-only"), [])
 
+    def test_chat_browser_history(self):
+        node, chrome = self.browser_executables()
+        with tempfile.TemporaryDirectory() as directory:
+            self.run_focused_browser(node, chrome, Path(directory), "browser-history", ("--browser-history-only",), [])
+
     def test_chat_wide_layout(self):
         node, chrome = self.browser_executables()
         with tempfile.TemporaryDirectory() as directory:

@@ -614,6 +614,79 @@ async function checkPromptOutline() {
   await cdp('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
   await wait("document.documentElement.dataset.compact==='false'", 'desktop after outline');
 }
+async function checkBrowserHistory() {
+  const [first, second] = await evaluate(`Promise.all(['Survey log','Repair notes'].map(title =>
+    ChatShell.api('/import','POST',{version:1, chat:{title,active_leaf:'answer'}, messages:[
+      {id:'answer',role:'assistant',content:title+' transcript'}
+    ]})))`);
+  await reloadDocument();
+  const state = (search, view, id) => `location.search===${JSON.stringify(search)} &&
+    document.querySelector('#app').dataset.view===${JSON.stringify(view)} &&
+    (!document.querySelector('[data-action="new"]').disabled) &&
+    ${id ? `document.querySelector('.chat-item.active')?.dataset.chat===${JSON.stringify(id)} && Boolean(document.querySelector('.message.assistant'))` : view==='chat' ? "document.querySelector('#welcome').checkVisibility() && !document.querySelector('.chat-item.active')" : 'true'}`;
+  const select = id => pointerClick(`.chat-item[data-chat="${id}"]`);
+  const back = async (search, view, id) => { await evaluate('history.back()'); await wait(state(search,view,id),'Back to '+search); };
+  const forward = async (search, view, id) => { await evaluate('history.forward()'); await wait(state(search,view,id),'Forward to '+search); };
+  const firstRoute = '?chat=' + first.id, secondRoute = '?chat=' + second.id;
+  const home = '?view=chat';
+  const topLevel = [['workbench','saved-files'],['monitor','monitor'],['preferences','settings']];
+  await wait(`document.querySelector('.chat-item[data-chat="${first.id}"]')`, 'saved history fixtures');
+  const documentBefore = await documentIdentity();
+  const historyBefore = await cdp('Page.getNavigationHistory');
+  await select(first.id);
+  await wait(`document.querySelector('.chat-item.active')?.dataset.chat===${JSON.stringify(first.id)}`, 'first conversation');
+  assert.equal((await cdp('Page.getNavigationHistory')).currentIndex, historyBefore.currentIndex+1, 'opening a conversation must create browser history');
+  await wait(state(firstRoute,'chat',first.id),'first conversation URL');
+  await fill('#draft','Draft for survey log');
+  await select(second.id);
+  await wait(state(secondRoute,'chat',second.id),'second conversation URL');
+  for (const [view, route] of topLevel) {
+    await pointerClick(`.global-nav [data-view="${view}"]`);
+    await wait(state('?view='+route,view),'show '+route);
+  }
+  await back('?view=monitor','monitor');
+  await back('?view=saved-files','workbench');
+  await back(secondRoute,'chat',second.id);
+  await back(firstRoute,'chat',first.id);
+  assert.equal(await evaluate("document.querySelector('#draft').value"),'Draft for survey log');
+  const onFirst = await cdp('Page.getNavigationHistory');
+  await select(first.id);
+  await pointerClick('#details-toggle');
+  await wait("document.querySelector('#inspector').checkVisibility()", 'cosmetic drawer open');
+  assert.equal((await cdp('Page.getNavigationHistory')).currentIndex,onFirst.currentIndex,'same chat and drawer changes create no entries');
+  await forward(secondRoute,'chat',second.id);
+  await forward('?view=saved-files','workbench');
+  await forward('?view=monitor','monitor');
+  await forward('?view=settings','preferences');
+  assert.deepEqual(await documentIdentity(),documentBefore,'Back and Forward kept the app document');
+  await reloadDocument();
+  await wait(state('?view=settings','preferences'),'Settings reload');
+  await pointerClick('#sidebar [data-action="home"]');
+  await wait(state(home,'chat'),'new conversation landing URL');
+  await back('?view=settings','preferences');
+  await forward(home,'chat');
+  await evaluate(`localStorage.setItem('llmx-chat',${JSON.stringify(second.id)})`);
+  await reloadDocument();
+  await wait(state(home,'chat'),'explicit landing defeats saved recent conversation');
+  await navigateDocument(url + '/' + firstRoute);
+  await wait(state(firstRoute,'chat',first.id),'explicit conversation link');
+  await select(second.id);
+  await wait(state(secondRoute,'chat',second.id),'second chat for deletion test');
+  await back(firstRoute,'chat',first.id);
+  await evaluate(`ChatShell.api('/chats/'+${JSON.stringify(second.id)},'DELETE')`);
+  await forward(home,'chat');
+  await wait("document.querySelector('#toast').textContent.includes('no longer available')",'missing conversation notice');
+  await pointerClick('#temporary-button');
+  await wait("document.querySelector('#app').dataset.temporary==='true' && sessionStorage.getItem('llmx-temporary-chat')",'temporary conversation');
+  const temporary = await evaluate("sessionStorage.getItem('llmx-temporary-chat')");
+  assert(!(await evaluate('location.href+JSON.stringify(history.state)')).includes(temporary),'temporary identifier remained out of this URL and history state');
+  assert(!(await cdp('Page.getNavigationHistory')).entries.some(entry => entry.url.includes(temporary)),'temporary identifier remained out of history URLs');
+  await reloadDocument();
+  await wait(`document.querySelector('#app').dataset.temporary==='true' && !document.querySelector('[data-action="new"]').disabled`,'temporary reload recovers this tab');
+  await pointerClick('#temporary-button');
+  await wait(state(home,'chat'),'end temporary chat leaves safe landing');
+}
+
 async function checkWideChat() {
   const prose = 'The eastern survey route follows the breakwater before returning through the main channel. Follow the current markers and check for changes to the approach depth. ';
   const columns = Array.from({length: 13}, (_, i) => `Station ${String(i + 1).padStart(2, '0')}`);
@@ -2553,6 +2626,10 @@ try {
     await checkWorkspaceImport();
     assert.deepEqual(errors, [], 'workspace import browser exceptions');
     console.log('PASS: reviewed native multi-file and folder import, atomic retry, byte preservation, editor conflicts and responsive keyboard controls');
+  } else if (process.argv.includes('--browser-history-only')) {
+    await signIn(); await checkBrowserHistory();
+    assert.deepEqual(errors,[],'browser history exceptions');
+    console.log('PASS: browser Back and Forward, landing and deep links, reload, missing conversations, drafts and temporary privacy');
   } else if (process.argv.includes('--wide-layout-only')) {
     await signIn(); await checkWideChat();
     assert.deepEqual(errors, [], 'wide Chat browser exceptions');

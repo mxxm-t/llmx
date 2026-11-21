@@ -502,10 +502,11 @@ void twin_types(Backend& g, Backend& c) {
     profile.prompt_rows_below = keep;
 }
 
-// The 8-bit tile's offset types and IQ4_NL take their term in one fma against the scale times 1.5 * 2^23 (docs/PRECISION.md, Biased sums in the 8-bit HIP tile).
+// The 8-bit tile's offset types, IQ4_NL and the types whose decode sets no min take their term in one fma against the scale times 1.5 * 2^23 (docs/PRECISION.md, Biased sums in the 8-bit HIP tile).
 // An infinite weight scale gives NaN at each output it reaches, where a multiply gave an infinity, and leaves the other outputs' bits.
 void biased_edges(Backend& g) {
-    for (uint32_t type : {quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_IQ4_NL}) {
+    for (uint32_t type : {quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_IQ4_XS, quant::GGML_TYPE_IQ2_XXS, quant::GGML_TYPE_IQ2_XS,
+                          quant::GGML_TYPE_IQ2_S, quant::GGML_TYPE_IQ3_XXS, quant::GGML_TYPE_IQ3_S, quant::GGML_TYPE_IQ1_S, quant::GGML_TYPE_IQ1_M, quant::GGML_TYPE_Q1_0, quant::GGML_TYPE_Q2_0}) {
         const quant::StorageType& st = *quant::storage_type(type);
         const std::string name = st.name;
         std::string tname = name;
@@ -526,9 +527,10 @@ void biased_edges(Backend& g) {
             return read(g, *yb, nout * rows);
         };
         const std::vector<float> base = run();
-        // Output 5's second block: its half scale leads a Q4_0, Q5_0 or IQ4_NL block and ends a Q6_K one.
+        // Output 5's second block: its half scale ends a Q6_K block, sits in the high nibbles of an IQ1_M block's bytes 49, 51, 53 and 55, and leads every other one here.
         const size_t at = (5 * blocks + 1) * st.type_size + (type == quant::GGML_TYPE_Q6_K ? 208 : 0);
-        w[at] = 0x00, w[at + 1] = 0x7c;
+        if (type == quant::GGML_TYPE_IQ1_M) w[at + 49] &= 0x0f, w[at + 51] &= 0x0f, w[at + 53] = uint8_t((w[at + 53] & 0x0f) | 0xc0), w[at + 55] = uint8_t((w[at + 55] & 0x0f) | 0x70);
+        else w[at] = 0x00, w[at + 1] = 0x7c;
         const std::vector<float> got = run();
         bool nan = true, kept = true;
         for (size_t r = 0; r < rows; ++r)

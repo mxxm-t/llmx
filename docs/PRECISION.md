@@ -308,13 +308,14 @@ The output must be a new file. The tool pins the package versions, uses one CPU 
 
 ### Biased sums in the 8-bit HIP tile
 
-Under HIP the 8-bit prompt tile of the types whose term is a half scale times the integer sum (the offset types Q4_0, Q5_0 and Q6_K, and IQ4_NL; `k_tile`'s vector body in `kernels/int16.gpu`) starts each integer sum at `kSumBias`, the bits of 1.5 * 2^23, and takes a sub-block's term as one fma, fma(ds, bits, -(1.5 * 2^23 * ds)) (`scaled_sum`), where the offset types took the multiply ds * isum and IQ4_NL `k_term`'s fma(ds, isum, -(0 * xsum)).
-The sums stay below 2^20 and ds, a half scale or a half scale times a byte, has at most 19 significant bits, so 1.5 * 2^23 * ds is exact and the fma rounds ds * isum once, as the old forms did: every finite output keeps its bits.
+Under HIP the 8-bit prompt tile of the types whose term is a half scale times the integer sum (the offset types Q4_0, Q5_0 and Q6_K, IQ4_NL, and the types whose decode sets no min, `KZeroMin`: IQ4_XS, IQ2_XXS, IQ2_XS, IQ2_S, IQ3_XXS, IQ3_S, IQ1_S, IQ1_M, Q1_0, Q2_0 and NVFP4; `k_tile`'s vector body in `kernels/int16.gpu`) starts each integer sum at `kSumBias`, the bits of 1.5 * 2^23, and takes a sub-block's term as one fma, fma(ds, bits, -(1.5 * 2^23 * ds)) (`scaled_sum`), where the offset types took the multiply ds * isum and IQ4_NL and the no-min types `k_term`'s fma(ds, isum, -(0 * xsum)).
+The sums stay below 2^20 and ds, a half scale or a half scale times a byte or a small integer (NVFP4's an E4M3 scale, its tensor factor applied after the sum), has at most 19 significant bits, so 1.5 * 2^23 * ds is exact and the fma rounds ds * isum once, as the old forms did: every finite output keeps its bits.
 Two cases differ.
 An infinite or NaN weight scale gives NaN at each output it reaches, where the old forms gave an infinity (`biased_edges` in `tests/backend_rocm.cpp`).
 A zero term is +0, where the old forms gave -0 for some signs of the scale, the sum or the twin's sum, which changes an output's sign of zero only after its sum underflowed to -0.
 MXFP4 keeps the multiply, since its E8M0 scale times 1.5 * 2^23 can overflow.
 The CUDA tensor-core tile's biased sums keep the multiply (`sum_float`), and the 16-bit tiles and the row builds take no bias.
+Under CUDA the vector body still runs for IQ2_XS, IQ2_S, IQ1_M and NVFP4, and there the no-min types keep `k_term`, so CUDA's bits are main's.
 
 ## 9. Precision and range (clarified 2026-09-30)
 

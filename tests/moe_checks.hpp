@@ -352,9 +352,12 @@ struct Moe {
         const size_t n_expert = 16, k = 4, ff[2] = {256, 200}, most = 2 * 128;   // twice the widest tile extent of tile_from_at
         const std::vector<std::pair<uint32_t, size_t>> kinds = {{quant::GGML_TYPE_Q8_0, 2560}, {quant::GGML_TYPE_Q8_0, 2080}, {quant::GGML_TYPE_Q4_K, 2560}, {quant::GGML_TYPE_Q5_K, 2560},
                                                                 {quant::GGML_TYPE_Q6_K, 2560}, {quant::GGML_TYPE_Q4_0, 2560}, {quant::GGML_TYPE_Q4_1, 2560}, {quant::GGML_TYPE_Q5_0, 2560}, {quant::GGML_TYPE_Q5_1, 2560}, {quant::GGML_TYPE_IQ4_NL, 2560}, {quant::GGML_TYPE_MXFP4, 2560},
-                                                                {quant::GGML_TYPE_Q4_0, 2080}};
+                                                                {quant::GGML_TYPE_Q4_0, 2080}, {quant::GGML_TYPE_IQ4_XS, 2560}, {quant::GGML_TYPE_IQ2_XXS, 2560}, {quant::GGML_TYPE_IQ2_XS, 2560}, {quant::GGML_TYPE_IQ2_S, 2560},
+                                                                {quant::GGML_TYPE_IQ3_XXS, 2560}, {quant::GGML_TYPE_IQ3_S, 2560}, {quant::GGML_TYPE_IQ1_S, 2560}, {quant::GGML_TYPE_IQ1_M, 2560}, {quant::GGML_TYPE_Q1_0, 2560}, {quant::GGML_TYPE_Q2_0, 2560}};
         for (const auto& [type, nin] : kinds) {
-            const std::string name = quant::storage_type(type)->name, tname = std::string(name == "Q8_0" ? "q8_0" : name == "Q4_K" ? "q4_k" : name == "Q5_K" ? "q5_k" : name == "Q6_K" ? "q6_k" : name == "Q4_0" ? "q4_0" : name == "Q4_1" ? "q4_1" : name == "Q5_0" ? "q5_0" : name == "Q5_1" ? "q5_1" : name == "MXFP4" ? "mxfp4" : "iq4_nl");
+            const std::string name = quant::storage_type(type)->name;
+            std::string tname = name;
+            for (char& ch : tname) ch = char(std::tolower(ch));
             const size_t nblk = nin / 32;
             std::vector<uint8_t> w[2];
             BufferPtr wb[2];

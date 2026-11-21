@@ -418,6 +418,25 @@ A saved tool result opens the latest file in the editor or resumes unsaved chang
   Host contention was recorded for every run (hostwait): the timing job ran uncontended, the suite and the first identity job ran with kswapd0 active.
   The branch lands by fast-forward.
 - **Left:** nothing; the branch lands by fast-forward.
+## Zero-min types take the biased 8-bit tile sums (2026-11-21, KEFF20, branch keff/zero-min-eb on main c494eea6f)
+
+- **Goal:** the 8-bit HIP prompt tile of the types whose decode sets no min (`KZeroMin`: IQ4_XS, IQ2_XXS, IQ2_XS, IQ2_S, IQ3_XXS, IQ3_S, IQ1_S, IQ1_M, Q1_0, Q2_0 and NVFP4) faster with every finite output's bits kept.
+- **Done:** those types join the biased sums (`EB` in `kernels/int16.gpu`), so a sub-block's term is one fma (`scaled_sum`) and the tile stages neither the min nor the activation sums (docs/PRECISION.md, Biased sums in the 8-bit HIP tile).
+  `biased_edges` in `tests/backend_rocm.cpp` covers the types with an f16 scale at a block's start and IQ1_M, whose half scale sits in the high nibbles of its sub-block scales; NVFP4's E4M3 scale has no infinity.
+  `experts_tile` in `tests/moe_checks.hpp` adds the ten zero-min types with a 32-value block to the routed tile's kinds (NVFP4's 64-value block does not fit its shapes).
+  CUDA keeps `k_term` (`EB` asks `!GPU_IMMA8`): its tensor-core builds still run this body for IQ2_XS, IQ2_S, IQ1_M and NVFP4, and the biased sums there wait for a CUDA card.
+- **Timing round against main (one MI50, `rates ktile ktile2`, 3 interleaved rounds of main c494eea6f with the harness and of the branch, best of each):** int8 IQ4_XS +11.0 to +13.3%, IQ2_XXS +10.6 to +12.9%, IQ2_XS +30.8 to +38.6%, IQ2_S +28.7 to +32.9%, IQ3_XXS +8.4 to +10.9%, IQ3_S +9.1 to +14.1%, IQ1_S +10.5 to +15.4%, IQ1_M +14.0 to +22.9%, Q1_0 +11.9 to +13.7%, Q2_0 +11.5 to +13.4%.
+  The other int8 cells are within -2.0 to +1.9% but three small-shape `s_ffn_down` 512 cells (Q4_K -8.9%, Q6_K +11.3%, Q8_0 +6.7%), and the f16 cells within -4.3 to +3.1% but Q8_0 `s_ffn_up` 512 -10.0% and Q6_K `s_ffn_down` 512 +10.4%: none of those kernels changed (below), so that is the screen's noise; every one of the 298 cells' output hashes equals main's.
+- **Code objects (gfx906, `int16` and `int16dot`, disassembly per kernel with the relocated table offsets masked):** exactly the 33 kernels `tile8`, `routed_tile8` and `routed_mid8` of the eleven types change; the other 671 and 677 are identical.
+  LDS from the objects' notes: IQ2_XS, IQ2_S, IQ1_M and NVFP4 drop from 23552 to 19648 bytes in `tile8` and `routed_tile8` (PAD 8 turns on, a third block a compute unit) and from 18112 to 15040 in `routed_mid8`; the other seven from 20672 to 18624 and 15552 to 14016.
+- **Checks:** `llmx-backend-rocm-test full` on an MI50 passes but the two NVFP4 witness checks main fails too ("the NVFP4 checks ran llmx_nvfp4_tile16" and "...tile8", fixed on fix/nvfp4-tile-witness); `moe` passes.
+  Routed 8-bit tile identity (`rates rhash`, 12 types, each run listing its `*_routed_tile8`): every hash equals main's.
+  Byte identity against main, 16k prompt plus 512 forced ids, `--dtype int8`, top 8 of the last 512 positions: Qwen3-0.6B IQ3_S, IQ2_XS, IQ2_XXS and IQ4_XS and Qwen3.5-0.8B NVFP4 all 513 lines equal; the rocprofv3 tile witness ran rc=0 with output equal on four models and counted llmx_iq2_xs_tile8 4658, llmx_iq2_xxs_tile8 4658, llmx_iq4_xs_tile8 3808 and llmx_nvfp4_tile8 2838 launches (IQ3_S: llmx_iq3_s_tile8 3808).
+  CUDA kernel build (nvcc 12.9.1, archs 80 86 89 90 120): `f32` SASS equal; `int16` SASS equal but sm_86 `llmx_q3_k_routed_mid16` and sm_89 `llmx_q4_1_routed_tile16`, which the edit cannot reach (`GPU_IMMA8` is 1 under CUDA, so `EB` is main's for every type).
+  Their PTX differs from main's because nvcc names the file's internal symbols by a hash of its contents; with names and registers masked, six untouched 16-bit entries differ in shared loads merged into wider ones and nothing else, and a comment-only edit of main's `int16.gpu` moves six such entries the same way (compute_86 PTX).
+- **Left:** the Radeon VII check and the server gates per the landing.
+- **Gotchas:** an infinite or NaN scale now gives NaN where `k_term` gave an infinity, as for the other biased types.
+  A source edit anywhere in `int16.gpu` renames its internal symbols under nvcc and can move ptxas's scheduling of unrelated kernels, so a CUDA SASS comparison needs a comment-only control of the same file.
 
 ## Chat message actions (2026-11-19)
 

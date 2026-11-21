@@ -1605,6 +1605,8 @@ template <> struct KSigned<rq::NVFP4> { static constexpr bool value = true; };
 // Whether a type's decode sets no min, so a term is ds * isum, which is fmaf(ds, isum, -(0 * xsum))'s value, and the twin sum is not needed.
 template <typename KT> struct KNoMin { static constexpr bool value = false; };
 template <> struct KNoMin<rq::MXFP4> { static constexpr bool value = true; };
+// The types whose decode gives a zero min, whose 8-bit term is the same RN(ds * isum) from biased sums (EB) as from k_term.
+template <typename KT> struct KZeroMin { static constexpr bool value = __is_same(KT, rq::IQ4_XS) || __is_same(KT, rq::IQ2_XXS) || __is_same(KT, rq::IQ2_XS) || __is_same(KT, rq::IQ2_S) || __is_same(KT, rq::IQ3_XXS) || __is_same(KT, rq::IQ3_S) || __is_same(KT, rq::IQ1_S) || __is_same(KT, rq::IQ1_M) || __is_same(KT, rq::Q1_0) || __is_same(KT, rq::Q2_0) || __is_same(KT, rq::NVFP4); };
 // Whether a type's products take the tensor's F32 factor, NVFP4's, applied to each sum a kernel stores, a lane's partial in the row builds; k_out is the sum itself for every other type.
 template <typename KT> struct KFactor { static constexpr bool value = false; };
 template <> struct KFactor<rq::NVFP4> { static constexpr bool value = true; };
@@ -1911,8 +1913,9 @@ LLMX_KVEC {
     // Each row's twin sum over a sub-block, or over each half where the scale changes every 16 values: a float for a type with no offset, else times -offset, where the integer sums start.
     __shared__ typename std::conditional<KRaw<KT>::offset == 0, float, int>::type xh[STEP][H][ROWS];
     constexpr int XM = KRaw<KT>::offset ? -KRaw<KT>::offset : 1;
-    // The 8-bit sums of a type whose term is its half scale times the sum, an offset type or IQ4_NL, start at kSumBias, so the term is one fma (scaled_sum); MXFP4's E8M0 scale times 1.5 * 2^23 can overflow.
-    constexpr bool EB = sizeof(QT) == 1 && (KRaw<KT>::offset != 0 || __is_same(KT, rq::IQ4_NL));
+    // The 8-bit sums of a type whose term is its half scale times the sum, an offset type, IQ4_NL or, under HIP, a zero-min type, start at kSumBias, so the term is one fma (scaled_sum); MXFP4's E8M0 scale times 1.5 * 2^23 can overflow.
+    // The tensor-core builds keep k_term for the zero-min types this body still runs there (IQ2_XS, IQ2_S, IQ1_M and NVFP4), so their bits stay put.
+    constexpr bool EB = sizeof(QT) == 1 && (KRaw<KT>::offset != 0 || __is_same(KT, rq::IQ4_NL) || (KZeroMin<KT>::value && !GPU_IMMA8));
     // The staged words part-major, a thread part's WORDS / 4 rows of every step together and the parts PAD words apart, so a store's four parts fall in different banks and a part's rows stay whole rows apart.
     // PAD is 8 where three blocks still fit a compute unit's 64 KB in 512-byte units with it, as the tile's occupancy needs (docs/STATUS.md, Prompt K tile staging 3), else 0; STAGED counts the arrays the tile reads.
     constexpr bool MIN_READ = !(EB || KNoMin<KT>::value || KRaw<KT>::offset), XH_READ = KRaw<KT>::offset || MIN_READ;

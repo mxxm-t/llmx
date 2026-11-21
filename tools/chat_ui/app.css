@@ -301,6 +301,7 @@ kbd {
   max-width:100%
 }
 .title-button:disabled { opacity:1; cursor:default }
+.topbar:has(#chat-title:disabled) [data-action="chat-menu"] { visibility:hidden }
 .topbar-actions {
   display:flex;
   align-items:center;

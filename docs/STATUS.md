@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Conversation actions on an unsaved draft (2026-11-21)
+
+- Goal: Offer conversation actions only when there is a conversation to manage.
+- Done: The blank draft hides its actions menu using the same state as Rename. The header reserves its space so switching modes keeps the controls aligned.
+- Checks: Chrome reproduced the visible menu before the fix and verified mouse and keyboard availability on a temporary chat after the fix.
+- Gotchas: The mode toggle must keep its position when the menu appears.
+
 ## Workspace import browser check after resizing (2026-11-21)
 
 - Goal: Exercise the stale editor Save at the intended viewport after import.

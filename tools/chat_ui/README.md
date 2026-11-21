@@ -268,7 +268,8 @@ keeps **Browse saved files** available and loads the list when you open it.
   or Ctrl+Shift+F (Command+Shift+F on macOS) to search message text and attachment
   filenames on the current branch. Choose a result to jump to its message.
 - **Conversation actions > Download Markdown** saves the current branch's prompt and reply text in reading order. It leaves out tool payloads, reasoning, attachments and unsent drafts. Use **Export JSON** for a backup with branches.
-- Each sidebar row has a compact anchored actions menu for rename, pin/unpin,
+- The header actions menu appears when a saved or temporary conversation is open.
+  Each sidebar row has a compact anchored actions menu for rename, pin/unpin,
   move to folder, duplicate, archive/restore, export and delete. Actions target
   that row without opening it. Rename, folder and delete use accessible dialogs.
   Sidebar search matches titles, folders and visible user and assistant text in

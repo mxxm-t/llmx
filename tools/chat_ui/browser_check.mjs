@@ -944,6 +944,23 @@ try {
     await pointerClick(`[data-chat="${chat.id}"]`);
     await wait("document.querySelectorAll('.message.user').length===27", 'selected branch');
     await fill('#draft', 'Unsent draft');
+    await cdp('Emulation.setDeviceMetricsOverride', {width:320,height:360,deviceScaleFactor:1,mobile:true});
+    await wait("document.documentElement.dataset.compact==='true' && innerWidth===320", 'short phone transcript');
+    const setBottomDistance = distance => evaluate(`new Promise(resolve=>{const r=document.querySelector('#scroll-region');r.scrollTop=r.scrollHeight-r.clientHeight-${distance};requestAnimationFrame(()=>requestAnimationFrame(resolve));})`);
+    const jumpState = () => evaluate("({available:document.querySelector('#jump-bottom').checkVisibility(),composerTop:document.querySelector('#composer').getBoundingClientRect().top})");
+    await setBottomDistance(0);
+    const atLatest = await jumpState();
+    assert.equal(atLatest.available, false);
+    await setBottomDistance(150);
+    assert.equal((await jumpState()).available, true, 'reader outside the auto-follow range has no way to jump');
+    await setBottomDistance(240);
+    assert.equal((await jumpState()).composerTop, atLatest.composerTop, 'Jump to latest moved the composer');
+    await pointerClick('#jump-bottom');
+    await wait("document.querySelector('#jump-bottom').hidden", 'jumped back to latest');
+    assert.equal(await evaluate("(()=>{const r=document.querySelector('#scroll-region');return r.scrollHeight-r.scrollTop-r.clientHeight<2;})()"), true);
+    assert.equal(await evaluate("document.querySelector('#draft').value"), 'Unsent draft');
+    await cdp('Emulation.setDeviceMetricsOverride', {width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+    await wait("document.documentElement.dataset.compact==='false'", 'return to desktop transcript');
     const writes = apiMutations.length;
     await evaluate(`{
       const pane = document.querySelector('.chat-stage');

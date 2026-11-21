@@ -230,6 +230,12 @@ saved conversation after sign-in. The bare companion address reopens the last
 selected chat when available. A link to a deleted conversation opens the Chat
 landing page.
 
+The four sidebar destinations and saved conversations are links. Use the
+browser's context menu, middle-click, or Ctrl-click (Command-click on Mac) to
+open one in another tab while keeping the current tab and its draft. The Chat
+link points to the selected saved conversation when there is one. In temporary
+mode, its address opens the ordinary Chat landing page in a new tab.
+
 The transcript, reading controls and composer grow together as the Chat pane
 gets wider. Reply prose keeps a readable line length, and wide code blocks and
 tables use the extra room and scroll within their own blocks when needed.

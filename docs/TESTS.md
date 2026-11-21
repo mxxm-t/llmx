@@ -190,6 +190,11 @@ The browser distinguishes navigation hover from the selected section in both the
 The Chat history fixture follows Chrome Back and Forward through saved chats,
 the Chat landing page and the other top-level views. It checks reload,
 unavailable conversations, draft restoration and temporary-chat privacy.
+The same fixture activates sidebar links by keyboard and by pointer. It opens
+a saved chat by middle-click and the Chat destination by modifier-click and
+checks both tabs. Right-click leaves the browser context menu enabled. The
+Chat link follows the selected saved conversation from Settings and opens the
+landing page when used in another tab from temporary mode.
 A held chat snapshot or first Send must leave a newer view and its history
 entry intact. Cancelling Back from a temporary chat keeps its draft and entry.
 Reconnecting the Monitor iframe leaves the top-level history index unchanged.

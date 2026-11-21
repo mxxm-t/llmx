@@ -342,16 +342,16 @@
       else if (chatSearch.request && chatSearch.timer === null) searchChats();
     }
   }
-  function updateSidebarCue(button) {
-    const cue = button.querySelector('.chat-run-cue');
-    const status = sidebarRuns.states.get(button.dataset.chat) || '';
+  function updateSidebarCue(link) {
+    const cue = link.querySelector('.chat-run-cue');
+    const status = sidebarRuns.states.get(link.dataset.chat) || '';
     if (cue.dataset.status === status) return;
     const [mark, label] = sidebarRunCues.get(status) || ['', ''];
     cue.dataset.status = status;
     cue.textContent = mark;
     cue.title = label;
-    if (label) button.setAttribute('aria-label', button.querySelector('.chat-name').textContent + ', ' + label);
-    else button.removeAttribute('aria-label');
+    if (label) link.setAttribute('aria-label', link.querySelector('.chat-name').textContent + ', ' + label);
+    else link.removeAttribute('aria-label');
   }
   function setSidebarStates(states = []) {
     sidebarRuns.states = new Map(states.filter(row => sidebarRunCues.has(row.status)).map(row => [row.id, row.status]));
@@ -430,27 +430,34 @@
         container = section;
       }
       items.forEach(chat => {
-        const button = node('button', 'chat-item' + (S.chat?.id === chat.id ? ' active' : '')); button.type = 'button'; button.dataset.chat = chat.id; button.title = chat.title;
-        if (S.chat?.id === chat.id) button.setAttribute('aria-current', 'page');
-        button.append(node('span', 'chat-name', chat.title || 'Untitled conversation'));
-        const cue = node('span', 'chat-run-cue'); cue.setAttribute('aria-hidden', 'true'); button.append(cue);
-        updateSidebarCue(button);
-        if (chat.pinned) button.append(icon('M9 3h6l-1 6 4 4H6l4-4Z M12 13v8', 'pin-mark'));
+        const link = node('a', 'chat-item' + (S.chat?.id === chat.id ? ' active' : ''));
+        link.href = chatRoute(chat.id); link.dataset.chat = chat.id; link.title = chat.title;
+        if (S.chat?.id === chat.id) link.setAttribute('aria-current', 'page');
+        link.append(node('span', 'chat-name', chat.title || 'Untitled conversation'));
+        const cue = node('span', 'chat-run-cue'); cue.setAttribute('aria-hidden', 'true'); link.append(cue);
+        updateSidebarCue(link);
+        if (chat.pinned) link.append(icon('M9 3h6l-1 6 4 4H6l4-4Z M12 13v8', 'pin-mark'));
         const row = node('div', 'chat-row' + (S.chat?.id === chat.id ? ' active' : ''));
         const menu = node('button', 'chat-row-menu'); menu.append(icon('M5 12h.2m6.7 0h.2m6.7 0h.2')); menu.type = 'button'; menu.dataset.action = 'chat-menu'; menu.dataset.id = chat.id;
         menu.setAttribute('aria-label', 'Actions for ' + (chat.title || 'Untitled conversation')); menu.setAttribute('aria-haspopup', 'menu'); menu.title = 'Conversation actions';
-        row.append(button, menu); container.append(row);
+        row.append(link, menu); container.append(row);
       });
     });
     if (!chats.length) out.append(node('p', 'empty-history', chatSearch.notice || (chatSearch.request ? 'No matching conversations.' : S.archive ? 'Your archive is empty.' : 'No saved conversations yet.')));
     $('library-title').textContent = chatSearch.request ? 'Search results' : S.archive ? 'Archive' : 'Conversations';
     $('archive-toggle').textContent = S.archive ? 'Back to chats' : 'Show archive';
   }
-  const viewRoutes = {chat: 'chat', workbench: 'saved-files', monitor: 'monitor', preferences: 'settings'};
+  const viewRoutes = Array.from(document.querySelectorAll('.global-nav a[data-view]'), link => ({
+    link, view: link.dataset.view, search: link.search, slug: new URLSearchParams(link.search).get('view')
+  }));
+  const chatDestination = viewRoutes.find(route => route.view === 'chat');
+  function chatRoute(id) { return '?chat=' + encodeURIComponent(id); }
   let routeEpoch = 0, sessionReady = false, navigationReady = false, shownEntry = null, pendingView = null;
   function saveRoute(replace = false) {
     const view = $('app').dataset.view, temporary = view === 'chat' && Boolean(S.chat?.temporary);
-    const search = view === 'chat' && S.chat && !temporary ? '?chat=' + encodeURIComponent(S.chat.id) : '?view=' + viewRoutes[view];
+    const chatSearch = S.chat && !S.chat.temporary ? chatRoute(S.chat.id) : chatDestination.search;
+    if (chatDestination.link.search !== chatSearch) chatDestination.link.href = chatSearch;
+    const search = view === 'chat' ? chatSearch : viewRoutes.find(route => route.view === view).search;
     const previous = history.state?.llmxChat, same = search === location.search;
     if (same && previous?.temporary === temporary) { shownEntry = previous; return; }
     const push = !replace && !same;
@@ -467,7 +474,8 @@
     const epoch = ++routeEpoch, previous = shownEntry, entry = history.state?.llmxChat;
     const query = new URLSearchParams(location.search), linkedChat = query.get('chat');
     const legacy = !query.has('chat') && !query.has('view');
-    const view = query.has('chat') ? 'chat' : Object.keys(viewRoutes).find(name => viewRoutes[name] === query.get('view')) || 'chat';
+    const slug = query.get('view');
+    const view = query.has('chat') ? 'chat' : viewRoutes.find(route => route.slug === slug)?.view || 'chat';
     window.ChatShell.closeMenu(false);
     if (view !== 'chat') { window.ChatShell.renderView(view); saveRoute(true); return; }
     const temporary = entry?.temporary || legacy ? sessionStorage.getItem('llmx-temporary-chat') : null;
@@ -2188,6 +2196,7 @@
   }
   document.addEventListener('click', event => {
     const el = event.target.closest('[data-action],[data-chat],[data-tab]'); if (!el) return;
+    if (el.matches('a[data-chat]') && !window.ChatShell.followInPlace(event)) return;
     const execute = async () => {
       if (el.dataset.action) await action(el.dataset.action, el);
       else if (el.dataset.chat) {

@@ -167,9 +167,14 @@ window.ChatShell = (() => {
   function show(view) {
     if (Object.hasOwn(labels, view)) document.dispatchEvent(new CustomEvent('companion:navigate', {detail: view}));
   }
+  function followInPlace(event) {
+    if (event.defaultPrevented || event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false;
+    event.preventDefault();
+    return true;
+  }
   function renderView(view) {
     $('app').dataset.view = view;
-    document.querySelectorAll('.global-nav [data-view]').forEach(button => { if (button.dataset.view === view) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); });
+    document.querySelectorAll('.global-nav a[data-view]').forEach(link => { if (link.dataset.view === view) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current'); });
     for (const name of ['monitor', 'workbench', 'preferences']) $('view-' + name).hidden = view !== name;
     $('shell-title').textContent = labels[view];
     document.querySelector('.shell-heading').hidden = view === 'chat';
@@ -257,7 +262,8 @@ window.ChatShell = (() => {
   document.addEventListener('companion:config', event => configure(event.detail));
   document.addEventListener('companion:unauthorized', () => { $('monitor-frame').removeAttribute('src'); if (!$('login-dialog').open) $('login-dialog').showModal(); });
   document.addEventListener('click', event => {
-    const control = event.target.closest('button[data-view]'); if (control) show(control.dataset.view);
+    const control = event.target.closest('button[data-view], .global-nav a[data-view]');
+    if (control && (control.matches('button') || followInPlace(event))) show(control.dataset.view);
     if (event.target.closest('[data-action="logout"]')) $('monitor-frame').removeAttribute('src');
   }, true);
   $('monitor-reload').addEventListener('click', () => loadMonitor(true)); $('monitor-frame').addEventListener('load', themeMonitor);
@@ -375,5 +381,5 @@ window.ChatShell = (() => {
       catch (error) { backupStatus(error.message, true); throw error; } finally { $('backup-restore').disabled = false; }
     });
   });
-  return {show, renderView, viewFocusTarget, api, menu, closeMenu, conversationForm, get config() { return config; }};
+  return {show, followInPlace, renderView, viewFocusTarget, api, menu, closeMenu, conversationForm, get config() { return config; }};
 })();

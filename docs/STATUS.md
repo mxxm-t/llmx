@@ -5,11 +5,20 @@
 **Goal.** Let the browser open a sidebar destination or saved conversation
 in another tab while preserving the existing in-place navigation.
 
-**Done.** Identified the sidebar view and conversation click owners.
+**Done.** The four sidebar destinations and saved conversation rows are native
+links. Ordinary clicks use the existing History owner. The Chat link follows
+the selected saved chat and uses the landing address in temporary mode.
 
-**Left.** Reproduce and verify native link behavior in Chrome.
+**Checks.** Chrome failed on the old sidebar buttons and passes with keyboard
+and pointer activation, middle-click and modifier-click in another tab,
+browser context menus, preserved drafts and History. Temporary chat IDs stay
+out of all sidebar links. Logs are in `scratch/chat-native-sidebar-links/`.
 
-**Gotchas.** Saved conversation addresses already belong to the Chat router.
+**Left.** Complete the full workspace and scoped landing checks.
+
+**Gotchas.** The History owner reads the top-level addresses from the links
+and supplies the saved-chat address for both the selected view and its link.
+The Markdown review adds native sidebar navigation to usage and tests.
 
 ## Reopening an editor confirmation
 

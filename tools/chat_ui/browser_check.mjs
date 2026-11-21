@@ -387,13 +387,13 @@ async function checkMainNavigation(width) {
   await evaluate("document.querySelector('#chat-home').focus()");
   for (const view of views) {
     for (const type of ['keyDown', 'keyUp']) await cdp('Input.dispatchKeyEvent', {type, key:'Tab', code:'Tab', windowsVirtualKeyCode:9});
-    assert.equal(await evaluate("document.activeElement.matches('.global-nav button:focus-visible') && getComputedStyle(document.activeElement).outlineStyle==='solid' && document.activeElement.dataset.view"), view);
+    assert.equal(await evaluate("document.activeElement.matches('.global-nav a:focus-visible') && getComputedStyle(document.activeElement).outlineStyle==='solid' && document.activeElement.dataset.view"), view);
   }
   for (const theme of ['light', 'dark']) {
     await evaluate("document.documentElement.dataset.theme=" + JSON.stringify(theme));
     const nav = await evaluate(`(() => {
-      const buttons = [...document.querySelectorAll('.global-nav button')];
-      const current = buttons.find(button => button.getAttribute('aria-current') === 'page');
+      const links = [...document.querySelectorAll('.global-nav a')];
+      const current = links.find(link => link.getAttribute('aria-current') === 'page');
       const history = getComputedStyle(document.querySelector('.chat-item.active'));
       const sample = document.createElement('span');
       sample.style.color = 'var(--accent)';
@@ -402,19 +402,19 @@ async function checkMainNavigation(width) {
       sample.remove();
       const marker = getComputedStyle(current, '::before');
       return {
-        rows: buttons.map(button => {
-          const rect = button.getBoundingClientRect();
-          return {top:rect.top, bottom:rect.bottom, height:rect.height, icon:button.querySelector('svg').getBoundingClientRect().left,
-            label:button.querySelector('span').getBoundingClientRect().left};
+        rows: links.map(link => {
+          const rect = link.getBoundingClientRect();
+          return {top:rect.top, bottom:rect.bottom, height:rect.height, icon:link.querySelector('svg').getBoundingClientRect().left,
+            label:link.querySelector('span').getBoundingClientRect().left, decoration:getComputedStyle(link).textDecorationLine};
         }),
         current: current.dataset.view, neutral: getComputedStyle(current).backgroundColor === history.backgroundColor && getComputedStyle(current).color === history.color,
         marked: marker.content !== 'none' && parseFloat(marker.borderInlineStartWidth) > 0 && marker.borderInlineStartColor === accent,
-        otherMarkers: buttons.filter(button => button !== current && getComputedStyle(button, '::before').content !== 'none').length
+        otherMarkers: links.filter(link => link !== current && getComputedStyle(link, '::before').content !== 'none').length
       };
     })()`);
     assert.equal(nav.current, 'chat');
     assert(nav.neutral && nav.marked && !nav.otherMarkers, theme + ' page selection should share the active history colors and have one accent marker');
-    assert(nav.rows.every((row, i) => row.icon === nav.rows[0].icon && row.label === nav.rows[0].label &&
+    assert(nav.rows.every((row, i) => row.icon === nav.rows[0].icon && row.label === nav.rows[0].label && row.decoration === 'none' &&
       row.height >= (width === 320 ? 40 : 24) && (!i || row.top >= nav.rows[i - 1].bottom)), 'destination rows at '+width);
   }
   await evaluate("document.documentElement.dataset.theme=" + JSON.stringify(originalTheme));
@@ -635,13 +635,53 @@ async function checkBrowserHistory() {
     [['chat',home],...topLevel.map(([view,route])=>[view,'?view='+route])], 'global destinations are native links');
   const secondLink = `.chat-item[data-chat="${second.id}"]`;
   assert.equal(await evaluate(`document.querySelector(${JSON.stringify(secondLink)}).search`),secondRoute,'saved chat row has its canonical address');
+  const nativeTab = async (selector, input, route, view, id) => {
+    const before = new Set((await cdp('Target.getTargets')).targetInfos.map(tab => tab.targetId));
+    await pointerClick(selector,input);
+    let opened;
+    await wait(async () => {
+      opened = (await cdp('Target.getTargets')).targetInfos.find(tab => tab.type==='page' && !before.has(tab.targetId) && tab.url===url+'/'+route);
+      return Boolean(opened);
+    },'native link opened a second tab to '+route);
+    try {
+      const {sessionId} = await cdp('Target.attachToTarget',{targetId:opened.targetId,flatten:true});
+      await wait(async () => {
+        const result = await cdp('Runtime.evaluate',{expression:state(route,view,id),returnByValue:true},sessionId);
+        return result.result.value===true;
+      },'second tab loaded '+route);
+    } finally {
+      await cdp('Target.closeTarget',{targetId:opened.targetId});
+      await cdp('Page.bringToFront');
+    }
+  };
+  const chatLink = '.global-nav a[data-view="chat"]';
+  const openInTab = {modifiers:process.platform==='darwin' ? 4 : 2};
   const documentBefore = await documentIdentity();
   const historyBefore = await cdp('Page.getNavigationHistory');
-  await select(first.id);
+  await evaluate(`document.querySelector('.chat-item[data-chat="${first.id}"]').focus()`);
+  for (const type of ['keyDown','keyUp']) await cdp('Input.dispatchKeyEvent',{type,key:'Enter',code:'Enter',windowsVirtualKeyCode:13,text:type==='keyDown' ? '\r' : ''});
   await wait(`document.querySelector('.chat-item.active')?.dataset.chat===${JSON.stringify(first.id)}`, 'first conversation');
   assert.equal((await cdp('Page.getNavigationHistory')).currentIndex, historyBefore.currentIndex+1, 'opening a conversation must create browser history');
   await wait(state(firstRoute,'chat',first.id),'first conversation URL');
   await fill('#draft','Draft for survey log');
+  await nativeTab(secondLink,{button:'middle'},secondRoute,'chat',second.id);
+  assert.equal(await evaluate(state(firstRoute,'chat',first.id)),true,'opening a second tab preserves the current conversation');
+  assert.equal(await evaluate("document.querySelector('#draft').value"),'Draft for survey log');
+  await evaluate(`document.querySelector(${JSON.stringify(secondLink)}).addEventListener('contextmenu',event=>{
+    queueMicrotask(()=>{window.contextMenuAllowed=!event.defaultPrevented;});
+  },{once:true})`);
+  await pointerClick(secondLink,{button:'right'});
+  await wait('window.contextMenuAllowed===true','right click leaves browser context menu enabled');
+  await pointerClick('.global-nav [data-view="preferences"]');
+  await wait(state('?view=settings','preferences'),'Settings with a saved chat selected');
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(chatLink)}).search`),firstRoute,'Chat address from Settings matches selected conversation');
+  await nativeTab(chatLink,openInTab,firstRoute,'chat',first.id);
+  assert.equal(await evaluate(state('?view=settings','preferences')),true,'opening Chat in another tab preserves Settings');
+  await pointerClick(chatLink);
+  await wait(state(firstRoute,'chat',first.id),'ordinary Chat click follows the same URL');
+  assert.equal(await evaluate("document.querySelector('#draft').value"),'Draft for survey log');
+  await back('?view=settings','preferences');
+  await back(firstRoute,'chat',first.id);
   await select(second.id);
   await wait(state(secondRoute,'chat',second.id),'second conversation URL');
   for (const [view, route] of topLevel) {
@@ -695,6 +735,10 @@ async function checkBrowserHistory() {
   const temporary = await evaluate("sessionStorage.getItem('llmx-temporary-chat')");
   assert(!(await evaluate('location.href+JSON.stringify(history.state)')).includes(temporary),'temporary identifier remained out of this URL and history state');
   assert(!(await cdp('Page.getNavigationHistory')).entries.some(entry => entry.url.includes(temporary)),'temporary identifier remained out of history URLs');
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(chatLink)}).search`),home,'Chat link keeps the neutral address in temporary mode');
+  assert(!(await evaluate("Array.from(document.querySelectorAll('#sidebar a[href]'),link=>link.href).join('\u0020')")).includes(temporary),'temporary identifier stayed out of sidebar links');
+  await nativeTab(chatLink,openInTab,home,'chat');
+  assert.equal(await evaluate("sessionStorage.getItem('llmx-temporary-chat')"),temporary,'new Chat tab did not change the temporary session');
   await reloadDocument();
   await wait(`document.querySelector('#app').dataset.temporary==='true' && !document.querySelector('[data-action="new"]').disabled`,'temporary reload recovers this tab');
   const temporaryDraft = 'Private survey detail';
@@ -2870,7 +2914,7 @@ try {
     await delay(180);
     await screenshot('navigation-hover-' + theme + '.png');
     const navigation = await evaluate(`(() => {
-      const selected=document.querySelector('.global-nav [aria-current=page]'), hovered=document.querySelector('.global-nav button:hover');
+      const selected=document.querySelector('.global-nav [aria-current=page]'), hovered=document.querySelector('.global-nav a:hover');
       return {selected:selected.dataset.view, hovered:hovered?.dataset.view, selectedFill:getComputedStyle(selected).backgroundColor,
         hoveredFill:getComputedStyle(hovered).backgroundColor, hoverMarker:getComputedStyle(hovered,'::before').content};
     })()`);

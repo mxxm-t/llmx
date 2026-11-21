@@ -179,6 +179,8 @@ kbd {
   display:flex;
   gap:10px;
   text-align:left;
+  text-decoration:none;
+  outline-offset:4px;
   border-radius:8px;
   padding:11px 10px;
   align-items:center;

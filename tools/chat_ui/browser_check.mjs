@@ -429,6 +429,13 @@ async function checkLandingContext() {
   const row = label => '.landing-context-row[title='+JSON.stringify(label)+']';
   const shown = selector => wait('document.querySelector('+JSON.stringify(selector)+')?.checkVisibility()', selector);
   const empty = text => wait('document.querySelector("#landing-context-status").innerText==='+JSON.stringify(text), text);
+  const actionMenu = '.topbar [data-action=chat-menu]';
+  const menuState = () => evaluate(`(() => {
+    const button = document.querySelector(${JSON.stringify(actionMenu)});
+    const visible = button.checkVisibility({visibilityProperty:true});
+    button.focus();
+    return {visible, focused:document.activeElement===button};
+  })()`);
   await empty('No saved files yet.');
   await evaluate("ChatShell.api('/import','POST',{version:1,chat:{title:'Resume this draft',active_leaf:'reply'},messages:[{id:'reply',role:'assistant',content:'Saved reply'}]})");
   await reloadDocument();
@@ -436,6 +443,9 @@ async function checkLandingContext() {
   assert.equal(await evaluate("document.querySelector('#recent-list button').textContent.includes('Resume this draft') && !document.querySelector('#recent-conversations').checkVisibility()"), true, 'desktop history is in the sidebar');
   assert.equal(await evaluate("document.querySelector('#chat-title').disabled"), true, 'an unsaved chat has no rename action');
   assert.equal(await evaluate("document.querySelector('#landing-context-browse').checkVisibility() && !document.querySelector('.temporary-saved-files').checkVisibility()"),true,'ordinary landing shows one browse shortcut');
+  const blankMenu = await menuState();
+  assert.equal(blankMenu.visible, false, 'blank draft offers a conversation menu without a target');
+  assert.equal(blankMenu.focused, false, 'keyboard focus entered the unavailable conversation menu');
   await fill('#draft','Review the release notes.');
   await pointerClick(source('projects'));
   await empty('No saved projects yet.');
@@ -499,6 +509,11 @@ async function checkLandingContext() {
   await wait("document.querySelector('#landing-context-browse').dataset.action==='attach-files' && !Array.from(document.querySelectorAll('.landing-context-row')).some(row=>row.title==='Release review')", 'stale project list kept out of files');
   await pointerClick('#temporary-button');
   await wait("document.querySelector('#app').dataset.temporary==='true' && !document.querySelector('.landing-context-row') && !document.querySelector('#landing-context').checkVisibility()", 'temporary chat isolates landing workspace metadata');
+  const temporaryMenu = await menuState();
+  assert.equal(temporaryMenu.visible && temporaryMenu.focused, true, 'temporary conversation actions unavailable');
+  await pointerClick(actionMenu);
+  await shown('#action-menu [data-action=export]');
+  await cdp('Input.dispatchKeyEvent', {type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
   const requests = () => browserRequests.filter(r=>/^\/api\/workspace\/(?:files|projects)$/.test(new URL(r.url).pathname)).length;
   const beforeReload = requests();
   await reloadDocument();
@@ -1350,7 +1365,7 @@ try {
         const rows = await evaluate("Array.from(document.querySelectorAll('#find-message-list [data-target]'), row=>[row.dataset.target,Number(row.dataset.heading),row.innerText])");
         assert.deepEqual(rows.map(([id,index])=>[id,index]),expected.map(([id,index])=>[id,index]), 'only active-branch reply headings, in reading order');
         rows.forEach((row,index)=>assert(row[2].includes(expected[index][2]), 'heading label: '+row[2]));
-        for (const [index,label] of [[1,/1 of 2\s*·\s*Ask both providers/],[2,/2 of 2\s*·\s*Record who owns/]]) {
+        for (const [index,label] of [[1,/1 of 2\s*\u00b7\s*Ask both providers/],[2,/2 of 2\s*\u00b7\s*Record who owns/]]) {
           assert.match(rows[index+2][2],label,'visible duplicate heading label');
           assert.match((await accessible(duplicateRow(index))).name.value,label,'accessible duplicate heading label');
         }

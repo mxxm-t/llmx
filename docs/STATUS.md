@@ -1,5 +1,16 @@
 # llmx - Development Status
 
+## Sidebar links
+
+**Goal.** Let the browser open a sidebar destination or saved conversation
+in another tab while preserving the existing in-place navigation.
+
+**Done.** Identified the sidebar view and conversation click owners.
+
+**Left.** Reproduce and verify native link behavior in Chrome.
+
+**Gotchas.** Saved conversation addresses already belong to the Chat router.
+
 ## Reopening an editor confirmation
 
 The shared confirmation form finishes a closed dialog's pending close event

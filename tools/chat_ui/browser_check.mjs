@@ -102,11 +102,11 @@ async function reloadDocument() {
 }
 const click = selector => evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
 const closeAction = selector => evaluate(`new Promise(resolve=>{const dialog=document.querySelector('#action-dialog');dialog.addEventListener('close',()=>resolve(true),{once:true});document.querySelector(${JSON.stringify(selector)}).click();})`);
-async function pointerClick(selector) {
+async function pointerClick(selector, {button = 'left', modifiers = 0} = {}) {
   const point = await evaluate(`{const e=document.querySelector(${JSON.stringify(selector)});e.scrollIntoView({block:'nearest'});const r=e.getBoundingClientRect();const x=r.x+r.width/2,y=r.y+r.height/2;const hit=document.elementFromPoint(x,y);({x,y,hit:e.contains(hit),target:hit?.outerHTML.slice(0,200),classes:document.querySelector('#app').className,sidebar:document.querySelector('#sidebar').getBoundingClientRect().toJSON(),transform:getComputedStyle(document.querySelector('#sidebar')).transform,viewport:{x:visualViewport.offsetLeft,y:visualViewport.offsetTop,width:visualViewport.width},rootScroll:document.documentElement.scrollLeft,main:document.querySelector('.main').getBoundingClientRect().toJSON()})}`);
   assert(point.hit, 'Pointer blocked for '+selector+': '+JSON.stringify(point));
-  await cdp('Input.dispatchMouseEvent', {type: 'mousePressed', x: point.x, y: point.y, button: 'left', clickCount: 1});
-  await cdp('Input.dispatchMouseEvent', {type: 'mouseReleased', x: point.x, y: point.y, button: 'left', clickCount: 1});
+  await cdp('Input.dispatchMouseEvent', {type: 'mousePressed', x: point.x, y: point.y, button, modifiers, clickCount: 1});
+  await cdp('Input.dispatchMouseEvent', {type: 'mouseReleased', x: point.x, y: point.y, button, modifiers, clickCount: 1});
 }
 async function actionHoverPoint(selector) {
   await wait("!document.querySelector('#send').disabled", 'completed send before pointer checks');
@@ -631,6 +631,10 @@ async function checkBrowserHistory() {
   const home = '?view=chat';
   const topLevel = [['workbench','saved-files'],['monitor','monitor'],['preferences','settings']];
   await wait(`document.querySelector('.chat-item[data-chat="${first.id}"]')`, 'saved history fixtures');
+  assert.deepEqual(await evaluate("Array.from(document.querySelectorAll('.global-nav a[href]'), link => [link.dataset.view, link.search])"),
+    [['chat',home],...topLevel.map(([view,route])=>[view,'?view='+route])], 'global destinations are native links');
+  const secondLink = `.chat-item[data-chat="${second.id}"]`;
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(secondLink)}).search`),secondRoute,'saved chat row has its canonical address');
   const documentBefore = await documentIdentity();
   const historyBefore = await cdp('Page.getNavigationHistory');
   await select(first.id);

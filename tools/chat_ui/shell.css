@@ -2,7 +2,7 @@
   width: 76px;
   height: 30px;
 }
-.sidebar { background: color-mix(in srgb, var(--inset) 58%, var(--bg)); }
+.sidebar { background: var(--header); }
 .topbar { background: var(--header); }
 .settings-card,
 .metric-card,
@@ -80,7 +80,7 @@
   font-size: 13px;
 }
 .global-nav button:hover { color: var(--text); background: var(--surface); }
-.global-nav button[aria-current=page] { color: var(--text); background: var(--hover); font-weight: 600; }
+.global-nav button[aria-current=page] { color: var(--cyan); background: var(--brand-bg); font-weight: 600; }
 @media (max-width: 720px), (pointer: coarse) { .global-nav button { min-height: 40px; } }
 .global-nav svg { height: 16px; width: 16px; flex: none; }
 .workspace:not([data-view=chat]),

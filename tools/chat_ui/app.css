@@ -49,7 +49,6 @@ input,textarea,select {
 .workspace {
   display:grid;
   --document-font:Charter,"Bitstream Charter",Georgia,"Times New Roman",serif;
-  --prompt-surface:color-mix(in srgb,var(--inset) 55%,var(--surface));
   --rail-width:248px;
   --reading-width:886px;
   --page-edge:clamp(24px,3.3vw,54px);
@@ -272,7 +271,7 @@ kbd {
   --sidebar-composer-target:40px
 }
 .main {
-  background:var(--header);
+  background:var(--bg);
   display:flex;
   flex-direction:column;
   min-width:0;
@@ -474,9 +473,9 @@ kbd {
 }
 .chat-stage:has(#welcome:not([hidden])) .composer-caption { display:none }
 .composer {
-  border:1px solid color-mix(in srgb,var(--muted) 52%,var(--line));
+  border:1px solid var(--line);
   border-radius:6px;
-  background:var(--panel)
+  background:var(--card-background)
 }
 .chat-stage:has(#welcome[hidden]) { --reading-width:936px }
 .composer #draft-notice { margin:6px 12px 0 }
@@ -499,7 +498,7 @@ kbd {
   pointer-events:none
 }
 .composer:focus-within {
-  border-color:var(--secondary)
+  border-color:var(--cyan)
 }
 #draft {
   display:block;
@@ -525,7 +524,7 @@ kbd {
   padding:4px 6px;
   border-top:1px solid var(--line);
   border-radius:0 0 5px 5px;
-  background:color-mix(in srgb,var(--inset) 58%,var(--panel))
+  background:var(--inset)
 }
 .composer-left {
   display:flex;
@@ -565,8 +564,9 @@ kbd {
   width:36px;
   height:36px;
   border-radius:4px;
-  background:var(--text);
-  color:var(--panel);
+  background:var(--brand-bg);
+  color:var(--cyan);
+  border:1px solid var(--brand-line);
   flex-shrink:0
 }
 .send-button svg {
@@ -902,7 +902,7 @@ kbd {
 .message.user {
   padding:10px 12px 3px;
   border-radius:4px;
-  background:var(--prompt-surface)
+  background:var(--raised)
 }
 .message.assistant + .message.user {
   margin-top:17px

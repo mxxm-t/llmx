@@ -1,5 +1,14 @@
 # llmx - Development Status
 
+## Chat and Monitor surfaces
+
+Chat uses the dashboard page background in the conversation, card surface on the composer, header surface on the
+sidebar, and the dashboard action colors for Send and the current view.
+The standalone Monitor header keeps its connection indicator and drops the
+deployment-specific Open WebUI link. The Chrome workspace check compares
+rendered control colors in both themes. The change lands by fast-forward
+after the scoped Chat and dashboard checks.
+
 ## CI for companion-only pushes (2026-11-21)
 
 Main now selects the native jobs by the full push diff. Companion-only

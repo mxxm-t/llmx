@@ -3751,7 +3751,7 @@ try {
     const comparison = await evaluate(`(() => {
       const doc = document.querySelector('#monitor-frame').contentDocument;
       const pill = doc.createElement('span'); pill.className = 'small-pill'; doc.body.append(pill);
-      const pairs = [['.sidebar','header','backgroundColor'],['.composer','.card','backgroundImage'],
+      const pairs = [['.main','body','backgroundColor'],['.sidebar','header','backgroundColor'],['.composer','.card','backgroundImage'],
         ['.send-button','.small-pill','backgroundColor'],['.send-button','.small-pill','color']];
       const mismatches = pairs.filter(([shell, monitor, property]) =>
         getComputedStyle(document.querySelector(shell))[property] !== doc.defaultView.getComputedStyle(doc.querySelector(monitor))[property]);

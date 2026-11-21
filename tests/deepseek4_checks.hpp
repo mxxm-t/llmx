@@ -990,7 +990,8 @@ void sparse_tile_pair(backend::Backend& g, const std::function<backend::DeviceCa
     std::set<std::string> seen;
     for (const auto& [dim, heads, k, fmt] : {std::tuple<size_t, size_t, size_t, backend::ModelFormat>{32, 2, 24, backend::ModelFormat::fp8_power}, {160, 3, 150, backend::ModelFormat::fp8_power},
                                             {64, 70, 40, backend::ModelFormat::fp8_power}, {44, 3, 50, backend::ModelFormat::f32}, {44, 20, 50, backend::ModelFormat::f32}, {64, 16, 40, backend::ModelFormat::fp8_power},
-                                            {32, 20, 150, backend::ModelFormat::fp8_power}, {64, 16, 40, backend::ModelFormat::fp4_e4m3}, {96, 20, 150, backend::ModelFormat::fp4_power}}) {
+                                            {32, 20, 150, backend::ModelFormat::fp8_power}, {64, 16, 40, backend::ModelFormat::fp4_e4m3}, {96, 20, 150, backend::ModelFormat::fp4_power},
+                                            {64, 32, 300, backend::ModelFormat::fp8_power}, {64, 32, 400, backend::ModelFormat::f32}, {64, 33, 300, backend::ModelFormat::fp8_power}}) {
         for (const size_t rows : {size_t(16), size_t(3)}) {
             const size_t words = backend::format_words(fmt, dim);
             const std::vector<float> x = row_classes::values(kv_rows * dim, 71, 2.0f), q = row_classes::values(rows * heads * dim, 72), sink = row_classes::values(heads, 73);
@@ -1005,7 +1006,9 @@ void sparse_tile_pair(backend::Backend& g, const std::function<backend::DeviceCa
             const std::string few = "llmx_sparse_scores_few" + std::to_string(backend::sparse_few_heads(caps, rows, heads, k, dim, 16, 16, 2));
             launches(g);
             g.sparse_attention_sink({all.get(), 0}, {qb.get(), 0}, {kvb, 0}, {ib.get(), 0}, {sb.get(), 0}, rows, heads, dim, kv_rows, k, scale, 0, nullptr, 0, {}, 0, fmt, fmt);
-            require(launches(g).count(rows >= 8 ? "llmx_sparse_scores_tile" : few) == 1, at + " take the " + (rows >= 8 ? "tile pair" : few));
+            // From 8 rows the tile pair runs, its 32-head build at up to 32 heads; 300 kept rows end that build's second tile half empty and 400 do not.
+            const std::string tile = heads <= 32 ? "llmx_sparse_scores_tile32" : "llmx_sparse_scores_tile";
+            require(launches(g).count(rows >= 8 ? tile : few) == 1, at + " take the " + (rows >= 8 ? tile : few));
             for (size_t r = 0; r < rows; ++r)
                 g.sparse_attention_sink({one.get(), r * heads * dim}, {qb.get(), r * heads * dim}, {kvb, 0}, {ib.get(), r * k}, {sb.get(), 0}, 1, heads, dim, kv_rows, k, scale, 0,
                                         nullptr, 0, {}, 0, fmt, fmt);

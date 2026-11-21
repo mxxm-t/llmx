@@ -511,6 +511,22 @@ A saved tool result opens the latest file in the editor or resumes unsaved chang
 **Gotchas.**
 - The square Q6_K build sits at the 255-register ceiling; an edit that adds live state in its loop spills there first, which `cuda-sass` catches as a loop spill store.
 - `tile_rows_for` picks tall from outputs and column tiles alone, so the square build's row edge is the host's `rows > kTileRows`, not the profile's.
+## A 32-head build of the sparse tile pair (2026-11-21, DSDEV248 to DSDEV250, branch dsdev250/tile32 on main c494eea6f)
+
+- **Goal:** DeepSeek-V4.1-Flash's prompt sparse attention at 32 heads a card (64 heads over a tensor group of two, the 5x2 layout) runs at the cost of its own heads, not of a 64-head block half empty, toward pp16384 2000 tok/s on ten MI50s.
+- **Done:** on ROCm and CUDA (the shared GPU module) `sparse_scores_tile` and `sparse_values_tile` are templates over heads, width and depth; a call of at most `kSparseTileHeads32` heads takes `llmx_sparse_scores_tile32` and `llmx_sparse_values_tile32` (32 heads by 256 kept rows or columns, staged 16 deep), whose scores kernel skips a tile's empty second half.
+  `sparse_tile_pair` (`tests/deepseek4_checks.hpp`, run by `backend-rocm` and `backend-cuda`) expects the 32-head build up to 32 heads and adds 32 heads over 300 FP8 and 400 F32 kept rows (a half-empty and a full second tile) and 33 heads over 300, each row the bits of the row called alone through the few-row pair.
+- **Measured, one MI50** (scratch bench `dsdev248/sbench.cpp`, dim 512, 640 kept rows, the pair's median a call, probe 2457de09 interleaved with main; `dsdev248/sb-b2.log`, `sb-main3.log`, `sb-b2b.log`): 32 heads 512 rows 7.03 to 4.91 ms, 128 rows 1.84 to 1.39 ms, output hash unchanged.
+  The probe's 64-head build ran 0.7% slower (minimum 7.53 to 7.59 ms) and gained 2 VGPR spills; the 32-head branches now sit behind `if constexpr`.
+  The branch build at 179be9f0, interleaved main, branch, main, branch (`dsdev248/sb-main4.log`, `sb-b3.log`, `sb-main5.log`, `sb-b3b.log`): main's to the branch's medians, 64 heads 512 rows 7.551 and 7.558 ms to 7.557 and 7.563 (+0.07%), 128 rows 1.932 and 1.937 to 1.934 and 1.945; 32 heads 512 rows 7.036 and 7.038 to 4.917 and 4.923 (-30%), 128 rows 1.846 and 1.847 to 1.397 and 1.406 (-24%); every output hash equals main's.
+  gfx906 resource counts of the 64-head pair equal main's (scores 128 VGPRs, 16 VGPR and 8 SGPR spills, 28744 bytes of LDS; values 5 and 42 spills, 26944 bytes), code 24336 and 25056 bytes against main's 24236 and 25048; the 32-head scores kernel spills nothing (23112 bytes of LDS) and the values kernel 4 and 21 (20160 bytes).
+  `backend-rocm` passes but for the two NVFP4 witness checks main fails too, its deepseek4 ops bit for bit; the CUDA build passes `gpu-port`, `gpu-core`, `cuda-driver` and `cuda-sass`, `backend-cuda` skipping without a card.
+- **Measured, ten MI50s** (DeepSeek-V4.1-Flash MXFP4, ROCm int8, `--lookup-storage file`, `bench --p 16384 --n 16 --r 2 --ubatch 512`; main c494eea6f against the branch build 1c370c09b, whose delta to this commit is one kernel comment line and docs; `dsdev250/t/`, interleaved m, f, m, f, f, m at width 2 and f, m, m, f at width 1, host wait 1 to 103 ms a run, the branch's width-2 generation the one run flagged contended): greedy 512-token chat generation gives the same ids on both arms at width 2 and width 1.
+  pp16384 at 5x2 (width 2): main 1723.07, 1679.69 and 1657.96 tok/s, the branch 1801.78, 1852.63 and 1849.47 (+8% on the means); tg16 33.15 to 33.35 on main and 32.73 to 33.54 on the branch.
+  The prompt slicer chose 57 slices in every main run and 57, 47, 33 or 34 in the branch's, which moves the figure: at equal slice counts main's 57-slice runs give 1621 to 1694 tok/s against the branch's 1756 and 1791 (about +5%), and main's one 47-slice run 1752 against the branch's 1812 (+3%).
+  The layer split (width 1, 64 heads a card, so the 64-head build) is flat: main 2134.63 and 2132.32, the branch 2137.03 and 2138.29.
+- **Left:** `backend-cuda sparse_tile_pair` at the next CUDA card session, the suite on a device and the hosted run at the landing head; README unchanged (kernel speed only).
+- **Gotchas:** the 64-head and 32-head builds decode the same 640 kept rows a query row, so halving the heads does not halve the pair: Fable's fit of the 128- and 512-row slopes puts about 1.7 ms of the 4.91 in the per-row decode and staging, the target for a decoded-once copy of the kept rows.
 
 ## Chat message actions (2026-11-19)
 

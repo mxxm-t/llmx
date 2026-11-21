@@ -3841,6 +3841,7 @@ extern "C" __global__ void llmx_pool_write(float* aux, const float* src, const u
 }
 
 constexpr unsigned kSparseTileHeads = 64u, kSparseTileWide = 128u, kSparseStep = 32u;   // the tile pair's 64 heads by 128 kept rows or columns a block, staged 32 deep
+constexpr unsigned kSparseTileHeads32 = 32u, kSparseTileWide32 = 256u, kSparseStep32 = 16u;   // its 32-head build: as many outputs a block, staged 16 deep to keep two blocks a unit
 // Eight consecutive stored values of a row from a multiple of 8, read into registers ahead of their use and decoded later as stored_value gives them; format 4 reads as zeros.
 struct Raw8 {
     unsigned w[3];   // the block's scale byte then the 8 code bytes packed from byte 0, then the format in bits 8-10 and the half flag in bit 11 of w[2]
@@ -4164,13 +4165,14 @@ __device__ inline void sparse_values_few(float* out, const float* pt, const floa
     }
 }
 // The tile pair: llmx_sparse_scores_tile writes scale * q.k a kept row and head and each 128-row tile's maximum a head, llmx_sparse_values_tile turns them into the softmax and the values.
-// A block of the scores kernel 128 kept rows of one row, a thread 4 heads by 8 kept rows, each dot one multiply-add chain in d order as the few-row pair's, so every output keeps its bits.
-extern "C" __global__ void __launch_bounds__(kThreads, 2) llmx_sparse_scores_tile(float* pt, float* tmax, const float** kept, unsigned* counts, const float* q, const float* kv,
-                                                                            const unsigned* ids, const float* aux, const unsigned* rows, const unsigned* entries, unsigned heads,
-                                                                            unsigned dim, unsigned k, unsigned entry_k, float scale, unsigned kv_rows, unsigned tokens, unsigned bt,
-                                                                            unsigned long long block_floats, unsigned rows_floats, unsigned width, unsigned kv_format,
-                                                                            unsigned entry_format, unsigned kv_words, unsigned first_row) {
-    constexpr unsigned TH = kSparseTileHeads, TW = kSparseTileWide, S = kSparseStep, PH = TH + 4u, PW = TW + 4u, kPer = 1024u / kThreads;
+// A block of the scores kernel TW kept rows of one row (128 at 64 heads, 256 at 32), a thread 4 heads by 8 kept rows, each dot one multiply-add chain in d order as the few-row pair's, so every output keeps its bits.
+template <unsigned TH, unsigned TW, unsigned S>
+__device__ inline void sparse_scores_tile(float* pt, float* tmax, const float** kept, unsigned* counts, const float* q, const float* kv, const unsigned* ids, const float* aux,
+                                          const unsigned* rows, const unsigned* entries, unsigned heads, unsigned dim, unsigned k, unsigned entry_k, float scale, unsigned kv_rows,
+                                          unsigned tokens, unsigned bt, unsigned long long block_floats, unsigned rows_floats, unsigned width, unsigned kv_format,
+                                          unsigned entry_format, unsigned kv_words, unsigned first_row) {
+    constexpr unsigned PH = TH + 4u, PW = TW + 4u, kPer = 1024u / kThreads, G = TW / 8u, QN = TH * S / kThreads, QL = S / QN, KL = S / 16u;
+    static_assert(kThreads / G * 4u == TH && QN * QL == S && KL * 16u == S && TW * S == 16u * kThreads && G <= 32u, "a thread 4 heads by 8 kept rows, 16 kept values staged");
     __shared__ __attribute__((aligned(16))) float qs[S * PH], ks[S * PW];
     __shared__ float lut[272];
     __shared__ const float* at[TW];
@@ -4210,11 +4212,13 @@ extern "C" __global__ void __launch_bounds__(kThreads, 2) llmx_sparse_scores_til
         for (unsigned i = 0; i < n; ++i) kept[(unsigned long long)s_r * named + first + i] = mine[i];
         if (tid == 0) counts[2u * s_r] = total, counts[2u * s_r + 1u] = kk;
     }
-    const unsigned th = tid / 16u, tc = tid % 16u;
-    // Staging: a thread 8 dims of one head's query, and 16 dims of one kept row as two reads of 8.
-    const unsigned qe = tid / 4u, qd = tid % 4u * 8u, ke = tid / 2u, kd = tid % 2u * 16u, c = c0 + ke, cf = c < kk ? kv_format : entry_format;
+    const unsigned th = tid / G, tc = tid % G;
+    // Staging: a thread QN dims of one head's query, and 16 dims of one kept row as two reads of 8.
+    const unsigned qe = tid / QL, qd = tid % QL * QN, ke = tid / KL, kd = tid % KL * 16u, c = c0 + ke, cf = c < kk ? kv_format : entry_format;
     const float* krow = c < total ? at[ke] : nullptr;
-    const bool q4 = dim % 4u == 0u && ((unsigned long long)q & 15u) == 0u;   // every query row starts 16-byte aligned, so 8 values read as two float4
+    [[maybe_unused]] const bool q4 = dim % 4u == 0u && ((unsigned long long)q & 15u) == 0u;   // every query row starts 16-byte aligned, so 8 values read as two float4
+    // In the 32-head build a tile whose second half holds no kept row skips its multiply-adds; the block takes one branch, and the kept rows' chains are unchanged.
+    [[maybe_unused]] const bool half = c0 + TW / 2u >= total;
     for (unsigned h0 = 0; h0 < heads; h0 += TH) {
         float dot[4][8];
 #pragma unroll
@@ -4223,14 +4227,17 @@ extern "C" __global__ void __launch_bounds__(kThreads, 2) llmx_sparse_scores_til
             for (unsigned b = 0; b < 8u; ++b) dot[a][b] = 0.0f;
         const unsigned h = h0 + qe;
         const float* qrow = q + ((unsigned long long)r * heads + (h < heads ? h : 0u)) * dim;
-        float qn[8];
+        float qn[QN];
         Raw8 kn[2];
         const auto read = [&](unsigned d0) {
-            if (q4 && h < heads && d0 + qd + 8u <= dim) {
-                const float4 a = *(const float4*)(qrow + d0 + qd), b = *(const float4*)(qrow + d0 + qd + 4u);
-                qn[0] = a.x, qn[1] = a.y, qn[2] = a.z, qn[3] = a.w, qn[4] = b.x, qn[5] = b.y, qn[6] = b.z, qn[7] = b.w;
+            if constexpr (QN == 8u) {
+                if (q4 && h < heads && d0 + qd + 8u <= dim) {
+                    const float4 a = *(const float4*)(qrow + d0 + qd), b = *(const float4*)(qrow + d0 + qd + 4u);
+                    qn[0] = a.x, qn[1] = a.y, qn[2] = a.z, qn[3] = a.w, qn[4] = b.x, qn[5] = b.y, qn[6] = b.z, qn[7] = b.w;
+                } else
+                    for (unsigned i = 0; i < 8u; ++i) qn[i] = h < heads && d0 + qd + i < dim ? qrow[d0 + qd + i] : 0.0f;
             } else
-                for (unsigned i = 0; i < 8u; ++i) qn[i] = h < heads && d0 + qd + i < dim ? qrow[d0 + qd + i] : 0.0f;
+                for (unsigned i = 0; i < QN; ++i) qn[i] = h < heads && d0 + qd + i < dim ? qrow[d0 + qd + i] : 0.0f;
 #pragma unroll
             for (unsigned j = 0; j < 2u; ++j) raw8_read_row(kn[j], krow, d0 + kd + 8u * j, dim, cf);
         };
@@ -4241,18 +4248,39 @@ extern "C" __global__ void __launch_bounds__(kThreads, 2) llmx_sparse_scores_til
                 float kv8[2][8];
 #pragma unroll
                 for (unsigned j = 0; j < 2u; ++j) raw8_values(kn[j], lut, krow, d0 + kd + 8u * j, dim, cf, kv8[j]);
+                if constexpr (QN == 8u) {
 #pragma unroll
-                for (unsigned i = 0; i < 8u; ++i) {
-                    qs[(qd + i) * PH + qe] = qn[i];
+                    for (unsigned i = 0; i < 8u; ++i) {
+                        qs[(qd + i) * PH + qe] = qn[i];
 #pragma unroll
-                    for (unsigned j = 0; j < 2u; ++j) ks[(kd + 8u * j + i) * PW + ke] = kv8[j][i];
+                        for (unsigned j = 0; j < 2u; ++j) ks[(kd + 8u * j + i) * PW + ke] = kv8[j][i];
+                    }
+                } else {
+#pragma unroll
+                    for (unsigned i = 0; i < QN; ++i) qs[(qd + i) * PH + qe] = qn[i];
+#pragma unroll
+                    for (unsigned i = 0; i < 8u; ++i)
+#pragma unroll
+                        for (unsigned j = 0; j < 2u; ++j) ks[(kd + 8u * j + i) * PW + ke] = kv8[j][i];
                 }
                 __syncthreads();
                 if (d0 + S < dim) read(d0 + S);
                 const unsigned steps = dim - d0 < S ? dim - d0 : S;
+                if constexpr (TW == kSparseTileWide32) if (half) {
+#pragma unroll 2
+                    for (unsigned i = 0; i < steps; ++i) {
+                        const float4 qv = *(const float4*)(qs + i * PH + th * 4u), k0 = *(const float4*)(ks + i * PW + tc * 4u);
+                        const float qa[4] = {qv.x, qv.y, qv.z, qv.w}, kb[4] = {k0.x, k0.y, k0.z, k0.w};
+#pragma unroll
+                        for (unsigned a = 0; a < 4u; ++a)
+#pragma unroll
+                            for (unsigned b = 0; b < 4u; ++b) dot[a][b] = fmaf(qa[a], kb[b], dot[a][b]);
+                    }
+                    continue;
+                }
 #pragma unroll 2
                 for (unsigned i = 0; i < steps; ++i) {
-                    const float4 qv = *(const float4*)(qs + i * PH + th * 4u), k0 = *(const float4*)(ks + i * PW + tc * 4u), k1 = *(const float4*)(ks + i * PW + 64u + tc * 4u);
+                    const float4 qv = *(const float4*)(qs + i * PH + th * 4u), k0 = *(const float4*)(ks + i * PW + tc * 4u), k1 = *(const float4*)(ks + i * PW + TW / 2u + tc * 4u);
                     const float qa[4] = {qv.x, qv.y, qv.z, qv.w}, kb[8] = {k0.x, k0.y, k0.z, k0.w, k1.x, k1.y, k1.z, k1.w};
 #pragma unroll
                     for (unsigned a = 0; a < 4u; ++a)
@@ -4261,39 +4289,40 @@ extern "C" __global__ void __launch_bounds__(kThreads, 2) llmx_sparse_scores_til
                 }
             }
         }
-        // Thread tc holds kept rows tc * 4 + b and 64 + tc * 4 + b of the tile.
+        // Thread tc holds kept rows tc * 4 + b and TW / 2 + tc * 4 + b of the tile.
 #pragma unroll
         for (unsigned a = 0; a < 4u; ++a) {
             float peak = -1e30f;
             const unsigned ha = h0 + th * 4u + a;
 #pragma unroll
             for (unsigned b = 0; b < 8u; ++b) {
-                const unsigned cb = c0 + (b < 4u ? tc * 4u + b : 64u + tc * 4u + b - 4u);
+                const unsigned cb = c0 + (b < 4u ? tc * 4u + b : TW / 2u + tc * 4u + b - 4u);
                 const float pv = dot[a][b] * scale;
                 if (cb < total && ha < heads) pt[((unsigned long long)s_r * named + cb) * heads + ha] = pv, peak = fmaxf(peak, pv);
             }
-            // The 16 threads of a head row are 16 consecutive lanes.
-            for (unsigned o = 8u; o > 0; o >>= 1) peak = fmaxf(peak, shuffle_xor(peak, o, 16));
+            // The G threads of a head row are G consecutive lanes.
+            for (unsigned o = G / 2u; o > 0; o >>= 1) peak = fmaxf(peak, shuffle_xor(peak, o, G));
             if (tc == 0 && ha < heads) tmax[((unsigned long long)s_r * ntiles + blockIdx.x) * heads + ha] = peak;
         }
     }
 }
-// A block 64 heads by 128 columns of one row, a thread 4 heads by 8 columns: each head's maximum over the tiles, p = exp(score - max) staged 32 kept rows at a time beside their decoded values.
+// A block TH heads by TW columns of one row, a thread 4 heads by 8 columns: each head's maximum over the tiles, p = exp(score - max) staged S kept rows at a time beside their decoded values.
 // Each output is p times value over the kept rows in their order over the sum of p in order plus exp(sink - max), as the CPU sums it.
-extern "C" __global__ void __launch_bounds__(kThreads, 2) llmx_sparse_values_tile(float* out, const float* pt, const float* tmax, const float* const* kept, const unsigned* counts,
-                                                                            const float* sink, unsigned heads, unsigned dim, unsigned named, unsigned kv_format,
-                                                                            unsigned entry_format, unsigned first_row) {
-    constexpr unsigned TH = kSparseTileHeads, TW = kSparseTileWide, S = kSparseStep, PH = TH + 4u, PW = TW + 4u;
+template <unsigned TH, unsigned TW, unsigned S>
+__device__ inline void sparse_values_tile(float* out, const float* pt, const float* tmax, const float* const* kept, const unsigned* counts, const float* sink, unsigned heads,
+                                          unsigned dim, unsigned named, unsigned kv_format, unsigned entry_format, unsigned first_row) {
+    constexpr unsigned PH = TH + 4u, PW = TW + 4u, G = TW / 8u, VL = TW / 16u, PN = TH / VL;
+    static_assert(kThreads / G * 4u == TH && VL * S == kThreads && PN * VL == TH, "a thread 4 heads by 8 columns, one kept row's 16 columns staged");
     __shared__ __attribute__((aligned(16))) float ps[S * PH], vs[S * PW];
     __shared__ float peak[TH], lut[272];
     const unsigned r = blockIdx.y, d0 = blockIdx.x * TW, tid = threadIdx.x, total = counts[2u * r], kk = counts[2u * r + 1u], ntiles = (named + TW - 1u) / TW;
-    const unsigned used = (total + TW - 1u) / TW, th = tid / 16u, tc = tid % 16u;
+    const unsigned used = (total + TW - 1u) / TW, th = tid / G, tc = tid % G;
     const float* const* kr = kept + (unsigned long long)r * named;
     const float* pr = pt + (unsigned long long)r * named * heads;
     for (unsigned c = tid; c < 272u; c += kThreads) lut[c] = c < 256u ? e4m3_value(c) : e2m1_value(c - 256u);
-    // Staging: a thread 8 heads' scores and 16 columns' values, as two reads of 8, of one kept row.
-    const unsigned cr = tid / 8u, ph = tid % 8u * 8u, pc = tid % 8u * 16u;
-    const bool p4 = heads % 4u == 0u && ((unsigned long long)pt & 15u) == 0u;   // every kept row's scores start 16-byte aligned
+    // Staging: a thread PN heads' scores and 16 columns' values, as two reads of 8, of one kept row.
+    const unsigned cr = tid / VL, ph = tid % VL * PN, pc = tid % VL * 16u;
+    [[maybe_unused]] const bool p4 = heads % 4u == 0u && ((unsigned long long)pt & 15u) == 0u;   // every kept row's scores start 16-byte aligned
     for (unsigned h0 = 0; h0 < heads; h0 += TH) {
         __syncthreads();
         if (tid < TH) {
@@ -4310,15 +4339,18 @@ extern "C" __global__ void __launch_bounds__(kThreads, 2) llmx_sparse_values_til
 #pragma unroll
             for (unsigned b = 0; b < 8u; ++b) o[a][b] = 0.0f;
         }
-        float pn[8];
+        float pn[PN];
         Raw8 vn[2];
         const auto read = [&](unsigned c) {
-            if (p4 && c < total && h0 + ph + 8u <= heads) {
-                const float* pp = pr + (unsigned long long)c * heads + h0 + ph;
-                const float4 a = *(const float4*)pp, b = *(const float4*)(pp + 4u);
-                pn[0] = a.x, pn[1] = a.y, pn[2] = a.z, pn[3] = a.w, pn[4] = b.x, pn[5] = b.y, pn[6] = b.z, pn[7] = b.w;
+            if constexpr (PN == 8u) {
+                if (p4 && c < total && h0 + ph + 8u <= heads) {
+                    const float* pp = pr + (unsigned long long)c * heads + h0 + ph;
+                    const float4 a = *(const float4*)pp, b = *(const float4*)(pp + 4u);
+                    pn[0] = a.x, pn[1] = a.y, pn[2] = a.z, pn[3] = a.w, pn[4] = b.x, pn[5] = b.y, pn[6] = b.z, pn[7] = b.w;
+                } else
+                    for (unsigned i = 0; i < 8u; ++i) pn[i] = c < total && h0 + ph + i < heads ? pr[(unsigned long long)c * heads + h0 + ph + i] : 0.0f;
             } else
-                for (unsigned i = 0; i < 8u; ++i) pn[i] = c < total && h0 + ph + i < heads ? pr[(unsigned long long)c * heads + h0 + ph + i] : 0.0f;
+                for (unsigned i = 0; i < PN; ++i) pn[i] = c < total && h0 + ph + i < heads ? pr[(unsigned long long)c * heads + h0 + ph + i] : 0.0f;
 #pragma unroll
             for (unsigned j = 0; j < 2u; ++j) raw8_read_row(vn[j], c < total ? kr[c] : nullptr, d0 + pc + 8u * j, dim, c < kk ? kv_format : entry_format);
         };
@@ -4330,18 +4362,27 @@ extern "C" __global__ void __launch_bounds__(kThreads, 2) llmx_sparse_values_til
             const unsigned vf = c0 + cr < kk ? kv_format : entry_format;
 #pragma unroll
             for (unsigned j = 0; j < 2u; ++j) raw8_values(vn[j], lut, vrow, d0 + pc + 8u * j, dim, vf, vv8[j]);
+            if constexpr (PN == 8u) {
 #pragma unroll
-            for (unsigned i = 0; i < 8u; ++i) {
-                ps[cr * PH + ph + i] = c0 + cr < total && h0 + ph + i < heads ? expf(pn[i] - peak[ph + i]) : 0.0f;
+                for (unsigned i = 0; i < 8u; ++i) {
+                    ps[cr * PH + ph + i] = c0 + cr < total && h0 + ph + i < heads ? expf(pn[i] - peak[ph + i]) : 0.0f;
 #pragma unroll
-                for (unsigned j = 0; j < 2u; ++j) vs[cr * PW + pc + 8u * j + i] = vv8[j][i];
+                    for (unsigned j = 0; j < 2u; ++j) vs[cr * PW + pc + 8u * j + i] = vv8[j][i];
+                }
+            } else {
+#pragma unroll
+                for (unsigned i = 0; i < PN; ++i) ps[cr * PH + ph + i] = c0 + cr < total && h0 + ph + i < heads ? expf(pn[i] - peak[ph + i]) : 0.0f;
+#pragma unroll
+                for (unsigned i = 0; i < 8u; ++i)
+#pragma unroll
+                    for (unsigned j = 0; j < 2u; ++j) vs[cr * PW + pc + 8u * j + i] = vv8[j][i];
             }
             __syncthreads();
             if (c0 + S < total) read(c0 + S + cr);
             const unsigned n = total - c0 < S ? total - c0 : S;
 #pragma unroll 2
             for (unsigned i = 0; i < n; ++i) {
-                const float4 pv = *(const float4*)(ps + i * PH + th * 4u), v0 = *(const float4*)(vs + i * PW + tc * 4u), v1 = *(const float4*)(vs + i * PW + 64u + tc * 4u);
+                const float4 pv = *(const float4*)(ps + i * PH + th * 4u), v0 = *(const float4*)(vs + i * PW + tc * 4u), v1 = *(const float4*)(vs + i * PW + TW / 2u + tc * 4u);
                 const float pa[4] = {pv.x, pv.y, pv.z, pv.w}, vb[8] = {v0.x, v0.y, v0.z, v0.w, v1.x, v1.y, v1.z, v1.w};
 #pragma unroll
                 for (unsigned a = 0; a < 4u; ++a) {
@@ -4359,12 +4400,29 @@ extern "C" __global__ void __launch_bounds__(kThreads, 2) llmx_sparse_values_til
             float* op = out + ((unsigned long long)(first_row + r) * heads + h) * dim + d0;
 #pragma unroll
             for (unsigned b = 0; b < 8u; ++b) {
-                const unsigned d = b < 4u ? tc * 4u + b : 64u + tc * 4u + b - 4u;
+                const unsigned d = b < 4u ? tc * 4u + b : TW / 2u + tc * 4u + b - 4u;
                 if (d0 + d < dim) op[d] = o[a][b] / dn;
             }
         }
     }
 }
+#define LLMX_SPARSE_TILE(NAME, TH, TW, S)                                                                                                                                       \
+    extern "C" __global__ void __launch_bounds__(kThreads, 2)                                                                                                                 \
+        llmx_sparse_scores_##NAME(float* pt, float* tmax, const float** kept, unsigned* counts, const float* q, const float* kv, const unsigned* ids, const float* aux,        \
+                                  const unsigned* rows, const unsigned* entries, unsigned heads, unsigned dim, unsigned k, unsigned entry_k, float scale, unsigned kv_rows,  \
+                                  unsigned tokens, unsigned bt, unsigned long long block_floats, unsigned rows_floats, unsigned width, unsigned kv_format,                     \
+                                  unsigned entry_format, unsigned kv_words, unsigned first_row) {                                                                             \
+        sparse_scores_tile<TH, TW, S>(pt, tmax, kept, counts, q, kv, ids, aux, rows, entries, heads, dim, k, entry_k, scale, kv_rows, tokens, bt, block_floats, rows_floats, \
+                                      width, kv_format, entry_format, kv_words, first_row);                                                                                   \
+    }                                                                                                                                                                         \
+    extern "C" __global__ void __launch_bounds__(kThreads, 2)                                                                                                                 \
+        llmx_sparse_values_##NAME(float* out, const float* pt, const float* tmax, const float* const* kept, const unsigned* counts, const float* sink, unsigned heads,         \
+                                  unsigned dim, unsigned named, unsigned kv_format, unsigned entry_format, unsigned first_row) {                                              \
+        sparse_values_tile<TH, TW, S>(out, pt, tmax, kept, counts, sink, heads, dim, named, kv_format, entry_format, first_row);                                            \
+    }
+LLMX_SPARSE_TILE(tile, kSparseTileHeads, kSparseTileWide, kSparseStep)
+LLMX_SPARSE_TILE(tile32, kSparseTileHeads32, kSparseTileWide32, kSparseStep32)
+#undef LLMX_SPARSE_TILE
 
 // The few-row pair's builds; the host picks one from the device's units (backend_core.hpp, sparse_attention_sink, sparse_few_heads and sparse_few_two).
 #define LLMX_SPARSE_SCORES_ARGS                                                                                                                                                 \

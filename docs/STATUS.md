@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Reopening an editor confirmation
+
+- Goal: Protect the unsaved editor when a second attachment is opened immediately after canceling its predecessor.
+- Done: Reproduced the missing discard prompt by postponing the native dialog close notification. Delaying the file save response preserved the editor changes.
+- Left: Verify rapid cancellation and reopening in Chrome and fix the shared modal owner.
+- Gotchas: A closed native dialog can still have an undelivered close event.
+
 ## Workspace tool timing
 
 The expanded workspace write result leaves 12 px between elapsed time and

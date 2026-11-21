@@ -1963,10 +1963,23 @@ try {
     await fill('#workspace-editor','Unsent editor changes.');
     await pointerClick('.workspace-back');
     const writesBeforeCancel = apiMutations.length;
+    const titled = title => `document.querySelector('#action-dialog').open && document.querySelector('#action-dialog-title').textContent===${JSON.stringify(title)}`;
+    await pointerClick(sentText);
+    await pointerClick(editCopy);
+    await wait(titled('Discard unsaved changes?'),'first discard confirmation');
+    await evaluate(`{
+      document.querySelector('#conversation-cancel').click();
+      document.querySelector(${JSON.stringify(sentText)}).click();
+      document.querySelector(${JSON.stringify(editCopy)}).click();
+    }`);
+    await wait(titled('Discard unsaved changes?'),'reopen the discard confirmation before its previous close event',3000);
+    await pointerClick('#conversation-submit');
+    await wait(titled('Edit in workspace'),'submit the second discard confirmation');
+    for (const type of ['keyDown','keyUp']) await cdp('Input.dispatchKeyEvent',{type,key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+    await wait(`document.querySelector('#app').dataset.view==='chat' && document.activeElement.matches(${JSON.stringify(sentText)})`,'escape returns to the attachment');
     for (const cancelAt of ['discard','filename','replace']) {
       await pointerClick(sentText);
       await pointerClick(editCopy);
-      const titled = title => `document.querySelector('#action-dialog').open && document.querySelector('#action-dialog-title').textContent===${JSON.stringify(title)}`;
       await wait(titled('Discard unsaved changes?'),'protect unsaved editor');
       if (cancelAt !== 'discard') {
         await pointerClick('#conversation-submit');

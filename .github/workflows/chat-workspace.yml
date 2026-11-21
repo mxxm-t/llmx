@@ -22,12 +22,13 @@ permissions:
 jobs:
   workspace:
     name: Workspace (${{ matrix.os }})
+    if: ${{ github.server_url == 'https://github.com' || github.event_name != 'push' }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, windows-2022]
+        os: ${{ fromJSON(github.server_url == 'https://github.com' && '["ubuntu-24.04","windows-2022"]' || '["ubuntu-24.04"]') }}
     env:
       LLMX_CHAT_REQUIRE_BROWSER: '1'
     steps:

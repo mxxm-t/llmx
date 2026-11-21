@@ -17,7 +17,8 @@ concurrency:
 jobs:
   scope:
     name: Check main push scope
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # On Gitea only pull requests and manual runs run, and a push there starts no job.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.server_url == 'https://github.com'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     outputs:
@@ -48,20 +49,15 @@ jobs:
 
   cpu:
     needs: scope
-    if: ${{ !cancelled() && needs.scope.outputs.companion != 'true' }}
+    if: ${{ !cancelled() && needs.scope.outputs.companion != 'true' && (github.server_url == 'https://github.com' || github.event_name != 'push') }}
     name: CPU (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: ${{ matrix.os == 'macos-15-intel' && 120 || matrix.os == 'windows-2022' && 120 || 45 }}
     strategy:
       fail-fast: false
+      # Gitea has Linux runners only, so there the matrix is its Ubuntu entry alone.
       matrix:
-        include:
-          - os: ubuntu-24.04
-            executable: build/llmx
-          - os: windows-2022
-            executable: build/Release/llmx.exe
-          - os: macos-15-intel
-            executable: build/llmx
+        include: ${{ fromJSON(github.server_url == 'https://github.com' && '[{"os":"ubuntu-24.04","executable":"build/llmx"},{"os":"windows-2022","executable":"build/Release/llmx.exe"},{"os":"macos-15-intel","executable":"build/llmx"}]' || '[{"os":"ubuntu-24.04","executable":"build/llmx"}]') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -116,7 +112,7 @@ jobs:
 
   sanitizer:
     needs: scope
-    if: ${{ !cancelled() && needs.scope.outputs.companion != 'true' }}
+    if: ${{ !cancelled() && needs.scope.outputs.companion != 'true' && (github.server_url == 'https://github.com' || github.event_name != 'push') }}
     name: CPU (Linux UBSan)
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -149,7 +145,7 @@ jobs:
 
   thread-sanitizer:
     needs: scope
-    if: ${{ !cancelled() && needs.scope.outputs.companion != 'true' }}
+    if: ${{ !cancelled() && needs.scope.outputs.companion != 'true' && (github.server_url == 'https://github.com' || github.event_name != 'push') }}
     name: CPU (Linux TSan)
     runs-on: ubuntu-24.04
     timeout-minutes: 40
@@ -172,7 +168,7 @@ jobs:
 
   vulkan-build:
     needs: scope
-    if: ${{ !cancelled() && needs.scope.outputs.companion != 'true' }}
+    if: ${{ !cancelled() && needs.scope.outputs.companion != 'true' && (github.server_url == 'https://github.com' || github.event_name != 'push') }}
     name: Vulkan backend (build, Linux)
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -216,7 +212,7 @@ jobs:
   # The ROCm backend compiled, its tests not run: no hosted runner has a ROCm device, so its device checks are the hand check on an MI50 (docs/STATUS.md).
   rocm-build:
     needs: scope
-    if: ${{ !cancelled() && needs.scope.outputs.companion != 'true' }}
+    if: ${{ !cancelled() && needs.scope.outputs.companion != 'true' && (github.server_url == 'https://github.com' || github.event_name != 'push') }}
     name: ROCm backend (build only, Linux)
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -245,7 +241,7 @@ jobs:
 
   hf-reference:
     needs: scope
-    if: ${{ !cancelled() && needs.scope.outputs.companion != 'true' }}
+    if: ${{ !cancelled() && needs.scope.outputs.companion != 'true' && (github.server_url == 'https://github.com' || github.event_name != 'push') }}
     name: HF reference (CPU)
     runs-on: ubuntu-24.04
     # See docs/CI.md for observed durations and job-budget rationale.

@@ -275,6 +275,14 @@ These public releases are merged into the published runtime without removing
 its native, HF or UBSan checks. Every job except the Vulkan build runs the
 offline downloader checks.
 
+## Gitea runs
+
+The owner's Gitea server (`admin/llmx`) has one act_runner, Linux only that serves the Ubuntu 24.04 label, so a Windows or macOS job there would queue forever.
+Each job of `ci.yml` and `chat-workspace.yml` therefore carries `github.server_url == 'https://github.com' || github.event_name != 'push'` in its `if:`, and the `scope` job also requires the GitHub server URL.
+On Gitea a push starts no job, a pull request or a manual run starts them, and the `cpu` matrix (`ci.yml`) and the `workspace` matrix (`chat-workspace.yml`) hold their Ubuntu entry alone, chosen by `fromJSON` on the same server URL.
+On GitHub the server URL is `https://github.com`, so every job keeps its previous condition and both matrices keep all their entries.
+`release.yml` is unchanged: its tags are pushed to GitHub only.
+
 ## Reading hosted failures
 
 Use the run's `head_sha` to identify the tested commit, then list its jobs and read the failed job's log:

@@ -1660,7 +1660,33 @@ try {
     await wait("document.querySelector('#workspace-save').disabled",'workspace saved');
     const copy=await evaluate("ChatShell.api('/workspace/file?path=site%2Fpage.html')");
     assert.equal(copy.content,source,'saved copy lost attachment bytes');
+    await evaluate(`ChatShell.api('/workspace/file','POST',{path:'conflict.html',revision:${copy.revision},content:'Saved original'})`);
+    await fill('#workspace-editor','Unsent editor changes.');
     await pointerClick('.workspace-back');
+    const writesBeforeCancel = apiMutations.length;
+    for (const cancelAt of ['discard','filename','replace']) {
+      await pointerClick(sentText);
+      await pointerClick(editCopy);
+      const titled = title => `document.querySelector('#action-dialog').open && document.querySelector('#action-dialog-title').textContent===${JSON.stringify(title)}`;
+      await wait(titled('Discard unsaved changes?'),'protect unsaved editor');
+      if (cancelAt !== 'discard') {
+        await pointerClick('#conversation-submit');
+        await wait(titled('Edit in workspace'),'name the attachment copy');
+        if (cancelAt === 'replace') {
+          await fill('#conversation-value','conflict.html');
+          await pointerClick('#conversation-submit');
+          await wait(titled('Replace saved file?'),'confirm conflicting destination');
+        }
+      }
+      await pointerClick('#conversation-cancel');
+      await wait("!document.querySelector('#action-dialog').open",'dismiss copy dialog');
+      await wait(`document.querySelector('#app').dataset.view==='chat' && document.activeElement.matches(${JSON.stringify(sentText)})`,
+        cancelAt+' cancel returns to the chat attachment',3000);
+      assert.equal(await evaluate("document.querySelector('#workspace-editor').value"),'Unsent editor changes.');
+      assert.equal(await evaluate("document.querySelector('#draft').value"),'Follow-up question');
+      assert.equal(apiMutations.length,writesBeforeCancel,'cancel wrote to the server');
+    }
+    assert.equal((await evaluate("ChatShell.api('/workspace/file?path=conflict.html')")).content,'Saved original');
     assert.equal(await evaluate("document.querySelector('#draft').value"),'Follow-up question');
     const original=await evaluate(`ChatShell.api('/chats/'+${JSON.stringify(saved.id)}).then(chat=>chat.messages.find(m=>m.content==='Reference image').attachments)`);
     assert.deepEqual(original,messageFiles,'opening a workspace copy modified the sent attachment');

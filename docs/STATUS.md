@@ -123,6 +123,17 @@ lists made no remote media requests.
 - **Checks:** `backend-rocm`'s `held_push` (docs/TESTS.md, backend-rocm) on a quad; `docs` and `dead-code` on the tree that lands.
 - **Left:** the decode A/B against main aeecb4ec1 with a witness that the pushing build runs (the pick at the decode row may not be the one-shot), the device suite, the hosted run and the full CUDA build at the landing; the push at prompt sums and on Vulkan are not tried. README unchanged (a speed-up no table names).
 
+## ROCm delta step on the four-way dot (2026-11-22, CUTS26 to CUTS38, branch products/delta-dot4 on products/delta-code-prefetch)
+
+- **Goal:** `llmx_delta_step` of the plain module sums its Q8_0 rows with the scalar byte loop on gfx9, where the dot module takes `dot4_i8`; its rows take the four-way dot through a `dot8` tag of `word_dot` (docs/src/backends-gpu.md, kernels/rows.h).
+- **Done:** the change, integer sums of the same products in the same order, so the bits are unchanged.
+  gfx906 code of `llmx_delta_step`: 60 `v_bfe_i32` and 43 24-bit integer multiplies on the base, 2 and 0 with the change, 4484 against 4124 disassembly lines, 32 `v_dot4_i32_i8` in both.
+  Qwen3.6-27B Q8_0, int8, four MI50 at tensor width 4, traced -n 32 on a quiet rig, a warm-up pair and 8 interleaved pairs scored by a rule written before the run: the per-token median of delta_step's sum 0.0507 ms/token lower per agent (se 0.0095, paired t 5.31, 8 of 8 pairs), the next kernel's median +0.20 us (limit 0.3), total kernel time 0.227 ms/token lower, generated text identical in all 18 runs; two runs had a kernel over 1 ms in the window and are kept.
+  Both arms carried tile-push-b2 and the delta step code prefetch, which the change touches neither of.
+- **Left:** the landing gates for kernel code: byte identity against main on the CPU and a device, the suite on a device (`backend-rocm`, `delta_step_bits`), one timing round against main.
+  No Vulkan code, so no Radeon VII check; no README change.
+- **Gotchas:** under CUDA `GPU_IMMA8` already gives `dot4_i8`, so only HIP gfx9 changes; HIP targets without `GPU_DOT4` keep the loop.
+
 ## Sidebar links
 
 **Goal.** Let the browser open a sidebar destination or saved conversation

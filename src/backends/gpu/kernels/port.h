@@ -19,7 +19,7 @@
 #else
 #define GPU_DOT4 0
 #endif
-// 1 where the int8 class runs in one module on the four-way dot and the 8-bit integer tensor cores: never under HIP, whose plain module keeps the scalar loop and whose dot module (LLMX_DOT16) takes dot4_i8.
+// 1 where the int8 class runs in one module on the four-way dot and the 8-bit integer tensor cores: never under HIP, whose dot module (LLMX_DOT16) and delta step rows (rows.h, dot8) take dot4_i8.
 #define GPU_IMMA8 0
 // The launch bounds of the dense int8 tiles, which HIP leaves at the block size so gfx9 keeps its code.
 #define LLMX_TILE8_BOUNDS(blocks) __launch_bounds__(kThreads)

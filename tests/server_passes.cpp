@@ -2810,6 +2810,76 @@ void reuse_miss_by_hand() {
             "a completions prompt whose rows were computed in other classes from 20 is not named so, or names a message");
 }
 
+// A prefill's slices whose time grows with the history they read, as attention's does: the pooled depth coefficient gives each stage its depth cost, and the cut shrinks its slices toward the drain.
+void depth_by_hand() {
+    const size_t S = 4;
+    // Stage s is one line scaled by 1 + s/50, so every stage has the same shape and the pooled coefficient gives each its own depth cost exactly; near Qwen3.8-Flash-Next's layer split of 4 (docs/src/model-slicing.md).
+    const auto truth = [&](double depth) {
+        std::vector<infer::StageLine> t;
+        for (size_t s = 0; s < S; ++s) t.push_back({36 * (1 + 0.02 * double(s)), 0.12 * (1 + 0.02 * double(s)), depth * (1 + 0.02 * double(s))});
+        return t;
+    };
+    // A prefill of slices `cut` at lines `t`, the first slice unmeasured as Model::run_chunks leaves it, each time scaled by `jitter(slice, stage)`.
+    const auto observe = [&](infer::SlicePeriods& p, const std::vector<size_t>& cut, const std::vector<infer::StageLine>& t, auto jitter) {
+        std::vector<std::pair<size_t, size_t>> slices;
+        std::vector<std::vector<double>> busy;
+        size_t at = 0;
+        for (const size_t r : cut) {
+            slices.push_back({at, r});
+            busy.emplace_back();
+            for (size_t s = 0; s < S; ++s) busy.back().push_back(busy.size() == 1 ? -1.0 : t[s].at(r, at) * jitter(busy.size(), s));
+            at += r;
+        }
+        p.observe(slices, busy, 1000, {});
+    };
+    const auto exact = [](size_t, size_t) { return 1.0; };
+    const std::vector<std::vector<size_t>> cuts{{512, 512, 512, 512}, {293, 293, 293, 293, 293, 293, 290}, {400, 340, 289, 245, 208, 177, 150, 239}};
+    const auto close_to = [](double a, double b) { return std::fabs(a - b) <= 1e-6 * std::fabs(b) + 1e-12; };
+    const auto finish_at = [&](const std::vector<infer::StageLine>& t, const std::vector<std::pair<size_t, size_t>>& parts) {
+        std::vector<double> f(S, 0.0);
+        for (const auto& [at, rows] : parts) infer::pipeline_add(f, t, rows, 0, at);
+        return f.back();
+    };
+    const auto real = truth(1.7e-5);
+    infer::SlicePeriods p;
+    for (const auto& c : cuts) observe(p, c, real, exact);
+    const auto l = p.lines(0, S);
+    bool same = l.size() == S;
+    for (size_t s = 0; same && s < S; ++s) same = close_to(l[s].fixed_ms, real[s].fixed_ms) && close_to(l[s].row_ms, real[s].row_ms) && close_to(l[s].depth_ms, real[s].depth_ms);
+    require(same, "a prefill's slices growing with their depth did not give each stage its line and depth cost");
+    {
+        infer::SlicePeriods flat;
+        const auto line = truth(0);
+        for (const auto& c : cuts) observe(flat, c, line, exact);
+        const auto f = flat.lines(0, S);
+        bool straight = f.size() == S;
+        for (size_t s = 0; straight && s < S; ++s) straight = f[s].depth_ms == 0 && close_to(f[s].fixed_ms, line[s].fixed_ms) && close_to(f[s].row_ms, line[s].row_ms);
+        require(straight, "slices without a depth cost were given one");
+        infer::SlicePeriods noisy;
+        for (const auto& c : cuts) observe(noisy, c, line, [](size_t c, size_t s) { return 1 + 0.005 * double(int((c * 7 + s * 3) % 5) - 2); });
+        const auto n = noisy.lines(0, S);
+        require(n.size() == S && std::all_of(n.begin(), n.end(), [](const infer::StageLine& x) { return x.depth_ms == 0; }), "one percent of noise on straight lines was taken for a depth cost");
+    }
+    std::vector<double> f;
+    const auto parts = p.cut(0, 2048, S, 512, 0, f);
+    double equal = std::numeric_limits<double>::infinity();
+    for (size_t n = 4; n <= 16; ++n) {
+        std::vector<std::pair<size_t, size_t>> e;
+        for (size_t at = 0, r = (2048 + n - 1) / n; at < 2048; at += r) e.push_back({at, std::min(r, 2048 - at)});
+        equal = std::min(equal, finish_at(real, e));
+    }
+    // The cut of straight lines carrying the depth cost at the prompt's middle in their cost a row, as a fit without the depth term gives.
+    std::vector<infer::StageLine> straight = real;
+    for (infer::StageLine& x : straight) x.row_ms += x.depth_ms * 1024, x.depth_ms = 0;
+    const infer::SliceCut old = infer::prompt_cut(0, 2048, S, [&](size_t) { return straight; }, 512);
+    std::vector<std::pair<size_t, size_t>> was;
+    double size = (double)old.first;
+    for (size_t at = 0, n = std::min<size_t>(old.first, 2048); at < 2048; at += n, n = at < 2048 ? old.next(size, 2048 - at, 512) : 0) was.push_back({at, n});
+    const double mine = finish_at(real, parts), before = finish_at(real, was);
+    require(old.ratio > 0 && mine <= equal + 1e-9 && mine < before && !f.empty() && close_to(f.back(), mine),
+            "a depth cost did not cut a prompt to end before the best equal cut and the straight lines' cut (" + std::to_string(mine) + " against " + std::to_string(equal) + " and " + std::to_string(before) + " ms)");
+}
+
 int main(int argc, char** argv) {
     try {
         if (argc > 1 && std::string(argv[1]).rfind("--", 0) == 0) return replay_main(argc, argv);
@@ -2832,6 +2902,7 @@ int main(int argc, char** argv) {
         replay_quick();
         replay_long_prompt();
         reuse_miss_by_hand();
+        depth_by_hand();
         random_schedules(schedules);
         std::cout << "server-passes: " << checks << " checks pass\n";
         return 0;

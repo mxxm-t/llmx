@@ -528,13 +528,8 @@ inline std::vector<std::chrono::steady_clock::time_point> Model::run_chunks(Exec
             }
             threads->notify(S);
         };
-        const auto ready = [&](size_t s) {
-            const size_t c = next[s];
-            if (c >= chunks || busy[s] || committed[s] != c) return false;
-            if (s > 0 && committed[s - 1] <= c) return false;
-            if (s + 1 < S && committed[s + 1] + 2 <= c) return false;
-            return s > 0 || committed[S - 1] + S > c;
-        };
+        // The slicer prices a prompt in this order (chunk_order), so both read the one rule.
+        const auto ready = [&](size_t s) { return !busy[s] && chunk_ready(s, next[s], chunks, committed); };
         while (committed[S - 1] < chunks) {
             bool moved = false;
             // A round takes each stage ready at its start once, the first stage first as a step of the software pipeline does, or the last first where a device runs several.

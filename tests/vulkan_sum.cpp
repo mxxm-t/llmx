@@ -2,6 +2,7 @@
 #include "backends/vulkan/vulkan_backend.cpp"
 #include "group_sums.hpp"
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstring>
 #include <iostream>
@@ -33,6 +34,40 @@ struct VulkanSumTest {
         v.release();
         v.make_semaphores();
     }
+    // A stand-in called before each queue call of every collective, null for none.
+    static void probe(VkResult (*p)(const VulkanBackend&, bool receivers)) { VulkanCollective::queue_probe_ = p; }
+    static size_t host_signals() { return VulkanCollective::host_signals_.load(); }
+    static Ticket taken(Collective& c, size_t member) { return static_cast<VulkanCollective&>(c).taken_.at(member); }
+    // The group's open batches closed without a caller and the close's job run, its failure left for the next hand-over.
+    static void close(VulkanBackend& b) {
+        b.close_batches(false);
+        b.submitter()->drain();
+    }
+    // Whether member t's receivers of the collective's last closed batch have signalled, waiting up to `ns`.
+    static bool received(Collective& c, size_t t, uint64_t ns) {
+        auto& v = static_cast<VulkanCollective&>(c);
+        const Device& d = *v.members_[t]->device();
+        VkSemaphoreWaitInfo wi{};
+        wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+        wi.semaphoreCount = 1;
+        wi.pSemaphores = &v.rtimeline_[t];
+        wi.pValues = &v.received_;
+        return d.fn.vkWaitSemaphores(d.device, &wi, ns) == VK_SUCCESS;
+    }
+    // A timeline on the member's device that its next submission waits on at 1, until open_gate signals it.
+    static VkSemaphore gate(VulkanBackend& b) {
+        VkSemaphore s = VulkanCollective::semaphore(*b.device());
+        b.wait_on(s, 1);
+        return s;
+    }
+    static void open_gate(VulkanBackend& b, VkSemaphore s) {
+        VkSemaphoreSignalInfo si{};
+        si.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO;
+        si.semaphore = s;
+        si.value = 1;
+        b.device()->fn.vkSignalSemaphore(b.device()->device, &si);
+    }
+    static void destroy(VulkanBackend& b, VkSemaphore s) { b.device()->fn.vkDestroySemaphore(b.device()->device, s, nullptr); }
 };
 } // namespace
 } // namespace backend
@@ -783,6 +818,97 @@ size_t check_teardown_faults(const std::vector<std::unique_ptr<backend::VulkanBa
     return checks + 5;
 }
 
+// The queue probes' settings: the backend whose call fails and whether that is a receivers' call, and the most calls seen at once.
+const backend::VulkanBackend* probe_fails = nullptr;
+bool probe_receivers = false;
+std::atomic<int> probe_inside{0}, probe_most{0};
+
+VkResult fail_one(const backend::VulkanBackend& b, bool receivers) {
+    return &b == probe_fails && receivers == probe_receivers ? VK_ERROR_OUT_OF_HOST_MEMORY : VK_SUCCESS;
+}
+// Each call held up to 200 ms for a second one beside it.
+VkResult overlap(const backend::VulkanBackend&, bool) {
+    const int now = ++probe_inside;
+    int most = probe_most.load();
+    while (now > most && !probe_most.compare_exchange_weak(most, now)) {}
+    const auto end = std::chrono::steady_clock::now() + std::chrono::milliseconds(200);
+    while (probe_most.load() < 2 && std::chrono::steady_clock::now() < end) std::this_thread::yield();
+    --probe_inside;
+    return VK_SUCCESS;
+}
+
+bool given_out(backend::VulkanBackend& d) {
+    try {
+        d.submit();
+    } catch (const std::exception&) {
+        return true;
+    }
+    return false;
+}
+
+// A close of two tagged groups sharing a member makes its three members' queue calls side by side.
+// A close failing on one member leaves the others' queued submissions made, and gives up receivers only where none reached the queue.
+size_t check_submit_faults(const std::vector<std::unique_ptr<backend::VulkanBackend>>& devices) {
+    constexpr size_t limit = 3072, rows = 4096;
+    if (devices.size() < 3) {
+        std::cout << "vulkan-sum: skip a close's queue calls of two tagged groups sharing a member, fewer than three devices\n";
+        return 0;
+    }
+    backend::VulkanBackend *d0 = devices[0].get(), *d1 = devices[1].get(), *d2 = devices[2].get();
+    using T = backend::VulkanSumTest;
+    std::string missed;
+    size_t checks = 0;
+    const auto expect = [&](bool ok, const char* what) {
+        if (!ok) missed += std::string(missed.empty() ? "" : "; ") + what;
+        ++checks;
+    };
+    for (int step = 0; step < 3; ++step) {
+        auto a = d0->join({d0, d1}, rows, 1);
+        auto b = d1->join({d1, d2}, rows, 1);
+        require(a && b, "no Vulkan collectives over devices that share memory");
+        if (!T::tag(*a, limit) || !T::tag(*b, limit)) {
+            std::cout << "vulkan-sum: skip a close's queue calls of two tagged groups sharing a member, a member lacking a receive queue, a clock or uncached memory\n";
+            return checks;
+        }
+        a->sum_in_place(766, 1);
+        b->sum_in_place(766, 1);
+        VkSemaphore gate = VK_NULL_HANDLE;
+        if (step == 0) {
+            probe_most = 0;
+            T::probe(overlap);
+            T::close(*d0);
+            T::probe(nullptr);
+            expect(probe_most.load() >= 2, "a close of two tagged groups sharing a member made its members' queue calls one after another");
+            expect(!given_out(*d0), "a close of two tagged groups sharing a member failed");
+        } else {
+            if (step == 2) gate = T::gate(*d1);
+            const size_t signals = T::host_signals();
+            probe_fails = d1;
+            probe_receivers = step == 2;
+            T::probe(fail_one);
+            T::close(*d0);
+            T::probe(nullptr);
+            if (step == 1) {
+                expect(!d0->lost(T::taken(*a, 0)) && !d2->lost(T::taken(*b, 1)), "a close failing on one member recorded the others' queued submissions lost");
+                expect(d1->lost(T::taken(*a, 1)), "a close failing on one member did not record its submission lost");
+            } else {
+                // The first group's second member and both of the second group's never reached a receive queue, so three are given up from the host.
+                expect(T::host_signals() - signals == 3, "a failed close gave up from the host receivers already on their receive queue");
+                const bool early = T::received(*a, 0, 0);
+                T::open_gate(*d1, gate);
+                expect(!early, "a failed close signalled receivers from the host while their submission was pending");
+                expect(T::received(*a, 0, 3000000000ull), "receivers submitted before a failed close never signalled");
+            }
+            expect(given_out(*d0), "a failed close lost its failure");
+        }
+        a.reset();
+        b.reset();
+        if (gate) T::destroy(*d1, gate);
+    }
+    require(missed.empty(), missed.c_str());
+    return checks;
+}
+
 } // namespace
 
 int main() {
@@ -815,6 +941,8 @@ int main() {
         std::cout << "vulkan-sum: " << routes << " checks of groups sharing members giving their queues back, " << thrown << " of a construction throwing in the tagged route\n";
         const size_t teardown = check_teardown_faults(devices);
         std::cout << "vulkan-sum: " << teardown << " checks of a queue-thread failure and a failed sum beside an open tagged batch\n";
+        const size_t submit = check_submit_faults(devices);
+        std::cout << "vulkan-sum: " << submit << " checks of a close's queue calls side by side and failing on one member\n";
         return 0;
     } catch (const backend::VulkanUnavailable& e) {
         std::cerr << e.what() << '\n';

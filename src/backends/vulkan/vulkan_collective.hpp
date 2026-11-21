@@ -370,6 +370,7 @@ private:
             si.pCommandBuffers = &rcmds_[t][value % kReceivers];
             si.signalSemaphoreCount = 1;
             si.pSignalSemaphores = &rtimeline_[t];
+            if (queue_probe_) check(queue_probe_(*members_[t], true), "vkQueueSubmit (receivers)");
             check(d.fn.vkQueueSubmit(d.receive_queue, 1, &si, VK_NULL_HANDLE), "vkQueueSubmit (receivers)");
         }
     }
@@ -379,6 +380,7 @@ private:
         for (size_t t = 0; t < members_.size(); ++t) {
             const Device& d = *members_[t]->device();
             VkSemaphoreSignalInfo si{};
+            ++host_signals_;
             si.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO;
             si.semaphore = rtimeline_[t];
             si.value = value;
@@ -580,6 +582,10 @@ private:
         const size_t W = backs.size();
         std::vector<VkResult> result(W, VK_NOT_READY);
         threads.run(W, [&](size_t m) {
+            if (queue_probe_ && (result[m] = queue_probe_(*backs[m], false)) != VK_SUCCESS) {
+                if (work[m].release) work[m].release->store(work[m].release_seq);
+                return;
+            }
             result[m] = work[m].queue(*backs[m]->device());
             if (result[m] == VK_SUCCESS) backs[m]->made(work[m].ticket, true);
         });
@@ -700,6 +706,8 @@ private:
     uint64_t count_ = 0;   // exchanges made since the semaphores were; every member's timeline reaches it once its submission of that exchange finishes
     std::vector<Ticket> taken_, last_, before_;   // per member, its submission of the last exchange, of the last sum and of the sum before it
     std::vector<VkBufferMemoryBarrier> acquires_;   // recording-thread scratch, sized once for every peer
+    static inline VkResult (*queue_probe_)(const VulkanBackend&, bool receivers) = nullptr;   // tests only: called before each queue call, a failure it returns standing in for the call's
+    static inline std::atomic<size_t> host_signals_{0};   // receivers given up by a host signal, which tests count
     std::unique_ptr<core::JobThreads> threads_;   // a thread a member but the first, asleep between exchanges, from three members on (docs/STATUS.md, a group's members submit side by side)
     std::vector<BufferPtr> partial_, scratch_;
     std::vector<std::vector<std::shared_ptr<VulkanBuffer>>> inbox_[2];   // [parity][owner][sender]: the owner's inbox for that sender's partial rows

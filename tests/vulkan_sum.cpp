@@ -22,6 +22,17 @@ struct VulkanSumTest {
         return v.tagged_limit_ != 0;
     }
     static size_t tagged_sums(Collective& c) { return static_cast<VulkanCollective&>(c).tagged_sums_; }
+    // A queue-thread failure on the member's submitter, given out at the next hand-over.
+    static void inject(VulkanBackend& b) {
+        b.submitter()->run({[] { throw std::runtime_error("vulkan-sum: injected queue failure"); }, [] {}}, false);
+        b.submitter()->drain();
+    }
+    // What summed() does after a sum that failed part way: the collective released and its semaphores made again.
+    static void release(Collective& c) {
+        auto& v = static_cast<VulkanCollective&>(c);
+        v.release();
+        v.make_semaphores();
+    }
 };
 } // namespace
 } // namespace backend
@@ -686,6 +697,92 @@ size_t check_tag_throws(const std::vector<std::unique_ptr<backend::VulkanBackend
     return checks + 4;
 }
 
+bool injected(backend::VulkanBackend& d) {
+    try {
+        d.submit();
+    } catch (const std::exception& e) {
+        return std::strstr(e.what(), "injected") != nullptr;
+    }
+    return false;
+}
+
+// A queue-thread failure while a tagged batch is open is kept by a wait and by a group's teardown for the next hand-over, and a member alone after it still works.
+// A sum failing part way closes the group's whole open batch, so a group sharing its member does not wait out the cap behind its pushes.
+size_t check_teardown_faults(const std::vector<std::unique_ptr<backend::VulkanBackend>>& devices) {
+    constexpr size_t limit = 3072, rows = 4096;
+    if (devices.size() < 3) {
+        std::cout << "vulkan-sum: skip teardown faults of two tagged groups sharing a member, fewer than three devices\n";
+        return 0;
+    }
+    backend::VulkanBackend *d0 = devices[0].get(), *d1 = devices[1].get(), *d2 = devices[2].get();
+    size_t checks = 0;
+    for (int teardown = 0; teardown < 2; ++teardown) {
+        auto a = d0->join({d0, d1}, rows, 1);
+        auto b = d1->join({d1, d2}, rows, 1);
+        require(a && b, "no Vulkan collectives over devices that share memory");
+        if (!backend::VulkanSumTest::tag(*a, limit) || !backend::VulkanSumTest::tag(*b, limit)) {
+            std::cout << "vulkan-sum: skip teardown faults of two tagged groups sharing a member, a member lacking a receive queue, a clock or uncached memory\n";
+            return 0;
+        }
+        a->sum_in_place(766, 1);
+        backend::VulkanSumTest::inject(*d0);
+        if (teardown) a.reset();
+        else a->wait(0);
+        require(injected(teardown ? *d1 : *d0), teardown ? "a tagged group's teardown lost a queue-thread failure" : "a wait closing a tagged batch lost a queue-thread failure");
+        ++checks;
+        if (teardown) {
+            const float one = 1.0f;
+            float got = 0.0f;
+            backend::BufferPtr x = d0->alloc(2 * sizeof(float), backend::Memory::device);
+            d0->write(*x, 0, &one, sizeof(float));
+            d0->copy(*x, sizeof(float), *x, 0, sizeof(float));
+            d0->read(*x, sizeof(float), &got, sizeof(float));
+            require(got == one, "a member alone after its group's teardown with a failure does not work");
+            ++checks;
+        }
+    }
+    auto a = d0->join({d0, d1}, rows, 1);
+    auto b = d1->join({d1, d2}, rows, 1);
+    std::vector<backend::Backend*> ga{d0, d1}, gb{d1, d2};
+    require(a && b && backend::VulkanSumTest::tag(*a, limit) && backend::VulkanSumTest::tag(*b, limit), "no tagged collectives after a queue-thread failure");
+    const group_sums::Case ka = group_sums::make(2, rows, 9600u), kb = group_sums::make(2, rows, 9700u);
+    std::vector<std::vector<float>> wa = ka.partial, wb = kb.partial;
+    for (size_t m = 0; m < 2; ++m) {
+        const backend::Slice pa = a->partial(m), pb = b->partial(m);
+        ga[m]->write(*pa.buffer, pa.offset * sizeof(float), ka.partial[m].data(), rows * sizeof(float));
+        gb[m]->write(*pb.buffer, pb.offset * sizeof(float), kb.partial[m].data(), rows * sizeof(float));
+    }
+    const auto add = [](std::vector<std::vector<float>>& w, size_t n) {
+        for (size_t j = 0; j < n; ++j) w[0][j] = w[1][j] = w[0][j] + w[1][j];
+    };
+    a->sum_in_place(766, 1);
+    add(wa, 766);
+    b->sum_in_place(766, 1);
+    add(wb, 766);
+    const auto start = std::chrono::steady_clock::now();
+    backend::VulkanSumTest::release(*a);
+    std::vector<float> got(rows);
+    for (size_t m = 0; m < 2; ++m) {
+        const backend::Slice pb = b->partial(m);
+        gb[m]->read(*pb.buffer, pb.offset * sizeof(float), got.data(), rows * sizeof(float));
+        require(!std::memcmp(got.data(), wb[m].data(), rows * sizeof(float)), "a tagged group beside one whose sum failed is not the oracle's");
+    }
+    const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+    require(ms < 500.0, "a sum failing part way left its tagged pushes on a shared member to wait out the cap");
+    a->sum_in_place(rows, 1);
+    add(wa, rows);
+    a->sum_in_place(766, 1);
+    add(wa, 766);
+    d0->submit();
+    for (size_t m = 0; m < 2; ++m) {
+        const backend::Slice pa = a->partial(m);
+        ga[m]->read(*pa.buffer, pa.offset * sizeof(float), got.data(), rows * sizeof(float));
+        require(!std::memcmp(got.data(), wa[m].data(), rows * sizeof(float)), "a tagged group after its failed sum is undone is not the oracle's");
+    }
+    require(backend::VulkanSumTest::tagged_sums(*a) == 2 && backend::VulkanSumTest::tagged_sums(*b) == 1, "the tagged route did not take the sums beside a failed one");
+    return checks + 5;
+}
+
 } // namespace
 
 int main() {
@@ -716,6 +813,8 @@ int main() {
         std::cout << "vulkan-sum: " << shared << " checks of two tagged groups sharing a member, ordered and unordered\n";
         const size_t routes = check_routes(devices), thrown = check_tag_throws(devices);
         std::cout << "vulkan-sum: " << routes << " checks of groups sharing members giving their queues back, " << thrown << " of a construction throwing in the tagged route\n";
+        const size_t teardown = check_teardown_faults(devices);
+        std::cout << "vulkan-sum: " << teardown << " checks of a queue-thread failure and a failed sum beside an open tagged batch\n";
         return 0;
     } catch (const backend::VulkanUnavailable& e) {
         std::cerr << e.what() << '\n';

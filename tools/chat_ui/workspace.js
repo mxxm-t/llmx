@@ -25,7 +25,7 @@
   fileFilter.addEventListener('input', renderFiles); filePanel.append(fileHeading, fileSearch, fileList);
   const editorPanel = node('section', 'workspace-editor'); editorPanel.setAttribute('aria-label', 'File editor');
   const editorHeading = node('div', 'workspace-editor-heading'); const fileLabel = node('span', 'workspace-file-path', 'Select a file'); const dirtyLabel = node('span', 'unsaved-indicator', 'Unsaved'); dirtyLabel.hidden = true;
-  const fileActions = node('div', 'workspace-editor-actions'); const preview = control('View source', '', openArtifact); const attach = control('Attach to Chat', '', attachFile); attach.id = 'workspace-attach'; const download = control('Download', '', () => window.ChatArtifacts.download(editor.value, state.path, fileLanguage(state.path))); const save = control('Save', 'primary-button', saveFile); save.id = 'workspace-save'; const remove = control('Delete', 'text-button danger', deleteFile); fileActions.append(preview, attach, download, remove, save); editorHeading.append(fileLabel, dirtyLabel, fileActions);
+  const fileActions = node('div', 'workspace-editor-actions'); const preview = control('View source', '', openArtifact); const attach = control('Attach to Chat', '', attachFile); attach.id = 'workspace-attach'; const download = control('Download', '', () => window.ChatArtifacts.download(editor.value, state.path, fileLanguage(state.path))); const save = control('Save', 'primary-button', saveFile); save.id = 'workspace-save'; const remove = control('Delete', 'text-button danger', deleteFile); const review = control('Review changes', '', reviewChanges); review.id = 'workspace-review'; fileActions.append(preview, attach, download, remove, review, save); editorHeading.append(fileLabel, dirtyLabel, fileActions);
   const editor = node('textarea', 'workspace-code-editor'); editor.id = 'workspace-editor'; editor.spellcheck = false; editor.autocomplete = 'off'; editor.wrap = 'off'; editor.setAttribute('aria-label', 'File content'); editor.placeholder = 'Create a file or select one from the workspace.'; editor.disabled = true;
   const editorFooter = node('div', 'workspace-editor-footer'); const editorPosition = node('span', '', 'UTF-8'); const saveHint = node('span', '', 'Ctrl / Cmd + S to save'); editorFooter.append(editorPosition, saveHint); editorPanel.append(editorHeading, editor, editorFooter);
   const start = node('div', 'workspace-start'); start.id = 'workspace-start';
@@ -206,6 +206,7 @@
   function fileLanguage(path) { const ext = path.split('.').pop().toLowerCase(); return ({htm: 'html', py: 'python', js: 'javascript', ts: 'typescript', sh: 'bash', rs: 'rust', md: 'markdown', patch: 'diff'})[ext] || ext; }
   function updateEditor() {
     dirtyLabel.hidden = !dirty(); const enabled = Boolean(state.path); for (const button of [preview, download]) button.disabled = !enabled; save.disabled = !enabled || !dirty() || state.saving; save.setAttribute('aria-busy', String(state.saving));
+    review.hidden = !dirty() || state.isNew; review.disabled = state.saving;
     remove.textContent = state.isNew ? 'Discard' : 'Delete';
     remove.disabled = !enabled || state.saving;
     attach.disabled = !enabled || state.attaching; attach.setAttribute('aria-busy', String(state.attaching));
@@ -315,6 +316,12 @@
     if (!path?.trim() || selection !== state.selection) return;
     if (state.snapshot?.files.some(file => file.path === path.trim())) return openFile(path.trim());
     state.path = path.trim(); state.original = ''; state.isNew = true; state.revision = state.snapshot?.revision || 0; editor.value = ''; editor.disabled = false; updateEditor(); renderFiles(); editor.focus();
+  }
+  async function reviewChanges() {
+    const path = state.path, content = editor.value, selection = state.selection;
+    const result = await api('/workspace/diff', 'POST', {path, content});
+    if (state.selection !== selection || editor.value !== content || view.hidden || section !== 'files') return;
+    window.ChatArtifacts.open({name: path + '.diff', source: result.diff || 'The draft matches the saved file.\n', language: 'diff'}, {allowWorkspaceEdit: false});
   }
   async function saveFile() {
     if (!state.path || state.saving) return;

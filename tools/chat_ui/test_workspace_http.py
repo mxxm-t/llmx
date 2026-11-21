@@ -180,6 +180,27 @@ class WorkspaceHTTPTests(unittest.TestCase):
             threading.Event().wait(0.005)
         self.fail("HTTP workspace job did not finish")
 
+    def test_draft_diff_reads_current_saved_file_without_writing(self):
+        cookie = self.login()
+        path = "src/main.py"
+        body = {"path": path, "content": "proposed"}
+        route = "/api/workspace/diff"
+        self.assertEqual(self.request("POST", route, body)[0], 401)
+        self.assertEqual(self.request("POST", route, body, cookie)[0], 404)
+        for revision, text in enumerate(("first", "saved\n")):
+            self.assertEqual(self.request("POST", "/api/workspace/file",
+                                          {"path": path, "content": text, "revision": revision}, cookie)[0], 200)
+        snapshot = self.json_body(self.request("GET", "/api/workspace", cookie=cookie))
+        result = self.request("POST", route, body, cookie)
+        self.assertEqual(result[0], 200)
+        self.assertEqual(self.json_body(result)["diff"], "--- saved/src/main.py\n+++ draft/src/main.py\n"
+                         "@@ -1 +1 @@\n-saved\n+proposed\n\\ No newline at end of file\n")
+        self.assertEqual(self.json_body(self.request("POST", route, dict(body, content="saved\n"), cookie))["diff"], "")
+        for invalid in (dict(body, path="../src/main.py"), dict(body, content=None)):
+            self.assertEqual(self.request("POST", route, invalid, cookie)[0], 400)
+        self.assertEqual(self.json_body(self.request("GET", "/api/workspace", cookie=cookie)), snapshot)
+        self.assertEqual(self.json_body(self.request("GET", "/api/workspace/file?path=src/main.py", cookie=cookie))["content"], "saved\n")
+
     def test_workspace_routes_auth_origin_revision_and_checkpoint(self):
         self.assertEqual(self.request("GET", "/api/workspace")[0], 401)
         self.cookie = self.login()

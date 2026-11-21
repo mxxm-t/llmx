@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Review unsaved workspace edits (2026-11-21)
+
+- Goal: Show what an editor draft would change in an existing saved file before Save.
+- Done: The checkpoint viewer and file editor share one unified diff formatter. Review changes compares against the current saved file without writing it.
+- Checks: All 27 workspace and HTTP tests passed. Chrome opened the replacement diff at 320 px, preserved the draft and saved file, and returned focus to Review changes on close.
+- Landing: Fast-forward after the dedicated Windows and Linux Chat workspace checks.
+
 ## Hosted CI job limits (2026-11-21)
 
 - Goal: Give each hosted runtime check one current timeout in the CI overview.

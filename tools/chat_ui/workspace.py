@@ -63,6 +63,23 @@ def checked_files(files):
     return files
 
 
+def _file_diff(path, old, new, before, after):
+    if old == new:
+        return ""
+    if not old and not new:
+        action = "Added" if old is None else "Deleted"
+        return f"{action} empty file: {path}\n"
+    lines = difflib.unified_diff(io.StringIO(old or "").readlines(), io.StringIO(new or "").readlines(),
+                                 fromfile="/dev/null" if old is None else before + "/" + path,
+                                 tofile="/dev/null" if new is None else after + "/" + path)
+    parts = []
+    for line in lines:
+        parts.append(line)
+        if not line.endswith("\n"):
+            parts.append("\n\\ No newline at end of file\n")
+    return "".join(parts)
+
+
 class DockerRunner:
     def __init__(self, image, host=None):
         self.image = image
@@ -397,23 +414,14 @@ class Workspace:
             if not point:
                 raise KeyError(point_id)
             before, after = point["files"], self.state["files"]
-            parts = []
-            for path in sorted(before.keys() | after.keys()):
-                old, new = before.get(path), after.get(path)
-                if old == new:
-                    continue
-                if not old and not new:
-                    action = "Added" if old is None else "Deleted"
-                    parts.append(f"{action} empty file: {path}\n")
-                    continue
-                lines = difflib.unified_diff(io.StringIO(old or "").readlines(), io.StringIO(new or "").readlines(),
-                                             fromfile="/dev/null" if old is None else "checkpoint/" + path,
-                                             tofile="/dev/null" if new is None else "workspace/" + path)
-                for line in lines:
-                    parts.append(line)
-                    if not line.endswith("\n"):
-                        parts.append("\n\\ No newline at end of file\n")
-            return {"diff": "".join(parts)}
+            return {"diff": "".join(_file_diff(path, before.get(path), after.get(path), "checkpoint", "workspace")
+                                    for path in sorted(before.keys() | after.keys()))}
+
+    def draft_diff(self, path, content):
+        path = file_path(path)
+        checked_files({path: content})
+        saved = self.read(path)
+        return {"diff": _file_diff(path, saved["content"], content, "saved", "draft")}
 
     def job(self, job_id):
         with self.lock:

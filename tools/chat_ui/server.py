@@ -684,6 +684,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(workspace.checkpoint(self._body().get("label")))
         if len(parts) == 3 and parts[0] == "checkpoints" and parts[2] == "restore" and method == "POST":
             return self._json(workspace.restore(parts[1], self._body().get("revision")))
+        if parts == ["diff"] and method == "POST":
+            body = self._body()
+            return self._json(workspace.draft_diff(body.get("path"), body.get("content")))
         if parts == ["diff"] and method == "GET":
             params = parse_qs(query, keep_blank_values=True, strict_parsing=True)
             if set(params) != {"checkpoint"} or len(params["checkpoint"]) != 1:

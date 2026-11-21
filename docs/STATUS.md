@@ -1,5 +1,11 @@
 # llmx - Development Status
 
+## Hosted CI job limits (2026-11-21)
+
+- Goal: Give each hosted runtime check one current timeout in the CI overview.
+- Done: The coverage table lists all eight job limits in minutes. The macOS entry reflects its 120-minute limit.
+- Checks: All eight table values match the workflow, including the CPU matrix overrides and default. Documentation and dead-code checks cover this docs-only fast-forward.
+
 ## Workspace checkpoint comparisons (2026-11-21)
 
 - Goal: Show changes to empty files and keep diff records distinct when a file has no final newline.

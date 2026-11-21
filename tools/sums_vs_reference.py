@@ -6,6 +6,7 @@ BIN is llmx-backend-rocm-test or llmx-backend-cuda-test, whose `vsnccl` mode tim
 ALL_REDUCE_PERF is rccl-tests' or nccl-tests' all_reduce_perf, run single-process over the same first W visible devices.
 The arms alternate in one session, cycle by cycle, and the check fails wherever llmx's median is slower than the reference's at any size or width.
 An optional --before BIN, an earlier build's test binary, is timed in the same cycles and printed beside them without being judged.
+A run that fails or passes --timeout is reported with its last line and the session goes on; a cell llmx or the reference has no time for fails.
 """
 
 import argparse
@@ -20,7 +21,11 @@ SMALL_SIZES = [256]
 
 
 def run(argv, timeout):
-    p = subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=timeout)
+    try:
+        p = subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired as e:
+        out = e.output.decode(errors="replace") if isinstance(e.output, bytes) else (e.output or "")
+        return 124, out + "\ntimed out after %d s" % timeout
     return p.returncode, p.stdout
 
 
@@ -65,34 +70,44 @@ def main():
     widths = [int(w) for w in a.widths.split(",")]
     times = {"llmx": {}, "before": {}, "reference": {}}
     tests = {"llmx": a.test, "before": a.before}
+    errors = []
     for w in widths:
         for c in range(a.cycles):
             arms = ["llmx", "before", "reference"] if a.before else ["llmx", "reference"]
             for arm in arms if c % 2 == 0 else arms[::-1]:
-                if arm == "reference":
-                    for n in SMALL_SIZES + MODEL_SIZES:
-                        times[arm].setdefault((w, n), []).append(reference_arm(a.reference, w, n, a.timeout))
-                    continue
-                for model, sizes in ((5120, MODEL_SIZES), (256, SMALL_SIZES)):
-                    got = llmx_arm(tests[arm], w, model, a.timeout)
-                    for n in sizes:
-                        if n not in got:
-                            raise RuntimeError("vsnccl width %d printed no time for %d floats" % (w, n))
-                        times[arm].setdefault((w, n), []).append(got[n])
+                try:
+                    if arm == "reference":
+                        for n in SMALL_SIZES + MODEL_SIZES:
+                            times[arm].setdefault((w, n), []).append(reference_arm(a.reference, w, n, a.timeout))
+                        continue
+                    for model, sizes in ((5120, MODEL_SIZES), (256, SMALL_SIZES)):
+                        got = llmx_arm(tests[arm], w, model, a.timeout)
+                        for n in sizes:
+                            if n not in got:
+                                raise RuntimeError("vsnccl width %d printed no time for %d floats" % (w, n))
+                            times[arm].setdefault((w, n), []).append(got[n])
+                except RuntimeError as e:
+                    errors.append("%s width %d cycle %d: %s" % (arm, w, c + 1, e))
+                    print("ERROR " + errors[-1], flush=True)
             print("width %d cycle %d of %d done" % (w, c + 1, a.cycles), flush=True)
-    slower = 0
-    med = lambda arm, w, n: statistics.median(times[arm][(w, n)])
+    slower = missing = 0
+    med = lambda arm, w, n: statistics.median(times[arm][(w, n)]) if times[arm].get((w, n)) else None
+    show = lambda v: "%.2f" % v if v is not None else "-"
     print("| width | floats |%s llmx us | reference us | llmx / reference |" % (" before us |" if a.before else ""))
     print("|---|---|%s---|---|---|" % ("---|" if a.before else ""))
     for w in widths:
         for n in sorted(SMALL_SIZES + MODEL_SIZES):
             lm, rm = med("llmx", w, n), med("reference", w, n)
-            bad = lm > rm
+            bad = lm is not None and rm is not None and lm > rm
             slower += bad
-            before = " %.2f |" % med("before", w, n) if a.before else ""
-            print("| %d | %d |%s %.2f | %.2f | %.3f%s |" % (w, n, before, lm, rm, lm / rm, " SLOWER" if bad else ""))
-    if slower:
-        print("FAIL: llmx is slower than the reference at %d of %d cells" % (slower, len(widths) * (len(SMALL_SIZES) + len(MODEL_SIZES))))
+            missing += lm is None or rm is None
+            before = " %s |" % show(med("before", w, n)) if a.before else ""
+            ratio = "%.3f%s" % (lm / rm, " SLOWER" if bad else "") if lm is not None and rm is not None else "- NO TIME"
+            print("| %d | %d |%s %s | %s | %s |" % (w, n, before, show(lm), show(rm), ratio))
+    for e in errors:
+        print("ERROR " + e)
+    if slower or missing:
+        print("FAIL: llmx is slower than the reference at %d and untimed at %d of %d cells" % (slower, missing, len(widths) * (len(SMALL_SIZES) + len(MODEL_SIZES))))
         return 1
     print("PASS: llmx is at least as fast as the reference at every size and width")
     return 0

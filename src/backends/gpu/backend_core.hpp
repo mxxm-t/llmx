@@ -58,13 +58,17 @@ inline unsigned host_exchange(unsigned* p, unsigned v) { return __atomic_exchang
 inline void host_store(unsigned* p, unsigned v) { __atomic_store_n(p, v, __ATOMIC_RELEASE); }
 #endif
 
-// What a tensor group's first member keeps of the group's probes: the transport the first passing probe gave, why each earlier one failed, and each fast sum's form by its size, timed up to `timed` floats.
+// What a tensor group's first member keeps of the group's probes: the fast transports whose probes passed, why the others failed, and each fast sum's transport and form by its size, timed up to `timed` floats.
 struct GroupPath {
-    GroupTransport transport = GroupTransport::pulls;
+    std::vector<GroupTransport> transports;   // peer writes before host writes; none for the conservative path
     std::string why;
+    bool copies = false;   // host writes also time copies, whose own probe passed
     size_t timed = 0;
-    std::map<size_t, GpuSumForm> forms;   // from each timed size up, the form that won there; below the least, the one-shot
+    std::map<size_t, GpuSumPick> forms;   // from each timed size up, the pick that won there; below the least, the one-shot of that pick's transport
 };
+
+// A transport as one bit of a set of them.
+inline unsigned transport_bit(GroupTransport t) { return 1u << (unsigned)t; }
 
 template <class Api> class GpuBackend;
 template <class Api> class GpuCollective;
@@ -383,9 +387,15 @@ public:
     std::vector<size_t> member_order(const std::vector<Backend*>& devices, size_t width, size_t rows, size_t summed) override;
     bool times_groups() const override { return true; }
     std::unique_ptr<Handoff> handoff(const std::vector<Backend*>& readers) override;
-    // A member's partial rows and two parity halves of a staging slot for each member's (GpuCollective<Api>).
+    // A member's partial rows beside two parity halves of a device slot a member for each transport its timed groups picked (GpuCollective<Api>): the staging under peer writes and pulls, the slots pulls copy into under host writes.
+    // Before any group of this device is timed, peer writes' alone.
     size_t collective_bytes_per_row(size_t members, size_t width) const override {
-        return members ? size_mul(2 * members + 1, size_mul(width, sizeof(float))) : 0;
+        if (!members) return 0;
+        const unsigned by = summed_by_ ? summed_by_ : transport_bit(GroupTransport::peer_writes);
+        size_t slots = 1;
+        for (const GroupTransport t : {GroupTransport::peer_writes, GroupTransport::host_writes, GroupTransport::pulls})
+            if (by & transport_bit(t)) slots += 2 * members;
+        return size_mul(slots, size_mul(width, sizeof(float)));
     }
     bool supports_type(uint32_t type) const override { return type_kernels(type) != nullptr; }
     bool implements(Op op) const override {
@@ -465,20 +475,28 @@ public:
         const Ticket t = tickets_.last() + 1;
         const size_t i = t % kEvents;
         if (t > kEvents) wait(t - kEvents);
-        if (!started_) Api::check(Api::event_record(starts_[i], stream_), "event_record");
+        if (!started_) start();
         Api::check(Api::event_record(events_[i], stream_), "event_record");
         tickets_.take();
         graves_->recorded();
-        opened_ = started_ = false;
+        opened_ = started_ = asked_ = waited_ = false;
         for (Ring* r : {&args_, &stage_, &pass_}) r->tag(t);
         return t;
+    }
+    // The open submission's start: with no wait before it and its device still running the previous ticket, it starts as that one ends, so that one's event times it (docs/src/backends-gpu.md).
+    void start() {
+        const Ticket t = tickets_.last() + 1;
+        chained_[t % kEvents] = !waited_ && t > 1 && !tickets_.settled(t - 1) && !syncing_[(t - 1) % kEvents].load(std::memory_order_acquire) &&
+                                Api::event_query(events_[(t - 1) % kEvents]) == Api::kNotReady;
+        if (!chained_[t % kEvents]) Api::check(Api::event_record(starts_[t % kEvents], stream_), "event_record");
     }
     double busy_ms(Ticket a, Ticket b) override {
         if (a > b || b > tickets_.last() || a + kEvents <= tickets_.last()) return -1.0;
         double sum = 0;
         for (Ticket t = a + 1; t <= b; ++t) {
             float ms = 0;
-            if (Api::event_elapsed(&ms, starts_[t % kEvents], events_[t % kEvents]) != Api::kSuccess) return -1.0;
+            const typename Api::Event from = chained_[t % kEvents] ? events_[(t - 1) % kEvents] : starts_[t % kEvents];
+            if (Api::event_elapsed(&ms, from, events_[t % kEvents]) != Api::kSuccess) return -1.0;
             sum += ms;
         }
         return sum;
@@ -2234,7 +2252,7 @@ private:
                   kRmsNorm32Twin8, kNormRope, kNormRopeKv, kGather, kGatherQ8, kMatmul, kMatmulQ8, kMatmulQ4K, kGatherQ4K, kMatmulQ5K, kGatherQ5K, kMatmulQ6K,
                   kGatherQ6K, kMatmulQ50, kGatherQ50, kMatmulQ40, kGatherQ40, kMatmulQ41, kGatherQ41, kMatmulQ51, kGatherQ51, kMatmulBF16, kGatherBF16, kMatmulF16, kGatherF16, kMatmulIQ4NL, kGatherIQ4NL, kMatmulMXFP4, kGatherMXFP4, kMatmulNVFP4, kGatherNVFP4, kMatmulQ2K, kGatherQ2K, kMatmulQ3K, kGatherQ3K, kMatmulIQ4XS, kGatherIQ4XS, kMatmulIQ2XXS, kGatherIQ2XXS, kMatmulIQ2XS, kGatherIQ2XS, kMatmulIQ2S, kGatherIQ2S, kMatmulIQ3XXS, kGatherIQ3XXS, kMatmulIQ3S, kGatherIQ3S, kMatmulIQ1S, kGatherIQ1S, kMatmulIQ1M, kGatherIQ1M, kMatmulTQ10, kGatherTQ10, kMatmulTQ20, kGatherTQ20, kMatmulQ10, kGatherQ10, kMatmulQ20, kGatherQ20, kMatmulF8, kGatherF8, kKvWrite, kAttentionChunk, kAttentionTile, kAttentionTile256, kAttentionMerge, kAttentionVec,
                   kAttentionVecMerge, kTwin16, kTwin8, kSiluMulTwin16Major, kSiluMulTwin8Major, kRmsNorm16Twin16Major, kRmsNorm16Twin8Major,
-                  kRmsNorm32Twin16Major, kRmsNorm32Twin8Major, kAttentionVecMajor, kAttentionVecMergeMajor, kTwin16Major, kTwin8Major, kGroupSum, kGroupTwoShots, kGroupChain, kGroupArm, kGroupAddCheck, kGroupPush, kGroupTake, kSigmoidMul, kGatedRmsNorm, kNormRopeStreams, kCausalConvSilu, kGatedDeltaRule, kGatedDeltaRuleShort, kGroupRmsNorm, kSiluScaled, kMixStreams, kInjectStreams, kSignedSqrtGate, kDilatedConvSiluAdd, kKvIndexPool, kKvIndexScores, kKvIndexSelect, kKvIndexSelectWide, kSparseChunk, kSparseMerge, kSparseVec, kSparseVec256, kSparseVecMerge, kSparseVecMerge256,
+                  kRmsNorm32Twin16Major, kRmsNorm32Twin8Major, kAttentionVecMajor, kAttentionVecMergeMajor, kTwin16Major, kTwin8Major, kGroupSum, kGroupChain, kGroupShares, kGroupCopies, kGroupArm, kGroupAddCheck, kGroupPush, kGroupTake, kSigmoidMul, kGatedRmsNorm, kNormRopeStreams, kCausalConvSilu, kGatedDeltaRule, kGatedDeltaRuleShort, kGroupRmsNorm, kSiluScaled, kMixStreams, kInjectStreams, kSignedSqrtGate, kDilatedConvSiluAdd, kKvIndexPool, kKvIndexScores, kKvIndexSelect, kKvIndexSelectWide, kSparseChunk, kSparseMerge, kSparseVec, kSparseVec256, kSparseVecMerge, kSparseVecMerge256,
                   kAttentionVec256, kAttentionVec256Major, kAttentionVecMerge256, kAttentionVecMerge256Major, kArgmaxSlices, kArgmaxMerge, kArgmaxPart, kArgmaxPick,
                   kMoeRoute, kMoeCombine, kMoeGroup, kRoutedExactF32, kRoutedExactQ8, kRoutedExactQ4K, kRoutedExactQ5K, kRoutedExactQ6K, kRoutedExactQ50, kRoutedExactQ40, kRoutedExactQ41, kRoutedExactQ51, kRoutedExactBF16, kRoutedExactF16, kRoutedExactIQ4NL, kRoutedExactMXFP4, kRoutedExactNVFP4, kRoutedExactQ2K, kRoutedExactQ3K, kRoutedExactIQ4XS, kRoutedExactIQ2XXS, kRoutedExactIQ2XS, kRoutedExactIQ2S, kRoutedExactIQ3XXS, kRoutedExactIQ3S, kRoutedExactIQ1S, kRoutedExactIQ1M, kRoutedExactTQ10, kRoutedExactTQ20, kRoutedExactQ10, kRoutedExactQ20, kRoutedExactF8,
                   kRowsExactF32, kRowsExactQ8, kRowsExactQ4K, kRowsExactQ5K, kRowsExactQ6K, kRowsExactQ50, kRowsExactQ40, kRowsExactQ41, kRowsExactQ51, kRowsExactBF16, kRowsExactF16, kRowsExactIQ4NL, kRowsExactMXFP4, kRowsExactNVFP4, kRowsExactQ2K, kRowsExactQ3K, kRowsExactIQ4XS, kRowsExactIQ2XXS, kRowsExactIQ2XS, kRowsExactIQ2S, kRowsExactIQ3XXS, kRowsExactIQ3S, kRowsExactIQ1S, kRowsExactIQ1M, kRowsExactTQ10, kRowsExactTQ20, kRowsExactQ10, kRowsExactQ20, kRowsExactF8, kSparseVecG4, kSparseVec256G4, kColsF32x2, kColsF32x4, kMoeStepRoute,
@@ -2277,7 +2295,7 @@ private:
                                                            "llmx_twin16", "llmx_twin8", "llmx_silu_mul_twin16_major", "llmx_silu_mul_twin8_major",
                                                            "llmx_rms_norm_16_twin16_major", "llmx_rms_norm_16_twin8_major", "llmx_rms_norm_32_twin16_major",
                                                            "llmx_rms_norm_32_twin8_major", "llmx_attention_vec_major", "llmx_attention_vec_merge_major",
-                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_group_two_shots", "llmx_group_chain", "llmx_group_arm", "llmx_group_add_check", "llmx_group_push", "llmx_group_take", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_argmax_part", "llmx_argmax_pick", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q4_0", "llmx_routed_q4_1", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_f16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_routed_nvfp4", "llmx_routed_q2_k", "llmx_routed_q3_k", "llmx_routed_iq4_xs", "llmx_routed_iq2_xxs", "llmx_routed_iq2_xs", "llmx_routed_iq2_s", "llmx_routed_iq3_xxs", "llmx_routed_iq3_s", "llmx_routed_iq1_s", "llmx_routed_iq1_m", "llmx_routed_tq1_0", "llmx_routed_tq2_0", "llmx_routed_q1_0", "llmx_routed_q2_0", "llmx_routed_f8_e4m3", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q4_0", "llmx_matmul_rows_q4_1", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_f16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_matmul_rows_nvfp4", "llmx_matmul_rows_q2_k", "llmx_matmul_rows_q3_k", "llmx_matmul_rows_iq4_xs", "llmx_matmul_rows_iq2_xxs", "llmx_matmul_rows_iq2_xs", "llmx_matmul_rows_iq2_s", "llmx_matmul_rows_iq3_xxs", "llmx_matmul_rows_iq3_s", "llmx_matmul_rows_iq1_s", "llmx_matmul_rows_iq1_m", "llmx_matmul_rows_tq1_0", "llmx_matmul_rows_tq2_0", "llmx_matmul_rows_q1_0", "llmx_matmul_rows_q2_0", "llmx_matmul_rows_f8_e4m3", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols2_f32", "llmx_matmul_cols4_f32", "llmx_moe_step_route", "llmx_hc_coeffs_collapse", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_indexer_scores_tile", "llmx_indexer_scores_int", "llmx_raw_index_scores", "llmx_pool_write", "llmx_sparse_scores_few16", "llmx_sparse_values_few16", "llmx_sparse_scores_few8", "llmx_sparse_values_few8", "llmx_sparse_scores_few4", "llmx_sparse_values_few4", "llmx_sparse_scores_few2", "llmx_sparse_values_few2", "llmx_sparse_scores_few32", "llmx_sparse_values_few16x2", "llmx_sparse_scores_tile", "llmx_sparse_values_tile", "llmx_route_sqrt_softplus", "llmx_route_step_f32", "llmx_route_step_bf16", "llmx_norm_rope_form", "llmx_delta_step", "llmx_mix_rows", "llmx_layer_norm_rows", "llmx_gelu", "llmx_add_bias", "llmx_q8_0_rows16_1",
+                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_group_chain", "llmx_group_shares", "llmx_group_copies", "llmx_group_arm", "llmx_group_add_check", "llmx_group_push", "llmx_group_take", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_argmax_part", "llmx_argmax_pick", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q4_0", "llmx_routed_q4_1", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_f16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_routed_nvfp4", "llmx_routed_q2_k", "llmx_routed_q3_k", "llmx_routed_iq4_xs", "llmx_routed_iq2_xxs", "llmx_routed_iq2_xs", "llmx_routed_iq2_s", "llmx_routed_iq3_xxs", "llmx_routed_iq3_s", "llmx_routed_iq1_s", "llmx_routed_iq1_m", "llmx_routed_tq1_0", "llmx_routed_tq2_0", "llmx_routed_q1_0", "llmx_routed_q2_0", "llmx_routed_f8_e4m3", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q4_0", "llmx_matmul_rows_q4_1", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_f16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_matmul_rows_nvfp4", "llmx_matmul_rows_q2_k", "llmx_matmul_rows_q3_k", "llmx_matmul_rows_iq4_xs", "llmx_matmul_rows_iq2_xxs", "llmx_matmul_rows_iq2_xs", "llmx_matmul_rows_iq2_s", "llmx_matmul_rows_iq3_xxs", "llmx_matmul_rows_iq3_s", "llmx_matmul_rows_iq1_s", "llmx_matmul_rows_iq1_m", "llmx_matmul_rows_tq1_0", "llmx_matmul_rows_tq2_0", "llmx_matmul_rows_q1_0", "llmx_matmul_rows_q2_0", "llmx_matmul_rows_f8_e4m3", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols2_f32", "llmx_matmul_cols4_f32", "llmx_moe_step_route", "llmx_hc_coeffs_collapse", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_indexer_scores_tile", "llmx_indexer_scores_int", "llmx_raw_index_scores", "llmx_pool_write", "llmx_sparse_scores_few16", "llmx_sparse_values_few16", "llmx_sparse_scores_few8", "llmx_sparse_values_few8", "llmx_sparse_scores_few4", "llmx_sparse_values_few4", "llmx_sparse_scores_few2", "llmx_sparse_values_few2", "llmx_sparse_scores_few32", "llmx_sparse_values_few16x2", "llmx_sparse_scores_tile", "llmx_sparse_values_tile", "llmx_route_sqrt_softplus", "llmx_route_step_f32", "llmx_route_step_bf16", "llmx_norm_rope_form", "llmx_delta_step", "llmx_mix_rows", "llmx_layer_norm_rows", "llmx_gelu", "llmx_add_bias", "llmx_q8_0_rows16_1",
 
                                                            "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_2_r4", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_4_r4",
                                                            "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_8_r4", "llmx_q8_0_rows16_16", "llmx_q8_0_tile16", "llmx_q8_0_rows8_1",
@@ -3755,7 +3773,7 @@ private:
     // A group sum's kernel, launched without raise_failed: the collective checks every member before it launches any, so no member waits for a peer whose launch threw.
     void group_launch(GpuSumForm form, unsigned blocks, const Args& args) {
         forget_twins();
-        const Kernel k = form == GpuSumForm::two_shots ? kGroupTwoShots : form == GpuSumForm::chain || form == GpuSumForm::wrap ? kGroupChain : kGroupSum;
+        const Kernel k = form == GpuSumForm::chain || form == GpuSumForm::wrap ? kGroupChain : form == GpuSumForm::shares ? kGroupShares : form == GpuSumForm::copies ? kGroupCopies : kGroupSum;
         issue(kernels_[k], blocks, 1, 1, kThreads, args, kKernelNames[k]);
         ++launched_[k];
     }
@@ -3789,14 +3807,14 @@ private:
     };
     void hold(const Held& op) {
         materialize();
-        // A device with nothing left running starts on the first few, rather than waiting while the host records a whole chunk.
-        if (!opened_) chunk_ = done(tickets_.last()) ? kFirstChunk : dev_.profile.dispatch_chunk;
         ops_.push_back(op);
         opened_ = true;
-        if (ops_.size() >= chunk_) {
-            flush();
-            chunk_ = dev_.profile.dispatch_chunk;
+        // A device with nothing left running starts on the first few, rather than waiting while the host records a whole chunk; it is asked once a submission, at the first few, so a short one asks nothing.
+        if (ops_.size() == kFirstChunk && !asked_) {
+            asked_ = true;
+            if (done(tickets_.last())) return flush();
         }
+        if (ops_.size() >= dev_.profile.dispatch_chunk) flush();
     }
     void issue(typename Api::Function f, unsigned gx, unsigned gy, unsigned gz, unsigned threads, const Args& args, const char* name, unsigned shared = 0) {
         const size_t at = (op_bytes_.size() + 15) & ~size_t(15);
@@ -3824,8 +3842,9 @@ private:
         try {
             for (const Held& op : ops) {
                 // A submission's busy time starts at its first operation after its waits on other devices (busy_ms).
+                if (!started_ && op.kind == Held::wait_word) waited_ = true;
                 if (!started_ && op.kind != Held::wait_word) {
-                    Api::check(Api::event_record(starts_[(tickets_.last() + 1) % kEvents], stream_), "event_record");
+                    start();
                     started_ = true;
                 }
                 const bool timed = timing_ && op.kind <= Held::fill && timed_.size() < kTimedOps;
@@ -3911,8 +3930,10 @@ private:
     TicketLedger tickets_;
     bool opened_ = false;
     bool started_ = false;   // the open ticket's start event is recorded
+    bool waited_ = false;    // the open ticket waits on another device before its first operation
+    std::array<bool, kEvents> chained_{};   // per event slot, its ticket starts at the previous ticket's end event rather than its own start (start)
     static constexpr size_t kFirstChunk = 8;
-    size_t chunk_ = kFirstChunk;   // the held operations the open submission issues at, kFirstChunk while its device had nothing running
+    bool asked_ = false;   // the open submission asked at kFirstChunk held whether its device had nothing running
     std::vector<Held> ops_;   // the stream operations held since the last flush
     std::vector<uint8_t> op_bytes_;   // their kernels' arguments
     const bool timing_;   // made for diagnostics, so flush times its kernels, copies and fills (kernel_times)
@@ -3932,10 +3953,13 @@ private:
     unsigned* fault_ = nullptr;   // host memory a group sum's kernel sets where it gave up waiting (kernels/f32.gpu, llmx_group_sum)
     std::map<std::vector<int>, GroupPath> group_paths_;   // per group of device indices led by this backend
     std::map<std::pair<std::vector<const Backend*>, size_t>, std::vector<size_t>> picks_;   // member_order's permutation by listing and width, asked once
+    unsigned summed_by_ = 0;   // transport_bit of each transport a timed group of this device picked, which collective_bytes_per_row counts
     // The backends of this kind `members` names, this one first, with their device indices, refused as join refuses them.
     std::vector<GpuBackend<Api>*> group_of(const std::vector<Backend*>& members, std::vector<int>& ids);
     // This backend's path for the group of `ids`, probed and reported on stderr the first time the group is named.
     GroupPath& group_path(const std::vector<GpuBackend<Api>*>& group, const std::vector<int>& ids);
+    // Records the transports `path` picks on every member of `group`, and reports the times its timing gave on stderr, where it gave any.
+    static void timed_group(const std::vector<GpuBackend<Api>*>& group, const std::vector<int>& ids, const GroupPath& path, const std::string& times);
 };
 
 template <class Api>

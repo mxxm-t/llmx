@@ -25,6 +25,9 @@ constexpr const unsigned char* kInt16Module = llmx_cuda_int16_module;
 CUresult set_context(int index) {
     static std::mutex m;
     static std::vector<CUcontext> contexts;
+    // Each thread keeps the contexts it has made current, so the switches between a group's members take no lock.
+    thread_local std::vector<CUcontext> known;
+    if ((size_t)index < known.size() && known[(size_t)index]) return cu().cuCtxSetCurrent(known[(size_t)index]);
     CUcontext c = nullptr;
     {
         std::lock_guard<std::mutex> lock(m);
@@ -36,6 +39,8 @@ CUresult set_context(int index) {
         }
         c = contexts[(size_t)index];
     }
+    if ((size_t)index >= known.size()) known.resize((size_t)index + 1, nullptr);
+    known[(size_t)index] = c;
     return cu().cuCtxSetCurrent(c);
 }
 
@@ -54,6 +59,8 @@ struct CudaApi {
     static constexpr CopyKind kToHost = 0, kToDevice = 0, kAnyCopy = 0;
     static constexpr const char* name = "cuda";
     static constexpr bool int8_tensor_tiles = true;   // the module has the K-quants' tall tensor-core tiles (kernels/int16.gpu, k_mma at 128 outputs)
+    static constexpr bool copy_sums = true;   // host writes also time copies (collective_core.hpp, copied)
+    static constexpr bool registered_coherent = true;   // registered host memory is as coherent as the driver's own allocations (collective_core.hpp, stage_for)
     static inline const std::string prefix = "cuda: ";
     static constexpr const unsigned char* f32_module = kF32Module;
     static constexpr const unsigned char* int16_module = kInt16Module;
@@ -164,7 +171,16 @@ DeviceCaps& cuda_caps(Backend& backend) { return dynamic_cast<CudaBackend&>(back
 std::unique_ptr<Collective> cuda_collective(const std::vector<Backend*>& members, size_t rows, size_t width, GpuSumForm form, GroupTransport transport) {
     std::vector<CudaBackend*> group;
     for (Backend* b : members) group.push_back(&dynamic_cast<CudaBackend&>(*b));
-    return std::make_unique<GpuCollective<CudaApi>>(group, rows, width, transport, false, form);
+    return std::make_unique<GpuCollective<CudaApi>>(group, rows, width, std::vector<GroupTransport>{transport}, false, GpuSumPick{transport, form}, form == GpuSumForm::copies);
+}
+std::unique_ptr<Collective> cuda_collective(const std::vector<Backend*>& members, size_t rows, size_t width, const std::map<size_t, GpuSumPick>& forms) {
+    std::vector<CudaBackend*> group;
+    for (Backend* b : members) group.push_back(&dynamic_cast<CudaBackend&>(*b));
+    bool copies = false;
+    for (const auto& [n, p] : forms) copies |= p.form == GpuSumForm::copies;
+    auto c = std::make_unique<GpuCollective<CudaApi>>(group, rows, width, named_transports(forms), false, std::nullopt, copies);
+    c->use(forms);
+    return c;
 }
 
 } // namespace backend

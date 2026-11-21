@@ -88,14 +88,16 @@ Weight types follow this order: Q8_0, then Q4_K with Q5_K and Q6_K (a Q4_K_M fil
 
 ## Collective design (planned)
 
-Three transports, chosen at join by the existing probe (peer access, then a sum of known rows) and the existing per-size form timing, with no rule written for any topology:
+Three transports, kept at join by the probes (peer access, then a sum of known rows) and picked per size by timing, with no rule written for any topology:
 
-1. Peer writes, over NVLink or over PCIe where the driver allows peer access: the shared one-shot, two-shot, chain and ring forms unchanged, staging in device memory, signals released and acquired at system scope.
+1. Peer writes, over NVLink or over PCIe where the driver allows peer access: the shared one-shot, shares and chain forms unchanged, staging in device memory, signals released and acquired at system scope.
 2. Host-staged writes, where the driver refuses peer access: each member writes its partial rows and an epoch into pinned host memory mapped to every member, and peers read them over PCIe, with device-side signals and no host round trip.
 3. Conservative: event-ordered host-staged copies and the same sum kernel, where the probe fails.
 
 Every form sums in member order in F32 and writes the same bytes, so a group's result does not depend on which transport or form timing chose.
-As built in step 6, transports 1 and 2 are one collective in the shared core (`gpu/collective_core.hpp`, `GroupTransport`): host writes run the peer-write kernels and forms with each member's signals and slots in mapped pinned host memory, and time transport 3's pulls per size beside the forms, so a size where the copy engines win takes them; a group where both probes fail takes pulls throughout.
+As built in step 6, transports 1 and 2 are one collective in the shared core (`gpu/collective_core.hpp`, `GroupTransport`): host writes run the peer-write kernels and forms with each member's signals and slots in mapped pinned host memory placed on the member's NUMA node, and also time transport 3's pulls and copies, the shares sent through host memory by copy engines, which store 28 GB/s down in all where four RTX 3080s' kernels stored 4.8 to 11 (docs/src/backends-gpu.md, the collective).
+A group keeps every transport whose probe passes, and `join` times every form of each at every size and keeps the fastest transport and form per size (`GpuSumPick`), so on a PCIe 3 pair where peer stores run slower than host writes a prompt's sums take host writes and a token's peer writes; the staging of a transport no size picked is freed, and a group where both probes fail takes pulls throughout.
+Every kernel form within 8 times the best pick's time is also timed at halved block caps (`GpuSumPick::blocks`), then at 3/4 and 3/2 of the cap the halving kept, since peer stores that cross a CPU's host bridges run faster from fewer writers: on two RTX A4000 on PCIe 3 x8 (topology NODE) the peer one-shot of two blocks sums a 5120-float row in 16.5 us against 26.8 for the pulls the join took before, and pulls keep 32 rows and more at 94% of the copy engine's both-ways rate (docs/STATUS.md).
 NVLink and NVSwitch take transport 1 unchanged and the form timing picks per size; a context reaches at most eight peers, so an all-peer group is at most nine cards on every NVIDIA card, and host writes are the fast transport past that.
 Hopper's asynchronous copies do not enter the collective.
 A bridgeless GeForce pair refuses peer access, so a session on one proves transports 2 and 3 only, and peer writes on CUDA wait for the NVLink session.
@@ -104,7 +106,7 @@ There host writes did not make a group of two beat the layer split: on Qwen3.6-2
 Layer-split handoffs use the shared counters in coherent host memory with the driver's stream wait and write calls, and need no peer access.
 
 NCCL is an optional byte transport behind its own off-by-default build option, valid only with the CUDA backend, and opened at run time like the driver.
-It would be a fourth `GroupTransport` and carries bytes only, send and receive or gather inside the two-shot and chain forms, followed by the ordered local sums; its all-reduce is never used, since its sum order follows size and topology and would break member-order identity and batch invariance.
+It would be a fourth `GroupTransport` and carries bytes only, send and receive or gather inside the shares and chain forms, followed by the ordered local sums; its all-reduce is never used, since its sum order follows size and topology and would break member-order identity and batch invariance.
 This is the rule ROCM.md gives RCCL (ROCM.md, Collective design and proof), and it is adopted only if timing at join shows it beating transports 1 and 2 at some size.
 Graph capture is not part of the first delivery; it is added later only with a measured launch-gap cost.
 

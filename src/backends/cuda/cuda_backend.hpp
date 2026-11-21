@@ -31,5 +31,7 @@ DeviceCaps& cuda_caps(Backend& backend);
 
 // A collective over `members` whose fast sums all take `form` over `transport`, never probed: the tests' witness of each form and transport.
 std::unique_ptr<Collective> cuda_collective(const std::vector<Backend*>& members, size_t rows, size_t width, GpuSumForm form, GroupTransport transport);
+// The same with each fast sum's transport and form by its size, `forms` from each size up as the join's timing keeps them, staging every transport they name: the tests' witness of sums switching transport.
+std::unique_ptr<Collective> cuda_collective(const std::vector<Backend*>& members, size_t rows, size_t width, const std::map<size_t, GpuSumPick>& forms);
 
 } // namespace backend

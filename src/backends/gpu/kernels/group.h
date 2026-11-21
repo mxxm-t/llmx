@@ -6,11 +6,18 @@ namespace {
 // A tensor group's sum (GpuCollective, docs/src/backends-gpu.md): each member's area holds this block of signals, then a staging slot for each member's partial rows.
 // kGroupMembers is the host's backend::kMaxTensorWidth, kGroupBlocks, kChainBlocks and kChainUnits the host's of the same names (collective_core.hpp).
 constexpr int kGroupBlocks = 32, kGroupMembers = 16, kChainBlocks = 16;
-constexpr unsigned long long kChainUnits = 4096;   // float4 units a chain's chunk
+constexpr unsigned long long kChainUnits = 4096;   // float4 units a chain's largest chunk
+constexpr unsigned long long kChainDepth = 8, kChainLeast = 256;   // chunks a chain block aims for, and the fewest float4 units a chunk
+// A chain's chunk: halved from kChainUnits until each of the F blocks a side gets kChainDepth chunks, so a member starts on a chunk while its predecessor sends the next.
+__device__ inline unsigned long long group_chain_units(unsigned long long units, unsigned F) {
+    unsigned long long cu = kChainUnits;
+    while (cu > kChainLeast && (units + cu - 1) / cu < kChainDepth * F) cu /= 2;
+    return cu;
+}
 struct GroupSignal {
-    unsigned epoch[kGroupBlocks];   // the last sum's epoch in two shots or a chain, per block, first in the area
+    unsigned epoch[kGroupBlocks];   // the last sum's epoch in a chain, per block, first in the area
     unsigned abort;                 // set by a member whose wait ran out, read by every member's waits
-    unsigned start[kGroupBlocks][kGroupMembers], mid[kGroupBlocks][kGroupMembers], done[kGroupBlocks][kGroupMembers];   // [block][sender]: the epoch a sender's block reached
+    unsigned done[kGroupBlocks][kGroupMembers];   // [block][sender]: the epoch a sender's block reached
     unsigned ahead[kChainBlocks], back[kChainBlocks];     // the chunks a chain's predecessor and successor passed this member so far, per chain block
     unsigned passed[2][kChainBlocks];                     // this member's own count of the same, ahead then back, which every member keeps equal
 };

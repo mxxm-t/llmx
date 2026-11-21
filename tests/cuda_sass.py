@@ -64,6 +64,9 @@ DP4A_KERNELS = ("llmx_q8_0_half8_1", "llmx_q4_k_rows8_1")
 # Measured 26.7, 29.2 and 38.3 over the fold's floors of about 18.5, 18.5 and 28.5, so a fold or staging regrowth fails; a ceiling drops with each trim.
 TALL_LOOP = {"llmx_q4_k_tile8_tall": 28, "llmx_q5_k_tile8_tall": 31, "llmx_q6_k_tile8_tall": 40}
 
+# The tensor-group kernels, whose 16-byte stores (store_vector in kernels/port.h, a float4 to the output) nvcc split into four word stores from a plain store where one value goes to several places.
+GROUP_KERNELS = ("llmx_group_sum", "llmx_group_push", "llmx_group_take", "llmx_group_shares", "llmx_group_chain")
+
 # sizeof(TwinMap), which backend_core.hpp pins with a static_assert: a kernel taking the map has a by-value PTX parameter of this many bytes.
 TWIN_MAP_BYTES = 120
 
@@ -134,6 +137,26 @@ def imma_loop(lines):
     return best
 
 
+def split_stores(lines):
+    """Runs of four 32-bit global stores in a row to [R+o] .. [R+o+12], o a multiple of 16, with no branch or convergence barrier among them: one 16-byte store split in four."""
+    found, run = [], []
+    for line in lines:
+        if re.search(r"\b(BRA|BRX|JMP|EXIT|BSSY|BSYNC|SSY|SYNC|RET|CALL)\b", line):
+            run = []
+            continue
+        m = re.search(r"\b(?:STG|ST)\.E((?:\.[A-Z0-9]+)*)\s+\[(R\d+)(?:\+0x([0-9a-f]+))?\]", line)
+        if not m:
+            continue
+        if re.search(r"\.(64|128|U8|S8|U16|S16)\b", m.group(1)):
+            run = []
+            continue
+        run = (run + [(m.group(2), int(m.group(3) or "0", 16), line.strip())])[-4:]
+        if len(run) == 4 and len({r for r, _, _ in run}) == 1 and run[0][1] % 16 == 0 and [o - run[0][1] for _, o, _ in run] == [0, 4, 8, 12]:
+            found.append(run[0][2])
+            run = []
+    return found
+
+
 def main():
     if len(sys.argv) != 3:
         print("usage: cuda_sass.py GENERATED_CUDA_DIR CUOBJDUMP")
@@ -187,6 +210,11 @@ def main():
         local = sorted(fn for fn in takers & set(funcs) if arch not in spilled.get(fn, ()) and any(re.search(r"\b(LDL|STL)\b", l) for l in funcs[fn]))
         bad = [f"{fn} keeps a local object" for fn in kept] + [f"{fn} uses local memory" for fn in local] + [f"{fn} takes no map" for fn in unheld] + [f"{fn} has no SASS" for fn in absent]
         require(takers and not bad, f"{arch}: the {len(takers)} kernels taking a twin map keep no local object and use local memory only to spill" + (" (" + ", ".join(bad) + ")" if bad else ""))
+        # Each tensor-group kernel stores whole 16-byte units, its peer stores system-scope ones (st.global.wt), and splits none of them into word stores (docs/src/backends-gpu.md).
+        bad = [f"{fn} has no SASS" for fn in GROUP_KERNELS if fn not in funcs]
+        bad += [f"{fn} has no system-scope 16-byte store" for fn in GROUP_KERNELS if fn in funcs and not any(re.search(r"\bSTG\.E\.128\.STRONG\.SYS\b", l) for l in funcs[fn])]
+        bad += [f"{fn} splits a 16-byte store at {split_stores(funcs[fn])[0].split(';')[0]}" for fn in GROUP_KERNELS if fn in funcs and split_stores(funcs[fn])]
+        require(not bad, f"{arch}: the tensor-group sums store their 16-byte units whole" + (" (" + ", ".join(bad) + ")" if bad else ""))
         # The int8 class (docs/CUDA.md, step 4): the Q8_0 prompt tiles sum on the integer tensor cores and the 8-bit rows on the four-way dot.
         funcs = sass_by_function(cuobjdump, os.path.join(gen, "int16.fatbin"), arch)
         no_imma = [fn for fn in IMMA_KERNELS if not any("IMMA" in l for l in funcs.get(fn, []))]

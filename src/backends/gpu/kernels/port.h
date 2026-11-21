@@ -140,6 +140,8 @@ template <int N> using gpu_words = unsigned __attribute__((ext_vector_type(N), a
 template <int N> using gpu_vector = unsigned __attribute__((ext_vector_type(N)));
 // The vector at p in one volatile load, so a spin on it sees each peer's store.
 template <int N> __device__ __forceinline__ gpu_vector<N> load_volatile(const gpu_vector<N>* p) { return *(const volatile gpu_vector<N>*)p; }
+// The vector to p in one store.
+template <int N> __device__ __forceinline__ void store_vector(gpu_vector<N>* p, gpu_vector<N> v) { *p = v; }
 
 #elif defined(__CUDACC__)
 
@@ -349,6 +351,9 @@ __device__ __forceinline__ gpu_vector4 load_volatile(const gpu_vector4* p) {
     asm volatile("ld.volatile.global.v4.u32 {%0, %1, %2, %3}, [%4];" : "=r"(r.x), "=r"(r.y), "=r"(r.z), "=r"(r.w) : "l"(p) : "memory");
     return r;
 }
+// The vector to p in one store: nvcc splits a plain store into four word stores where a loop stores one value to several places, and keeps st.global.wt whole.
+// A system-scope strong store, so the staging words a peer spins on with system-scope volatile loads are a pair the PTX memory model orders (docs/src/backends-gpu.md).
+__device__ __forceinline__ void store_vector(gpu_vector4* p, gpu_vector4 v) { __stwt((uint4*)p, make_uint4(v.x, v.y, v.z, v.w)); }
 
 // tanh as (1 - e) / (1 + e) of e = expf(-2|x|) with an IEEE divide, since CUDA's tanhf flushes subnormals in its reciprocal and the kernels keep them (tests/cuda_sass.py).
 __device__ __forceinline__ float gpu_tanhf(float x) {

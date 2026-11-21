@@ -1,5 +1,5 @@
 // backend-cuda: CUDA device 0, buffers, a refused allocation, the F32 matmul against the CPU, every weight type's products and row classes, the qwen35, routed and DeepSeek-V4.1 ops, attention tiles, and two-device groups and handoffs.
-// Its modes `types`, `qwen35`, `moe`, `deepseek4`, `groups` and `bench` run one part each (docs/TESTS.md); it exits 77 where there is no driver or device.
+// Its modes `types`, `qwen35`, `moe`, `deepseek4`, `groups`, `bench` and `sums` run one part each (docs/TESTS.md); it exits 77 where there is no driver or device.
 #include "attention_tiles.hpp"
 #include "backends/cuda/cuda_backend.hpp"
 #include "backends/cuda/cuda_device.hpp"
@@ -381,11 +381,29 @@ CUresult counted_copy(CUdeviceptr dst, CUdeviceptr src, size_t bytes, CUstream s
     ++sum_calls_seen.copies;
     return real_copy(dst, src, bytes, s);
 }
+// While set, a stream wait the backend issues waits for the handoff check's gate word to reach 1 instead, so the sender's work cannot end before the check opens the gate.
+CUdeviceptr handoff_gate = 0;
+decltype(CuFn::cuStreamWaitValue64) real_wait = nullptr;
+CUresult gated_wait(CUstream s, CUdeviceptr, cuuint64_t, unsigned flags) { return real_wait(s, handoff_gate, 1, flags); }
 // Whether devices 0 and 1 reach each other's memory, as the driver says.
 bool peer_pair(CuFn& f) {
     CUdevice a = 0, b = 0;
     int can = 0;
     return f.cuDeviceGet(&a, 0) == CUDA_SUCCESS && f.cuDeviceGet(&b, 1) == CUDA_SUCCESS && f.cuDeviceCanAccessPeer(&can, a, b) == CUDA_SUCCESS && can;
+}
+// Disables the peer access of every directed pair of the first `most` devices, as a fresh process has none.
+void drop_peer_access(CuFn& f, size_t most) {
+    CUcontext kept = nullptr;
+    (void)f.cuCtxGetCurrent(&kept);
+    std::vector<CUcontext> ctx(most, nullptr);
+    for (size_t i = 0; i < most; ++i) {
+        CUdevice dev = 0;
+        if (f.cuDeviceGet(&dev, (int)i) != CUDA_SUCCESS || f.cuDevicePrimaryCtxRetain(&ctx[i], dev) != CUDA_SUCCESS) return;
+    }
+    for (size_t a = 0; a < most; ++a)
+        for (size_t b = 0; b < most; ++b)
+            if (a != b && f.cuCtxSetCurrent(ctx[a]) == CUDA_SUCCESS) (void)f.cuCtxDisablePeerAccess(ctx[b]);
+    (void)f.cuCtxSetCurrent(kept);
 }
 CUresult no_peer(int* can, CUdevice, CUdevice) {
     *can = 0;
@@ -429,18 +447,30 @@ void oracle_sums(const std::vector<Backend*>& group, Collective& c, size_t width
     require(bad == 0, what + ": " + std::to_string(n) + " sums of " + std::to_string(group.size()) + " members in member order, " + std::to_string(bad) + " members off the oracle");
 }
 
+// Picks that switch transport, form, block cap or all of them at every size, as a join's timing may keep them where neither transport wins at every size: the crossover the collective follows within one group.
+const std::map<size_t, GpuSumPick> kCrossover = {
+    {64, {GroupTransport::host_writes, GpuSumForm::shares}}, {256, {GroupTransport::peer_writes, GpuSumForm::chain}}, {512, {GroupTransport::host_writes, GpuSumForm::chain}},
+    {1024, {GroupTransport::peer_writes, GpuSumForm::one_shot}}, {1027, {GroupTransport::host_writes, GpuSumForm::pulls}}, {4096, {GroupTransport::host_writes, GpuSumForm::one_shot, 2}},
+    {4 * 4096, {GroupTransport::peer_writes, GpuSumForm::shares, 2}}, {8 * 4096, {GroupTransport::host_writes, GpuSumForm::chain, 1}}};
+
 // The arms over the armed bits, NaN payloads, infinities and zeros, many sums so each parity half is armed again many times: peer writes where the devices allow them, host writes and pulls, each against the pulls' bits.
+// Where the devices allow peer writes, one arm switches transport by size as kCrossover picks, two sums in flight across a switch.
 void sentinel_sums(size_t W, bool peer) {
     static const uint32_t bits[] = {0x7f800001u, 0x7fc00001u, 0xff800001u, 0xffc00001u, 0x7fc00000u, 0x7f812345u, 0x7fd12345u, 0x7f800000u, 0xff800000u, 0x80000000u, 0x0u, 0x00000001u};
     const size_t cap = 8 * 1031, sizes[] = {1, 3, 5, 63, 64, 97, 255, 256, 1023, 1024, 1027, cap};
-    const GpuSumForm forms[] = {GpuSumForm::one_shot, GpuSumForm::two_shots, GpuSumForm::chain, GpuSumForm::wrap, GpuSumForm::pulls};
+    const GpuSumForm forms[] = {GpuSumForm::one_shot, GpuSumForm::chain, GpuSumForm::wrap, GpuSumForm::shares, GpuSumForm::copies, GpuSumForm::pulls};
     std::vector<std::vector<BackendPtr>> sides;
     std::vector<std::unique_ptr<Collective>> arms;
     std::vector<std::string> names;
+    if (peer) {
+        sides.push_back(cuda_devices(W));
+        arms.push_back(cuda_collective(raw(sides.back(), W), cap, 1, kCrossover));
+        names.push_back("crossover");
+    }
     for (const GroupTransport t : {GroupTransport::peer_writes, GroupTransport::host_writes, GroupTransport::pulls}) {
         if (t == GroupTransport::peer_writes && !peer) continue;
         for (const GpuSumForm form : forms) {
-            if (t == GroupTransport::pulls ? form != GpuSumForm::one_shot : form == GpuSumForm::pulls && t != GroupTransport::host_writes) continue;
+            if (t == GroupTransport::pulls ? form != GpuSumForm::one_shot : (form == GpuSumForm::pulls || form == GpuSumForm::copies) && t != GroupTransport::host_writes) continue;
             sides.push_back(cuda_devices(W));
             arms.push_back(cuda_collective(raw(sides.back(), W), cap, 1, form, t));
             names.push_back(std::string(t == GroupTransport::peer_writes ? "peer writes " : t == GroupTransport::host_writes ? "host writes " : "pulls ") + std::to_string((int)form));
@@ -491,15 +521,15 @@ void sentinel_sums(size_t W, bool peer) {
     for (size_t a = 0; a < ref; ++a) require(bad[a] == 0, std::to_string(W) + " devices, 600 sums of armed bits, NaN payloads, infinities and zeros by " + names[a] + " give the pulls' bits");
 }
 
-// Device 0 sends rows through a host-visible buffer to every other device in three rounds, the second behind slow work on the sender, each reader's copy waiting on the device.
+// Device 0 sends rows through a host-visible buffer to every other device in three rounds, the second behind a sender's wait the check releases only after every take returned, each reader's copy waiting on the device.
 void handoffs(std::vector<BackendPtr>& d) {
-    const size_t n = 4099, bytes = n * sizeof(float), big = (size_t)64 << 20;
+    const size_t n = 4099, bytes = n * sizeof(float);
     std::vector<Backend*> readers;
     for (size_t r = 1; r < d.size(); ++r) readers.push_back(d[r].get());
     const std::unique_ptr<Handoff> h = d[0]->handoff(readers);
     require(h != nullptr, "a CUDA handoff to CUDA readers is made");
     if (!h) return;
-    const BufferPtr box = d[0]->alloc(bytes, Memory::host_visible), rows = d[0]->alloc(bytes), from = d[0]->alloc(big), to = d[0]->alloc(big);
+    const BufferPtr box = d[0]->alloc(bytes, Memory::host_visible), rows = d[0]->alloc(bytes), gate = d[0]->alloc(sizeof(uint64_t), Memory::host_visible);
     std::vector<BufferPtr> dst;
     for (size_t r = 1; r < d.size(); ++r) dst.push_back(d[r]->alloc(bytes));
     for (int round = 1; round <= 3; ++round) {
@@ -507,11 +537,19 @@ void handoffs(std::vector<BackendPtr>& d) {
         for (size_t i = 0; i < n; ++i) want[i] = float((int)((i * 7 + (size_t)round * 13) % 61) - 30) * 0.25f + (float)round;
         d[0]->write(*rows, 0, want.data(), bytes);
         d[0]->wait(d[0]->submit());
-        if (round == 2)
-            for (int i = 0; i < 32; ++i) d[0]->copy(*to, 0, *from, 0, big);
+        // Round 2's begin waits for the gate in place of the readers' counts, so the check does not race the sender's work (docs/TESTS.md, backend-cuda).
+        volatile uint64_t* open = (volatile uint64_t*)gate->host_ptr();
+        *open = 0;
+        CuFn& f = cu();
+        if (round == 2) {
+            handoff_gate = (CUdeviceptr)(uintptr_t)gate->host_ptr();
+            real_wait = f.cuStreamWaitValue64;
+            f.cuStreamWaitValue64 = gated_wait;
+        }
         h->begin();
         d[0]->copy(*box, 0, *rows, 0, bytes);
         h->sent();
+        if (round == 2) f.cuStreamWaitValue64 = real_wait;
         const Ticket sent = d[0]->submit();
         for (size_t r = 1; r < d.size(); ++r) {
             h->take(r - 1, *dst[r - 1], 0, *box, 0, bytes);
@@ -519,6 +557,7 @@ void handoffs(std::vector<BackendPtr>& d) {
             d[r]->submit();
         }
         if (round == 2) require(!d[0]->done(sent), "a reader's take returns before the sender's slow work ends");
+        *open = 1;
         bool same = true;
         for (size_t r = 1; r < d.size(); ++r) {
             d[r]->sync();
@@ -559,8 +598,8 @@ void groups() {
             for (const GroupTransport t : {GroupTransport::peer_writes, GroupTransport::host_writes, GroupTransport::pulls}) {
                 if (t == GroupTransport::peer_writes && !peer) continue;
                 const std::string name = t == GroupTransport::peer_writes ? "peer writes" : t == GroupTransport::host_writes ? "host writes" : "pulls";
-                for (const GpuSumForm form : {GpuSumForm::one_shot, GpuSumForm::two_shots, GpuSumForm::chain, GpuSumForm::wrap, GpuSumForm::pulls}) {
-                    if (t == GroupTransport::pulls ? form != GpuSumForm::one_shot : form == GpuSumForm::pulls && t != GroupTransport::host_writes) continue;
+                for (const GpuSumForm form : {GpuSumForm::one_shot, GpuSumForm::chain, GpuSumForm::wrap, GpuSumForm::shares, GpuSumForm::copies, GpuSumForm::pulls}) {
+                    if (t == GroupTransport::pulls ? form != GpuSumForm::one_shot : (form == GpuSumForm::pulls || form == GpuSumForm::copies) && t != GroupTransport::host_writes) continue;
                     const size_t cap = 17 * 4 * 4096 + 5;
                     std::unique_ptr<Collective> forced = cuda_collective(group, cap, 1, form, t);
                     oracle_sums(group, *forced, 1, {1, 4 * W + 1, 4 * 4096 + 1, cap}, seed, name + " in form " + std::to_string((int)form) + ", " + at);
@@ -568,6 +607,23 @@ void groups() {
                 }
             }
         });
+        guarded("copies in chunks " + at, [&] {
+            // Copies in more chunks than their rows fill, so some chunks of a share are empty, then in three, each in place and into.
+            const size_t cap = 17 * 4 * 4096 + 5;
+            for (const unsigned chunks : {16u, 3u}) {
+                std::unique_ptr<Collective> c = cuda_collective(group, cap, 1, {{1, {GroupTransport::host_writes, GpuSumForm::copies, chunks}}});
+                oracle_sums(group, *c, 1, {1, 4 * W + 1, 4 * 4096 + 1, cap}, seed, "copies in " + std::to_string(chunks) + " chunks, " + at);
+                seed += 100;
+            }
+        });
+        guarded("crossover " + at, [&] {
+            if (!peer) return;
+            // One collective whose sums switch transport and form at each size kCrossover names, each side of every switch against the oracle.
+            const size_t cap = 17 * 4 * 4096 + 5;
+            std::unique_ptr<Collective> c = cuda_collective(group, cap, 1, kCrossover);
+            oracle_sums(group, *c, 1, {1, 70, 300, 600, 1025, 1027, 2000, 4097, 1, 4 * 4096 + 1, 300, 8 * 4096 + 1, 70, cap}, seed, "picks switching transport, " + at);
+        });
+        seed += 100;
         guarded("no peer access " + at, [&] {
             std::vector<BackendPtr> e = cuda_devices(W);
             const auto real = f.cuDeviceCanAccessPeer;
@@ -581,14 +637,18 @@ void groups() {
         });
         seed += 100;
         guarded("member order " + at, [&] {
-            const std::vector<size_t> order = d[0]->member_order(group, W, 64, 97);
+            // Fresh backends over pairs without access, as at a model's first load, so each order of a set probed once is timed through access enabled again.
+            if (peer) drop_peer_access(f, W);
+            std::vector<BackendPtr> e = cuda_devices(W);
+            const std::vector<Backend*> fresh = raw(e, W);
+            const std::vector<size_t> order = e[0]->member_order(fresh, W, 64, 97);
             std::vector<size_t> sorted = order;
             std::sort(sorted.begin(), sorted.end());
             bool permutes = sorted.size() == W;
             for (size_t k = 0; permutes && k < W; ++k) permutes = sorted[k] == k;
-            require(permutes && d[0]->member_order(group, W, 64, 97) == order, "the member order of " + at + " is one order of its members, kept");
+            require(permutes && e[0]->member_order(fresh, W, 64, 97) == order, "the member order of " + at + " is one order of its members, kept");
             std::vector<Backend*> ordered;
-            for (size_t k : order) ordered.push_back(group[k]);
+            for (size_t k : order) ordered.push_back(fresh[k]);
             std::unique_ptr<Collective> c = ordered[0]->join(ordered, 64, 97);
             oracle_sums(ordered, *c, 97, {1, 64}, seed, "in the member order, " + at);
         });
@@ -598,7 +658,173 @@ void groups() {
     guarded("handoffs", [&] { handoffs(d); });
 }
 
-} // namespace
+// The copy engine's rates between devices 0 and 1 and the host for the 27B's 512-row sum, one way and both at once, so the link's own rates stand beside the kernels' (`RATE` lines).
+void sum_rates(CuFn& f, bool peer) {
+    const size_t bytes = size_t(512) * 5120 * sizeof(float);
+    CUcontext kept = nullptr, ctx[2] = {nullptr, nullptr};
+    CUdeviceptr src[2] = {0, 0}, dst[2] = {0, 0};
+    void* host[2] = {nullptr, nullptr};
+    CUstream s[2] = {nullptr, nullptr};
+    bool ok = f.cuCtxGetCurrent(&kept) == CUDA_SUCCESS;
+    for (int i = 0; ok && i < 2; ++i) {
+        CUdevice dev = 0;
+        ok = f.cuDeviceGet(&dev, i) == CUDA_SUCCESS && f.cuDevicePrimaryCtxRetain(&ctx[i], dev) == CUDA_SUCCESS && f.cuCtxSetCurrent(ctx[i]) == CUDA_SUCCESS &&
+             f.cuMemAlloc(&src[i], bytes) == CUDA_SUCCESS && f.cuMemAlloc(&dst[i], bytes) == CUDA_SUCCESS && f.cuMemHostAlloc(&host[i], bytes, CU_MEMHOSTALLOC_PORTABLE) == CUDA_SUCCESS &&
+             f.cuStreamCreate(&s[i], CU_STREAM_NON_BLOCKING) == CUDA_SUCCESS;
+    }
+    // kind 0 copies into device i from its peer, 1 from device i to the host, 2 from the host to device i.
+    const auto issue = [&](int i, int kind) {
+        bool done = f.cuCtxSetCurrent(ctx[i]) == CUDA_SUCCESS;
+        if (kind == 0) done = done && f.cuMemcpyAsync(dst[i], src[1 - i], bytes, s[i]) == CUDA_SUCCESS;
+        else if (kind == 1) done = done && f.cuMemcpyAsync((CUdeviceptr)host[i], src[i], bytes, s[i]) == CUDA_SUCCESS;
+        else done = done && f.cuMemcpyAsync(dst[i], (CUdeviceptr)host[i], bytes, s[i]) == CUDA_SUCCESS;
+        return done;
+    };
+    const auto rate = [&](const char* what, const std::vector<std::pair<int, int>>& ops) {
+        std::vector<double> gb;
+        for (int rep = 0; ok && rep < 6; ++rep) {
+            const auto t0 = std::chrono::steady_clock::now();
+            for (int r = 0; r < (rep ? 10 : 1); ++r)
+                for (const auto& [i, k] : ops) ok = ok && issue(i, k);
+            for (int i = 0; i < 2; ++i) ok = ok && f.cuStreamSynchronize(s[i]) == CUDA_SUCCESS;
+            if (rep) gb.push_back(bytes / (std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count() / 10) / 1e3);
+        }
+        if (!ok) return;
+        std::sort(gb.begin(), gb.end());
+        std::printf("RATE %s: %.2f GB/s a copy, median of 5 (%.2f to %.2f)\n", what, gb[2], gb[0], gb[4]);
+    };
+    if (peer) {
+        rate("peer copy from device 1 to 0", {{0, 0}});
+        rate("peer copy from device 0 to 1", {{1, 0}});
+        rate("peer copies both ways at once", {{0, 0}, {1, 0}});
+    }
+    rate("device 0 to host", {{0, 1}});
+    rate("host to device 0", {{0, 2}});
+    rate("devices 0 and 1 to host at once", {{0, 1}, {1, 1}});
+    rate("host to devices 0 and 1 at once", {{0, 2}, {1, 2}});
+    if (!ok) std::printf("RATE copies failed\n");
+    for (int i = 0; i < 2; ++i) {
+        if (!ctx[i] || f.cuCtxSetCurrent(ctx[i]) != CUDA_SUCCESS) continue;
+        if (s[i]) (void)f.cuStreamDestroy(s[i]);
+        if (src[i]) (void)f.cuMemFree(src[i]);
+        if (dst[i]) (void)f.cuMemFree(dst[i]);
+        if (host[i]) (void)f.cuMemFreeHost(host[i]);
+    }
+    (void)f.cuCtxSetCurrent(kept);
+}
+
+// Times a 2-wide group's sums by each transport, form and block cap the pair allows, from one 256-float row to 512 rows of the 27B's 5120, checking nothing (`backend-cuda sums`).
+// Each line is the median of 9 runs of back-to-back sums: the time a sum, each member's busy time a sum (`busy_ms`), the host's time to issue one, and that collective's sums of known rows off the oracle.
+void sums() {
+    CuFn& f = cu();
+    std::vector<BackendPtr> d = cuda_devices(2);
+    if (d.size() < 2) {
+        std::printf("backend-cuda: one device, so no tensor group to time\n");
+        return;
+    }
+    const bool peer = peer_pair(f);
+    std::printf("backend-cuda: devices 0 and 1 %s each other's memory\n", peer ? "reach" : "do not reach");
+    const std::vector<Backend*> group = raw(d, 2);
+    // Joining probes the pair and enables the peer access that the peer-write arms below write through.
+    const std::unique_ptr<Collective> joined = d[0]->join(group, 1, 1024);
+    sum_rates(f, peer);
+    std::fflush(stdout);
+    std::vector<GpuSumPick> arms;
+    for (const GroupTransport t : {GroupTransport::peer_writes, GroupTransport::host_writes}) {
+        if (t == GroupTransport::peer_writes && !peer) continue;
+        for (unsigned b : {0u, 8u, 4u, 2u, 1u}) arms.push_back({t, GpuSumForm::one_shot, b});
+        for (unsigned b : {0u, 8u, 4u}) arms.push_back({t, GpuSumForm::shares, b});
+        for (unsigned b : {0u, 4u, 1u}) arms.push_back({t, GpuSumForm::chain, b});
+        if (t == GroupTransport::host_writes) arms.push_back({t, GpuSumForm::pulls});
+    }
+    const size_t rows_of[] = {1, 1, 1, 1, 2, 4, 8, 32, 128, 512}, widths[] = {256, 1024, 2048, 5120, 5120, 5120, 5120, 5120, 5120, 5120};
+    const auto time_sums = [&](Collective& c, size_t rows, size_t width) {
+        const size_t n = rows * width;
+        const int N = n >= 100000 ? 10 : 32;
+        const auto run = [&] {
+            c.sum_in_place(rows, width);
+            for (Backend* m : group) m->submit();
+        };
+        run();
+        for (Backend* m : group) m->sync();
+        std::vector<double> ms, busy0, busy1, issue;
+        for (int rep = 0; rep < 9; ++rep) {
+            const Ticket a0 = group[0]->last_ticket(), a1 = group[1]->last_ticket();
+            const auto t0 = std::chrono::steady_clock::now();
+            for (int i = 0; i < N; ++i) run();
+            const auto t1 = std::chrono::steady_clock::now();
+            for (Backend* m : group) m->sync();
+            const auto t2 = std::chrono::steady_clock::now();
+            ms.push_back(std::chrono::duration<double, std::milli>(t2 - t0).count() / N);
+            issue.push_back(std::chrono::duration<double, std::micro>(t1 - t0).count() / N);
+            busy0.push_back(group[0]->busy_ms(a0, group[0]->last_ticket()) / N);
+            busy1.push_back(group[1]->busy_ms(a1, group[1]->last_ticket()) / N);
+        }
+        for (std::vector<double>* v : {&ms, &busy0, &busy1, &issue}) std::sort(v->begin(), v->end());
+        char line[160];
+        std::snprintf(line, sizeof line, "%.4f ms, %.2f GB/s, busy %.4f and %.4f ms, issue %.1f us", ms[4], n * 4.0 / ms[4] / 1e6, busy0[4], busy1[4], issue[4]);
+        return std::string(line);
+    };
+    // Two rounds, the second in another order, so a drift over the run shows as a difference between them.
+    for (int round = 0; round < 2; ++round) {
+        for (size_t k = 0; k < arms.size(); ++k) {
+            const GpuSumPick& a = arms[round ? arms.size() - 1 - k : k];
+            std::unique_ptr<Collective> c = cuda_collective(group, 512, 5120, std::map<size_t, GpuSumPick>{{0, a}});
+            for (size_t s = 0; s < sizeof(rows_of) / sizeof(rows_of[0]); ++s) {
+                const std::string t = time_sums(*c, rows_of[s], widths[s]);
+                size_t off = 0, held = 0;
+                if (widths[s] == 5120) (void)group_sums::check(group, *c, 5120, {rows_of[s]}, 7 + (uint32_t)round, [&](bool ok, const std::string&) { off += ok ? 0 : 1; ++held; });
+                std::printf("SUMS round %d %s %s cap %u, %zu floats: %s, %zu of %zu results off the oracle\n", round, a.transport == GroupTransport::peer_writes ? "peer writes" : "host writes", sum_form_name(a.form), a.blocks,
+                            rows_of[s] * widths[s], t.c_str(), off, held);
+            }
+            std::fflush(stdout);
+        }
+    }
+    // The pair joined as a model's group joins it, which times every kept transport's forms and caps and reports each size's pick on stderr; then that collective's sums.
+    std::unique_ptr<Collective> c = d[0]->join(group, 512, 5120);
+    for (size_t s = 0; s < sizeof(rows_of) / sizeof(rows_of[0]); ++s)
+        std::printf("SUMS joined, %zu floats: %s\n", rows_of[s] * widths[s], time_sums(*c, rows_of[s], widths[s]).c_str());
+}
+
+// Measurement (cuda88): every transport, form and cap at one size of rows x width, both member orders, as vsnccl times them.
+void sweepn(size_t rows, size_t width) {
+    std::vector<BackendPtr> d = cuda_devices(2);
+    if (d.size() < 2) return;
+    const std::vector<Backend*> fwd = raw(d, 2);
+    const std::unique_ptr<Collective> joined = d[0]->join(fwd, 1, 1024);
+    std::vector<GpuSumPick> arms;
+    for (const GroupTransport t : {GroupTransport::peer_writes, GroupTransport::host_writes}) {
+        for (unsigned b : {0u, 8u, 4u, 2u, 1u}) arms.push_back({t, GpuSumForm::one_shot, b});
+        for (unsigned b : {0u, 8u, 4u, 2u}) arms.push_back({t, GpuSumForm::shares, b});
+        for (unsigned b : {0u, 4u, 1u}) arms.push_back({t, GpuSumForm::chain, b});
+        if (t == GroupTransport::host_writes) arms.push_back({t, GpuSumForm::pulls});
+    }
+    const size_t n = rows * width;
+    for (int round = 0; round < 2; ++round) {
+        std::vector<Backend*> group = fwd;
+        if (round) std::reverse(group.begin(), group.end());
+        for (const GpuSumPick& a : arms) {
+            std::unique_ptr<Collective> c = cuda_collective(group, rows, width, std::map<size_t, GpuSumPick>{{0, a}});
+            const int N = n >= 100000 ? 10 : 32;
+            const auto run = [&] {
+                c->sum_in_place(rows, width);
+                for (Backend* m : group) m->submit();
+            };
+            run();
+            for (Backend* m : group) m->sync();
+            std::vector<double> ms;
+            for (int rep = 0; rep < 15; ++rep) {
+                const auto t0 = std::chrono::steady_clock::now();
+                for (int i = 0; i < N; ++i) run();
+                for (Backend* m : group) m->sync();
+                ms.push_back(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count() / N);
+            }
+            std::sort(ms.begin(), ms.end());
+            std::printf("SWEEP order %s %zux%zu %s %s cap %u us %.2f GBs %.3f\n", round ? "10" : "01", rows, width, a.transport == GroupTransport::peer_writes ? "peer" : "host", sum_form_name(a.form), a.blocks, ms[7] * 1e3, n * 4.0 / ms[7] / 1e6);
+        }
+        std::fflush(stdout);
+    }
+}
 
 // Measurement for tools/sums_vs_reference.py: the joined group's sums per size in one member order, timed as `sums` times them.
 void vsnccl(bool reversed, size_t W, size_t model) {
@@ -611,7 +837,7 @@ void vsnccl(bool reversed, size_t W, size_t model) {
     std::vector<size_t> rows_of = {1, 2, 4, 6, 8, 1, 13, 32, 128, 512}, widths = {5120, 5120, 5120, 5120, 5120, 65537, 5120, 5120, 5120, 5120};
     if (model != 5120) rows_of = {1}, widths = {model};
     for (size_t s = 0; s < rows_of.size(); ++s) {
-        Collective& c = widths[s] == 65537 ? *odd : *rows;
+        Collective& c = odd && widths[s] == 65537 ? *odd : *rows;
         const size_t n = rows_of[s] * widths[s];
         const int N = n >= 100000 ? 10 : 32;
         const auto run = [&] {
@@ -632,6 +858,90 @@ void vsnccl(bool reversed, size_t W, size_t model) {
     }
     std::fflush(stdout);
 }
+
+
+// Measurement (cuda89): one decode row's sum of `model` floats, the host's time in each call beside the time a sum takes and each member's busy time a submission.
+void issue(bool reversed, size_t W, size_t model) {
+    std::vector<BackendPtr> d = cuda_devices(W);
+    if (d.size() < W) return;
+    std::vector<Backend*> group = raw(d, W);
+    if (reversed) std::reverse(group.begin(), group.end());
+    const std::unique_ptr<Collective> c = group[0]->join(group, 512, model);
+    const int N = 32;
+    const auto run = [&] {
+        c->sum_in_place(1, model);
+        for (Backend* m : group) m->submit();
+    };
+    run();
+    for (Backend* m : group) m->sync();
+    std::vector<double> total, host, sum_host, busy0, busy1;
+    for (int rep = 0; rep < 15; ++rep) {
+        std::vector<Ticket> a;
+        for (Backend* m : group) a.push_back(m->last_ticket());
+        double h = 0, hs = 0;
+        const auto t0 = std::chrono::steady_clock::now();
+        for (int i = 0; i < N; ++i) {
+            const auto s0 = std::chrono::steady_clock::now();
+            c->sum_in_place(1, model);
+            const auto s1 = std::chrono::steady_clock::now();
+            for (Backend* m : group) m->submit();
+            const auto s2 = std::chrono::steady_clock::now();
+            hs += std::chrono::duration<double, std::micro>(s1 - s0).count();
+            h += std::chrono::duration<double, std::micro>(s2 - s0).count();
+        }
+        for (Backend* m : group) m->sync();
+        total.push_back(std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count() / N);
+        host.push_back(h / N);
+        sum_host.push_back(hs / N);
+        busy0.push_back(group[0]->busy_ms(a[0], group[0]->last_ticket()) * 1e3 / N);
+        busy1.push_back(group[1]->busy_ms(a[1], group[1]->last_ticket()) * 1e3 / N);
+    }
+    for (std::vector<double>* v : {&total, &host, &sum_host, &busy0, &busy1}) std::sort(v->begin(), v->end());
+    std::printf("ISSUE order %s n %zu us %.2f host %.2f sum-host %.2f busy %.2f %.2f\n", reversed ? "10" : "01", model, total[7], host[7], sum_host[7], busy0[7], busy1[7]);
+    std::fflush(stdout);
+}
+
+// Measurement (cuda89): the driver calls a sum issues, each timed alone over many calls, with its own device's context current and with the peer's.
+void apicost() {
+    std::vector<BackendPtr> d = cuda_devices(2);
+    if (d.size() < 2) return;
+    const CuFn& f = cu();
+    CUcontext c[2];
+    CUstream s[2];
+    CUevent timed[2], plain[2];
+    for (int i = 0; i < 2; ++i) {
+        CUdevice dev = 0;
+        cu_check(f.cuDeviceGet(&dev, i), "get");
+        cu_check(f.cuDevicePrimaryCtxRetain(&c[i], dev), "retain");
+        cu_check(f.cuCtxSetCurrent(c[i]), "set");
+        cu_check(f.cuStreamCreate(&s[i], CU_STREAM_NON_BLOCKING), "stream");
+        cu_check(f.cuEventCreate(&timed[i], CU_EVENT_DEFAULT), "event");
+        cu_check(f.cuEventCreate(&plain[i], CU_EVENT_DISABLE_TIMING), "event");
+    }
+    const int N = 20000;
+    const auto per = [&](const char* name, const std::function<void(int)>& call) {
+        for (int i = 0; i < 1000; ++i) call(i);
+        const auto t0 = std::chrono::steady_clock::now();
+        for (int i = 0; i < N; ++i) call(i);
+        const double us = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count() / N;
+        cu_check(f.cuCtxSetCurrent(c[0]), "set");
+        cu_check(f.cuStreamSynchronize(s[0]), "sync");
+        cu_check(f.cuCtxSetCurrent(c[1]), "set");
+        cu_check(f.cuStreamSynchronize(s[1]), "sync");
+        std::printf("APICOST %s us %.3f\n", name, us);
+    };
+    per("set-context-alternating", [&](int i) { (void)f.cuCtxSetCurrent(c[i & 1]); });
+    cu_check(f.cuCtxSetCurrent(c[0]), "set");
+    per("record-timed-own", [&](int) { (void)f.cuEventRecord(timed[0], s[0]); });
+    per("record-plain-own", [&](int) { (void)f.cuEventRecord(plain[0], s[0]); });
+    cu_check(f.cuCtxSetCurrent(c[1]), "set");
+    per("record-timed-peer-current", [&](int) { (void)f.cuEventRecord(timed[0], s[0]); });
+    per("query-own-done", [&](int) { (void)f.cuEventQuery(timed[1]); });
+    per("pair-set-record", [&](int i) { (void)f.cuCtxSetCurrent(c[i & 1]); (void)f.cuEventRecord(timed[i & 1], s[i & 1]); });
+    per("pair-record-no-set", [&](int i) { (void)f.cuEventRecord(timed[i & 1], s[i & 1]); });
+    std::fflush(stdout);
+}
+} // namespace
 
 int main(int argc, char** argv) {
     const std::string mode = argc > 1 ? argv[1] : "";
@@ -671,8 +981,24 @@ int main(int argc, char** argv) {
         moe(d, *g, *cpu);
         return failures ? 1 : 0;
     }
+    if (mode == "sweepn") {
+        for (int k = 2; k + 1 < argc; k += 2) sweepn((size_t)std::atoi(argv[k]), (size_t)std::atoi(argv[k + 1]));
+        return 0;
+    }
+    if (mode == "apicost") {
+        apicost();
+        return 0;
+    }
+    if (mode == "issue") {
+        for (int k = 3; k < argc; ++k) issue(std::string(argv[2]) == "10", 2, (size_t)std::atoi(argv[k]));
+        return 0;
+    }
     if (mode == "vsnccl") {
         vsnccl(argc > 2 && std::string(argv[2]) == "10", argc > 3 ? (size_t)std::atoi(argv[3]) : 2, argc > 4 ? (size_t)std::atoi(argv[4]) : 5120);
+        return 0;
+    }
+    if (mode == "sums") {
+        sums();
         return 0;
     }
     if (mode == "groups") {

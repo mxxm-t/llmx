@@ -4070,6 +4070,458 @@ No slowdown on a path main has; the gain is on the 27B tensor group.
 
 **Gotchas.** The rebase conflicts were only the two `docs/TENSOR-SPLIT.md` lines that main's CUDA landing and this step both edit; both edits are kept.
 
+## Tensor-group sums: shares, and one member order every run (2026-11-19, SUMS1 to SUMS25, branch sums/shares on main c494eea6f)
+
+**Goal:** the owner's gate for ROCm and CUDA tensor-group sums: faster than RCCL and NCCL at every size and width and near the machine's own limit, every form adding in member order.
+
+**Done:**
+- Shares (`llmx_group_shares`, docs/src/backends-gpu.md, the collective): member k adds share k of the units in member order and sends its total to every peer, signalling with the data in the one-shot's parity half, so a large sum moves 2 (W - 1) / W of the rows a card with no meeting.
+- Two shots and a rotated shares form were timed beside it and dropped, and the first wrap with them (the wrap chain below replaced it): shares beat two shots and the wrap at every size from 10240 floats at widths 3 and 4, and the rotated form lost at widths 3 and 4 (2621440 floats: 1.92 against 1.99 ms at W=3, 2.20 against 2.63 at W=4) and tied at width 2.
+  The forms left are the one-shot, the chain (it wins a few sizes at width 2), the shares and the pulls; `kTimedForms` lists them and the stderr timing line names them from it.
+- `add_check` also refuses a device whose sanitized sum gives the armed bits themselves (`differ[3]`), which a waiting member would take for a row not yet sent.
+- The hand check `tools/sums_vs_reference.py` (docs/TESTS.md, Device checks by hand) times these sums against `all_reduce_perf` of rccl-tests or nccl-tests on the same devices and fails where llmx is slower at any size or width; no hosted runner has more than one GPU, so it runs by hand on four MI50s and on rented CUDA boxes.
+- A failed shares block poisons the units it writes, the meeting keeps only the signals the chain still uses, and `collective_bytes_per_row` counts two device halves a member for every picked transport, as host writes' pull slots and pulls' staging take.
+- `member_order` gives one order every run: groups are sets in listing order, of the swaps that beat the groups they change by `kOrderMargin` the first in listing order whose gain is within `kOrderMargin` of all the groups' time of the best gain is taken, and the groups go by their first member.
+  Before, ten runs on four MI50s (renderD132-135, width 2) picked 0+3, 1+2 six times, 0+3, 2+1 three times and 0+2, 1+3 once, at 0.406 to 0.434 ms against 0.570 to 0.611 as listed.
+- Shares split their grid by role: half the blocks send each row of every share to all owners before the next row and then take the other shares' totals, while the other half add the member's own share as its rows land and send the totals, so the totals leave beside the rows.
+  On four MI50s at width 4 the kernel's senders end at 385 us and its adders at 520 of 543 for 655360 floats, and the split took that size from 617 to 579 us and 2621440 floats from 2297 to 2117 in single calls; senders adding a tail of the own share, fewer or more senders, and polling all peers together were each equal or slower.
+- The block cap search halves a kernel form's blocks while that sums faster, then times the kept cap again beside 3/4 and 3/2 of it, below the form's own count, and keeps the fastest.
+  The halving alone went from 40 blocks to 20 at 163840 floats on four MI50s and kept 40, while 30 summed faster; six alternations gave 152.7 us against 155.9 (RCCL 155.3), the pick at 30 blocks in five of six processes.
+  A descent that took the faster of 3/4 and 1/2 at every step was tried first: it timed twice as many caps, each a single round where three sums outlast `kTimedSpanMs`, and picked caps that lost at mid sizes more often.
+- Copies (`GpuSumForm::copies`, docs/src/backends-gpu.md, the collective), timed under host writes on CUDA beside the kernel forms and pulls: the shares through host memory with copy engines sending each member's rows and totals chunk by chunk on a copy stream of its own, counts in host memory saying what landed, and kernel loads taking them, so no kernel stores across PCIe.
+  Its chunks are a pick's `blocks`, by default one a 1048576 floats up to 16, halved by the cap search; copies have a probe of their own, one sum by copies in two chunks, and its failure drops copies alone.
+- Host writes' areas and the copies' areas are placed on each member's NUMA node where registered host memory is coherent (CUDA), in 2 MB-aligned huge pages, by first touch from a thread bound to the node's CPUs and registration, with one stderr line where that fails.
+
+**Measured (MI50, renderD132-135, before = land/20261118's sums 57a932e49, after = this branch at 0f1aa3a4, which differs from it only by this entry and one comment's wording, RCCL all-reduce of rccl-tests in the same session, `tools/sums_vs_reference.py` with 5 cycles a width alternating the three, median us; host load average 9.8 to 25.7 over the run, recorded every 30 s; bound = 2 (W - 1) / W n floats at the measured kernel sum ceiling, limits2, 8.94, 8.29 and 8.76 GB/s a member at widths 2, 3 and 4):**
+
+| W | floats | before us | after us | RCCL us | after / RCCL | after % of bound |
+|---|---|---|---|---|---|---|
+| 2 | 256 | 16.77 | 11.28 | 17.21 | 0.655 | - |
+| 2 | 5120 | 17.73 | 13.03 | 25.65 | 0.508 | - |
+| 2 | 65537 | 50.42 | 41.86 | 50.38 | 0.831 | - |
+| 2 | 163840 | 100.58 | 88.00 | 99.76 | 0.882 | - |
+| 2 | 655360 | 340.97 | 320.12 | 339.00 | 0.944 | 92 |
+| 2 | 2621440 | 1329.82 | 1245.10 | 1308.80 | 0.951 | 94 |
+| 3 | 256 | 17.82 | 16.79 | 28.79 | 0.583 | - |
+| 3 | 5120 | 22.34 | 16.48 | 37.58 | 0.439 | - |
+| 3 | 65537 | 82.33 | 61.52 | 76.05 | 0.809 | - |
+| 3 | 163840 | 154.58 | 127.84 | 145.80 | 0.877 | - |
+| 3 | 655360 | 570.81 | 462.69 | 506.10 | 0.914 | 91 |
+| 3 | 2621440 | 2146.74 | 1775.28 | 1963.80 | 0.904 | 95 |
+| 4 | 256 | 24.22 | 22.38 | 39.15 | 0.572 | - |
+| 4 | 5120 | 24.64 | 33.01 | 48.07 | 0.687 | - |
+| 4 | 10240 | 38.01 | 32.74 | 46.86 | 0.699 | - |
+| 4 | 65537 | 109.45 | 72.32 | 80.60 | 0.897 | - |
+| 4 | 163840 | 202.35 | 152.69 | 155.90 | 0.979 | - |
+| 4 | 655360 | 736.25 | 546.27 | 558.60 | 0.978 | 82 |
+| 4 | 2621440 | 2560.18 | 2072.10 | 2417.60 | 0.857 | 87 |
+
+All 33 cells of widths 2 to 4 pass, the rows above a selection of them.
+Copies and the placement (commit 3, 2026-11-20) were checked on the other four MI50 (renderD129, 131, 136 and 137), the renderD132 quad being held: the same 33 cells, commit 2 against commit 3 against RCCL in 5 cycles and then width 4 alone in 7, gave equal medians at every cell but width 4 655360 floats, which took 687 and 888 us before and after in the first run and 890 and 691 in the second, as the picks fell.
+On that quad both builds lose width 4 from 65537 floats to RCCL (2621440: 3273 and 3265 against 2298 us), which they did not on renderD132 to 135; Qwen3-0.6B gave main's ids and logits on the CPU, one MI50, a pair, two pairs and four, and `sixteen` and `collective` passed.
+The 5120-float cell at width 4 took 33.01 against 24.64 in the gate's five cycles; twelve alternations of the two builds alone give medians after against before of 11.30 and 16.74 us (256 floats) and 13.02 and 17.62 (5120) at width 2, and 22.25 and 22.53 and 21.21 and 25.65 at width 4, so that cell is jitter, as the 10240 cell's 1.065 against RCCL was in the run before the cap change.
+The same run's checks: `sixteen` and `backend-rocm collective` pass on both builds, and Qwen3-0.6B Q8_0 gives the same ids and logits as main on the CPU, one MI50, a pair, two groups of two and a group of four.
+
+**CUDA, four RTX 3080 without peer access (host writes), the split-role shares against commit 1 and NCCL 2.27.3, 3 cycles:** the groups pass; 25 of 33 cells beat NCCL and 8 lose, all at widths 3 and 4 from 65537 floats (width 4 163840: 563.82 against 290.20 us, 655360: 2353.64 against 1483.16, 2621440: 8567.50 against 6362.67).
+
+**CUDA, a second four-RTX-3080 box without peer access (2026-11-19, GPUs 0 and 1 on NUMA node 0, 2 and 3 on node 1, driver 595, NCCL 2.27.3 taking SHM/direct/direct, ring, SIMPLE, 2 channels), before copies:** NCCL ran about twice as fast as on the first box and the split-role shares lost 19 of 33 cells, at width 2 from 163840 floats (2621440: 1771.83 against 1378.17 us) and at widths 3 and 4 from 20480 (width 4 163840: 498.97 against 191.41, 655360: 1730.31 against 710.21, 2621440: 6298.23 against 2882.56).
+The box's host limits: copy engines 21 GB/s down from one card and 28 to 29.6 in all from every card, 13.8 each way in all with every card copying down and up at once; kernel stores into host memory 6 GB/s from one card and 4.8 to 11.4 in all; kernel loads 29 to 30 in all.
+A copy-engine shares measurement (copies both ways, owner sums by kernel) beat NCCL at width 4 655360 floats (659 against 710 us) and width 3 655360 and 2621440 (757 against 854, 2422 against 3194), lost at width 2 and width 4 2621440 (1677 against 1378, 3225 against 2883), and was bound by the host's issue time below 655360; NCCL's ring moved 30 to 44 GB/s in all through host memory there, above every limit measured with the measurement's host memory on one node, which the NUMA placement above answers.
+
+**CUDA, a third four-RTX-3080 box without peer access (2026-11-20, GPU 0 on NUMA node 0, 1 to 3 on node 1, driver 595, THP on madvise), host placement measured beside the copies form with 4 KB pages:** kernel stores from all four cards into registered host memory reached in all 31 to 34 GB/s on the writer's node and 9 to 10 on the reader's in 4 KB pages, and 59 to 61 and 47 to 51 in huge pages; a store and a load of the previous card's area together reached 47 and 37 in 4 KB pages and 53 to 65 in huge pages; one or two blocks a card saturated the stores.
+The groups and forced copies passed; against NCCL 2.27.3, 3 cycles, the copies form with 4 KB placed areas lost 14 of 33 cells (width 4 163840: 723.97 against 292.50 us, 655360: 2067.97 against 1334.46, 2621440: 6530.92 against 6274.46; width 3 from 10240 floats but 30720 and 40960; every width at 65537), the kernel forms 5 to 10 times slower than copies and pulls from 1310720 floats, which the 4 KB stores explain.
+Huge pages on the reader's node are the one placement rule: the writer's node gained about 20% only on the cross-node pair, and its ring fell to 22 GB/s at a 16 MB footprint.
+
+**The wrap chain (2026-11-20, SUMS16 and SUMS17, the last commit of this branch):** `GpuSumForm::wrap`, flag 8 of `llmx_group_chain`, adds partials 0 > 1 > ... > W-1 and sends the total on from the last member to member 0 and up to W - 2, so every member writes to its successor alone.
+Its chunk is halved from 4096 units down to 256 until each block has 8 (`group_chain_units`); the depth sweep (batches of 10 sums on renderD129, 131, 136 and 137, depths 1 to 16) kept 8, since depth 16 gained 655360 floats (wrap 458 against 498 us at 16 blocks) and lost 66560 at 4 blocks (439 against 114 us).
+A wrap is kept only where the median of 5 alternating timings is within 0.9 of the best other pick (`kDuelRounds`, `kWrapMargin`), and no crossover interpolation runs next to a wrap.
+The restored `late_totals` test counts chunks: its back count is 8 a sum, the chunks of 512 units at depth 8.
+Gates, MI50 on ROCm 7.2.1, `tools/sums_vs_reference.py`, 7 cycles a width, before = sums15's ef1dd907 build, host load recorded every 30 s: `collective` and `sixteen` pass on both quads, Qwen3-0.6B Q8_0 gives main 6770182ad's ids and logits on the MI50s at tensor width 2, in 2 groups of 2 and at width 4 on the cross-root quad (same hashes), and CTest passes 95 of 95 on renderD132 to 135.
+The first gate runs lost W=4's RCCL arm for lack of `--shm-size 2g` and `GPU_MAX_HW_QUEUES=8` and the first `sixteen` failed on the old `late_totals` back count; both were fixed and the gate rerun, the first runs are in `sums16/g6-N` and `g6-P`.
+
+| W | floats | cross-root llmx / RCCL us | llmx / RCCL | same-root llmx / RCCL us | llmx / RCCL |
+|---|---|---|---|---|---|
+| 2 | 256 | 11.30 / 16.29 | 0.694 | 11.35 / 16.32 | 0.695 |
+| 2 | 5120 | 12.75 / 25.33 | 0.503 | 13.04 / 24.87 | 0.524 |
+| 2 | 10240 | 14.74 / 26.71 | 0.552 | 14.95 / 26.77 | 0.558 |
+| 2 | 20480 | 18.58 / 30.11 | 0.617 | 19.15 / 31.09 | 0.616 |
+| 2 | 30720 | 22.83 / 32.68 | 0.699 | 23.61 / 35.33 | 0.668 |
+| 2 | 40960 | 24.16 / 37.00 | 0.653 | 28.03 / 38.38 | 0.730 |
+| 2 | 65537 | 32.79 / 47.80 | 0.686 | 41.99 / 50.14 | 0.837 |
+| 2 | 66560 | 32.11 / 48.17 | 0.667 | 39.49 / 50.63 | 0.780 |
+| 2 | 163840 | 61.29 / 77.91 | 0.787 | 87.74 / 98.17 | 0.894 |
+| 2 | 655360 | 204.86 / 236.20 | 0.867 | 320.57 / 339.10 | 0.945 |
+| 2 | 2621440 | 764.64 / 869.50 | 0.879 | 1246.23 / 1311.90 | 0.950 |
+| 3 | 256 | 17.06 / 22.94 | 0.744 | 15.93 / 21.80 | 0.731 |
+| 3 | 5120 | 15.66 / 36.71 | 0.427 | 16.39 / 36.34 | 0.451 |
+| 3 | 10240 | 20.76 / 36.53 | 0.568 | 23.15 / 36.66 | 0.631 |
+| 3 | 20480 | 28.69 / 42.64 | 0.673 | 30.78 / 43.48 | 0.708 |
+| 3 | 30720 | 26.23 / 46.14 | 0.568 | 33.62 / 50.16 | 0.670 |
+| 3 | 40960 | 30.30 / 50.70 | 0.598 | 40.90 / 57.66 | 0.709 |
+| 3 | 65537 | 42.90 / 61.86 | 0.694 | 61.69 / 75.51 | 0.817 |
+| 3 | 66560 | 42.20 / 61.67 | 0.684 | 60.99 / 72.68 | 0.839 |
+| 3 | 163840 | 83.33 / 105.00 | 0.794 | 128.72 / 144.20 | 0.893 |
+| 3 | 655360 | 280.57 / 303.40 | 0.925 | 458.45 / 504.30 | 0.909 |
+| 3 | 2621440 | 1054.89 / 1094.20 | 0.964 | 1794.79 / 1957.20 | 0.917 |
+| 4 | 256 | 24.70 / 29.14 | 0.848 | 23.63 / 28.48 | 0.830 |
+| 4 | 5120 | 23.13 / 45.12 | 0.513 | 23.03 / 44.96 | 0.512 |
+| 4 | 10240 | 33.40 / 45.37 | 0.736 | 29.39 / 44.82 | 0.656 |
+| 4 | 20480 | 37.34 / 52.99 | 0.705 | 36.33 / 49.51 | 0.734 |
+| 4 | 30720 | 42.26 / 61.79 | 0.684 | 40.97 / 57.00 | 0.719 |
+| 4 | 40960 | 53.36 / 71.55 | 0.746 | 49.75 / 64.46 | 0.772 |
+| 4 | 65537 | 94.26 / 92.42 | 1.020 SLOWER | 73.44 / 80.15 | 0.916 |
+| 4 | 66560 | 79.51 / 92.85 | 0.856 | 74.07 / 80.59 | 0.919 |
+| 4 | 163840 | 152.10 / 167.80 | 0.906 | 152.18 / 153.60 | 0.991 |
+| 4 | 655360 | 477.96 / 590.90 | 0.809 | 545.63 / 550.40 | 0.991 |
+| 4 | 2621440 | 1727.99 / 2298.50 | 0.752 | 2069.12 / 2394.40 | 0.864 |
+
+The same-root quad beats RCCL in all 33 cells; the cross-root quad in 32, losing only width 4 at 65537 floats (94.26 against 92.42 us, 1.020), where the 66560-float cell takes 79.27 us, so the odd row's pick is the open cell.
+Fable's levers for it: finish at two members (depth 6 to 4), drop the per-chunk counts since `group_take` carries correctness, and one writer set per link (members 0 to W - 3 put 2F blocks on the successor).
+
+**Shares in whole runs of 16 units and slots on 256 bytes (2026-11-21, SUMS18 to SUMS27, rebased onto main c494eea6f):** a share's length is rounded up to a multiple of 16 units, 256 bytes, so no share starts off a run, and a staging slot holds the reserved rows rounded up to 64 floats, so every member's slot starts on a run as well (docs/src/backends-gpu.md).
+At width 4 on the cross-root quad (renderD129, 131, 136 and 137), 9 alternating cycles under host load 22 to 39 gave medians of 84.81 us for 65537 floats against 92.18 for the same tree with the old rounding and 103.5 for RCCL, whose best cycle was 92.94; the third-worst llmx cycle was 85.68.
+A layout control on the same quad, 9 interleaved cycles of five builds that differ only in the share run (1, 8, 16 or 32 units, the 16-unit build byte-identical to the branch) on a 512-row collective, whose slots are already on 256 bytes, gave medians at 65537 floats of 89.88 us for runs of 1, 86.26 for 8, 84.31 for 16 and 83.27 for 32, against RCCL 91.6; at 65536 and 66560 floats the five builds' medians lay within 0.68 and 1.61 us of each other.
+So the 16-unit runs take 5.6 us (6.2%) off the odd row, more than twice the null spread, and 32 units is within it; the old tree's 92.18 is 2.3 us above the 1-unit build, so the rest of the earlier 7.4 us is not credited to the shares.
+The slot rounding is kept because the gate sweep sums 65537 floats on a one-row collective, whose slots without it lie 65540 floats apart, 16 bytes off a run: there the branch without it took 97.32 us at width 4 against RCCL 92.30, failing 1 of 33 cells, and the control's builds without it took 93.9 us with runs of 1 and 97.3 with runs of 16, so the 16-unit shares need the slot rounding to keep their gain.
+An earlier timing of the slot rounding on the renderD132 quad (75.08 against 71.00 us at width 4, 2 of 7 cycles before its card limit) joined 512 rows, where the rounding changes no slot, so that difference was layout and not the change.
+
+The landing gate of the full build with both roundings (`tools/sums_vs_reference.py`, 7 alternating cycles a width against RCCL's all_reduce_perf, host load 8 to 17 on the renderD129 quad and 10 to 28 on the renderD132 quad) passed all 33 cells on both quads; the 65537-float cell at width 4 on the renderD129 quad took 81.94 us against 92.43 for RCCL and 97.23 for the branch without the slot rounding.
+The limit is the lesser of one 1.70 us hop plus (W - 1) rows and two hops plus 2 (W - 1) / W rows, at 14.25 GB/s each way on the renderD129 quad, whose cross-root members' directions take separate paths (its width 2 moved 13.6 GB/s each way), and at 9.0 GB/s each way on the renderD132 quad, whose members share one switch uplink; no per-pair ceiling was measured with the sum's own traffic, and the renderD129 quad's width 4 includes renderD137's slower link, so its width 4 share is a lower bound.
+
+| width | floats | renderD129 quad llmx us | RCCL us | % of limit | renderD132 quad llmx us | RCCL us | % of limit |
+|---|---|---|---|---|---|---|---|
+| 2 | 256 | 11.32 | 16.74 | 16% | 12.29 | 21.12 | 15% |
+| 2 | 5120 | 12.76 | 25.60 | 25% | 16.17 | 26.86 | 25% |
+| 2 | 10240 | 15.10 | 26.55 | 30% | 16.14 | 27.45 | 39% |
+| 2 | 20480 | 18.49 | 30.24 | 40% | 19.41 | 32.27 | 56% |
+| 2 | 30720 | 22.64 | 33.04 | 46% | 23.94 | 36.82 | 64% |
+| 2 | 40960 | 23.90 | 36.93 | 55% | 28.22 | 38.86 | 71% |
+| 2 | 65537 | 32.29 | 47.69 | 62% | 39.60 | 50.79 | 78% |
+| 2 | 66560 | 32.07 | 48.31 | 64% | 39.90 | 51.72 | 78% |
+| 2 | 163840 | 61.29 | 78.14 | 78% | 88.24 | 100.10 | 84% |
+| 2 | 655360 | 203.81 | 236.30 | 91% | 321.36 | 340.20 | 91% |
+| 2 | 2621440 | 770.93 | 869.20 | 96% | 1247.67 | 1313.60 | 94% |
+| 3 | 256 | 18.28 | 22.75 | 10% | 26.40 | 30.35 | 7% |
+| 3 | 5120 | 15.48 | 36.51 | 30% | 25.68 | 37.92 | 24% |
+| 3 | 10240 | 20.72 | 36.46 | 35% | 25.54 | 37.32 | 37% |
+| 3 | 20480 | 27.70 | 42.50 | 40% | 30.34 | 44.16 | 51% |
+| 3 | 30720 | 26.14 | 46.24 | 57% | 33.81 | 50.22 | 64% |
+| 3 | 40960 | 30.00 | 51.03 | 62% | 40.89 | 58.02 | 68% |
+| 3 | 65537 | 39.53 | 62.05 | 71% | 58.00 | 75.58 | 73% |
+| 3 | 66560 | 40.17 | 61.59 | 70% | 58.52 | 72.93 | 73% |
+| 3 | 163840 | 81.67 | 104.90 | 79% | 128.23 | 145.80 | 78% |
+| 3 | 655360 | 275.15 | 303.60 | 90% | 454.49 | 505.00 | 86% |
+| 3 | 2621440 | 1035.51 | 1093.90 | 95% | 1738.69 | 1959.90 | 90% |
+| 4 | 256 | 22.99 | 24.00 | 8% | 20.46 | 28.86 | 10% |
+| 4 | 5120 | 22.21 | 45.07 | 25% | 23.60 | 44.66 | 29% |
+| 4 | 10240 | 33.20 | 45.46 | 23% | 29.85 | 45.00 | 34% |
+| 4 | 20480 | 37.28 | 52.60 | 32% | 36.51 | 49.26 | 47% |
+| 4 | 30720 | 41.81 | 61.61 | 39% | 41.20 | 56.80 | 58% |
+| 4 | 40960 | 53.21 | 71.48 | 39% | 49.87 | 64.41 | 62% |
+| 4 | 65537 | 81.94 | 92.43 | 38% | 71.04 | 80.11 | 66% |
+| 4 | 66560 | 78.95 | 93.13 | 40% | 72.43 | 80.56 | 66% |
+| 4 | 163840 | 151.83 | 167.10 | 48% | 152.73 | 154.10 | 74% |
+| 4 | 655360 | 477.23 | 590.80 | 59% | 545.03 | 553.60 | 81% |
+| 4 | 2621440 | 1727.30 | 2298.70 | 64% | 2074.66 | 2406.60 | 84% |
+
+The floor holds everywhere and the target does not: small sums sit at 7 to 40% of the hop floor, as their fixed cost (11 us at width 2) is not the wire, and width 4 mid sizes at 38 to 66%.
+On the renderD129 quad the 256-float row at width 3 (18.28 us) is slower than 5120 floats (15.48), and width 4 steps from 22.21 to 33.20 us at 10240 floats; both are picks to read.
+Generated tokens and logits match main c494eea6f byte for byte at width 2, two groups of 2 and width 4 on Qwen3-0.6B Q8_0, `collective` and `sixteen` pass on both quads, and the suite on rocm:0 passes (minimax and raw-blocks skip).
+CTest at -j2 fails backend-rocm on the two NVFP4 witnesses, which fail on main, and on "a buffer dropped after the last submission is free again at once after sync", which reads device-wide free memory while backend-rocm-scratch runs beside it; backend-rocm alone at -j1 fails only the two NVFP4 witnesses, and the same case failed under -j2 on trees before this branch (11-09 and 11-15).
+The branch lands by fast-forward.
+
+**Left:**
+- CUDA without peer access, an open cell of the sums gate: on four RTX 3080 Ti with peer access disabled (all on NUMA node 1, NCCL 2.27.3 taking SHM and its ring) llmx lost 17 of 33 cells to NCCL, width 3 from 65537 floats (153.42 against 88.65 us there, 4339 against 2148 at 2621440), width 4 from 30720 (184.55 against 114.44 at 65537, 5641 against 2924 at 2621440), width 2 from 163840 and 256 floats at widths 2 and 4; no store or copy rate was measured there, so the share of the limit is unknown, at most 27% at width 4 and 2621440 floats against NCCL's 6.8 GB/s a link.
+  The kernel forms store (W - 1) N floats a member through host memory where NCCL's ring stores 2 (W - 1) / W N, which fits the ratios; the next rental measures store and load rates first. If the kernel forms still lose at widths 3 and 4 from 163840 floats, the next step is grow-only per-block counts in place of re-arming each unit read, which halves the kernel forms' host stores, and the 65537-float cells, which commit 3 lost at every width, need their picks read; a CUDA box with peer access is still untested.
+- ROCm does not time copies (`copy_sums`): on four MI50 (renderD129, 131, 136, 137) forced copies at widths 2 to 4 and 1800 sentinel sums at width 2 gave the oracle's bits, but the sentinel sums at width 3, whose picks switch transport and form with two sums in flight and take copies from 4096 floats, hung past 900 s, with the issue order already fixed so no kernel waits for its own copy stream and every member's rows go before any kernel; the cause is not known.
+- Width 4 large sums at 82 to 87% of the bound: the adders run alone after the senders end.
+- Rebased onto main c494eea6f: a generated row's fold (`llmx_group_push` and the member's pending take) runs where the pick is a one-shot, its take naming that transport's table and parity half, and fix/draft-divergence's chain reads through `group_take` are kept.
+  Its two-shot reads go with two shots, and its `late_totals` test, which launched `llmx_group_two_shots`, now lands the chain's totals 50 ms after its back count; it fails with `group_take`'s wait removed and passes with it. The shares already read every slot through `group_take`. The table above is from before the rebase.
+
+**Gotchas:** the `handoffs` measurement mode hangs without peer access (rc 124 at 300 s on the RTX 3090 box); run it only where peer writes probe.
+
+## Tensor-group sums against NCCL: the pick between timed sizes (2026-11-18, CUDA88-NCCL, branch cuda88/nccl-gate on cuda/sums-tune 7df1d76a)
+
+**Goal:** the owner's gate of 2026-11-18, llmx's tensor-group sums faster than NCCL on the same CUDA cards and than RCCL on the same MI50s, at every size from 256 floats to 512 rows of 5120.
+
+**Done:**
+- `time_forms` (collective core, so CUDA and ROCm both): where two neighbouring timed sizes have different winners, each winner is timed at the other size too, and the larger size's winner takes over from where the two times, each taken as linear in n between the sizes, cross, or just past the smaller size where it ties there; the stderr line gives the switch as `, from N floats`. Before, a size between two timed sizes kept the smaller one's winner, so a prompt of 13 rows of 5120 or one 65537-float row summed by the 8-row one-shot of 2 blocks.
+- The probe, a measurement tool outside llmx (/opt/claude-work/cuda88/probe.cu, built by nvcc against NCCL 2.27.3 or by hipcc against RCCL 2.27.7), times F32 all-reduce and grouped send/recv followed by an ordered local F32 sum in member order, the only NCCL form docs/CUDA.md allows, the same way the llmx arm times its joined group: one warmup, the median of 15 reps of 32 back-to-back sums (10 from 100000 floats).
+
+**Measured** (two RTX A4000 on PCIe 3 x8, topology NODE, default clocks, the kept Vast rental of 2026-11-18; one session with every arm interleaved in two cycles of opposite arm order and both member orders, the median of four processes an arm, logs /opt/claude-work/cuda88/s1.log to s4.log, this table from s4; NCCL left at its defaults takes the SHM transport through host memory on this topology, 2 channels, ring and LL at 1 KB)
+
+| floats | llmx before us | llmx after us | after GB/s | NCCL all-reduce us | NCCL send/recv + sum us | after against the faster NCCL |
+|---|---|---|---|---|---|---|
+| 256 | 10.64 | 10.57 | 0.10 | 18.45 | 30.88 | 43% less time |
+| 1024 (0.6B row) | 11.49 | 11.62 | 0.35 | 14.20 | 21.00 | 18% less |
+| 2048 (1.7B row) | 14.11 | 13.86 | 0.59 | 13.11 | 17.54 | 6% more, a loss |
+| 5120 (27B row) | 16.50 | 16.71 | 1.23 | 18.59 | 24.59 | 10% less |
+| 10240 | 20.74 | 20.80 | 1.97 | 26.84 | 31.93 | 23% less |
+| 20480 | 30.62 | 30.41 | 2.69 | 49.69 | 43.16 | 30% less |
+| 30720 (6 rows) | 39.10 | 38.84 | 3.16 | 61.81 | 56.28 | 31% less |
+| 40960 | 59.85 | 59.59 | 2.75 | 73.31 | 75.25 | 19% less |
+| 65537 (one row) | 79.51 | 79.59 | 3.29 | 98.55 | 129.93 | 19% less |
+| 66560 (13 rows) | 80.27 | 80.05 | 3.33 | 99.12 | 111.53 | 19% less |
+| 163840 | 156.39 | 156.36 | 4.19 | 197.14 | 228.20 | 21% less |
+| 655360 | 549.69 | 550.28 | 4.76 | 687.74 | 791.62 | 20% less |
+| 2621440 | 2117.23 | 2117.07 | 4.95 | 2641.72 | 2676.82 | 20% less |
+
+- The before arm at 65537 depends on a near tie at 40960 between the 2-block peer one-shot and the pulls (about 55 against 59 us at join): in s1 and s2, where the one-shot won it, every before process summed 65537 floats in 129 to 179 us against NCCL's 98; in s3 and s4 the pulls won and before matched after. After the change no process of s4 took longer than 80.1 us there; in s3 one process of the first form of the change (no tie rule) took 174 us, where its timing found the pulls tying the one-shot at 40960, which the tie rule now covers.
+- NCCL with `NCCL_P2P_LEVEL=SYS` (peer transport forced) is slower than its default from 5120 floats up (41 against 19 us at 5120, 12251 against 2642 at 512 rows), and at 2048 one member order took 11.1 us against llmx's 13.0 to 13.9.
+- Bits: at width 2 all-reduce and send/recv with the ordered sum both give the member-order bytes on every element, as two-operand F32 adds commute; native all-reduce differs from member order only at three members and more (the 2026-10-09 RCCL screen), which this pair cannot show.
+- `backend-cuda groups` 37 PASS 0 FAIL at the head's build (g7.log), and at both earlier forms of the change (g4.log, g5.log); one run at the head (g6.log) failed `a reader's take returns before the sender's slow work ends`, a layer-split handoff check this change does not reach, and passed on the rerun.
+
+**Issue cost, the 2048-float loss closed** (2026-11-18, CUDA89-SMALL, branch cuda89/sum-issue on this branch):
+- Where the time went: on the pair the host took 10.6 us to issue a sum and its submit, 7.5 in `sum_in_place` and 3.1 in the two members' `submit`, against 10.0 us of each member's busy time at 2048 floats (the `issue` measurement mode, kept out of the tree with the `vsnccl` modes).
+  Each driver call timed alone over 20000 calls: a timed `cuEventRecord` 1.2 to 1.9 us, an untimed one 0.18, `cuEventQuery` 0.14, `cuCtxSetCurrent` 0.03; a sum in its own submission made four timed records, each member's start and ticket events, so they were most of the issue time.
+  The 2048-float row also took 2 blocks or 1 by which cap the least timed size's one-shot won, 16384 or 32768 floats here, so a process summed it in 12.0 or 14.3 us by its join.
+- `start` (GPU core, so CUDA and ROCm): a submission with no wait on another device before its first operation, whose previous ticket event the device has not reached when that operation is issued, records no start event and `busy_ms` times it from the previous ticket event, where it starts; the host asks with one query instead of a timed record.
+  The device may finish in the one call between the query and the operation, which busy then counts, about 2 us on member 1 of a decode sum here (5.9 to 7.9 us of busy at 256 floats).
+- `hold` asks whether the device has nothing left running once a submission holds `kFirstChunk` operations, once a submission, instead of at every submission's first operation, so a submission of a sum asks nothing; a device that finished meanwhile now also starts on the first 8.
+- `set_context` (CUDA) keeps each thread's contexts, so a switch between members takes no lock.
+- `form_of`: below the least timed size the one-shot takes that size's floats a block, at least one, where its pick is a capped one-shot, rather than its cap itself; every member takes the same blocks, so the bits do not change.
+- Issue time a sum for the pair (host, `issue` mode) 10.6 before, 9.9 with the query, lock and cap changes, 8.0 with `start`; `backend-cuda groups` 37 PASS at the head's build.
+
+**Measured** (the same pair and rental, one session with every arm interleaved in two cycles of opposite arm order and both member orders, the median of four processes an arm, /opt/claude-work/cuda89/s2.log, `ana.py`; before is 3ac57506, after this change, both built the same way with the same measurement modes):
+
+| floats | llmx before us | llmx after us | NCCL all-reduce us | NCCL send/recv + sum us | after against the faster NCCL |
+|---|---|---|---|---|---|
+| 256 | 10.57 | 8.24 | 18.21 | 25.69 | 55% less time |
+| 1024 (0.6B row) | 11.61 | 10.04 | 13.86 | 19.57 | 28% less |
+| 2048 (1.7B row) | 13.61 | 10.81 | 12.97 | 16.88 | 17% less |
+| 5120 (27B row) | 16.91 | 13.21 | 19.41 | 25.02 | 32% less |
+| 10240 | 21.10 | 18.02 | 27.69 | 32.18 | 35% less |
+| 20480 | 31.80 | 29.98 | 52.86 | 44.41 | 32% less |
+| 30720 (6 rows) | 46.30 | 45.73 | 64.62 | 57.22 | 20% less |
+| 40960 | 60.77 | 57.62 | 76.39 | 76.59 | 25% less |
+| 65537 (one row) | 81.28 | 78.94 | 100.52 | 131.17 | 21% less |
+| 66560 (13 rows) | 81.50 | 79.78 | 101.04 | 112.39 | 21% less |
+| 163840 | 157.25 | 157.17 | 199.57 | 228.80 | 21% less |
+| 655360 | 565.58 | 564.58 | 694.42 | 793.86 | 19% less |
+| 2621440 | 2181.08 | 2171.89 | 2645.55 | 2678.70 | 18% less |
+
+- An earlier session with the cap and lock changes alone (s1.log) gave 12.33 us at 2048 against NCCL's 12.33, a tie, so `start` is what passes it.
+- A process now and then issues at about twice the host time (18.9 against 10.6 us before the change, 18.9 against 8.0 after), in both arms; the medians hold it.
+- The ROCm side of `start` is not measured: `hipEventQuery` against a timed `hipEventRecord` on the MI50s is part of the ROCm hand check below.
+
+**One-shot blocks by the device and back-to-back timing** (2026-11-18, CUDA91-NVL, branch cuda91/sum-blocks on cuda89/sum-issue 73609e70):
+- `launched_blocks` (collective core, so CUDA and ROCm): the one-shot takes at most a block a multiprocessor of each member's device, shared among the members on one device, in place of a fixed 16, so every member's blocks stay resident while they wait for their peers'; the timing's cap halving descends from there.
+- `timed`: each pick's time is three sums in place issued back to back after a first and waited for once, divided by three, in place of the least of three sums each with its own wait, so a pick costs the slower of the host's issue and the devices' time, as in a pass; the join's sum count is unchanged.
+- Every member still launches the same blocks and every form adds in member order, so the bits do not change; `backend-cuda groups` exits 0 with no FAIL at the head's build and at the cap alone on two V100 SXM2 and two RTX A4000.
+- Builds: both arms from copies of one tree, 73609e70 merged with build/gpu-arch-options and CUDA90's pre-sm80 port fixes (needed for sm_70 until that branch lands), with the measurement modes; before is that tree, after the same with this change.
+
+**Measured** (default clocks, each box one session with every arm interleaved in two cycles of opposite arm order and both member orders, median of four processes an arm, NCCL 2.27.3 all-reduce and send/recv with the ordered sum interleaved in the same session; ceiling = max(peer round trip, bytes / the faster of copy engine and kernel stores per member each way), `limits`; logs /opt/claude-work/cuda91, `ana91.py`):
+
+Two Tesla V100-SXM2-32GB, one NVLink (topology NV1), copy engine 24.2 GB/s each way, peer round trip 0.74 us (v2s.log), us:
+
+| floats | before | after | NCCL all-reduce | NCCL send/recv + sum | after against the faster NCCL | ceiling | after % of ceiling | NCCL % of ceiling |
+|---|---|---|---|---|---|---|---|---|
+| 256 | 8.91 | 8.91 | 21.38 | 25.30 | 58% less time | 0.74 | 8% | 3% |
+| 1024 | 9.52 | 9.59 | 17.18 | 17.16 | 44% less time | 0.74 | 8% | 4% |
+| 2048 | 10.21 | 9.77 | 12.04 | 15.08 | 19% less time | 0.74 | 8% | 6% |
+| 5120 | 12.77 | 12.50 | 11.31 | 15.84 | 10% more, a loss | 0.85 | 7% | 7% |
+| 10240 | 16.13 | 16.16 | 12.18 | 17.02 | 33% more, a loss | 1.69 | 10% | 14% |
+| 20480 | 30.36 | 24.01 | 15.73 | 20.84 | 53% more, a loss | 3.39 | 14% | 22% |
+| 30720 | 30.00 | 32.52 | 20.19 | 24.40 | 61% more, a loss | 5.08 | 16% | 25% |
+| 40960 | 33.16 | 32.32 | 35.86 | 27.91 | 16% more, a loss | 6.78 | 21% | 24% |
+| 65537 | 39.89 | 37.15 | 40.78 | 54.14 | 9% less time | 10.84 | 29% | 27% |
+| 66560 | 39.97 | 36.81 | 40.86 | 38.83 | 5% less time | 11.01 | 30% | 28% |
+| 163840 | 60.20 | 54.34 | 57.56 | 71.58 | 6% less time | 27.10 | 50% | 47% |
+| 655360 | 155.78 | 143.13 | 156.56 | 208.88 | 9% less time | 108.40 | 76% | 69% |
+| 2621440 | 588.36 | 506.68 | 580.26 | 788.22 | 13% less time | 433.60 | 86% | 75% |
+
+Two RTX A4000 on PCIe 3 x8 (topology PIX this rental), copy engine 4.9 GB/s each way both at once (a1s.log), us:
+
+| floats | before | after | NCCL all-reduce | NCCL send/recv + sum | after against the faster NCCL | ceiling | after % of ceiling | NCCL % of ceiling |
+|---|---|---|---|---|---|---|---|---|
+| 256 | 8.23 | 8.23 | 17.12 | 24.61 | 52% less time | 1.72 | 21% | 10% |
+| 1024 | 10.37 | 10.21 | 11.92 | 16.27 | 14% less time | 1.72 | 17% | 14% |
+| 2048 | 11.37 | 11.34 | 11.89 | 15.72 | 5% less time | 1.72 | 15% | 14% |
+| 5120 | 14.76 | 15.00 | 17.63 | 18.38 | 15% less time | 4.16 | 28% | 24% |
+| 10240 | 21.12 | 21.02 | 27.60 | 25.83 | 19% less time | 8.31 | 40% | 32% |
+| 20480 | 30.41 | 30.98 | 46.12 | 36.83 | 16% less time | 16.63 | 54% | 45% |
+| 30720 | 40.89 | 40.17 | 56.33 | 47.78 | 16% less time | 24.94 | 62% | 52% |
+| 40960 | 50.70 | 50.48 | 67.28 | 62.96 | 20% less time | 33.25 | 66% | 53% |
+| 65537 | 82.51 | 81.89 | 88.94 | 98.47 | 8% less time | 53.21 | 65% | 60% |
+| 66560 | 83.22 | 82.56 | 86.94 | 92.02 | 5% less time | 54.04 | 65% | 62% |
+| 163840 | 164.79 | 162.66 | 180.24 | 184.38 | 10% less time | 133.01 | 82% | 74% |
+| 655360 | 586.58 | 579.13 | 684.61 | 658.43 | 12% less time | 532.06 | 92% | 81% |
+| 2621440 | 2261.78 | 2241.44 | 2715.56 | 2555.56 | 12% less time | 2128.22 | 95% | 83% |
+
+- At 30720 floats on the V100 the after arm is bimodal, 30.6 or 34.4 to 35.4 us by process: the 20480-float one-shot (28 us at join) and the 40960-float pulls (33 to 35) nearly tie at 20480, and where the crossover's estimate does not fall between the sizes the one-shot keeps 30720, where the pulls take 30; the medians hold it as a loss against before (30.0).
+- Two 4x A100 SXM4 rentals (machines 117301 and 43423) did not accept ssh within the ready limit and were destroyed unmeasured; no other NVLink A100 or H100 offer under 4 USD/h was listed.
+- The block cap alone (`b91`) gives the V100's large sizes (163840 floats and up, 8 to 13% less time) and nothing at 20480 to 40960; the timing gives 20480 (30.4 to 24.0 us), where the join had taken the pulls by a single sum's time.
+- On the A4000 pair every size is level or better (up to 1%); this rental's NCCL send/recv and base arm both ran slower than cuda89's s2.log (2261 against 2172 us at 2621440 floats for the same code), so only in-session arms are compared.
+- V100 `backend-cuda sums` (v2s.log): the pulls keep the devices 5 to 9 us busy at 5120 to 40960 floats but take the host 32 to 34 us to issue, 12 driver calls a sum for the pair, against 9.3 us for a one-shot; the peer one-shot takes 24.4 us at 20480 floats where the `limits` one-shot floor without host waits is 8.4.
+
+**One 16-byte store per peer vector, pulls from the source, and the timing past a one-shot win** (2026-11-19, CUDA93-NVL, same branch):
+- `store_vector` (`kernels/port.h`): on CUDA one `st.v4.u32`, used by `group_arm_unit`, `group_store` and the one-shot's peer write, since nvcc split each of those 16-byte stores into four 4-byte stores (sm_70 SASS of `llmx_group_sum`: 1 ST.E.128 before, 8 after); HIP keeps the plain store, already one `flat_store_dwordx4` on gfx906.
+- Pulls: each member copies its rows on its own stream into a parity half of the receivers' pull buffers, 8 driver calls a sum for a pair instead of 12.
+- `time_forms` no longer stops at the first size a one-shot wins: a one-shot that won at 327680 floats with a block a multiprocessor kept that count down to one row, where a capped pick timed at the smaller sizes sums 10240 floats in 10.5 us against 12.2.
+- The bits do not change: every member still launches the same blocks and adds in member order.
+- `backend-cuda groups`: no sum check fails; the handoff timing check `a reader's take returns before the sender's slow work ends` failed in 2 of 4 runs (also seen in cuda85 and cuda88 logs before this change), the rest passed.
+- Builds: copies of one tree (the branch's base with build/gpu-arch-options and the pre-sm80 port fixes) before and after this change, built the same way; ROCm compile check of the branch rc 0.
+
+**Measured** (default clocks, one session a box, arms interleaved over three cycles of opposite order and both member orders, median of the processes, NCCL 2.27.3 in the same session, us):
+
+Two RTX A4000 on PCIe (topology NODE, machine 149621, a3s.log):
+
+| floats | before | after | NCCL all-reduce | NCCL send/recv + sum | after against the faster NCCL | ceiling | after % of ceiling | NCCL % of ceiling |
+|---|---|---|---|---|---|---|---|---|
+| 256 | 13.13 | 13.32 | 16.76 | 35.50 | 20% less time | 1.81 | 14% | 11% |
+| 1024 | 13.72 | 13.73 | 16.73 | 30.77 | 18% less time | 1.81 | 13% | 11% |
+| 2048 | 13.41 | 13.54 | 12.72 | 18.23 | 6% more, a loss | 1.81 | 13% | 14% |
+| 5120 | 11.21 | 13.39 | 12.54 | 17.92 | 7% more, a loss | 1.81 | 14% | 14% |
+| 10240 | 13.52 | 10.54 | 12.93 | 18.56 | 19% less time | 1.81 | 17% | 14% |
+| 20480 | 24.12 | 10.18 | 16.18 | 21.92 | 37% less time | 3.22 | 32% | 20% |
+| 30720 | 19.30 | 11.32 | 20.32 | 25.09 | 44% less time | 4.83 | 43% | 24% |
+| 40960 | 20.46 | 13.09 | 24.37 | 32.65 | 46% less time | 6.44 | 49% | 26% |
+| 65537 | 30.24 | 19.00 | 36.18 | 49.79 | 47% less time | 10.30 | 54% | 28% |
+| 66560 | 28.31 | 17.75 | 36.61 | 45.42 | 52% less time | 10.46 | 59% | 29% |
+| 163840 | 52.34 | 37.88 | 67.07 | 71.59 | 44% less time | 25.75 | 68% | 38% |
+| 655360 | 147.18 | 142.06 | 165.97 | 178.79 | 14% less time | 103.00 | 73% | 62% |
+| 2621440 | 529.84 | 523.95 | 598.17 | 603.34 | 12% less time | 411.98 | 79% | 69% |
+
+Two A100 SXM4 80GB on NVLink (topology NV12, machine 37167, x2s.log):
+
+| floats | before | after | NCCL all-reduce | NCCL send/recv + sum | after against the faster NCCL | ceiling | after % of ceiling | NCCL % of ceiling |
+|---|---|---|---|---|---|---|---|---|
+| 256 | 11.98 | 12.20 | 12.80 | 19.02 | 5% less time | 1.29 | 11% | 10% |
+| 1024 | 12.18 | 12.29 | 12.85 | 18.95 | 4% less time | 1.29 | 10% | 10% |
+| 2048 | 12.38 | 12.27 | 12.89 | 19.02 | 5% less time | 1.29 | 10% | 10% |
+| 5120 | 13.46 | 13.69 | 15.31 | 19.65 | 11% less time | 1.29 | 9% | 8% |
+| 10240 | 13.96 | 14.05 | 14.23 | 20.02 | 1% less time | 1.29 | 9% | 9% |
+| 20480 | 14.55 | 14.18 | 14.50 | 20.85 | 2% less time | 1.29 | 9% | 9% |
+| 30720 | 15.27 | 14.04 | 14.67 | 21.73 | 4% less time | 1.29 | 9% | 9% |
+| 40960 | 15.94 | 14.13 | 15.02 | 23.16 | 6% less time | 1.29 | 9% | 9% |
+| 65537 | 17.88 | 15.40 | 17.09 | 27.09 | 10% less time | 1.29 | 8% | 8% |
+| 66560 | 17.89 | 15.25 | 17.17 | 26.80 | 11% less time | 1.29 | 8% | 7% |
+| 163840 | 24.46 | 19.54 | 25.31 | 41.29 | 23% less time | 3.15 | 16% | 12% |
+| 655360 | 40.09 | 34.61 | 61.32 | 58.76 | 41% less time | 12.59 | 36% | 21% |
+| 2621440 | 102.52 | 101.10 | 104.38 | 143.32 | 3% less time | 50.38 | 50% | 48% |
+
+- A4000: 10240 to 163840 floats take 22 to 58% less time than before and 19 to 52% less than NCCL; the push pulls alone (b94 against b93, a2s.log) give 655360 and 2621440 floats 3% and 1%.
+- A4000 at 5120 floats (one row) the after arm takes 13.4 us against 11.2: the harness submits each sum alone, and with the faster stores a member's device has finished its previous ticket, so `start` records a timed start event (1.2 to 1.9 us on this card) that a chained submission skips (`issue`: sum-host 8.7 us at 5120 against 6.1 at the other sizes); the join, timing sums back to back as a pass issues them, gives the one-shot 8 us there.
+- A100 NVLink: level or better from 20480 floats up (163840: 24.5 to 19.5 us, 655360: 40.1 to 34.6), level within 2% below; against NCCL 1 to 41% less time at every size.
+- Not kept: 8 sums a timing and a cap halving that does not stop at the first slower halving (b96, a5s.log): level everywhere, the 5120 gap unchanged.
+- No 2x V100 or 2x H100 offer under the price limits was listed during the session, so the V100 NVLink losses from 5120 to 40960 floats are unmeasured with this change.
+- Plain `uint4`/`float4` stores split on sm_70 to sm_90 too, while `__stcg`, `__stcs` and `__stwt` give one 128-bit store on sm_70, 80, 86, 89, 90 and 120 (/opt/claude-work/cuda93/t/v4.cu), so the asm can become an intrinsic.
+
+**The peer store as a system-scope intrinsic, a SASS check of the group stores, and the handoff check gated** (2026-11-19, CUDA94, same branch):
+- `store_vector` on CUDA is `__stwt` (`st.global.wt`, SASS `STG.E.128.STRONG.SYS`) in place of the asm: one 128-bit store on sm_70, 86 and 90 and on the five listed targets, and the one of the three single-store intrinsics whose scope takes in the reading device, which spins with system-scope volatile loads; `__stcg` is `STRONG.GPU` and `__stcs` a weak evict-first store.
+- `__stcg` measured level with it (table below), so the scope decides.
+- The tails of under four floats in the group kernels are bounded loops kept rolled (`#pragma unroll 1`): nvcc had unrolled the unbounded arm tail 16, 8 and 4 times, the runs of 4-byte stores at sm_70 lines 1097 to 1221 of the old SASS, none of them a peer store and none run with more than three floats; `llmx_group_sum` on sm_70 now has 15 word stores, each a one-float tail or failure fill, and 3940 SASS lines against 4820.
+- `cuda-sass` holds `llmx_group_sum`, `llmx_group_two_shots` and `llmx_group_chain` on every listed target to a system-scope 16-byte store and to no four word stores in a row to one 16-byte unit (`split_stores`), which reports the old unrolled tails and passes on this branch (ctest `cuda-sass` on the branch build, five targets).
+- Start events refuted as the A4000 5120-float cause: a counter in `start` (measurement tree only) gives 2 starts a sum at every size, each about 0.45 us (the event query), and 0.04 unchained starts a sum at 5120 on the after build, so the timed start event costs 0.08 us a sum there.
+  The 5120-float time follows the pick a process's join makes, `peer writes one-shot` at 13.4 us median against `one-shot of 2 blocks` at 10.5 to 11.5 us on the same build, and the timings flip between the two from process to process on every build (pick.py over a2s.log); a slow pick leaves member 1 busy 7.0 us against member 0's 12.9, and only then does the start event get recorded (0.99 a sum).
+- The handoff check `a reader's take returns before the sender's slow work ends` was a race: in the groups run, issuing the 32 copies of 64 MiB held the host 8.76 ms of their 11.54 ms on four RTX A4000 (90 us when the handoffs run alone), so the takes had under 3 ms to return.
+  Round 2's begin now waits on a gate word the check opens after the takes, the sender's stream waits redirected to it through the driver's call table; it passed in the groups run and 10 runs of the handoffs on two A4000 (a2s.log, exit 0), where the ungated check had passed 21 instrumented runs on four A4000 and 11 on two V100 with the host held 0.06 to 8.76 ms.
+- The bits do not change: the stores write the same words and the members' picks and blocks are untouched; `backend-cuda groups` passes on four A4000, two A4000 and two V100 (no FAIL line).
+
+**Measured** (default clocks, one session a box, arms interleaved over four cycles of opposite order and both member orders, median, NCCL 2.27.3 in the same session, us; before is the committed branch b95k, after b98m with `__stwt`, b98c the same with `__stcg`; ceiling as before, at width W the ring bound 2(W-1)/W of the bytes at the slowest pair's both-ways rate):
+
+Two RTX A4000 on PCIe (machine 149624, a2s.log):
+
+| floats | before | after (`__stwt`) | `__stcg` | NCCL all-reduce | after against NCCL | ceiling | after % of ceiling | NCCL % of ceiling |
+|---|---|---|---|---|---|---|---|---|
+| 256 | 13.15 | 13.29 | 13.48 | 16.23 | 18% less time | 1.79 | 14% | 11% |
+| 2048 | 13.20 | 13.42 | 13.32 | 15.93 | 16% less time | 1.79 | 13% | 11% |
+| 5120 | 13.21 | 13.54 | 13.32 | 12.76 | 6% more, a loss | 1.79 | 13% | 14% |
+| 10240 | 10.58 | 10.63 | 10.71 | 12.98 | 18% less time | 1.79 | 17% | 14% |
+| 40960 | 13.09 | 13.09 | 13.06 | 24.34 | 46% less time | 6.42 | 49% | 26% |
+| 163840 | 37.77 | 37.78 | 37.84 | 67.09 | 44% less time | 25.67 | 68% | 38% |
+| 655360 | 142.16 | 142.05 | 142.22 | 166.30 | 15% less time | 102.70 | 72% | 62% |
+| 2621440 | 523.64 | 524.08 | 523.93 | 599.36 | 13% less time | 410.79 | 78% | 69% |
+
+Four RTX A4000 on PCIe, width 4 (two PHB pairs across NODE, machine 155130, a4s-w4.log; after is b97m, the same code with the earlier ungated handoff check):
+
+| floats | before | after | NCCL all-reduce | after against NCCL | ceiling | after % of ceiling | NCCL % of ceiling |
+|---|---|---|---|---|---|---|---|
+| 256 | 33.29 | 36.44 | 47.23 | 23% less time | 1.65 | 5% | 3% |
+| 2048 | 31.19 | 33.25 | 35.03 | 5% less time | 1.65 | 5% | 5% |
+| 5120 | 32.02 | 32.42 | 29.28 | 11% more, a loss | 3.64 | 11% | 12% |
+| 10240 | 27.62 | 28.15 | 40.12 | 30% less time | 7.28 | 26% | 18% |
+| 40960 | 68.25 | 67.11 | 132.08 | 49% less time | 29.12 | 43% | 22% |
+| 163840 | 210.06 | 209.38 | 268.92 | 22% less time | 116.47 | 56% | 43% |
+| 655360 | 820.57 | 822.03 | 1028.28 | 20% less time | 465.90 | 57% | 45% |
+| 2621440 | 3478.91 | 3472.61 | 4083.91 | 15% less time | 1863.58 | 54% | 46% |
+
+Two Tesla V100 on NVLink (NV2, machine 33283, v2s.log; after b97m):
+
+| floats | before | after | NCCL all-reduce | after against NCCL | ceiling | after % of ceiling | NCCL % of ceiling |
+|---|---|---|---|---|---|---|---|
+| 256 | 7.96 | 8.02 | 18.56 | 57% less time | 0.71 | 9% | 4% |
+| 5120 | 8.95 | 8.91 | 10.76 | 17% less time | 0.71 | 8% | 7% |
+| 10240 | 9.44 | 9.35 | 10.99 | 15% less time | 0.85 | 9% | 8% |
+| 40960 | 12.11 | 12.11 | 16.45 | 26% less time | 3.40 | 28% | 21% |
+| 163840 | 23.70 | 23.66 | 45.28 | 48% less time | 13.61 | 57% | 30% |
+| 655360 | 70.16 | 70.42 | 93.03 | 24% less time | 54.43 | 77% | 59% |
+| 2621440 | 288.03 | 287.97 | 312.03 | 8% less time | 217.70 | 76% | 70% |
+
+- Level everywhere within the run spread but width 4 at 256 to 2048 floats (after 2 to 3 us slower, 5 to 9%, one session, a layout band not ruled out; the two-A4000 rerun of the same kernels shows 1 to 2%).
+- On this V100 pair the branch beats NCCL at every size, where the NV1 pair of earlier sessions lost from 5120 to 40960 floats; machine 58241's offered pair showed SYS, no NVLink, at topology.
+- No 2x H100 SXM offer with NVLink bandwidth listed during the session (vastai search with bw_nvlink > 0).
+
+**Left:**
+- RCCL on the MI50s at widths 2, 3 and 4 (/opt/claude-work/cuda88/rccl-plan.md, ready, waits for the owner's cards), the ROCm hand check of this change there, and the NVLink and NVSwitch boxes where NCCL is strongest.
+- Rebase onto the landing stack with cuda/sums-tune.
+- One 2x H100 SXM NVLink try (sm_90 builds b92h and b94h ready).
+- The 5120-float pick: a process's join takes the uncapped one-shot (13.4 us on two A4000) or the 2-block one (10.5 to 11.5) by timing noise; and width 4 at 5120 floats, 11% behind NCCL on four A4000.
+- The A100 NVLink boxes at width 4.
+
+**Gotchas:**
+- A host-to-device `cudaMemcpy` from pageable memory returns before the copy lands, so a probe that then runs NCCL on a non-blocking stream reads stale inputs; the probe synchronizes the device after each copy.
+
+## Tensor-group sums tuned on CUDA: block caps timed with the forms (2026-11-18, CUDA87-SUM, branch cuda/sums-tune on cuda/step6-split f3a39823; rebases onto the landing stack, where a1c07fa8's fold parameter in `summed()` and 35223ca2 conflict)
+
+**Goal:** tune the CUDA tensor group's sums the way ROCm's were tuned: each transport's rate against the link, the crossovers between transports and forms, host-staged against peer paths, and the per-sum latency at decode sizes, every variant on the member-order oracle.
+
+**Done:**
+- `GpuSumPick` carries a block cap, 0 for the form's own count (`launched_blocks`: one-shot 16, two shots 32, the chain 16 each way, each fewer where n is small); every member takes the same cap, so blocks still meet blocks and the bits do not change.
+- `time_forms` (collective core, so CUDA and ROCm both) times every pick as before, then halves the cap of every kernel form within 8 times the best pick's time (`kCapSpan`) from its blocks at that size while each halving sums faster, and a capped form wins where it beats every pick; below the least timed size the one-shot takes that size's floats a block where that size's pick is a capped one-shot. The stderr line gives a capped winner as `peer writes one-shot of 1 blocks, 0.074`.
+- `backend-cuda sums` prints the copy engine's rates (peer one way and both ways, device to host and back, one and both devices) and, in two rounds of opposite order, every transport, form and cap from 256 floats to 512 rows of 5120 with time, GB/s, each member's busy time, host issue time and results off the oracle, then the joined group's picks and its sums at the same sizes.
+- `backend-cuda groups`' crossover picks include caps (host one-shot 2, peer two shots 2, host chain 1 each way) on both sides of each switch.
+
+**Measured** (two RTX A4000 on PCIe 3 x8, `nvidia-smi topo` NODE, peer access on, default clocks, Vast instance 61244602, the rental's rent dir /opt/claude-work/cloud-state/results/vast/20261118-121126, logs /opt/claude-work/cuda87sum/r8-sums.log to r10-sums.log, the table from r10, the head's build; one binary, `SUMS` lines, the median of 9 runs of 10 or 32 back-to-back sums, means of two rounds):
+- Copy engine: peer 5.65 GB/s one way, 5.26 each both ways at once; device to host 6.58, host to device 6.67, the same with both devices at once.
+- Peer stores from the SMs are this box's bottleneck: 0.67 GB/s at 2621440 floats at the one-shot's 16 blocks, 2.8 GB/s at 2 blocks and 40960 floats; fewer blocks are faster at every size from 5120 floats, and the chain and two shots follow the same way.
+- Pulls under host writes, the copy engine, reach 4.95 GB/s at 2621440 floats, 94% of the both-ways copy rate.
+- Host one-shot issue time is 10.6 us a sum for the pair on the host at every size up to 40960 floats; the one-shot of one 5120-float row keeps each member 12.8 us busy.
+
+| floats (rows x 5120) | before pick | before ms | after pick | after ms | change |
+|---|---|---|---|---|---|
+| 1024 (1 x 1024) | host one-shot | 0.0196 | peer one-shot, cap 2 | 0.0115 | -41% |
+| 5120 (1) | host pulls | 0.0268 | peer one-shot, cap 2 | 0.0165 | -38% |
+| 10240 (2) | host pulls | 0.0332 | peer one-shot, cap 2 | 0.0203 | -39% |
+| 20480 (4) | host pulls | 0.0440 | peer one-shot, cap 2 | 0.0308 | -30% |
+| 40960 (8) | host pulls | 0.0601 | peer one-shot, cap 2 | 0.0579 | -4% |
+| 163840 (32) | host pulls | 0.1571 | host pulls | 0.1572 | level |
+| 2621440 (512) | host pulls | 2.1184 | host pulls | 2.1208 | level |
+
+- Before is the pick f3a39823's join made on this box (pulls from 5120 floats, below that the one-shot of host writes, the least size's transport, at its own blocks), timed as its arm of r10; after is the joined collective of r10 (`SUMS joined`), whose timing picked the peer one-shot at 2 blocks from 40960 floats down and pulls above.
+- The best arm at 5120 and 10240 floats is the peer one-shot at 1 block (0.0144 and 0.0192 ms), which the join's single-sum timing does not tell from 2 blocks; at 256 floats every pick is one block and level.
+- A first rule that halved only each transport's fastest kernel form missed the peer one-shot wherever the peer chain was faster at its own blocks (20480 floats on the 27B's join), so every kernel form within 8 times the best pick's time is halved.
+- Every `SUMS` line of r8, r9 and r10 is 0 of 2800 results off the oracle; `backend-cuda groups` 37 PASS, 0 FAIL on this box with the capped crossover.
+- Qwen3.6-27B Q4_K_M (unsloth's file of 16817244384 bytes), int8, `--device cuda:0,cuda:1 --tensor-width 2`, `bench --p 512 --n 128 --r 3`, before and after built the same way from detached trees (f3a39823 `llmx 0.1.0+gf3a398234238`, the head `+gf3a398234238.dirty`), ABAB, log /opt/claude-work/cuda87sum/e2e2.log:
+
+| Qwen3.6-27B Q4_K_M int8, 1x2 group, tok/s | before | after |
+|---|---|---|
+| tg128, rounds 1, 2, 3 | 29.85, 28.41, 28.45 | 30.20, 29.96, 29.79 |
+| pp512, rounds 1, 2, 3 | 666.87, 573.87, 572.22 | 594.80, 574.37, 568.99 |
+
+- Decode gains 3.7% on the means; the head's join takes the peer one-shot of 2 blocks from 20480 floats down, where f3a39823's took pulls at a 5120-float row.
+- The prompt's sums take pulls in both, and the first bench of each session ran at 667 against about 572 for every later one, before or after (e2e.log the same), so round 1 is the card's warm-up, not the change.
+- 64 greedy tokens of the 27B and of Qwen3-0.6B Q8_0 give the same text before and after on the group; 0.6B tg128 418.97 and 417.28 before, 417.37 and 409.62 after with a first rule, level within its spread (e2e.log).
+- Timing a member's stream held behind a host word (`cuStreamWaitValue64`) before its sums were issued hung the device on this box, so busy times come from the backend's own events.
+
+**Left:**
+- ROCm runs the same `time_forms`: `backend-rocm collective` and the two-MI50 width-2 greedy ids, before and after, are the hand check, and a MI50's caps are measured there.
+- A box with fast SM peer stores (one PCIe switch, NVLink) and a 4- or 8-wide group: /opt/claude-work/cuda87sum/next-rental.md.
+
+**Gotchas:**
+- The caps only go down from the constants; a link that wants more than 16 one-shot blocks is not served.
+- A capped winner at a size stops the timing there like any one-shot win, so smaller sizes take its cap untimed.
+
 ## CUDA prompt gap, change 3, second part: one tensor-core K tile body at 64 and 128 outputs (2026-11-17, CUDA78 to CUDA83, branch cuda/prompt-ktile, the top of the CUDA chain rebased by CUDA83 onto main a274cfd62)
 
 **Goal.** One-card prompt toward the reference: S8 (one RTX A6000, Qwen3.6-27B Q4_K_M pp512 int8) 738 tok/s against the reference's 1291, with `q4_k_tile8` and `q6_k_tile8` 646 of 774 ms device time in S13's profile.
@@ -4389,22 +4841,74 @@ These are hand checks: `cuda-sass` and the five card-free CTests run in the test
 - This branch has built on CPU and ROCm and run the CTest, `docs` and `dead-code`; `backend-rocm`, `backend-cuda`, the model cells and any HF check wait for a card and the owner's call; nothing was pushed to GitHub.
 - Qwen3.6-27B Q4_K_M int8 pp512 at depth 4096 is 412.5 against the reference's 1312.7 on the RTX 3090; the K-quant tiles hold 67% of its device time, owned by step 2 and step 2b (CUDA34), and the attention tile, F32 on the CUDA cores, 14%, which a tensor-core form would own (no owner yet).
 
-## CUDA backend step 6: layer split and tensor groups on cuda:N (2026-11-16, CUDA47, branch cuda/step6-split on the step 2, 4 and 5 stack head c9969f6d6)
+## CUDA backend step 6: layer split and tensor groups on cuda:N (2026-11-16, CUDA47, CUDA71, CUDA76 and CUDA85, branch cuda/step6-split, the per-size transport on the K-tile chain fbdadac83)
 
 **Goal.** Step 6 of docs/CUDA.md, Order of work: layer splits and tensor groups on CUDA through the shared core's collective and handoffs, with the three transports of the collective design, held by the split check, the tensor-split suite components and group identity across forms and widths on a pair of cards.
 
 **Done (card-free).**
 - The layer split and the handoffs needed no CUDA code: `GpuHandoff` (counters in coherent host memory, `cuStreamWaitValue64` and `cuStreamWriteValue64`) and `GpuCollective` already instantiate over `CudaApi`.
 - Transport 2, host writes (`GroupTransport::host_writes`, `gpu/collective_core.hpp`): where peer access is refused, each member's signal block and staging slots are pinned host memory every member maps, and the peer-write kernels, forms, parity halves and armed bits run over them unchanged; no kernel changes, so the ROCm and CUDA code objects are c9969f6d6's.
-- `group_transport` probes peer writes, then host writes, then falls to pulls, and stderr names the transport with why the earlier probes failed; `member_order` times a set by its transport.
+- `group_transport` runs the add check once for the group, then the peer writes and the host writes probes, and keeps each transport whose probe passes, pulls where neither does; stderr names the kept transports with why the dropped ones failed.
+- Per-size transport at join (CUDA75's proposal of 13:44 with F2DEV's review of 14:21, items 1 to 6; CUDA76): `GroupPath.forms` maps each timed size to a transport and form (`GpuSumPick`), `time_forms` times every form of every kept transport at each halving and keeps the fastest pick, and below the least timed size the one-shot of that size's transport runs.
+  A collective stages one area set a transport (areas, `GroupPeers` tables, pull buffers and its own parity half); `join` returns the collective that timed, and `use` frees the staging of every transport no size picked, so the pinned line and `collective_bytes_per_row` (each member's record of the transports its timed groups picked) count only what the picks use.
+  `member_order` costs a group as its fastest pick over every kept transport and remembers the kept set; the two "timed its sums in place" prints are one, `timed_group`, which names each size's transport and form.
+  Tests: `backend-cuda groups` adds a collective whose picks switch transport and form at every size from 64 to 8 chain chunks (`kCrossover`, through `cuda_collective`'s forms map and `use`, the join's seam), against the oracle on both sides of each switch, and a crossover arm in the sentinel sums with two sums in flight; `backend-rocm`'s sentinel fast arm switches transports the same way, a hand check on two MI50s since no hosted runner has a device.
+  Every box now runs both probes and, at each timed size, nine timings where one transport took four or five: the load-time growth on the MI50 pair and on S8's pair is recorded below.
 - Under host writes the join also times pulls (`GpuSumForm::pulls`) beside the four forms, the copies landing in device memory of their own so the armed slots stay armed (F2DEV's review item 1), and prints the pinned host memory the collective holds (item 5).
 - Tests: `backend-rocm`'s join without peer access now sums by host writes, with a forced pulls collective beside it, and its sentinel sums run three arms, peer writes, host writes and pulls; `backend-cuda groups` checks the probe's transport, every form over each transport, member order, 600 sentinel sums an arm and three handoff rounds where two devices open.
 - Holds beyond the pair (COORD 06:53): NVLink and NVSwitch take peer writes unchanged and the form timing picks per size; a context reaches eight peers, so all-peer groups stop at nine cards and host writes are the fast transport past that; Hopper's asynchronous copies do not enter the collective; NCCL later is a fourth transport carrying bytes inside the two-shot and chain forms, never its all-reduce.
 
+**First card session (2026-11-16, CUDA47, two RTX 3090 on one host without peer access, head a1673a81 on c9969f6d6, `llmx 0.1.0+ga1673a817be1`).**
+- `backend-cuda groups` passed, `llmx-split-check` one card against the 1x2 layer split passed bit for bit on Qwen3-0.6B Q8_0 at f16 and int8, and the suite's `split` and `tensor-split` passed at widths 2 and 1.
+- Greedy ids, 64 tokens: Qwen3-0.6B Q8_0 the same on one card, the layer split and the 2-wide group at f16 and int8; Qwen3.6-27B Q4_K_M at int8 the same on one card and the layer split, and the group's differ from token 13 on (45 of 64), which a group may (docs/TENSOR-SPLIT.md, 4.4) and the HF check of the group decides.
+- The join timed pulls fastest from about 82k floats on the 27B (one-shot to chain 6.2 to 9.4 ms, pulls 3.4 ms at 2.6M floats) and 131k on the 0.6B, and chain or wrap below (0.17 ms at 5120 floats against 0.37 for pulls), so a host-written decode sum costs about 0.17 ms, about 22 ms a token over the 27B's 128 sums.
+
+| Qwen3.6-27B Q4_K_M, int8, tok/s | one card | 1x2 layer split | 2-wide group (host writes) |
+|---|---|---|---|
+| pp512 | 355.5 | 535.6 | 485.9 |
+| tg128 | 22.17 | 21.85 | 14.04 |
+
+- The reference's one card and layer split ran (27B pp512 779 and 817 with spreads of 251 and 257, tg128 14.43 and 14.45); its `-sm row` cells exited 1 at load with "device CUDA0 does not support split buffers", since its CUDA backend no longer registers a split buffer type and its tensor split is `-sm tensor`, which the next sessions run.
+
+**Second card session (2026-11-17, S8, two RTX A5000 with peer access on PCIe 4 x8, 230 W default limit, head 4d3e3b05, `llmx 0.1.0+g4d3e3b053866`, `/opt/claude-work/cuda71/s8/results/20261117-1511-S8`).**
+- `backend-cuda groups` 35 PASS, 0 FAIL; the split check one card against the 1x2 layer split bit-identical on Qwen3-0.6B Q8_0; 0.6B ids identical one card, layer and group; Qwen3.6-27B Q4_K_M int8 ids identical one card, layer and group (64 of 64), and one card's equal the RTX 3090's of the first session.
+- The group's 27B ids differ from the first session's group's from token 13: those came from a1673a81, before the CUDA chain's 934ca213 kept the one-row Q8_0 build's bits for partial spans, and at 4d3e3b05 the group gives one card's ids, so the stage now compares one card against the 3090's one card.
+- The suite's `tensor-split` at width 2 failed only for the stage: `llmx-decode-probe` was not beside the executable under `--require-tools`; the stage now ships it.
+- `backend-cuda sums`: peer copy 13.37 GB/s each way; at 5120 floats x 512 rows peer writes took 1757 to 1985 us, host writes 1918 to 2395 us, pulls under host writes 1249 us; at one row peer writes 24.5 to 26.9 us, host writes' pulls 19.6 us; the join kept peer writes and picked wrap at 2.6M and 1.3M floats, chain at 655k.
+
+| Qwen3.6-27B Q4_K_M, tok/s | one card | 1x2 layer split | 2-wide group |
+|---|---|---|---|
+| llmx int8 pp512, two rounds | 532.8 / 509.1 | 961.0 / 943.3 | 750.2 / 748.2 (peer writes) |
+| llmx int8 tg128, two rounds | 29.59 / 29.05 | 30.33 / 30.14 | 45.84 / 45.73 |
+| reference pp512 | 980.0 | 1005.7 | 1387.4 (`-sm tensor`) |
+| reference tg128 | 26.88 | 28.92 | 54.12 |
+
+- Against the reference on the same cards, llmx decode is +8 to +10% on one card, +4 to +5% in the layer split and -15% in the group against its tensor split; prompt is -46 to -48%, -4 to -6% and -46%.
+
+**Per-size transport on two MI50s (2026-11-17, CUDA76's hand check, 4d3e3b05 before and 53288c3d after, the same code as the per-size head, `/opt/claude-work/cuda76/r.rc`).**
+- `backend-rocm collective` passed on the per-size build.
+- Qwen3-0.6B Q8_0 and Qwen3.6-27B Q4_K_M int8 at width 2 give the same 64 greedy ids before and after (b/a/b/a loads).
+- The pair now keeps peer writes and host writes, and the join picks host writes' pulls from 327680 floats up (27B, 2621440 floats: 1.080 ms against peer writes' best 1.235) and peer writes below; the group holds 80 MiB of pinned host memory for that.
+- Load-time growth: the member order's "groups timed in" went from 49 to 645 and 1088 ms on the 27B and from 14 to 61 and 63 ms on the 0.6B, and the 27B's construct phase from 5.82 to 6.95 s.
+
+**Per-size transport on two RTX A6000 (2026-11-17, S8, Xeon 6248R, head cffa97ea, `llmx 0.1.0+gcffa97ea21c5`, `/opt/claude-work/cuda71/s8/results/20261117-1631-S8`).**
+- Every cell exited 0; `backend-cuda groups` 37 PASS, the split check bit-identical, the suite's `tensor-split` passed; Qwen3-0.6B ids one card = layer = group.
+- The join picks host writes' pulls at every timed size from 32768 to 2621440 floats (27B, 2621440 floats: 2.27 ms against peer writes' best 2.99); `backend-cuda sums` gives the peer copy engine 7.25 and 9.68 GB/s.
+- Qwen3.6-27B Q4_K_M int8 ids: one card differs from the RTX 3090's one card at 1 of 64 positions (from token 54), and the group from one card at 45 of 64 from token 13; S9's 3090s separate a card effect from the change.
+
+| Qwen3.6-27B Q4_K_M, tok/s, two RTX A6000 | one card | 1x2 layer split | 2-wide group |
+|---|---|---|---|
+| llmx int8 pp512, two rounds | 738 / 737 | 1268 / 1254 | 800 / 757 |
+| llmx int8 tg128, two rounds | 32.4 / 32.4 | 31.5 / 31.8 | 43.9 / 42.9 |
+| reference pp512 | 1291 | 1312 | 1345 (`-sm tensor`) |
+| reference tg128 | 27.7 | 28.1 | 53.0 |
+
+- The A5000 and A6000 sessions ran on different cards, so they are not an A/B of the change; the rental session of CUDA85 runs both heads on one box.
+
 **Left.**
-- The card session (cuda47/run.sh, READY-FOR-CARDS): `backend-cuda groups`, `llmx-split-check` one card against the 1x2 layer split on Qwen3-0.6B Q8_0 at f16 and int8, the suite's `split` and `tensor-split` at widths 2 and 1, greedy tokens on one card, the layer split and a 2-wide group for 0.6B and Qwen3.6-27B Q4_K_M, and pp512 and tg128 per mode beside the reference's one card, layer and row splits.
-- A bridgeless GeForce pair refuses peer access, so that session proves host writes and pulls only; peer writes on CUDA wait for the NVLink session.
-- `backend-rocm` on two MI50s for the three-arm sentinel sums and host writes on ROCm.
+- One rental box running the head before and after the per-size transport, interleaved, for the 27B group's timing as an A/B, and S9's four cards for 1x4 and 2x2 (CUDA85's rental script).
+- S9, four cards (`cuda71/s9`): the same at width 2 as 1x4 and 2x2, the 2x2 ids equal to the 1x2 group's.
+- The HF check of the 2-wide group on Qwen3.6-27B Q4_K_M (`tests/baseline_layered.py` at the group and on one card) and the 16k raw and chat checks of a CUDA group, before the merge.
 
 **Gotchas.** A ROCm or CUDA test that refuses peer access to reach the conservative path now gets host writes; pulls are reached by forcing them (`rocm_collective` or `cuda_collective` with `GroupTransport::pulls`).
 

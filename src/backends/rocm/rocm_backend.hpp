@@ -24,8 +24,8 @@ void rocm_route_only(Backend& backend, std::string build);
 
 // A collective over `members` whose fast sums all take `form` over `transport`, the members possibly backends of one device, never probed: the tests' witness of each form and transport.
 std::unique_ptr<Collective> rocm_collective(const std::vector<Backend*>& members, size_t rows, size_t width, GpuSumForm form, GroupTransport transport = GroupTransport::peer_writes);
-// The same with each fast sum's form by its size, `forms` from each size up as the join's timing keeps them, the one-shot below them all: the tests' witness of the forms following one another.
-std::unique_ptr<Collective> rocm_collective(const std::vector<Backend*>& members, size_t rows, size_t width, const std::map<size_t, GpuSumForm>& forms);
+// The same with each fast sum's transport and form by its size, `forms` from each size up as the join's timing keeps them, staging every transport they name: the tests' witness of the picks following one another.
+std::unique_ptr<Collective> rocm_collective(const std::vector<Backend*>& members, size_t rows, size_t width, const std::map<size_t, GpuSumPick>& forms);
 
 // The profile a ROCm backend shapes its kernels by, which kv-selection reads for the crossovers it checks and changes to run each selection form at one size.
 DeviceProfile& rocm_profile(Backend& backend);

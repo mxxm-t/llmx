@@ -32,6 +32,8 @@ struct HipApi {
     static constexpr CopyKind kToHost = hipMemcpyDeviceToHost, kToDevice = hipMemcpyHostToDevice, kAnyCopy = hipMemcpyDefault;
     static constexpr const char* name = "rocm";
     static constexpr bool int8_tensor_tiles = false;
+    static constexpr bool copy_sums = false;   // copies sums hung on four MI50 at width 3 among sums in flight that switch form, cause unknown (docs/STATUS.md)
+    static constexpr bool registered_coherent = false;   // hipHostRegister takes no coherent flag, so armed host slots stay in hipHostMalloc memory (collective_core.hpp, stage_for)
     static inline const std::string prefix = "rocm: ";
     static constexpr const unsigned char* f32_module = kF32Module;
     static constexpr const unsigned char* int16_module = kInt16Module;
@@ -102,12 +104,12 @@ DeviceCaps& rocm_caps(Backend& backend) { return dynamic_cast<RocmBackend&>(back
 std::unique_ptr<Collective> rocm_collective(const std::vector<Backend*>& members, size_t rows, size_t width, GpuSumForm form, GroupTransport transport) {
     std::vector<RocmBackend*> group;
     for (Backend* b : members) group.push_back(&dynamic_cast<RocmBackend&>(*b));
-    return std::make_unique<GpuCollective<HipApi>>(group, rows, width, transport, false, form);
+    return std::make_unique<GpuCollective<HipApi>>(group, rows, width, std::vector<GroupTransport>{transport}, false, GpuSumPick{transport, form});
 }
-std::unique_ptr<Collective> rocm_collective(const std::vector<Backend*>& members, size_t rows, size_t width, const std::map<size_t, GpuSumForm>& forms) {
+std::unique_ptr<Collective> rocm_collective(const std::vector<Backend*>& members, size_t rows, size_t width, const std::map<size_t, GpuSumPick>& forms) {
     std::vector<RocmBackend*> group;
     for (Backend* b : members) group.push_back(&dynamic_cast<RocmBackend&>(*b));
-    auto c = std::make_unique<GpuCollective<HipApi>>(group, rows, width, GroupTransport::peer_writes);
+    auto c = std::make_unique<GpuCollective<HipApi>>(group, rows, width, named_transports(forms));
     c->use(forms);
     return c;
 }

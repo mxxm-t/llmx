@@ -1362,6 +1362,8 @@ try {
     const mcp = {content:[{type:'text', text:JSON.stringify(payload)}]};
     const makeCall = (id, result, status='completed') => ({id, name:'local_search_images', arguments:'{}', status, result});
     const calls = [makeCall('text-result',mcp),makeCall('structured',{structuredContent:payload,content:[]}),
+      makeCall('sdk-string',{...mcp,structuredContent:{result:mcp.content[0].text}}),
+      makeCall('structured-empty',{...mcp,structuredContent:{images:[]}}),
       makeCall('failed',{...mcp,isError:true},'failed'),makeCall('empty',{images:[]}),makeCall('ordinary',{value:42}),
       makeCall('many',{images:Array.from({length:21},(_,i)=>({image_url:origin+'/'+i}))})];
     const chat = await evaluate(`ChatShell.api('/import','POST',${JSON.stringify({version:1,chat:{title:'Image search history',active_leaf:'image-answer'},messages:[
@@ -1379,9 +1381,10 @@ try {
     assert.deepEqual(visible,expected.map(([label,href])=>[label,href,'_blank','noopener noreferrer']));
     assert.equal(await evaluate(`document.querySelector('${list} b')`),null);
     assert.equal(await evaluate("document.querySelectorAll('[data-tool-call=structured] .tool-image-results li').length"),2);
+    assert.deepEqual(await evaluate("Array.from(document.querySelectorAll('[data-tool-call=sdk-string] .tool-image-results a'), a=>[a.textContent,a.href])"),expected);
     assert.equal(await evaluate("document.querySelectorAll('[data-tool-call=many] .tool-image-results li').length"),20);
     assert(await evaluate("document.querySelector('[data-tool-call=many] .tool-body').textContent.includes('more entries')"));
-    for (const id of ['failed','empty','ordinary'])
+    for (const id of ['failed','empty','ordinary','structured-empty'])
       assert.equal(await evaluate(`document.querySelector('[data-tool-call="${id}"] .tool-image-results')`),null);
     assert(await evaluate(`document.querySelector('${tool} .tool-body details pre').textContent.includes('No image')`));
     for (const width of [320,1440]) {

@@ -207,7 +207,7 @@ window.ChatShell = (() => {
     servers.forEach(server => {
       const card = node('section', 'tool-connection');
       const heading = node('div', 'tool-connection-heading');
-      heading.append(node('strong', '', server.name || (server.kind === 'builtin' ? 'Workspace' : 'MCP server')));
+      heading.append(node('strong', '', window.ChatRender.connectionLabel(server.name || (server.kind === 'builtin' ? 'Workspace' : 'MCP server'))));
       if (server.kind === 'builtin') heading.append(node('span', 'tool-kind', 'Built in'));
       const state = server.status === 'ready' ? 'Ready' : server.status === 'checking' ? 'Testing connection' : server.status === 'error' ? 'Connection error' : 'Not tested';
       const meta = node('p', 'tool-connection-meta', state + (Number.isFinite(server.tool_count) ? ' | ' + server.tool_count + ' tools' : ''));
@@ -259,7 +259,6 @@ window.ChatShell = (() => {
     if (event.target.closest('[data-chat],[data-action="new"],[data-action="temporary"]')) show('chat');
     if (event.target.closest('[data-action="logout"]')) $('monitor-frame').removeAttribute('src');
   }, true);
-  $('preferences-chat-settings').addEventListener('click', () => { show('chat'); document.querySelector('[data-action="settings"]').click(); });
   $('monitor-reload').addEventListener('click', () => loadMonitor(true)); $('monitor-frame').addEventListener('load', themeMonitor);
   new MutationObserver(themeMonitor).observe(document.documentElement, {attributes: true, attributeFilter: ['data-theme']});
   window.addEventListener('resize', fitViewport); fitViewport();

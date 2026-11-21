@@ -2558,10 +2558,17 @@ try {
   await click('[data-action="settings"]');
   inspectorPreference.settingsOpened = await evaluate("!document.querySelector('#panel-settings').hidden && getComputedStyle(document.querySelector('#inspector')).display!=='none'");
   const settingsButton = '.composer-toolbar [data-action=settings]';
+  async function openConversationSettings(activate = click) {
+    if (await evaluate("document.querySelector('#details-toggle').getAttribute('aria-expanded') !== 'true' || document.querySelector('#panel-settings').hidden")) {
+      await activate(settingsButton);
+    }
+  }
   await pointerClick(settingsButton);
   assert.equal(await detailsOpen(), false, 'pressing Conversation settings again must close its panel');
   assert.equal(await evaluate("document.activeElement.matches('.composer-toolbar [data-action=settings]')"), true);
-  await pointerClick(settingsButton);
+  await cdp('Input.dispatchKeyEvent', {type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,text:'\r'});
+  await cdp('Input.dispatchKeyEvent', {type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
+  await wait("document.querySelector('#chat-settings-toggle').getAttribute('aria-expanded')==='true'", 'keyboard reopens conversation settings');
   await pointerClick('#tab-stats');
   assert.equal(await evaluate("document.querySelector('[data-action=settings]').getAttribute('aria-expanded')"), 'false');
   await pointerClick(settingsButton);
@@ -2652,7 +2659,7 @@ try {
     selection.removeAllRanges();current.remove();return result;
   })()`);
   assert.deepEqual(stableMarkdown,{pass:true,paragraph:true,button:true,feedback:'Copied',focus:true,selection:'Completed paragraph'}, 'streamed Markdown changed completed blocks, focus or selection');
-  await click('[data-action="settings"]');
+  await openConversationSettings();
   assert.equal(await evaluate("document.querySelector('[data-action=save-settings]').hidden && document.querySelector('#conversation-settings-help')?.textContent.includes('first reply')"), true, 'blank settings must explain persistence without offering a phantom save');
   await fill('#setting-system', 'Keep first-chat settings.');
   await fill('#draft', 'Draft before explicit creation.');
@@ -2675,7 +2682,7 @@ try {
   })()`);
   await reloadDocument();
   await wait("document.querySelector('#chat-title').textContent==='Compose A'", 'compose fixture');
-  await click('[data-action="settings"]');
+  await openConversationSettings();
   await fill('#setting-system', 'Save these settings in A.');
   const settingsPath = JSON.stringify('/api/chats/'+composeChats[0]);
   await evaluate("(()=>{const original=window.fetch;window.releaseSettingsSave=null;window.fetch=async (...args)=>{if(args[0]==="+settingsPath+" && args[1]?.method==='PATCH'){window.fetch=original;await new Promise(resolve=>window.releaseSettingsSave=resolve);}return original(...args);};})()");
@@ -2848,7 +2855,7 @@ try {
   await wait("document.querySelector('.chat-item.active')!==null", 'new empty conversation');
   await evaluate("new Promise(resolve => setTimeout(resolve, 200))");
   assert.equal(await evaluate("fetch('/api/chats').then(r=>r.json()).then(d=>d.chats.length)"), 1, 'rapid New clicks created duplicate drafts');
-  await click('[data-action="settings"]');
+  await openConversationSettings();
   assert.equal(await evaluate("document.querySelector('#setting-reply-limit').value==='none' && document.querySelector('#reply-token-limit').hidden"), true, 'new chat forces a numeric reply cap');
   await wait("document.querySelector('#request-context-limit').textContent==='8,192 tokens'", 'existing collector exposes request capacity');
   assert.equal(await evaluate("document.querySelector('#model-context-limit').textContent"), '40,960 tokens', 'model and request context were conflated');
@@ -2861,11 +2868,11 @@ try {
   await reloadDocument();
   await wait("document.querySelector('#setting-max_tokens').value==='123'", 'saved explicit cap restored');
   assert.equal(await evaluate("document.querySelector('#setting-reply-limit').value"), 'custom');
-  await click('[data-action="settings"]');
+  await openConversationSettings();
   for (const width of [1440, 390]) for (const theme of ['dark', 'light']) {
     await cdp('Emulation.setDeviceMetricsOverride', {width, height:1000,deviceScaleFactor:1,mobile:width<500});
     await wait(`document.documentElement.dataset.compact==='${width<500}'`, 'settings viewport resize');
-    await click('[data-action="settings"]');
+    await openConversationSettings();
     assert.equal(await evaluate("!document.querySelector('#panel-settings').hidden && document.querySelector('#inspector').getBoundingClientRect().width>0"), true, 'settings screenshot did not open its panel');
     await evaluate("document.documentElement.dataset.theme="+JSON.stringify(theme));
     assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth"), true, 'settings overflow');
@@ -2967,7 +2974,7 @@ try {
   await send('Make a practical plan.');
   await wait("document.querySelector('.reasoning')!==null", 'streamed reasoning');
   await wait('healthStreams.length===1', 'one shared collector subscription');
-  await click('[data-action="settings"]');
+  await openConversationSettings();
   assert.equal(await evaluate('healthStreams.length'), 1, 'Settings added a second monitor subscription during generation');
   await evaluate(`window.capacitySample=(model,limit,age=0,ok=true)=>healthStreams.at(-1).dispatchEvent(new MessageEvent('history',{data:JSON.stringify({collector_id:'browser-collector',ok,interval_s:2,last_success:Date.now()/1000-age,samples:[],latest:{server:{model,request_tokens:limit}}})}))`);
   await evaluate("capacitySample('qwen3-local',8192)");
@@ -3147,7 +3154,7 @@ try {
   await wait("document.querySelector('#draft').value==='Edited draft before refreshing.' && !document.querySelector('#edit-note').hidden", 'edit draft restored after refresh');
   await send('Make an edited plan.');
   await wait("document.querySelector('.message.assistant')?.innerText.includes('An edited branch.') && document.querySelector('#stop').hidden", 'edited user branch');
-  await click('[data-action="settings"]');
+  await openConversationSettings();
   await click('#tool-settings input'); await click('[data-action="save-settings"]');
   await wait("document.querySelector('#toast').textContent.includes('Settings saved')", 'saved tool selection');
   const toolFixture = {upstream_available:true, models:[{id:'qwen3-local'}], tools:[{name:'echo', description:'Echo text', connection:'mcp:fixture',approval:true}], tools_error:null,
@@ -3159,6 +3166,8 @@ try {
   await evaluate("document.querySelector('#setting-system').value='Keep this unsaved system prompt';document.querySelector('#draft').value='Keep this unsent draft';");
   await click('[data-view="preferences"]');
   assert.equal(await evaluate("document.querySelector('#preferences-tools').innerText.includes('Approval required')"), true, 'operator approval policy label missing');
+  assert.equal(await evaluate("document.querySelector('#preferences-tools .tool-connection-heading strong').textContent"),'Fixture MCP');
+  assert.equal(await evaluate("document.querySelector('#tool-settings .tool-selection-title').textContent"),'Fixture MCP');
   const toolMetadataSeparated = await evaluate(`{
     const [policy, description] = document.querySelectorAll('#preferences-tools .connected-tool span');
     policy.textContent === 'Approval required' && description.textContent === 'Echo text' &&
@@ -3167,7 +3176,7 @@ try {
   await evaluate(`window.__toolTestCalls=0;window.__realFetch=window.fetch;window.fetch=async (url,options)=>{if(String(url)==='/api/tools/test'){window.__toolTestCalls++;return new Response(JSON.stringify({tools:[{name:'fresh_tool',description:'Freshly listed',connection:'mcp:fixture',approval:false}],tool_servers:[{id:'mcp:fixture',name:'fixture MCP',kind:'mcp',status:'ready',tool_count:1,approval:false,checked_at:1794760000,duration_ms:14,error:null}],tools_error:null}),{status:200,headers:{'Content-Type':'application/json'}})}return window.__realFetch(url,options)};`);
   await click('[data-test-server="mcp:fixture"]');
   await wait("document.querySelector('#preferences-tools').innerText.includes('Freshly listed')", 'tested tool list refresh');
-  await click('[data-view="chat"]'); await click('[data-action="settings"]');
+  await click('[data-view="chat"]'); await openConversationSettings();
   assert.equal(await evaluate("document.querySelector('#setting-system').value==='Keep this unsaved system prompt' && document.querySelector('#draft').value==='Keep this unsent draft'"), true, 'connection test discarded unsaved settings or draft');
   assert.equal(await evaluate("document.querySelector('#tool-settings input:checked')?.value==='echo' && document.querySelector('#tool-settings .unavailable-tool')?.innerText.includes('Unavailable. Selection preserved')"), true, 'unavailable selected tool is not visibly preserved');
   await click('#tool-settings .unavailable-tool input');
@@ -4380,7 +4389,7 @@ try {
   const openEmptyProjectPicker = async (fromAttach = false) => {
     if (fromAttach) await attachmentSource('project');
     else {
-      await pointerClick('.composer [data-action="settings"]');
+      await openConversationSettings(pointerClick);
       await pointerClick('#use-workspace-project');
     }
     await wait("document.querySelector('#project-context-status').textContent.includes('Create a project')", 'empty project list');
@@ -4429,7 +4438,7 @@ try {
   await pointerClick('#project-context-cancel');
   assert.equal(await evaluate("document.activeElement.matches('.composer [data-action=attach-project]')"), true, 'closing project review should restore its composer shortcut');
   async function reviewProject() {
-    await pointerClick('.composer [data-action="settings"]');
+    await openConversationSettings(pointerClick);
     await pointerClick('#use-workspace-project');
     await wait("document.querySelector('#project-context-dialog').open && !document.querySelector('#project-context-apply').disabled", 'saved project ready in Chat');
     assert.equal(await evaluate("document.querySelector('#project-context-files').children.length"), 2, 'project file review count');
@@ -4818,7 +4827,7 @@ try {
   assert.equal(await evaluate("document.querySelector('#model option:checked').disabled"), true, 'saved unavailable model remains selectable');
   assert.equal(await evaluate("document.querySelector('#send').disabled"), true, 'send remains available with an unavailable model');
   assert((await evaluate("document.querySelector('#banner').textContent")).includes('Choose another model'), 'unavailable model has no recovery guidance');
-  await click('[data-action="settings"]');
+  await openConversationSettings();
   await fill('#setting-system', 'Saved while the model was unavailable.');
   await click('[data-action="save-settings"]');
   await wait("fetch("+JSON.stringify('/api/chats/'+invalidModelChat)+").then(r=>r.json()).then(d=>d.chat.settings.system==='Saved while the model was unavailable.')", 'save settings while the model is unavailable');

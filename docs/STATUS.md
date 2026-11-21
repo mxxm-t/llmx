@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## Conversation settings toggle
+
+The composer settings button toggles its open panel and switches from another
+tab to Settings. The link from the Settings page always opens the panel.
+Connection headings use the discovered names with an initial capital. Stored
+tool selections retain their identifiers. Chrome covers the docked toggle
+and modal drawer focus. Landing uses a fast-forward after the scoped checks.
+
 ## Chat and Monitor surfaces
 
 Chat uses the dashboard page background in the conversation, card surface on the composer, header surface on the

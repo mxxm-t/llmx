@@ -270,7 +270,7 @@
     });
     groups.forEach(group => {
       const section = node('section', 'tool-selection-group');
-      section.append(node('strong', 'tool-selection-title', group.name));
+      section.append(node('strong', 'tool-selection-title', window.ChatRender.connectionLabel(group.name)));
       group.tools.forEach(tool => {
         const label = node('label', 'tool-setting'); const input = node('input'); input.type = 'checkbox'; input.value = tool.name; input.checked = selected.includes(tool.name);
         const detail = node('span', '', tool.name);
@@ -1856,18 +1856,24 @@
     draft.style.height = Math.min(height, 220) + 'px';
     draft.style.overflowY = height > 220 ? 'auto' : 'hidden';
   }
-  function showTab(name) { S.tab = name; document.querySelectorAll('[data-tab]').forEach(el => { el.setAttribute('aria-selected', String(el.dataset.tab === name)); el.tabIndex = el.dataset.tab === name ? 0 : -1; }); for (const tab of ['activity', 'stats', 'settings']) $('panel-' + tab).hidden = tab !== name; syncLiveMetrics(); renderContextLimits(); }
+  function reflectDetailsState() {
+    const app = $('app');
+    const open = app.dataset.view === 'chat' && !app.classList.contains('inspector-closed');
+    $('details-toggle').setAttribute('aria-expanded', String(open));
+    $('chat-settings-toggle').setAttribute('aria-expanded', String(open && S.tab === 'settings'));
+    return open;
+  }
+  function showTab(name) { S.tab = name; document.querySelectorAll('[data-tab]').forEach(el => { el.setAttribute('aria-selected', String(el.dataset.tab === name)); el.tabIndex = el.dataset.tab === name ? 0 : -1; }); for (const tab of ['activity', 'stats', 'settings']) $('panel-' + tab).hidden = tab !== name; reflectDetailsState(); syncLiveMetrics(); renderContextLimits(); }
   function usesDetailsDrawer() { return document.documentElement.dataset.compact === 'true' || window.innerWidth <= 1200; }
   function canFocusDrawerControl(el) {
     return el && !el.matches(':disabled') && !el.closest('[inert]') && el.checkVisibility({visibilityProperty: true});
   }
   function updateShade(opener, destination) {
     const app = $('app'), sidebar = $('sidebar'), details = $('inspector');
-    const detailsOpen = app.dataset.view === 'chat' && !app.classList.contains('inspector-closed');
+    const detailsOpen = reflectDetailsState();
     const sidebarOpen = document.documentElement.dataset.compact === 'true' && app.classList.contains('sidebar-open');
     const next = sidebarOpen ? sidebar : detailsOpen && usesDetailsDrawer() ? details : null;
     $('sidebar-toggle').setAttribute('aria-expanded', String(sidebarOpen));
-    $('details-toggle').setAttribute('aria-expanded', String(detailsOpen));
     $('drawer-shade').hidden = !next;
     if (next !== modalDrawer) {
       const previous = modalDrawer, returnTo = drawerOpener;
@@ -1943,9 +1949,14 @@
       updateShade(el); return;
     }
     if (name === 'close-drawers') return closeDrawers();
-    if (name === 'inspector' || name === 'settings') {
+    if (name === 'inspector' || name === 'settings' || name === 'open-settings') {
+      if (name === 'open-settings') {
+        window.ChatShell.show('chat');
+        el = $('chat-settings-toggle');
+        if (!usesDetailsDrawer()) el.focus({preventScroll: true});
+      }
       $('app').classList.remove('sidebar-open');
-      if (name === 'settings') {
+      if (name === 'open-settings' || (name === 'settings' && el.getAttribute('aria-expanded') !== 'true')) {
         $('app').classList.remove('inspector-closed'); showTab('settings');
       } else {
         const closed = $('app').classList.toggle('inspector-closed');

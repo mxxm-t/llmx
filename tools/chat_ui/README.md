@@ -216,6 +216,10 @@ It does not lock the upstream model or control later server restarts.
 
 ## Conversations
 
+The composer settings button opens the Settings tab. Press it again to close
+the docked panel. On narrow screens, Close or Escape returns to the composer
+button. The Conversation settings link on the Settings page always opens it.
+
 Select the llmx wordmark to return to the Chat landing page. This keeps the
 draft of the conversation you left and adds no empty row to chat history.
 Ending a temporary chat still uses its existing confirmation.
@@ -489,7 +493,7 @@ the connection's entire new catalogue. Automatic retries keep their 30-second
 backoff, and the button permits an explicit retry. Status is the last discovery
 result, not a continuous health guarantee.
 
-Tool selection is saved per conversation. Each tool shows whether approval is
+Tool headings come from the configured connections and capitalize their first letter for display. Tool selection is saved per conversation. Each tool shows whether approval is
 required. Refreshing connections preserves unsaved chat settings, draft text and
 selected tools that became unavailable. Unavailable selections can be removed.
 Approval policy comes from the operator configuration and is not editable in the

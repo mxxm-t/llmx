@@ -164,7 +164,7 @@
                   <select id="model" aria-label="Model on the connected server" aria-describedby="model-source-help">
                     <option value="">Select model</option>
                   </select>
-                  <button type="button" class="icon" data-action="settings" aria-label="Conversation settings" title="Conversation settings"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 7h10m4 0h4M3 17h3m4 0h11M17 4v6M7 14v6"/></svg></button>
+                  <button type="button" id="chat-settings-toggle" class="icon" data-action="settings" aria-controls="panel-settings" aria-expanded="false" aria-label="Conversation settings" title="Conversation settings"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 7h10m4 0h4M3 17h3m4 0h11M17 4v6M7 14v6"/></svg></button>
                 </div>
                 <button id="send" type="submit" class="send-button" aria-label="Send message">
                   <svg viewBox="0 0 24 24">
@@ -239,7 +239,7 @@
               <h3>Connected tools</h3>
               <p>Test connection checks the server and refreshes its tool list. It does not run tools.</p>
               <div id="preferences-tools"></div>
-              <button class="secondary-button" id="preferences-chat-settings">Conversation settings</button>
+              <button class="secondary-button" id="preferences-chat-settings" data-action="open-settings">Conversation settings</button>
             </section>
             <section class="settings-card" aria-labelledby="preferences-features-title">
               <h3 id="preferences-features-title">Optional features</h3>

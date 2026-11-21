@@ -544,6 +544,11 @@ kbd {
   width:32px;
   height:32px
 }
+#chat-settings-toggle[aria-expanded=true] {
+  background:var(--brand-bg);
+  color:var(--cyan)
+}
+
 .composer-left select {
   background:none;
   border:0;

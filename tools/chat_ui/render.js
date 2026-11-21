@@ -237,5 +237,6 @@ window.ChatRender = (() => {
   }
   function number(value, suffix = '') { return typeof value === 'number' && Number.isFinite(value) ? new Intl.NumberFormat(undefined, {maximumFractionDigits: 2}).format(value) + suffix : 'Unavailable'; }
   function json(value) { return typeof value === 'string' ? value : JSON.stringify(value, null, 2); }
-  return {node, icon, link, markdown, updateMarkdown, number, json};
+  function connectionLabel(name) { return name.charAt(0).toUpperCase() + name.slice(1); }
+  return {node, icon, link, markdown, updateMarkdown, number, json, connectionLabel};
 })();

@@ -2277,7 +2277,7 @@ private:
                   kNormRopeForm, kDeltaStep, kMixRows, kLayerNormRows, kGelu, kAddBias,
                   kRows16x1, kRows16x2, kRows16x2r4, kRows16x4, kRows16x4r4, kRows16x8, kRows16x8r4, kRows16x16, kTile16,
                   kRows8x1, kRows8x2, kRows8x2r4, kRows8x4, kRows8x4r4, kRows8x8, kRows8x8r4, kRows8x16, kTile8, kTileReduce,
-                  kHalf8x1, kHalf8x1p, kHalf8x1r2, kHalf8x1s1, kHalf8x1r2s1, kHalf8x1r2s4, kHalf8x1h2, kHalf8x1h3, kHalf8x1h4, kHalf8x1h5, kHalf8x2, kHalf8x2r4, kHalf8x4, kHalf8x4r4, kHalf8x8, kHalf8x8r4, kHalf8x16, kHalf8x16r4, kHalf8x9, kHalf8x10, kHalf8x11, kHalf8x12, kHalf8x13, kHalf8x14, kHalf8x15, kTile16Tall, kTile8Tall, kRouted16, kRouted8, kRoutedHalf8, kRoutedHalf8s1, kGrouped16x2, kGrouped16x4, kGrouped16x8, kGrouped8x2, kGrouped8x4, kGrouped8x8, kGroupedHalf8x2, kGroupedHalf8x4, kGroupedHalf8x8, kRoutedTile16, kRoutedTile8, kRoutedNarrow16, kRoutedNarrow8, kRoutedStream8, kRoutedThinMXFP416,
+                  kHalf8x1, kHalf8x1p, kHalf8x1r2, kHalf8x1s1, kHalf8x1r2s1, kHalf8x1r2s4, kHalf8x1h2, kHalf8x1h3, kHalf8x1h4, kHalf8x1h5, kHalf8x1h2p, kHalf8x1h3p, kHalf8x1h4p, kHalf8x1h5p, kHalf8x2, kHalf8x2r4, kHalf8x4, kHalf8x4r4, kHalf8x8, kHalf8x8r4, kHalf8x16, kHalf8x16r4, kHalf8x9, kHalf8x10, kHalf8x11, kHalf8x12, kHalf8x13, kHalf8x14, kHalf8x15, kTile16Tall, kTile8Tall, kRouted16, kRouted8, kRoutedHalf8, kRoutedHalf8s1, kGrouped16x2, kGrouped16x4, kGrouped16x8, kGrouped8x2, kGrouped8x4, kGrouped8x8, kGroupedHalf8x2, kGroupedHalf8x4, kGroupedHalf8x8, kRoutedTile16, kRoutedTile8, kRoutedNarrow16, kRoutedNarrow8, kRoutedStream8, kRoutedThinMXFP416,
                   kRowsQ4K16x1, kRowsQ4K16x2, kRowsQ4K16x4, kRowsQ4K16x8, kRowsQ4K16x16, kRowsQ4K8x1, kRowsQ4K8x2, kRowsQ4K8x4, kRowsQ4K8x8, kRowsQ4K8x16, kTileQ4K16, kTileQ4K8, kRoutedQ4K16, kRoutedQ4K8, kGroupedQ4K16x2, kGroupedQ4K16x4, kGroupedQ4K16x8, kGroupedQ4K8x2, kGroupedQ4K8x4, kGroupedQ4K8x8, kRoutedTileQ4K16, kRoutedTileQ4K8, kRoutedNarrowQ4K16, kRoutedStream16Q4K8, kRoutedStreamQ4K8, kRoutedMidQ4K16, kRoutedMidQ4K8, kRowsQ5K16x1, kRowsQ5K16x2, kRowsQ5K16x4, kRowsQ5K16x8, kRowsQ5K16x16, kRowsQ5K8x1, kRowsQ5K8x2, kRowsQ5K8x4, kRowsQ5K8x8, kRowsQ5K8x16, kTileQ5K16, kTileQ5K8, kRoutedQ5K16, kRoutedQ5K8, kGroupedQ5K16x2, kGroupedQ5K16x4, kGroupedQ5K16x8, kGroupedQ5K8x2, kGroupedQ5K8x4, kGroupedQ5K8x8, kRoutedTileQ5K16, kRoutedTileQ5K8, kRoutedNarrowQ5K16, kRoutedStream16Q5K8, kRoutedStreamQ5K8, kRoutedMidQ5K16, kRoutedMidQ5K8, kRowsQ6K16x1, kRowsQ6K16x2, kRowsQ6K16x4, kRowsQ6K16x8, kRowsQ6K16x16, kRowsQ6K8x1, kRowsQ6K8x2, kRowsQ6K8x4, kRowsQ6K8x8, kRowsQ6K8x16, kTileQ6K16, kTileQ6K8, kRoutedQ6K16, kRoutedQ6K8, kGroupedQ6K16x2, kGroupedQ6K16x4, kGroupedQ6K16x8, kGroupedQ6K8x2, kGroupedQ6K8x4, kGroupedQ6K8x8, kRoutedTileQ6K16, kRoutedTileQ6K8, kRoutedNarrowQ6K16, kRoutedStream16Q6K8, kRoutedStreamQ6K8, kRoutedMidQ6K16, kRoutedMidQ6K8,
                   kRowsQ5016x1, kRowsQ5016x2, kRowsQ5016x4, kRowsQ5016x8, kRowsQ5016x16, kRowsQ508x1, kRowsQ508x2, kRowsQ508x4, kRowsQ508x8, kRowsQ508x16, kTileQ5016, kTileQ508, kRoutedQ5016, kRoutedQ508, kGroupedQ5016x2, kGroupedQ5016x4, kGroupedQ5016x8, kGroupedQ508x2, kGroupedQ508x4, kGroupedQ508x8, kRoutedTileQ5016, kRoutedTileQ508, kRoutedNarrowQ5016, kRoutedStream16Q508, kRoutedStreamQ508, kRoutedMidQ5016, kRoutedMidQ508, kRowsQ4016x1, kRowsQ4016x2, kRowsQ4016x4, kRowsQ4016x8, kRowsQ4016x16, kRowsQ408x1, kRowsQ408x2, kRowsQ408x4, kRowsQ408x8, kRowsQ408x16, kTileQ4016, kTileQ408, kRoutedQ4016, kRoutedQ408, kGroupedQ4016x2, kGroupedQ4016x4, kGroupedQ4016x8, kGroupedQ408x2, kGroupedQ408x4, kGroupedQ408x8, kRoutedTileQ4016, kRoutedTileQ408, kRoutedNarrowQ4016, kRoutedStream16Q408, kRoutedStreamQ408, kRoutedMidQ4016, kRoutedMidQ408, kRowsQ4116x1, kRowsQ4116x2, kRowsQ4116x4, kRowsQ4116x8, kRowsQ4116x16, kRowsQ418x1, kRowsQ418x2, kRowsQ418x4, kRowsQ418x8, kRowsQ418x16, kTileQ4116, kTileQ418, kRoutedQ4116, kRoutedQ418, kGroupedQ4116x2, kGroupedQ4116x4, kGroupedQ4116x8, kGroupedQ418x2, kGroupedQ418x4, kGroupedQ418x8, kRoutedTileQ4116, kRoutedTileQ418, kRoutedNarrowQ4116, kRoutedStream16Q418, kRoutedStreamQ418, kRoutedMidQ4116, kRoutedMidQ418, kRowsQ5116x1, kRowsQ5116x2, kRowsQ5116x4, kRowsQ5116x8, kRowsQ5116x16, kRowsQ518x1, kRowsQ518x2, kRowsQ518x4, kRowsQ518x8, kRowsQ518x16, kTileQ5116, kTileQ518, kRoutedQ5116, kRoutedQ518, kGroupedQ5116x2, kGroupedQ5116x4, kGroupedQ5116x8, kGroupedQ518x2, kGroupedQ518x4, kGroupedQ518x8, kRoutedTileQ5116, kRoutedTileQ518, kRoutedNarrowQ5116, kRoutedStream16Q518, kRoutedStreamQ518, kRoutedMidQ5116, kRoutedMidQ518, kRowsIQ4NL16x1, kRowsIQ4NL16x2, kRowsIQ4NL16x4, kRowsIQ4NL16x8, kRowsIQ4NL16x16, kRowsIQ4NL8x1, kRowsIQ4NL8x2, kRowsIQ4NL8x4, kRowsIQ4NL8x8, kRowsIQ4NL8x16, kTileIQ4NL16, kTileIQ4NL8, kRoutedIQ4NL16, kRoutedIQ4NL8, kGroupedIQ4NL16x2, kGroupedIQ4NL16x4, kGroupedIQ4NL16x8, kGroupedIQ4NL8x2, kGroupedIQ4NL8x4, kGroupedIQ4NL8x8, kRoutedTileIQ4NL16, kRoutedTileIQ4NL8, kRoutedNarrowIQ4NL16, kRoutedStream16IQ4NL8, kRoutedStreamIQ4NL8, kRoutedMidIQ4NL16, kRoutedMidIQ4NL8, kRowsMXFP416x1, kRowsMXFP416x2, kRowsMXFP416x4, kRowsMXFP416x8, kRowsMXFP416x16, kRowsMXFP48x1, kRowsMXFP48x2, kRowsMXFP48x4, kRowsMXFP48x8, kRowsMXFP48x16, kTileMXFP416, kTileMXFP48, kRoutedMXFP416, kRoutedMXFP48, kGroupedMXFP416x2, kGroupedMXFP416x4, kGroupedMXFP416x8, kGroupedMXFP48x2, kGroupedMXFP48x4, kGroupedMXFP48x8, kRoutedTileMXFP416, kRoutedTileMXFP48, kRoutedNarrowMXFP416, kRoutedStream16MXFP48, kRoutedStreamMXFP48, kRoutedMidMXFP416, kRoutedStream32MXFP48, kQuadRowsMXFP48x1, kQuadRoutedMXFP48,
                   kRowsQ3K16x1, kRowsQ3K16x2, kRowsQ3K16x4, kRowsQ3K16x8, kRowsQ3K16x16, kRowsQ3K8x1, kRowsQ3K8x2, kRowsQ3K8x4, kRowsQ3K8x8, kRowsQ3K8x16, kTileQ3K16, kTileQ3K8, kRoutedQ3K16, kRoutedQ3K8, kGroupedQ3K16x2, kGroupedQ3K16x4, kGroupedQ3K16x8, kGroupedQ3K8x2, kGroupedQ3K8x4, kGroupedQ3K8x8, kRoutedTileQ3K16, kRoutedTileQ3K8, kRoutedNarrowQ3K16, kRoutedStream16Q3K8, kRoutedStreamQ3K8, kRoutedMidQ3K16, kRoutedMidQ3K8,
@@ -2316,7 +2316,7 @@ private:
                                                            "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_2_r4", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_4_r4",
                                                            "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_8_r4", "llmx_q8_0_rows16_16", "llmx_q8_0_tile16", "llmx_q8_0_rows8_1",
                                                            "llmx_q8_0_rows8_2", "llmx_q8_0_rows8_2_r4", "llmx_q8_0_rows8_4", "llmx_q8_0_rows8_4_r4", "llmx_q8_0_rows8_8",
-                                                           "llmx_q8_0_rows8_8_r4", "llmx_q8_0_rows8_16", "llmx_q8_0_tile8", "llmx_tile_reduce", "llmx_q8_0_half8_1", "llmx_q8_0_half8_1p", "llmx_q8_0_half8_1r2", "llmx_q8_0_half8_1s1", "llmx_q8_0_half8_1r2s1", "llmx_q8_0_half8_1r2s4", "llmx_q8_0_half8_1h2", "llmx_q8_0_half8_1h3", "llmx_q8_0_half8_1h4", "llmx_q8_0_half8_1h5",
+                                                           "llmx_q8_0_rows8_8_r4", "llmx_q8_0_rows8_16", "llmx_q8_0_tile8", "llmx_tile_reduce", "llmx_q8_0_half8_1", "llmx_q8_0_half8_1p", "llmx_q8_0_half8_1r2", "llmx_q8_0_half8_1s1", "llmx_q8_0_half8_1r2s1", "llmx_q8_0_half8_1r2s4", "llmx_q8_0_half8_1h2", "llmx_q8_0_half8_1h3", "llmx_q8_0_half8_1h4", "llmx_q8_0_half8_1h5", "llmx_q8_0_half8_1h2p", "llmx_q8_0_half8_1h3p", "llmx_q8_0_half8_1h4p", "llmx_q8_0_half8_1h5p",
                                                            "llmx_q8_0_half8_2", "llmx_q8_0_half8_2_r4", "llmx_q8_0_half8_4", "llmx_q8_0_half8_4_r4", "llmx_q8_0_half8_8",
                                                            "llmx_q8_0_half8_8_r4", "llmx_q8_0_half8_16", "llmx_q8_0_half8_16_r4", "llmx_q8_0_half8_9", "llmx_q8_0_half8_10", "llmx_q8_0_half8_11", "llmx_q8_0_half8_12", "llmx_q8_0_half8_13", "llmx_q8_0_half8_14", "llmx_q8_0_half8_15", "llmx_q8_0_tile16_tall", "llmx_q8_0_tile8_tall", "llmx_q8_0_routed16", "llmx_q8_0_routed8", "llmx_q8_0_routed_half8", "llmx_q8_0_routed_half8s1", "llmx_q8_0_routed16_g2", "llmx_q8_0_routed16_g4", "llmx_q8_0_routed16_g8", "llmx_q8_0_routed8_g2", "llmx_q8_0_routed8_g4", "llmx_q8_0_routed8_g8", "llmx_q8_0_routed_half8_g2", "llmx_q8_0_routed_half8_g4", "llmx_q8_0_routed_half8_g8", "llmx_q8_0_routed_tile16", "llmx_q8_0_routed_tile8", "llmx_q8_0_routed_narrow16", "llmx_q8_0_routed_narrow8", "llmx_q8_0_routed_stream8", "llmx_mxfp4_routed_thin16",
                                                            "llmx_q4_k_rows16_1", "llmx_q4_k_rows16_2", "llmx_q4_k_rows16_4", "llmx_q4_k_rows16_8", "llmx_q4_k_rows16_16", "llmx_q4_k_rows8_1", "llmx_q4_k_rows8_2", "llmx_q4_k_rows8_4", "llmx_q4_k_rows8_8", "llmx_q4_k_rows8_16", "llmx_q4_k_tile16", "llmx_q4_k_tile8", "llmx_q4_k_routed16", "llmx_q4_k_routed8", "llmx_q4_k_routed16_g2", "llmx_q4_k_routed16_g4", "llmx_q4_k_routed16_g8", "llmx_q4_k_routed8_g2", "llmx_q4_k_routed8_g4", "llmx_q4_k_routed8_g8", "llmx_q4_k_routed_tile16", "llmx_q4_k_routed_tile8", "llmx_q4_k_routed_narrow16", "llmx_q4_k_routed_stream16_8", "llmx_q4_k_routed_stream8", "llmx_q4_k_routed_mid16", "llmx_q4_k_routed_mid8", "llmx_q5_k_rows16_1", "llmx_q5_k_rows16_2", "llmx_q5_k_rows16_4", "llmx_q5_k_rows16_8", "llmx_q5_k_rows16_16", "llmx_q5_k_rows8_1", "llmx_q5_k_rows8_2", "llmx_q5_k_rows8_4", "llmx_q5_k_rows8_8", "llmx_q5_k_rows8_16", "llmx_q5_k_tile16", "llmx_q5_k_tile8", "llmx_q5_k_routed16", "llmx_q5_k_routed8", "llmx_q5_k_routed16_g2", "llmx_q5_k_routed16_g4", "llmx_q5_k_routed16_g8", "llmx_q5_k_routed8_g2", "llmx_q5_k_routed8_g4", "llmx_q5_k_routed8_g8", "llmx_q5_k_routed_tile16", "llmx_q5_k_routed_tile8", "llmx_q5_k_routed_narrow16", "llmx_q5_k_routed_stream16_8", "llmx_q5_k_routed_stream8", "llmx_q5_k_routed_mid16", "llmx_q5_k_routed_mid8", "llmx_q6_k_rows16_1", "llmx_q6_k_rows16_2", "llmx_q6_k_rows16_4", "llmx_q6_k_rows16_8", "llmx_q6_k_rows16_16", "llmx_q6_k_rows8_1", "llmx_q6_k_rows8_2", "llmx_q6_k_rows8_4", "llmx_q6_k_rows8_8", "llmx_q6_k_rows8_16", "llmx_q6_k_tile16", "llmx_q6_k_tile8", "llmx_q6_k_routed16", "llmx_q6_k_routed8", "llmx_q6_k_routed16_g2", "llmx_q6_k_routed16_g4", "llmx_q6_k_routed16_g8", "llmx_q6_k_routed8_g2", "llmx_q6_k_routed8_g4", "llmx_q6_k_routed8_g8", "llmx_q6_k_routed_tile16", "llmx_q6_k_routed_tile8", "llmx_q6_k_routed_narrow16", "llmx_q6_k_routed_stream16_8", "llmx_q6_k_routed_stream8", "llmx_q6_k_routed_mid16", "llmx_q6_k_routed_mid8",
@@ -3520,7 +3520,7 @@ private:
                     const bool paired = half1 && blocks <= 16 && dev_.caps.subgroup_size == 64, narrow = blocks < dev_.caps.subgroup_size;
                     const bool two = half1 && c.total >= dev_.profile.q8_decode_two_rows_from;
                     // A row of two to five spans of blocks takes one row a wave, all of its steps' loads issued at once (kernels/int16.gpu, q8_0_half_held).
-                    static constexpr Kernel kHeld[4] = {kHalf8x1h2, kHalf8x1h3, kHalf8x1h4, kHalf8x1h5};
+                    static constexpr Kernel kHeld[4] = {kHalf8x1h2, kHalf8x1h3, kHalf8x1h4, kHalf8x1h5}, kHeldPush[4] = {kHalf8x1h2p, kHalf8x1h3p, kHalf8x1h4p, kHalf8x1h5p};
                     const size_t span = dev_.caps.subgroup_size / 2, spans = (blocks + span - 1) / span;
                     const bool held = half1 && !paired && spans >= 2 && spans <= 5;
                     RowBuild rb = held   ? RowBuild{kHeld[spans - 2], 1}
@@ -3533,6 +3533,7 @@ private:
                     if ((rb.kernel == kHalf8x16 || rb.kernel == kHalf8x16r4) && rows < 16) rb = {kHalfWide[rows - 9], kQ8Twins.two_rows[2][4]};
                     const size_t per = block_rows(rb.kernel, rb.rows, c.cluster, nin);
                     launch(rb.kernel, (unsigned)((c.total + per - 1) / per), 1, args);
+                    if (held && nproj == 1 && !add && !ops_.empty()) push_ = HeldPush{ops_.size() - 1, kHeldPush[spans - 2], c.y[0], c.total};
                 } else {
                     // The split follows the run's extent, its row class, never the rows this call holds.
                     tile(tk, proj, nproj, q, d, xs, xrow, xblock, at, rows, split_tiles_of(all.runs[r].extent), nin, add, int8);
@@ -3790,9 +3791,10 @@ private:
             throw std::runtime_error(Api::prefix + "a tensor group's sum on " + ordinal() + " gave up waiting for its peers; the group's later sums take the conservative path");
     }
     // A group sum's kernel, launched without raise_failed: the collective checks every member before it launches any, so no member waits for a peer whose launch threw.
-    void group_launch(GpuSumForm form, unsigned blocks, const Args& args) {
+    // A one-shot whose rows the held build already pushed (push_rows) launches its take alone.
+    void group_launch(GpuSumForm form, unsigned blocks, const Args& args, bool pushed = false) {
         forget_twins();
-        const Kernel k = form == GpuSumForm::chain || form == GpuSumForm::wrap ? kGroupChain : form == GpuSumForm::shares ? kGroupShares : form == GpuSumForm::copies ? kGroupCopies : kGroupSum;
+        const Kernel k = pushed ? kGroupTake : form == GpuSumForm::chain || form == GpuSumForm::wrap ? kGroupChain : form == GpuSumForm::shares ? kGroupShares : form == GpuSumForm::copies ? kGroupCopies : kGroupSum;
         issue(kernels_[k], blocks, 1, 1, kThreads, args, kKernelNames[k]);
         ++launched_[k];
     }
@@ -3800,6 +3802,41 @@ private:
     void group_push(unsigned blocks, const Args& args) {
         issue(kernels_[kGroupPush], blocks, 1, 1, kThreads, args, kKernelNames[kGroupPush]);
         ++launched_[kGroupPush];
+    }
+    // The tail a pushing held build takes after the held build's arguments (kernels/int16.gpu, GroupTail).
+    struct GroupTail {
+        const void* peers;
+        unsigned* tiles;
+        unsigned long long half_at, cap;
+        int members, rank;
+        unsigned tile;
+    };
+    static_assert(offsetof(GroupTail, half_at) == 16 && offsetof(GroupTail, tile) == 40 && sizeof(GroupTail) == 48, "GroupTail mirrors the kernel's argument");
+    // The last held Q8_0 row launch of one projection that replaces its rows, which a sum of exactly those rows may turn into its pushing build (push_rows).
+    struct HeldPush {
+        size_t op;
+        Kernel kernel;
+        const float* y;
+        unsigned long long n;
+    };
+    std::optional<HeldPush> push_;
+    // Whether the last held operation is the held row launch writing own's n rows and nothing else, which then becomes its pushing build sending them as the tail says; the collective then launches only the take.
+    bool push_rows(const float* own, size_t n, const GroupTail& t) {
+        if (!push_ || pending_ || push_->op + 1 != ops_.size() || push_->y != own || push_->n != n) return false;
+        Held& op = ops_.back();
+        if (op.at + op.size != op_bytes_.size()) return false;
+        Args a;
+        std::memcpy(a.bytes, op_bytes_.data() + op.at, op.size);
+        a.size = op.size;
+        a.put(t);
+        op_bytes_.resize(op.at + a.size);
+        std::memcpy(op_bytes_.data() + op.at, a.bytes, a.size);
+        op.size = a.size;
+        op.f = kernels_[push_->kernel];
+        op.name = kKernelNames[push_->kernel];
+        ++launched_[push_->kernel];
+        push_.reset();
+        return true;
     }
     // A fast collective's staging armed at join (kernels/f32.gpu, llmx_group_arm).
     void group_arm(void* stage, size_t words) {
@@ -3851,6 +3888,7 @@ private:
     // Issues the held operations in order; one HIP refuses throws naming it, and those after it are dropped with it.
     void flush() {
         materialize();
+        push_.reset();
         if (ops_.empty()) return;
         std::vector<Held> ops;
         std::vector<uint8_t> bytes;

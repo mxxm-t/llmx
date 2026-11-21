@@ -39,7 +39,8 @@ struct GroupPeers {
 };
 static_assert(kGroupMembers == 16 && sizeof(GroupPeers) == 280 && offsetof(GroupPeers, status) == 256 && offsetof(GroupPeers, cancel) == 272, "kernels/f32.gpu, GroupPeers");
 constexpr size_t kGroupBlocks = 32;       // the kernel's signal slots a member, so the most blocks a chain or meeting takes
-constexpr size_t kChainBlocks = 16, kChainUnits = 4096;   // the kernel's chain blocks each way and float4 units a chunk
+constexpr unsigned kPushTile = 16;        // blocks of a pushing held build whose rows go out together (kernels/int16.gpu, held_push)
+constexpr size_t kChainBlocks = 16, kChainUnits = 4096;  // the kernel's chain blocks each way and float4 units a chunk
 constexpr unsigned kProbeTimeoutMs = 1000;   // how long a probe sum's member waits for its peers before the probe finds peer writes unseen
 constexpr size_t kTimedFloor = 4096, kTimedSums = 3, kTimedRounds = 3;   // the least floats a form is timed at, the sums of each timing and its rounds
 constexpr double kTimedSpanMs = 0.5;   // a short timing's rounds each span about this long, so a few microseconds of host jitter do not pick the form after a first
@@ -160,6 +161,15 @@ public:
                 one_shot_blocks_ = std::min<size_t>(one_shot_blocks_, std::max<size_t>(1, members[m]->dev_.caps.compute_units / sharing));
             }
             for (GroupTransport t : transports) stage_for(t);
+            // A tile counter for every 64 rows, the fewest a tile holds, where the device's held builds push a group of this width over peer writes (DeviceProfile::held_push_members).
+            const uint32_t push = members[0]->dev_.profile.held_push_members;
+            if (push && W >= push && std::any_of(sets_.begin(), sets_.end(), [](const Areas& s) { return s.fast() && !s.host(); }))
+                for (GpuBackend<Api>* b : members) {
+                    const size_t bytes = (cap_ + 63) / 64 * sizeof(unsigned);
+                    tile_bufs_.push_back(b->alloc(bytes, Memory::device));
+                    tiles_.push_back((unsigned*)as_gpu<Api>(*tile_bufs_.back()).data());
+                    b->hold_fill(tiles_.back(), bytes);
+                }
             // Every member's signals are zero and its slots armed before any peer may write them, which a fill still queued on its own stream would overwrite.
             for (GpuBackend<Api>* b : members) b->sync();
         } catch (...) {
@@ -522,6 +532,16 @@ private:
         settle();
         // Every member's earlier failure throws before any member launches, so none waits for a peer that never comes.
         for (GpuBackend<Api>* b : members_) b->raise_failed();
+        const GpuSumPick p = fast_ ? form_of(n) : GpuSumPick{sets_[0].transport, GpuSumForm::pulls};
+        // A one-shot's rows over peer writes that a member's held row launch still holds go out from that launch, which leaves the member's sum its take (GpuBackend::push_rows).
+        std::vector<char> sent(W, 0);
+        if (n && p.form == GpuSumForm::one_shot && tiles_.size() == W && !areas(p.transport).host() && !(fold && replace && W == 2)) {
+            const Areas& s = areas(p.transport);
+            for (size_t m = 0; m < W; ++m) {
+                const typename GpuBackend<Api>::GroupTail t{s.table[m], tiles_[m], (unsigned long long)s.half * W * cap_, cap_, (int)W, (int)m, kPushTile};
+                sent[m] = members_[m]->push_rows(GpuBackend<Api>::f32(CSlice(partial(m))), n, t);
+            }
+        }
         // Every member's held work goes to its stream before the sum and the sum's launches go together, so no member's sum waits on a peer whose launch the host still holds, and the pulls' events follow what they cover.
         for (GpuBackend<Api>* b : members_) b->flush();
         // A sum whose launch throws is still the last sum, so a wait for it covers the members' kernels that did launch.
@@ -532,9 +552,8 @@ private:
         try {
             std::vector<typename GpuBackend<Api>::TakeDesc> takes;
             if (n) {
-                const GpuSumPick p = fast_ ? form_of(n) : GpuSumPick{sets_[0].transport, GpuSumForm::pulls};
                 if (p.form == GpuSumForm::copies) copied(residual, n, replace, areas(p.transport), p);
-                else if (p.form != GpuSumForm::pulls) pushed(residual, n, replace, areas(p.transport), p, fold && replace && members_.size() == 2 ? &takes : nullptr);
+                else if (p.form != GpuSumForm::pulls) pushed(residual, n, replace, areas(p.transport), p, fold && replace && members_.size() == 2 ? &takes : nullptr, sent);
                 else pulled(residual, n, replace, fast_ ? areas(p.transport) : sets_[0]);
             }
             for (GpuBackend<Api>* b : members_) b->flush();
@@ -573,8 +592,8 @@ private:
     }
 
     // The blocks of every member's launch follow from n and the form alone, so every member's block b meets its peers' block b.
-    // takes, where given, gets the one-shot's take and the member launches its push alone.
-    void launch(size_t m, const Slice& out, size_t n, bool replace, bool fast, GpuSumPick pick, const Areas& s, unsigned half, std::vector<typename GpuBackend<Api>::TakeDesc>* takes = nullptr) {
+    // takes, where given, gets the one-shot's take and the member launches its push alone; sent, its rows already pushed by their product, launches the take alone.
+    void launch(size_t m, const Slice& out, size_t n, bool replace, bool fast, GpuSumPick pick, const Areas& s, unsigned half, std::vector<typename GpuBackend<Api>::TakeDesc>* takes = nullptr, bool sent = false) {
         GpuBackend<Api>& b = *members_[m];
         const float* own = GpuBackend<Api>::f32(CSlice(partial(m)));
         float* o = GpuBackend<Api>::f32(out);
@@ -591,12 +610,12 @@ private:
             takes->push_back({s.table[m], own, o, nn, cap, (unsigned long long)half * W * cap_, timeout, tick, members, rank, flags, (unsigned)blocks, &status_[m]});
             return;
         }
-        b.group_launch(form, (unsigned)blocks, args);
+        b.group_launch(form, (unsigned)blocks, args, sent && fast && form == GpuSumForm::one_shot);
     }
 
     // Every fast sum takes the half its transport's next one-shot takes, which every peer finished reading at that transport's one-shot before the last (docs/src/backends-gpu.md, the collective).
-    void pushed(const std::vector<Slice>& residual, size_t n, bool replace, Areas& s, GpuSumPick pick, std::vector<typename GpuBackend<Api>::TakeDesc>* takes) {
-        for (size_t m = 0; m < members_.size(); ++m) launch(m, residual[m], n, replace, true, pick, s, s.half, pick.form == GpuSumForm::one_shot ? takes : nullptr);
+    void pushed(const std::vector<Slice>& residual, size_t n, bool replace, Areas& s, GpuSumPick pick, std::vector<typename GpuBackend<Api>::TakeDesc>* takes, const std::vector<char>& sent) {
+        for (size_t m = 0; m < members_.size(); ++m) launch(m, residual[m], n, replace, true, pick, s, s.half, pick.form == GpuSumForm::one_shot ? takes : nullptr, sent[m]);
         if (pick.form == GpuSumForm::one_shot || pick.form == GpuSumForm::shares) s.half ^= 1u;
     }
 
@@ -762,6 +781,8 @@ private:
     std::optional<GpuSumPick> force_;   // the pick every fast sum takes, else by size from forms_
     std::map<size_t, GpuSumPick> forms_;
     std::vector<Areas> sets_;   // per staged transport, in the order given; the first is the conservative path's
+    std::vector<BufferPtr> tile_bufs_;   // per member, the pushing held build's tile counters, or none where its held builds do not push
+    std::vector<unsigned*> tiles_;
     std::vector<BufferPtr> partial_;
     std::vector<typename Api::Event> ready_;   // per member, the event behind its pulls' copies
     std::vector<unsigned long long> timeout_, tick_;   // per member in its wall-clock ticks: a probe's kProbeTimeoutMs, else 0 for none, and a millisecond

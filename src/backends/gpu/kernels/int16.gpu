@@ -436,6 +436,46 @@ __device__ void q8_0_half_held(const RowCall& rc, const signed char* q, const fl
     }
 }
 
+// The pushing held build's tail (GpuCollective::push_rows): the call's rows, y[0] of one projection, go into every peer's staging slot of the parity half, as llmx_group_push would send them.
+struct GroupTail {
+    const GroupPeers* p;
+    unsigned* tiles;   // a counter per tile of the call, zero between launches
+    unsigned long long half_at, cap;
+    int members, rank;
+    unsigned tile;   // blocks a tile
+};
+// The block that finishes a tile's last row sends the tile's rows to each peer as one store a wave, quiet NaNs escaped; the take then waits only for the tiles still on their way.
+// Waves past the call's rows return from the held row before this, so every wave of a block meets its barriers.
+__device__ inline void held_push(const RowCall& rc, const GroupTail& t) {
+    __shared__ unsigned last;
+    const unsigned k = blockIdx.x / t.tile, left = gridDim.x - k * t.tile, want = left < t.tile ? left : t.tile;
+    __syncthreads();
+    if (threadIdx.x == 0) {
+        __threadfence();
+        last = atomicAdd(&t.tiles[k], 1u) == want - 1;
+    }
+    __syncthreads();
+    if (!last) return;
+    if (threadIdx.x == 0) t.tiles[k] = 0;
+    __threadfence();
+    const unsigned per = kThreads / warpSize, lane = threadIdx.x % warpSize;
+    const unsigned long long base = (unsigned long long)k * t.tile * per, span = (unsigned long long)t.tile * per, rows = rc.total - base < span ? rc.total - base : span;
+    // The fence above invalidates this CU's L1, so plain loads read the other blocks' rows from L2 and a 16-byte word is one load.
+    const float* own = rc.y[0] + base;
+    for (int j = (int)(threadIdx.x / warpSize); j < t.members; j += (int)per) {
+        if (j == t.rank) continue;
+        float* dst = t.p->stage[j] + t.half_at + (unsigned long long)t.rank * t.cap + base;
+        for (unsigned long long r = 4ull * lane; r < rows; r += 4ull * warpSize) {
+            if (r + 4 <= rows) {
+                const float4 v = *(const float4*)(own + r);
+                *(GroupWord4*)(dst + r) = GroupWord4{group_sane(v.x), group_sane(v.y), group_sane(v.z), group_sane(v.w)};
+            } else {
+                for (unsigned long long u = r; u < rows; ++u) ((unsigned*)dst)[u] = group_sane(own[u]);
+            }
+        }
+    }
+}
+
 // The one-row build of a row of at most 16 blocks on a 64-lane wave, each half of the wave a row: a lane holds one block, as the 32-lane tree's lanes do, whose first level adds the idle half's +0, so it gives the one-row build's bits.
 // A lane's loads issue together and its products follow without a step loop, which measured 30 percent faster than the stepped build at Flash-Next's HC up rows (docs/STATUS.md, ROCm decode loop).
 __device__ void q8_0_half_pair(const RowCall& rc, const signed char* q, const float* dx, unsigned long long nin, int add) {
@@ -2820,6 +2860,12 @@ LLMX_HELD(llmx_q8_0_half8_1h2, 2)
 LLMX_HELD(llmx_q8_0_half8_1h3, 3)
 LLMX_HELD(llmx_q8_0_half8_1h4, 4)
 LLMX_HELD(llmx_q8_0_half8_1h5, 5)
+// The held builds that also push the call's rows to the tensor group's peers (held_push).
+#define LLMX_HELD_PUSH(name, NS) extern "C" __global__ void __launch_bounds__(kThreads) name(RowCall c, const signed char* q, const float* dx, unsigned long long nin, int ncols, int add, GroupTail t) { q8_0_half_held<NS>(c, q, dx, nin, add); held_push(c, t); }
+LLMX_HELD_PUSH(llmx_q8_0_half8_1h2p, 2)
+LLMX_HELD_PUSH(llmx_q8_0_half8_1h3p, 3)
+LLMX_HELD_PUSH(llmx_q8_0_half8_1h4p, 4)
+LLMX_HELD_PUSH(llmx_q8_0_half8_1h5p, 5)
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_half8_1r2s4(RowCall c, const signed char* q, const float* dx, unsigned long long nin, int ncols, int add) {
     q8_0_half_one<2, kSteps>(c, q, dx, nin, add);
 }

@@ -101,6 +101,18 @@ lists made no remote media requests.
 - **Left:** a companion image in the release workflow, which would remove the build from a checkout, is a proposal for the owner.
 - **Gotchas:** the companion serves a non-loopback address only with a password and an HTTPS public origin, and Docker's published ports reach a container's own address, never its loopback, so both containers use the host network rather than a private one; the browser's port must be the companion's `--port`, which its Host check compares.
 
+## Tile push (2026-11-22, SUMS36, branch products/tile-push-main on main aeecb4ec1; first built as products/tile-push-b2 84120c182 by CUTS15 to CUTS18 on c494eea6f)
+
+- **Goal:** a decode row's tensor group sum stops waiting for the whole held Q8_0 row launch: the launch pushes its rows to the peers tile by tile as they finish, and the sum keeps only its take.
+- **The change:** where the device profile's `held_push_members` is set (3 on the ROCm MI50 entry, 0 elsewhere), the group is at least that wide and a peer-writes transport is staged, the collective arms a tile counter for every 64 rows at join.
+  A sum whose pick is the one-shot over peer writes, capped or not, and whose rows the member's last held operation wrote, the held row launch of one projection that replaces its rows (`HeldPush`), turns that launch into its pushing build (`llmx_q8_0_half8_1h2p` to `_1h5p`, `GpuBackend::push_rows`), and the member's sum launches `llmx_group_take` alone, on the pick's transport and parity half.
+  The block that finishes a tile's last row sends the tile's 16 blocks of rows (`kPushTile`) to every peer's parity half as `llmx_group_push` would, quiet NaNs escaped, as one 16-byte store a lane with a plain tail; the take adds in member order, so the bits are the one-shot's.
+  The push lost at two members on an MI50, so a group of two keeps the one-shot; a pick of shares, the chain, the wrap, copies or pulls keeps its own kernel.
+- **Port onto main:** main's collective stages a set of areas per transport and picks a transport, form and block cap by size (`GpuSumPick`), so the push takes the table and half of the pick's transport, and the pick is made once before the members flush.
+- **Measured on c494eea6f (CUTS16, CUTS17, QUIET1):** one MI50 quad, Qwen3.6-27B Q8_0 int8 tw4 decode, quiet blocks +0.97 tok/s (SE 0.08, about +1.5%); QUIET1's 5 untraced pairs on the rebooted rig +1.18 tok/s (-0.26 ms a token), generated text the same. Not yet measured on main.
+- **Checks:** `backend-rocm`'s `held_push` (docs/TESTS.md, backend-rocm) on a quad; `docs` and `dead-code` on the tree that lands.
+- **Left:** the decode A/B against main aeecb4ec1 with a witness that the pushing build runs (the pick at the decode row may not be the one-shot), the device suite, the hosted run and the full CUDA build at the landing; the push at prompt sums and on Vulkan are not tried. README unchanged (a speed-up no table names).
+
 ## Sidebar links
 
 **Goal.** Let the browser open a sidebar destination or saved conversation

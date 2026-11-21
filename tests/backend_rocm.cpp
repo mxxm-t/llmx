@@ -2717,6 +2717,64 @@ void hc_entry() {
     std::cout << "backend-rocm: a refused llmx_hc_entry launch throws on its member, its peer's entry is exact, and the group's later sums are conservative and exact\n";
 }
 
+// The held rows' push (GpuCollective, push_rows): where the device's held builds push, a sum whose rows a held 8-bit product wrote last launches its take alone, with the bits of the same sum after a copy keeps the push from it.
+// Both parity halves are taken, at the widths of 3 and 4, at a tile-exact and a ragged row count, and on the two- and five-span held builds.
+void held_push() {
+    std::vector<BackendPtr> d = rocm_devices(kMaxTensorWidth);
+    if (d.size() < 3 || rocm_profile(*d[0]).held_push_members == 0 || d.size() < rocm_profile(*d[0]).held_push_members) {
+        std::cout << "backend-rocm: no group the held builds push, so no held push\n";
+        return;
+    }
+    struct Shape {
+        size_t nin, nout;
+        const char* kernel;
+    };
+    const Shape shapes[] = {{1536, 5120, "llmx_q8_0_half8_1h2p"}, {4352, 5120, "llmx_q8_0_half8_1h5p"}, {1536, 204, "llmx_q8_0_half8_1h2p"}};
+    for (size_t W = std::max<size_t>(3, rocm_profile(*d[0]).held_push_members); W <= std::min<size_t>(d.size(), 4); ++W)
+        for (const Shape& s : shapes) {
+            const std::vector<Backend*> group = raw(d, W);
+            std::unique_ptr<Collective> c = d[0]->join(group, 1, s.nout);
+            require(c != nullptr, "ROCm devices joined no collective");
+            if (!c) return;
+            std::vector<BufferPtr> wb, xb, other;
+            for (size_t m = 0; m < W; ++m) {
+                const std::vector<uint8_t> w = q8_matrix(s.nin, s.nout, 71 + (uint32_t)m);
+                const std::vector<float> x = row_classes::values(s.nin, 81 + (uint32_t)m);
+                wb.push_back(d[m]->adopt(w.data(), w.size()));
+                xb.push_back(d[m]->adopt(x.data(), x.size() * 4));
+                other.push_back(d[m]->alloc(8, Memory::device));
+            }
+            // A copy after the product leaves the sum its push, so the sum is the one llmx_group_sum launch the product cannot reach.
+            const auto summed = [&](bool copied) {
+                for (size_t m = 0; m < W; ++m) {
+                    (void)rocm_take_launches(*d[m]);
+                    d[m]->matmul({quant::GGML_TYPE_Q8_0, {wb[m].get(), 0}}, {xb[m].get(), 0}, c->partial(m), s.nin, s.nout, 1, {}, Dtype::int8);
+                    if (copied) d[m]->copy(*other[m], 0, *other[m], 4, 4);
+                }
+                c->sum_in_place(1, s.nout);
+                std::vector<std::vector<float>> out;
+                for (size_t m = 0; m < W; ++m) {
+                    d[m]->sync();
+                    out.push_back(read(*d[m], *c->partial(m).buffer, s.nout));
+                    const std::map<std::string, size_t> k = rocm_take_launches(*d[m]);
+                    const auto count = [&](const char* name) { return k.count(name) ? k.at(name) : size_t(0); };
+                    const std::string at = " at width " + std::to_string(W) + ", " + std::to_string(s.nin) + " x " + std::to_string(s.nout) + ", member " + std::to_string(m);
+                    if (copied) require(count("llmx_group_sum") == 1 && !count("llmx_group_take") && !count(s.kernel), "a sum after a copy is one llmx_group_sum launch" + at);
+                    else require(count(s.kernel) == 1 && count("llmx_group_take") == 1 && !count("llmx_group_sum"), std::string("a sum after a held product is ") + s.kernel + " and llmx_group_take" + at);
+                }
+                return out;
+            };
+            const std::vector<std::vector<float>> want = summed(true);
+            for (size_t m = 1; m < W; ++m) require(same(want[m], want[0]), "every member's sum has member 0's bits");
+            for (int r = 0; r < 3; ++r) {
+                const std::vector<std::vector<float>> got = summed(false);
+                for (size_t m = 0; m < W; ++m)
+                    require(same(got[m], want[0]), "a pushed sum has the bits of the sum llmx_group_sum gives, run " + std::to_string(r) + " at width " + std::to_string(W) + ", " + std::to_string(s.nout) + " rows, member " + std::to_string(m));
+            }
+        }
+    std::cout << "backend-rocm: a sum after a held 8-bit product launches its take alone, with llmx_group_sum's bits, at both halves\n";
+}
+
 // The collective over 2 up to kMaxTensorWidth devices where they open, fast and conservative, a sum that gives up and the epochs' wrap (docs/TESTS.md, backend-rocm).
 void collective() {
     HipFn& f = hip();
@@ -3484,6 +3542,7 @@ int main(int argc, char** argv) {
         }
         if (argc > 1 && std::string(argv[1]) == "collective") {
             collective();
+            held_push();
             sentinel_sums();
             std::cout << (failures ? "backend-rocm collective: FAIL\n" : "backend-rocm collective: PASS\n");
             return failures ? 1 : 0;
@@ -3622,6 +3681,7 @@ int main(int argc, char** argv) {
         records();
         failure();
         collective();
+        held_push();
         hc_entry();
         sentinel_sums();
         handoffs();

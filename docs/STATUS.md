@@ -5,20 +5,22 @@
 - Goal: Keep a long answer or reasoning section responsive as later text arrives.
 - Done: A reply update keeps completed blocks before an unchanged blank separator and parses the suffix. Changed boundaries still use the same parser as a fresh message. Chrome produced identical markup for 2400 deterministic edits covering paragraphs, lists, quotes, fences and tables.
 - Timing: Local headless Chrome, pooled median JavaScript time across 16 one-word updates per arm in main/candidate/candidate/main order. A short reply took 0.60/0.60 ms. After 88 KB of prose the update took 6.20/1.45 ms and after 95 KB of fenced code it took 14.10/0.90 ms. With those samples in completed reasoning it took 5.00/0.80 and 17.35/0.90 ms. Host CPU sampled at 25-36 percent. Network, paint and inference are outside the measurement.
-- Checks: The hosted workspace fixture compares incremental and fresh Markdown and checks selection, focused controls, code copy feedback and reuse of syntax highlighting. Landing is by fast-forward after the scoped Linux and Windows checks.
+- Checks: The hosted workspace fixture compares incremental and fresh Markdown and checks selection, focused controls, code copy feedback and reuse of syntax highlighting. Landed in `335cec54e`. Both Chat workspace jobs passed in run 44863738491.
+
 ## Chat transcript reading layout (2026-11-21)
 
 - Goal: Put the prompt, response and author in one reading column and keep actions easy to reach.
 - Done: Prompts and answers share a reading column. A short rule marks prompt text. Wide screens put Copy, Edit and branch selection on the heading row. Narrow screens keep them below the prompt.
-- Checks: The hosted Chrome fixture checks the prompt edge and action placement in both themes. It exercises tool replies at 1440, 390 and 320 pixels and keyboard focus at 200 percent zoom. Landing is by fast-forward.
+- Checks: The hosted Chrome fixture checks the prompt edge and action placement in both themes. It exercises tool replies at 1440, 390 and 320 pixels and keyboard focus at 200 percent zoom. The layout landed in `860f71866` with the saved-work change at `dce223c61`.
 - Gotchas: Grouped tool calls share one speaker heading. The final action row needs equal space above and below.
+
 ## Starting a chat from saved work (2026-11-21)
 
 - Goal: Find a conversation, saved file or project directly from Chat home.
 - Done: Conversation creation and history lead the sidebar. The four view shortcuts sit below history. Home lists recent conversations beside up to three named saved files or projects. Each shortcut opens the existing confirmation with the chosen file or project selected. An empty project list opens the existing project editor through Create a project.
 - Checks: The hosted Chat home browser fixture verifies review and cancellation, file/project deduplication, optional instructions, stale files and responses, draft preservation and zero landing metadata requests on a temporary-chat reload. The direct Browse saved files shortcut reads the list on request in a temporary chat. Existing Home and Workspace workflows passed. Visual checks at 320, 390, 768, 1024 and 1440 px covered both themes. On the live 390 px drawer, New conversation and search moved up 192 px. Before and after captures made no API mutations.
 - Browser check: The edited-draft fixture waits for the first answer and an available Send button before submitting its second request. Send can be enabled and hidden while a run is still active.
-- Landing: Fast-forward after the scoped Linux and Windows Chat workspace checks.
+- Landing: GitHub main fast-forwarded to `dce223c61` after both Chat workspace jobs passed in run 44865332368.
 
 ## Long chat rendering (2026-11-21)
 
@@ -152,7 +154,7 @@
 - **Goal:** Explain why the last assistant message shows reasoning and no answer.
 - **Done:** Completed reasoning-only replies explain the absent answer and retain the existing Retry action. The notice distinguishes a stop, a reply limit and an unknown finish reason.
 - **Checks:** The real Chrome fixture streams a tool continuation, verifies the notice only after completion and reloads the stored finish reason without starting another run. The focused check also covers length, unknown and interrupted replies.
-- **Left:** Run the combined companion and scoped static checks on the landing tree.
+- **Landing:** The notice landed in `0e7ee67ad` after Chat workspace run 44526481544 passed on Windows and Linux. Both browser jobs also exercised the notice on the combined chat tree at `dce223c61` (run 44865332368).
 - **Gotchas:** Leave intermediate tool messages and interrupted replies alone. Keep Retry explicit.
 
 ## Workspace write preconditions in Chat (2026-11-19)

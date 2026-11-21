@@ -18,9 +18,7 @@
 #include <vector>
 
 #include "backends/devices.hpp"
-#if LLMX_HAS_BACKEND_ROCM
-#include "backends/rocm/rocm_backend.hpp"
-#endif
+#include "gpu_core_hooks.hpp"
 #include "backends/kv_storage.hpp"
 #include "core/fp16.hpp"
 #if LLMX_HAS_BACKEND_VULKAN
@@ -457,16 +455,7 @@ std::vector<uint32_t> spread_ids(const Data& data, size_t stride) {
     return out;
 }
 
-// The kernels launched since the last reading, on a ROCm device, and nothing elsewhere.
-std::map<std::string, size_t> launches(Backend& device, const std::string& name) {
-    if (name.rfind("rocm", 0) != 0) return {};
-#if LLMX_HAS_BACKEND_ROCM
-    return backend::rocm_take_launches(device);
-#else
-    (void)device;
-    return {};
-#endif
-}
+using gpu_core_hooks::launches;
 
 void run_case(Backend& device, const std::string& name, size_t dim, backend::KVType k_type, backend::KVType v_type) {
     Data data = make_data(device, dim, k_type, v_type);
@@ -481,9 +470,9 @@ void run_case(Backend& device, const std::string& name, size_t dim, backend::KVT
         launches(device, name);
         const auto wide = run_batch(device, data, spread, stride, at);
         check_against_oracle(data, spread, wide, at, stride);
-        // On ROCm heads 128 and 256 wide take the per-row body's sparse build and its split merge, other widths the chunk body's.
+        // On the GPU core heads 128 and 256 wide take the per-row body's sparse build and its split merge, other widths the chunk body's.
         const auto ran = launches(device, name);
-        if (name.rfind("rocm", 0) == 0) {
+        if (gpu_core_hooks::on(name)) {
             const std::string body = dim == 256 ? "llmx_sparse_attention_vec256" : dim == 128 ? "llmx_sparse_attention_vec" : "llmx_sparse_attention_chunk";
             const std::string merge = dim == 256 ? "llmx_sparse_attention_vec_merge256" : dim == 128 ? "llmx_sparse_attention_vec_merge" : "llmx_sparse_attention_merge";
             require(ran.size() == 2 && ran.count(body) && ran.count(merge), at + " ran other kernels than " + body + " and " + merge + " on " + name);
@@ -661,7 +650,7 @@ int main(int argc, char** argv) {
             const std::string arg = argv[i];
             if (arg == "--device" && i + 1 < argc) device_name = argv[++i];
             else if (arg == "--rates") timing = true;
-            else throw std::runtime_error("usage: sparse-attention-test [--device cpu|vulkan:N|rocm:N] [--rates]");
+            else throw std::runtime_error("usage: sparse-attention-test [--device cpu|vulkan:N|rocm:N|cuda:N] [--rates]");
         }
         backend::BackendPtr device = backend::make_backend(device_name, 1);
         // `--rates` prints each call's time and checks nothing.

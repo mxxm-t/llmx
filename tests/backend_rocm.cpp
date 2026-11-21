@@ -927,88 +927,6 @@ void attention(Backend& g, Backend& c) {
         }
 }
 
-// The twins producers write beside their outputs, once a product has read one in the class: a product of a norm's or silu_mul's output gives the bits of the same product of a copy of it, whose twin the product makes itself.
-// A write into the output between them, or a product into it, drops the producer's twin.
-void producer_twins(Backend& g, Dtype dt) {
-    const std::string form = dt == Dtype::int8 ? "8-bit" : "16-bit";
-    const size_t nout = 40;
-    bool norms = true, silus = true, dropped = true, parts = true;
-    // Rows of 1024, 4096 and 5120 take the held builds of 16 and 32 values a thread, 9216 the plain one, and a stride past n writes no twin; 1568 runs four parts of 13, 13, 13 and 10 twin blocks.
-    struct Case { size_t n, rows, stride, extent; };
-    for (const Case cs : {Case{4096, 1, 4096, 1}, Case{4096, 3, 4096, 3}, Case{5120, 2, 5120, 1}, Case{9216, 2, 9216, 2}, Case{1024, 2, 1024, 2}, Case{1568, 1, 1568, 1}, Case{1568, 2, 1568, 2}, Case{4096, 2, 4200, 1}}) {
-        const size_t n = cs.n, rows = cs.rows, stride = cs.stride;
-        const std::vector<float> x = row_classes::values(rows * stride, 91), w = row_classes::values(n, 92), up = row_classes::values(rows * stride, 93);
-        const std::vector<uint8_t> m = q8_matrix(n, nout, 94);
-        auto xb = g.adopt(x.data(), x.size() * 4), wb = g.adopt(w.data(), w.size() * 4), ub = g.adopt(up.data(), up.size() * 4), mb = g.adopt(m.data(), m.size());
-        auto ob = g.alloc(rows * stride * 4), cb = g.alloc(rows * n * 4), y = g.alloc(nout * rows * 4), yc = g.alloc(nout * rows * 4);
-        const WeightView wv{quant::GGML_TYPE_Q8_0, {mb.get(), 0}};
-        const RowRun run[1] = {{rows, cs.extent}};
-        // The copy is dense, so the product of a strided output reads row 0 alone.
-        const size_t prows = stride == n ? rows : 1;
-        const RowRun prun[1] = {{prows, prows == 1 ? size_t(1) : cs.extent}};
-        g.rms_norm_rows({ob.get(), 0}, {xb.get(), 0}, {wb.get(), 0}, rows, n, stride, 1e-6f, {run, 1});
-        g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, n, nout, prows, {prun, 1}, dt);
-        g.copy(*cb, 0, *ob, 0, prows * n * 4);
-        g.matmul(wv, {cb.get(), 0}, {yc.get(), 0}, n, nout, prows, {prun, 1}, dt);
-        norms = norms && same(read(g, *y, nout * prows), read(g, *yc, nout * prows));
-        if (stride != n) continue;
-        // In place the norm runs one part a row, out of place several (rms_norm_rows): the values and the twin a product reads are the same bits.
-        g.copy(*cb, 0, *xb, 0, rows * n * 4);
-        g.rms_norm_rows({cb.get(), 0}, {cb.get(), 0}, {wb.get(), 0}, rows, n, n, 1e-6f, {run, 1});
-        g.matmul(wv, {cb.get(), 0}, {yc.get(), 0}, n, nout, rows, {run, 1}, dt);
-        parts = parts && same(read(g, *ob, rows * n), read(g, *cb, rows * n)) && same(read(g, *y, nout * rows), read(g, *yc, nout * rows));
-        g.silu_mul({ob.get(), 0}, {xb.get(), 0}, {ub.get(), 0}, rows * n, 0.0f, {run, 1});
-        g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, n, nout, rows, {run, 1}, dt);
-        g.copy(*cb, 0, *ob, 0, rows * n * 4);
-        g.matmul(wv, {cb.get(), 0}, {yc.get(), 0}, n, nout, rows, {run, 1}, dt);
-        silus = silus && same(read(g, *y, nout * rows), read(g, *yc, nout * rows));
-        // A write into the norm's output: the product reads the written values.
-        g.rms_norm_rows({ob.get(), 0}, {xb.get(), 0}, {wb.get(), 0}, rows, n, stride, 1e-6f);
-        g.write(*ob, 0, up.data(), rows * n * 4);
-        g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, n, nout, rows, {run, 1}, dt);
-        g.matmul(wv, {ub.get(), 0}, {yc.get(), 0}, n, nout, rows, {run, 1}, dt);
-        dropped = dropped && same(read(g, *y, nout * rows), read(g, *yc, nout * rows));
-        // A product into the norm's output, then a product of it.
-        if (n >= nout * rows) {
-            g.rms_norm_rows({ob.get(), 0}, {xb.get(), 0}, {wb.get(), 0}, rows, n, stride, 1e-6f);
-            g.matmul(wv, {ob.get(), 0}, {ob.get(), 0}, n, nout, 1, {}, dt);
-            g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, n, nout, rows, {run, 1}, dt);
-            g.copy(*cb, 0, *ob, 0, rows * n * 4);
-            g.matmul(wv, {cb.get(), 0}, {yc.get(), 0}, n, nout, rows, {run, 1}, dt);
-            dropped = dropped && same(read(g, *y, nout * rows), read(g, *yc, nout * rows));
-        }
-    }
-    // The producers write the twin as the product's runs lay it out (TwinMap): runs of both kernels side by side, and the same output read by a product of other runs, which makes its own.
-    // Q4_K and Q6_K tiles read the half sums, which a producer writes only for a layout with a prompt's region after a tiled product that read them, so after Q8_0's tiles or under nine regions the tile makes its own.
-    for (const uint32_t type : {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q6_K}) {
-        const size_t n = 4096, rows = 13;
-        const RowRun mixed[3] = {{3, 1}, {10, 7}, {13, 1}}, prompt[1] = {{13, 13}};
-        const RowRun nine[9] = {{5, 5}, {6, 1}, {7, 3}, {8, 1}, {9, 3}, {10, 1}, {11, 3}, {12, 1}, {13, 3}};
-        const std::vector<float> x = row_classes::values(rows * n, 95), w = row_classes::values(n, 96), up = row_classes::values(rows * n, 97);
-        const std::vector<uint8_t> m = typed_matrix(type, n, nout, 98);
-        auto xb = g.adopt(x.data(), x.size() * 4), wb = g.adopt(w.data(), w.size() * 4), ub = g.adopt(up.data(), up.size() * 4), mb = g.adopt(m.data(), m.size());
-        auto ob = g.alloc(rows * n * 4), cb = g.alloc(rows * n * 4), y = g.alloc(nout * rows * 4), yc = g.alloc(nout * rows * 4);
-        const WeightView wv{type, {mb.get(), 0}};
-        const RowRuns layouts[4][2] = {{{mixed, 3}, {mixed, 3}}, {{mixed, 3}, {prompt, 1}}, {{prompt, 1}, {prompt, 1}}, {{nine, 9}, {nine, 9}}};
-        for (const auto& [produced, read_as] : layouts) {
-            g.rms_norm_rows({ob.get(), 0}, {xb.get(), 0}, {wb.get(), 0}, rows, n, n, 1e-6f, produced);
-            g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, n, nout, rows, read_as, dt);
-            g.copy(*cb, 0, *ob, 0, rows * n * 4);
-            g.matmul(wv, {cb.get(), 0}, {yc.get(), 0}, n, nout, rows, read_as, dt);
-            norms = norms && same(read(g, *y, nout * rows), read(g, *yc, nout * rows));
-            g.silu_mul({ob.get(), 0}, {xb.get(), 0}, {ub.get(), 0}, rows * n, 0.0f, produced);
-            g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, n, nout, rows, read_as, dt);
-            g.copy(*cb, 0, *ob, 0, rows * n * 4);
-            g.matmul(wv, {cb.get(), 0}, {yc.get(), 0}, n, nout, rows, read_as, dt);
-            silus = silus && same(read(g, *y, nout * rows), read(g, *yc, nout * rows));
-        }
-    }
-    require(norms, form + ": a product of rms_norm_rows' output gives the bits of a product of its copy");
-    require(parts, form + ": rms_norm_rows in parts gives the bits and twin of one part a row");
-    require(silus, form + ": a product of silu_mul's output gives the bits of a product of its copy");
-    require(dropped, form + ": a write or a product into a producer's output drops its twin");
-}
-
 // moe_step of one generated row in the int8 class: on a 64-lane device with the dot module, three launches (llmx_moe_step_*) whose every output is the bits of the base's ops (Backend::moe_step).
 // Flash-Next's shape and a narrower h, other expert and pick counts, at both routed widths and all four type pairs; the router sends every pick to the first `few` experts, so only theirs are filled.
 void moe_step_bits(Backend& g) {
@@ -1406,121 +1324,6 @@ void hyper_mix_bits(Backend& g, Backend* other = nullptr) {
             }
             require(same(read(g, *s[0].y, rows * nout), read(g, *s[1].y, rows * nout)), "a product of the fused mix's output and twin is the chain's, " + at);
         }
-}
-
-// group_rms_norm takes four values a thread where its operands lie on 16 bytes and one a thread at an offset of one float: both give the same output and twin, at dims 256, 1024 and 2560, generated rows and runs of both kernels.
-void group_norm_four(Backend& g, Dtype dt) {
-    const std::string form = dt == Dtype::int8 ? "8-bit" : "16-bit";
-    const size_t rows = 13, nout = 24;
-    const RowRun decode[1] = {{rows, 1}}, mixed[3] = {{3, 1}, {10, 7}, {13, 1}};
-    for (const auto& [groups, dim] : {std::pair<size_t, size_t>{4, 256}, {1, 1024}, {1, 2560}}) {
-        const size_t width = groups * dim, n = rows * width;
-        const std::vector<uint8_t> m = q8_matrix(width, nout, 141);
-        std::vector<float> a = row_classes::values(n + 1, 142), w = row_classes::values(width + 1, 143);
-        a[3] = 1e30f, a[40] = 1e-30f;   // a huge and a tiny value beside ordinary ones
-        for (size_t i = 64; i < 96; ++i) a[i + 1] = 0.0f;   // a zero block at the offset form's input
-        auto mb = g.adopt(m.data(), m.size()), ab = g.adopt(a.data(), a.size() * 4), wb = g.adopt(w.data(), w.size() * 4);
-        auto o0 = g.alloc(n * 4), o1 = g.alloc((n + 1) * 4), y0 = g.alloc(nout * rows * 4), y1 = g.alloc(nout * rows * 4);
-        const WeightView wv{quant::GGML_TYPE_Q8_0, {mb.get(), 0}};
-        auto a0 = g.alloc(n * 4), w0 = g.alloc(width * 4);
-        g.copy(*a0, 0, *ab, 4, n * 4);
-        g.copy(*w0, 0, *wb, 4, width * 4);
-        g.matmul(wv, {a0.get(), 0}, {y0.get(), 0}, width, nout, 1, {}, dt);
-        for (const RowRuns runs : {RowRuns{decode, 1}, RowRuns{mixed, 3}}) {
-            g.group_rms_norm({o0.get(), 0}, {a0.get(), 0}, {w0.get(), 0}, rows, groups, dim, 1e-6f, runs);
-            g.matmul(wv, {o0.get(), 0}, {y0.get(), 0}, width, nout, rows, runs, dt);
-            g.group_rms_norm({o1.get(), 1}, {ab.get(), 1}, {wb.get(), 1}, rows, groups, dim, 1e-6f, runs);
-            g.matmul(wv, {o1.get(), 1}, {y1.get(), 0}, width, nout, rows, runs, dt);
-            const std::string at = std::to_string(groups) + "x" + std::to_string(dim) + (runs.n == 1 ? ", generated rows" : ", runs of both kernels");
-            require(same(read(g, *o0, n), read(g, *o1, n, 1)), form + ": group_rms_norm on 16 bytes is not its output at an offset of one float, " + at);
-            require(same(read(g, *y0, nout * rows), read(g, *y1, nout * rows)), form + ": a product of group_rms_norm's output on 16 bytes is not its product at an offset of one float, " + at);
-        }
-    }
-}
-
-// The stream and gate ops write their outputs' twins as the other producers do: a product of the output launches no twin build and gives the bits of the same product of a copy, over generated rows and over runs of both kernels.
-// The kept twin of a product's input survives an exact product beside it and goes once anything writes that input or the twin's buffer grows.
-void stream_twins(Backend& g, Dtype dt) {
-    const std::string form = dt == Dtype::int8 ? "8-bit" : "16-bit";
-    const size_t nin = 1024, nout = 40, rows = 13;
-    const std::vector<uint8_t> m = q8_matrix(nin, nout, 131);
-    const std::vector<float> a = row_classes::values(rows * 4 * nin, 132), b = row_classes::values(rows * 4 * nin, 133), w = row_classes::values(nin, 134);
-    auto mb = g.adopt(m.data(), m.size()), ab = g.adopt(a.data(), a.size() * 4), bb = g.adopt(b.data(), b.size() * 4), wb = g.adopt(w.data(), w.size() * 4);
-    auto ob = g.alloc(rows * nin * 4), cb = g.alloc(rows * nin * 4), y = g.alloc(nout * rows * 4), yc = g.alloc(nout * rows * 4);
-    const WeightView wv{quant::GGML_TYPE_Q8_0, {mb.get(), 0}};
-    const auto twins = [&] {
-        size_t n = 0;
-        for (const auto& [k, v] : rocm_take_launches(g))
-            if (k.rfind("llmx_twin", 0) == 0) n += v;
-        return n;
-    };
-    // The product of ob, then of its copy: the same bits, and the first builds no twin when `kept`.
-    const auto product_of = [&](RowRuns runs, size_t n, bool kept, const std::string& what) {
-        rocm_take_launches(g);
-        g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, nin, nout, n, runs, dt);
-        const size_t built = twins();
-        g.copy(*cb, 0, *ob, 0, n * nin * 4);
-        g.matmul(wv, {cb.get(), 0}, {yc.get(), 0}, nin, nout, n, runs, dt);
-        require(same(read(g, *y, nout * n), read(g, *yc, nout * n)), form + ": " + what + " gives the bits of a product of its copy");
-        require((built == 0) == kept, form + ": " + what + (kept ? " reads the kept twin" : " builds its twin"));
-    };
-    const RowRun decode[1] = {{rows, 1}}, mixed[3] = {{3, 1}, {10, 7}, {13, 1}};
-    // A product in the class first, so the producers write its twins.
-    g.matmul(wv, {ab.get(), 0}, {y.get(), 0}, nin, nout, 1, {}, dt);
-    for (const RowRuns runs : {RowRuns{decode, 1}, RowRuns{mixed, 3}}) {
-        const std::string at = runs.n == 1 ? "generated rows" : "runs of both kernels";
-        g.sigmoid_mul({ob.get(), 0}, {ab.get(), 0}, {bb.get(), 0}, rows, 8, 128, nin, 128, runs);
-        product_of(runs, rows, true, "a product of sigmoid_mul's output, " + at);
-        g.gated_rms_norm({ob.get(), 0}, {ab.get(), 0}, {bb.get(), 0}, {wb.get(), 0}, rows, 8, 128, 1e-6f, runs, NormGate::silu);
-        product_of(runs, rows, true, "a product of gated_rms_norm's output, " + at);
-        g.group_rms_norm({ob.get(), 0}, {ab.get(), 0}, {wb.get(), 0}, rows, 4, 256, 1e-6f, runs);
-        product_of(runs, rows, true, "a product of group_rms_norm's output, " + at);
-        g.silu_scaled({ob.get(), 0}, {ab.get(), 0}, rows, nin, 0.75f, runs);
-        product_of(runs, rows, true, "a product of silu_scaled's output, " + at);
-        g.mix_streams({ob.get(), 0}, {ab.get(), 0}, {bb.get(), 0}, rows, 4, nin, runs);
-        product_of(runs, rows, true, "a product of mix_streams' output, " + at);
-    }
-    // A product's own twin is kept beside an exact product of the same input, and dropped by an exact product into it, a write into it or a grown twin buffer.
-    const std::vector<float> wf = row_classes::values(nin * 8, 135);
-    auto fb = g.adopt(wf.data(), wf.size() * 4), fy = g.alloc(8 * rows * 4);
-    const WeightView fv{quant::GGML_TYPE_F32, {fb.get(), 0}};
-    const RowRuns one{decode, 1};
-    g.silu_scaled({ob.get(), 0}, {ab.get(), 0}, rows, nin, 1.0f, {});
-    g.copy(*cb, 0, *ob, 0, rows * nin * 4);
-    g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, nin, nout, rows, one, dt);
-    g.matmul(fv, {ob.get(), 0}, {fy.get(), 0}, nin, 8, rows, one, dt);
-    product_of(one, rows, true, "a product after an exact product of its input");
-    g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, nin, nout, rows, one, dt);
-    g.matmul(fv, {ab.get(), 0}, {ob.get(), 0}, nin, 8, 1, {}, dt);
-    product_of(one, rows, false, "a product after an exact product into its input");
-    g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, nin, nout, rows, one, dt);
-    g.write(*ob, 0, b.data(), nin * 4);
-    product_of(one, rows, false, "a product after a write into its input");
-    g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, nin, nout, rows, one, dt);
-    // Two twins are kept, the newer first: another twin, grown or a producer's, leaves this one, a third drops the older, and a copy or an exact product forgets one only where it writes its input.
-    auto big = g.adopt(a.data(), a.size() * 4), sb = g.alloc(rows * nin * 4);
-    g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, nin, nout, rows, one, dt);
-    g.matmul(wv, {big.get(), 0}, {fy.get(), 0}, nin, 1, rows * 4, {}, dt);
-    product_of(one, rows, true, "a product after a larger twin grew the other slot");
-    g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, nin, nout, rows, one, dt);
-    g.silu_mul({sb.get(), 0}, {ab.get(), 0}, {bb.get(), 0}, rows * nin, 0.0f, one);
-    product_of(one, rows, true, "a product after another producer's twin");
-    g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, nin, nout, rows, one, dt);
-    g.matmul(wv, {ab.get(), 0}, {fy.get(), 0}, nin, 1, 1, {}, dt);
-    g.matmul(wv, {big.get(), 0}, {fy.get(), 0}, nin, 1, rows * 4, {}, dt);
-    product_of(one, rows, false, "a product after two other twins");
-    g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, nin, nout, rows, one, dt);
-    g.copy(*sb, 0, *ab, 0, nin * 4);
-    product_of(one, rows, true, "a product after a copy elsewhere");
-    g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, nin, nout, rows, one, dt);
-    g.copy(*ob, 4, *ab, 0, nin * 4);
-    product_of(one, rows, false, "a product after a copy into its input");
-    g.matmul(wv, {ab.get(), 0}, {fy.get(), 0}, nin, 1, 1, {}, dt);
-    g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, nin, nout, rows, one, dt);
-    g.silu_mul({sb.get(), 0}, {ab.get(), 0}, {bb.get(), 0}, rows * nin, 0.0f, one);
-    g.matmul(fv, {ab.get(), 0}, {ob.get(), 0}, nin, 8, 1, {}, dt);
-    product_of(one, rows, false, "a product after an exact product into the older twin's input");
-    group_norm_four(g, dt);
 }
 
 // Attention times at heads 128 and 256 wide over an f16 cache, generated rows after a history and prompts on the tile; checks nothing.
@@ -3120,56 +2923,6 @@ void routed_rates(Backend& g) {
     std::fflush(stdout);
 }
 
-// The four-head sparse build against the one-head build: 12 heads over one KV head against the same queries over six copies of it, every head the same bits.
-// Over 64 rows (a row alone keeps the one-head build), heads 128 and 256 wide, f16 and f32 caches, 85 ids a row, some past a row's visible tokens and some invalid.
-void sparse_grouped(Backend& g) {
-    const size_t heads = 12, bt = g.kv_layout().block_tokens, length = 3 * bt + 5, stride = 85;
-    uint32_t seed = 977;
-    const auto next = [&seed] { seed = seed * 1664525u + 1013904223u; return seed >> 8; };
-    for (size_t dim : {size_t(128), size_t(256)})
-        for (KVType kt : {KVType::f16, KVType::f32})
-            for (size_t rows : {size_t(1), size_t(64)}) {
-                const std::string at = "sparse attention " + std::to_string(dim) + " wide, " + kv_type_name(kt) + " cache, " + std::to_string(rows) + " rows";
-                const size_t total = length + rows;
-                std::vector<int32_t> map(blocks_for(total, bt));
-                for (size_t i = 0; i < map.size(); ++i) map[i] = int32_t(map.size() - 1 - i);
-                std::vector<float> k1(total * dim), v1(k1.size()), q(rows * heads * dim);
-                for (size_t i = 0; i < k1.size(); ++i) k1[i] = float(int(next() % 2001u) - 1000) / 1600.0f, v1[i] = float(int(next() % 2001u) - 1000) / 900.0f;
-                for (float& x : q) x = float(int(next() % 2001u) - 1000) / 700.0f;
-                std::vector<uint32_t> ids(rows * stride);
-                for (size_t r = 0; r < rows; ++r)
-                    for (size_t t = 0; t < stride; ++t) {
-                        const uint32_t pick = next();
-                        ids[r * stride + t] = t % 9 == 0 ? (pick % 2 ? UINT32_MAX : uint32_t(length + r + 1)) : uint32_t(pick % (length + r + 1));
-                    }
-                std::vector<float> outs[2];
-                std::string ran[2];
-                for (int side = 0; side < 2; ++side) {
-                    const size_t kv_heads = side ? 6 : 1;
-                    std::vector<float> k(total * kv_heads * dim), v(k.size());
-                    for (size_t t = 0; t < total; ++t)
-                        for (size_t h = 0; h < kv_heads; ++h) {
-                            std::memcpy(&k[(t * kv_heads + h) * dim], &k1[t * dim], dim * 4);
-                            std::memcpy(&v[(t * kv_heads + h) * dim], &v1[t * dim], dim * 4);
-                        }
-                    auto storage = g.kv_alloc(1, kv_heads, dim, map.size() * bt, kt, kt);
-                    KVView w{storage.get(), map.data(), map.size(), 0, total};
-                    auto kb = g.adopt(k.data(), k.size() * 4), vb = g.adopt(v.data(), v.size() * 4), qb = g.adopt(q.data(), q.size() * 4), ib = g.adopt(ids.data(), ids.size() * 4);
-                    g.kv_write(0, &w, 1, {kb.get(), 0}, {vb.get(), 0});
-                    auto ob = g.alloc(rows * heads * dim * 4);
-                    KVView view{storage.get(), map.data(), map.size(), length, rows};
-                    rocm_take_launches(g);
-                    g.sparse_attention({qb.get(), 0}, 0, &view, 1, {ib.get(), 0}, stride, {ob.get(), 0}, int(heads), int(kv_heads), int(dim));
-                    for (const auto& [kn, n] : rocm_take_launches(g))
-                        if (kn.find("sparse_attention_vec") != std::string::npos && kn.find("merge") == std::string::npos) ran[side] = kn;
-                    outs[side] = read(g, *ob, rows * heads * dim);
-                }
-                const std::string want = std::string("llmx_sparse_attention_vec") + (dim == 256 ? "256" : "");
-                require(ran[0] == (rows > 1 ? want + "_g4" : want) && ran[1] == want, at + ": one KV head takes " + (rows > 1 ? want + "_g4" : want) + " and six take " + want + ", ran " + ran[0] + " and " + ran[1]);
-                require(same(outs[0], outs[1]), at + ": every head of the four-head build is the one-head build's, bit for bit");
-            }
-}
-
 // The routed tile's time against the grouped row builds over prompts of 32 to 512 rows at Flash-Next's expert shapes, medians of five interleaved; checks nothing.
 // The tile arm times the tile only from the role's `tile_from`, so an entry is derived lower by building with it at 32.
 void routed_tile_rates(Backend& g) {
@@ -3742,15 +3495,15 @@ int main(int argc, char** argv) {
             attention_tiles::check(*g, rocm_take_launches, require);
             attention_tiles::check_long(*g, rocm_take_launches, require);
             vec_bits(*g);
-            sparse_grouped(*g);
+            ds4::sparse_grouped(*g, rocm_caps, rocm_take_launches, require);
             std::cout << (failures ? "backend-rocm attention: FAIL\n" : "backend-rocm attention: PASS\n");
             return failures ? 1 : 0;
         }
         // `twins` runs only the producers' twins and the kept twin's rules, the hyper-connection mix's one launch against its chain and the fused moe_step against the base's.
         if (argc > 1 && std::string(argv[1]) == "twins") {
             for (Dtype dt : {Dtype::f16, Dtype::int8}) {
-                producer_twins(*g, dt);
-                stream_twins(*g, dt);
+                twin_checks::producer_twins(*g, dt, require);
+                twin_checks::stream_twins(*g, dt, rocm_take_launches, require);
             }
             hyper_mix_bits(*g);
             if (rocm_devices(2).size() == 2) hyper_mix_bits(*make_rocm_backend(1), g.get());
@@ -3799,11 +3552,11 @@ int main(int argc, char** argv) {
         attention(*g, *c);
         classes(*g);
         twin_checks::twin_products(*g, rocm_device(0).caps, Dtype::f16, rocm_take_launches, require);
-        producer_twins(*g, Dtype::f16);
-        stream_twins(*g, Dtype::f16);
+        twin_checks::producer_twins(*g, Dtype::f16, require);
+        twin_checks::stream_twins(*g, Dtype::f16, rocm_take_launches, require);
         twin_checks::twin_products(*g, rocm_device(0).caps, Dtype::int8, rocm_take_launches, require);
-        producer_twins(*g, Dtype::int8);
-        stream_twins(*g, Dtype::int8);
+        twin_checks::producer_twins(*g, Dtype::int8, require);
+        twin_checks::stream_twins(*g, Dtype::int8, rocm_take_launches, require);
         hyper_mix_bits(*g);
         if (rocm_devices(2).size() == 2) hyper_mix_bits(*make_rocm_backend(1), g.get());
         moe_step_bits(*g);
@@ -3818,7 +3571,7 @@ int main(int argc, char** argv) {
         attention_tiles::check(*g, rocm_take_launches, require);
         attention_tiles::check_long(*g, rocm_take_launches, require);
         vec_bits(*g);
-        sparse_grouped(*g);
+        ds4::sparse_grouped(*g, rocm_caps, rocm_take_launches, require);
         pass_args(*g);
         twin_checks::kernel_times(*make_rocm_backend(0, true), *g, rocm_take_launches, require);
         records();

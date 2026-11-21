@@ -286,6 +286,11 @@ void types(const CudaDevice& d, Backend& g, Backend& cpu) {
     guarded("fp8_grids", [&] { twin_checks::fp8_grids(g, cpu, cuda_take_launches, require); });
     guarded("twin_products", [&] { twin_checks::twin_products(g, d.caps, Dtype::f16, cuda_take_launches, require); });
     guarded("twin_products int8", [&] { twin_checks::twin_products(g, d.caps, Dtype::int8, cuda_take_launches, require); });
+    for (const Dtype dt : {Dtype::f16, Dtype::int8}) {
+        const std::string form = dt == Dtype::int8 ? " int8" : "";
+        guarded("producer_twins" + form, [&] { twin_checks::producer_twins(g, dt, require); });
+        guarded("stream_twins" + form, [&] { twin_checks::stream_twins(g, dt, cuda_take_launches, require); });
+    }
     guarded("imma_tile", [&] { imma_tile(g, d.caps); });
     twin_checks::Bits bits{d.caps, cuda_profile, cuda_take_launches, [](bool ok, const std::string& what) { if (!ok) require(false, what); }};
     const int before = failures;
@@ -352,6 +357,7 @@ void deepseek4(Backend& g) {
         require(cuda_take_launches(g).count("llmx_indexer_scores_int") == 1, "deepseek4's index checks take llmx_indexer_scores_int");
     });
     guarded("sparse_tile_pair", [&] { ds4::sparse_tile_pair(g, cuda_caps, cuda_take_launches, require); });
+    guarded("sparse_grouped", [&] { ds4::sparse_grouped(g, cuda_caps, cuda_take_launches, require); });
 }
 
 // The routed experts' ops (docs/CUDA.md, step 8) by the checks backend-rocm shares (moe_checks.hpp): routing against the CPU and every routed build's entries their expert's one-column product bit for bit.

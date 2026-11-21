@@ -527,7 +527,7 @@ void check_zero_sign(std::mt19937& rng) {
     const double kept_positive = 0.500249981880188;
     const double kept_negative = 1.0 - kept_positive;
     for (size_t dim : {size_t(13), size_t(64), size_t(256)}) {
-        const bool negative_zero = b.is_cpu() || (active_device.rfind("rocm", 0) == 0 && dim >= 256);
+        const bool negative_zero = b.is_cpu() || ((active_device.rfind("rocm", 0) == 0 || active_device.rfind("cuda", 0) == 0) && dim >= 256);
         const size_t width = groups * dim, count = rows * width;
         auto key = random_values(rng, count, -1.0f, 1.0f);
         auto query = random_values(rng, count, -1.0f, 1.0f);
@@ -742,7 +742,7 @@ int main(int argc, char** argv) {
         int at = 1;
         if (argc >= 3 && std::string(argv[1]) == "--device") device = argv[2], at = 3;
         const bool timed = argc == at + 1 && std::string(argv[at]) == "--rates";
-        if (argc != at + timed) throw std::runtime_error("usage: stream-ops-test [--device cpu|vulkan:N|rocm:N] [--rates]");
+        if (argc != at + timed) throw std::runtime_error("usage: stream-ops-test [--device cpu|vulkan:N|rocm:N|cuda:N] [--rates]");
         active_backend = backend::make_backend(device);
         active_device = device;
         // --rates prints the ops' times at Flash-Next's shapes instead of checking them.

@@ -52,24 +52,24 @@ See [VISION](docs/VISION.md) and [USAGE](docs/USAGE.md).
 
 This is the current model-weight support matrix. The [storage metadata page](docs/src/quant-types.md) lists recognized GGUF layouts, including layouts that have no inference decoder.
 
-| Weight format | CPU inference | Vulkan inference | ROCm inference | Written by `llmx quantize` |
-|---|---|---|---|---|
-| `F32`, `F16`, `BF16` | Supported | Supported | Supported | No |
-| `MXFP4` | Supported | Supported | Supported | No |
-| `NVFP4` | Supported | Supported | Supported | No |
-| `Q1_0` | Supported | Supported | Supported | No |
-| `Q2_0` | Supported | Supported | Supported | No |
-| `Q2_K`, `Q3_K` | Supported | Supported | Supported | No |
-| `Q4_0`, `Q4_1`, `Q4_K` | Supported | Supported | Supported | `Q4_0` |
-| `Q5_0`, `Q5_1`, `Q5_K` | Supported | Supported | Supported | No |
-| `Q6_K` | Supported | Supported | Supported | No |
-| `Q8_0` | Supported | Supported | Supported | `Q8_0` |
-| `IQ1_S`, `IQ1_M` | Supported | Supported | Supported | No |
-| `IQ2_XXS`, `IQ2_XS`, `IQ2_S` | Supported | Supported | Supported | No |
-| `IQ3_XXS`, `IQ3_S` | Supported | Supported | Supported | No |
-| `IQ4_NL`, `IQ4_XS` | Supported | Supported | Supported | No |
-| `TQ1_0`, `TQ2_0` | Supported | Supported | Supported | No |
-| `F8_E4M3` | Supported | Supported | Supported | No |
+| Weight format | CPU inference | Vulkan inference | ROCm inference | CUDA inference | Written by `llmx quantize` |
+|---|---|---|---|---|---|
+| `F32`, `F16`, `BF16` | Supported | Supported | Supported | Supported | No |
+| `MXFP4` | Supported | Supported | Supported | Supported | No |
+| `NVFP4` | Supported | Supported | Supported | Supported | No |
+| `Q1_0` | Supported | Supported | Supported | Supported | No |
+| `Q2_0` | Supported | Supported | Supported | Supported | No |
+| `Q2_K`, `Q3_K` | Supported | Supported | Supported | Supported | No |
+| `Q4_0`, `Q4_1`, `Q4_K` | Supported | Supported | Supported | Supported | `Q4_0` |
+| `Q5_0`, `Q5_1`, `Q5_K` | Supported | Supported | Supported | Supported | No |
+| `Q6_K` | Supported | Supported | Supported | Supported | No |
+| `Q8_0` | Supported | Supported | Supported | Supported | `Q8_0` |
+| `IQ1_S`, `IQ1_M` | Supported | Supported | Supported | Supported | No |
+| `IQ2_XXS`, `IQ2_XS`, `IQ2_S` | Supported | Supported | Supported | Supported | No |
+| `IQ3_XXS`, `IQ3_S` | Supported | Supported | Supported | Supported | No |
+| `IQ4_NL`, `IQ4_XS` | Supported | Supported | Supported | Supported | No |
+| `TQ1_0`, `TQ2_0` | Supported | Supported | Supported | Supported | No |
+| `F8_E4M3` | Supported | Supported | Supported | Supported | No |
 
 The current Vulkan `MXFP4` kernels require support for preserving small and special floating-point values and for double-precision intermediate calculations. A tensor assigned to a device that cannot process its format, such as a format the ROCm column does not list, is rejected; llmx does not move it to the CPU automatically.
 

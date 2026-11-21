@@ -985,4 +985,54 @@ void sparse_tile_pair(backend::Backend& g, const std::function<backend::DeviceCa
                 backend::sparse_few_two(c60, 2, 64, 512, 16, 16, 16, 3) && !backend::sparse_few_two(c304, 7, 64, 512, 16, 16, 16, 3),
             "the few-row values kernel takes two columns a lane once its one-column blocks give each unit three");
 }
+// The four-head sparse build against the one-head build: 12 heads over one KV head against the same queries over six copies of it, every head the same bits.
+// Over enough rows that the groups fill the compute units, at least 64 (a row alone keeps the one-head build), heads 128 and 256 wide, f16 and f32 caches, 85 ids a row, some past a row's visible tokens and some invalid.
+void sparse_grouped(backend::Backend& g, const std::function<backend::DeviceCaps&(backend::Backend&)>& caps_of,
+                    const std::function<std::map<std::string, size_t>(backend::Backend&)>& launches, const std::function<void(bool, const std::string&)>& require) {
+    const size_t heads = 12, bt = g.kv_layout().block_tokens, length = 3 * bt + 5, stride = 85, many = std::max<size_t>(64, (caps_of(g).compute_units * 4 + heads - 1) / heads);
+    uint32_t seed = 977;
+    const auto next = [&seed] { seed = seed * 1664525u + 1013904223u; return seed >> 8; };
+    for (size_t dim : {size_t(128), size_t(256)})
+        for (backend::KVType kt : {backend::KVType::f16, backend::KVType::f32})
+            for (size_t rows : {size_t(1), many}) {
+                const std::string at = "sparse attention " + std::to_string(dim) + " wide, " + backend::kv_type_name(kt) + " cache, " + std::to_string(rows) + " rows";
+                const size_t total = length + rows;
+                std::vector<int32_t> map(backend::blocks_for(total, bt));
+                for (size_t i = 0; i < map.size(); ++i) map[i] = int32_t(map.size() - 1 - i);
+                std::vector<float> k1(total * dim), v1(k1.size()), q(rows * heads * dim);
+                for (size_t i = 0; i < k1.size(); ++i) k1[i] = float(int(next() % 2001u) - 1000) / 1600.0f, v1[i] = float(int(next() % 2001u) - 1000) / 900.0f;
+                for (float& x : q) x = float(int(next() % 2001u) - 1000) / 700.0f;
+                std::vector<uint32_t> ids(rows * stride);
+                for (size_t r = 0; r < rows; ++r)
+                    for (size_t t = 0; t < stride; ++t) {
+                        const uint32_t pick = next();
+                        ids[r * stride + t] = t % 9 == 0 ? (pick % 2 ? UINT32_MAX : uint32_t(length + r + 1)) : uint32_t(pick % (length + r + 1));
+                    }
+                std::vector<float> outs[2];
+                std::string ran[2];
+                for (int side = 0; side < 2; ++side) {
+                    const size_t kv_heads = side ? 6 : 1;
+                    std::vector<float> k(total * kv_heads * dim), v(k.size());
+                    for (size_t t = 0; t < total; ++t)
+                        for (size_t h = 0; h < kv_heads; ++h) {
+                            std::memcpy(&k[(t * kv_heads + h) * dim], &k1[t * dim], dim * 4);
+                            std::memcpy(&v[(t * kv_heads + h) * dim], &v1[t * dim], dim * 4);
+                        }
+                    auto storage = g.kv_alloc(1, kv_heads, dim, map.size() * bt, kt, kt);
+                    backend::KVView w{storage.get(), map.data(), map.size(), 0, total};
+                    auto kb = g.adopt(k.data(), k.size() * 4), vb = g.adopt(v.data(), v.size() * 4), qb = g.adopt(q.data(), q.size() * 4), ib = g.adopt(ids.data(), ids.size() * 4);
+                    g.kv_write(0, &w, 1, {kb.get(), 0}, {vb.get(), 0});
+                    auto ob = g.alloc(rows * heads * dim * 4);
+                    backend::KVView view{storage.get(), map.data(), map.size(), length, rows};
+                    launches(g);
+                    g.sparse_attention({qb.get(), 0}, 0, &view, 1, {ib.get(), 0}, stride, {ob.get(), 0}, int(heads), int(kv_heads), int(dim));
+                    for (const auto& [kn, n] : launches(g))
+                        if (kn.find("sparse_attention_vec") != std::string::npos && kn.find("merge") == std::string::npos) ran[side] = kn;
+                    outs[side] = twin_checks::read(g, *ob, rows * heads * dim);
+                }
+                const std::string want = std::string("llmx_sparse_attention_vec") + (dim == 256 ? "256" : "");
+                require(ran[0] == (rows > 1 ? want + "_g4" : want) && ran[1] == want, at + ": one KV head takes " + (rows > 1 ? want + "_g4" : want) + " and six take " + want + ", ran " + ran[0] + " and " + ran[1]);
+                require(twin_checks::same(outs[0], outs[1]), at + ": every head of the four-head build is the one-head build's, bit for bit");
+            }
+}
 } // namespace ds4

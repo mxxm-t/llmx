@@ -23,9 +23,7 @@
 #include "backends/device_profile.hpp"
 #include "backends/devices.hpp"
 #include "core/json.hpp"
-#if LLMX_HAS_BACKEND_ROCM
-#include "backends/rocm/rocm_backend.hpp"
-#endif
+#include "gpu_core_hooks.hpp"
 
 namespace {
 using backend::Backend;
@@ -542,18 +540,7 @@ std::vector<size_t> wide_crossovers() {
     return {at.begin(), at.end()};
 }
 
-bool is_rocm(const std::string& name) { return name.rfind("rocm", 0) == 0; }
-
-// The kernels launched since the last reading, on a ROCm device, and nothing elsewhere.
-std::map<std::string, size_t> launches(Backend& device, const std::string& name) {
-    if (!is_rocm(name)) return {};
-#if LLMX_HAS_BACKEND_ROCM
-    return backend::rocm_take_launches(device);
-#else
-    (void)device;
-    return {};
-#endif
-}
+using gpu_core_hooks::launches;
 
 // A history of one complete group a given angle, then two tokens.
 struct History {
@@ -622,9 +609,9 @@ void wide_crossover(Backend& device, const std::string& name) {
                 launches(device, name);
                 ids.push_back(distinct.run(device, g * 4, 1, at));
                 const auto ran = launches(device, name);
-#if LLMX_HAS_BACKEND_ROCM
-                if (witness && is_rocm(name)) {
-                    const bool wide = g >= backend::rocm_profile(device).select_wide_from;
+#if LLMX_HAS_BACKEND_ROCM || LLMX_HAS_BACKEND_CUDA
+                if (witness && gpu_core_hooks::on(name)) {
+                    const bool wide = g >= gpu_core_hooks::profile(device, name).select_wide_from;
                     require(ran.count("llmx_kv_index_select_wide") == size_t(wide) && ran.count("llmx_kv_index_select") == size_t(!wide),
                             at + " ran " + (wide ? "without" : "with") + " the wide selection on " + name);
                 }
@@ -644,9 +631,9 @@ void wide_crossover(Backend& device, const std::string& name) {
         return ids;
     };
     const auto natural = cases(true);
-#if LLMX_HAS_BACKEND_ROCM
-    if (is_rocm(name)) {
-        size_t& from = backend::rocm_profile(device).select_wide_from;
+#if LLMX_HAS_BACKEND_ROCM || LLMX_HAS_BACKEND_CUDA
+    if (gpu_core_hooks::on(name)) {
+        size_t& from = gpu_core_hooks::profile(device, name).select_wide_from;
         const size_t kept = from;
         from = std::numeric_limits<size_t>::max();
         launches(device, name);
@@ -686,8 +673,8 @@ void selection_rates(Backend& device, const std::string& name) {
     BufferPtr out = device.alloc(16 * (c.budget + c.compression - 1) * sizeof(uint32_t), backend::Memory::device);
     std::vector<std::pair<const char*, size_t>> forms{{"profile's", 0}};
     size_t* from = nullptr;
-#if LLMX_HAS_BACKEND_ROCM
-    if (is_rocm(name)) from = &backend::rocm_profile(device).select_wide_from;
+#if LLMX_HAS_BACKEND_ROCM || LLMX_HAS_BACKEND_CUDA
+    if (gpu_core_hooks::on(name)) from = &gpu_core_hooks::profile(device, name).select_wide_from;
 #endif
     const size_t kept = from ? *from : 0;
     if (from) forms = {{"normal", std::numeric_limits<size_t>::max()}, {"wide", 0}};
@@ -942,7 +929,7 @@ int main(int argc, char** argv) {
             if (arg == "--reference" && i + 1 < argc) reference = argv[++i];
             else if (arg == "--device" && i + 1 < argc) device_name = argv[++i];
             else if (arg == "--rates") rates = true;
-            else throw std::runtime_error("usage: kv-selection-test [--reference FILE] [--device cpu|vulkan:N|rocm:N] [--rates]");
+            else throw std::runtime_error("usage: kv-selection-test [--reference FILE] [--device cpu|vulkan:N|rocm:N|cuda:N] [--rates]");
         }
         // `--rates` prints the selection's times a call and checks nothing.
         if (rates) {

@@ -1298,6 +1298,47 @@ try {
       assert.equal(await stored(),expected,label+' editor changed newline style');
     }
     console.log('PASS: saved generated file collision, cancellation and deliberate replacement');
+  } else if (process.argv.includes('--history-sections-only')) {
+    await signIn();
+    const ids = await evaluate(`(async () => {
+      const ids = [];
+      for (const [title, fields] of [
+        ['Draft proposal', {folder:'Research'}], ['Field notes', {folder:'Research'}],
+        ['Archived notes', {folder:'Research',archived:true}], ['Inbox', {}],
+        ['Manual pin folder', {folder:'Pinned'}], ['First priority', {pinned:true}],
+      ]) {
+        const chat = await ChatShell.api('/chats','POST',{title});
+        if (Object.keys(fields).length) await ChatShell.api('/chats/'+chat.id,'PATCH',fields);
+        ids.push(chat.id);
+      }
+      return ids;
+    })()`);
+    await reloadDocument();
+    const section = id => '.history-section:has([data-chat="'+id+'"])';
+    const research = section(ids[0]);
+    await wait(`document.querySelector('${research}')?.open`, 'expanded folder');
+    assert.equal(await evaluate(`document.querySelector('${research} .section-count').textContent`), '2');
+    assert.equal(await evaluate(`document.querySelector('${section(ids[4])} .section-name').textContent`), 'Pinned (folder)');
+    assert.equal(await evaluate(`document.querySelector('${section(ids[5])} .section-name').textContent`), 'Pinned');
+    await evaluate(`document.querySelector('${research} summary').focus()`);
+    await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,text:'\r'});
+    await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
+    await wait(`!document.querySelector('${research}').open`, 'fold folder with keyboard');
+    await fill('#search','Draft proposal');
+    await wait(`document.querySelector('#chat-list > .chat-row [data-chat="${ids[0]}"]')?.checkVisibility()`, 'search in closed folder');
+    await fill('#search','');
+    await wait(`document.querySelector('${research}')?.open === false`, 'restore browsing state');
+    await click('#archive-toggle');
+    await wait(`document.querySelector('${section(ids[2])}')?.open`, 'archive has independent sections');
+    await click('#archive-toggle');
+    await wait(`document.querySelector('${research}')?.open === false`, 'return to folded library');
+    await cdp('Emulation.setDeviceMetricsOverride',{width:320,height:700,deviceScaleFactor:1,mobile:true});
+    await pointerClick('#sidebar-toggle');
+    await wait("document.querySelector('#app').classList.contains('sidebar-open')", 'mobile drawer');
+    await pointerClick(research+' summary');
+    await wait(`document.querySelector('${research}').open`, 'open folder in mobile drawer');
+    await screenshot('history-sections-mobile.png');
+    console.log('PASS: keyboard and mobile folder navigation, archive and search');
   } else if (process.argv.includes('--message-find-only')) {
     await signIn();
     const chat = await evaluate(`(async () => {

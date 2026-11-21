@@ -30,6 +30,7 @@
   const S = {chats: [], chat: null, messages: [], runs: [], config: {models: [], tools: []}, attachments: [], edit: null, stream: null, cursor: 0, archive: false, tab: 'activity', scheduled: false, fingerprint: new Map(), inspectorKey: '', generation: 0, busy: false};
   let toastTimer, creatingChat = false, menuId = null, composerRevision = 0;
   const chatSearch = {request: null, timer: null, running: false, chats: [], notice: ''};
+  const closedSections = new Set();
   const sidebarRuns = {ready: false, active: false, epoch: 0, request: null, poll: null, expires: null, states: new Map()};
   const sidebarRunCues = new Map([
     ['running', ['', 'Reply in progress']], ['approval', ['?', 'Waiting for tool approval']],
@@ -370,24 +371,42 @@
     if (!chatSearch.request) chats.sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || (String(b.updated).localeCompare(String(a.updated))));
     const groups = new Map();
     chats.forEach(chat => {
-      const group = chatSearch.request ? '' : chat.pinned ? 'Pinned' : chat.folder || 'Recent';
+      const group = chatSearch.request ? '' : chat.pinned ? 'pinned' : chat.folder ? 'folder:' + chat.folder : 'recent';
       if (!groups.has(group)) groups.set(group, []);
       groups.get(group).push(chat);
     });
-    const out = $('chat-list'); out.replaceChildren();
-    groups.forEach((items, name) => {
-      if (name) out.append(node('div', 'folder-heading', name));
+    const out = $('chat-list');
+    for (const section of out.querySelectorAll('.history-section')) {
+      if (section.open) closedSections.delete(section.dataset.section);
+      else closedSections.add(section.dataset.section);
+    }
+    out.replaceChildren();
+    groups.forEach((items, group) => {
+      let container = out;
+      if (group) {
+        const name = group === 'pinned' ? 'Pinned' : group === 'recent' ? 'Recent' : items[0].folder;
+        const key = (S.archive ? 'archive:' : 'chats:') + group;
+        const section = node('details', 'history-section');
+        section.open = !closedSections.has(key);
+        const heading = node('summary', 'folder-heading');
+        const label = group.startsWith('folder:') && (name === 'Pinned' || name === 'Recent') ? name + ' (folder)' : name;
+        heading.append(icon('m8 10 4 4 4-4'), node('span', 'section-name', label), node('span', 'section-count', String(items.length)));
+        section.append(heading);
+        section.dataset.section = key;
+        out.append(section);
+        container = section;
+      }
       items.forEach(chat => {
         const button = node('button', 'chat-item' + (S.chat?.id === chat.id ? ' active' : '')); button.type = 'button'; button.dataset.chat = chat.id; button.title = chat.title;
         if (S.chat?.id === chat.id) button.setAttribute('aria-current', 'page');
-        button.append(icon('M4 5h16v12H9l-5 3Z', 'chat-glyph'), node('span', 'chat-name', chat.title || 'Untitled conversation'));
+        button.append(node('span', 'chat-name', chat.title || 'Untitled conversation'));
         const cue = node('span', 'chat-run-cue'); cue.setAttribute('aria-hidden', 'true'); button.append(cue);
         updateSidebarCue(button);
         if (chat.pinned) button.append(icon('M9 3h6l-1 6 4 4H6l4-4Z M12 13v8', 'pin-mark'));
         const row = node('div', 'chat-row' + (S.chat?.id === chat.id ? ' active' : ''));
         const menu = node('button', 'chat-row-menu'); menu.append(icon('M5 12h.2m6.7 0h.2m6.7 0h.2')); menu.type = 'button'; menu.dataset.action = 'chat-menu'; menu.dataset.id = chat.id;
         menu.setAttribute('aria-label', 'Actions for ' + (chat.title || 'Untitled conversation')); menu.setAttribute('aria-haspopup', 'menu'); menu.title = 'Conversation actions';
-        row.append(button, menu); out.append(row);
+        row.append(button, menu); container.append(row);
       });
     });
     if (!chats.length) out.append(node('p', 'empty-history', chatSearch.notice || (chatSearch.request ? 'No matching conversations.' : S.archive ? 'Your archive is empty.' : 'No saved conversations yet.')));

@@ -200,6 +200,11 @@ class BrowserTests(unittest.TestCase):
             artifacts = Path(__file__).resolve().parents[2] / "scratch" / "chat-ui-browser" / "project-download"
             shutil.copyfile(archive, artifacts / archive.name)
 
+    def test_conversation_folders_in_chrome(self):
+        node, chrome = self.browser_executables()
+        with tempfile.TemporaryDirectory() as directory:
+            self.run_focused_browser(node, chrome, Path(directory), "history-sections", ("--history-sections-only",), [])
+
     def test_find_in_conversation_after_slow_browser_start(self):
         node, chrome = self.browser_executables()
         with tempfile.TemporaryDirectory() as directory:

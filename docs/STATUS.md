@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Chat history sections
+
+- Goal: Keep a large chat library easy to scan on desktop and phone.
+- Done: Folder, pinned and recent sections fold using native disclosure controls. Counts come from the listed conversations. Search includes closed groups and the archive keeps its own expansion state.
+- Checks: The focused Chrome test covers keyboard and phone navigation, search, archive and a user folder named Pinned.
+- Gotchas: Section state lasts while the page is open.
+
 ## Keyboard return from Saved files (2026-11-21)
 
 - Goal: Resume typing when Back to Chat returns to an unsent conversation.

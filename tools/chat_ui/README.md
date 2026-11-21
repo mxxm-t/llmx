@@ -222,7 +222,8 @@ draft of the conversation you left and adds no empty row to chat history.
 Ending a temporary chat still uses its existing confirmation.
 
 The sidebar highlights the current view and groups saved conversations by pin
-and folder. Search shows matching conversations in one list. On a phone, the chat landing
+and folder. Select a group heading to collapse or expand it. The archive keeps its own open groups.
+Search shows matches in one list, including conversations in collapsed groups. On a phone, the chat landing
 page also lists up to three recently updated conversations with messages. Archived
 conversations stay in the archive. Select a recent conversation to reopen its
 active branch. Below the composer, **Attach from workspace** lists up to three

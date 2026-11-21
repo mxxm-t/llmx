@@ -381,6 +381,45 @@ async function checkSpeakerLayout(width) {
   assert(layout.every(turn=>width===1440 ? turn.headerLeft : turn.headerAbove),'speaker placement at '+width+': '+JSON.stringify(layout));
   assert(layout[0].actionsBelow && (width!==1440 || layout[0].actionsAligned),'prompt actions below the text at '+width+': '+JSON.stringify(layout[0]));
 }
+async function checkMainNavigation(width) {
+  const views = ['chat', 'workbench', 'monitor', 'preferences'];
+  const originalTheme = await evaluate("document.documentElement.dataset.theme");
+  await evaluate("document.querySelector('#chat-home').focus()");
+  for (const view of views) {
+    for (const type of ['keyDown', 'keyUp']) await cdp('Input.dispatchKeyEvent', {type, key:'Tab', code:'Tab', windowsVirtualKeyCode:9});
+    assert.equal(await evaluate("document.activeElement.matches('.global-nav button:focus-visible') && getComputedStyle(document.activeElement).outlineStyle==='solid' && document.activeElement.dataset.view"), view);
+  }
+  for (const theme of ['light', 'dark']) {
+    await evaluate("document.documentElement.dataset.theme=" + JSON.stringify(theme));
+    const nav = await evaluate(`(() => {
+      const buttons = [...document.querySelectorAll('.global-nav button')];
+      const current = buttons.find(button => button.getAttribute('aria-current') === 'page');
+      const history = getComputedStyle(document.querySelector('.chat-item.active'));
+      const sample = document.createElement('span');
+      sample.style.color = 'var(--accent)';
+      current.append(sample);
+      const accent = getComputedStyle(sample).color;
+      sample.remove();
+      const marker = getComputedStyle(current, '::before');
+      return {
+        rows: buttons.map(button => {
+          const rect = button.getBoundingClientRect();
+          return {top:rect.top, bottom:rect.bottom, height:rect.height, icon:button.querySelector('svg').getBoundingClientRect().left,
+            label:button.querySelector('span').getBoundingClientRect().left};
+        }),
+        current: current.dataset.view, neutral: getComputedStyle(current).backgroundColor === history.backgroundColor && getComputedStyle(current).color === history.color,
+        marked: marker.content !== 'none' && parseFloat(marker.borderInlineStartWidth) > 0 && marker.borderInlineStartColor === accent,
+        otherMarkers: buttons.filter(button => button !== current && getComputedStyle(button, '::before').content !== 'none').length
+      };
+    })()`);
+    assert.equal(nav.current, 'chat');
+    assert(nav.neutral && nav.marked && !nav.otherMarkers, theme + ' page selection should share the active history colors and have one accent marker');
+    assert(nav.rows.every((row, i) => row.icon === nav.rows[0].icon && row.label === nav.rows[0].label &&
+      row.height >= (width === 320 ? 40 : 24) && (!i || row.top >= nav.rows[i - 1].bottom)), 'destination rows at '+width);
+  }
+  await evaluate("document.documentElement.dataset.theme=" + JSON.stringify(originalTheme));
+}
+
 async function checkPassageNavigation() {
   const term = 'tide window';
   const chat = await evaluate(`ChatShell.api('/import','POST',{version:1,chat:{title:'Harbor survey plan',active_leaf:'t'},messages:${JSON.stringify([
@@ -2154,6 +2193,9 @@ try {
     const section = id => '.history-section:has([data-chat="'+id+'"])';
     const research = section(ids[0]);
     await wait(`document.querySelector('${research}')?.open`, 'expanded folder');
+    await pointerClick('.chat-item[data-chat="' + ids[1] + '"]');
+    await wait("document.querySelector('.chat-item.active')", 'selected chat shares the navigation surface');
+    await checkMainNavigation(1440);
     assert.equal(await evaluate(`document.querySelector('${research} .section-count').textContent`), '2');
     assert.equal(await evaluate(`document.querySelector('${section(ids[4])} .section-name').textContent`), 'Pinned (folder)');
     assert.equal(await evaluate(`document.querySelector('${section(ids[5])} .section-name').textContent`), 'Pinned');
@@ -2175,6 +2217,18 @@ try {
     await pointerClick(research+' summary');
     await wait(`document.querySelector('${research}').open`, 'open folder in mobile drawer');
     await screenshot('history-sections-mobile.png');
+    await checkMainNavigation(320);
+    await cdp('Emulation.setDeviceMetricsOverride',{width:667,height:375,deviceScaleFactor:1,mobile:true});
+    await wait("innerWidth===667 && innerHeight===375 && document.querySelector('#sidebar').clientHeight===innerHeight", 'resized short navigation drawer');
+    const drawerEnd = await evaluate(`(() => {
+      const list=document.querySelector('#chat-list'), last=[...list.querySelectorAll('.chat-item')].filter(el=>el.checkVisibility()).at(-1);
+      const footer=document.querySelector('.sidebar-footer');
+      footer.scrollIntoView({block:'end',behavior:'instant'});
+      const bounds=footer.getBoundingClientRect();
+      return {lastBottom:last.getBoundingClientRect().bottom, footerTop:bounds.top, footerBottom:bounds.bottom, viewportHeight:innerHeight};
+    })()`);
+    assert(drawerEnd.lastBottom<=drawerEnd.footerTop && drawerEnd.footerBottom<=drawerEnd.viewportHeight+1,
+      'history and footer must remain reachable without overlapping in a short drawer: ' + JSON.stringify(drawerEnd));
     console.log('PASS: keyboard and mobile folder navigation, archive and search');
   } else if (process.argv.includes('--message-find-only')) {
     await signIn();
@@ -2639,9 +2693,14 @@ try {
     await cdp('Input.dispatchMouseEvent', {type:'mouseMoved', ...point});
     await delay(180);
     await screenshot('navigation-hover-' + theme + '.png');
-    const navigation = await evaluate("(()=>{const selected=document.querySelector('.global-nav [aria-current=page]'), hovered=document.querySelector('.global-nav button:hover');return {selected:selected.dataset.view,hovered:hovered?.dataset.view,selectedFill:getComputedStyle(selected).backgroundColor,hoveredFill:getComputedStyle(hovered).backgroundColor};})()");
+    const navigation = await evaluate(`(() => {
+      const selected=document.querySelector('.global-nav [aria-current=page]'), hovered=document.querySelector('.global-nav button:hover');
+      return {selected:selected.dataset.view, hovered:hovered?.dataset.view, selectedFill:getComputedStyle(selected).backgroundColor,
+        hoveredFill:getComputedStyle(hovered).backgroundColor, hoverMarker:getComputedStyle(hovered,'::before').content};
+    })()`);
     assert.equal(navigation.selected, 'chat'); assert.equal(navigation.hovered, 'monitor');
     assert.notEqual(navigation.selectedFill, navigation.hoveredFill, theme + ' navigation hover looks selected');
+    assert.equal(navigation.hoverMarker, 'none', theme + ' hover must leave the marker on the current page');
   }
   await evaluate("document.documentElement.dataset.theme='dark'");
   assert.equal(await evaluate("document.querySelector('#temporary-button')?.closest('.topbar-actions')!==null"), true, 'Temporary chat is not in the conversation header');

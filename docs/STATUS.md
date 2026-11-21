@@ -6,6 +6,18 @@ The expanded workspace write result leaves 12 px between elapsed time and
 Open in Workspace. The saved-file browser check reproduced the original 0 px
 gap for a 0 ms write. This lands by fast-forward after the Chat checks.
 
+## Sidebar destination list
+
+Chat, Saved files, Monitor and Settings share a single column. The current
+page uses the active conversation's neutral fill and a short Monitor accent
+line. Hover and keyboard focus keep their own cues. Short drawers scroll
+through the full history before reaching the footer.
+
+- Chrome checked aligned labels and icons, keyboard order, focus outlines, shared selection colors and the current-page marker in both themes.
+- At 1440 x 900 the 28 px rows left 524 px for history. At 320 x 700 the 40 px rows left 242 px. The 667 x 375 landscape check reached the last chat and the footer without overlap.
+- Hosted Chrome could publish the new viewport dimensions before the companion sized its drawer. The geometry check waits for the drawer to reach the viewport height before scrolling to its footer.
+- Reviewed the sidebar [usage](../tools/chat_ui/README.md#conversations). The presentation change lands by fast-forward after its scoped checks.
+
 ## Conversation settings toggle
 
 The composer settings button toggles its open panel and switches from another

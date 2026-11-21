@@ -90,8 +90,10 @@ class WorkspaceTests(unittest.TestCase):
 
     def test_checkpoint_diff_keeps_missing_newlines_and_empty_files(self):
         workspace = Workspace(self.temp.name)
+
         def write(path, content, delete=False):
             workspace.write(path, content, workspace.files()["revision"], delete)
+
         write("a.txt", "before")
         write("b.txt", "")
         write("line.txt", "one\r\ntwo\n")

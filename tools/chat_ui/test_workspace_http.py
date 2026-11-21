@@ -201,9 +201,9 @@ class WorkspaceHTTPTests(unittest.TestCase):
         self.assertEqual(escaped[0], 400)
         current = self.json_body(self.request("GET", "/api/workspace", cookie=self.cookie))["revision"]
         self.request("POST", "/api/workspace/file",
-                     {"path": "src/main.py", "content": "new\n", "revision": current}, self.cookie)
+                     {"path": "src/main.py", "content": "new", "revision": current}, self.cookie)
         diff = self.request("GET", "/api/workspace/diff?checkpoint=" + checkpoint_id, cookie=self.cookie)
-        self.assertIn("-old", self.json_body(diff)["diff"])
+        self.assertIn("-old\n+new\n\\ No newline at end of file\n", self.json_body(diff)["diff"])
         restored = self.request("POST", "/api/workspace/checkpoints/" + checkpoint_id + "/restore",
                                 {"revision": current + 1}, self.cookie)
         self.assertEqual(restored[0], 200)

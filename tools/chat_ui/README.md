@@ -526,6 +526,7 @@ refuse stale edits. You can keep typing while Save is pending; later edits stay
 marked Unsaved. One save runs at a time. Switching files does not let an older
 save mark the new editor content as saved. A successful write retains its
 accepted revision even if refreshing the file list fails.
+In checkpoint history, **View diff** compares the checkpoint with your current saved files. It lists added and deleted empty files by name and marks lines that have no final newline.
 Up to 20 checkpoints and 20 command records are retained.
 Restoring a checkpoint first saves the current files. These are file snapshots,
 not process snapshots or a promise to undo actions made by external MCP tools.

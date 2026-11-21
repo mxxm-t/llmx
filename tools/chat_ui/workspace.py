@@ -399,8 +399,20 @@ class Workspace:
             before, after = point["files"], self.state["files"]
             parts = []
             for path in sorted(before.keys() | after.keys()):
-                parts.extend(difflib.unified_diff(before.get(path, "").splitlines(True), after.get(path, "").splitlines(True),
-                                                  fromfile="checkpoint/" + path, tofile="workspace/" + path))
+                old, new = before.get(path), after.get(path)
+                if old == new:
+                    continue
+                if not old and not new:
+                    action = "Added" if old is None else "Deleted"
+                    parts.append(f"{action} empty file: {path}\n")
+                    continue
+                lines = difflib.unified_diff(io.StringIO(old or "").readlines(), io.StringIO(new or "").readlines(),
+                                             fromfile="/dev/null" if old is None else "checkpoint/" + path,
+                                             tofile="/dev/null" if new is None else "workspace/" + path)
+                for line in lines:
+                    parts.append(line)
+                    if not line.endswith("\n"):
+                        parts.append("\n\\ No newline at end of file\n")
             return {"diff": "".join(parts)}
 
     def job(self, job_id):

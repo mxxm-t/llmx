@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Workspace checkpoint comparisons (2026-11-21)
+
+- Goal: Show changes to empty files and keep diff records distinct when a file has no final newline.
+- Done: View diff identifies added and deleted empty files, separates unterminated lines and marks a missing final newline. Unchanged snapshots still have an empty diff.
+- Checks: On main, changing an unterminated line joined the removal and addition. Adding an empty file produced no diff. The regression compares the entire multi-file diff, including CRLF text and both empty-file operations. The HTTP checkpoint comparison and restore tests pass.
+- Landing: Fast-forward after the scoped Chat workspace checks.
+
 ## Discarding an unsaved workspace file (2026-11-21)
 
 - Goal: Discard a new editor buffer locally and reserve Delete for saved files.

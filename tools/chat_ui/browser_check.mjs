@@ -1375,6 +1375,36 @@ try {
     assert.equal(await evaluate("document.querySelectorAll("+JSON.stringify(attached)+").length"),1);
     assert.equal(await evaluate("document.querySelector('#draft').value"),'Review this file.');
     assert.equal(await evaluate("ChatShell.api('/workspace/file?path=notes%2Fplan.txt').then(file=>file.content)"),'Original');
+    const sourceText = '\ufeffFirst line\r\nSecond line';
+    const paths = ['source.txt','notes.pdf'];
+    const outcomes = [];
+    for (const path of paths) {
+      await evaluate(`(async () => {
+        const {revision} = await ChatShell.api('/workspace');
+        await ChatShell.api('/workspace/file','POST',{revision,path:${JSON.stringify(path)},content:${JSON.stringify(sourceText)}});
+      })()`);
+      await pointerClick(goFiles);
+      const saved = '.workspace-file[title="' + path + '"]';
+      await wait(`document.querySelector(${JSON.stringify(saved)})?.checkVisibility()`, 'saved editor attachment fixture');
+      await pointerClick(saved);
+      if (path === paths[0]) {
+        await wait("document.querySelector('#action-dialog').open", 'discard the earlier unsaved fixture');
+        await pointerClick('#conversation-submit');
+      }
+      await wait(`document.querySelector('.workspace-file-path').textContent===${JSON.stringify(path)}`, 'open editor attachment fixture');
+      await pointerClick('#workspace-attach');
+      await wait(inChat + " || document.querySelector('.workspace-error').checkVisibility()", 'attach exact workspace text');
+      if (await evaluate(inChat)) {
+        const snapshot = `JSON.parse(sessionStorage.getItem('llmx-draft:new')).attachments.find(a=>a.name===${JSON.stringify(path)})`;
+        await wait(snapshot, 'workspace attachment stored with draft');
+        const text = await evaluate(snapshot + '.text');
+        outcomes.push([path,text]);
+      } else {
+        outcomes.push([path,await evaluate("document.querySelector('.workspace-error').textContent")]);
+        await pointerClick('.workspace-back');
+      }
+    }
+    assert.deepEqual(outcomes,paths.map(path=>[path,sourceText]),'editor attachment changed the workspace text or opened the device importer');
     console.log('PASS: reattaching a workspace path preserves one explicit file version');
   } else if (process.argv.includes('--project-download-only')) {
     await signIn();

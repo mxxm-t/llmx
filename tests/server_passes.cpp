@@ -2090,6 +2090,16 @@ void service_by_hand() {
                         require(on_line, "a stale first prefill kept a stage's line from its clean prefills' (" + std::to_string(S) + " stages, fixed x" + std::to_string(fx) + (cold ? ", cold" : ", uniform") + ", prefill " + std::to_string(k) + ")");
                     }
                 }
+        // Stages 0 2 on one device and 1 3 on another, three slices of 1 ms a stage: run_chunks dispatches (0,0) (1,0) (0,1) (2,0) (1,1) (0,2) (3,0) (2,1) (1,2) (3,1) (2,2) (3,2), and each device runs them so.
+        // Played in that order the last slice ends at 7 ms, while a device taking its oldest slice ready first runs (2,1) before (0,2) at 3 ms and ends at 8 ms, an order the devices never run.
+        {
+            const std::vector<size_t> device = {0, 1, 0, 1};
+            const std::vector<infer::StageLine> ms(4, infer::StageLine{1, 0});
+            const std::vector<const std::vector<infer::StageLine>*> held(3, &ms);
+            std::vector<double> wall(4, 0.0);
+            infer::pipeline_rounds(wall, device, held, {1, 1, 1});
+            require(std::fabs(wall.back() - 7) < 1e-9, "stage rounds priced three slices on two devices at " + std::to_string(wall.back()) + " ms, not the 7 ms of run_chunks' dispatch order");
+        }
         // Twelve stages in rounds on four devices, one stage's time a slice growing faster than its rows so its own line has a negative fixed cost, as busy times under stage rounds measured on Qwen3.8-Flash-Next.
         // That stage takes the band's shape and the others keep their own lines, so every prefill after the cold one is priced; dropping the band left each at the cut without prices, 14 slices against 4 or 5.
         {

@@ -2557,6 +2557,18 @@ try {
   inspectorPreference.rememberedClosed = !await detailsOpen();
   await click('[data-action="settings"]');
   inspectorPreference.settingsOpened = await evaluate("!document.querySelector('#panel-settings').hidden && getComputedStyle(document.querySelector('#inspector')).display!=='none'");
+  const settingsButton = '.composer-toolbar [data-action=settings]';
+  await pointerClick(settingsButton);
+  assert.equal(await detailsOpen(), false, 'pressing Conversation settings again must close its panel');
+  assert.equal(await evaluate("document.activeElement.matches('.composer-toolbar [data-action=settings]')"), true);
+  await pointerClick(settingsButton);
+  await pointerClick('#tab-stats');
+  assert.equal(await evaluate("document.querySelector('[data-action=settings]').getAttribute('aria-expanded')"), 'false');
+  await pointerClick(settingsButton);
+  assert.equal(await evaluate("document.querySelector('[data-action=settings]').getAttribute('aria-expanded')"), 'true');
+  await pointerClick('.global-nav [data-view=preferences]');
+  await pointerClick('#preferences-chat-settings');
+  assert.equal(await detailsOpen(), true, 'the Settings page link must always open conversation settings');
   await reloadDocument();
   inspectorPreference.closedAfterSettings = !await detailsOpen();
   await evaluate("localStorage.removeItem('llmx-theme')");
@@ -3139,7 +3151,7 @@ try {
   await click('#tool-settings input'); await click('[data-action="save-settings"]');
   await wait("document.querySelector('#toast').textContent.includes('Settings saved')", 'saved tool selection');
   const toolFixture = {upstream_available:true, models:[{id:'qwen3-local'}], tools:[{name:'echo', description:'Echo text', connection:'mcp:fixture',approval:true}], tools_error:null,
-    tool_servers:[{id:'mcp:fixture',name:'Fixture MCP',kind:'mcp',status:'unchecked',tool_count:1,approval:true,checked_at:null,duration_ms:null,error:null}]};
+    tool_servers:[{id:'mcp:fixture',name:'fixture MCP',kind:'mcp',status:'unchecked',tool_count:1,approval:true,checked_at:null,duration_ms:null,error:null}]};
   await evaluate(`document.dispatchEvent(new CustomEvent('companion:config',{detail:${JSON.stringify({...toolFixture, tools:[], tool_servers:[{id:'builtin:workspace',name:'Workspace',kind:'builtin',status:'ready',tool_count:0,approval:null}]})}}));`);
   await click('[data-view="preferences"]');
   assert.equal(await evaluate("document.querySelector('#preferences-tools').innerText.includes('Start the companion with --tools PATH')"), true, 'built-in-only configuration does not explain external MCP setup');
@@ -3152,7 +3164,7 @@ try {
     policy.textContent === 'Approval required' && description.textContent === 'Echo text' &&
       description.getBoundingClientRect().top >= policy.getBoundingClientRect().bottom;
   }`);
-  await evaluate(`window.__toolTestCalls=0;window.__realFetch=window.fetch;window.fetch=async (url,options)=>{if(String(url)==='/api/tools/test'){window.__toolTestCalls++;return new Response(JSON.stringify({tools:[{name:'fresh_tool',description:'Freshly listed',connection:'mcp:fixture',approval:false}],tool_servers:[{id:'mcp:fixture',name:'Fixture MCP',kind:'mcp',status:'ready',tool_count:1,approval:false,checked_at:1794760000,duration_ms:14,error:null}],tools_error:null}),{status:200,headers:{'Content-Type':'application/json'}})}return window.__realFetch(url,options)};`);
+  await evaluate(`window.__toolTestCalls=0;window.__realFetch=window.fetch;window.fetch=async (url,options)=>{if(String(url)==='/api/tools/test'){window.__toolTestCalls++;return new Response(JSON.stringify({tools:[{name:'fresh_tool',description:'Freshly listed',connection:'mcp:fixture',approval:false}],tool_servers:[{id:'mcp:fixture',name:'fixture MCP',kind:'mcp',status:'ready',tool_count:1,approval:false,checked_at:1794760000,duration_ms:14,error:null}],tools_error:null}),{status:200,headers:{'Content-Type':'application/json'}})}return window.__realFetch(url,options)};`);
   await click('[data-test-server="mcp:fixture"]');
   await wait("document.querySelector('#preferences-tools').innerText.includes('Freshly listed')", 'tested tool list refresh');
   await click('[data-view="chat"]'); await click('[data-action="settings"]');
@@ -3167,7 +3179,7 @@ try {
   await wait("document.querySelector('#preferences-tools').innerText.includes('Fixture connection refused')", 'connection test failure');
   assert.equal(await evaluate("document.querySelector('.tool-connection-meta').textContent.startsWith('Ready')"), true, 'request failure changed remote status');
   await screenshot('tool-connections-desktop.png');
-  await evaluate(`window.fetch=async (url,options)=>{if(String(url)==='/api/tools/test')return new Response(JSON.stringify({tools:[],tool_servers:[{id:'mcp:fixture',name:'Fixture MCP',kind:'mcp',status:'error',tool_count:0,approval:true,checked_at:1794760001,duration_ms:15,error:'Remote server refused discovery'}],tools_error:'Remote server refused discovery'}),{status:200,headers:{'Content-Type':'application/json'}});return window.__realFetch(url,options)};`);
+  await evaluate(`window.fetch=async (url,options)=>{if(String(url)==='/api/tools/test')return new Response(JSON.stringify({tools:[],tool_servers:[{id:'mcp:fixture',name:'fixture MCP',kind:'mcp',status:'error',tool_count:0,approval:true,checked_at:1794760001,duration_ms:15,error:'Remote server refused discovery'}],tools_error:'Remote server refused discovery'}),{status:200,headers:{'Content-Type':'application/json'}});return window.__realFetch(url,options)};`);
   await click('[data-test-server="mcp:fixture"]');
   await wait("document.querySelector('#preferences-tools').innerText.includes('Remote server refused discovery')", 'remote discovery error');
   assert.equal(await evaluate("document.querySelector('.tool-connection-meta').textContent.startsWith('Connection error')"), true, 'remote failure was not identified');

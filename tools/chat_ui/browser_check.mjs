@@ -812,6 +812,40 @@ try {
     await checkChatSavedWriteActions(filename, source);
     assert.deepEqual(errors, [], 'saved write action browser exceptions');
     console.log('PASS: tool results open current saved files and attach their contents once, preserve later draft edits, and handle missing or invalid files');
+  } else if (process.argv.includes('--generated-file-only')) {
+    await signIn();
+    const read = () => evaluate("ChatShell.api('/workspace/file?path=artifact.py')");
+    const openSnippet = async () => {
+      await evaluate("ChatShell.show('chat'); ChatArtifacts.open({language:'python',source:'print(42)'})");
+      await pointerClick('.artifact-toolbar-actions button:first-child');
+      await wait("document.querySelector('#conversation-value').value === 'artifact.py' && document.querySelector('#action-dialog').open", 'generated filename');
+    };
+    await evaluate(`(async () => {
+      const workspace = await ChatShell.api('/workspace');
+      await ChatShell.api('/workspace/file','POST',{path:'artifact.py',content:'original',revision:workspace.revision});
+    })()`);
+    await openSnippet();
+    await pointerClick('#conversation-submit');
+    await wait("document.querySelector('#action-dialog-title').textContent === 'Replace saved file?' || document.querySelector('#workspace-editor').value === 'print(42)'", 'collision decision or editor');
+    if (!await evaluate("document.querySelector('#action-dialog').open")) {
+      await pointerClick('#workspace-save');
+      await wait("document.querySelector('#workspace-save').disabled && !document.querySelector('#workspace-editor').disabled", 'save without a collision decision');
+      assert.equal((await read()).content, 'original', 'the original file was overwritten without a replacement decision');
+      assert.fail('missing replacement decision');
+    }
+    await pointerClick('#conversation-cancel');
+    assert.equal((await read()).content, 'original');
+    await openSnippet();
+    await pointerClick('#conversation-submit');
+    await wait("document.querySelector('#action-dialog-title').textContent === 'Replace saved file?' && document.querySelector('#action-dialog').open", 'explicit replacement');
+    await pointerClick('#conversation-submit');
+    await wait("document.querySelector('#workspace-editor').value === 'print(42)'", 'replacement draft');
+    assert.equal((await read()).content, 'original', 'opening the replacement draft wrote to storage');
+    await pointerClick('#workspace-save');
+    await wait("document.querySelector('#workspace-save').disabled && document.querySelector('.unsaved-indicator').hidden", 'saved replacement');
+    assert.equal((await read()).content, 'print(42)');
+    assert.deepEqual(errors, [], 'generated file browser errors');
+    console.log('PASS: saved generated file collision, cancellation and deliberate replacement');
   } else if (process.argv.includes('--message-find-only')) {
     await signIn();
     const chat = await evaluate(`(async () => {

@@ -289,6 +289,8 @@ active branch. **Browse saved files** adds selected files to the current draft.
   inside their list item. List nesting is bounded at eight levels; deeper text
   remains visible as literal content. Unchanged leading Markdown blocks remain
   connected during streaming, preserving their selection and code controls.
+  Later text can stream after a completed code sample without highlighting the
+  sample again when a blank line separates them.
   The changing suffix is rebuilt, so selection inside it may be lost.
   A focused message action stays focused across message updates while its
   action and target remain available.

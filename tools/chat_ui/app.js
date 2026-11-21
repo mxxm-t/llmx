@@ -1,7 +1,7 @@
 /* The service owns conversation state; this file owns browser presentation. */
 (() => {
   'use strict';
-  const {node, icon, markdown, reconcileMarkdown, number, json} = window.ChatRender;
+  const {node, icon, markdown, updateMarkdown, number, json} = window.ChatRender;
   async function api(...args) {
     try {
       const result = await window.ChatShell.api(...args);
@@ -848,7 +848,13 @@
     }
     return wrap;
   }
-  function messageView(message, siblings) {
+  function messageMarkdown(text, mounted) {
+    if (!mounted) return markdown(text);
+    updateMarkdown(mounted, text);
+    // The replacement marks its slot while the mounted body keeps focus and selection.
+    return node('div', 'markdown');
+  }
+  function messageView(message, siblings, content, reasoningBody) {
     const el = node('article', 'message ' + message.role); el.dataset.message = message.id;
     const header = node('div', 'message-header');
     header.append(node('span', '', message.role === 'assistant' ? 'Assistant' : message.role === 'tool' ? 'Tool result' : 'You'));
@@ -859,9 +865,9 @@
       const reasoning = node('details', 'reasoning'); reasoning.dataset.disclosure = 'reasoning';
       const summary = node('summary');
       summary.append(icon('M4 8h10m-6 4h12M4 16h9'), document.createTextNode('Reasoning'));
-      reasoning.append(summary, markdown(message.reasoning)); el.append(reasoning);
+      reasoning.append(summary, messageMarkdown(message.reasoning, reasoningBody)); el.append(reasoning);
     }
-    if (message.content) el.append(markdown(message.content));
+    if (message.content) el.append(messageMarkdown(message.content, content));
     (message.tool_calls || []).forEach(call => {
       const tool = toolRow(call, message);
       tool.querySelectorAll('details').forEach((detail, index) => { detail.dataset.disclosure = 'tool:' + call.id + ':' + index; });
@@ -951,7 +957,8 @@
       let old = articles.get(message.id);
       if (S.fingerprint.get(message.id) !== fingerprint || !old) {
         const disclosures = new Map(old ? Array.from(old.querySelectorAll('details[data-disclosure]'), detail => [detail.dataset.disclosure, detail]) : []);
-        const replacement = messageView(message, siblings);
+        const content = old?.querySelector(':scope > .markdown'), reasoning = old?.querySelector('.reasoning');
+        const replacement = messageView(message, siblings, content, reasoning?.querySelector('.markdown'));
         replacement.querySelectorAll('details[data-disclosure]').forEach(detail => {
           const previous = disclosures.get(detail.dataset.disclosure);
           const enteringApproval = detail.open && !previous?.parentElement.querySelector('.approval');
@@ -961,10 +968,9 @@
           const preserved = [];
           const action = reconcileFocusedAction(old, replacement);
           if (action) preserved.push(action);
-          const content = old.querySelector(':scope > .markdown'), nextContent = replacement.querySelector(':scope > .markdown');
-          if (content && nextContent) { reconcileMarkdown(content, nextContent); preserved.push([nextContent, content]); }
-          const reasoning = old.querySelector('.reasoning'); const nextReasoning = replacement.querySelector('.reasoning');
-          if (reasoning && nextReasoning) { reconcileMarkdown(reasoning.querySelector('.markdown'), nextReasoning.querySelector('.markdown')); preserved.push([nextReasoning, reasoning]); }
+          const nextContent = replacement.querySelector(':scope > .markdown'), nextReasoning = replacement.querySelector('.reasoning');
+          if (content && nextContent) preserved.push([nextContent, content]);
+          if (reasoning && nextReasoning) preserved.push([nextReasoning, reasoning]);
           const focused = document.activeElement?.matches('.tool-call details[data-disclosure^="tool:"][data-disclosure$=":0"] > summary') ? document.activeElement.parentElement : null;
           const keepDetail = focused && old.contains(focused) ? focused : null;
           if (keepDetail) {

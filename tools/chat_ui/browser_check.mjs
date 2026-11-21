@@ -1351,19 +1351,31 @@ try {
       const current=ChatRender.markdown('');
       for(let i=0;i<=source.length;i++){
         const expected=ChatRender.markdown(source.slice(0,i));
-        ChatRender.reconcileMarkdown(current,ChatRender.markdown(source.slice(0,i)));
+        ChatRender.updateMarkdown(current,source.slice(0,i));
         if(current.innerHTML!==expected.innerHTML)return {pass:false,stage:'prefix',offset:i};
       }
       for(const suffix of ['\n\n'+source,source,'short','',source]){
-        ChatRender.reconcileMarkdown(current,ChatRender.markdown(suffix));
+        ChatRender.updateMarkdown(current,suffix);
         if(current.innerHTML!==ChatRender.markdown(suffix).innerHTML)return {pass:false,stage:'rewrite'};
       }
+    }
+    const boundaries=['First\n\nName | Rate\n--- | ---:\nCPU | 3', 'First\n\nName | Rate\n\nCPU | 3',
+      'First\n\n- One\n\n  More\n\n- Two', 'First\n\n- One\n\nMore\n\n- Two', 'First\n\n> Quote\n\nTail'];
+    const rewritten=ChatRender.markdown('');
+    for(const source of boundaries){
+      ChatRender.updateMarkdown(rewritten,source);
+      if(rewritten.innerHTML!==ChatRender.markdown(source).innerHTML)return {pass:false,stage:'changed boundary',source};
     }
     const text='Completed paragraph\n\n\x60\x60\x60python\nprint(1)\n\x60\x60\x60\n\nChanging';
     const current=ChatRender.markdown(text);document.body.append(current);
     const paragraph=current.firstElementChild, button=current.querySelector('.code-heading button');button.textContent='Copied';button.focus();
     const selection=getSelection(),range=document.createRange();range.selectNodeContents(paragraph);selection.removeAllRanges();selection.addRange(range);
-    ChatRender.reconcileMarkdown(current,ChatRender.markdown(text+' final block'));
+    const highlight=ChatArtifacts.highlight;
+    let highlights=0;
+    ChatArtifacts.highlight=(...args)=>{highlights++;return highlight(...args);};
+    try {ChatRender.updateMarkdown(current,text+' final block');}
+    finally {ChatArtifacts.highlight=highlight;}
+    if(highlights!==0)return {pass:false,stage:'highlighted unchanged code'};
     const result={pass:true,paragraph:current.firstElementChild===paragraph,button:current.querySelector('.code-heading button')===button,feedback:button.textContent,focus:document.activeElement===button,selection:selection.toString()};
     selection.removeAllRanges();current.remove();return result;
   })()`);
@@ -1486,7 +1498,7 @@ try {
         actions: Array.from(block?.querySelectorAll('.code-actions button') || [], button => button.textContent)};
     }
     const streamed = shape(partial), completeShape = shape(complete);
-    ChatRender.reconcileMarkdown(partial, complete);
+    ChatRender.updateMarkdown(partial, ${JSON.stringify(completeFence)});
     return {streamed, complete: completeShape, reconciled: shape(partial), nested: shape(nested)};
   })()`);
   const fencedShape = (source, language, following) => ({blocks:1,source,language,

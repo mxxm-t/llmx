@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Render completed Markdown once during streaming (2026-11-21)
+
+- Goal: Keep a long answer or reasoning section responsive as later text arrives.
+- Done: A reply update keeps completed blocks before an unchanged blank separator and parses the suffix. Changed boundaries still use the same parser as a fresh message. Chrome produced identical markup for 2400 deterministic edits covering paragraphs, lists, quotes, fences and tables.
+- Timing: Local headless Chrome, pooled median JavaScript time across 16 one-word updates per arm in main/candidate/candidate/main order. A short reply took 0.60/0.60 ms. After 88 KB of prose the update took 6.20/1.45 ms and after 95 KB of fenced code it took 14.10/0.90 ms. With those samples in completed reasoning it took 5.00/0.80 and 17.35/0.90 ms. Host CPU sampled at 25-36 percent. Network, paint and inference are outside the measurement.
+- Checks: The hosted workspace fixture compares incremental and fresh Markdown and checks selection, focused controls, code copy feedback and reuse of syntax highlighting. Landing is by fast-forward after the scoped Linux and Windows checks.
+
 ## Long chat rendering (2026-11-21)
 
 - Goal: Keep an incoming reply responsive when the chat already contains hundreds of turns.

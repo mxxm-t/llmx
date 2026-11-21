@@ -132,13 +132,17 @@ window.ChatRender = (() => {
     }
     return row;
   }
+  function sourceLines(text) { return String(text || '').replace(/\r/g, '').split('\n'); }
   function markdown(text, depth = 0) {
     const out = node('div', 'markdown');
-    const lines = String(text || '').replace(/\r/g, '').split('\n');
+    const lines = sourceLines(text);
     markdownSources.set(out, lines);
-    let i = 0, start = 0;
+    renderBlocks(out, lines, depth, 0);
+    return out;
+  }
+  function renderBlocks(out, lines, depth, i) {
     while (i < lines.length) {
-      start = i;
+      const start = i;
       const line = lines[i];
       const fence = openingFence(line);
       if (fence) {
@@ -200,25 +204,37 @@ window.ChatRender = (() => {
       while (i < lines.length && lines[i].trim() && !openingFence(lines[i]) && !/^\s*(?:#|>|[-+*]\s|\d+[.)]\s)/.test(lines[i]) && !tableColumns(lines, i)) { p.append(node('br')); inline(lines[i++], p); }
       appendBlock(out, p, start, i);
     }
-    return out;
   }
-  function reconcileMarkdown(current, replacement) {
-    const previous = Array.from(current.children), next = Array.from(replacement.children);
-    const before = markdownSources.get(current), after = markdownSources.get(replacement);
-    let keep = 0;
-    while (keep < previous.length && keep < next.length) {
-      const source = blockSources.get(previous[keep]), target = blockSources.get(next[keep]);
-      if (!source || !target || previous[keep].tagName !== next[keep].tagName || source.end - source.start !== target.end - target.start) break;
+  function updateMarkdown(current, text) {
+    const before = markdownSources.get(current), after = sourceLines(text);
+    let common = 0;
+    while (common < before.length && common < after.length && before[common] === after[common]) common++;
+    if (common === before.length && common === after.length) return;
+    const previous = Array.from(current.children);
+    let keep = 0, restart = 0;
+    for (let i = 0; i < previous.length; i++) {
+      const source = blockSources.get(previous[i]);
+      if (!source || source.end >= common) break;
+      // An unchanged blank after a block separates it from later edits. Lists include the blank lines they consume.
+      if (!after[source.end].trim()) { keep = i + 1; restart = source.end; }
+    }
+    const tail = document.createDocumentFragment();
+    renderBlocks(tail, after, 0, restart);
+    const next = Array.from(tail.children);
+    let parsed = 0;
+    while (keep < previous.length && parsed < next.length) {
+      const source = blockSources.get(previous[keep]), target = blockSources.get(next[parsed]);
+      if (!source || !target || previous[keep].tagName !== next[parsed].tagName || source.end - source.start !== target.end - target.start) break;
       let equal = true;
       for (let i = 0; i < source.end - source.start; i++) if (before[source.start + i] !== after[target.start + i]) { equal = false; break; }
       if (!equal) break;
-      blockSources.set(previous[keep], target); keep++;
+      blockSources.set(previous[keep], target); keep++; parsed++;
     }
     for (let i = previous.length - 1; i >= keep; i--) previous[i].remove();
-    for (let i = keep; i < next.length; i++) current.append(next[i]);
+    for (let i = parsed; i < next.length; i++) current.append(next[i]);
     markdownSources.set(current, after);
   }
   function number(value, suffix = '') { return typeof value === 'number' && Number.isFinite(value) ? new Intl.NumberFormat(undefined, {maximumFractionDigits: 2}).format(value) + suffix : 'Unavailable'; }
   function json(value) { return typeof value === 'string' ? value : JSON.stringify(value, null, 2); }
-  return {node, icon, markdown, reconcileMarkdown, number, json};
+  return {node, icon, markdown, updateMarkdown, number, json};
 })();

@@ -34,6 +34,8 @@ struct HipApi {
     static constexpr bool int8_tensor_tiles = false;
     static constexpr bool copy_sums = false;   // copies sums hung on four MI50 at width 3 among sums in flight that switch form, cause unknown (docs/STATUS.md)
     static constexpr bool registered_coherent = false;   // hipHostRegister takes no coherent flag, so armed host slots stay in hipHostMalloc memory (collective_core.hpp, stage_for)
+    static constexpr bool shared_block_cap = false;   // caps.shared_bytes is a compute unit's whole LDS
+    static constexpr bool dot4_everywhere = false;   // gfx9 alone compiles GPU_DOT4, which the dot module's load marks
     static inline const std::string prefix = "rocm: ";
     static constexpr const unsigned char* f32_module = kF32Module;
     static constexpr const unsigned char* int16_module = kInt16Module;

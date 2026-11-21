@@ -176,6 +176,11 @@ Qwen3-30B-A3B Q4_K_M timing, `bench --p 512 --n 128 --r 3` and the reference run
 Decode leads the reference by 44 percent at int8 and prompts trail it at 63 percent, an open gate step 2b's routed tensor-core tiles own.
 S8 measured 2112 and 177 tok/s at int8 and 1200 and 150 at f16 on its 280 W card; the two sessions differ in card, driver and power limit, so their figures are separate results and no regression or gain is read between them.
 
+DeepSeek-V4.1's FP4 power keys 128 wide take the integer index tile `llmx_indexer_scores_int` on every CUDA target, as on gfx9 (docs/src/backends-gpu.md), since each one builds the 8-bit dot.
+Before, CUDA ran the row kernel `llmx_indexer_scores` on every index call: the tiles' gate took half of `caps.shared_bytes`, a compute unit's whole LDS under HIP but a block's 48 KiB cap under CUDA, and the float tile's 27,392 bytes at dim 128 exceed 24 KiB; the API's `shared_block_cap` now gives CUDA the whole cap, since an SM of every target holds two such blocks, so CUDA takes the float tile at other dims as well.
+Its block sums are exact integer dots, so a score keeps the row kernel's bits wherever its float sums are exact and is closer to exact elsewhere, and CUDA's DeepSeek greedy hashes recorded on the float tile are recorded again on a card.
+`backend-cuda deepseek4` requires the integer tile to run once on the index checks.
+
 ## The int8 prompt tile on other cards
 
 Every int8 K tile runs one tensor-core body (`k_mma`, docs/src/backends-gpu.md) at 64 outputs, or for Q4_K, Q5_K and Q6_K at 128 where `tile_rows_for` picks it from the device's units.

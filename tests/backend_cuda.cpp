@@ -345,8 +345,11 @@ void vision_ops(Backend& g) {
 void deepseek4(Backend& g) {
     guarded("deepseek4 ops", [&] {
         q35::Pair p(g);
+        (void)cuda_take_launches(g);
         const size_t values = ds4::check_ops(p, {"hc_collapse_norm", "hc_expand", "indexer_scores", "rope_forms", "mix_rows"});
         require(values > 0, "deepseek4 ops: " + std::to_string(values) + " values against the CPU");
+        // Every CUDA target builds the 8-bit dot, so the FP4 keys 128 wide reach the integer index tile.
+        require(cuda_take_launches(g).count("llmx_indexer_scores_int") == 1, "deepseek4's index checks take llmx_indexer_scores_int");
     });
     guarded("sparse_tile_pair", [&] { ds4::sparse_tile_pair(g, cuda_caps, cuda_take_launches, require); });
 }

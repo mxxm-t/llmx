@@ -299,8 +299,8 @@ public:
             const typename Api::Module m = k < kRows16x1 ? module_ : !plain && dot_module_ ? dot_module_ : int16_module_;
             // The fused moe_step's products are in the dot module alone; without it every step runs the base's ops.
             if (k >= kMoeStepUpQ4K && k <= kMoeStepUpQ5KW && !dot_module_) continue;
-            // The integer index tile is built for the targets with the 8-bit dot alone (GPU_DOT4 in kernels/port.h), which the dot module marks.
-            if (k == kIndexerScoresInt && !dev_.caps.integer_dot) continue;
+            // The integer index tile is built for the targets with the 8-bit dot alone (GPU_DOT4 in kernels/port.h): under HIP the dot module marks them, and the API says where every target has it.
+            if (k == kIndexerScoresInt && !dev_.caps.integer_dot && !Api::dot4_everywhere) continue;
             if (k >= kTallQ4K8 && k <= kTallQ6K8 && !Api::int8_tensor_tiles) continue;
             Api::check(Api::module_function(&kernels_[k], m, kKernelNames[k]), "module_function");
         }
@@ -1630,9 +1630,10 @@ public:
                  bs = u32(block_size);
         unsigned long long bf = t.block_floats;
         unsigned kf = unsigned(key_format), kws = u32(key_words);
+        // Two tile blocks fit a unit: half its shared memory under HIP, where a block may take it all, and a block's cap under CUDA, whose units hold two such blocks (Api::shared_block_cap).
         // Rows of a view in runs of kIndexTileRows share each decoded key in the tile kernel, taken where its work fills the device (tile_fills_twice); rows a view each, as decode's, keep a block a row.
         const size_t tile_shared = size_mul(size_add(kIndexTileRows, kIndexTilePositions), size_mul(dim + 4, sizeof(float))), tile_bytes = size_add(tile_shared, kIndexTileFixed);
-        if (dim % 4 == 0 && rows >= size_mul(n_views, kIndexTileRows / 4) && tile_bytes <= dev_.caps.shared_bytes / 2 &&
+        if (dim % 4 == 0 && rows >= size_mul(n_views, kIndexTileRows / 4) && tile_bytes <= (Api::shared_block_cap ? dev_.caps.shared_bytes : dev_.caps.shared_bytes / 2) &&
             tile_fills_twice(dev_.caps, tile_bytes, kIndexTileRows, kIndexTilePositions, rows, n)) {
             const Args args(o, qp, aux, tab, wp, bp, nn, u32(rows), h, d, w_scale, tokens, bt, bf, rf, width, bk, bs, kf, kws);
             // FP4 power keys of the one dim the integer tile reads take it: the model rounds the query to FP4 power values first (deepseek4's model_format_qdq).

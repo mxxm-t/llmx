@@ -61,6 +61,8 @@ struct CudaApi {
     static constexpr bool int8_tensor_tiles = true;   // the module has the K-quants' tall tensor-core tiles (kernels/int16.gpu, k_mma at 128 outputs)
     static constexpr bool copy_sums = true;   // host writes also time copies (collective_core.hpp, copied)
     static constexpr bool registered_coherent = true;   // registered host memory is as coherent as the driver's own allocations (collective_core.hpp, stage_for)
+    static constexpr bool shared_block_cap = true;    // caps.shared_bytes is a block's 48 KiB static cap, and every target's SM holds two such blocks
+    static constexpr bool dot4_everywhere = true;     // every CUDA target compiles GPU_DOT4 (kernels/port.h), so the f32 module has the integer index tile
     static inline const std::string prefix = "cuda: ";
     static constexpr const unsigned char* f32_module = kF32Module;
     static constexpr const unsigned char* int16_module = kInt16Module;

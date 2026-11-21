@@ -437,6 +437,13 @@ A saved tool result opens the latest file in the editor or resumes unsaved chang
 - **Left:** the Radeon VII check and the server gates per the landing.
 - **Gotchas:** an infinite or NaN scale now gives NaN where `k_term` gave an infinity, as for the other biased types.
   A source edit anywhere in `int16.gpu` renames its internal symbols under nvcc and can move ptxas's scheduling of unrelated kernels, so a CUDA SASS comparison needs a comment-only control of the same file.
+## CUDA integer index tile (2026-11-20, CUDAGAP2, branch cuda/index-int on main c494eea6f)
+
+- **Goal:** DeepSeek-V4.1's FP4 power index keys take the integer tile `llmx_indexer_scores_int` on CUDA, which every CUDA target compiles (`GPU_DOT4`) but the host loaded only where ROCm's dot module set `caps.integer_dot`.
+- **Done:** the GPU APIs carry `dot4_everywhere` (CUDA true, ROCm and the fake API false) and the core loads the integer tile where it or `caps.integer_dot` holds; `caps.integer_dot` stays unset on CUDA, since it also picks the device profile and the dot module's builds. `backend-cuda deepseek4` requires one `llmx_indexer_scores_int` launch on the index checks.
+- **Precision:** block sums are exact integer dots, so a score has the float tile's bits wherever the float tile's sums are exact and is closer to exact elsewhere; CUDA ran the row kernel `llmx_indexer_scores` before (the tile gate halved a 48 KiB block cap, below the float tile's 27,392 bytes at dim 128), so CUDA DeepSeek greedy hashes change and are recorded again; `shared_block_cap` (CUDA true) lets CUDA take both tiles. Found by Fable's review.
+- **Left:** card session (READY-FOR-CARDS, cuda-gaps): `backend-cuda deepseek4`, the suite's `deepseek4` on cuda:0 at f16 and int8, and the CUDA DeepSeek hashes recorded again.
+- **Gotchas:** ROCm takes the same branches as before at compile time (`dot4_everywhere` and `shared_block_cap` false), so its kernels and launches are unchanged. `tile_fills_twice` still counts blocks a unit from the 48 KiB cap on CUDA, which under-counts an SM's pool (100 to 228 KiB) and so asks more rows of the tile than needed.
 
 ## Chat message actions (2026-11-19)
 

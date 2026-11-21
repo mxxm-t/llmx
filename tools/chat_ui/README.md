@@ -265,9 +265,9 @@ active branch. **Browse saved files** adds selected files to the current draft.
   saved settings. You can keep editing while Save or a reply request is
   pending. Wait for that request to finish before submitting another change
   for the same chat.
-- In a wide transcript, the speaker and time sit beside each turn. In a narrow
-  transcript they appear above it. Prompts have a light tint. Copy and Edit sit below
-  the prompt. Their icons share the styling, keyboard focus and touch targets
+- The speaker and time appear above each turn. An inset rule marks the prompt.
+  Copy and Edit sit beside the speaker on wide screens and below the prompt
+  on narrow ones. Their icons share the styling, keyboard focus and touch targets
   used by Retry, Statistics and the branch arrows under a reply. Statistics
   stays highlighted while its panel is open.
   Assistant prose uses shorter lines on wide screens, while code and tables

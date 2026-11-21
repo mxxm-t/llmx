@@ -6,6 +6,12 @@
 - Done: A reply update keeps completed blocks before an unchanged blank separator and parses the suffix. Changed boundaries still use the same parser as a fresh message. Chrome produced identical markup for 2400 deterministic edits covering paragraphs, lists, quotes, fences and tables.
 - Timing: Local headless Chrome, pooled median JavaScript time across 16 one-word updates per arm in main/candidate/candidate/main order. A short reply took 0.60/0.60 ms. After 88 KB of prose the update took 6.20/1.45 ms and after 95 KB of fenced code it took 14.10/0.90 ms. With those samples in completed reasoning it took 5.00/0.80 and 17.35/0.90 ms. Host CPU sampled at 25-36 percent. Network, paint and inference are outside the measurement.
 - Checks: The hosted workspace fixture compares incremental and fresh Markdown and checks selection, focused controls, code copy feedback and reuse of syntax highlighting. Landing is by fast-forward after the scoped Linux and Windows checks.
+## Chat transcript reading layout (2026-11-21)
+
+- Goal: Put the prompt, response and author in one reading column and keep actions easy to reach.
+- Done: Prompts and answers share a reading column. A short rule marks prompt text. Wide screens put Copy, Edit and branch selection on the heading row. Narrow screens keep them below the prompt.
+- Checks: The hosted Chrome fixture checks the prompt edge and action placement in both themes. It exercises tool replies at 1440, 390 and 320 pixels and keyboard focus at 200 percent zoom. Landing is by fast-forward.
+- Gotchas: Grouped tool calls share one speaker heading. The final action row needs equal space above and below.
 
 ## Long chat rendering (2026-11-21)
 
@@ -81,7 +87,7 @@
 ## Chat transcript and follow-up drafts (2026-11-21)
 
 - Goal: Keep the speaker, answer and file actions easy to follow in a long transcript, and quote a passage when asking a follow-up.
-- Done: A wide transcript aligns turns beside the speaker and time. Narrow panels stack the labels. The smaller follow-up composer grows with its draft. Quote in reply appends selected text or a whole answer. The source viewer can wrap long lines.
+- Done: The original wide transcript put the speaker beside the text. The November 21 reading layout puts the speaker above it at all widths. The smaller follow-up composer grows with its draft. Quote in reply appends selected text or a whole answer. The source viewer can wrap long lines.
 - Checks: Chrome exercised empty and populated chats, multi-tool turns, fenced code and multiline drafts in both themes at 320, 390, 768 and 1440 px. The new layout recovered 66 px of visible transcript on desktop and 67 px on phones. The draft check covers quoted selections across prose and code, retained attachments and zero server writes. Source wrapping preserves the original text.
 - Landing: Fast-forward after the scoped Chat workspace checks.
 

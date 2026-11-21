@@ -813,10 +813,11 @@ kbd {
 .message.assistant.continuation>.message-header {
   display:none
 }
-.message.user { padding:16px 0 8px }
+.message.user { padding:12px 0 4px }
 .message.assistant + .message.user {
-  border-top:1px solid var(--line);
-  margin-top:14px
+  margin-top:20px;
+  padding-top:20px;
+  border-top:1px solid var(--line)
 }
 .message-header {
   display:flex;
@@ -833,11 +834,9 @@ kbd {
   font-variant-numeric:tabular-nums
 }
 .message.user>.markdown {
-  border:0;
-  background:color-mix(in srgb,var(--surface) 56%,var(--panel));
-  border-radius:4px;
-  padding:10px 14px;
-  font-size:15px;
+  border-inline-start:2px solid var(--muted);
+  padding-inline-start:14px;
+  font-size:16px;
   line-height:1.6
 }
 .markdown {
@@ -853,29 +852,16 @@ kbd {
 .message.assistant>.markdown>:is(p,ul,ol,blockquote) {
   max-width:68ch
 }
-@container (min-width:660px) {
-  .message {
-    --speaker-width:80px;
-    --column-gap:20px;
+@container (min-width:560px) {
+  .message.user {
     display:grid;
-    grid-template-columns:var(--speaker-width) minmax(0,1fr);
-    column-gap:var(--column-gap);
-    align-items:start
+    grid-template-columns:minmax(0,1fr) auto;
+    align-items:center;
+    row-gap:4px
   }
-  .message>* { grid-column:2 }
-  .message>.message-header {
-    grid-area:1 / 1;
-    display:flex;
-    flex-direction:column;
-    align-items:flex-start;
-    gap:3px;
-    margin:3px 0 0
-  }
-  .message.user>.message-header { margin-top:9px }
-  .message.assistant:is(.continuation,:has(+ .message.assistant.continuation)) { padding-inline-start:0 }
-  .message.assistant:is(.continuation,:has(+ .message.assistant.continuation))::before {
-    inset-inline-start:calc(var(--speaker-width) + var(--column-gap) / 2)
-  }
+  .message.user>* { grid-column:1 / -1 }
+  .message.user>.message-header { grid-area:1 / 1; margin:0 }
+  .message.user>.message-actions { grid-area:1 / 2; margin:0 }
 }
 .markdown>:first-child {
   margin-top:0

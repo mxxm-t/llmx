@@ -1820,7 +1820,17 @@ try {
       await cdp('Emulation.setTouchEmulationEnabled', {enabled:false});
     } else await pointerClick('[data-action=reply-stats]');
     await wait("document.querySelector('.stats-hint').textContent.startsWith('Pinned')", 'click or touch pins statistics');
-    assert.equal(await evaluate("getComputedStyle(document.querySelector('.message.user>.markdown')).borderTopWidth==='0px' && getComputedStyle(document.querySelector('.message.user>.markdown')).backgroundColor!==getComputedStyle(document.querySelector('.message.user button')).backgroundColor"), true, 'user message still styled as a control');
+    assert.equal(await evaluate(`(() => {
+      const prompt=document.querySelector('.message.user>.markdown');
+      const style=getComputedStyle(prompt), article=prompt.parentElement;
+      const header=article.querySelector('.message-header').getBoundingClientRect();
+      const actions=article.querySelector('.message-actions').getBoundingClientRect();
+      const wide=getComputedStyle(article).display==='grid';
+      const placed=wide ? header.right<=actions.left && actions.bottom<=prompt.getBoundingClientRect().top
+                        : actions.top>=prompt.getBoundingClientRect().bottom;
+      return placed && style.backgroundColor==='rgba(0, 0, 0, 0)' && parseFloat(style.borderInlineStartWidth)>0
+        && prompt.previousElementSibling.getBoundingClientRect().bottom<=prompt.getBoundingClientRect().top;
+    })()`), true, 'prompt needs a reading edge and a separate heading');
     await screenshot('reply-statistics-'+width+'-'+theme+'.png');
     await click('[data-action=copy-stats]');
     await wait("document.querySelector('#toast').textContent==='Statistics copied.'", 'statistics copy confirmation');

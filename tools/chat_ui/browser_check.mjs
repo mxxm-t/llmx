@@ -1427,6 +1427,24 @@ try {
   } else if (process.argv.includes('--draft-viewer-only')) {
     await signIn();
     await fill('#draft','Keep this draft.');
+    await evaluate(`(() => {
+      const transfer = new DataTransfer();
+      transfer.items.add(new File(['export default 42;'], 'answer.mjs', {type:'application/javascript'}));
+      transfer.items.add(new File(['module.exports = 42;'], 'answer.CJS'));
+      const picker = document.querySelector('#file-input');
+      picker.files = transfer.files;
+      picker.dispatchEvent(new Event('change', {bubbles:true}));
+    })()`);
+    await wait("JSON.parse(sessionStorage.getItem('llmx-draft:new') || '{}').attachments?.length===2 || document.querySelector('#toast').textContent.includes('Unsupported file')", 'module files selected');
+    const moduleDraft = await evaluate("JSON.parse(sessionStorage.getItem('llmx-draft:new') || '{}')");
+    assert.deepEqual(moduleDraft.attachments?.map(file=>[file.name,file.text]), [
+      ['answer.mjs','export default 42;'], ['answer.CJS','module.exports = 42;']
+    ], 'device picker attaches ES and CommonJS modules as source');
+    const accepted = await evaluate("document.querySelector('#file-input').accept.split(',')");
+    assert(accepted.includes('.mjs') && accepted.includes('.cjs'), 'module files visible in device picker');
+    await pointerClick('#attachments [aria-label="Remove answer.mjs"]');
+    await pointerClick('#attachments [aria-label="Remove answer.CJS"]');
+
     const source = '<b>Source only</b>\r\n';
     await evaluate(`(async () => {
       const canvas=document.createElement('canvas'); canvas.width=640; canvas.height=360;

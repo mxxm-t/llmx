@@ -358,6 +358,7 @@ void deepseek4(Backend& g) {
     });
     guarded("sparse_tile_pair", [&] { ds4::sparse_tile_pair(g, cuda_caps, cuda_take_launches, require); });
     guarded("sparse_grouped", [&] { ds4::sparse_grouped(g, cuda_caps, cuda_take_launches, require); });
+    guarded("router", [&] { ds4::router(g, cuda_caps, cuda_take_launches, require); });
 }
 
 // The routed experts' ops (docs/CUDA.md, step 8) by the checks backend-rocm shares (moe_checks.hpp): routing against the CPU and every routed build's entries their expert's one-column product bit for bit.

@@ -1,4 +1,4 @@
-// gpu-port: the arithmetic port.h's CUDA mappings share with the host (port_prmt, port_dot2_i16, port_segment_mask), checked against models of the AMD instructions the kernels were written for and of the NVIDIA ones that replace them.
+// gpu-port: the arithmetic port.h's CUDA mappings share with the host (port_prmt, port_dot2_i16, port_segment_mask, port_word_as), checked against models of the AMD instructions the kernels were written for and their NVIDIA replacements.
 #define LLMX_PORT_HOST_MODEL
 #include "backends/gpu/kernels/port.h"
 
@@ -116,5 +116,15 @@ int main() {
                 if (!(got >> (l ^ (unsigned)m) & 1u)) seg = false;
         }
     require(seg, "segment_lanes: each lane's mask is its own segment of the width, holding every partner of an xor below it");
+
+    // A scoped load of a float gives the float its bits hold, 1.0f from 0x3f800000 and not 1065353216.0f, and a store writes those bits back; integers keep their values.
+    bool word = port_word_as<float>(0x3f800000u) == 1.0f && port_word_as<float>(0xc0200000u) == -2.5f && port_word_as<unsigned>(-0.0f) == 0x80000000u &&
+                port_word_as<unsigned>(port_word_as<float>(0x7fc00001u)) == 0x7fc00001u && port_word_as<unsigned>(1.5f) == 0x3fc00000u && port_word_as<int>(0xffffffffu) == -1 &&
+                port_word_as<unsigned>(7u) == 7u && port_word_as<double>(0x3ff0000000000000ull) == 1.0 && port_word_as<unsigned long long>(-1ll) == ~0ull;
+    for (int k = 0; k < 1 << 16; ++k) {
+        const unsigned u = rng();
+        if (port_word_as<unsigned>(port_word_as<float>(u)) != u) word = false;
+    }
+    require(word, "scoped load and store words: a float as its bits both ways, an integer as its value");
     return failures ? 1 : 0;
 }

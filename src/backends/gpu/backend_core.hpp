@@ -2180,13 +2180,13 @@ public:
     }
     // The fused step kernels' own limits (kernels/f32.gpu mf_route, kernels/int16.gpu gate_up and down): experts, picks, the width of h and the routed width ff.
     static constexpr size_t kStepExperts = 512, kStepPicks = 10, kStepIn = 2560, kStepFf = 640;
-    static constexpr size_t kRouteStepExperts = 512;   // kernels/f32.gpu, route_step's keys of eight a lane
+    static constexpr size_t kRouteStepExperts = 512;   // kernels/f32.gpu, route_step's keys of eight a lane of 64 or sixteen a lane of 32
     // Whether a step has the shape the fused kernels hold (docs/src/backends-gpu.md, moe_step), h and every output in device memory.
-    // One token row's sqrt_softplus router on a 64-lane device runs as one launch, its rows as exact_row gives them and the last block out picking (kernels/f32.gpu, llmx_route_step).
+    // One token row's sqrt_softplus router on a device of 64 or 32 lanes runs as one launch, its rows as exact_row gives them, a wave each, and the last block out picking (kernels/f32.gpu, llmx_route_step).
     void moe_router(const MoeStep& m, CSlice h, size_t nin, size_t rows, RowRuns runs) override {
         const size_t ne = m.router.rows, k = m.k;
         const uint32_t t = m.router.weight.type;
-        if (rows != 1 || m.rule.bias_stride || m.rule.score != RouteRule::Score::sqrt_softplus || dev_.caps.subgroup_size != 64 || !ne || ne > kRouteStepExperts || !k || k > ne || k > 256 ||
+        if (rows != 1 || m.rule.bias_stride || m.rule.score != RouteRule::Score::sqrt_softplus || (dev_.caps.subgroup_size != 64 && dev_.caps.subgroup_size != 32) || !ne || ne > kRouteStepExperts || !k || k > ne || k > 256 ||
             (t != quant::GGML_TYPE_F32 && t != quant::GGML_TYPE_BF16) || !std::isfinite(m.rule.scale))
             return Backend::moe_router(m, h, nin, rows, runs);
         check_weight(m.router.weight, nin, "router matrix");
@@ -2205,7 +2205,7 @@ public:
         int norm = m.rule.normalize ? 1 : 0;
         float scale = m.rule.scale;
         const Args args(wt, x, sc, n, o, bias, id, w, kk, norm, scale, step_counter());
-        launch_writing({{sc, ne}, {id, k}, {w, k}}, t == quant::GGML_TYPE_F32 ? kRouteStepF32 : kRouteStepBF16, u32((ne + 3) / 4), 1, args);
+        launch_writing({{sc, ne}, {id, k}, {w, k}}, t == quant::GGML_TYPE_F32 ? kRouteStepF32 : kRouteStepBF16, u32((ne + rows_per_block_ - 1) / rows_per_block_), 1, args);
     }
 
     bool fused_step(const MoeStep& m, CSlice h, size_t nin, size_t rows, RowRuns runs, Dtype dtype) const {

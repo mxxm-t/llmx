@@ -919,6 +919,68 @@ size_t check_ops(Pair& p, const Exact& exact = {}) {
     return values;
 }
 
+// The one-launch sqrt_softplus router (backend_core.hpp moe_router) against the base's matmul and route_experts on the same device, scores, picks and weights bit for bit.
+// Expert pairs share a weight row and a bias, so their scores tie and the lower id must win; widths that are not a multiple of a wave and the 512-expert edge are covered, and a 513-expert or two-row call takes the base.
+void router(backend::Backend& g, const std::function<backend::DeviceCaps&(backend::Backend&)>& caps_of,
+            const std::function<std::map<std::string, size_t>(backend::Backend&)>& launches, const std::function<void(bool, const std::string&)>& require) {
+    const size_t wave = caps_of(g).subgroup_size;
+    size_t values = 0, fused = 0;
+    uint32_t seed = 900;
+    for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_BF16})
+        for (size_t ne : {1, 33, 64, 96, 100, 160, 224, 256, 257, 320, 352, 384, 416, 448, 480, 511, 512, 513})
+            for (size_t k : {1, 6, 64, 256})
+                for (size_t rows : {1, 2}) {
+                    if (k > ne) continue;
+                    const size_t nin = type == quant::GGML_TYPE_F32 ? 4096 : 4098;
+                    std::vector<float> wf = uniform(ne * nin, ++seed, -0.05f, 0.05f), x = uniform(rows * nin, ++seed, -2.0f, 2.0f);
+                    std::vector<float> bias = uniform(ne, ++seed, -0.02f, 0.02f);
+                    for (size_t e = 1; e < ne; e += 3) {
+                        std::copy(wf.begin() + (e - 1) * nin, wf.begin() + e * nin, wf.begin() + e * nin);
+                        bias[e] = bias[e - 1];
+                    }
+                    std::vector<uint8_t> w(ne * nin * (type == quant::GGML_TYPE_F32 ? 4 : 2));
+                    for (size_t i = 0; i < wf.size(); ++i) {
+                        uint32_t u;
+                        std::memcpy(&u, &wf[i], 4);
+                        if (type == quant::GGML_TYPE_F32) std::memcpy(&w[4 * i], &u, 4);
+                        else w[2 * i] = uint8_t(u >> 16), w[2 * i + 1] = uint8_t(u >> 24);
+                    }
+                    auto wb = g.adopt(w.data(), w.size()), xb = g.adopt(x.data(), x.size() * 4), bb = g.adopt(bias.data(), bias.size() * 4);
+                    std::vector<backend::RowRun> scratch;
+                    for (bool biased : {false, true})
+                        for (bool normalize : {false, true}) {
+                            const backend::RouteRule rule = backend::RouteRule::sqrt_softplus(biased ? backend::CSlice{bb.get(), 0} : backend::CSlice{}, normalize ? 1.5f : 1.0f, normalize);
+                            std::vector<float> got[2][3];
+                            for (int base = 0; base < 2; ++base) {
+                                backend::BufferPtr sc = g.alloc(rows * ne * 4, backend::Memory::device), ids = g.alloc(rows * k * 4, backend::Memory::device), wt = g.alloc(rows * k * 4, backend::Memory::device);
+                                const backend::MoeStep m{{{type, {wb.get(), 0}}, {sc.get(), 0}, ne}, k, rule, {ids.get(), 0}, {wt.get(), 0}, {}, {}, {}, {}, nullptr, nullptr, &scratch};
+                                launches(g);
+                                if (base) g.Backend::moe_router(m, {xb.get(), 0}, nin, rows, {});
+                                else g.moe_router(m, {xb.get(), 0}, nin, rows, {});
+                                g.sync();
+                                const auto ran = launches(g);
+                                const bool step = ran.count("llmx_route_step_f32") || ran.count("llmx_route_step_bf16");
+                                const bool want = !base && rows == 1 && ne <= 512 && (wave == 64 || wave == 32);
+                                require(step == want, "the router's launch is not the expected one at experts " + std::to_string(ne) + " rows " + std::to_string(rows));
+                                fused += step;
+                                const backend::BufferPtr* bufs[3] = {&sc, &ids, &wt};
+                                const size_t n[3] = {rows * ne, rows * k, rows * k};
+                                for (int i = 0; i < 3; ++i) {
+                                    got[base][i].resize(n[i]);
+                                    g.read(**bufs[i], 0, got[base][i].data(), n[i] * 4);
+                                }
+                            }
+                            const std::string at = std::string(quant::storage_type(type)->name) + " experts " + std::to_string(ne) + " k " + std::to_string(k) +
+                                                   " rows " + std::to_string(rows) + (biased ? " biased" : "") + (normalize ? " normalized" : "");
+                            values += same(got[1][0], got[0][0], "fused router scores differ from the base at " + at);
+                            values += same(got[1][1], got[0][1], "fused router picks differ from the base at " + at);
+                            values += same(got[1][2], got[0][2], "fused router weights differ from the base at " + at);
+                        }
+                }
+    require(fused > 0, "the fused router never ran");
+    std::cout << "fused router: " << values << " values bit for bit against its calls apart, " << fused << " fused calls, ties to the lower id\n";
+}
+
 // The sparse pairs: a 16-row call takes the tile pair and a 3-row call the few-row pair at the heads a block sparse_few_heads gives this device, and every row of either is that row called alone, bit for bit.
 // The widths cover one step, a part step past 128 columns, 70 heads past one tile of 64 and 150 kept rows past one tile of 128, and docs/TESTS.md gives the f32 and FP4 rows.
 void sparse_tile_pair(backend::Backend& g, const std::function<backend::DeviceCaps&(backend::Backend&)>& caps_of,

@@ -102,6 +102,7 @@ template <typename P, typename V> __device__ __forceinline__ void atomic_store_r
 __device__ __forceinline__ void fence_acquire_device() { __builtin_amdgcn_fence(__ATOMIC_ACQUIRE, "agent"); }
 // An acquire fence at system scope.
 __device__ __forceinline__ void fence_acquire_system() { __atomic_thread_fence(__ATOMIC_ACQUIRE); }
+__device__ __forceinline__ void wave_sync() { __syncthreads(); }   // a barrier where one wave is left, which on AMD is the block's
 // A grid barrier of resident blocks in three steps, each called by every thread: stores_sync before the arrive, grid_arrive and grid_wait by the whole first wave, acquire_sync after.
 // On gfx9 before gfx940 the barriers wait on LDS alone and the counter goes on the scalar path; elsewhere they are __syncthreads and device-scope atomics (docs/src/backends-gpu.md, port.h).
 #if defined(__GFX9__) && !defined(__gfx940__) && !defined(__gfx941__) && !defined(__gfx942__) && !defined(__gfx950__)
@@ -146,13 +147,18 @@ template <int N> __device__ __forceinline__ void store_vector(gpu_vector<N>* p, 
 #elif defined(__CUDACC__)
 
 #include <cuda_fp16.h>
+#include <cstring>
 #include <type_traits>
 #define LLMX_PORT_MODEL __host__ __device__ __forceinline__ constexpr
+#define LLMX_PORT_BITS __host__ __device__ __forceinline__
 
 #elif defined(LLMX_PORT_HOST_MODEL)
 
 // The host build of the mappings' arithmetic, which tests/gpu_port.cpp checks against models of the instructions.
+#include <cstring>
+#include <type_traits>
 #define LLMX_PORT_MODEL inline constexpr
+#define LLMX_PORT_BITS inline
 
 #else
 #error "port.h has wrappers for HIP and CUDA alone"
@@ -181,6 +187,13 @@ LLMX_PORT_MODEL int port_dot2_i16(int a, int b, int s) {
 // The lanes of a 32-lane warp in lane's segment of `width` lanes, width a power of two, the whole warp from 32 up.
 LLMX_PORT_MODEL unsigned port_segment_mask(int width, unsigned lane) {
     return width >= 32 ? 0xffffffffu : ((1u << width) - 1u) << (lane & ~(unsigned)(width - 1));
+}
+// The word a scoped PTX load gives read as T, or a T as the word a store writes, bit for bit: a float travels as its bits, never as the integer value of them.
+template <typename T, typename W> LLMX_PORT_BITS T port_word_as(W w) {
+    static_assert(sizeof(T) == sizeof(W) && std::is_trivially_copyable_v<T>, "a word reads as a type of its own size");
+    T t;
+    memcpy(&t, &w, sizeof t);
+    return t;
 }
 
 #endif
@@ -277,15 +290,15 @@ __device__ __forceinline__ unsigned long long wall_clock() {
     template <typename P> __device__ __forceinline__ auto fn(P p) {                                                 \
         using T = std::remove_cv_t<std::remove_pointer_t<P>>;                                                       \
         static_assert(sizeof(T) == 4 || sizeof(T) == 8, "atomics cover 32 and 64-bit words");                       \
-        if constexpr (sizeof(T) == 4) { unsigned v; asm volatile(op ".b32 %0, [%1];" : "=r"(v) : "l"(p) : "memory"); return (T)v; } \
-        else { unsigned long long v; asm volatile(op ".b64 %0, [%1];" : "=l"(v) : "l"(p) : "memory"); return (T)v; } \
+        if constexpr (sizeof(T) == 4) { unsigned v; asm volatile(op ".b32 %0, [%1];" : "=r"(v) : "l"(p) : "memory"); return port_word_as<T>(v); } \
+        else { unsigned long long v; asm volatile(op ".b64 %0, [%1];" : "=l"(v) : "l"(p) : "memory"); return port_word_as<T>(v); } \
     }
 #define LLMX_PTX_STORE(fn, op)                                                                                      \
     template <typename P, typename V> __device__ __forceinline__ void fn(P p, V v) {                                \
         using T = std::remove_cv_t<std::remove_pointer_t<P>>;                                                       \
         static_assert(sizeof(T) == 4 || sizeof(T) == 8, "atomics cover 32 and 64-bit words");                       \
-        if constexpr (sizeof(T) == 4) asm volatile(op ".b32 [%0], %1;" :: "l"(p), "r"((unsigned)(T)v) : "memory");  \
-        else asm volatile(op ".b64 [%0], %1;" :: "l"(p), "l"((unsigned long long)(T)v) : "memory");                 \
+        if constexpr (sizeof(T) == 4) asm volatile(op ".b32 [%0], %1;" :: "l"(p), "r"(port_word_as<unsigned>((T)v)) : "memory");  \
+        else asm volatile(op ".b64 [%0], %1;" :: "l"(p), "l"(port_word_as<unsigned long long>((T)v)) : "memory");                 \
     }
 LLMX_PTX_LOAD(atomic_load_relaxed_block, "ld.relaxed.cta")
 LLMX_PTX_LOAD(atomic_load_relaxed_device, "ld.relaxed.gpu")
@@ -301,6 +314,7 @@ __device__ __forceinline__ void fence_acquire_device() { asm volatile("fence.acq
 __device__ __forceinline__ void fence_acquire_system() { asm volatile("fence.acq_rel.sys;" ::: "memory"); }
 // The grid barrier's steps (the HIP section has their contract).
 __device__ __forceinline__ void lds_sync() { __syncthreads(); }
+__device__ __forceinline__ void wave_sync() { __syncwarp(); }   // a barrier where one warp is left; exited warps are no part of __syncthreads' contract
 __device__ __forceinline__ void stores_sync() { __threadfence(); __syncthreads(); }
 __device__ __forceinline__ void grid_arrive(unsigned* bar) { if (threadIdx.x == 0) atomicAdd(bar, 1u); }
 __device__ __forceinline__ void grid_wait(unsigned* bar, unsigned target) {

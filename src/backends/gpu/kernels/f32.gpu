@@ -2885,7 +2885,7 @@ extern "C" __global__ void llmx_argmax_pick(const float* cands, unsigned* ids, u
 
 namespace {
 
-// v of lane (this lane xor m) of a 64-lane wave: DPP for 1 and 2, swizzles up to 16; the partner route_tree takes, so its sums keep their bits.
+// v of lane (this lane xor m) of a wave of up to 64 lanes: DPP for 1 and 2, swizzles up to 16; the partner route_tree takes, so its sums keep their bits.
 __device__ inline unsigned rm_xlane(unsigned v, int m) {
     if (m == 1) return lane_xor_quad<1>(v);
     if (m == 2) return lane_xor_quad<2>(v);
@@ -4470,19 +4470,25 @@ extern "C" __global__ void __launch_bounds__(kRouteLanes) llmx_route_sqrt_softpl
     }
 }
 
-// llmx_route_sqrt_softplus's picks and weights for one row on one 64-lane wave (the host launches it only there) with the same bits, lane t holding experts t + 64 j as sorted keys of s + bias then the lower id.
+constexpr unsigned kRouteStepExperts = 512;   // the most experts route_step takes, J = 8 a lane of 64 or 16 a lane of 32 (backend_core.hpp moe_router)
+// route_sqrt_wave's scores, picks and their sum, one set a launch for every key count, so the block's shared memory does not grow with the builds.
+struct RouteShared {
+    float s_of[kRouteStepExperts];
+    unsigned chosen[256];
+    float total;
+};
+// llmx_route_sqrt_softplus's picks and weights for one row on one wave of kWave lanes with the same bits, lane t holding experts t + kWave j as sorted keys of s + bias then the lower id.
 // A round takes the wave's largest key by cross-lane steps, the same pick the argmax makes, since equal floats have equal keys once both zeros read as +0.
 template <unsigned J>
-__device__ inline void route_sqrt_wave(const float* x, const float* bias, unsigned* id, float* wt, unsigned n_expert, unsigned k, int normalize, float scale) {
-    __shared__ float s_of[64 * J];
-    __shared__ unsigned chosen[256];
-    __shared__ float total_of;
-    const unsigned t = threadIdx.x % 64;
+__device__ inline void route_sqrt_wave(const float* x, const float* bias, unsigned* id, float* wt, unsigned n_expert, unsigned k, int normalize, float scale, RouteShared& sh) {
+    float* s_of = sh.s_of;
+    unsigned* chosen = sh.chosen;
+    const unsigned t = threadIdx.x % kWave;
     unsigned long long key[J];
     bool finite = true;
 #pragma unroll
     for (unsigned j = 0; j < J; ++j) {
-        const unsigned e = t + j * 64;
+        const unsigned e = t + j * kWave;
         key[j] = 0;
         if (e < n_expert) {
             const float s = softplus_root(atomic_load_relaxed_device(x + e)), b = bias ? s + bias[e] : s;
@@ -4493,7 +4499,7 @@ __device__ inline void route_sqrt_wave(const float* x, const float* bias, unsign
         }
     }
     if (wave_ballot(!finite)) {
-        for (unsigned j = t; j < k; j += 64) id[j] = kNoExpert, wt[j] = 0.0f;
+        for (unsigned j = t; j < k; j += kWave) id[j] = kNoExpert, wt[j] = 0.0f;
         return;
     }
 #pragma unroll
@@ -4504,7 +4510,7 @@ __device__ inline void route_sqrt_wave(const float* x, const float* bias, unsign
     for (unsigned q = 0; q < k; ++q) {
         unsigned long long m = key[0];
 #pragma unroll
-        for (int d = 32; d > 0; d >>= 1) {
+        for (int d = kWave / 2; d > 0; d >>= 1) {
             const unsigned lo = rm_xlane((unsigned)m, d), hi = rm_xlane((unsigned)(m >> 32), d);
             const unsigned long long o = ((unsigned long long)hi << 32) | lo;
             m = o > m ? o : m;
@@ -4516,45 +4522,60 @@ __device__ inline void route_sqrt_wave(const float* x, const float* bias, unsign
         }
         if (t == 0) chosen[q] = 0xffffffffu - (unsigned)m, id[q] = 0xffffffffu - (unsigned)m;
     }
-    __syncthreads();
+    wave_sync();
     if (t == 0) {
         float total = 0.0f;
         for (unsigned j = 0; j < k; ++j) total += s_of[chosen[j]];
-        total_of = total;
+        sh.total = total;
     }
-    __syncthreads();
-    const float total = total_of;
+    wave_sync();
+    const float total = sh.total;
     const bool divide = normalize && k > 1u;
-    for (unsigned j = t; j < k; j += 64) {
+    for (unsigned j = t; j < k; j += kWave) {
         const float s = s_of[chosen[j]];
         wt[j] = (divide ? s / (total + 1e-20f) : s) * scale;
     }
 }
-constexpr unsigned kRouteStepExperts = 512;   // the most experts route_step takes, J = 8 a lane (backend_core.hpp moe_router)
-// One token row's router in one launch (backend_core.hpp moe_router): a wave a router row as exact_row gives it, then the last block out picks on its first wave as route_sqrt_wave does.
+// One token row's router in one launch (backend_core.hpp moe_router): a wave a router row as exact_row gives it, kThreads / kWave rows a block, then the last block out picks on its first wave as route_sqrt_wave does.
 template <class D>
 __device__ inline void route_step(const unsigned char* W, const float* X, float* scores, unsigned long long nin, unsigned nout, const float* bias, unsigned* ids, float* weights,
                                   unsigned k, int normalize, float scale, unsigned* counter) {
     __shared__ unsigned last;
-    const unsigned long long o = 4ull * blockIdx.x + threadIdx.x / 64;
+    __shared__ RouteShared sh;
+    const unsigned long long o = (unsigned long long)(kThreads / kWave) * blockIdx.x + threadIdx.x / kWave;
     if (o < nout) exact_row<D>(W, X, scores, nin, o, 0);
     __threadfence();
     __syncthreads();
     if (threadIdx.x == 0) last = atomicAdd(counter, 1u) == gridDim.x - 1;
     __syncthreads();
-    if (!last || threadIdx.x >= 64) return;
+    if (!last || threadIdx.x >= kWave) return;
     __threadfence();
     if (threadIdx.x == 0) *counter = 0;
-    static_assert(kRouteStepExperts == 8 * 64, "route_sqrt_wave's builds below take 1 to 8 keys a lane");
-    switch ((nout + 63) / 64) {
-    case 1: return route_sqrt_wave<1>(scores, bias, ids, weights, nout, k, normalize, scale);
-    case 2: return route_sqrt_wave<2>(scores, bias, ids, weights, nout, k, normalize, scale);
-    case 3: return route_sqrt_wave<3>(scores, bias, ids, weights, nout, k, normalize, scale);
-    case 4: return route_sqrt_wave<4>(scores, bias, ids, weights, nout, k, normalize, scale);
-    case 5: return route_sqrt_wave<5>(scores, bias, ids, weights, nout, k, normalize, scale);
-    case 6: return route_sqrt_wave<6>(scores, bias, ids, weights, nout, k, normalize, scale);
-    case 7: return route_sqrt_wave<7>(scores, bias, ids, weights, nout, k, normalize, scale);
-    default: return route_sqrt_wave<8>(scores, bias, ids, weights, nout, k, normalize, scale);
+    static_assert(kRouteStepExperts == 8 * 64 && kRouteStepExperts == 16 * 32, "route_sqrt_wave's builds below take 1 to 8 keys a lane of 64 and 1 to 16 a lane of 32");
+    const unsigned keys = (nout + kWave - 1) / kWave;
+    // The builds past 8 keys exist only where a wave is 32 lanes; a 64-lane build compiles none of them.
+    if constexpr (kWave == 32) {
+        switch (keys) {
+        case 9: return route_sqrt_wave<9>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
+        case 10: return route_sqrt_wave<10>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
+        case 11: return route_sqrt_wave<11>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
+        case 12: return route_sqrt_wave<12>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
+        case 13: return route_sqrt_wave<13>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
+        case 14: return route_sqrt_wave<14>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
+        case 15: return route_sqrt_wave<15>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
+        case 16: return route_sqrt_wave<16>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
+        default: break;
+        }
+    }
+    switch (keys) {
+    case 1: return route_sqrt_wave<1>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
+    case 2: return route_sqrt_wave<2>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
+    case 3: return route_sqrt_wave<3>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
+    case 4: return route_sqrt_wave<4>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
+    case 5: return route_sqrt_wave<5>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
+    case 6: return route_sqrt_wave<6>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
+    case 7: return route_sqrt_wave<7>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
+    default: return route_sqrt_wave<8>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
     }
 }
 #define LLMX_ROUTE_STEP(t, ...)                                                                                                                               \

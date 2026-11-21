@@ -301,7 +301,7 @@ public:
             if (k >= kMoeStepUpQ4K && k <= kMoeStepUpQ5KW && !dot_module_) continue;
             // The integer index tile is built for the targets with the 8-bit dot alone (GPU_DOT4 in kernels/port.h): under HIP the dot module marks them, and the API says where every target has it.
             if (k == kIndexerScoresInt && !dev_.caps.integer_dot && !Api::dot4_everywhere) continue;
-            if (k >= kTallQ4K8 && k <= kTallQ6K8 && !Api::int8_tensor_tiles) continue;
+            if (k >= kTallQ4K8 && k <= kSquareQ6K8 && !Api::int8_tensor_tiles) continue;
             Api::check(Api::module_function(&kernels_[k], m, kKernelNames[k]), "module_function");
         }
         for (size_t s = 0; s < kRingSlots; ++s) {
@@ -2278,7 +2278,7 @@ private:
                   kRowsQ1016x1, kRowsQ1016x2, kRowsQ1016x4, kRowsQ1016x8, kRowsQ1016x16, kRowsQ108x1, kRowsQ108x2, kRowsQ108x4, kRowsQ108x8, kRowsQ108x16, kTileQ1016, kTileQ108, kRoutedQ1016, kRoutedQ108, kGroupedQ1016x2, kGroupedQ1016x4, kGroupedQ1016x8, kGroupedQ108x2, kGroupedQ108x4, kGroupedQ108x8, kRoutedTileQ1016, kRoutedTileQ108, kRoutedNarrowQ1016, kRoutedStream16Q108, kRoutedStreamQ108, kRoutedMidQ1016, kRoutedMidQ108,
                   kRowsQ2016x1, kRowsQ2016x2, kRowsQ2016x4, kRowsQ2016x8, kRowsQ2016x16, kRowsQ208x1, kRowsQ208x2, kRowsQ208x4, kRowsQ208x8, kRowsQ208x16, kTileQ2016, kTileQ208, kRoutedQ2016, kRoutedQ208, kGroupedQ2016x2, kGroupedQ2016x4, kGroupedQ2016x8, kGroupedQ208x2, kGroupedQ208x4, kGroupedQ208x8, kRoutedTileQ2016, kRoutedTileQ208, kRoutedNarrowQ2016, kRoutedStream16Q208, kRoutedStreamQ208, kRoutedMidQ2016, kRoutedMidQ208,
                   kRowsNVFP416x1, kRowsNVFP416x2, kRowsNVFP416x4, kRowsNVFP416x8, kRowsNVFP416x16, kRowsNVFP48x1, kRowsNVFP48x2, kRowsNVFP48x4, kRowsNVFP48x8, kRowsNVFP48x16, kTileNVFP416, kTileNVFP48, kRoutedNVFP416, kRoutedNVFP48, kGroupedNVFP416x2, kGroupedNVFP416x4, kGroupedNVFP416x8, kGroupedNVFP48x2, kGroupedNVFP48x4, kGroupedNVFP48x8, kRoutedTileNVFP416, kRoutedTileNVFP48, kRoutedNarrowNVFP416, kRoutedStream16NVFP48, kRoutedStreamNVFP48, kRoutedMidNVFP416, kRoutedMidNVFP48,
-                  kQuarterQ5016x1, kQuarterQ5016x2, kQuarterQ5016x4, kQuarterQ5016x8, kQuarterQ5016x16, kQuarterRoutedQ5016, kQuarterGroupedQ5016x2, kQuarterGroupedQ5016x4, kQuarterGroupedQ5016x8, kQuarterQ4016x1, kQuarterQ4016x2, kQuarterQ4016x4, kQuarterQ4016x8, kQuarterQ4016x16, kQuarterRoutedQ4016, kQuarterGroupedQ4016x2, kQuarterGroupedQ4016x4, kQuarterGroupedQ4016x8, kQuarterQ4116x1, kQuarterQ4116x2, kQuarterQ4116x4, kQuarterQ4116x8, kQuarterQ4116x16, kQuarterRoutedQ4116, kQuarterGroupedQ4116x2, kQuarterGroupedQ4116x4, kQuarterGroupedQ4116x8, kQuarterQ5116x1, kQuarterQ5116x2, kQuarterQ5116x4, kQuarterQ5116x8, kQuarterQ5116x16, kQuarterRoutedQ5116, kQuarterGroupedQ5116x2, kQuarterGroupedQ5116x4, kQuarterGroupedQ5116x8, kHcMix, kHcMix8, kHcEntry, kHcEntry8, kMoeStepUpQ4K, kMoeStepUpQ5K, kMoeStepDownQ51, kMoeStepDownQ8, kMoeStepUpQ4KW, kMoeStepUpQ5KW, kF16Tile, kF8Tile, kTallQ4K8, kTallQ5K8, kTallQ6K8, kKernels };
+                  kQuarterQ5016x1, kQuarterQ5016x2, kQuarterQ5016x4, kQuarterQ5016x8, kQuarterQ5016x16, kQuarterRoutedQ5016, kQuarterGroupedQ5016x2, kQuarterGroupedQ5016x4, kQuarterGroupedQ5016x8, kQuarterQ4016x1, kQuarterQ4016x2, kQuarterQ4016x4, kQuarterQ4016x8, kQuarterQ4016x16, kQuarterRoutedQ4016, kQuarterGroupedQ4016x2, kQuarterGroupedQ4016x4, kQuarterGroupedQ4016x8, kQuarterQ4116x1, kQuarterQ4116x2, kQuarterQ4116x4, kQuarterQ4116x8, kQuarterQ4116x16, kQuarterRoutedQ4116, kQuarterGroupedQ4116x2, kQuarterGroupedQ4116x4, kQuarterGroupedQ4116x8, kQuarterQ5116x1, kQuarterQ5116x2, kQuarterQ5116x4, kQuarterQ5116x8, kQuarterQ5116x16, kQuarterRoutedQ5116, kQuarterGroupedQ5116x2, kQuarterGroupedQ5116x4, kQuarterGroupedQ5116x8, kHcMix, kHcMix8, kHcEntry, kHcEntry8, kMoeStepUpQ4K, kMoeStepUpQ5K, kMoeStepDownQ51, kMoeStepDownQ8, kMoeStepUpQ4KW, kMoeStepUpQ5KW, kF16Tile, kF8Tile, kTallQ4K8, kTallQ5K8, kTallQ6K8, kSquareQ4K8, kSquareQ5K8, kSquareQ6K8, kKernels };
     static constexpr size_t kHcColumns = 8;   // llmx_hc_mix8's columns, hc_mix<8> in kernels/int16.gpu, which backend-rocm twins holds at 2 to 16 rows
     // The build for n columns: one column's own, else the one of up to kHcColumns.
     static Kernel hc_build(size_t n) { return n == 1 ? kHcMix : kHcMix8; }
@@ -2320,7 +2320,7 @@ private:
                                                            "llmx_q1_0_rows16_1", "llmx_q1_0_rows16_2", "llmx_q1_0_rows16_4", "llmx_q1_0_rows16_8", "llmx_q1_0_rows16_16", "llmx_q1_0_rows8_1", "llmx_q1_0_rows8_2", "llmx_q1_0_rows8_4", "llmx_q1_0_rows8_8", "llmx_q1_0_rows8_16", "llmx_q1_0_tile16", "llmx_q1_0_tile8", "llmx_q1_0_routed16", "llmx_q1_0_routed8", "llmx_q1_0_routed16_g2", "llmx_q1_0_routed16_g4", "llmx_q1_0_routed16_g8", "llmx_q1_0_routed8_g2", "llmx_q1_0_routed8_g4", "llmx_q1_0_routed8_g8", "llmx_q1_0_routed_tile16", "llmx_q1_0_routed_tile8", "llmx_q1_0_routed_narrow16", "llmx_q1_0_routed_stream16_8", "llmx_q1_0_routed_stream8", "llmx_q1_0_routed_mid16", "llmx_q1_0_routed_mid8",
                                                            "llmx_q2_0_rows16_1", "llmx_q2_0_rows16_2", "llmx_q2_0_rows16_4", "llmx_q2_0_rows16_8", "llmx_q2_0_rows16_16", "llmx_q2_0_rows8_1", "llmx_q2_0_rows8_2", "llmx_q2_0_rows8_4", "llmx_q2_0_rows8_8", "llmx_q2_0_rows8_16", "llmx_q2_0_tile16", "llmx_q2_0_tile8", "llmx_q2_0_routed16", "llmx_q2_0_routed8", "llmx_q2_0_routed16_g2", "llmx_q2_0_routed16_g4", "llmx_q2_0_routed16_g8", "llmx_q2_0_routed8_g2", "llmx_q2_0_routed8_g4", "llmx_q2_0_routed8_g8", "llmx_q2_0_routed_tile16", "llmx_q2_0_routed_tile8", "llmx_q2_0_routed_narrow16", "llmx_q2_0_routed_stream16_8", "llmx_q2_0_routed_stream8", "llmx_q2_0_routed_mid16", "llmx_q2_0_routed_mid8",
                                                            "llmx_nvfp4_rows16_1", "llmx_nvfp4_rows16_2", "llmx_nvfp4_rows16_4", "llmx_nvfp4_rows16_8", "llmx_nvfp4_rows16_16", "llmx_nvfp4_rows8_1", "llmx_nvfp4_rows8_2", "llmx_nvfp4_rows8_4", "llmx_nvfp4_rows8_8", "llmx_nvfp4_rows8_16", "llmx_nvfp4_tile16", "llmx_nvfp4_tile8", "llmx_nvfp4_routed16", "llmx_nvfp4_routed8", "llmx_nvfp4_routed16_g2", "llmx_nvfp4_routed16_g4", "llmx_nvfp4_routed16_g8", "llmx_nvfp4_routed8_g2", "llmx_nvfp4_routed8_g4", "llmx_nvfp4_routed8_g8", "llmx_nvfp4_routed_tile16", "llmx_nvfp4_routed_tile8", "llmx_nvfp4_routed_narrow16", "llmx_nvfp4_routed_stream16_8", "llmx_nvfp4_routed_stream8", "llmx_nvfp4_routed_mid16", "llmx_nvfp4_routed_mid8",
-                                                           "llmx_q5_0_quarter_rows16_1", "llmx_q5_0_quarter_rows16_2", "llmx_q5_0_quarter_rows16_4", "llmx_q5_0_quarter_rows16_8", "llmx_q5_0_quarter_rows16_16", "llmx_q5_0_quarter_routed16", "llmx_q5_0_quarter_routed16_g2", "llmx_q5_0_quarter_routed16_g4", "llmx_q5_0_quarter_routed16_g8", "llmx_q4_0_quarter_rows16_1", "llmx_q4_0_quarter_rows16_2", "llmx_q4_0_quarter_rows16_4", "llmx_q4_0_quarter_rows16_8", "llmx_q4_0_quarter_rows16_16", "llmx_q4_0_quarter_routed16", "llmx_q4_0_quarter_routed16_g2", "llmx_q4_0_quarter_routed16_g4", "llmx_q4_0_quarter_routed16_g8", "llmx_q4_1_quarter_rows16_1", "llmx_q4_1_quarter_rows16_2", "llmx_q4_1_quarter_rows16_4", "llmx_q4_1_quarter_rows16_8", "llmx_q4_1_quarter_rows16_16", "llmx_q4_1_quarter_routed16", "llmx_q4_1_quarter_routed16_g2", "llmx_q4_1_quarter_routed16_g4", "llmx_q4_1_quarter_routed16_g8", "llmx_q5_1_quarter_rows16_1", "llmx_q5_1_quarter_rows16_2", "llmx_q5_1_quarter_rows16_4", "llmx_q5_1_quarter_rows16_8", "llmx_q5_1_quarter_rows16_16", "llmx_q5_1_quarter_routed16", "llmx_q5_1_quarter_routed16_g2", "llmx_q5_1_quarter_routed16_g4", "llmx_q5_1_quarter_routed16_g8", "llmx_hc_mix", "llmx_hc_mix8", "llmx_hc_entry", "llmx_hc_entry8", "llmx_moe_step_up_q4_k", "llmx_moe_step_up_q5_k", "llmx_moe_step_down_q5_1", "llmx_moe_step_down_q8_0", "llmx_moe_step_up_q4_k_w", "llmx_moe_step_up_q5_k_w", "llmx_f16_tile", "llmx_f8_e4m3_tile", "llmx_q4_k_tile8_tall", "llmx_q5_k_tile8_tall", "llmx_q6_k_tile8_tall"};
+                                                           "llmx_q5_0_quarter_rows16_1", "llmx_q5_0_quarter_rows16_2", "llmx_q5_0_quarter_rows16_4", "llmx_q5_0_quarter_rows16_8", "llmx_q5_0_quarter_rows16_16", "llmx_q5_0_quarter_routed16", "llmx_q5_0_quarter_routed16_g2", "llmx_q5_0_quarter_routed16_g4", "llmx_q5_0_quarter_routed16_g8", "llmx_q4_0_quarter_rows16_1", "llmx_q4_0_quarter_rows16_2", "llmx_q4_0_quarter_rows16_4", "llmx_q4_0_quarter_rows16_8", "llmx_q4_0_quarter_rows16_16", "llmx_q4_0_quarter_routed16", "llmx_q4_0_quarter_routed16_g2", "llmx_q4_0_quarter_routed16_g4", "llmx_q4_0_quarter_routed16_g8", "llmx_q4_1_quarter_rows16_1", "llmx_q4_1_quarter_rows16_2", "llmx_q4_1_quarter_rows16_4", "llmx_q4_1_quarter_rows16_8", "llmx_q4_1_quarter_rows16_16", "llmx_q4_1_quarter_routed16", "llmx_q4_1_quarter_routed16_g2", "llmx_q4_1_quarter_routed16_g4", "llmx_q4_1_quarter_routed16_g8", "llmx_q5_1_quarter_rows16_1", "llmx_q5_1_quarter_rows16_2", "llmx_q5_1_quarter_rows16_4", "llmx_q5_1_quarter_rows16_8", "llmx_q5_1_quarter_rows16_16", "llmx_q5_1_quarter_routed16", "llmx_q5_1_quarter_routed16_g2", "llmx_q5_1_quarter_routed16_g4", "llmx_q5_1_quarter_routed16_g8", "llmx_hc_mix", "llmx_hc_mix8", "llmx_hc_entry", "llmx_hc_entry8", "llmx_moe_step_up_q4_k", "llmx_moe_step_up_q5_k", "llmx_moe_step_down_q5_1", "llmx_moe_step_down_q8_0", "llmx_moe_step_up_q4_k_w", "llmx_moe_step_up_q5_k_w", "llmx_f16_tile", "llmx_f8_e4m3_tile", "llmx_q4_k_tile8_tall", "llmx_q5_k_tile8_tall", "llmx_q6_k_tile8_tall", "llmx_q4_k_tile8_square", "llmx_q5_k_tile8_square", "llmx_q6_k_tile8_square"};
     // A type's twin kernels by form and columns, with its routed builds' break-evens and tile extents (docs/src/backends-gpu.md, weight types).
     // kKernels marks a build the type lacks.
     struct TwinKernels {
@@ -2343,6 +2343,7 @@ private:
         bool tile_sums;   // whether the prompt tiles read the twin's half sums: every type's but Q8_0's, whose tile has no min or offset term
         // Which of the 8-bit twin's routed_narrow and routed_mid are streams at 16 and 32 rows, a wave a block (kernels/int16.gpu, routed_stream), rather than tiles.
         enum class Ranges : uint8_t { tiles, narrow, both } ranges = Ranges::tiles;
+        Kernel square = kKernels;   // the 8-bit tall build at 128 rows a block, which a call of more than kTileRows rows takes (kernels/int16.gpu, LLMX_KSQUARE8)
         // Whether routed products of entries over n_expert take the grouped builds, whose break-even is group_from.
         constexpr bool groups(size_t entries, size_t n_expert, bool int8) const { return entries && double(entries) >= double(group_from[int8]) * double(n_expert); }
     };
@@ -2408,11 +2409,11 @@ private:
         q.quarter = nullptr;
         return q;
     };
-    // The tall 8-bit build of the K-quants, the tensor-core tile that only the CUDA module has (kernels/int16.gpu, k_mma at 128 outputs).
-    static constexpr auto with_tall8 = [](TwinKernels t, Kernel k) { t.tall[1] = k; return t; };
-    static constexpr TwinKernels kQ4KTwins = with_tall8(k_twins(kRowsQ4K16x1, 2.5f, 1.25f, 128, 32, 32, 32, 256, 8, true), kTallQ4K8),
-                                 kQ5KTwins = with_tall8(k_twins(kRowsQ5K16x1, 2.5f, 1.25f, 128, 32, 32, 32, 256, 8, true), kTallQ5K8),
-                                 kQ6KTwins = with_tall8(k_twins(kRowsQ6K16x1, 1.25f, 1.25f, 128, 32, 32, 32, 256, 16, false), kTallQ6K8);
+    // The tall 8-bit builds of the K-quants at 64 and 128 rows, the tensor-core tile that only the CUDA module has (kernels/int16.gpu, k_mma at 128 outputs).
+    static constexpr auto with_tall8 = [](TwinKernels t, Kernel k, Kernel square) { t.tall[1] = k, t.square = square; return t; };
+    static constexpr TwinKernels kQ4KTwins = with_tall8(k_twins(kRowsQ4K16x1, 2.5f, 1.25f, 128, 32, 32, 32, 256, 8, true), kTallQ4K8, kSquareQ4K8),
+                                 kQ5KTwins = with_tall8(k_twins(kRowsQ5K16x1, 2.5f, 1.25f, 128, 32, 32, 32, 256, 8, true), kTallQ5K8, kSquareQ5K8),
+                                 kQ6KTwins = with_tall8(k_twins(kRowsQ6K16x1, 1.25f, 1.25f, 128, 32, 32, 32, 256, 16, false), kTallQ6K8, kSquareQ6K8);
     static constexpr TwinKernels kQ50Base = k_twins(kRowsQ5016x1, 1.25f, 1.25f, 128, 32, 32, 32, 32, 1, false), kQ51Base = k_twins(kRowsQ5116x1, 5.0f, 1.25f, 128, 32, 32, 32, 32, 1, false), kIQ4NLTwins = k_twins(kRowsIQ4NL16x1, 0.3125f, 0.3125f, 32, 32, 32, 32, 32, 4, false), kMXFP4Base = k_twins(kRowsMXFP416x1, 0.3125f, 0.3125f, 32, 32, 32, 32, 32, 4, false);
     static constexpr TwinKernels kQ3KTwins = k_twins(kRowsQ3K16x1, 1.25f, 1.25f, 128, 32, 32, 32, 256, 16, false), kQ2KTwins = k_twins(kRowsQ2K16x1, 1.25f, 1.25f, 128, 32, 32, 32, 256, 16, false), kIQ4XSTwins = k_twins(kRowsIQ4XS16x1, 0.3125f, 0.3125f, 32, 32, 32, 32, 256, 32, false);
     static constexpr TwinKernels kIQ2XXSTwins = k_twins(kRowsIQ2XXS16x1, 0.3125f, 0.3125f, 32, 32, 32, 32, 256, 32, false), kIQ2XSTwins = k_twins(kRowsIQ2XS16x1, 0.3125f, 0.3125f, 32, 32, 32, 32, 256, 32, false), kIQ3STwins = k_twins(kRowsIQ3S16x1, 0.3125f, 0.3125f, 32, 32, 32, 32, 256, 32, false);
@@ -2487,7 +2488,7 @@ private:
     static constexpr size_t kNormPart = 512;         // the values a held norm's part writes, where the measured gain levels off
     static constexpr size_t kColumns = 16;   // the row kernel's columns (kernels/int16.gpu)
     static constexpr size_t kRowsOut = 8, kRowsIn = 8;   // the blocked exact product's outputs and rows a block (kernels/f32.gpu)
-    static constexpr size_t kTileOut = 64, kTileOutTall = 128, kTileRows = 64;   // the prompt tile's outputs, its tall build's, and its rows (kernels/int16.gpu)
+    static constexpr size_t kTileOut = 64, kTileOutTall = 128, kTileRows = 64, kTileRowsTall = 128;   // the prompt tile's outputs, its tall build's, its rows and the K-quants' square build's (kernels/int16.gpu)
     static constexpr unsigned kStreamLanes = 64;   // a routed stream block's lanes, an output each, so its grid is the tile's (kernels/int16.gpu, routed_stream)
 
     // Memory in slots, pinned host memory the device reads in place or copies from, or device memory: a slot is taken again once the ticket that last read it retires.
@@ -3560,9 +3561,11 @@ private:
         }
         const size_t tall_from = int8 ? dev_.profile.qtile_tall_from_8bit : dev_.profile.qtile_tall_from;
         const bool tall = tk.tall[int8] != kKernels && (tk.tall[int8] < kTallQ4K8 || Api::int8_tensor_tiles) && tile_rows_for(dev_.caps, dev_.profile, kTileOut, kTileOut, kTileOutTall, outputs, tiles, nin, tall_from, int8) == kTileOutTall;
-        const size_t per = tall ? kTileOutTall : kTileOut;
+        // A call of more than kTileRows rows takes the K-quants' square build, whose 128 rows read each weight half as often; the 64-row build keeps shorter calls from running half-empty blocks.
+        const bool square = tall && int8 && tk.square != kKernels && rows > kTileRows;
+        const size_t per = tall ? kTileOutTall : kTileOut, trows = square ? kTileRowsTall : kTileRows;
         // The tile addresses a workgroup's weights and twin by 32-bit offsets off its first output and row, a Q8_0 block's 34 bytes bounding every twin type's bytes for 32 values.
-        if ((nin / 32) * per * 34 + 64 > 0xffffffffull || (size_t(kTileRows) * xrow + (nin / 32) * xblock) * 32 * (int8 ? 1 : 2) > 0xffffffffull)
+        if ((nin / 32) * per * 34 + 64 > 0xffffffffull || (trows * xrow + (nin / 32) * xblock) * 32 * (int8 ? 1 : 2) > 0xffffffffull)
             throw std::runtime_error(Api::prefix + "a prompt tile's rows are too wide for its 32-bit offsets");
         TileCall c{};
         size_t gx = 0;
@@ -3590,7 +3593,7 @@ private:
             c.partials = (float*)as_gpu<Api>(*partials_).data();
         }
         const Args args(c, q, d);
-        launch(tall ? tk.tall[int8] : tk.tile[int8], (unsigned)gx, (unsigned)((rows + kTileRows - 1) / kTileRows), args, c.parts);
+        launch(square ? tk.square : tall ? tk.tall[int8] : tk.tile[int8], (unsigned)gx, (unsigned)((rows + trows - 1) / trows), args, c.parts);
         if (c.parts > 1) {
             size_t g = 0;
             for (size_t pi = 0; pi < nproj; ++pi) {

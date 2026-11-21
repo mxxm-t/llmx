@@ -191,13 +191,15 @@ void imma_tile(Backend& g, const backend::DeviceCaps& caps) {
     for (size_t n = 72; n < 65536 && !tall; n += 128)
         if (backend::tile_rows_for(caps, prof, 64, 64, 128, n, 1, edge_nin, prof.qtile_tall_from_8bit, true) == 128 && backend::split_blocks(prof, caps, (n + 63) / 64, edge_nin / 32) == edge_nin / 32) tall = n;
     require(tall != 0, "an output count at which a 72-row call takes the tall tile unsplit");
+    // At 72 rows a K-type takes its square build, at 40 its 64-row tall one.
     shapes.push_back({edge_nin, tall, 72});
+    shapes.push_back({edge_nin, tall, 40});
     for (uint32_t type : {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_IQ4_NL,
                           quant::GGML_TYPE_MXFP4, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K}) {
         std::string tname = quant::storage_type(type)->name;
         for (char& ch : tname) ch = char(std::tolower(ch));
         const quant::StorageType& st = *quant::storage_type(type);
-        bool unsplit = false, unsplit64 = false, unsplit_tall = false, parted = false;
+        bool unsplit = false, unsplit64 = false, unsplit_tall = false, unsplit_square = false, parted = false;
         for (Shape s : shapes) {
             const std::vector<uint8_t> w = type == quant::GGML_TYPE_Q8_0 ? twin_checks::q8_matrix(s.nin, s.nout, uint32_t(s.nout + s.rows)) : twin_checks::typed_matrix(type, s.nin, s.nout, uint32_t(s.nout + s.rows));
             const std::vector<float> x = row_classes::values(s.nin * s.rows, uint32_t(s.rows));
@@ -210,7 +212,7 @@ void imma_tile(Backend& g, const backend::DeviceCaps& caps) {
             const auto ran = cuda_take_launches(g);
             std::string kernels;
             for (const auto& [name, count] : ran) kernels += " " + name;
-            const bool tile = ran.count("llmx_" + tname + "_tile8") || ran.count("llmx_" + tname + "_tile8_tall"), split = ran.count("llmx_tile_reduce") > 0;
+            const bool tile = ran.count("llmx_" + tname + "_tile8") || ran.count("llmx_" + tname + "_tile8_tall") || ran.count("llmx_" + tname + "_tile8_square"), split = ran.count("llmx_tile_reduce") > 0;
             const size_t nb = s.nin / 32, row_bytes = s.nin / st.block_size * st.type_size;
             std::vector<float> xd(s.rows * nb);
             std::vector<int16_t> xq(s.rows * s.nin);
@@ -232,13 +234,15 @@ void imma_tile(Backend& g, const backend::DeviceCaps& caps) {
             unsplit = unsplit || (tile && !split && off == 0);
             unsplit64 = unsplit64 || (ran.count("llmx_" + tname + "_tile8") && !split && off == 0);
             unsplit_tall = unsplit_tall || (ran.count("llmx_" + tname + "_tile8_tall") && !split && off == 0);
+            unsplit_square = unsplit_square || (ran.count("llmx_" + tname + "_tile8_square") && !split && off == 0);
             parted = parted || (tile && split);
         }
         require(unsplit, std::string("an int8 ") + st.name + " tile call that did not split matched the host fold bit for bit");
         require(parted, std::string("an int8 ") + st.name + " tile call split its inner dimension into parts");
-        // The types with a tall build match unsplit at both widths, so the one tensor-core body is held at 64 and 128 outputs.
-        const bool has_tall = type == quant::GGML_TYPE_Q8_0 || type == quant::GGML_TYPE_Q4_K || type == quant::GGML_TYPE_Q5_K || type == quant::GGML_TYPE_Q6_K;
+        // The types with a tall build match unsplit at both widths, so the one tensor-core body is held at 64 and 128 outputs, and the K-types' at 64 and 128 rows.
+        const bool square = type == quant::GGML_TYPE_Q4_K || type == quant::GGML_TYPE_Q5_K || type == quant::GGML_TYPE_Q6_K, has_tall = square || type == quant::GGML_TYPE_Q8_0;
         require(!has_tall || (unsplit64 && unsplit_tall), std::string("an int8 ") + st.name + " tile matched the host fold unsplit at 64 and at 128 outputs");
+        require(!square || unsplit_square, std::string("an int8 ") + st.name + " square tile matched the host fold unsplit");
     }
 }
 
@@ -249,7 +253,7 @@ void bench(Backend& g) {
                             {"27B qkv", 5120, 10240}, {"27B gate_up", 5120, 34816}, {"27B down", 17408, 5120}};
     for (uint32_t type : {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q6_K})
         for (const Shape& sh : shapes)
-            for (size_t rows : {size_t(1), size_t(4), size_t(512)}) {
+            for (size_t rows : {size_t(1), size_t(4), size_t(64), size_t(65), size_t(96), size_t(128), size_t(192), size_t(512)}) {
                 const std::vector<uint8_t> w = type == quant::GGML_TYPE_Q8_0 ? twin_checks::q8_matrix(sh.nin, sh.nout, 5) : twin_checks::typed_matrix(type, sh.nin, sh.nout, 5);
                 const std::vector<float> x = row_classes::values(sh.nin * rows, 9);
                 BufferPtr wb = g.alloc(w.size(), Memory::device), xb = g.alloc(x.size() * sizeof(float), Memory::device), yb = g.alloc(sh.nout * rows * sizeof(float), Memory::device);
@@ -262,7 +266,7 @@ void bench(Backend& g) {
                     (void)cuda_take_launches(g);
                     std::vector<double> us;
                     for (int rep = 0; rep < 7; ++rep) {
-                        const int n = rows == 512 ? 5 : 50;
+                        const int n = rows >= 64 ? 5 : 50;
                         const auto t0 = std::chrono::steady_clock::now();
                         for (int i = 0; i < n; ++i) run();
                         g.sync();
@@ -300,11 +304,12 @@ void types(const CudaDevice& d, Backend& g, Backend& cpu) {
     guarded("mxfp4_decode_bits", [&] { bits.mxfp4_decode_bits(g); });
     require(failures == before, "the F16 half tile, the Q8_0 and MXFP4 decode rows in the host's order and a decode call's columns each its column alone");
     guarded("twin_types", [&] {
-        // A K-type's 8-bit prompt takes its tall build where tile_rows_for picks 128 outputs over the extent's column tiles (backend_core.hpp tile, split_tiles_of).
+        // A K-type's 8-bit prompt takes its tall build where tile_rows_for picks 128 outputs over the extent's column tiles (backend_core.hpp tile, split_tiles_of), the square one above 64 rows.
         const backend::DeviceProfile prof = backend::profile_for(d.caps);
         const auto tall = [&](uint32_t type, Dtype dt, size_t nin, size_t nout, size_t extent) {
             const bool k = type == quant::GGML_TYPE_Q4_K || type == quant::GGML_TYPE_Q5_K || type == quant::GGML_TYPE_Q6_K;
-            return k && dt == Dtype::int8 && backend::tile_rows_for(d.caps, prof, 64, 64, 128, nout, (std::min<size_t>(extent, 512) + 63) / 64, nin, prof.qtile_tall_from_8bit, true) == 128;
+            if (!k || dt != Dtype::int8 || backend::tile_rows_for(d.caps, prof, 64, 64, 128, nout, (std::min<size_t>(extent, 512) + 63) / 64, nin, prof.qtile_tall_from_8bit, true) != 128) return std::string();
+            return std::string(extent > 64 ? "_square" : "_tall");
         };
         twin_checks::twin_types(g, cpu, {quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4,
                                          quant::GGML_TYPE_Q3_K, quant::GGML_TYPE_Q2_K, quant::GGML_TYPE_IQ4_XS, quant::GGML_TYPE_IQ2_XXS, quant::GGML_TYPE_IQ2_XS, quant::GGML_TYPE_IQ3_S, quant::GGML_TYPE_IQ2_S,

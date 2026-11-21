@@ -35,6 +35,7 @@ SPILL_ALLOWED = {
     "llmx_q5_k_tile16": "staging 6, the 16-bit prompt K tile: 4 bytes on sm_90 at 80 registers since a row's lanes load their own step's scale and sums, one word stored before the main loop and reloaded a step, which no card has run (docs/STATUS.md, Prompt K tile staging 6)",
     "llmx_q4_k_tile8_tall":"change 3, the tall K tile: 4 bytes on sm_90 at two blocks an SM, one loop-invariant word reloaded a step, which the tall loop trim removes (docs/STATUS.md, CUDA prompt gap, change 3, second part, Left)",
     "llmx_q5_k_tile8_tall": "change 3, the tall K tile: 8 bytes on sm_90 at two blocks an SM, one loop-invariant pair reloaded a step, which the tall loop trim removes (docs/STATUS.md, CUDA prompt gap, change 3, second part, Left)",
+    "llmx_q6_k_tile8_square": "the square K tile: 16 to 40 bytes at 255 registers, one block an SM, six loop-invariant words stored before the main loop and reloaded a step, which the square tile's trim removes (docs/STATUS.md, CUDA square K tile)",
     "llmx_q2_k_": "step 8, Q2_K's twin builds: up to 36 bytes, where the 256-thread bound lets ptxas trade them for a block an SM, and two blocks an SM spilled more and was not taken (docs/STATUS.md)",
     "llmx_q3_k_": "step 8, Q3_K's twin builds: up to 48 bytes, where the 256-thread bound lets ptxas trade them for a block an SM, and two blocks an SM spilled more and was not taken (docs/STATUS.md)",
     "llmx_iq4_xs_": "step 8, IQ4_XS's twin builds: up to 44 bytes, where the 256-thread bound lets ptxas trade them for a block an SM, and two blocks an SM spilled more and was not taken (docs/STATUS.md)",
@@ -58,11 +59,11 @@ SPILL_ALLOWED = {
 # The int8 class's witnesses: the tensor-core prompt tiles of every int8 tile type, dense and routed, and a Q8_0 and a K-quant row build on the 8-bit twin.
 INT8_TILE_TYPES = ("q4_0", "q4_1", "q5_0", "q5_1", "iq4_nl", "mxfp4", "q4_k", "q5_k", "q6_k")
 # A type's 8-bit routed groups of up to 16 entries, and MXFP4's of up to 32, run in the stream (routed_stream), which is no tile and sums an entry's terms in block order on four-way dots.
-IMMA_KERNELS = ("llmx_q8_0_tile8", "llmx_q8_0_tile8_tall") + tuple(f"llmx_{t}_{b}8" for t in INT8_TILE_TYPES for b in ("tile", "routed_tile", "routed_mid") if (t, b) != ("mxfp4", "routed_mid")) + tuple(f"llmx_{t}_tile8_tall" for t in ("q4_k", "q5_k", "q6_k"))
+IMMA_KERNELS = ("llmx_q8_0_tile8", "llmx_q8_0_tile8_tall") + tuple(f"llmx_{t}_{b}8" for t in INT8_TILE_TYPES for b in ("tile", "routed_tile", "routed_mid") if (t, b) != ("mxfp4", "routed_mid")) + tuple(f"llmx_{t}_tile8_{b}" for t in ("q4_k", "q5_k", "q6_k") for b in ("tall", "square"))
 DP4A_KERNELS = ("llmx_q8_0_half8_1", "llmx_q4_k_rows8_1")
 # The tensor-core K tile's main loop at 128 outputs: most instructions per 4096 multiply-adds (one m16n8k32) from its back branch on every target, the most measured at toolkit 12.9 rounded up plus one (docs/CUDA.md, change 3).
-# Measured 26.7, 29.2 and 38.3 over the fold's floors of about 18.5, 18.5 and 28.5, so a fold or staging regrowth fails; a ceiling drops with each trim.
-TALL_LOOP = {"llmx_q4_k_tile8_tall": 28, "llmx_q5_k_tile8_tall": 31, "llmx_q6_k_tile8_tall": 40}
+# Measured 26.7, 29.2 and 38.3 at 64 rows and 22.5, 23.3 and 33.2 in the square build over the fold's floors of about 18.5, 18.5 and 28.5, so a fold or staging regrowth fails; a ceiling drops with each trim.
+TALL_LOOP = {"llmx_q4_k_tile8_tall": 28, "llmx_q5_k_tile8_tall": 31, "llmx_q6_k_tile8_tall": 40, "llmx_q4_k_tile8_square": 24, "llmx_q5_k_tile8_square": 25, "llmx_q6_k_tile8_square": 35}
 
 # The tensor-group kernels, whose 16-byte stores (store_vector in kernels/port.h, a float4 to the output) nvcc split into four word stores from a plain store where one value goes to several places.
 GROUP_KERNELS = ("llmx_group_sum", "llmx_group_push", "llmx_group_take", "llmx_group_shares", "llmx_group_chain")
@@ -119,7 +120,7 @@ def sass_by_function(cuobjdump, fatbin, arch):
 
 
 def imma_loop(lines):
-    """(instructions, multiply-adds) of the longest loop holding IMMA, read from its back branch, or None."""
+    """(instructions, multiply-adds, local stores) of the longest loop holding IMMA, read from its back branch, or None."""
     ins = []
     for line in lines:
         m = re.match(r"\s+/\*([0-9a-f]{4,})\*/\s+(?:@!?U?P[0-9T] )?([A-Z0-9_.]+)[^;]*;", line)
@@ -133,7 +134,7 @@ def imma_loop(lines):
             body = ins[at[int(target.group(1), 16)]:i + 1]
             macs = sum(int(m.group(1)) * int(m.group(2)) * int(m.group(3)) for _, o, _ in body for m in [re.match(r"IMMA\.(\d\d)(\d)(\d\d)", o)] if m)
             if macs and (best is None or len(body) > best[0]):
-                best = (len(body), macs)
+                best = (len(body), macs, sum(o.startswith("STL") for _, o, _ in body))
     return best
 
 
@@ -223,7 +224,8 @@ def main():
             loop = imma_loop(funcs.get(fn, []))
             per = loop[0] * 4096 / loop[1] if loop else None
             local = arch not in spilled.get(fn, ()) and any(re.search(r"\b(LDL|STL)\b", l) for l in funcs.get(fn, []))
-            require(per is not None and per <= most and not local, f"{arch}: {fn}'s main loop takes at most {most} instructions per 4096 multiply-adds and no local memory" + (f" ({per:.1f}" + (", local memory" if local else "") + ")" if per is not None else " (no IMMA loop)"))
+            stores = loop[2] if loop else 0
+            require(per is not None and per <= most and not local and not stores, f"{arch}: {fn}'s main loop takes at most {most} instructions per 4096 multiply-adds, no local memory outside the spills and no spill store" + (f" ({per:.1f}" + (", local memory" if local else "") + (f", {stores} spill stores" if stores else "") + ")" if per is not None else " (no IMMA loop)"))
         no_dp4a = [fn for fn in DP4A_KERNELS if not any("IDP.4A" in l for l in funcs.get(fn, []))]
         require(not no_dp4a, f"{arch}: the int8 rows sum with IDP.4A" + (" (not " + ", ".join(no_dp4a) + ")" if no_dp4a else ""))
     for kernel in ("f32", "int16"):

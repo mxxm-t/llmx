@@ -458,6 +458,59 @@ A saved tool result opens the latest file in the editor or resumes unsaved chang
 - **Found on the card (2026-11-21, CUDAGAP8, session G1, one RTX 3090, binary bfbf2d3d5):** `backend-cuda deepseek4` failed `ds4::router` at its first fused case, F32 experts 1 k 1 rows 1: scores and picks equal, weights not. The cause is main's CUDA scoped load in port.h, which returned a 32-bit word as `(T)v`, the integer value of a float's bits (1065353216.0f for 1.0f), so `route_sqrt_wave`'s `atomic_load_relaxed_device(x + e)` read garbage scores; main reaches no float scoped load on CUDA (`mf_route`, the other one, is gated to 64 lanes), so this branch is the first to. The loads and stores now pass their words through `port_word_as`, a bit copy that builds on the host too, and `gpu-port` checks it card-free; HIP is untouched. Fable confirmed the cause independently and found no other wave32 hazard in route_step.
 - **Left:** card re-check (READY-FOR-CARDS, cuda-gaps): `backend-cuda deepseek4` and `backend-cuda` on cuda:0 with this fix.
 - **Gotchas:** HIP's wave32 targets (gfx1100) take the fused router too and have no device here. The Q8_0 half-pair rows for 32 lanes are not in this branch (ideas.md, untried).
+## CUDA square K tile (2026-11-21, CUDA99 to CUDA102, branch cuda99/square-ktile on main c494eea6f)
+
+**Goal.** Close the CUDA int8 prompt gap on Qwen3.6-27B Q4_K_M, where the K-quants' tall tile of 128 outputs by 64 rows reads and decodes each weight eight times a 512-row prompt.
+
+**Done.**
+- `llmx_q4_k_tile8_square`, `_q5_k_`, `_q6_k_` (`kernels/int16.gpu`, `LLMX_KSQUARE8`): `k_mma` at 128 outputs by 128 rows, one block an SM, each staging thread taking two twin rows' sub-blocks (`XN`); the host (`backend_core.hpp`, `tile`) takes it for a tall call of more than 64 rows and keeps the 64-row tall build below, and the inner split stays the 64-output grid's, so no output changes a bit.
+- `backend-cuda`'s `imma_tile` adds a 40-row call of the tall shape, so both builds match the host fold unsplit; `twin_types` expects the square build above 64 rows; `bench` adds 64, 65, 96, 128 and 192 rows; `cuda-sass` holds the square builds' loops to 24, 25 and 35 instructions per 4096 multiply-adds and every tall loop to no spill store.
+- SASS, sm_86, toolkit 12.9 (square-only build bbf0d77b7): square Q4_K and Q5_K at 224 to 254 registers, no spill; square Q6_K at 255 registers with 16 to 40 bytes of stack on sm_80 to sm_120: its nine spill stores are before the main loop, and the loop (0x12c0 to 0x9670, about 2100 instructions) reloads six loop-invariant words a step (`b0 + WR * wn`, `wp`, `xsb`, `xbase[0..1]`), L1 hits.
+
+**RTX 3090 results** (session S99, one RTX 3090, sm_86, driver 595.99.02, 300 W power limit (350 W default), default clocks; A = main `llmx 0.1.0+gc494eea6f2b9`, B = square-only bbf0d77b7 `llmx 0.1.0+gbbf0d77b7e7a`, both built by the same script from detached worktrees, 0 errors; reference = the mx fork's llama-bench CUDA build on the same card; results `/opt/claude-work/cuda99/s/results/20261121-0255-S99/`):
+
+| Cell, int8 | A, main | B, square | Reference |
+|---|---|---|---|
+| Qwen3.6-27B Q4_K_M pp512, tok/s, two runs each, interleaved | 903.8 / 899.1 | 1027.3 / 1019.9 | 1225.2 / 1201.1 |
+| Qwen3.6-27B Q4_K_M tg128, tok/s | 36.60 / 36.78 | 36.83 / 36.51 | 30.65 / 30.47 |
+| Qwen3-30B-A3B Q4_K_M pp512, tok/s | 3725.9 / 3745.5 | 3755.6 / 3749.1 | 3854.5 / 3839.4 |
+| Qwen3-30B-A3B Q4_K_M tg128, tok/s | 177.66 / 177.50 | 177.64 / 177.54 | 93.99 / 93.64 |
+| 27B gate_up 5120 x 34816, 512 rows, Q4_K / Q6_K, us | 3612 / 4670 | 3091 / 3700 | - |
+| 27B pp512 `bench --profile`: `q4_k` tall / `q6_k` tall, ms | 349.6 / 94.7 | 314.1 / 70.0 | - |
+| 64 greedy ids, Qwen3-0.6B, Qwen3-30B-A3B, Qwen3.6-27B | reference | identical | - |
+| `backend-cuda types` on B | - | 63625 PASS, 0 FAIL, stopped at its 900 s limit | - |
+| `backend-cuda` default, types, moe, qwen35, deepseek4, groups on A | 0 FAIL | - | - |
+
+- 27B prompts gain 13.6 percent and stand at 0.84 of the reference; the 30B, whose prompt time is in the routed tiles and attention, is level; decode is unchanged.
+- The square-only build ran calls of 64 rows on half-empty blocks: 27B gate_up at 64 rows took 595 us (Q4_K) and 710 (Q6_K) against about 451 and 584 for main's build, scaled from its 512-row time, so the branch keeps the 64-row tall build for calls of up to 64 rows; at 128 rows the square build took 824 and 971 against about 903 and 1167, and at 192 rows 1361 and 1616 against about 1354 and 1751.
+
+**RTX 3090 results of the two-build head** (session S101, another RTX 3090 of the same kind, same driver, power limit and clocks; A = main `llmx 0.1.0+gc494eea6f2b9`, B = f6c87f313 `llmx 0.1.0+gf6c87f3137a9`, numerics 5f436a2358ecc288, 0 errors, `cuda-sass` passing at toolkit 12.9; results `/opt/claude-work/cuda101/s/results/20261121-0559-S101/`):
+
+| Cell, int8 | A, main | B, two builds | Reference |
+|---|---|---|---|
+| Qwen3.6-27B Q4_K_M pp64, tok/s, two runs each, interleaved | 737.2 / 728.1 | 736.8 / 735.2 | 755.5 / 670.7 |
+| Qwen3.6-27B Q4_K_M pp96, tok/s | 690.6 / 689.6 | 701.0 / 700.5 | 840.5 / 911.3 |
+| Qwen3.6-27B Q4_K_M pp128, tok/s | 806.0 / 801.0 | 852.4 / 854.1 | 927.2 / 991.1 |
+| Qwen3.6-27B Q4_K_M pp512, tok/s | 906.0 / 914.2 | 1020.3 / 1025.4 | 1227.1 / 1217.0 |
+| Qwen3.6-27B Q4_K_M tg128, tok/s | 37.03 / 37.02 | 37.06 / 37.05 | 23.39 / 23.45 |
+| Qwen3-30B-A3B Q4_K_M pp512, tok/s | 3771.8 / 3779.1 | 3789.4 / 3779.2 | 3440.7 / 3881.0 |
+| Qwen3-30B-A3B Q4_K_M tg128, tok/s | 178.43 / 178.38 | 178.37 / 178.54 | 60.64 / 93.35 |
+| 27B gate_up, 512 rows, Q4_K / Q6_K, us, mean of two | 3593 / 4593 | 3083 / 3635 | - |
+| 27B gate_up on B at 64 / 65 / 96 / 128 rows, Q4_K, us | - | 465 / 758 / 786 / 814 | - |
+| 27B gate_up on B at 64 / 65 / 96 / 128 rows, Q6_K, us | - | 612 / 888 / 917 / 958 | - |
+| 64 greedy ids, Qwen3-0.6B, Qwen3-30B-A3B, Qwen3.6-27B | reference | identical | - |
+| `backend-cuda types` on B (tall and square builds of Q4_K, Q5_K and Q6_K run) | - | 78620 PASS, 0 FAIL | - |
+
+- 27B pp512 gains 12.4 percent (910 to 1023) and stands at 0.84 of the reference; pp128 gains 6.1 percent, pp96 1.5 percent, pp64 is level, and the 30B and decode are level.
+- The reference's 30B and short-prompt cells spread widely between its two runs (pp64 755 and 671, 30B tg128 61 and 93), so the B against A columns carry the comparison.
+
+**Left.**
+- `backend-cuda` default mode on B did not run on a card in S101; the landing gates run it with the suite on a device.
+- Ideas for the remaining 27B gap are in the ideas ledger: the square build for the 64-output qkv and down products, Q6_K's two half products a sub-block, the square loop trim, and an inner split that counts row blocks.
+
+**Gotchas.**
+- The square Q6_K build sits at the 255-register ceiling; an edit that adds live state in its loop spills there first, which `cuda-sass` catches as a loop spill store.
+- `tile_rows_for` picks tall from outputs and column tiles alone, so the square build's row edge is the host's `rows > kTileRows`, not the profile's.
 
 ## Chat message actions (2026-11-19)
 

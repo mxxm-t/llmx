@@ -314,7 +314,7 @@ inline std::vector<std::array<size_t, 2>> cluster_shapes(uint32_t type) {
 // The twin products of the given types at Flash-Next's shapes in the given classes, extents on both sides of each crossover, each output against a double sum over the twin.
 // The backend's launches name the build or tile that ran, and a row of a call is the row alone or in another call of its class, every generated column of up to 64; the cluster widths (cluster_shapes) take the generated rows alone.
 inline void twin_types(Backend& g, Backend& c, const std::vector<uint32_t>& kinds, const std::vector<Dtype>& dtypes, size_t wave, const Launches& launches,
-                       const std::function<bool(uint32_t, Dtype, size_t, size_t, size_t)>& tall, const Require& require) {
+                       const std::function<std::string(uint32_t, Dtype, size_t, size_t, size_t)>& tall, const Require& require) {
     const size_t cols[] = {1, 2, 3, 5, 8, 9, 16, 17, 33}, extents[] = {2, 33, 64, 65, 320};
     for (uint32_t type : kinds) {
         std::string tname = quant::storage_type(type)->name;
@@ -398,7 +398,7 @@ inline void twin_types(Backend& g, Backend& c, const std::vector<uint32_t>& kind
                     if (si >= flash) break;
                     const std::string what = "a " + cls + " prompt of " + std::to_string(e) + " rows";
                     const std::map<std::string, size_t> ran = run(e, e, *yb, 0);
-                    const std::string tile = "llmx_" + tname + "_tile" + form + (tall(type, dt, nin, nout, e) ? "_tall" : "");
+                    const std::string tile = "llmx_" + tname + "_tile" + form + tall(type, dt, nin, nout, e);
                     require(ran.size() == 1 && ran.begin()->first == tile, what + " runs " + tile + " alone");
                     const std::vector<float> all = read(g, *yb, nout * e);
                     check(all, e, what);

@@ -2208,6 +2208,7 @@ __device__ void k_mma(const TileCall& c, const signed char* q, const float* dx, 
     constexpr int WO = OUTS / MWP, WR = ROWS / NWP, MI = WO / 16, NN = WR / 8;   // a warp's outputs and rows, as 16-output and 8-row fragments
     constexpr bool OFF = KRaw<KT>::offset != 0, NOMIN = KNoMin<KT>::value;
     static_assert(MWP * NWP == 8 && MI >= 1 && NN >= 1 && (H == 1 || OFF), "eight warps of whole fragments");
+    constexpr int XN = ROWS * 4 > kThreads ? ROWS * 4 / kThreads : 1;   // a thread's twin sub-blocks a step, two in the 128-row build
     using R = KStage<KT, N>;
     __shared__ __attribute__((aligned(16))) unsigned char wq[OUTS][RS];
     __shared__ __attribute__((aligned(16))) unsigned char xq[ROWS][RS];
@@ -2222,7 +2223,7 @@ __device__ void k_mma(const TileCall& c, const signed char* q, const float* dx, 
     const unsigned long long o0 = (unsigned long long)(blockIdx.x - c.start[pi]) * OUTS, b0 = ROUTED ? 0 : (unsigned long long)blockIdx.y * ROWS;
     const unsigned blocks = (unsigned)(c.nin / 32), kbeg = blockIdx.z * c.kper, kend = kbeg + c.kper < blocks ? kbeg + c.kper : blocks;
     const int t = threadIdx.x, lane = t % 32, wm = t / 32 % MWP, wn = t / 32 / MWP, g = lane / 4, tq = lane % 4;
-    // A thread stages weight row wr's sub-blocks from wp's first, and, among the first ROWS * 4 threads, twin row xr's sub-block xsb.
+    // A thread stages weight row wr's sub-blocks from wp's first, and, among the first ROWS * 4 threads, sub-block xsb of twin row xr and of the rows kThreads / 4 apart after it.
     const int wr = t / (4 / N), wp = t % (4 / N), xr = t / 4, xsb = t % 4;
     const bool xt = xr < ROWS, idle = b0 + WR * wn >= nrows;
     const unsigned row_bytes = (unsigned)(c.nin / KT::values * KT::bytes);
@@ -2231,20 +2232,29 @@ __device__ void k_mma(const TileCall& c, const signed char* q, const float* dx, 
     const signed char* qt = q + b0 * c.xrow * 32;
     const float* dxt = dx + b0 * c.xrow;
     const unsigned char* sxt = (const unsigned char*)c.xs + b0 * c.xrow * 4;
-    const unsigned xbase = xt && b0 + xr < nrows ? (ROUTED ? ent[xr] / tg.per : (unsigned)xr) * c.xrow : 0u;
+    unsigned xbase[XN];
+#pragma unroll
+    for (int j = 0; j < XN; ++j) {
+        const unsigned r = (unsigned)(xr + j * (kThreads / 4));
+        xbase[j] = xt && b0 + r < nrows ? (ROUTED ? ent[r] / tg.per : r) * c.xrow : 0u;
+    }
     R raw;
-    int4 xv[2];
-    float xd_ = 0.0f, xh_ = 0.0f;
+    int4 xv[XN][2];
+    float xd_[XN] = {}, xh_[XN] = {};
     const auto load = [&](unsigned k0) {
         raw.load(Wt + wbase, k0 + R::first(wp), blocks);
         if (!xt) return;
-        const unsigned k = k0 + xsb, xb = xbase + (k < blocks ? k : 0u) * c.xblock;
-        xv[0] = at<int4>(qt, xb * 32u);
-        xv[1] = at<int4>(qt, xb * 32u + 16u);
-        xd_ = at<float>(dxt, xb * 4u);
-        if constexpr (!OFF && !NOMIN) {
-            const int s = at<int>(sxt, xb * 4u);
-            xh_ = (float)(twin_half(s, 0) + twin_half(s, 1));
+        const unsigned k = k0 + xsb;
+#pragma unroll
+        for (int j = 0; j < XN; ++j) {
+            const unsigned xb = xbase[j] + (k < blocks ? k : 0u) * c.xblock;
+            xv[j][0] = at<int4>(qt, xb * 32u);
+            xv[j][1] = at<int4>(qt, xb * 32u + 16u);
+            xd_[j] = at<float>(dxt, xb * 4u);
+            if constexpr (!OFF && !NOMIN) {
+                const int s = at<int>(sxt, xb * 4u);
+                xh_[j] = (float)(twin_half(s, 0) + twin_half(s, 1));
+            }
         }
     };
     const auto store = [&]() {
@@ -2260,9 +2270,13 @@ __device__ void k_mma(const TileCall& c, const signed char* q, const float* dx, 
             ws[sb][wr] = s;
         }
         if (!xt) return;
-        int4* dst = (int4*)&xq[xr][32 * xsb];
-        dst[0] = xv[0], dst[1] = xv[1];
-        xs[xsb][xr] = make_float2(xd_, xh_);
+#pragma unroll
+        for (int j = 0; j < XN; ++j) {
+            const int r = xr + j * (kThreads / 4);
+            int4* dst = (int4*)&xq[r][32 * xsb];
+            dst[0] = xv[j][0], dst[1] = xv[j][1];
+            xs[xsb][r] = make_float2(xd_[j], xh_[j]);
+        }
     };
     float acc[MI][NN][4];
 #pragma unroll
@@ -2953,11 +2967,15 @@ LLMX_KTYPE(q2_0, rq::Q2_0, tiles)
 LLMX_KTYPE(nvfp4, rq::NVFP4, tiles)
 LLMX_KTYPE(mxfp4, rq::MXFP4, streams)
 #if GPU_IMMA8
-// The K-quants' tall 8-bit builds, k_tile at 128 outputs, which only the tensor-core body has.
+// The K-quants' tall 8-bit builds, k_tile at 128 outputs, which only the tensor-core body has: 64 rows a block, and the square build of 128 rows for calls of more than 64.
 #define LLMX_KTALL8(name, KT)     extern "C" __global__ void LLMX_TILE8_BOUNDS(tile8_blocks<KT>()) name(LLMX_GRID_CONST TileCall c, const signed char* q, const float* dx) { k_tile<KT, signed char, false, kTileRows, 2 * kTileOut>(c, q, dx); }
+#define LLMX_KSQUARE8(name, KT)   extern "C" __global__ void LLMX_TILE8_BOUNDS(1) name(LLMX_GRID_CONST TileCall c, const signed char* q, const float* dx) { k_tile<KT, signed char, false, 2 * kTileRows, 2 * kTileOut>(c, q, dx); }
 LLMX_KTALL8(llmx_q4_k_tile8_tall, rq::Q4_K)
 LLMX_KTALL8(llmx_q5_k_tile8_tall, rq::Q5_K)
 LLMX_KTALL8(llmx_q6_k_tile8_tall, rq::Q6_K)
+LLMX_KSQUARE8(llmx_q4_k_tile8_square, rq::Q4_K)
+LLMX_KSQUARE8(llmx_q5_k_tile8_square, rq::Q5_K)
+LLMX_KSQUARE8(llmx_q6_k_tile8_square, rq::Q6_K)
 #endif
 // MXFP4's quad rows are builds of their own, which the host picks by gpu_shape::quad_rows, so the one-column builds keep k_rows' registers and occupancy at every other width.
 extern "C" __global__ void __launch_bounds__(kThreads)

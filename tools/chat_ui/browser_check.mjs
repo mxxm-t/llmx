@@ -1458,6 +1458,26 @@ try {
       assert.equal(await evaluate("document.querySelector('#artifact-source-tab').checkVisibility()"),false);
       await wait("document.querySelector('.artifact-header p').textContent.includes('640 x 360 px')",'decoded image dimensions');
       assert.equal(await evaluate("document.querySelector('#artifact-dialog img').getBoundingClientRect().right<=innerWidth"),true);
+      const actual = '#artifact-actual-size';
+      const bounds = () => evaluate("(() => {const img=document.querySelector('.artifact-image'),area=img.parentElement;return {width:img.getBoundingClientRect().width, height:img.getBoundingClientRect().height,left:area.scrollLeft, overflow:area.scrollWidth-area.clientWidth,page:document.documentElement.scrollWidth};})()");
+      if (width===320) {
+        const fitted=await bounds();
+        assert(fitted.width<640);
+        assert(await evaluate(`document.querySelector('${actual}')?.checkVisibility()`),'scaled image has no original-size control');
+        await pointerClick(actual);
+        await wait("document.querySelector('#artifact-actual-size').getAttribute('aria-pressed')==='true'",'image at actual size');
+        const zoomed=await bounds();
+        assert.equal(zoomed.width,640); assert.equal(zoomed.height,360);
+        assert(zoomed.overflow>0); assert.equal(zoomed.page,width);
+        await evaluate("document.querySelector('.artifact-image').parentElement.scrollLeft=10000");
+        assert.equal((await bounds()).left,zoomed.overflow);
+        await pointerClick(actual);
+        assert.equal((await bounds()).width,fitted.width);
+        assert.equal((await bounds()).left,0);
+      } else {
+        assert.equal((await bounds()).width,640);
+        assert.equal(await evaluate(`document.querySelector('${actual}').checkVisibility()`),false,'fitting image needs no size switch');
+      }
       await pointerClick('#artifact-dialog .artifact-toolbar-actions button:last-child');
       const original=before.attachments.find(a=>a.name===name);
       const bytes=Buffer.from(original.data.split(',')[1],'base64');

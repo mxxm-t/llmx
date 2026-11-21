@@ -591,7 +591,7 @@ async function checkWorkspaceImport() {
   assert.deepEqual(await reads(), previousReads, 'folder read during review');
   await screenshot('review-1440.png');
   await cdp('Emulation.setDeviceMetricsOverride', {width:320,height:700,deviceScaleFactor:1,mobile:false});
-  await wait('innerWidth===320', '320 pixel workspace');
+  await wait("innerWidth===320 && document.documentElement.dataset.compact==='true'", 'compact workspace layout');
   const bounds = await evaluate("['#workspace-import-dialog','#workspace-import-list','#workspace-import-submit','#workspace-import-cancel','#workspace-import'].map(s=>{const {left,right,top,bottom}=document.querySelector(s).getBoundingClientRect();return [left,right,top,bottom]})");
   assert(bounds.every(([left,right,top,bottom]) => left >= 0 && right <= 320 && top >= 0 && bottom <= 700), 'clipped controls at 320px: ' + JSON.stringify(bounds));
   await screenshot('review-320.png');
@@ -611,7 +611,6 @@ async function checkWorkspaceImport() {
   const names = await evaluate("ChatShell.api('/workspace').then(s=>s.files.map(f=>f.path).sort())");
   assert.deepEqual(names, ['a.txt','active.md','concurrent.txt','docs/notes.md','empty.txt','pending.txt','src/helper.txt']);
   assert.deepEqual((await reads()).slice(previousReads.length), ['notes.md','helper.txt','notes.md','helper.txt']);
-  await cdp('Emulation.setDeviceMetricsOverride', {width:1440,height:1000,deviceScaleFactor:1,mobile:false});
   assert.equal(await evaluate(q('#workspace-editor') + '.value'), 'local amended text');
   await pointerClick('#workspace-save');
   await wait(q('.workspace-error') + ".textContent.includes('Workspace changed')", 'stale dirty editor refused');
@@ -634,6 +633,8 @@ async function checkWorkspaceImport() {
   await cdp('Input.dispatchKeyEvent', {type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
   await close();
   assert.equal(await evaluate('document.activeElement.id'), 'workspace-import');
+  await cdp('Emulation.setDeviceMetricsOverride', {width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+  await wait("innerWidth===1440 && document.documentElement.dataset.compact==='false'", 'desktop workspace layout');
   await pointerClick('.workspace-back');
   await wait(q('#draft') + ".value === 'Keep this chat draft'", 'preserved unsent conversation draft');
 }

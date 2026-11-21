@@ -1,5 +1,11 @@
 # llmx - Development Status
 
+## Workspace import browser check after resizing (2026-11-21)
+
+- Goal: Exercise the stale editor Save at the intended viewport after import.
+- Evidence: In GitHub Actions run 44868701513 the Windows post-merge job opened the discard dialog before the expected stale-save error. Linux passed. The failing browser still showed unsaved edits at revision 6.
+- Done: A Chrome layout probe found the Save coordinates landed on pending.txt after the resize. The check now exercises the dirty editor at the same phone width as the import, then waits for the desktop shell layout before leaving Saved files.
+
 ## Import local text files into Saved files (2026-11-21)
 
 - Goal: Bring an existing multi-file project into the editor while preserving its relative paths.

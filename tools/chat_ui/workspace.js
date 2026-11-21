@@ -90,8 +90,9 @@
     window.ChatShell.show('chat');
     (target || window.ChatShell.viewFocusTarget()).focus();
   }
-  function showError(problem) { if (!state.snapshot) startNote.textContent = 'Select Refresh to load your saved files.'; error.textContent = problem.message || String(problem); error.hidden = false; }
-  function clearError() { error.hidden = true; error.textContent = ''; }
+  let displayedError, lastRefreshFailure;
+  function showError(problem) { displayedError = problem; if (!state.snapshot) startNote.textContent = 'Select Refresh to load your saved files.'; error.textContent = problem.message || String(problem); error.hidden = false; }
+  function clearError() { displayedError = null; error.hidden = true; error.textContent = ''; }
   function setProjectError(message = '') { projectError.textContent = message; projectError.hidden = !message; }
   function setProjectStatus(message = '', failed = false) {
     projectStatus.textContent = message; projectStatus.hidden = !message; projectStatus.classList.toggle('error-text', failed);
@@ -347,12 +348,15 @@
     while (state.loading) {
       try { await state.loading; } catch { /* The older caller reports its failure; this caller still needs a refresh. */ }
     }
+    const previousError = displayedError;
     const previous = state.snapshot, loading = api('/workspace'); state.loading = loading;
     try {
-      const snapshot = await loading; clearError();
+      const snapshot = await loading;
+      if (displayedError === previousError || displayedError === lastRefreshFailure) clearError();
       if (state.snapshot === previous || snapshot.revision >= state.snapshot.revision) applySnapshot(snapshot);
       if (!state.path) state.revision = state.snapshot.revision;
     }
+    catch (problem) { lastRefreshFailure = problem; throw problem; }
     finally { state.loading = null; }
   }
   const importPart = id => document.getElementById('workspace-import-' + id);
@@ -568,7 +572,7 @@
     try {
       if (/[:\\]/.test(state.path)) throw new Error('Use a Workspace path with forward slashes and no colons to attach this file.');
       const name = window.ChatComposer.workspaceName(state.path);
-      await window.ChatComposer.attach([new File([editorText()], name, {type: 'text/plain'})]);
+      await window.ChatComposer.attach([new File([editorText()], name, {type: 'text/plain'})], {fromWorkspace: true});
       if (isCurrent()) returnToChat(document.getElementById('draft'));
     } catch (problem) {
       if (!isCurrent()) return;
@@ -609,7 +613,11 @@
   projectForm.addEventListener('submit', saveProject);
   document.addEventListener('keydown', event => { if (document.querySelector('dialog[open]')) return; if (document.getElementById('app').dataset.view === 'workbench' && section === 'files' && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); if (!save.disabled) saveFile().catch(showError); } });
   document.addEventListener('companion:view', event => {
-    if (event.detail === 'workbench') { viewLoad = load(); viewLoad.catch(showError); if (section === 'projects') loadProjects(); }
+    if (event.detail === 'workbench') {
+      if (!viewLoad) clearError();
+      viewLoad = load(); viewLoad.catch(showError);
+      if (section === 'projects') loadProjects();
+    }
     else { viewLoad = null; clearTimeout(state.timer); state.timer = null; if (importDialog.open) importDialog.close(); }
   });
   async function openToolResult(target) {

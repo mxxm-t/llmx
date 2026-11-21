@@ -1267,6 +1267,12 @@ try {
     const dialogOpen = "document.querySelector('#artifact-dialog').open";
     await fill('#draft', 'Keep the follow-up draft.');
     await cdp('Emulation.setDeviceMetricsOverride',{width:320,height:700,deviceScaleFactor:1,mobile:true});
+    await wait("innerWidth===320 && document.documentElement.dataset.compact==='true'", 'phone layout before opening HTML');
+    await evaluate(`new Promise(resolve => {
+      const button = document.querySelector('[data-tool-call="linked-site"] .workspace-tool-view-file');
+      button.scrollIntoView({block:'center',behavior:'instant'});
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    })`);
     await openResult('site');
     await wait(dialogOpen + " && document.querySelector('#artifact-preview-tab').getAttribute('aria-selected')==='true'", 'HTML result preview');
     assert.equal(await evaluate("document.querySelector("+JSON.stringify(editSaved)+").textContent"), 'Open in editor');
@@ -1325,21 +1331,45 @@ try {
     await wait("document.querySelector('#workspace-editor').value==='Original'", 'saved file in editor');
     await pointerClick('#workspace-attach');
     await wait(inChat, 'attach original version');
+    await evaluate("ChatComposer.attach(Array.from({length:7},(_,i)=>new File(['spare'], 'spare'+i+'.txt', {type:'text/plain'})))");
     await pointerClick(goFiles);
     await pointerClick('#workspace-attach');
     await wait(inChat, 'reattach identical version');
-    assert.equal(await evaluate("document.querySelectorAll("+JSON.stringify(attached)+").length"),1,'identical attachment duplicated');
-    await pointerClick(goFiles);
+    assert.equal(await evaluate("document.querySelectorAll("+JSON.stringify(attached)+").length"),8,'identical attachment duplicated at the draft limit');
+    for (let i=0;i<7;i++) await click('[aria-label="Remove spare'+i+'.txt"]');
+    const enterWithRefreshHeld = async () => {
+      await evaluate(`(() => {
+        const original = window.fetch;
+        window.releaseWorkspaceRefresh = null;
+        window.fetch = async (...args) => {
+          const response = await original(...args);
+          if (args[0] === '/api/workspace') {
+            window.fetch = original;
+            await new Promise(resolve => { window.releaseWorkspaceRefresh = resolve; });
+          }
+          return response;
+        };
+      })()`);
+      await pointerClick(goFiles);
+      await wait("typeof window.releaseWorkspaceRefresh==='function'", 'hold navigation refresh');
+    };
+    await enterWithRefreshHeld();
     await fill('#workspace-editor','Revised');
     await pointerClick('#workspace-attach');
     await wait("document.querySelector('.workspace-error').checkVisibility() || "+inChat, 'version conflict resolved');
     assert.equal(await evaluate("document.querySelector('#app').dataset.view"),'workbench','conflicting copy entered the draft');
+    await evaluate("window.releaseWorkspaceRefresh();new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+    assert.equal(await evaluate("document.querySelector('.workspace-error').checkVisibility()"),true,'older refresh erased the conflict');
     assert.match(await evaluate("document.querySelector('.workspace-error').textContent"),/notes:plan.txt/);
     assert.equal(await evaluate("document.querySelector('#workspace-editor').value"),'Revised');
     await pointerClick('.workspace-back');
     await pointerClick('[aria-label="Remove notes:plan.txt"]');
-    await pointerClick(goFiles);
-    await pointerClick('#workspace-attach');
+    await enterWithRefreshHeld();
+    const attachPoint = await evaluate("(()=>{const r=document.querySelector('#workspace-attach').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()");
+    await cdp('Input.dispatchMouseEvent',{type:'mousePressed',...attachPoint,button:'left',clickCount:1});
+    await evaluate("window.releaseWorkspaceRefresh();new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+    assert(await evaluate(`Boolean(document.elementFromPoint(${attachPoint.x},${attachPoint.y})?.closest('#workspace-attach'))`),'refresh moved Attach to Chat during the click');
+    await cdp('Input.dispatchMouseEvent',{type:'mouseReleased',...attachPoint,button:'left',clickCount:1});
     await wait(inChat, 'attach revised version after removal');
     await wait("JSON.parse(sessionStorage.getItem('llmx-draft:new')||'{}').attachments?.[0]?.text==='Revised'", 'draft has revised editor bytes');
     assert.equal(await evaluate("document.querySelectorAll("+JSON.stringify(attached)+").length"),1);

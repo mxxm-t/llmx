@@ -8,9 +8,8 @@
 ## Attach the current editor file to a draft
 
 - Goal: Keep a single, unambiguous copy of a workspace path in the chat draft.
-- Done: The project picker checks for conflicting file versions. The editor currently uses device upload behavior.
-- Left: Exercise repeated editor attachment and align it with the workspace path rule.
-- Gotchas: A different, unsaved version must stay in the editor if the draft already contains a copy.
+- Done: The editor and project picker share the workspace attachment check. Identical copies reuse their existing slot. A different version keeps the editor open and identifies the attachment to remove.
+- Checks: Chrome reproduced two copies on main. It checks reuse at the eight-file limit, a conflicting unsaved edit, a late refresh and attaching the revised text without saving the file. Chrome also reproduced a lost click when that refresh moved the button between press and release. Returning to the editor now clears the old conflict before the controls can be clicked. The fix lands by fast-forward after the scoped workspace checks.
 
 ## Chat history sections
 

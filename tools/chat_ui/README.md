@@ -103,8 +103,7 @@ Project instructions stay in the companion. If a selected file has been deleted,
 restore it or remove its path from the project before downloading.
 
 Each use takes a snapshot. Editing a saved file later affects the next use.
-The draft and previously sent messages retain their copies. Applying the same
-files twice keeps one copy. If the draft already contains a different version
+The draft and previously sent messages retain their copies. Attaching the same workspace file twice keeps one copy, including when you attach directly from the editor. If the draft already contains a different version
 of a selected file, remove that attachment before adding the new version.
 Temporary chats can use a project explicitly. Their drafts stay in memory.
 Project definitions live with Workspace files in the companion data directory.

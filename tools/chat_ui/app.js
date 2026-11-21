@@ -1649,9 +1649,9 @@
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(bytes % 1024 ? 1 : 0) + ' KiB';
     return (bytes / (1024 * 1024)).toFixed(bytes % (1024 * 1024) ? 1 : 0) + ' MiB';
   }
-  async function attach(files) {
+  async function attach(files, {fromWorkspace = false} = {}) {
     const chatId = S.chat?.id, generation = S.generation, attachments = S.attachments;
-    if (attachments.length + files.length > 8) throw new Error('Attach up to 8 files per message.');
+    if (!fromWorkspace && attachments.length + files.length > 8) throw new Error('Attach up to 8 files per message.');
     const pending = [];
     for (let file of files) {
       if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
@@ -1683,7 +1683,8 @@
       throw new Error(chatId !== S.chat?.id || generation !== S.generation
         ? 'Attachment read cancelled because the selected conversation changed.'
         : 'The draft changed while the attachment was being read. Attach the file again.');
-    appendAttachments(pending);
+    if (fromWorkspace) appendWorkspaceAttachments(pending);
+    else appendAttachments(pending);
     if ($('app').dataset.view === 'chat') $('draft').focus();
   }
   function appendAttachments(pending) {
@@ -1692,20 +1693,21 @@
     if (total > 10 * 1024 * 1024) throw new Error('Attachments exceed 10 MiB. Remove a file before adding more.');
     S.attachments.push(...pending); composerRevision++; renderAttachments();
   }
+  function appendWorkspaceAttachments(files) {
+    const pending = files.filter(file => {
+      const existing = S.attachments.filter(item => item.name === file.name);
+      if (existing.some(item => item.text !== file.text)) throw new Error('Remove the existing ' + file.name + ' attachment to use this version.');
+      return !existing.length;
+    });
+    if (pending.length) appendAttachments(pending);
+  }
   function workspaceName(path) { return path.replaceAll('/', ':'); }
   function projectDraft() {
     const chat = S.chat?.id, generation = S.generation, revision = composerRevision, system = $('setting-system').value;
     return {system, apply(context, copyInstructions) {
       if (chat !== S.chat?.id || generation !== S.generation || revision !== composerRevision || system !== $('setting-system').value || $('app').dataset.view !== 'chat')
         throw new Error('The conversation or draft changed. Choose the file or project again.');
-      const pending = [];
-      for (const {path, text} of context.files) {
-        const name = workspaceName(path);
-        const existing = S.attachments.filter(file => file.name === name);
-        if (existing.some(file => file.text !== text)) throw new Error('Remove the existing ' + name + ' attachment to use this version.');
-        if (!existing.length) pending.push({name, type: 'text/plain', text});
-      }
-      appendAttachments(pending);
+      appendWorkspaceAttachments(context.files.map(({path, text}) => ({name: workspaceName(path), type: 'text/plain', text})));
       if (copyInstructions) $('setting-system').value = context.project.instructions;
       closeDrawers(false);
     }};

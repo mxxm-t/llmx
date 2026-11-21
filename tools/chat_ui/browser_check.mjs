@@ -272,7 +272,7 @@ function workspaceWriteCases(path, missing, revision, files) {
   return [
     {id:'linked-verified-read', name:'workspace_read', arguments:JSON.stringify({path}), status:'completed',
       result:{content:[{type:'text', text:JSON.stringify({path,content:'Earlier tool output'})}]}},
-    {...call('write',path), status:'completed', result:{content:[{type:'text',text:JSON.stringify({revision,files})}]}},
+    {...call('write',path), status:'completed', duration_ms:0, result:{content:[{type:'text',text:JSON.stringify({revision,files})}]}},
     stale('stale-write',path), stale('missing-write',missing), stale('unsafe-write','../outside.txt'),
   ];
 }
@@ -1515,6 +1515,17 @@ try {
     await wait(`document.querySelector('[data-chat="${chat.id}"]')`, 'saved write actions fixture');
     await pointerClick(`[data-chat="${chat.id}"]`);
     await wait("document.querySelector('[data-tool-call=linked-write]')", 'saved write outcomes');
+    const resultSelector = '[data-tool-call=linked-write]';
+    await pointerClick(resultSelector + ' details > summary');
+    const gap = await evaluate(`(() => {
+      const body = document.querySelector('${resultSelector} .tool-body');
+      const timing = body.querySelector('small');
+      const action = body.querySelector('.workspace-tool-open').getBoundingClientRect();
+      return {label:timing.textContent, pixels:action.left - timing.getBoundingClientRect().right};
+    })()`);
+    assert.equal(gap.label, '0 ms');
+    assert(gap.pixels >= 8, 'tool duration and file action touch: ' + gap.pixels + ' px');
+    await pointerClick(resultSelector + ' details > summary');
     await checkChatSavedWriteActions(filename, source);
     const openResult = id => pointerClick('[data-tool-call="linked-'+id+'"] .workspace-tool-view-file');
     const editSaved = '.artifact-toolbar-actions button:first-child';

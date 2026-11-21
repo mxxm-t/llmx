@@ -1,6 +1,7 @@
 #pragma once
 // A tensor group's collective over Vulkan devices and VulkanBackend's part in it; vulkan_backend.cpp includes it after the class.
 #include <algorithm>
+#include <atomic>
 #include <exception>
 #include <memory>
 #include <stdexcept>
@@ -123,7 +124,6 @@ public:
         : members_(members), rows_(rows), width_(width), taken_(members.size(), 0), acquires_(members.size()) {
         const size_t W = members.size(), bytes = size_mul(size_mul(rows, width), sizeof(float));
         try {
-            threads_ = std::make_unique<core::JobThreads>(W < 3 ? 0 : W - 1);
             for (VulkanBackend* m : members) {
                 partial_.push_back(m->alloc(bytes, Memory::device));
                 scratch_.push_back(m->alloc(bytes, Memory::device));
@@ -229,6 +229,7 @@ private:
             if (!d.receive_queue || !d.device_clock || !d.uncached_memory || !(d.timestamp_ns > 0)) return;
         }
         limit = std::min(limit, size_mul(rows_, width_));
+        rsent_.assign(W, 0);
         slots_ = uint32_t((limit + 2) / 3);
         const uint32_t G = (slots_ + 255) / 256;
         cap_ = (uint32_t)std::min<double>(4.0e9, 1.0e9 / members_[0]->device()->timestamp_ns);
@@ -335,12 +336,15 @@ public:
             g.runs_.clear();
             ++g.gen_;
         }
-        s.run({[open, values, backs, work] {
-                   queue_calls(*open[0]->threads_, backs, work);
+        // Once the queue calls begin they settle their own tickets, so a settle after a call that threw gives up only what never reached a queue.
+        const auto called = std::make_shared<bool>(false);
+        s.run({[sp = &s, called, open, values, backs, work] {
+                   queue_calls(sp->helpers(backs.size()), backs, work, *called);
                    for (size_t c = 0; c < open.size(); ++c) open[c]->submit_receivers(values[c]);
                },
-               [open, values, backs, work] {
-                   for (size_t i = 0; i < backs.size(); ++i) backs[i]->made(work[i].ticket, false);
+               [called, open, values, backs, work] {
+                   if (!*called)
+                       for (size_t i = 0; i < backs.size(); ++i) backs[i]->made(work[i].ticket, false);
                    for (size_t c = 0; c < open.size(); ++c) open[c]->give_up_receivers(values[c]);
                }},
               report);
@@ -372,12 +376,15 @@ private:
             si.pSignalSemaphores = &rtimeline_[t];
             if (queue_probe_) check(queue_probe_(*members_[t], true), "vkQueueSubmit (receivers)");
             check(d.fn.vkQueueSubmit(d.receive_queue, 1, &si, VK_NULL_HANDLE), "vkQueueSubmit (receivers)");
+            rsent_[t] = value;
         }
     }
 
     // Receivers given up still reach their value, so no wait on them hangs; the route goes off.
+    // Those already on their receive queue signal it themselves, and a host signal beside a pending one would be invalid.
     void give_up_receivers(uint64_t value) noexcept {
         for (size_t t = 0; t < members_.size(); ++t) {
+            if (rsent_[t] >= value) continue;
             const Device& d = *members_[t]->device();
             VkSemaphoreSignalInfo si{};
             ++host_signals_;
@@ -571,24 +578,35 @@ private:
         for (size_t m = 0; m < W; ++m)
             for (size_t t = 0; t < W; ++t)
                 if (t != m) members_[t]->wait_on(wait_[t][m], count);
-        submitter_->run({[this, work] { queue_calls(*threads_, members_, work); },
-                         [this, work] {
+        const auto called = std::make_shared<bool>(false);
+        submitter_->run({[this, called, work] { queue_calls(submitter_->helpers(members_.size()), members_, work, *called); },
+                         [this, called, work] {
+                             if (*called) return;
                              for (size_t m = 0; m < work.size(); ++m) members_[m]->made(work[m].ticket, false);
                          }});
     }
 
-    // On the queue thread: the backends' queue calls, concurrently from three on, all joined before return or throw.
-    static void queue_calls(core::JobThreads& threads, const std::vector<VulkanBackend*>& backs, const std::vector<VulkanBackend::Submission>& work) {
+    // On the queue thread: the backends' queue calls, concurrently from three on, each settling its own ticket, all joined before return or throw.
+    // `called` is set once nothing can throw before every ticket is settled, so the job's settle leaves them alone.
+    static void queue_calls(core::JobThreads& threads, const std::vector<VulkanBackend*>& backs, const std::vector<VulkanBackend::Submission>& work, bool& called) {
         const size_t W = backs.size();
-        std::vector<VkResult> result(W, VK_NOT_READY);
-        threads.run(W, [&](size_t m) {
-            if (queue_probe_ && (result[m] = queue_probe_(*backs[m], false)) != VK_SUCCESS) {
-                if (work[m].release) work[m].release->store(work[m].release_seq);
-                return;
+        std::vector<VkResult> result(W, VK_ERROR_OUT_OF_HOST_MEMORY);
+        const std::function<void(size_t)> call = [&](size_t m) {
+            try {
+                result[m] = queue_probe_ ? queue_probe_(*backs[m], false) : VK_SUCCESS;
+                if (result[m] == VK_SUCCESS) result[m] = work[m].queue(*backs[m]->device());
+                else if (work[m].release) work[m].release->store(work[m].release_seq);
+            } catch (...) {
+                result[m] = VK_ERROR_OUT_OF_HOST_MEMORY;
             }
-            result[m] = work[m].queue(*backs[m]->device());
-            if (result[m] == VK_SUCCESS) backs[m]->made(work[m].ticket, true);
-        });
+            backs[m]->made(work[m].ticket, result[m] == VK_SUCCESS);
+        };
+        called = true;
+        if (W < 3) {
+            for (size_t m = 0; m < W; ++m) call(m);
+        } else {
+            threads.run(W, call);
+        }
         for (size_t m = 0; m < W; ++m) check(result[m], "vkQueueSubmit");
     }
 
@@ -666,7 +684,6 @@ private:
                 }
             }
         }
-        threads_.reset();
         release();
         for (size_t t = 0; t < pools_.size(); ++t) {
             const Device& d = *members_[t]->device();
@@ -708,7 +725,6 @@ private:
     std::vector<VkBufferMemoryBarrier> acquires_;   // recording-thread scratch, sized once for every peer
     static inline VkResult (*queue_probe_)(const VulkanBackend&, bool receivers) = nullptr;   // tests only: called before each queue call, a failure it returns standing in for the call's
     static inline std::atomic<size_t> host_signals_{0};   // receivers given up by a host signal, which tests count
-    std::unique_ptr<core::JobThreads> threads_;   // a thread a member but the first, asleep between exchanges, from three members on (docs/STATUS.md, a group's members submit side by side)
     std::vector<BufferPtr> partial_, scratch_;
     std::vector<std::vector<std::shared_ptr<VulkanBuffer>>> inbox_[2];   // [parity][owner][sender]: the owner's inbox for that sender's partial rows
     std::vector<std::vector<BufferPtr>> imported_[2];                    // [parity][owner][sender]: that inbox on the sender, its only importer
@@ -725,15 +741,16 @@ private:
         size_t n;
         uint32_t base, epochs;   // the run's sums are epochs base + 1 to base + epochs
     };
-    size_t tagged_limit_ = 0;    // the largest sum in place it takes, zero while it is off
+    std::atomic<size_t> tagged_limit_{0};   // the largest sum in place it takes, zero while it is off; a give-up on the queue thread clears it
     uint32_t slots_ = 0, cap_ = 0;   // 16-byte slots a tagged row; the spin bound in device clock ticks, a second
     uint32_t epoch_ = 8, gen_ = 1;   // the last epoch recorded, which only grows; the open batch's generation
     uint32_t reported_ = 0;          // the latest aborted generation a wait read
-    bool aborted_ = false;
+    std::atomic<bool> aborted_{false};
     size_t tagged_sums_ = 0;
     std::vector<Run> runs_;          // the open batch's receiver runs, empty with no batch open
     uint64_t received_ = 0;          // batches closed, the value each member's receive timeline reaches once that batch's receivers finish
     uint64_t rqueued_[kReceivers] = {};
+    std::vector<uint64_t> rsent_;    // per member, the latest batch whose receivers reached its receive queue; written on the queue thread, read by a settle there or after it
     std::vector<std::shared_ptr<VulkanBuffer>> ctl_, report_;   // per member: its control words (acks, own epochs, abort), uncached; their first words where the host reads them
     std::vector<std::vector<std::shared_ptr<VulkanBuffer>>> tags_;   // [owner][sender]: the owner's tagged rows for that sender
     std::vector<std::vector<BufferPtr>> tagged_in_;                  // [owner][sender]: those rows on the sender, their only importer

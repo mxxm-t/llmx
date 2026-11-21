@@ -6,6 +6,7 @@
 #include "backends/vulkan/vulkan_buffer.hpp"
 #include "backends/vulkan/vulkan_device.hpp"
 #include "backends/vulkan/vulkan_kernels.hpp"
+#include "core/job_threads.hpp"
 #include "quant/model_formats.hpp"
 #include "quant/quant.hpp"
 
@@ -116,6 +117,13 @@ public:
     // The group's collectives with an open batch of tagged sums, which the next submission of any member closes together (VulkanCollective::close_open); recording thread only.
     std::vector<VulkanCollective*> open_batches;
 
+    // On the queue thread: threads beside it for a job's `calls` queue calls, a call but the first from three calls on, grown to the most a job has made (docs/STATUS.md, a group's members submit side by side).
+    core::JobThreads& helpers(size_t calls) {
+        const size_t want = calls < 3 ? 0 : calls - 1;
+        if (!helpers_ || helpers_->threads() < want) helpers_ = std::make_unique<core::JobThreads>(want);
+        return *helpers_;
+    }
+
 private:
     void loop() {
         std::unique_lock<std::mutex> lk(mu_);
@@ -155,6 +163,7 @@ private:
     std::exception_ptr failed_;   // a failure not yet given out
     std::vector<std::pair<const void*, std::function<void()>>> owners_;
     bool stop_ = false;
+    std::unique_ptr<core::JobThreads> helpers_;   // queue thread only, gone after it joins
     std::thread thread_;
 };
 

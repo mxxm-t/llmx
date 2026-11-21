@@ -86,9 +86,9 @@
     newFile.hidden = importFiles.hidden = next !== 'files';
     if (next === 'projects') loadProjects();
   }
-  function returnToChat(focusId = 'chat-title') {
+  function returnToChat(target) {
     window.ChatShell.show('chat');
-    document.getElementById(focusId).focus();
+    (target || window.ChatShell.viewFocusTarget()).focus();
   }
   function showError(problem) { if (!state.snapshot) startNote.textContent = 'Select Refresh to load your saved files.'; error.textContent = problem.message || String(problem); error.hidden = false; }
   function clearError() { error.hidden = true; error.textContent = ''; }
@@ -569,7 +569,7 @@
       if (/[:\\]/.test(state.path)) throw new Error('Use a Workspace path with forward slashes and no colons to attach this file.');
       const name = window.ChatComposer.workspaceName(state.path);
       await window.ChatComposer.attach([new File([editorText()], name, {type: 'text/plain'})]);
-      if (isCurrent()) returnToChat('draft');
+      if (isCurrent()) returnToChat(document.getElementById('draft'));
     } catch (problem) {
       if (!isCurrent()) return;
       showError(problem);

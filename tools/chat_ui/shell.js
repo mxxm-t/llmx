@@ -160,6 +160,10 @@ window.ChatShell = (() => {
     notice.hidden = true; frame.hidden = false;
     if (!frame.getAttribute('src') || force) frame.src = '/monitor/view';
   }
+  function viewFocusTarget() {
+    if ($('app').dataset.view !== 'chat') return $('shell-title');
+    return $('chat-title').disabled ? $('draft') : $('chat-title');
+  }
   function show(view) {
     if (!labels[view]) return;
     $('app').dataset.view = view;
@@ -368,5 +372,5 @@ window.ChatShell = (() => {
       catch (error) { backupStatus(error.message, true); throw error; } finally { $('backup-restore').disabled = false; }
     });
   });
-  return {show, api, menu, closeMenu, conversationForm, get config() { return config; }};
+  return {show, viewFocusTarget, api, menu, closeMenu, conversationForm, get config() { return config; }};
 })();

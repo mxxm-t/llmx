@@ -113,7 +113,7 @@ The conversation database backup covers the copies in saved conversations.
 Create checkpoint captures saved workspace files. Open Checkpoint history to
 review differences or restore a checkpoint. The command runner starts from
 saved workspace files and creates a checkpoint before a command runs. Back to
-Chat returns to the current conversation and keeps the editor buffer for the
+Chat focuses the composer for an unsent draft or the title for an open conversation. It keeps the editor buffer for the
 current page.
 
 ## Storage and deployment

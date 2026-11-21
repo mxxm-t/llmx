@@ -1547,10 +1547,6 @@
   function canFocusDrawerControl(el) {
     return el && !el.matches(':disabled') && !el.closest('[inert]') && el.checkVisibility({visibilityProperty: true});
   }
-  function viewHeading() {
-    if ($('app').dataset.view !== 'chat') return $('shell-title');
-    return $('chat-title').disabled ? $('draft') : $('chat-title');
-  }
   function updateShade(opener, destination) {
     const app = $('app'), sidebar = $('sidebar'), details = $('inspector');
     const detailsOpen = app.dataset.view === 'chat' && !app.classList.contains('inspector-closed');
@@ -1574,7 +1570,7 @@
         next.setAttribute('role', 'dialog'); next.setAttribute('aria-modal', 'true');
         (next === sidebar ? $('sidebar-close') : $('tab-' + S.tab)).focus({preventScroll: true});
       } else if (destination !== false && !document.querySelector('dialog[open]')) {
-        (destination || (canFocusDrawerControl(returnTo) ? returnTo : viewHeading())).focus({preventScroll: true});
+        (destination || (canFocusDrawerControl(returnTo) ? returnTo : window.ChatShell.viewFocusTarget())).focus({preventScroll: true});
       }
     }
     syncLiveMetrics(); renderContextLimits();
@@ -1855,7 +1851,7 @@
   });
   document.addEventListener('companion:view', event => {
     if (event.detail !== 'chat') pdfSelection?.abort();
-    if (modalDrawer && (modalDrawer === $('sidebar') || event.detail !== 'chat')) closeDrawers(viewHeading());
+    if (modalDrawer && (modalDrawer === $('sidebar') || event.detail !== 'chat')) closeDrawers(window.ChatShell.viewFocusTarget());
     else updateShade();
     renderLiveMetrics();
   });

@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Keyboard return from Saved files (2026-11-21)
+
+- Goal: Resume typing when Back to Chat returns to an unsent conversation.
+- Done: Back to Chat and closing a navigation drawer share the shell focus target. The browser regression failed on main, then typed directly into the preserved draft with the fix.
+- Checks: The Chat home test exercises the unsent draft. The workspace browser test covers a populated chat, an attached file and keyboard navigation.
+- Gotchas: A populated conversation returns to its title. Attaching a file returns to the composer in either case.
+
 ## Download saved project files (2026-11-21)
 
 - Goal: Download a named project in one ZIP with its relative paths.

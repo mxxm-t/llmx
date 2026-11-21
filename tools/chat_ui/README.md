@@ -518,6 +518,8 @@ These actions only navigate. Select Workspace limits to see storage and
 execution limits.
 Workspace owns managed UTF-8 project files, a source editor, unified diffs,
 command output and file checkpoints. It never opens arbitrary host paths.
+Opening a saved file preserves its line endings. Edits to LF, CRLF and CR files keep that convention. In mixed files, newly inserted lines use the first line ending. Review, download, attach and save all use the same editor text.
+
 Before the first save, **Discard** closes the unsaved file. After a file is saved, **Delete** removes its saved copy. Each action asks for confirmation.
 From the file editor, Tab moves focus to the next control and Shift+Tab moves
 it to the previous control. Use Ctrl+S or Cmd+S to save.

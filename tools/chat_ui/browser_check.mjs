@@ -914,6 +914,8 @@ try {
       await fill('#workspace-editor', edited);
       await pointerClick('#workspace-review');
       await wait("document.querySelector('#artifact-dialog').open", 'review line endings');
+      const patch = await evaluate("document.querySelector('#artifact-dialog .artifact-source code').textContent");
+      assert.ok(patch.includes(label === 'mixed' ? '+inserted\r\n' : label === 'windows' ? '+changed\r\n' : '+one\rchanged'), 'draft comparison lost ' + label + ' line endings');
       const stored = () => evaluate(`ChatShell.api('/workspace/file?path=${name}').then(f=>f.content)`);
       assert.equal(await stored(),source);
       await pointerClick('#artifact-dialog [aria-label="Close artifact"]');

@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Workspace editor line endings (2026-11-21)
+
+- Goal: Opening a file preserves its stored bytes and starts clean, including files saved with Windows line endings. Depends on the file review action for its draft comparison test.
+- Done: The editor keeps source line endings for review, preview, attachments, downloads and saves. New lines in a mixed file use its first ending.
+- Checks: Before the fix, Chrome failed on opening an untouched CRLF file. The focused browser fixture checks clean opens, draft comparisons and saved bytes for CRLF, CR and mixed endings.
+- Landing: Fast-forward with the file review action after the scoped hosted checks.
+
 ## Review unsaved workspace edits (2026-11-21)
 
 - Goal: Show what an editor draft would change in an existing saved file before Save.

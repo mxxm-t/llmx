@@ -25,7 +25,7 @@
   fileFilter.addEventListener('input', renderFiles); filePanel.append(fileHeading, fileSearch, fileList);
   const editorPanel = node('section', 'workspace-editor'); editorPanel.setAttribute('aria-label', 'File editor');
   const editorHeading = node('div', 'workspace-editor-heading'); const fileLabel = node('span', 'workspace-file-path', 'Select a file'); const dirtyLabel = node('span', 'unsaved-indicator', 'Unsaved'); dirtyLabel.hidden = true;
-  const fileActions = node('div', 'workspace-editor-actions'); const preview = control('View source', '', openArtifact); const attach = control('Attach to Chat', '', attachFile); attach.id = 'workspace-attach'; const download = control('Download', '', () => window.ChatArtifacts.download(editor.value, state.path, fileLanguage(state.path))); const save = control('Save', 'primary-button', saveFile); save.id = 'workspace-save'; const remove = control('Delete', 'text-button danger', deleteFile); const review = control('Review changes', '', reviewChanges); review.id = 'workspace-review'; fileActions.append(preview, attach, download, remove, review, save); editorHeading.append(fileLabel, dirtyLabel, fileActions);
+  const fileActions = node('div', 'workspace-editor-actions'); const preview = control('View source', '', openArtifact); const attach = control('Attach to Chat', '', attachFile); attach.id = 'workspace-attach'; const download = control('Download', '', () => window.ChatArtifacts.download(editorText(), state.path, fileLanguage(state.path))); const save = control('Save', 'primary-button', saveFile); save.id = 'workspace-save'; const remove = control('Delete', 'text-button danger', deleteFile); const review = control('Review changes', '', reviewChanges); review.id = 'workspace-review'; fileActions.append(preview, attach, download, remove, review, save); editorHeading.append(fileLabel, dirtyLabel, fileActions);
   const editor = node('textarea', 'workspace-code-editor'); editor.id = 'workspace-editor'; editor.spellcheck = false; editor.autocomplete = 'off'; editor.wrap = 'off'; editor.setAttribute('aria-label', 'File content'); editor.placeholder = 'Create a file or select one from the workspace.'; editor.disabled = true;
   const editorFooter = node('div', 'workspace-editor-footer'); const editorPosition = node('span', '', 'UTF-8'); const saveHint = node('span', '', 'Ctrl / Cmd + S to save'); editorFooter.append(editorPosition, saveHint); editorPanel.append(editorHeading, editor, editorFooter);
   const start = node('div', 'workspace-start'); start.id = 'workspace-start';
@@ -201,7 +201,36 @@
   }
   function bytes(value) { const units = ['B', 'KiB', 'MiB', 'GiB']; let index = 0; while (value >= 1024 && index < units.length - 1) { value /= 1024; index++; } return number(value) + ' ' + units[index]; }
   function seconds(value) { return value >= 60 && value % 60 === 0 ? number(value / 60) + ' min' : number(value) + ' s'; }
-  function dirty() { return !editor.disabled && (state.isNew || editor.value !== state.original); }
+  let source = '', displayed = '', newline = '\n', mixedEndings = false;
+  function setEditorText(text) {
+    editor.value = text;
+    source = text;
+    displayed = editor.value;
+    newline = text.match(/\r\n|[\r\n]/)?.[0] || '\n';
+    mixedEndings = text.includes('\r') && /[\r\n]/.test(text.replaceAll(newline, ''));
+  }
+  function editorText() {
+    const next = editor.value;
+    if (next === displayed) return source;
+    if (mixedEndings) {
+      const before = displayed.split('\n'), after = next.split('\n');
+      const ends = source.match(/\r\n|[\r\n]/g) || [];
+      let oldTail = before.length, newTail = after.length;
+      while (oldTail && newTail && before[oldTail - 1] === after[newTail - 1]) { oldTail--; newTail--; }
+      source = after.map((line, i) => {
+        if (i === after.length - 1) return line;
+        let ending = newline;
+        if (i >= newTail) ending = ends[i - newTail + oldTail];
+        else if (i < oldTail) ending = ends[i];
+        return line + (ending || newline);
+      }).join('');
+    } else {
+      source = newline === '\n' ? next : next.replaceAll('\n', newline);
+    }
+    displayed = next;
+    return source;
+  }
+  function dirty() { return !editor.disabled && (editorText() !== state.original || state.isNew); }
   async function canReplace() { return !dirty() || Boolean(await window.ChatShell.conversationForm({title: 'Discard unsaved changes?', description: 'Discard the unsaved changes in ' + state.path + '?', destructive: true, submit: 'Discard'})); }
   function fileLanguage(path) { const ext = path.split('.').pop().toLowerCase(); return ({htm: 'html', py: 'python', js: 'javascript', ts: 'typescript', sh: 'bash', rs: 'rust', md: 'markdown', patch: 'diff'})[ext] || ext; }
   function updateEditor() {
@@ -306,7 +335,7 @@
     if (!isCurrent()) return;
     if (editor.value !== content && !await canReplace()) return;
     if (!isCurrent()) return;
-    state.path = file.path; state.original = file.content; state.isNew = false; state.revision = file.revision; editor.value = file.content; editor.disabled = false;
+    state.path = file.path; state.original = file.content; state.isNew = false; state.revision = file.revision; setEditorText(file.content); editor.disabled = false;
     editor.setSelectionRange(0, 0); updateEditor(); renderFiles(); editor.focus(); editor.scrollTop = 0; editor.scrollLeft = 0;
   }
   async function createFile() {
@@ -315,18 +344,18 @@
     const path = await window.ChatShell.conversationForm({title: 'New workspace file', description: 'Name the file. Include a folder if needed, such as notes/plan.md.', label: 'File path', maxLength: 240, value: 'untitled.txt', submit: 'Create'});
     if (!path?.trim() || selection !== state.selection) return;
     if (state.snapshot?.files.some(file => file.path === path.trim())) return openFile(path.trim());
-    state.path = path.trim(); state.original = ''; state.isNew = true; state.revision = state.snapshot?.revision || 0; editor.value = ''; editor.disabled = false; updateEditor(); renderFiles(); editor.focus();
+    state.path = path.trim(); state.original = ''; state.isNew = true; state.revision = state.snapshot?.revision || 0; setEditorText(''); editor.disabled = false; updateEditor(); renderFiles(); editor.focus();
   }
   async function reviewChanges() {
-    const path = state.path, content = editor.value, selection = state.selection;
+    const path = state.path, content = editorText(), selection = state.selection;
     const result = await api('/workspace/diff', 'POST', {path, content});
-    if (state.selection !== selection || editor.value !== content || view.hidden || section !== 'files') return;
+    if (state.selection !== selection || editorText() !== content || view.hidden || section !== 'files') return;
     window.ChatArtifacts.open({name: path + '.diff', source: result.diff || 'The draft matches the saved file.\n', language: 'diff'}, {allowWorkspaceEdit: false});
   }
   async function saveFile() {
     if (!state.path || state.saving) return;
     ++state.selection;
-    const submitted = {path: state.path, content: editor.value, revision: state.revision};
+    const submitted = {path: state.path, content: editorText(), revision: state.revision};
     clearError(); state.saving = true; updateEditor();
     try {
       const result = await api('/workspace/file', 'POST', submitted);
@@ -350,7 +379,7 @@
       if (!isNew) await api('/workspace/delete', 'POST', {path, revision});
       if (selection === state.selection) {
         state.path = ''; state.original = ''; state.isNew = false;
-        editor.value = ''; editor.disabled = true;
+        setEditorText(''); editor.disabled = true;
         clearError(); updateEditor(); renderFiles();
       }
       if (!isNew) await load();
@@ -360,7 +389,7 @@
   function openArtifact() {
     if (!state.path) return;
     const language = fileLanguage(state.path);
-    window.ChatArtifacts.open({name: state.path, source: editor.value, language}, {initialPreview: language === 'html', allowWorkspaceEdit: false, workspacePath: /\.html?$/i.test(state.path) ? state.path : ''});
+    window.ChatArtifacts.open({name: state.path, source: editorText(), language}, {initialPreview: language === 'html', allowWorkspaceEdit: false, workspacePath: /\.html?$/i.test(state.path) ? state.path : ''});
   }
   async function attachFile() {
     if (!state.path || state.attaching) return;
@@ -370,7 +399,7 @@
     try {
       if (/[:\\]/.test(state.path)) throw new Error('Use a Workspace path with forward slashes and no colons to attach this file.');
       const name = window.ChatComposer.workspaceName(state.path);
-      await window.ChatComposer.attach([new File([editor.value], name, {type: 'text/plain'})]);
+      await window.ChatComposer.attach([new File([editorText()], name, {type: 'text/plain'})]);
       if (isCurrent()) returnToChat('draft');
     } catch (problem) {
       if (!isCurrent()) return;
@@ -389,11 +418,11 @@
   async function restoreCheckpoint(checkpoint) {
     const revision = state.snapshot.revision, selection = ++state.selection;
     await window.ChatShell.conversationForm({title: 'Restore checkpoint?', description: 'Restore "' + checkpoint.label + '"? This replaces the managed workspace files and discards unsaved editor changes.', destructive: true, submit: 'Restore'}, async () => {
-      const content = editor.value;
+      const content = editorText();
       await api('/workspace/checkpoints/' + encodeURIComponent(checkpoint.id) + '/restore', 'POST', {revision});
       await load(); if (selection !== state.selection) return;
       state.original = content; state.isNew = false;
-      if (state.snapshot.files.some(file => file.path === state.path)) await openFile(state.path); else { state.path = ''; editor.value = ''; state.original = ''; editor.disabled = true; updateEditor(); }
+      if (state.snapshot.files.some(file => file.path === state.path)) await openFile(state.path); else { state.path = ''; setEditorText(''); state.original = ''; editor.disabled = true; updateEditor(); }
     });
   }
   async function startJob(event) {
@@ -480,7 +509,7 @@
       state.original = existing?.content ?? '';
       state.isNew = !existing;
       state.revision = existing?.revision ?? snapshot.revision;
-      editor.value = artifact.source;
+      setEditorText(artifact.source);
       editor.disabled = false;
       updateEditor();
       renderFiles();

@@ -56,6 +56,7 @@ a copy of their saved text.
 Use **Browse saved files** in the conversation settings to open the same file picker.
 Open **Saved files** in the sidebar for a working copy you can edit and reuse
 across conversations. This is the companion's workspace.
+Open a code block and choose **Edit in workspace** to name the file. If the path already contains different text, choose **Edit replacement** to open the new text in the editor. The saved file changes only when you choose **Save**.
 For example, save a generated web page there, edit it, preview it with its
 saved stylesheet, then attach the edited HTML to a draft.
 

@@ -844,6 +844,27 @@ try {
     await pointerClick('#workspace-save');
     await wait("document.querySelector('#workspace-save').disabled && document.querySelector('.unsaved-indicator').hidden", 'saved replacement');
     assert.equal((await read()).content, 'print(42)');
+    await openSnippet();
+    await pointerClick('#conversation-submit');
+    await wait("!document.querySelector('#action-dialog').open && document.activeElement.id === 'workspace-editor' && document.querySelector('#workspace-save').disabled", 'identical content opens cleanly');
+    await openSnippet();
+    await fill('#conversation-value', 'another.py');
+    await pointerClick('#conversation-submit');
+    await wait("document.querySelector('.workspace-file-path').textContent === 'another.py' && !document.querySelector('#action-dialog').open", 'unused path opens directly');
+    await pointerClick('#workspace-save');
+    await wait("document.querySelector('.unsaved-indicator').hidden", 'new file saved');
+    assert.equal(await evaluate("(async () => (await ChatShell.api('/workspace/file?path=another.py')).content)()"), 'print(42)');
+    await openSnippet();
+    await fill('#conversation-value', 'race.py');
+    await evaluate(`(async () => {
+      const {revision} = await ChatShell.api('/workspace');
+      await ChatShell.api('/workspace/file','POST',{path:'race.py',content:'other tab',revision});
+    })()`);
+    await pointerClick('#conversation-submit');
+    await wait("document.querySelector('.workspace-file-path').textContent === 'race.py'", 'draft at raced path');
+    await pointerClick('#workspace-save');
+    await wait("document.querySelector('.workspace-error').checkVisibility()", 'stale creation refused');
+    assert.equal(await evaluate("(async () => (await ChatShell.api('/workspace/file?path=race.py')).content)()"), 'other tab');
     assert.deepEqual(errors, [], 'generated file browser errors');
     console.log('PASS: saved generated file collision, cancellation and deliberate replacement');
   } else if (process.argv.includes('--message-find-only')) {

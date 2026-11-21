@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Editing a generated file at an existing path (2026-11-21)
+
+- Goal: Show when a generated snippet will replace an existing workspace file.
+- Done: The editor checks the chosen path in the workspace snapshot. Different saved content gets an explicit replacement decision. Only Save writes the new text, against the revision the editor opened.
+- Checks: On main, Chrome replaced the original file with the generated text without a replacement decision. The same fixture on the fix preserves the original on Cancel and through opening the replacement draft. It also covers deliberate Save, identical content, unused names and a file created by another client while naming the snippet.
+- Landing: Fast-forward after the scoped Chat workspace checks.
+
 ## Chat transcript and follow-up drafts (2026-11-21)
 
 - Goal: Keep the speaker, answer and file actions easy to follow in a long transcript, and quote a passage when asking a follow-up.

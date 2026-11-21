@@ -37,6 +37,7 @@ chats. The test inspects the instructions and attachments received by its model
 fixture and checks that reapplying a project avoids duplicate attachments. Temporary local HTTP
 fixtures exercise stream accumulation and usage, approval and denial, tool
 execution, replay, conversation branches, cancellation and restart recovery.
+Chrome opens generated code at a new path and at an existing one. It checks cancellation, explicit replacement, identical content and a competing creation while the file is being named.
 The browser keeps a focused tool summary connected across approval completion
 and removes the obsolete approval controls.
 Chrome quotes a selected passage, an entire answer and a selection spanning code. It verifies draft focus, attached files and zero server writes.

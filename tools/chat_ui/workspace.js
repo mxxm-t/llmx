@@ -430,8 +430,42 @@
   document.addEventListener('companion:artifact-edit', async event => {
     selectSection('files');
     const selection = ++state.selection;
-    if (!await canReplace() || selection !== state.selection) return; window.ChatShell.show('workbench');
-    try { await load(); if (selection !== state.selection) return; const artifact = event.detail; const path = await window.ChatShell.conversationForm({title: 'Edit generated file', description: 'Choose where to save this generated file in the managed workspace.', label: 'File path', maxLength: 240, value: artifact.name, submit: 'Edit'}); if (!path?.trim() || selection !== state.selection) return; state.path = path.trim(); state.original = ''; state.isNew = true; state.revision = state.snapshot.revision; editor.value = artifact.source; editor.disabled = false; updateEditor(); renderFiles(); editor.focus(); }
+    if (!await canReplace() || selection !== state.selection) return;
+    const previousText = editor.value;
+    window.ChatShell.show('workbench');
+    const loading = viewLoad;
+    const current = () => selection === state.selection && viewLoad === loading;
+    try {
+      await loading;
+      if (!current()) return;
+      const snapshot = state.snapshot;
+      const artifact = event.detail;
+      const path = await window.ChatShell.conversationForm({title: 'Edit generated file',
+        description: 'Choose a path for this file.', label: 'File path', maxLength: 240, value: artifact.name, submit: 'Edit'});
+      if (!path || !current()) return;
+      let existing;
+      if (snapshot.files.some(file => file.path === path)) {
+        existing = await api('/workspace/file?path=' + encodeURIComponent(path));
+        if (!current()) return;
+        if (existing.content !== artifact.source) {
+          const replace = await window.ChatShell.conversationForm({title: 'Replace saved file?',
+            description: path + ' already exists. Open the generated text in the editor? Save will replace the file.',
+            destructive: true, submit: 'Edit replacement'});
+          if (!replace || !current()) return;
+        }
+      }
+      if (editor.value !== previousText && !await canReplace()) return;
+      if (!current()) return;
+      state.path = path;
+      state.original = existing?.content ?? '';
+      state.isNew = !existing;
+      state.revision = existing?.revision ?? snapshot.revision;
+      editor.value = artifact.source;
+      editor.disabled = false;
+      updateEditor();
+      renderFiles();
+      editor.focus();
+    }
     catch (problem) { showError(problem); }
   });
   window.addEventListener('beforeunload', event => { if (dirty()) { event.preventDefault(); event.returnValue = ''; } });

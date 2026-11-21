@@ -1511,15 +1511,54 @@ try {
     assert.equal(apiMutations.length,mutations,'review sent or changed server data');
     await pointerClick('#attachments [aria-label="Remove plot.png"]');
     await wait(draftSnapshot+".attachments?.length===2",'remove remains separate');
-    const saved=await evaluate(`ChatShell.api('/import','POST',{version:1,chat:{title:'Image attachment',active_leaf:'img'},messages:[{id:'img',role:'user',content:'Reference image',attachments:[${JSON.stringify(before.attachments[2])}]}]})`);
+    const messages=[
+      {id:'first',role:'user',content:'Original attachment',attachments:[{name:'page.html',type:'text/plain',text:'Previous version'}]},
+      {id:'unused',parent_id:'first',role:'user',content:'Alternate branch',attachments:[{name:'private.txt',type:'text/plain',text:'Other branch'}]},
+      {id:'img',parent_id:'first',role:'user',content:'Reference image',attachments:[before.attachments[0],before.attachments[2]]}
+    ];
+    const saved=await evaluate(`ChatShell.api('/import','POST',{version:1,chat:{title:'Image attachment',active_leaf:'img'},messages:${JSON.stringify(messages)}})`);
     await reloadDocument();
     await wait(`document.querySelector('[data-chat="${saved.id}"]')`, 'saved image conversation');
     await pointerClick(`[data-chat="${saved.id}"]`);
     const sentImage='.message-attachments [aria-label="View image scan.jpg"]';
     await wait(`document.querySelector(${JSON.stringify(sentImage)})?.checkVisibility()`, 'sent thumbnail');
+    await fill('#draft', 'Follow-up question');
     await pointerClick(sentImage);
     await wait("document.querySelector('#artifact-dialog').open && document.querySelector('.artifact-image').naturalWidth===640", 'inspect sent image');
-    console.log('PASS: inspect draft text, draft and sent images, save original image bytes and return focus');
+    const reuse='#artifact-add-to-draft', draftFiles='#attachments .attachment-pill';
+    const writes=apiMutations.length;
+    await pointerClick(reuse);
+    await wait("document.activeElement.id==='draft' && !document.querySelector('#artifact-dialog').open",'return to follow-up');
+    await pointerClick(sentImage);
+    await pointerClick(reuse);
+    assert.equal(await evaluate(`document.querySelectorAll('${draftFiles}').length`),1,'reuse keeps a single copy');
+    const sentText='.message.user:has(.attachment-picture) [aria-label="Read attachment page.html"]';
+    await pointerClick('#attach-source');
+    await pointerClick('#action-menu [data-action="attach-conversation"]');
+    assert.equal(await evaluate("document.querySelector('#find-message-role').value"),'files');
+    assert.equal(await evaluate("document.querySelectorAll('#find-message-list [data-file]').length"),3);
+    assert(!await evaluate("document.querySelector('#find-message-list').textContent.includes('private.txt')"));
+    await fill('#find-message-query','page.htm');
+    await wait("document.querySelectorAll('#find-message-list [data-file]').length===2",'filter two versions by name');
+    await pointerClick('#find-message-list [data-file]');
+    assert.equal(await evaluate("document.querySelector('.artifact-source code').textContent"),source);
+    await pointerClick(reuse);
+    const stored=`JSON.parse(sessionStorage.getItem('llmx-draft:${saved.id}')||'{}')`;
+    await wait(stored+'.attachments?.length===2','follow-up files stored');
+    const messageFiles=await evaluate(`ChatShell.api('/chats/'+${JSON.stringify(saved.id)}).then(chat=>chat.messages.find(m=>m.content==='Reference image').attachments)`);
+    assert.deepEqual(await evaluate(stored+'.attachments'),[messageFiles[1],messageFiles[0]]);
+    assert.equal(await evaluate(stored+'.text'),'Follow-up question');
+    await pointerClick('#attachments [aria-label="Read attachment page.html"]');
+    assert.equal(await evaluate("document.querySelector('#artifact-add-to-draft').checkVisibility()"),false);
+    await click('#artifact-dialog [aria-label="Close artifact"]');
+    await pointerClick('#attachments [aria-label="Remove page.html"]');
+    await evaluate("ChatComposer.attach([new File(['Changed'], 'page.html',{type:'text/html'})])");
+    await pointerClick(sentText);
+    await pointerClick(reuse);
+    await wait("document.querySelector('.artifact-status').textContent.includes('Remove the existing page.html')",'different version kept');
+    await wait(stored+".attachments[1]?.text==='Changed'",'preserve the newer draft file');
+    assert.equal(apiMutations.length,writes,'attachment reuse wrote server state');
+    console.log('PASS: inspect draft files, download original images, find sent attachments by turn and reuse them in a follow-up');
   } else if (process.argv.includes('--editor-attachments-only')) {
     await signIn();
     await evaluate("ChatShell.api('/workspace/file','POST',{path:'notes/plan.txt',content:'Original',revision:0})");

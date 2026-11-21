@@ -1,5 +1,11 @@
 # llmx - Development Status
 
+## Reuse sent attachments in a follow-up
+
+- Goal: Attach the exact text or image from an earlier message to the current draft.
+- Done: The attachment menu lists files by name and turn on the selected branch. Sent text and image viewers can add their saved copy to the current draft. The composer preserves draft text and other files, deduplicates the same copy and reports a filename conflict before changing anything.
+- Checks: The workspace browser test exercises both formats, separate branches, same-name files from two turns, identical and conflicting versions, keyboard focus and zero writes to the server. The change lands by fast-forward after the scoped workspace checks.
+
 ## Original-size attachment images
 
 - Goal: Read fine detail in a large image from a phone or a narrow viewer.

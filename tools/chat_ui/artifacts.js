@@ -49,7 +49,9 @@ window.ChatArtifacts = (() => {
   const actions = node('div', 'artifact-toolbar-actions'); const edit = node('button', 'secondary-button'); edit.type = 'button'; const copy = node('button', 'secondary-button', 'Copy'); const save = node('button', 'secondary-button', 'Download'); const wrap = node('button', 'secondary-button', 'Wrap lines'); wrap.type = 'button';
   const actualSize = node('button', 'secondary-button', 'Actual size');
   actualSize.type = 'button'; actualSize.id = 'artifact-actual-size'; actualSize.hidden = true;
-  actions.append(edit, wrap, copy, actualSize, save); toolbar.append(modes, actions);
+  const attach = node('button', 'secondary-button', 'Add to draft');
+  attach.type = 'button'; attach.id = 'artifact-add-to-draft'; attach.hidden = true;
+  actions.append(edit, attach, wrap, copy, actualSize, save); toolbar.append(modes, actions);
   const status = node('div', 'artifact-status'); status.setAttribute('role', 'status'); status.hidden = true;
   const content = node('div', 'artifact-content'); const sourcePanel = node('div', 'artifact-source'); sourcePanel.setAttribute('role', 'tabpanel'); sourcePanel.setAttribute('aria-labelledby', sourceButton.id); const pre = node('pre'); const code = node('code'); pre.append(code); sourcePanel.append(pre);
   const previewPanel = node('div', 'artifact-preview'); previewPanel.hidden = true; previewPanel.setAttribute('role', 'tabpanel'); previewPanel.setAttribute('aria-labelledby', previewButton.id);
@@ -130,13 +132,14 @@ window.ChatArtifacts = (() => {
   }
   actualSize.addEventListener('click', () => setActualSize(!imageView.classList.contains('actual-size')));
   new ResizeObserver(updateImageSize).observe(imageView);
-  function openImage(name, data) {
+  function openImage(name, data, addToDraft = null) {
+    attach.hidden = !addToDraft;
     stopPreview();
     const png = data.startsWith('data:image/png;');
     const safeName = filename(name);
     const suffix = png ? '.png' : '.jpg';
     const type = png ? 'PNG' : 'JPEG';
-    current = {type, name: (png ? /\.png$/i : /\.jpe?g$/i).test(safeName) ? safeName : safeName + suffix, data};
+    current = {type, name: (png ? /\.png$/i : /\.jpe?g$/i).test(safeName) ? safeName : safeName + suffix, data, addToDraft};
     title.textContent = name; subtitle.textContent = type;
     modes.hidden = true; sourcePanel.hidden = true; previewPanel.hidden = true;
     wrap.hidden = true; copy.hidden = true; edit.hidden = true; status.hidden = true;
@@ -154,8 +157,9 @@ window.ChatArtifacts = (() => {
     if (imageView.hidden) return;
     closeImage(); status.textContent = 'This image could not be displayed.'; status.hidden = false;
   });
-  function open(artifact, {initialPreview = false, allowWorkspaceEdit = true, workspacePath = '', readOnlyAttachment = false} = {}) {
-    current = {name: filename(artifact.name, artifact.language), language: language(artifact.language), source: String(artifact.source ?? ''), workspacePath};
+  function open(artifact, {initialPreview = false, allowWorkspaceEdit = true, workspacePath = '', readOnlyAttachment = false, addToDraft = null} = {}) {
+    attach.hidden = !addToDraft;
+    current = {name: filename(artifact.name, artifact.language), language: language(artifact.language), source: String(artifact.source ?? ''), workspacePath, addToDraft};
     modes.hidden = false; copy.hidden = false; closeImage();
     const displayName = readOnlyAttachment ? artifact.name : current.name;
     if (readOnlyAttachment && /\.pdf$/i.test(displayName)) current.name = current.name.slice(0, 176) + '.txt';
@@ -183,6 +187,16 @@ window.ChatArtifacts = (() => {
   }
   wrap.addEventListener('click', () => setWrap(!pre.classList.contains('wrapped')));
   copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(current.source); copy.textContent = 'Copied'; } catch (_) { status.textContent = 'Clipboard unavailable. Use Download to save the file.'; status.hidden = false; } });
+  attach.addEventListener('click', () => {
+    if (!current?.addToDraft) return;
+    try {
+      const composer = current.addToDraft();
+      dialog.close();
+      composer.focus();
+    } catch (error) {
+      status.textContent = error.message; status.hidden = false;
+    }
+  });
   save.addEventListener('click', () => {
     if (current.data) downloadURL(current.data, current.name);
     else download(current.source, current.name, current.language);

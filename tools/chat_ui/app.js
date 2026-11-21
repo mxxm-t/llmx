@@ -855,14 +855,21 @@
   function findMessage(outline = false, previous = null) {
     const dialog = $('find-message-dialog'), query = $('find-message-query'), list = $('find-message-list'), more = $('find-message-more');
     const role = $('find-message-role'), earlier = $('find-message-earlier'), messages = dialogueMessages();
-    const cache = new WeakMap(), entries = outline ? [] : searchEntries(messages, cache).reverse();
+    const cache = new WeakMap();
+    const turns = new Map();
+    let turn = 0, entries;
+    for (const message of messages) {
+      if (message.role === 'user') turn++;
+      turns.set(message.id, turn);
+    }
     let matches = [], shown = 0;
     function appendPage() {
       const start = shown;
-      for (const {message, text, filename, raw, at, length} of matches.slice(start, start + 25)) {
+      for (const {message, text, filename, raw, at, length, fileIndex} of matches.slice(start, start + 25)) {
         const item = node('button', 'find-message-result');
         item.type = 'button';
         item.dataset.target = message.id;
+        if (fileIndex !== undefined) item.dataset.file = fileIndex;
         if (raw && length) item.dataset.source = 'true';
         const from = Math.max(0, at - 40), end = Math.min(text.length, at + length + 100);
         const excerpt = node('span');
@@ -871,7 +878,9 @@
         excerpt.append((from ? '...' : '') + text.slice(from, at));
         if (length) excerpt.append(node('mark', '', text.slice(at, at + length)));
         excerpt.append(text.slice(at + length, end) + (end < text.length ? '...' : ''));
-        item.append(node('strong', '', message.role === 'user' ? 'You' : 'Assistant'), excerpt);
+        const who = message.role === 'user' ? 'You' : 'Assistant';
+        const number = fileIndex === undefined ? 0 : turns.get(message.id);
+        item.append(node('strong', '', number ? 'Turn ' + number : who), excerpt);
         list.append(item);
         shown++;
       }
@@ -882,20 +891,34 @@
       const term = query.value.trim();
       const pattern = term ? literalPattern(term, 'iu') : null;
       matches = [];
-      for (const {message, fields} of entries) {
-        if (role.value !== 'all' && message.role !== role.value) continue;
-        const source = {text:message.content, source:true};
-        const searchable = pattern ? [...fields, source] : [source, ...fields];
-        for (const {text, filename, source: raw} of searchable) {
-          if (!text) continue;
-          const hit = pattern?.exec(text);
-          if (pattern && !hit) continue;
-          matches.push({message, text, filename, raw, at: hit?.index || 0, length: hit?.[0].length || 0});
-          break;
+      const filesOnly = role.value === 'files';
+      if (filesOnly) {
+        for (const message of messages.slice().reverse()) {
+          (message.attachments || []).forEach((file, fileIndex) => {
+            const text = file.name || 'Attachment';
+            const hit = pattern?.exec(text);
+            if ((!pattern || hit) && (typeof file.text === 'string' || typeof file.data === 'string'))
+              matches.push({message, text, fileIndex, at: hit?.index || 0, length: hit?.[0].length || 0});
+          });
+        }
+      } else {
+        entries ??= searchEntries(messages, cache).reverse();
+        for (const {message, fields} of entries) {
+          if (role.value !== 'all' && message.role !== role.value) continue;
+          const source = {text:message.content, source:true};
+          const searchable = pattern ? [...fields, source] : [source, ...fields];
+          for (const {text, filename, source: raw} of searchable) {
+            if (!text) continue;
+            const hit = pattern?.exec(text);
+            if (pattern && !hit) continue;
+            matches.push({message, text, filename, raw, at: hit?.index || 0, length: hit?.[0].length || 0});
+            break;
+          }
         }
       }
       const count = matches.length;
-      $('find-message-count').textContent = count ? count + (term ? ' matching message' : ' message') + (count === 1 ? '' : 's') + ', newest first' : 'No matching messages';
+      const noun = filesOnly ? 'attachment' : 'message';
+      $('find-message-count').textContent = count ? count + (term ? ' matching ' : ' ') + noun + (count === 1 ? '' : 's') + ', newest first' : 'No matching ' + noun + 's';
       shown = 0;
       list.replaceChildren();
       appendPage();
@@ -924,6 +947,15 @@
       if (!item) return;
       const term = query.value.trim();
       dialog.close();
+      if (item.dataset.file !== undefined) {
+        const article = $('messages').querySelector('[data-message="' + CSS.escape(item.dataset.target) + '"]');
+        const control = article?.querySelector('.message-attachments')?.children[Number(item.dataset.file)];
+        if (!control?.matches('button')) return toast('This attachment is unavailable.');
+        jumpToMessage(item.dataset.target);
+        control.focus({preventScroll: true});
+        control.click();
+        return;
+      }
       if (term && !item.dataset.source) startPassages(term, role.value, item.dataset.target, cache);
       else { closePassages(); jumpToMessage(item.dataset.target); }
     };
@@ -996,15 +1028,20 @@
     open.type = 'button';
     open.setAttribute('aria-haspopup', 'dialog');
     open.setAttribute('aria-label', (image ? 'View image ' : 'Read attachment ') + name);
-    if (image) {
-      if (!draft) {
-        const thumbnail = node('img', 'attachment-image'); thumbnail.src = attachment.data; thumbnail.alt = name; thumbnail.loading = 'lazy';
-        open.replaceChildren(thumbnail);
-      }
-      open.addEventListener('click', () => window.ChatArtifacts.openImage(name, attachment.data));
-    } else {
-      open.addEventListener('click', () => window.ChatArtifacts.open({name, source: attachment.text}, {readOnlyAttachment: true}));
+    if (image && !draft) {
+      const thumbnail = node('img', 'attachment-image'); thumbnail.src = attachment.data; thumbnail.alt = name; thumbnail.loading = 'lazy';
+      open.replaceChildren(thumbnail);
     }
+    open.addEventListener('click', () => {
+      const generation = S.generation;
+      const addToDraft = draft ? null : () => {
+        if (generation !== S.generation || !open.isConnected) throw new Error('Reopen the attachment in the current conversation.');
+        appendAttachments([attachment]);
+        return $('draft');
+      };
+      if (image) window.ChatArtifacts.openImage(name, attachment.data, addToDraft);
+      else window.ChatArtifacts.open({name, source: attachment.text}, {readOnlyAttachment: true, addToDraft});
+    });
     return open;
   }
   function toolJson(value) {
@@ -1721,7 +1758,7 @@
       throw new Error(chatId !== S.chat?.id || generation !== S.generation
         ? 'Attachment read cancelled because the selected conversation changed.'
         : 'The draft changed while the attachment was being read. Attach the file again.');
-    if (fromWorkspace) appendWorkspaceAttachments(pending, true);
+    if (fromWorkspace) appendAttachments(pending, true);
     else setDraftAttachments([...S.attachments, ...pending]);
     if ($('app').dataset.view === 'chat') $('draft').focus();
   }
@@ -1732,10 +1769,10 @@
     S.attachments.splice(0, S.attachments.length, ...files);
     composerRevision++; renderAttachments();
   }
-  function appendWorkspaceAttachments(files, fromEditor = false) {
+  function appendAttachments(files, fromEditor = false) {
     const pending = files.filter(file => {
       const existing = S.attachments.filter(item => item.name === file.name);
-      if (existing.some(item => item.text !== file.text)) {
+      if (existing.some(item => item.text !== file.text || item.data !== file.data)) {
         if (fromEditor && files.length === 1 && existing.length === 1 && typeof existing[0].text === 'string') {
           const problem = new Error('The draft has another version of ' + file.name + '.');
           const revision = composerRevision, generation = S.generation;
@@ -1758,7 +1795,7 @@
     return {system, apply(context, copyInstructions) {
       if (chat !== S.chat?.id || generation !== S.generation || revision !== composerRevision || system !== $('setting-system').value || $('app').dataset.view !== 'chat')
         throw new Error('The conversation or draft changed. Choose the file or project again.');
-      appendWorkspaceAttachments(context.files.map(({path, text}) => ({name: workspaceName(path), type: 'text/plain', text})));
+      appendAttachments(context.files.map(({path, text}) => ({name: workspaceName(path), type: 'text/plain', text})));
       if (copyInstructions) $('setting-system').value = context.project.instructions;
       closeDrawers(false);
     }};
@@ -1839,6 +1876,8 @@
         {action: 'attach-files', label: 'Saved files'},
         {action: 'attach-project', label: 'Saved project'}
       ];
+      if (dialogueMessages().some(message => message.attachments?.length))
+        sources.push({action: 'attach-conversation', label: 'From this conversation'});
       return window.ChatShell.menu(el, 'Attach', sources, choice => action(choice, el).catch(error => toast(error.message)), {above: true});
     }
     if (name !== 'chat-menu') window.ChatShell.closeMenu();
@@ -1882,6 +1921,7 @@
     }
     if (name === 'theme') { setTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light', true); return; }
     if (name === 'archive-view') { S.archive = !S.archive; queueChatSearch(); return; }
+    if (name === 'attach-conversation') return findMessage(false, {role: 'files'});
     if (name === 'attach-device') return $('file-input').click();
     if (name === 'attach-files') return window.ChatProjectContext.openFiles();
     if (name === 'attach-project') return window.ChatProjectContext.openProjects();

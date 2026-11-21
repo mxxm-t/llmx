@@ -3828,6 +3828,8 @@ private:
         if (ops_.size() >= dev_.profile.dispatch_chunk) flush();
     }
     void issue(typename Api::Function f, unsigned gx, unsigned gy, unsigned gz, unsigned threads, const Args& args, const char* name, unsigned shared = 0) {
+        // A held inject goes first, since its hold may flush and empty op_bytes_ under an offset taken before it.
+        materialize();
         const size_t at = (op_bytes_.size() + 15) & ~size_t(15);
         op_bytes_.resize(at + args.size);
         std::memcpy(op_bytes_.data() + at, args.bytes, args.size);

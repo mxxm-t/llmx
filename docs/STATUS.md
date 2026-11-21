@@ -19,6 +19,8 @@ name and reopen the saved conversation with focus in its composer.
 
 ## Workspace editor and draft attachments (2026-11-21, Done)
 
+The [companion API contract](../tools/chat_ui/CONTRACT.md#routes) now documents atomic file import and comparison of unsaved text. The workspace HTTP tests cover both routes. This documentation correction lands by fast-forward.
+
 A saved tool result opens the latest file in the editor or resumes unsaved changes to the same path. Attaching a file twice keeps one copy. When the draft contains one older text attachment for that path, **Replace in draft** updates the existing slot and returns focus to the message. The saved file retains its contents. [Workspace usage](../tools/chat_ui/README.md#work-on-files)
 
 | Check | Result |

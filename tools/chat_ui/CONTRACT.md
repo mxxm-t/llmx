@@ -137,6 +137,11 @@ These routes share the chat session and mutation-header rules.
   returns `{revision,files:[{path,text}]}` in request order and from one locked
   saved revision. Invalid selections return 400. A missing file returns 404
   without any file texts.
+- `POST /api/workspace/files` takes `{revision,files:[{path,content}]}` and
+  imports new text files together. Use the current workspace revision and
+  unique relative paths. Success returns the workspace snapshot with the
+  revision advanced once. A stale revision returns 409. A duplicate or
+  existing path returns 400. A rejected batch saves none of its files.
 - `GET /api/workspace/file?path=PATH`: `{path,content,revision}`.
 - `POST /api/workspace/file` with `{path,content,revision}` or `/api/workspace/delete` with `{path,revision}`: revision-checked edit returning the new snapshot.
 - `GET /api/workspace/projects`: `{projects:[{id,name,instructions,paths,version}]}`.
@@ -155,6 +160,10 @@ These routes share the chat session and mutation-header rules.
   selected file returns 409, and an empty selection returns 400.
 - `POST /api/workspace/checkpoints` with `{label}`: checkpoint and return snapshot. `POST /api/workspace/checkpoints/ID/restore` with `{revision}` restores after first checkpointing the current files.
 - `GET /api/workspace/diff?checkpoint=ID`: `{diff}` with a unified text diff.
+- `POST /api/workspace/diff` takes `{path,content}` and returns `{diff}`.
+  It compares the current saved file with the proposed text. Identical texts
+  return an empty diff. A missing file returns 404. Comparing leaves the
+  saved file and its revision unchanged.
 - `POST /api/workspace/jobs` with `{command}`: `{job}`. `GET /api/workspace/jobs/ID` reads it; `POST /api/workspace/jobs/ID/cancel` with `{}` requests cancellation.
 
 A job contains `id,command,status,output,output_truncated,exit_code,error,created`.

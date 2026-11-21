@@ -474,6 +474,7 @@ The operator can attach MCP servers over HTTP. Create a private JSON file:
   "servers": [
     {
       "name": "images",
+      "label": "Search",
       "url": "http://127.0.0.1:9100/mcp",
       "approval": true
     }
@@ -512,7 +513,7 @@ the connection's entire new catalogue. Automatic retries keep their 30-second
 backoff, and the button permits an explicit retry. Status is the last discovery
 result, not a continuous health guarantee.
 
-Tool headings come from the configured connections and capitalize their first letter for display. Tool selection is saved per conversation. Each tool shows whether approval is
+The optional `label` sets the heading in both Settings views. Without a label, the heading uses the connection name. Changing a label preserves the tool names and saved selections. Tool selection is saved per conversation. Each tool shows whether approval is
 required. Refreshing connections preserves unsaved chat settings, draft text and
 selected tools that became unavailable. Unavailable selections can be removed.
 Approval policy comes from the operator configuration and is not editable in the

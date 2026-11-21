@@ -64,9 +64,11 @@ class ToolRegistry:
             if not isinstance(item, dict):
                 raise ValueError("invalid tool server configuration")
             name, url = item.get("name"), item.get("url")
+            label = item.get("label", name)
             headers = item.get("headers", {})
             approval = item.get("approval", True)
             if (not isinstance(name, str) or not name or name in names or
+                    not isinstance(label, str) or not label.strip() or
                     not isinstance(url, str) or not isinstance(headers, dict) or
                     not isinstance(approval, bool)):
                 raise ValueError("invalid tool server configuration")
@@ -88,7 +90,7 @@ class ToolRegistry:
                     raise ValueError("invalid tool server configuration")
                 checked_headers[key] = value
             names.add(name)
-            servers.append({"name": name, "url": url, "headers": checked_headers,
+            servers.append({"name": name, "label": label.strip(), "url": url, "headers": checked_headers,
                             "approval": approval, "session_id": None, "protocol_version": None,
                             "initialized": False, "init_lock": threading.Lock(), "tools": [],
                             "checked_at": None, "duration_ms": None, "error": None, "checking": False})
@@ -307,7 +309,7 @@ class ToolRegistry:
 
     def connections(self):
         with self._lock:
-            return [dict(id="mcp:" + server["name"], name=server["name"], kind="mcp",
+            return [dict(id="mcp:" + server["name"], name=server["label"], kind="mcp",
                          status="checking" if server["checking"] else "unchecked" if server["checked_at"] is None else "error" if server["error"] else "ready",
                          tool_count=sum(tool["server"] == server["name"] for tool in self._tools or []),
                          approval=server["approval"], checked_at=server["checked_at"],

@@ -14,11 +14,18 @@ and pointer activation, middle-click and modifier-click in another tab,
 browser context menus, preserved drafts and History. Temporary chat IDs stay
 out of all sidebar links. Logs are in `scratch/chat-native-sidebar-links/`.
 
-**Left.** Complete the full workspace and scoped landing checks.
+The change lands by fast-forward after the scoped Chat workspace checks.
 
 **Gotchas.** The History owner reads the top-level addresses from the links
 and supplies the saved-chat address for both the selected view and its link.
 The Markdown review adds native sidebar navigation to usage and tests.
+
+## MCP connection labels
+
+An optional label sets the heading for a tool connection in Chat settings and
+the connections list. The registry check covers the label, fallback name,
+stable tool selection and connection check. This companion change lands by
+fast-forward after the scoped Chat workspace checks.
 
 ## Reopening an editor confirmation
 

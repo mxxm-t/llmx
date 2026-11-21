@@ -113,6 +113,20 @@ class ToolRegistryTests(unittest.TestCase):
             json.dump({"servers": [server]}, output)
         return ToolRegistry(self.config)
 
+    def test_connection_label_preserves_tool_identity(self):
+        self.assertEqual(self.registry().connections()[0]["name"], "local")
+        registry = self.registry(label="Search")
+        connection = registry.connections()[0]
+        self.assertEqual((connection["id"], connection["name"]), ("mcp:local", "Search"))
+        tool = registry.list_tools()[0]
+        self.assertEqual((tool["connection"], tool["name"]), ("mcp:local", "local__echo"))
+        registry.test_connection("mcp:local")
+        self.assertEqual(registry.connections()[0]["status"], "ready")
+        self.assertTrue(tool["approval"])
+        for label in (None, 123, "  "):
+            with self.subTest(label=label), self.assertRaises(ValueError):
+                self.registry(label=label)
+
     def test_discovery_invocation_session_and_public_shape(self):
         registry = self.registry()
         tools = registry.list_tools()

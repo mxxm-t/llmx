@@ -820,6 +820,7 @@ try {
         messages.push({id:'p'+i,parent_id:i?'a'+(i-1):null,role:'user',content:'Prompt '+i});
         messages.push({id:'a'+i,parent_id:'p'+i,role:'assistant',content:'Answer ['+i+']', reasoning:'Private reasoning marker'});
       }
+      messages.find(m=>m.id==='a24').content = 'First paragraph.\\n\\n~~~python\\nprint(24)\\n#' + 'x'.repeat(240) + '\\n~~~\\n\\nFinal paragraph.';
       const upload = name => ({name,type:'text/plain',text:'Private attachment body'});
       Object.assign(messages.find(m=>m.id==='p16'), {content:'', attachments:[upload('summary.md'), upload('budget[1].csv')]});
       messages.find(m=>m.id==='p22').attachments = [upload('notes.txt'), upload('notes.md')];
@@ -915,6 +916,45 @@ try {
     assert.match(transcript, /## You\n\nPrompt 0\n\n## Assistant\n\nAnswer \[0\]/);
     assert.doesNotMatch(transcript, /Private reasoning marker|Private attachment body|budget\[1\]|summary\.md|Alternate branch marker|Unsent draft/);
     assert.equal(apiMutations.length, writes, 'search changed server state');
+    const quoteTarget = '.message.assistant:last-of-type [data-action=quote]';
+    await evaluate(`(() => {
+      const answer = document.querySelector('.message.assistant:last-of-type > .markdown p').firstChild;
+      const range = document.createRange();
+      range.setStart(answer, 0); range.setEnd(answer, 6);
+      window.getSelection().removeAllRanges(); window.getSelection().addRange(range);
+    })()`);
+    await pointerClick(quoteTarget);
+    assert.equal(await evaluate("document.querySelector('#draft').value"), 'Unsent draft\n\n> Answer\n\n');
+    assert.equal(await evaluate('document.activeElement.id'), 'draft');
+    await evaluate('window.getSelection().removeAllRanges()');
+    await pointerClick(quoteTarget);
+    assert.equal(await evaluate("document.querySelector('#draft').value.endsWith('> Answer [26]\\n\\n')"), true);
+    assert.equal(await evaluate("document.querySelectorAll('#attachments .attachment-pill').length"), 2);
+    await fill('#draft', '');
+    await evaluate(`(() => {
+      const body = document.querySelector('.message.assistant .code-block').parentElement;
+      const range = document.createRange(); range.selectNodeContents(body);
+      window.getSelection().removeAllRanges(); window.getSelection().addRange(range);
+    })()`);
+    await pointerClick('.message.assistant:has(.code-block) [data-action=quote]');
+    const excerpt = await evaluate("document.querySelector('#draft').value");
+    assert.match(excerpt, /First paragraph\.[\s\S]*print\(24\)[\s\S]*Final paragraph\./);
+    assert.doesNotMatch(excerpt, /Download|Copy code|Open|Private reasoning/);
+    assert.equal(apiMutations.length, writes, 'quoting must only change the draft');
+    await pointerClick('.code-heading button:last-child');
+    await cdp('Emulation.setDeviceMetricsOverride', {width:320,height:800,deviceScaleFactor:1,mobile:true});
+    const wrap = '#artifact-dialog button[aria-pressed]';
+    const expectedCode = 'print(24)\n#' + 'x'.repeat(240);
+    const overflows = "(() => {const panel=document.querySelector('.artifact-source');return panel.scrollWidth > panel.clientWidth + 1})()";
+    assert.equal(await evaluate(overflows), true, 'long source line overflows before wrapping');
+    assert.equal(await evaluate("document.querySelector('#artifact-dialog pre code').textContent"), expectedCode);
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('.artifact-source pre')).whiteSpace"), 'pre');
+    await pointerClick(wrap);
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('.artifact-source pre')).whiteSpace"), 'pre-wrap');
+    assert.equal(await evaluate(overflows), false, 'wrapped code fits the phone screen');
+    assert.equal(await evaluate("document.querySelector('#artifact-dialog pre code').textContent"), expectedCode);
+    await pointerClick(wrap);
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('.artifact-source pre')).whiteSpace"), 'pre');
     assert.deepEqual(errors, [], 'message navigation browser errors');
     console.log('PASS: prompt index, page two, literal match, branch isolation, focus and draft preservation');
   } else if (process.argv.includes('--workflow-only')) {
@@ -1871,12 +1911,22 @@ try {
   await cdp('Input.dispatchKeyEvent', {type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27});
   await cdp('Input.dispatchKeyEvent', {type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27});
   assert.equal(await evaluate("!document.querySelector('.message-action-tooltip') && !document.querySelector('.message.assistant [data-action=retry]').hasAttribute('aria-describedby')"), true, 'Escape did not dismiss the action tooltip');
+  await evaluate(`{
+    const region = document.querySelector('#scroll-region');
+    region.style.maxHeight = Math.floor(Math.min(region.scrollHeight, region.clientHeight) / 2) + 'px';
+  }`);
   const userEditPoint = await actionHoverPoint('.message.user [data-action=edit]');
   assert(userEditPoint.hit, 'Edit hover target is obscured: ' + JSON.stringify(userEditPoint));
   await cdp('Input.dispatchMouseEvent', {type: 'mouseMoved', x: userEditPoint.x, y: userEditPoint.y});
   assert.equal(await evaluate("{const b=document.querySelector('.message.user [data-action=edit]'),t=document.getElementById(b.getAttribute('aria-describedby')),r=t?.getBoundingClientRect(); b.matches(':hover') && t?.textContent==='Edit message' && r.left>=0 && r.right<=innerWidth}"), true, 'edge message tooltip is clipped');
-  await evaluate("{const s=document.querySelector('#scroll-region');s.scrollTop=s.scrollTop>0?s.scrollTop-1:1}");
+  const moved = await evaluate(`{
+    const region = document.querySelector('#scroll-region'), before = region.scrollTop;
+    region.scrollTop += before >= 4 ? -4 : 4;
+    region.scrollTop !== before;
+  }`);
+  assert.equal(moved, true, 'the tooltip scroll test must actually move the transcript');
   await wait("!document.querySelector('.message-action-tooltip')", 'tooltip dismissal while scrolling');
+  await evaluate("document.querySelector('#scroll-region').style.removeProperty('max-height')");
   await cdp('Input.dispatchMouseEvent', {type: 'mouseMoved', x: 10, y: 90});
   await click('.message.assistant [data-action=copy]');
   await wait("!document.querySelector('#toast').hidden && document.querySelector('#toast').textContent==='Message copied.'", 'accessible message copy confirmation');

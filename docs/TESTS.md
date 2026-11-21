@@ -39,6 +39,7 @@ fixtures exercise stream accumulation and usage, approval and denial, tool
 execution, replay, conversation branches, cancellation and restart recovery.
 The browser keeps a focused tool summary connected across approval completion
 and removes the obsolete approval controls.
+Chrome quotes a selected passage, an entire answer and a selection spanning code. It verifies draft focus, attached files and zero server writes.
 Compose-state checks preserve ordinary text, attachments and edit targets on
 reselect, navigation and reload, keep drafts separate, migrate the blank draft
 on explicit creation, retain memory drafts after storage write failures and

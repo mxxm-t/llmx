@@ -350,7 +350,7 @@ kbd {
 .scroll-region:has(#welcome:not([hidden])) {
   flex:none;
   overflow:visible;
-  margin-top:clamp(24px,7vh,72px)
+  margin-top:clamp(24px,5vh,52px)
 }
 .welcome {
   display:flex;
@@ -436,11 +436,10 @@ kbd {
 .chat-stage:has(#welcome:not([hidden])) .composer-caption { display:none }
 .composer {
   border:1px solid var(--line);
-  border-radius:8px;
-  background:var(--panel);
-  padding:13px 14px 10px
+  border-radius:5px;
+  background:var(--panel)
 }
-.chat-stage:has(#welcome:not([hidden])) #draft { min-height:88px }
+.chat-stage:has(#welcome:not([hidden])) #draft { min-height:80px }
 #composer:has(#file-drop-hint:not([hidden])) {
   position:relative;
   outline:2px dashed var(--accent);
@@ -462,25 +461,30 @@ kbd {
   border-color:var(--muted)
 }
 #draft {
-  background:none;
-  border:0;
-  outline:0;
+  display:block;
   width:100%;
-  resize:none;
-  min-height:40px;
+  min-height:46px;
   max-height:220px;
-  line-height:1.6;
-  font-size:15px;
-  padding:0 2px 12px
+  padding:10px 14px;
+  border:0;
+  border-radius:inherit;
+  outline:0;
+  background:transparent;
+  font-size:16px;
+  line-height:1.5;
+  resize:none
 }
-#draft::placeholder {
-  color:var(--faint)
-}
+#draft:placeholder-shown { max-height:46px }
+#draft::placeholder { color:var(--muted) }
 .composer-toolbar {
   display:flex;
   align-items:center;
   justify-content:space-between;
-  gap:10px
+  gap:10px;
+  padding:4px 7px;
+  border-top:1px solid color-mix(in srgb,var(--line) 70%,transparent);
+  border-radius:0 0 4px 4px;
+  background:color-mix(in srgb,var(--inset) 65%,var(--panel))
 }
 .composer-left {
   display:flex;
@@ -511,7 +515,7 @@ kbd {
   justify-content:center;
   width:36px;
   height:36px;
-  border-radius:6px;
+  border-radius:4px;
   background:var(--text);
   color:var(--panel);
   flex-shrink:0
@@ -531,8 +535,8 @@ kbd {
   gap:10px;
   font-size:9px;
   color:var(--faint);
-  margin-top:12px;
-  padding:0 3px
+  margin-top:6px;
+  padding:0 2px
 }
 .composer-caption strong {
   color:var(--muted);
@@ -768,6 +772,7 @@ kbd {
   width:100%
 }
 .messages {
+  container-type:inline-size;
   max-width:var(--reading-width);
   margin:0 auto;
   padding:20px var(--page-edge) 12px
@@ -807,30 +812,18 @@ kbd {
 .message.assistant.continuation>.message-header {
   display:none
 }
-.message.user {
-  padding:14px 0 12px clamp(20px,7%,60px);
-  display:flex;
-  flex-direction:column;
-  align-items:flex-end;
-  margin-bottom:10px
-}
+.message.user { padding:16px 0 8px }
 .message.assistant + .message.user {
-  border-top:1px solid var(--border)
-}
-.message.user:has(+ .message.assistant) {
-  padding-bottom:8px;
-  margin-bottom:0
+  border-top:1px solid var(--line);
+  margin-top:14px
 }
 .message-header {
   display:flex;
   align-items:center;
   gap:9px;
-  margin-bottom:14px;
+  margin-bottom:8px;
   font-size:13px;
   font-weight:600
-}
-.message.assistant>.message-header {
-  margin-bottom:8px
 }
 .message-time {
   color:var(--faint);
@@ -838,32 +831,50 @@ kbd {
   font-weight:400;
   font-variant-numeric:tabular-nums
 }
-.message.user>.message-header {
-  margin-bottom:9px
-}
 .message.user>.markdown {
   border:0;
-  background:var(--surface);
-  border-radius:6px;
-  padding:11px 16px;
-  max-width:100%;
-  font-size:14px
+  background:color-mix(in srgb,var(--surface) 56%,var(--panel));
+  border-radius:4px;
+  padding:10px 14px;
+  font-size:15px;
+  line-height:1.6
 }
 .markdown {
   font-size:14px;
-  line-height:1.8;
+  line-height:1.65;
   min-width:0;
   width:100%
 }
-.message.user>.markdown {
-  width:auto
-}
 .message.assistant>.markdown {
   font-size:16px;
-  line-height:1.65
+  line-height:1.6
 }
 .message.assistant>.markdown>:is(p,ul,ol,blockquote) {
   max-width:68ch
+}
+@container (min-width:660px) {
+  .message {
+    --speaker-width:80px;
+    --column-gap:20px;
+    display:grid;
+    grid-template-columns:var(--speaker-width) minmax(0,1fr);
+    column-gap:var(--column-gap);
+    align-items:start
+  }
+  .message>* { grid-column:2 }
+  .message>.message-header {
+    grid-area:1 / 1;
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:3px;
+    margin:3px 0 0
+  }
+  .message.user>.message-header { margin-top:9px }
+  .message.assistant:is(.continuation,:has(+ .message.assistant.continuation)) { padding-inline-start:0 }
+  .message.assistant:is(.continuation,:has(+ .message.assistant.continuation))::before {
+    inset-inline-start:calc(var(--speaker-width) + var(--column-gap) / 2)
+  }
 }
 .markdown>:first-child {
   margin-top:0
@@ -874,24 +885,21 @@ kbd {
 .markdown p {
   margin:0 0 13px
 }
-.markdown h2,.markdown h3,.markdown h4 {
+.markdown :is(h2,h3,h4,h5,h6) {
   line-height:1.5;
-  margin:25px 0 12px;
+  margin:20px 0 9px;
   font-weight:600;
   letter-spacing:-.3px
 }
 .markdown h2 {
   font-size:21px
 }
-.markdown h3 {
-  font-size:17px
-}
-.markdown h4 {
-  font-size:14px
-}
+.markdown h3 { font-size:18px }
+.markdown h4 { font-size:16px }
+.markdown h5,.markdown h6 { font-size:15px }
 .markdown code {
   font-family:ui-monospace,SFMono-Regular,Consolas,monospace;
-  font-size:11px;
+  font-size:.86em;
   background:var(--hover);
   padding:2px 5px;
   border-radius:4px
@@ -954,7 +962,7 @@ kbd {
 .markdown table {
   width:100%;
   border-collapse:collapse;
-  font-size:11px
+  font-size:13px
 }
 .markdown th,.markdown td {
   padding:9px 12px;
@@ -1586,9 +1594,6 @@ dialog::backdrop {
   .composer-area {
     padding:10px 16px 16px
   }
-  .composer {
-    padding:14px 12px 10px
-  }
   .composer-caption {
     font-size:8px;
     line-height:1.6
@@ -1606,17 +1611,11 @@ dialog::backdrop {
   .messages {
     padding:16px 16px 8px
   }
-  .message.user {
-    padding-left:25px
-  }
   .markdown {
     font-size:13px
   }
   .inspector-heading {
     height:68px
-  }
-  .message.user>.markdown {
-    padding:11px 14px
   }
   .new-chat {
     font-size:12px

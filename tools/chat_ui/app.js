@@ -819,6 +819,11 @@
     if (message.content) actions.append(actionIcon('Copy message', 'copy', message.id, 'M8 5H5v16h12v-3 M9 3h11v14H9z'));
     if (message.role === 'user') actions.append(actionIcon('Edit message', 'edit', message.id, 'M4 16.5V20h3.5L19 8.5 15.5 5 4 16.5z M13.8 6.7l3.5 3.5'));
     if (message.role === 'assistant') actions.append(actionIcon('Retry response', 'retry', message.id, 'M20 7v5h-5 M19 12a7 7 0 1 1-2-5'));
+    if (message.role === 'assistant' && message.content) {
+      const quote = actionIcon('Quote in reply', 'quote', message.id, 'M4 6h6v6l-4 6H4l3-6H4z M14 6h6v6l-4 6h-2l3-6h-3z');
+      quote.addEventListener('mousedown', event => { if (event.button === 0) event.preventDefault(); });
+      actions.append(quote);
+    }
     const siblings = S.messages.filter(m => m.role === message.role && m.parent_id === message.parent_id);
     if (siblings.length > 1) {
       const index = siblings.findIndex(m => m.id === message.id); const branch = node('span', 'branch-switch');
@@ -1505,6 +1510,39 @@
     if (!S.chat) return;
     if (name === 'stop') { const run = currentRun(); if (run) { await api('/runs/' + encodeURIComponent(run.id) + '/cancel', 'POST', {}); toast('Stop requested.'); } }
     if (name === 'copy') { const message = S.messages.find(m => m.id === el.dataset.id); await navigator.clipboard.writeText(message.content || ''); toast('Message copied.'); }
+    if (name === 'quote') {
+      const message = S.messages.find(item => item.id === el.dataset.id);
+      if (!message?.content) return;
+      const body = el.closest('.message').querySelector(':scope > .markdown');
+      const selection = window.getSelection();
+      let passage = message.content;
+      if (selection?.rangeCount && !selection.isCollapsed) {
+        const range = selection.getRangeAt(0);
+        if (!body?.contains(range.commonAncestorContainer)) throw new Error('Select text within this answer to quote it.');
+        passage = selection.toString();
+        const fragment = range.cloneContents();
+        const controls = fragment.querySelectorAll('.code-heading');
+        if (controls.length) {
+          controls.forEach(heading => heading.remove());
+          const excerpt = node('div', 'markdown');
+          excerpt.style.position = 'fixed';
+          excerpt.style.left = '-200vw';
+          excerpt.append(fragment);
+          document.body.append(excerpt);
+          passage = excerpt.innerText.trimEnd();
+          excerpt.remove();
+        }
+      }
+      const draft = $('draft');
+      const quoted = passage.replace(/^/gm, '> ') + '\n\n';
+      const separator = draft.value && !draft.value.endsWith('\n\n') ? (draft.value.endsWith('\n') ? '\n' : '\n\n') : '';
+      const addition = separator + quoted;
+      if (draft.value.length + addition.length > draft.maxLength) throw new Error('Select a shorter passage to fit the message limit.');
+      draft.setRangeText(addition, draft.value.length, draft.value.length, 'end');
+      draft.dispatchEvent(new Event('input', {bubbles: true}));
+      draft.focus();
+      draft.scrollTop = draft.scrollHeight;
+    }
     if (name === 'edit') { if (currentRun()) throw new Error('Stop the current response before editing.'); const message = S.messages.find(m => m.id === el.dataset.id); S.edit = message; $('draft').value = message.content || ''; S.attachments = [...(message.attachments || [])]; composerRevision++; renderAttachments(); $('edit-note').hidden = false; resizeDraft(); $('draft').focus(); }
     if (name === 'retry') await retry(el.dataset.id);
     if (name === 'branch') await branch(el.dataset.id);

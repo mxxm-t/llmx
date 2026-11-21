@@ -38,7 +38,8 @@ window.ChatArtifacts = (() => {
   const sourceButton = node('button', '', 'Source'); sourceButton.type = 'button'; sourceButton.setAttribute('role', 'tab'); sourceButton.setAttribute('aria-selected', 'true'); sourceButton.id = 'artifact-source-tab';
   const previewButton = node('button', '', 'Preview'); previewButton.type = 'button'; previewButton.setAttribute('role', 'tab'); previewButton.setAttribute('aria-selected', 'false'); previewButton.id = 'artifact-preview-tab';
   modes.append(sourceButton, previewButton);
-  const actions = node('div', 'artifact-toolbar-actions'); const edit = node('button', 'secondary-button', 'Edit in workspace'); edit.type = 'button'; const copy = node('button', 'secondary-button', 'Copy'); const save = node('button', 'secondary-button', 'Download'); actions.append(edit, copy, save); toolbar.append(modes, actions);
+  const actions = node('div', 'artifact-toolbar-actions'); const edit = node('button', 'secondary-button', 'Edit in workspace'); edit.type = 'button'; const copy = node('button', 'secondary-button', 'Copy'); const save = node('button', 'secondary-button', 'Download'); const wrap = node('button', 'secondary-button', 'Wrap lines'); wrap.type = 'button';
+  actions.append(edit, wrap, copy, save); toolbar.append(modes, actions);
   const status = node('div', 'artifact-status'); status.setAttribute('role', 'status'); status.hidden = true;
   const content = node('div', 'artifact-content'); const sourcePanel = node('div', 'artifact-source'); sourcePanel.setAttribute('role', 'tabpanel'); sourcePanel.setAttribute('aria-labelledby', sourceButton.id); const pre = node('pre'); const code = node('code'); pre.append(code); sourcePanel.append(pre);
   const previewPanel = node('div', 'artifact-preview'); previewPanel.hidden = true; previewPanel.setAttribute('role', 'tabpanel'); previewPanel.setAttribute('aria-labelledby', previewButton.id);
@@ -49,7 +50,7 @@ window.ChatArtifacts = (() => {
   content.append(sourcePanel, previewPanel); dialog.append(header, toolbar, status, content); document.body.append(dialog);
   function stopPreview() { previewVersion++; bridgeToken = ''; if (frame) frame.remove(); frame = null; }
   function showSource() {
-    stopPreview(); sourcePanel.hidden = false; previewPanel.hidden = true; status.hidden = true;
+    stopPreview(); wrap.hidden = false; sourcePanel.hidden = false; previewPanel.hidden = true; status.hidden = true;
     sourceButton.setAttribute('aria-selected', 'true'); previewButton.setAttribute('aria-selected', 'false');
   }
   function bridge(token) {
@@ -70,7 +71,7 @@ window.ChatArtifacts = (() => {
     if (!current || previewButton.hidden) return;
     stopPreview(); const version = previewVersion;
     const bytes = crypto.getRandomValues(new Uint8Array(24)); bridgeToken = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
-    sourcePanel.hidden = true; previewPanel.hidden = false; status.hidden = false; status.textContent = 'Preparing isolated preview...'; consoleOutput.replaceChildren(); consoleSummary.textContent = 'Console / 0 entries';
+    wrap.hidden = true; sourcePanel.hidden = true; previewPanel.hidden = false; status.hidden = false; status.textContent = 'Preparing isolated preview...'; consoleOutput.replaceChildren(); consoleSummary.textContent = 'Console / 0 entries';
     projectInfo.hidden = true; projectInfo.open = false;
     sourceButton.setAttribute('aria-selected', 'false'); previewButton.setAttribute('aria-selected', 'true');
     try {
@@ -95,6 +96,7 @@ window.ChatArtifacts = (() => {
     current = {name: filename(artifact.name, artifact.language), language: language(artifact.language), source: String(artifact.source ?? ''), workspacePath};
     const displayName = readOnlyAttachment ? artifact.name : current.name;
     if (readOnlyAttachment && /\.pdf$/i.test(displayName)) current.name = current.name.slice(0, 176) + '.txt';
+    setWrap(['text', 'txt', 'md', 'markdown'].includes(current.language));
     showSource(); title.textContent = displayName; subtitle.textContent = current.language.toUpperCase() + ' / ' + new Intl.NumberFormat().format(new TextEncoder().encode(current.source).length) + ' bytes';
     if (readOnlyAttachment) code.textContent = current.source;
     else code.replaceChildren(highlight(current.source, current.language));
@@ -107,6 +109,11 @@ window.ChatArtifacts = (() => {
   }
   close.addEventListener('click', () => dialog.close()); dialog.addEventListener('close', stopPreview); sourceButton.addEventListener('click', showSource); previewButton.addEventListener('click', showPreview);
   modes.addEventListener('keydown', event => { if (['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); event.stopPropagation(); if (!previewButton.hidden && event.target === sourceButton) { previewButton.focus(); showPreview(); } else { sourceButton.focus(); showSource(); } } });
+  function setWrap(enabled) {
+    pre.classList.toggle('wrapped', enabled);
+    wrap.setAttribute('aria-pressed', String(enabled));
+  }
+  wrap.addEventListener('click', () => setWrap(!pre.classList.contains('wrapped')));
   copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(current.source); copy.textContent = 'Copied'; } catch (_) { status.textContent = 'Clipboard unavailable. Use Download to save the file.'; status.hidden = false; } });
   save.addEventListener('click', () => download(current.source, current.name, current.language));
   edit.addEventListener('click', () => { const artifact = {...current}; dialog.close(); document.dispatchEvent(new CustomEvent('companion:artifact-edit', {detail: artifact})); });

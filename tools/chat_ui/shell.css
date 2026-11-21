@@ -839,6 +839,14 @@
   line-height: 1.8;
   tab-size: 4;
 }
+.artifact-source pre.wrapped {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.artifact-toolbar-actions [aria-pressed=true] {
+  background: var(--hover);
+  border-color: var(--muted);
+}
 .artifact-preview {
   display: flex;
   flex: 1;

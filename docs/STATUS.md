@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Chat transcript and follow-up drafts (2026-11-21)
+
+- Goal: Keep the speaker, answer and file actions easy to follow in a long transcript, and quote a passage when asking a follow-up.
+- Done: A wide transcript aligns turns beside the speaker and time. Narrow panels stack the labels. The smaller follow-up composer grows with its draft. Quote in reply appends selected text or a whole answer. The source viewer can wrap long lines.
+- Checks: Chrome exercised empty and populated chats, multi-tool turns, fenced code and multiline drafts in both themes at 320, 390, 768 and 1440 px. The new layout recovered 66 px of visible transcript on desktop and 67 px on phones. The draft check covers quoted selections across prose and code, retained attachments and zero server writes. Source wrapping preserves the original text.
+- Landing: Fast-forward after the scoped Chat workspace checks.
+
 ## Local chat startup instructions (2026-11-21)
 
 - **Goal:** Connect a fresh companion to the server started by the README.

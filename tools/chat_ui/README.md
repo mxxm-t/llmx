@@ -239,6 +239,7 @@ active branch. **Browse saved files** adds selected files to the current draft.
   continues in its original conversation if you navigate away while admission
   or snapshot refresh is pending; its completion does not reconnect or scroll
   the newly selected view.
+- Select a passage in an answer and choose **Quote in reply** below it. With no selection, the action quotes the whole answer. The quote goes at the end of your draft, ready for a follow-up question.
 - Choose **Conversation actions > Find in conversation** or press Ctrl+Shift+F (Command+Shift+F on macOS). Search message text or an attachment's filename on the current branch. **My prompts** includes messages that contain only a file. Choose a result to jump to the original message with your draft intact.
 - **Conversation actions > Download Markdown** saves the current branch's prompt and reply text in reading order. It leaves out tool payloads, reasoning, attachments and unsent drafts. Use **Export JSON** for a backup with branches.
 - Each sidebar row has a compact anchored actions menu for rename, pin/unpin,
@@ -261,7 +262,8 @@ active branch. **Browse saved files** adds selected files to the current draft.
   saved settings. You can keep editing while Save or a reply request is
   pending. Wait for that request to finish before submitting another change
   for the same chat.
-- Prompts have a **You** label and a tinted bubble. Copy and Edit sit below
+- In a wide transcript, the speaker and time sit beside each turn. In a narrow
+  transcript they appear above it. Prompts have a light tint. Copy and Edit sit below
   the prompt. Their icons share the styling, keyboard focus and touch targets
   used by Retry, Statistics and the branch arrows under a reply. Statistics
   stays highlighted while its panel is open.
@@ -276,7 +278,8 @@ active branch. **Browse saved files** adds selected files to the current draft.
   If a completed reply contains reasoning and no answer, Chat shows a notice
   next to Retry. The notice uses the model's finish reason when available.
   The renderer supports basic Markdown, nested lists with preserved starting
-  numbers, code blocks, tables and safe links. An image in a Markdown reply
+  numbers, code blocks, tables and safe links. Open a code block and choose
+  **Wrap lines** to read long lines without scrolling sideways. An image in a Markdown reply
   appears as a link with its description, or **Open image** if empty. Open the
   link to view the image in a new tab. Indented paragraphs and code stay
   inside their list item. List nesting is bounded at eight levels; deeper text

@@ -2090,6 +2090,128 @@ void service_by_hand() {
                         require(on_line, "a stale first prefill kept a stage's line from its clean prefills' (" + std::to_string(S) + " stages, fixed x" + std::to_string(fx) + (cold ? ", cold" : ", uniform") + ", prefill " + std::to_string(k) + ")");
                     }
                 }
+        // Twelve stages in rounds on four devices, one stage's time a slice growing faster than its rows so its own line has a negative fixed cost, as busy times under stage rounds measured on Qwen3.8-Flash-Next.
+        // That stage takes the band's shape and the others keep their own lines, so every prefill after the cold one is priced; dropping the band left each at the cut without prices, 14 slices against 4 or 5.
+        {
+            const size_t S = 12;
+            std::vector<infer::StageLine> clean(S);
+            std::vector<size_t> device(S);
+            for (size_t s = 0; s < S; ++s) clean[s] = {6 + 2.0 * double(s % 3), 0.04 + 0.005 * double(s % 4)}, device[s] = s / 3;
+            const size_t bent = 7;
+            const auto at = [&](size_t s, size_t rows) { return s == bent ? clean[s].row_ms * double(rows) * (1 + double(rows) / 1024) : clean[s].at(rows); };
+            infer::SlicePeriods q;
+            q.set_devices(device);
+            std::vector<double> f;
+            const size_t unpriced = q.cut(0, 2048, S, 2048, 0, f).size();
+            for (int k = 0; k < 6; ++k) {
+                const auto parts = q.cut(0, 2048, S, 2048, 0, f);
+                require(k < 2 || (!f.empty() && parts.size() < unpriced), "a stage whose own line had a negative fixed cost left prefill " + std::to_string(k) + " at the cut without prices (" + std::to_string(parts.size()) + " slices)");
+                std::vector<std::pair<size_t, size_t>> s;
+                std::vector<std::vector<double>> b;
+                // The wall time is the true costs' rounds, each slice's time a stage given as a line without rows.
+                std::vector<std::vector<infer::StageLine>> real;
+                std::vector<const std::vector<infer::StageLine>*> held;
+                std::vector<size_t> rows_at;
+                for (const auto& [from, rows] : parts) {
+                    real.emplace_back();
+                    for (size_t t = 0; t < S; ++t) real.back().push_back({(k ? 1.0 : 0.45 + 2.42 * double(rows) / 512) * at(t, rows), 0});
+                    s.push_back({from, rows});
+                    b.emplace_back();
+                    for (const infer::StageLine& x : real.back()) b.back().push_back(b.size() == 1 ? -1.0 : x.fixed_ms);
+                    rows_at.push_back(rows);
+                }
+                for (const auto& r : real) held.push_back(&r);
+                std::vector<double> wall(S, 0.0);
+                infer::pipeline_rounds(wall, device, held, rows_at);
+                q.observe(s, b, wall.back(), f);
+            }
+            const auto l = q.lines(0, S);
+            bool own = l.size() == S && l[bent].fixed_ms > 0 && l[bent].row_ms > 0;
+            for (size_t t = 0; own && t < S; ++t)
+                if (t != bent) own = std::fabs(l[t].fixed_ms - clean[t].fixed_ms) <= 0.2 * clean[t].fixed_ms;
+            require(own, "a stage without a line of its own did not take the band's shape, or moved another stage's line");
+            // The same stages from a cold start or an equal cut of 9, with a wall cost a slice the busy times do not hold: the plan settles near the best cut and follows that cost.
+            // A shed decided by the shaped stage's line dropped every other prefill's points and its calibration, so the cut cycled between 5 and 7 slices.
+            const auto walls = [&](const std::vector<std::pair<size_t, size_t>>& parts, double cold, double extra, std::vector<std::vector<double>>* busy) {
+                std::vector<std::vector<infer::StageLine>> real;
+                std::vector<const std::vector<infer::StageLine>*> held;
+                std::vector<size_t> rows_at;
+                for (const auto& [from, rows] : parts) {
+                    real.emplace_back();
+                    for (size_t t = 0; t < S; ++t) real.back().push_back({(cold > 0 ? cold + 2.42 * double(rows) / 512 : 1.0) * at(t, rows), 0});
+                    if (busy) {
+                        busy->emplace_back();
+                        for (const infer::StageLine& x : real.back()) busy->back().push_back(busy->size() == 1 ? -1.0 : x.fixed_ms);
+                    }
+                    for (infer::StageLine& x : real.back()) x.fixed_ms += extra;
+                    rows_at.push_back(rows);
+                }
+                for (const auto& r : real) held.push_back(&r);
+                std::vector<double> wall(S, 0.0);
+                infer::pipeline_rounds(wall, device, held, rows_at);
+                return wall.back();
+            };
+            for (const bool equal : {false, true})
+                for (const double extra : {0.0, 1.0, 3.0}) {
+                    const std::string name = std::string(equal ? "an equal cut of 9" : "a cold start") + ", wall cost " + std::to_string(extra).substr(0, 3) + " ms a slice";
+                    double best = std::numeric_limits<double>::infinity();
+                    for (size_t n = 2; n <= 10; ++n) {
+                        std::vector<std::pair<size_t, size_t>> even;
+                        for (size_t from = 0, r = (2048 + n - 1) / n; from < 2048; from += r) even.push_back({from, std::min(r, 2048 - from)});
+                        best = std::min(best, walls(even, 0, extra, nullptr));
+                    }
+                    infer::SlicePeriods p;
+                    p.set_devices(device);
+                    size_t last = 0, changes = 0;
+                    for (int k = 0; k < 7; ++k) {
+                        std::vector<double> f;
+                        auto parts = p.cut(0, 2048, S, 2048, 0, f);
+                        if (k == 1 && equal) {
+                            parts.clear(), f.clear();
+                            for (size_t from = 0; from < 2048; from += 228) parts.push_back({from, std::min<size_t>(228, 2048 - from)});
+                        }
+                        std::vector<std::vector<double>> b;
+                        const double wall = walls(parts, k ? 0 : 0.45, extra, &b);
+                        if (k >= 3) {
+                            require(!f.empty() && wall <= 1.01 * best, name + ": prefill " + std::to_string(k) + " took " + std::to_string(parts.size()) + (f.empty() ? " slices without prices" : " slices") + ", " + std::to_string(wall) + " ms against the best cut's " + std::to_string(best));
+                            changes += k > 3 && parts.size() != last;
+                        }
+                        last = parts.size();
+                        p.observe(parts, b, wall, f);
+                    }
+                    require(changes <= 1, name + ": the cut did not settle, " + std::to_string(changes) + " changes over prefills 3 to 6");
+                }
+        }
+        // A prompt first reaching a deeper band, where one stage's own line fails and the band fits only through the shape, keeps the calibrated band's points and calibration.
+        // A shed on the new band's missing older points dropped every seen band's points, the calibrated band's included.
+        {
+            const size_t S = 4;
+            const auto cost = [](size_t s, size_t band, size_t rows) { return band == 1 && s == 2 ? 0.25 * double(rows) - 1.0 : 6.0 + 0.25 * double(rows) + 0.1 * double(s); };
+            infer::SlicePeriods q;
+            const auto run = [&](const std::vector<std::pair<size_t, size_t>>& parts) {
+                std::vector<std::vector<double>> busy;
+                std::vector<double> f(S, 0.0), wall(S, 0.0);
+                bool priced = true;
+                for (const auto& [from, rows] : parts) {
+                    busy.emplace_back();
+                    for (size_t s = 0; s < S; ++s) busy.back().push_back(cost(s, infer::depth_band(from), rows));
+                    infer::pipeline_run(wall, busy.back(), 0);
+                    const auto l = q.lines(infer::depth_band(from), S);
+                    if (l.empty()) priced = false;
+                    else if (priced) infer::pipeline_add(f, l, rows);
+                }
+                if (!priced) f.clear();
+                q.observe(parts, busy, wall.back() + 40.0, f);
+            };
+            run({{0, 256}, {256, 128}, {384, 1664}});
+            for (int k = 0; k < 5; ++k) run({{0, 512}, {512, 512}, {1024, 512}, {1536, 400}, {1936, 112}});
+            const auto before = q.lines(0, S);
+            run({{3584, 200}, {3784, 312}, {4096, 512}, {4608, 384}, {4992, 256}});
+            const auto after = q.lines(0, S);
+            bool kept = before.size() == S && after.size() == S && !q.lines(1, S).empty();
+            for (size_t s = 0; kept && s < S; ++s) kept = std::fabs(after[s].fixed_ms - before[s].fixed_ms) < 1.0;
+            require(kept, "a prompt first reaching a band that fits only through the shape dropped a calibrated band's points");
+        }
     }
     // A round keeps a pass a stage in flight, and the one more only while prompt rows and replies overlap.
     require(server::passes_in_flight(3, 2, false, 1) == 2 && server::passes_in_flight(3, 2, true, 1) == 3 && server::passes_in_flight(1, 1, false, 0) == 1 && server::passes_in_flight(5, 4, false, 0) == 4 &&

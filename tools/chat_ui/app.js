@@ -1654,7 +1654,7 @@
     if (!fromWorkspace && attachments.length + files.length > 8) throw new Error('Attach up to 8 files per message.');
     const pending = [];
     for (let file of files) {
-      if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+      if (!fromWorkspace && (file.type === 'application/pdf' || /\.pdf$/i.test(file.name))) {
         if (!S.config.pdf_reader) throw new Error('PDF import is unavailable. Open Settings > Optional features to install PDF text import.');
         if (pdfSelection) throw new Error('Finish the open PDF selection first.');
         if (chatId !== S.chat?.id || generation !== S.generation || attachments !== S.attachments) return;
@@ -1672,7 +1672,7 @@
         const data = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('Could not read ' + file.name)); reader.readAsDataURL(file); }); pending.push({name: file.name, type: file.type, data});
       } else if (file.type.startsWith('text/') || /\.(txt|md|csv|json|py|js|ts|jsx|tsx|cpp|hpp|h|c|rs|go|java|sh|ps1|html|css|xml|log|yaml|yml|toml|ini|sql)$/i.test(file.name)) {
         if (file.size > 2 * 1024 * 1024 + 3) throw new Error(file.name + ' is larger than 2 MiB.');
-        const bytes = await file.arrayBuffer(); let text; try { text = new TextDecoder('utf-8', {fatal: true}).decode(bytes); } catch (_) { throw new Error(file.name + ' must be UTF-8 text.'); }
+        const bytes = await file.arrayBuffer(); let text; try { text = new TextDecoder('utf-8', {fatal: true, ignoreBOM: fromWorkspace}).decode(bytes); } catch (_) { throw new Error(file.name + ' must be UTF-8 text.'); }
         if (text.includes('\u0000')) throw new Error(file.name + ' looks like a binary file.');
         const size = new TextEncoder().encode(text).byteLength;
         if (size > 2 * 1024 * 1024) throw new Error(file.name + ' is larger than 2 MiB.');

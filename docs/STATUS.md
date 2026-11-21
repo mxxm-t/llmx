@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Send editor text to a conversation
+
+- Goal: Preserve a workspace editor attachment's text regardless of its filename.
+- Done: The editor preserves the leading UTF-8 byte-order mark and sends workspace text through the text reader even if its filename ends in .pdf.
+- Checks: Chrome reproduced the lost mark and the refused attachment on main. It checks both files against their original text and verifies the saved-file picker reuses the same copies. The fix lands by fast-forward after the scoped workspace checks.
+- Gotcha: The workspace holds text. A PDF uploaded from a device has its own page-selection workflow.
+
 ## Open saved chat results in the editor
 
 - Goal: Continue from a model-written file in the conversation to its workspace editor.

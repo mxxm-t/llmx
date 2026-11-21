@@ -1405,6 +1405,8 @@ try {
       }
     }
     assert.deepEqual(outcomes,paths.map(path=>[path,sourceText]),'editor attachment changed the workspace text or opened the device importer');
+    await evaluate(`ChatComposer.projectDraft().apply({files:${JSON.stringify(paths.map(path=>({path,text:sourceText})))},project:{instructions:''}},false)`);
+    assert.equal(await evaluate("document.querySelectorAll('#attachments .attachment-pill').length"),3,'picker duplicated the editor snapshot');
     console.log('PASS: reattaching a workspace path preserves one explicit file version');
   } else if (process.argv.includes('--project-download-only')) {
     await signIn();

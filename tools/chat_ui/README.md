@@ -83,7 +83,7 @@ assets. Other files offer View source. Close the viewer to return to the editor.
 
 Attach to Chat adds the current editor buffer, including unsaved edits, to the
 current draft and returns focus to the composer. The attachment can be removed
-before sending. A path such as `src/index.js` appears as `src:index.js` to
+before sending. Editor attachments preserve the text, including a leading UTF-8 byte-order mark and existing line endings. A workspace file named `notes.pdf` attaches as text. Pick a PDF from your device to select document pages. A path such as `src/index.js` appears as `src:index.js` to
 distinguish it from another file with the same basename. The normal text
 attachment limits and temporary chat behavior apply.
 

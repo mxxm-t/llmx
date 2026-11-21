@@ -1,5 +1,11 @@
 # llmx - Development Status
 
+## Inspect attachments before sending
+
+- Goal: Open the exact text or image in the current draft without sending or removing it.
+- Done: Draft filenames open the selected text or image before sending. Sent attachments use the same viewer. PNG and JPEG downloads retain the original bytes.
+- Checks: Chrome reads HTML as literal text, opens both image types by keyboard, checks dimensions, downloaded bytes, focus, unchanged draft contents and separate removal at 320 and 1440 pixels. Find indexes the filename on the thumbnail and highlights it in the transcript. The feature lands by fast-forward after the scoped workspace checks.
+
 ## Workspace editor and draft attachments (2026-11-21, Done)
 
 A saved tool result opens the latest file in the editor or resumes unsaved changes to the same path. Attaching a file twice keeps one copy. When the draft contains one older text attachment for that path, **Replace in draft** updates the existing slot and returns focus to the message. The saved file retains its contents. [Workspace usage](../tools/chat_ui/README.md#work-on-files)

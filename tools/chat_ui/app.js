@@ -685,7 +685,8 @@
         if (!runs) {
           runs = [];
           const filename = block.parentElement.classList.contains('message-attachments');
-          if (block.tagName === 'IMG') runs.push({text:block.alt, element:block, nodes:[], filename});
+          const image = filename && block.querySelector('.attachment-image');
+          if (image) runs.push({text:image.alt, element:image, nodes:[], filename});
           else {
             const walker = document.createTreeWalker(block, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
               acceptNode: item => item.classList?.contains('code-heading') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT
@@ -958,16 +959,24 @@
   document.addEventListener('keydown', event => { if (event.key === 'Escape') hideActionTooltip(); }, true);
   document.addEventListener('scroll', () => { if (tooltipTarget && tooltipTarget === document.activeElement) showActionTooltip(tooltipTarget); else hideActionTooltip(); }, true);
   window.addEventListener('resize', () => hideActionTooltip());
-  function renderAttachment(attachment) {
-    if (/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=\r\n]+$/.test(attachment.data || '')) {
-      const img = node('img', 'attachment-image'); img.src = attachment.data; img.alt = attachment.name || 'Attached image'; img.loading = 'lazy'; return img;
+  function renderAttachment(attachment, draft = false) {
+    const image = /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=\r\n]+$/.test(attachment.data || '');
+    const name = attachment.name || (image ? 'Attached image' : 'Text attachment');
+    if (!image && typeof attachment.text !== 'string') return node('span', draft ? '' : 'attachment-pill', name);
+    const open = node('button', draft ? 'draft-attachment-open' : image ? 'attachment-picture' : 'attachment-pill', name);
+    open.type = 'button';
+    open.setAttribute('aria-haspopup', 'dialog');
+    open.setAttribute('aria-label', (image ? 'View image ' : 'Read attachment ') + name);
+    if (image) {
+      if (!draft) {
+        const thumbnail = node('img', 'attachment-image'); thumbnail.src = attachment.data; thumbnail.alt = name; thumbnail.loading = 'lazy';
+        open.replaceChildren(thumbnail);
+      }
+      open.addEventListener('click', () => window.ChatArtifacts.openImage(name, attachment.data));
+    } else {
+      open.addEventListener('click', () => window.ChatArtifacts.open({name, source: attachment.text}, {readOnlyAttachment: true}));
     }
-    const name = attachment.name || 'Text attachment';
-    if (typeof attachment.text !== 'string') return node('span', 'attachment-pill', name);
-    const read = node('button', 'attachment-pill', name);
-    read.type = 'button'; read.setAttribute('aria-label', 'Read attachment ' + name);
-    read.addEventListener('click', () => window.ChatArtifacts.open({name, source: attachment.text}, {readOnlyAttachment: true}));
-    return read;
+    return open;
   }
   function toolJson(value) {
     if (typeof value !== 'string') return value;
@@ -1627,7 +1636,7 @@
     const root = $('attachments'); root.replaceChildren(); let total = 0;
     S.attachments.forEach((a, i) => {
       const size = attachmentBytes(a); total += size;
-      const pill = node('span', 'attachment-pill', a.name);
+      const pill = node('span', 'attachment-pill'); pill.append(renderAttachment(a, true));
       const label = node('small', 'attachment-file-size', formatAttachmentSize(size));
       label.title = size.toLocaleString() + ' bytes'; label.setAttribute('aria-label', a.name + ', ' + size.toLocaleString() + ' bytes'); pill.append(label);
       const remove = button('x', 'remove-attachment', String(i)); remove.setAttribute('aria-label', 'Remove ' + a.name); pill.append(remove); root.append(pill);

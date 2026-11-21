@@ -27,12 +27,13 @@ window.ChatArtifacts = (() => {
     fragment.append(document.createTextNode(text.slice(end))); return fragment;
   }
   function filename(name, lang) { return String(name || 'artifact.' + (extensions[language(lang)] || 'txt')).replace(/[\\/:*?"<>|\x00-\x1f]/g, '_').slice(0, 180); }
+  function downloadURL(url, name) {
+    const link = node('a');
+    link.href = url; link.download = name; link.click();
+  }
   function downloadBlob(blob, name) {
     const url = URL.createObjectURL(blob);
-    const link = node('a');
-    link.href = url;
-    link.download = name;
-    try { link.click(); } finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
+    try { downloadURL(url, name); } finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
   }
   function download(source, name, lang) {
     const type = language(lang) === 'html' ? 'text/html;charset=utf-8' : 'text/plain;charset=utf-8';
@@ -54,7 +55,8 @@ window.ChatArtifacts = (() => {
   const projectInfo = node('details'); projectInfo.hidden = true; previewNote.append(projectInfo);
   const projectSummary = node('summary'); const projectAssets = node('p'); projectInfo.append(projectSummary, projectAssets);
   const consolePanel = node('details', 'artifact-console'); const consoleSummary = node('summary', '', 'Console / 0 entries'); const consoleOutput = node('div', 'artifact-console-output'); consoleOutput.setAttribute('aria-live', 'polite'); consolePanel.append(consoleSummary, consoleOutput); previewPanel.append(previewNote, consolePanel);
-  content.append(sourcePanel, previewPanel); dialog.append(header, toolbar, status, content); document.body.append(dialog);
+  const picture = node('img', 'artifact-image'); picture.hidden = true;
+  content.append(sourcePanel, previewPanel, picture); dialog.append(header, toolbar, status, content); document.body.append(dialog);
   function stopPreview() { previewVersion++; bridgeToken = ''; if (frame) frame.remove(); frame = null; }
   function showSource() {
     stopPreview(); wrap.hidden = false; sourcePanel.hidden = false; previewPanel.hidden = true; status.hidden = true;
@@ -99,8 +101,31 @@ window.ChatArtifacts = (() => {
       frame.addEventListener('load', () => { if (version === previewVersion) { status.hidden = true; } }); previewPanel.insertBefore(frame, consolePanel);
     } catch (error) { if (version === previewVersion) { status.textContent = error.message; status.hidden = false; } }
   }
+  function openImage(name, data) {
+    stopPreview();
+    const png = data.startsWith('data:image/png;');
+    const safeName = filename(name);
+    const suffix = png ? '.png' : '.jpg';
+    const type = png ? 'PNG' : 'JPEG';
+    current = {type, name: (png ? /\.png$/i : /\.jpe?g$/i).test(safeName) ? safeName : safeName + suffix, data};
+    title.textContent = name; subtitle.textContent = type;
+    modes.hidden = true; sourcePanel.hidden = true; previewPanel.hidden = true;
+    wrap.hidden = true; copy.hidden = true; edit.hidden = true; status.hidden = true;
+    picture.alt = name; picture.src = data; picture.hidden = false;
+    if (!dialog.open) dialog.showModal();
+    close.focus();
+  }
+  picture.addEventListener('load', () => {
+    if (!picture.hidden && current?.data)
+      subtitle.textContent = current.type + ' / ' + picture.naturalWidth + ' x ' + picture.naturalHeight + ' px';
+  });
+  picture.addEventListener('error', () => {
+    if (picture.hidden) return;
+    picture.hidden = true; status.textContent = 'This image could not be displayed.'; status.hidden = false;
+  });
   function open(artifact, {initialPreview = false, allowWorkspaceEdit = true, workspacePath = '', readOnlyAttachment = false} = {}) {
     current = {name: filename(artifact.name, artifact.language), language: language(artifact.language), source: String(artifact.source ?? ''), workspacePath};
+    modes.hidden = false; copy.hidden = false; picture.hidden = true; picture.removeAttribute('src');
     const displayName = readOnlyAttachment ? artifact.name : current.name;
     if (readOnlyAttachment && /\.pdf$/i.test(displayName)) current.name = current.name.slice(0, 176) + '.txt';
     setWrap(['text', 'txt', 'md', 'markdown'].includes(current.language));
@@ -115,7 +140,11 @@ window.ChatArtifacts = (() => {
     if (initialPreview && !previewButton.hidden) { previewButton.focus(); showPreview(); }
     else sourceButton.focus();
   }
-  close.addEventListener('click', () => dialog.close()); dialog.addEventListener('close', stopPreview); sourceButton.addEventListener('click', showSource); previewButton.addEventListener('click', showPreview);
+  close.addEventListener('click', () => dialog.close()); dialog.addEventListener('close', () => {
+    if (dialog.open) return;
+    stopPreview(); picture.hidden = true; picture.removeAttribute('src'); picture.alt = '';
+    current = null; code.replaceChildren(); consoleOutput.replaceChildren();
+  }); sourceButton.addEventListener('click', showSource); previewButton.addEventListener('click', showPreview);
   modes.addEventListener('keydown', event => { if (['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); event.stopPropagation(); if (!previewButton.hidden && event.target === sourceButton) { previewButton.focus(); showPreview(); } else { sourceButton.focus(); showSource(); } } });
   function setWrap(enabled) {
     pre.classList.toggle('wrapped', enabled);
@@ -123,12 +152,15 @@ window.ChatArtifacts = (() => {
   }
   wrap.addEventListener('click', () => setWrap(!pre.classList.contains('wrapped')));
   copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(current.source); copy.textContent = 'Copied'; } catch (_) { status.textContent = 'Clipboard unavailable. Use Download to save the file.'; status.hidden = false; } });
-  save.addEventListener('click', () => download(current.source, current.name, current.language));
+  save.addEventListener('click', () => {
+    if (current.data) downloadURL(current.data, current.name);
+    else download(current.source, current.name, current.language);
+  });
   edit.addEventListener('click', () => { const artifact = {...current}; dialog.close(); document.dispatchEvent(new CustomEvent('companion:artifact-edit', {detail: artifact})); });
   window.addEventListener('message', event => {
     const data = event.data;
     if (!frame || event.source !== frame.contentWindow || event.origin !== 'null' || !data || typeof data !== 'object' || data.channel !== 'llmx-preview' || data.token !== bridgeToken || !['log', 'info', 'warn', 'error'].includes(data.kind) || typeof data.text !== 'string' || data.text.length > 16384 || consoleOutput.children.length >= 256) return;
     consoleOutput.append(node('pre', 'console-' + data.kind, data.text)); consoleSummary.textContent = 'Console / ' + consoleOutput.children.length + ' entries'; if (data.kind === 'error') consolePanel.open = true;
   });
-  return {open, download, downloadBlob, highlight, language};
+  return {open, openImage, download, downloadBlob, highlight, language};
 })();

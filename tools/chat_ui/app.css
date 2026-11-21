@@ -1355,6 +1355,17 @@ button.attachment-pill:hover { border-color:var(--muted) }
   padding:0;
   color:var(--muted)
 }
+.attachment-picture { padding:0; border-radius:8px; max-width:100% }
+.attachment-pill .draft-attachment-open {
+  min-width:0; min-height:28px; text-align:start;
+  overflow-wrap:anywhere; color:var(--text)
+}
+.composer .draft-attachment-open { text-decoration:underline; text-decoration-color:var(--border); text-underline-offset:3px }
+@media (max-width:720px) {
+  .composer .attachment-pill button { min-height:40px }
+  .composer [data-action=remove-attachment] { min-width:36px }
+}
+.draft-attachment-open:hover, .draft-attachment-open:focus-visible { text-decoration:underline }
 .attachment-image {
   max-width:240px;
   max-height:180px;

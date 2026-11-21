@@ -1323,7 +1323,10 @@ try {
     await fill('#draft','Keep this draft.');
     const source = '<b>Source only</b>\r\n';
     await evaluate(`(async () => {
-      const canvas=document.createElement('canvas'); canvas.width=24; canvas.height=12;
+      const canvas=document.createElement('canvas'); canvas.width=640; canvas.height=360;
+      const ctx=canvas.getContext('2d'); ctx.fillStyle='#f6f8fb'; ctx.fillRect(0,0,640,360);
+      ctx.fillStyle='#193951'; ctx.font='22px sans-serif'; ctx.fillText('Tokens per second',32,48);
+      for (const [i,height] of [108,165,125,184,212,198].entries()) ctx.fillRect(40+i*94,316-height,60,height);
       const image=type=>new Promise(resolve=>canvas.toBlob(resolve,type));
       await ChatComposer.attach([new File([${JSON.stringify(source)}],'page.html',{type:'text/html'}),
         new File([await image('image/png')],'plot.png',{type:'image/png'}),
@@ -1342,6 +1345,9 @@ try {
     assert.equal(await evaluate("document.querySelector('#artifact-preview-tab').checkVisibility()"),false);
     await click('#artifact-dialog [aria-label="Close artifact"]');
     await wait(`document.activeElement.matches(${JSON.stringify(textButton)})`, 'focus returns to draft filename');
+    const downloads=path.join(profile,'attachment-downloads');
+    await mkdir(downloads);
+    await cdp('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:downloads});
     for (const [width,theme,name] of [[320,'light','plot.png'],[1440,'dark','scan.jpg']]) {
       await cdp('Emulation.setDeviceMetricsOverride',{width,height:800,deviceScaleFactor:1,mobile:width===320});
       await wait(`innerWidth===${width} && document.documentElement.dataset.compact==='${width===320}'`,'attachment viewport ready');
@@ -1350,10 +1356,21 @@ try {
       await evaluate(`document.querySelector(${JSON.stringify(selector)}).focus()`);
       await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,text:'\r'});
       await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
-      await wait("document.querySelector('#artifact-dialog').open && document.querySelector('#artifact-dialog img')?.naturalWidth===24",'inspect local image bytes');
+      await wait("document.querySelector('#artifact-dialog').open && document.querySelector('#artifact-dialog img')?.naturalWidth===640",'inspect local image bytes');
       assert.equal(await evaluate("document.querySelector('#artifact-dialog h2').textContent"),name);
       assert(await evaluate("document.querySelector('#artifact-dialog img').checkVisibility() && document.documentElement.scrollWidth<=innerWidth"));
       assert.equal(await evaluate("document.querySelector('#artifact-source-tab').checkVisibility()"),false);
+      await wait("document.querySelector('.artifact-header p').textContent.includes('640 x 360 px')",'decoded image dimensions');
+      assert.equal(await evaluate("document.querySelector('#artifact-dialog img').getBoundingClientRect().right<=innerWidth"),true);
+      await pointerClick('#artifact-dialog .artifact-toolbar-actions button:last-child');
+      const original=before.attachments.find(a=>a.name===name);
+      const bytes=Buffer.from(original.data.split(',')[1],'base64');
+      let downloaded;
+      for (let i=0;i<100 && !downloaded;i++) {
+        try { downloaded=await readFile(path.join(downloads,name)); }
+        catch (error) { if (error.code!=='ENOENT') throw error; await delay(50); }
+      }
+      assert.deepEqual(downloaded,bytes,'downloaded image differs from the draft');
       await screenshot('draft-image-'+width+'.png');
       await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
       await wait(`!document.querySelector('#artifact-dialog').open && document.activeElement.matches(${JSON.stringify(selector)})`, 'close image with keyboard');
@@ -1366,7 +1383,15 @@ try {
     assert.equal(apiMutations.length,mutations,'review sent or changed server data');
     await pointerClick('#attachments [aria-label="Remove plot.png"]');
     await wait(draftSnapshot+".attachments?.length===2",'remove remains separate');
-    console.log('PASS: read draft text as source and inspect local PNG/JPEG with keyboard and focus return');
+    const saved=await evaluate(`ChatShell.api('/import','POST',{version:1,chat:{title:'Image attachment',active_leaf:'img'},messages:[{id:'img',role:'user',content:'Reference image',attachments:[${JSON.stringify(before.attachments[2])}]}]})`);
+    await reloadDocument();
+    await wait(`document.querySelector('[data-chat="${saved.id}"]')`, 'saved image conversation');
+    await pointerClick(`[data-chat="${saved.id}"]`);
+    const sentImage='.message-attachments [aria-label="View image scan.jpg"]';
+    await wait(`document.querySelector(${JSON.stringify(sentImage)})?.checkVisibility()`, 'sent thumbnail');
+    await pointerClick(sentImage);
+    await wait("document.querySelector('#artifact-dialog').open && document.querySelector('.artifact-image').naturalWidth===640", 'inspect sent image');
+    console.log('PASS: inspect draft text, draft and sent images, save original image bytes and return focus');
   } else if (process.argv.includes('--editor-attachments-only')) {
     await signIn();
     await evaluate("ChatShell.api('/workspace/file','POST',{path:'notes/plan.txt',content:'Original',revision:0})");

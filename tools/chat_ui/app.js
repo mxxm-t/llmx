@@ -1010,6 +1010,7 @@
     $('temporary-button').querySelector('.temporary-short-label').textContent = temporaryMode ? 'Normal' : 'Temporary';
     $('temporary-button').setAttribute('aria-label', temporaryMode ? 'Switch to a normal chat' : 'Start a temporary chat');
     $('app').dataset.temporary = String(temporaryMode);
+    window.ChatProjectContext?.setLanding(!selected.length && !temporaryMode);
     const lifetime = S.config.temporary?.ttl_seconds;
     $('temporary-description').textContent = 'Not saved to history or backups. Tools are off.' + (Number.isFinite(lifetime) ? ' Expires after ' + number(lifetime / 60) + ' minutes of inactivity.' : '') + ' The model server may retain logs or caches.';
     const modelUnavailable = !(S.config.models || []).some(model => model.id === $('model').value);

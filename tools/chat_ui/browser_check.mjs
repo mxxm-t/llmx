@@ -9,6 +9,7 @@ const [url, executable, profile, artifacts, fixture, imageFixture, originalDashb
   textRaceAFixture, textRaceBFixture] = process.argv.slice(2);
 const pdfMode = process.argv.find(arg => arg.startsWith('--pdf-only='))?.split('=')[1];
 const featuresMode = process.argv.includes('--features-only');
+const homeContextMode = process.argv.includes('--home-context-only');
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const startupTimeoutArg = process.argv.find(arg => arg.startsWith('--startup-timeout-ms='));
 const startupTimeoutCandidate = startupTimeoutArg ? Number(startupTimeoutArg.slice('--startup-timeout-ms='.length)) : NaN;
@@ -423,6 +424,85 @@ async function checkPromptOutline() {
   await cdp('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
   await wait("document.documentElement.dataset.compact==='false'", 'desktop after outline');
 }
+async function checkLandingContext() {
+  const source = key => '#landing-context [data-source='+key+']';
+  const row = label => '.landing-context-row[title='+JSON.stringify(label)+']';
+  const shown = selector => wait('document.querySelector('+JSON.stringify(selector)+')?.checkVisibility()', selector);
+  const empty = text => wait('document.querySelector("#landing-context-status").innerText==='+JSON.stringify(text), text);
+  await empty('No saved files yet.');
+  assert.equal(await evaluate("document.querySelector('#landing-context-browse').checkVisibility() && !document.querySelector('.temporary-saved-files').checkVisibility()"),true,'ordinary landing shows one browse shortcut');
+  await fill('#draft','Review the release notes.');
+  await pointerClick(source('projects'));
+  await empty('No saved projects yet.');
+  await pointerClick('#landing-context-browse');
+  await wait("document.activeElement.id==='workspace-project-name' && document.querySelector('#workspace-project-form').checkVisibility()", 'create a project from home');
+  const ids = await evaluate(`(async()=>{
+    let {revision}=await ChatShell.api('/workspace');
+    for(const [path,content] of [['brief/outline.md','Current saved outline'],['notes/releases.md','Release notes'],['src/theme.css','body {}'],['z.txt','Other file']]) {
+      ({revision}=await ChatShell.api('/workspace/file','POST',{path,content,revision}));
+    }
+    const ids=[];
+    for (const [name,paths] of [['Documentation',['notes/releases.md']],['Release review',['brief/outline.md','notes/releases.md']]]) {
+      const {project}=await ChatShell.api('/workspace/projects','POST',{name,paths,instructions:'Read the release notes.'});ids.push(project.id);
+    }
+    return ids;
+  })()`);
+  await pointerClick('.workspace-back');
+  await shown(row('Release review'));
+  const writes = apiMutations.length, streams = runStreams.length;
+  const contextReads = () => browserRequests.filter(r=>new URL(r.url).pathname.endsWith('/context')).length;
+  assert.equal(contextReads(),0,'home fetched project file bodies before selection');
+  await pointerClick(row('Release review'));
+  await wait("document.querySelector('#project-context-files').children.length===2",'review named project');
+  assert.equal(await evaluate("document.querySelector('#project-context-select').value"),ids[1]);
+  assert.equal(await evaluate("document.querySelector('#project-context-copy').checked"),false);
+  await pointerClick('#project-context-cancel');
+  assert.equal(await evaluate("document.querySelectorAll('#attachments .attachment-pill').length"),0);
+  await pointerClick(source('files'));
+  await shown(row('brief/outline.md'));
+  assert.equal(await evaluate("document.querySelectorAll('.landing-context-row').length"),3,'home file list is bounded');
+  const reads = savedFileReads.filter(paths=>paths.length).length;
+  await pointerClick(row('brief/outline.md'));
+  await wait("document.querySelector('#saved-file-dialog input:checked')?.value==='brief/outline.md'", 'named file selected');
+  assert.equal(savedFileReads.filter(paths=>paths.length).length,reads,'preselection read a file body');
+  await pointerClick('#saved-file-add');
+  await wait("document.querySelectorAll('#attachments .attachment-pill').length===1 && document.activeElement.id==='draft'", 'confirmed selected file in draft');
+  await pointerClick(source('projects')); await shown(row('Release review')); await pointerClick(row('Release review'));
+  await wait("!document.querySelector('#project-context-apply').disabled", 'project review ready');
+  await pointerClick('#project-context-apply');
+  await wait("document.querySelectorAll('#attachments .attachment-pill').length===2", 'deduplicate file and reviewed project');
+  assert.equal(await evaluate("document.querySelector('#draft').value"),'Review the release notes.');
+  assert.equal(apiMutations.length,writes,'home selections changed saved state');
+  assert.equal(runStreams.length,streams,'home selections submitted the draft');
+  await cdp('Emulation.setDeviceMetricsOverride',{width:320,height:700,deviceScaleFactor:1,mobile:true});
+  await wait("document.documentElement.dataset.compact==='true'",'narrow home');
+  await pointerClick(source('files')); await shown(row('brief/outline.md'));
+  await screenshot('home-context-320.png');
+  assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth && document.querySelector('.landing-context-row').getBoundingClientRect().right<=innerWidth"),true);
+  await evaluate("ChatShell.api('/workspace').then(s=>ChatShell.api('/workspace/delete','POST',{path:'brief/outline.md',revision:s.revision}))");
+  await pointerClick(row('brief/outline.md'));
+  await wait("document.querySelector('#saved-file-error').checkVisibility() && !document.querySelector('#saved-file-dialog input:checked') && document.querySelector('#saved-file-add').disabled", 'deleted file cannot select another file');
+  await pointerClick('#saved-file-cancel');
+  await evaluate("(()=>{const original=window.fetch;window.releaseProjectList=null;window.fetch=async(...args)=>{const response=await original(...args);if(args[0]!=='/api/workspace/projects')return response;window.fetch=original;await new Promise(resolve=>window.releaseProjectList=resolve);return response;};})()");
+  await pointerClick(source('projects'));
+  await wait("typeof releaseProjectList==='function'", 'pending project list');
+  await pointerClick(source('files')); await shown(row('notes/releases.md'));
+  await evaluate("releaseProjectList()");
+  await wait("document.querySelector('#landing-context-browse').dataset.action==='attach-files' && !Array.from(document.querySelectorAll('.landing-context-row')).some(row=>row.title==='Release review')", 'stale project list kept out of files');
+  await pointerClick('#temporary-button');
+  await wait("document.querySelector('#app').dataset.temporary==='true' && !document.querySelector('.landing-context-row') && !document.querySelector('#landing-context').checkVisibility()", 'temporary chat isolates landing workspace metadata');
+  const requests = () => browserRequests.filter(r=>/^\/api\/workspace\/(?:files|projects)$/.test(new URL(r.url).pathname)).length;
+  const beforeReload = requests();
+  await reloadDocument();
+  await wait("document.querySelector('#app').dataset.temporary==='true' && !document.querySelector('#temporary-button').disabled", 'temporary chat restored');
+  assert.equal(requests(), beforeReload, 'restoring a temporary chat fetched landing metadata');
+  await shown('.temporary-saved-files');
+  await pointerClick('.temporary-saved-files');
+  await wait("document.querySelector('#saved-file-dialog').open && document.querySelector('#saved-file-list input')?.checkVisibility()", 'direct saved file browser in temporary chat');
+  assert.equal(requests(),beforeReload+1,'temporary picker reads metadata only on request');
+  await pointerClick('#saved-file-cancel');
+  assert.equal(await evaluate("document.querySelector('#app').dataset.temporary==='true' && !document.querySelector('#attachments .attachment-pill')"),true);
+}
 async function checkHomeLanding() {
   const selected = await evaluate("document.querySelector('.chat-item.active')?.dataset.chat");
   assert(selected, 'home landing check requires a saved conversation');
@@ -446,7 +526,7 @@ async function checkHomeLanding() {
     const recent = await evaluate("fetch('/api/chats').then(r=>r.json()).then(({chats})=>chats.filter(c=>!c.archived && c.active_leaf).sort((a,b)=>b.updated-a.updated).slice(0,3).map(c=>c.id))");
     assert.deepEqual(await evaluate("Array.from(document.querySelectorAll('#recent-list button'), b=>b.dataset.chat)"), recent, 'landing lists recent populated chats by update time');
     if (view === 'chat') {
-      await pointerClick('#welcome [data-action=attach-files]');
+      await pointerClick('#landing-context [data-action=attach-files]');
       await wait("document.querySelector('#saved-file-dialog').open", 'open saved files from the landing');
       await pointerClick('#saved-file-cancel');
     }
@@ -824,7 +904,7 @@ try {
     if (data.method === 'Network.requestWillBeSent' && new URL(data.params.request.url).pathname === '/api/workspace/files') {
       savedFileReads.push(new URL(data.params.request.url).searchParams.getAll('path'));
     }
-    if ((pdfMode || featuresMode) && data.method === 'Network.requestWillBeSent') browserRequests.push(data.params.request);
+    if ((pdfMode || featuresMode || homeContextMode) && data.method === 'Network.requestWillBeSent') browserRequests.push(data.params.request);
     if (pdfMode && data.method === 'Target.attachedToTarget') {
       const {sessionId, targetInfo} = data.params;
       pdfWorkers.push(targetInfo.url);
@@ -1145,6 +1225,10 @@ try {
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.artifact-source pre')).whiteSpace"), 'pre');
     assert.deepEqual(errors, [], 'message navigation browser errors');
     console.log('PASS: conversation outline ordering, current turn, pagination, keyboard jump and Escape, plus find, export and draft preservation');
+  } else if (homeContextMode) {
+    await signIn(); await checkLandingContext();
+    assert.deepEqual(errors,[], 'home context browser exceptions');
+    console.log('PASS: saved context from home, project creation, file selection, missing file, review, deduplication and preserved draft');
   } else if (process.argv.includes('--workflow-only')) {
     await signIn();
     await send('Browser workflow prompt');
@@ -3403,7 +3487,7 @@ try {
   await cdp('Fetch.continueRequest', {requestId: heldSendResponse.requestId});
   await cdp('Fetch.disable');
   heldSendResponse = null;
-  await wait("document.querySelector('#send').disabled===false", 'same-chat edited request completion');
+  await wait("document.querySelector('#send:not([hidden]):enabled') && document.querySelector('#messages').innerText.includes('The submitted edit completed.')", 'same-chat edited reply completes and Send is available');
   assert.equal(await evaluate("document.querySelector('#draft').value"), 'Newer edit in the original conversation', 'send cleared a newer edit in the same conversation');
   assert.equal(await evaluate("!document.querySelector('#edit-note').hidden"), true, 'send discarded the newer edit state');
   assert.deepEqual(await evaluate("Array.from(document.querySelectorAll('#attachments .attachment-pill')).map(el=>el.firstChild.textContent)"), ['notes.txt', 'pixel.png'], 'send discarded newer same-chat attachments');

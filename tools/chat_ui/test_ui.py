@@ -155,6 +155,11 @@ class BrowserTests(unittest.TestCase):
             self.skipTest("Real browser check requires Node 22+ and Chrome/Chromium/Edge")
         return node, chrome
 
+    def test_chat_home_saved_context(self):
+        node, chrome = self.browser_executables()
+        with tempfile.TemporaryDirectory() as directory:
+            self.run_focused_browser(node, chrome, Path(directory), "home-context", ("--home-context-only",), [])
+
     def test_find_in_conversation_after_slow_browser_start(self):
         node, chrome = self.browser_executables()
         with tempfile.TemporaryDirectory() as directory:

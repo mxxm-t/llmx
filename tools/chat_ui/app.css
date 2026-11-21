@@ -99,7 +99,7 @@ input,textarea,select {
 }
 .sidebar>.new-chat {
   min-height:38px;
-  margin:0 0 20px;
+  margin:4px 0 20px;
   padding:8px 11px;
   color:var(--text);
   background:var(--panel);
@@ -369,47 +369,58 @@ kbd {
   line-height:1.25;
   letter-spacing:-.035em
 }
-.landing-tools { display:none }
-.chat-stage:has(#welcome:not([hidden])) .landing-tools { display:block }
-.saved-files-shortcut {
-  display:inline-flex;
-  align-items:center;
-  gap:7px;
-  min-height:32px;
-  padding:4px 2px;
-  color:var(--secondary);
-  font-size:12px
+.landing-tools {
+  display:none;
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,19rem),1fr));
+  gap:24px clamp(22px,3vw,40px);
+  margin-top:30px
 }
-.saved-files-shortcut:hover { color:var(--text) }
-.saved-files-shortcut svg,.context-shortcut svg { width:15px; height:15px; flex:none }
-#recent-conversations { margin-top:32px }
-.workspace[data-temporary=true] #recent-conversations { display:none }
-#recent-conversations h2 {
-  margin:0 0 6px;
-  font-size:13px;
-  font-weight:600
-}
-#recent-list { border-top:1px solid var(--line) }
-.recent-chat {
+.workspace:not([data-temporary=true]) .chat-stage:has(#welcome:not([hidden])) .landing-tools { display:grid }
+.landing-tools section { min-width:0 }
+.landing-collection-head,#recent-title {
+  min-height:36px;
   display:flex;
   align-items:center;
   justify-content:space-between;
-  gap:18px;
+  gap:10px
+}
+.landing-tools h2 {
+  font-size:15px;
+  font-weight:600;
+  letter-spacing:-.015em;
+  margin:0
+}
+.landing-sources { display:flex; align-items:center; gap:2px }
+.landing-sources button { min-height:30px; padding:3px 9px; border-radius:4px; color:var(--muted); font-size:12px }
+.landing-sources button[aria-pressed=true] { color:var(--text); background:var(--surface); font-weight:600 }
+.landing-sources button:hover,.recent-chat:hover,.landing-context-row:hover { background:var(--inset); color:var(--text) }
+#recent-list,#landing-context-list { border-top:1px solid var(--line) }
+#landing-context-list:empty { border:0 }
+.recent-chat,.landing-context-row {
+  display:flex;
+  align-items:center;
+  gap:10px;
   width:100%;
-  min-height:44px;
-  padding:7px 2px;
+  min-height:46px;
+  padding:7px 3px;
   border-bottom:1px solid var(--line);
   text-align:left;
   font-size:14px
 }
-.recent-chat:hover { background:var(--inset) }
-.recent-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
-.recent-chat time {
-  flex:none;
-  color:var(--muted);
-  font-size:12px;
-  font-variant-numeric:tabular-nums
+.recent-chat { justify-content:space-between }
+.recent-name,.landing-context-row .resource-name,.landing-context-row .resource-folder {
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap
 }
+.recent-chat time,.landing-context-row small { flex:none; color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums }
+.landing-context-row svg,.context-shortcut svg { width:15px; height:15px; flex:none; color:var(--muted) }
+.landing-context-row .resource-label { display:grid; min-width:0; flex:1; gap:2px }
+.landing-context-row .resource-folder { color:var(--muted); font-size:11px }
+.temporary-saved-files { display:none }
+.workspace[data-temporary=true] .temporary-saved-files { display:inline-block }
+#landing-context-browse,.temporary-saved-files { min-height:32px; padding:4px 3px; color:var(--secondary); font-size:12px; text-decoration:underline; text-underline-offset:3px }
+#landing-context-status { margin:0; padding:11px 3px 5px; border-top:1px solid var(--line); font-size:13px }
 .context-shortcut {
   display:inline-flex;
   justify-content:center;
@@ -1649,7 +1660,7 @@ body {
   row-gap:7px
 }
 @media(max-width:720px),(pointer:coarse) {
-  .saved-files-shortcut,.tool-call>details>summary,.reasoning summary,.workspace-tool-file button,.sidebar>.new-chat { min-height:40px }
+  .landing-sources button,#landing-context-browse,.temporary-saved-files,.tool-call>details>summary,.reasoning summary,.workspace-tool-file button,.sidebar>.new-chat { min-height:40px }
   .composer-left .icon,.context-shortcut {
     width:40px;
     height:40px

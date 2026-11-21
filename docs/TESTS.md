@@ -39,6 +39,9 @@ fixtures exercise stream accumulation and usage, approval and denial, tool
 execution, replay, conversation branches, cancellation and restart recovery.
 Chrome opens generated code at a new path and at an existing one. It checks cancellation, explicit replacement, identical content and a competing creation while the file is being named. Discarding an unsaved buffer leaves a same-named saved file intact. Deleting a saved file issues one deletion.
 Checkpoint comparison checks cover added and deleted empty files, separate change records without a final newline and preservation of CRLF text.
+The Chat home browser check opens named files and projects, confirms their draft
+attachments, and verifies stale selections, switching sources during a read,
+project creation and temporary-chat reloads.
 The browser keeps a focused tool summary connected across approval completion
 and removes the obsolete approval controls.
 Chrome quotes a selected passage, an entire answer and a selection spanning code. It verifies draft focus, attached files and zero server writes.

@@ -12,6 +12,13 @@
 - Done: Prompts and answers share a reading column. A short rule marks prompt text. Wide screens put Copy, Edit and branch selection on the heading row. Narrow screens keep them below the prompt.
 - Checks: The hosted Chrome fixture checks the prompt edge and action placement in both themes. It exercises tool replies at 1440, 390 and 320 pixels and keyboard focus at 200 percent zoom. Landing is by fast-forward.
 - Gotchas: Grouped tool calls share one speaker heading. The final action row needs equal space above and below.
+## Starting a chat from saved work (2026-11-21)
+
+- Goal: Find a conversation, saved file or project directly from Chat home.
+- Done: Conversation creation and history lead the sidebar. The four view shortcuts sit below history. Home lists recent conversations beside up to three named saved files or projects. Each shortcut opens the existing confirmation with the chosen file or project selected. An empty project list opens the existing project editor through Create a project.
+- Checks: The hosted Chat home browser fixture verifies review and cancellation, file/project deduplication, optional instructions, stale files and responses, draft preservation and zero landing metadata requests on a temporary-chat reload. The direct Browse saved files shortcut reads the list on request in a temporary chat. Existing Home and Workspace workflows passed. Visual checks at 320, 390, 768, 1024 and 1440 px covered both themes. On the live 390 px drawer, New conversation and search moved up 192 px. Before and after captures made no API mutations.
+- Browser check: The edited-draft fixture waits for the first answer and an available Send button before submitting its second request. Send can be enabled and hidden while a run is still active.
+- Landing: Fast-forward after the scoped Linux and Windows Chat workspace checks.
 
 ## Long chat rendering (2026-11-21)
 

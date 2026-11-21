@@ -61,10 +61,12 @@
 }
 .global-nav {
   display: grid;
-  gap: 2px;
-  margin: 2px 0 15px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border);
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  flex: none;
+  gap: 2px 4px;
+  margin: 10px 0 3px;
+  padding: 9px 0;
+  border-top: 1px solid var(--border);
 }
 .global-nav button {
   display: flex;
@@ -80,7 +82,6 @@
 .global-nav button:hover { color: var(--text); background: var(--surface); }
 .global-nav button[aria-current=page] { color: var(--text); background: var(--hover); font-weight: 600; }
 @media (max-width: 720px), (pointer: coarse) { .global-nav button { min-height: 40px; } }
-@media (max-height: 650px) { .global-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .global-nav svg { height: 16px; width: 16px; flex: none; }
 .workspace:not([data-view=chat]),
 .workspace.inspector-closed:not([data-view=chat]) {

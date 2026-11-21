@@ -459,7 +459,7 @@
       showError(problem); error.focus();
     }
   }
-  async function openProjects() {
+  async function openProjects(create = false) {
     window.ChatShell.show('workbench');
     const loading = viewLoad;
     selectSection('projects');
@@ -468,7 +468,8 @@
     projectsSummary.focus();
     try { await Promise.all([loading, loadProjects()]); }
     catch { return; }
-    if (viewLoad === loading && section === 'projects' && document.activeElement === projectsSummary && !projectNew.disabled && !projectNew.hidden) projectNew.focus();
+    if (viewLoad !== loading || section !== 'projects' || document.activeElement !== projectsSummary || projectNew.disabled || projectNew.hidden) return;
+    if (create) editProject(null); else projectNew.focus();
   }
   function openFiles() {
     selectSection('files'); window.ChatShell.show('workbench');

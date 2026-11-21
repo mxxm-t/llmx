@@ -963,6 +963,7 @@ kbd {
 .markdown table {
   width:100%;
   border-collapse:collapse;
+  font-variant-numeric:tabular-nums;
   font-size:13px
 }
 .markdown th,.markdown td {
@@ -972,7 +973,10 @@ kbd {
 }
 .markdown th {
   background:var(--surface);
-  font-weight:500
+  font-weight:600
+}
+.markdown tbody tr:last-child td {
+  border-bottom:0
 }
 .message-actions {
   display:flex;

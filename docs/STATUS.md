@@ -3,9 +3,9 @@
 ## Chat comparison tables (2026-11-21)
 
 - Goal: Keep measurements aligned with their headers, including comparisons with literal pipes in a label.
-- Done: Reproduced the parser splitting escaped pipes and ignoring Markdown column alignment.
-- Left: Cover the renderer in the browser, implement the table rules and verify narrow layouts.
-- Gotcha: Model text is untrusted and must still go through the safe inline renderer.
+- Done: Chat honors Markdown column alignment, uses tabular figures and displays escaped pipes inside cells. Header and divider counts must agree. Short rows keep their missing columns empty.
+- Checks: Chrome reproduced the failure on main and passed the corrected table and full workspace fixture. A five-column comparison fit at 320, 390, 768 and 1440 px. The docs and dead-code checks passed.
+- Landing: Fast-forward after the scoped Chat workspace checks. The renderer still passes every cell through its safe inline formatter.
 
 ## Jump to the latest chat turn (2026-11-21)
 

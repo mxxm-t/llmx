@@ -93,6 +93,45 @@ window.ChatRender = (() => {
   function appendBlock(target, element, start, end) {
     blockSources.set(element, {start, end}); target.append(element);
   }
+  function tableCells(line) {
+    const cells = [''];
+    let separated = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '\\' && line[i + 1] === '|') cells[cells.length - 1] += line[++i];
+      else if (ch === '\\' && line[i + 1] === '\\') cells[cells.length - 1] += ch + line[++i];
+      else if (ch === '|') { cells.push(''); separated = true; }
+      else cells[cells.length - 1] += ch;
+    }
+    if (separated && !cells[0].trim()) cells.shift();
+    if (separated && cells.length && !cells[cells.length - 1].trim()) cells.pop();
+    return cells.map(cell => cell.trim());
+  }
+  function tableColumns(lines, index) {
+    const divider = lines[index + 1];
+    if (!divider || !lines[index].includes('|') || !/^\s*\|?\s*:?-{3,}/.test(divider)) return null;
+    const columns = tableCells(divider);
+    if (!columns.length || !columns.every(cell => /^:?-{3,}:?$/.test(cell)) ||
+        tableCells(lines[index]).length !== columns.length) return null;
+    return columns.map(cell => cell.endsWith(':') ? (cell.startsWith(':') ? 'center' : 'right') : 'left');
+  }
+  function tableRow(line, alignments, heading) {
+    const row = node('tr'), cells = tableCells(line);
+    const width = Math.min(cells.length, alignments.length);
+    for (let column = 0; column < width; column++) {
+      const cell = node(heading ? 'th' : 'td');
+      if (heading) cell.scope = 'col';
+      if (alignments[column] !== 'left') cell.style.textAlign = alignments[column];
+      inline(cells[column], cell);
+      row.append(cell);
+    }
+    if (width < alignments.length) {
+      const empty = node('td');
+      empty.colSpan = alignments.length - width;
+      row.append(empty);
+    }
+    return row;
+  }
   function markdown(text, depth = 0) {
     const out = node('div', 'markdown');
     const lines = String(text || '').replace(/\r/g, '').split('\n');
@@ -110,15 +149,14 @@ window.ChatRender = (() => {
         const wrap = codeBlock(code.join('\n'), fence.language); appendBlock(out, wrap, start, i); continue;
       }
       if (!line.trim()) { i++; continue; }
-      if (i + 1 < lines.length && line.includes('|') && /^\s*\|?\s*:?-{3,}/.test(lines[i + 1])) {
+      const alignments = tableColumns(lines, i);
+      if (alignments) {
         const table = node('table'); const scroll = node('div', 'table-scroll');
-        const cells = row => row.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
-        const thead = node('thead'); const tr = node('tr');
-        cells(line).forEach(c => { const th = node('th'); inline(c, th); tr.append(th); });
-        thead.append(tr); table.append(thead); i += 2;
+        const thead = node('thead');
+        thead.append(tableRow(line, alignments, true)); table.append(thead); i += 2;
         const body = node('tbody');
         while (i < lines.length && lines[i].includes('|') && lines[i].trim()) {
-          const row = node('tr'); cells(lines[i++]).forEach(c => { const td = node('td'); inline(c, td); row.append(td); }); body.append(row);
+          body.append(tableRow(lines[i++], alignments, false));
         }
         table.append(body); scroll.append(table); appendBlock(out, scroll, start, i); continue;
       }
@@ -159,7 +197,7 @@ window.ChatRender = (() => {
         appendBlock(out, list, start, i); continue;
       }
       const p = node('p'); inline(line, p); i++;
-      while (i < lines.length && lines[i].trim() && !openingFence(lines[i]) && !/^\s*(?:#|>|[-+*]\s|\d+[.)]\s)/.test(lines[i]) && !(i + 1 < lines.length && /^\s*\|?\s*:?-{3,}/.test(lines[i + 1]))) { p.append(node('br')); inline(lines[i++], p); }
+      while (i < lines.length && lines[i].trim() && !openingFence(lines[i]) && !/^\s*(?:#|>|[-+*]\s|\d+[.)]\s)/.test(lines[i]) && !tableColumns(lines, i)) { p.append(node('br')); inline(lines[i++], p); }
       appendBlock(out, p, start, i);
     }
     return out;

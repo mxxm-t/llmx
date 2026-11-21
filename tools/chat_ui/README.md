@@ -280,7 +280,8 @@ active branch. **Browse saved files** adds selected files to the current draft.
   If a completed reply contains reasoning and no answer, Chat shows a notice
   next to Retry. The notice uses the model's finish reason when available.
   The renderer supports basic Markdown, nested lists with preserved starting
-  numbers, code blocks, tables and safe links. Open a code block and choose
+  numbers, code blocks, tables and safe links. Tables honor left, center and
+  right column alignment. Use `\|` for a literal pipe inside a cell. Open a code block and choose
   **Wrap lines** to read long lines without scrolling sideways. An image in a Markdown reply
   appears as a link with its description, or **Open image** if empty. Open the
   link to view the image in a new tab. Indented paragraphs and code stay

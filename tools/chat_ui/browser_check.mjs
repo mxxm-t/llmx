@@ -1277,7 +1277,7 @@ try {
   const comparison = await evaluate(String.raw`(() => {
     const md = ChatRender.markdown('| Operation | Unit | Before | After |\n| :--- | :---: | ---: | ---: |\n| Read \\| write | **ms** | 19 | 8 |\n| Pending | ms |\n| Extra | ms | 2 | 1 | discard |');
     document.body.append(md);
-    const rows = Array.from(md.querySelectorAll('tr'), row => Array.from(row.cells, cell => cell.textContent));
+    const rows = Array.from(md.querySelectorAll('tr'), row => Array.from(row.cells, cell => Array(cell.colSpan).fill(cell.textContent)).flat());
     const align = Array.from(md.querySelector('tbody tr').cells, cell => getComputedStyle(cell).textAlign);
     const bold = md.querySelector('td strong')?.textContent;
     const headers = Array.from(md.querySelectorAll('th'), cell => cell.scope);

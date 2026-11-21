@@ -1,5 +1,18 @@
 # llmx - Development Status
 
+## CI for companion-only pushes (2026-11-21)
+
+Main now selects the native jobs by the full push diff. Companion-only
+changes keep the Windows and Linux Chat workflow and a Linux CLI build for
+the docs and dead-code checks. All other main pushes, explicit gates, pull
+requests and manual runs retain the eight native jobs. The change lands by
+fast-forward after its gate branch runs the native jobs.
+
+Ten historical push ranges selected the expected checks (four Chat, six
+native). Git-tree regression tests cover multi-commit pushes, over 300
+changed files, renames in both directions, paths with a similar prefix and
+empty or missing comparisons. See [CI scope](CI.md#choosing-checks-by-impact).
+
 ## New conversation and unsent drafts (2026-11-21)
 
 The new conversation view places saved files and projects beside the composer

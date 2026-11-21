@@ -14,9 +14,19 @@ Docker isolation check, which uses an installed image rather than a hosted model
 
 ## Choosing checks by impact
 
-For a push containing only documentation or static dashboard presentation, after its focused checks pass, include `[skip ci]` in the commit message to avoid starting the unrelated inference matrix. Do not use this for runtime, API, test or workflow changes. This uses [GitHub's commit-message skip mechanism](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/skip-workflow-runs); it changes no workflow configuration.
+For documentation-only and static dashboard pushes outside the companion scope below, after their focused checks pass, include `[skip ci]` in the commit message to avoid starting the unrelated inference matrix. Do not use this for runtime, API, test or workflow changes. This uses [GitHub's commit-message skip mechanism](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/skip-workflow-runs); it changes no workflow configuration.
 
-The workflow below continues to run on its configured events; this section does not change CI configuration. During development, select checks by the behavior and inputs touched, and avoid rerunning unrelated gates merely because a commit or rebase changed Git metadata. Carry prior evidence only when the relevant source, tests, fixtures, configuration and build inputs are unchanged; record its tested revision, binary identity and the exact delta. See [AGENTS.md, Merge gates](../AGENTS.md#merge-gates) for landing policy.
+On a push to main, the native workflow compares the trees before and after
+the entire push. When at least one path under `tools/chat_ui/` changes and
+every other changed path is `docs/STATUS.md` or `docs/TESTS.md`, the Chat
+workspace workflow checks the companion on Windows and Linux. The native
+workflow builds only the CLI and runs the docs and dead-code checks.
+Use a regular commit message so both workflows run. A rename across this
+boundary, a mixed change, an empty diff or an unavailable base selects all
+eight native jobs. Gate branches, pull requests and manual runs also select
+all eight jobs.
+
+During development, select checks by the behavior and inputs touched, and avoid rerunning unrelated gates merely because a commit or rebase changed Git metadata. Carry prior evidence only when the relevant source, tests, fixtures, configuration and build inputs are unchanged; record its tested revision, binary identity and the exact delta. See [AGENTS.md, Merge gates](../AGENTS.md#merge-gates) for landing policy.
 
 A static dashboard presentation change confined to browser HTML, CSS and JavaScript gets syntax checks and focused browser checks for the changed states and responsive layout, plus the `docs` and `dead-code` components. It does not require HF, CPU/device numerical correctness, inference performance gates, or waiting for unrelated hosted inference jobs. A standalone Python collector change gets focused collection, schema and security tests; run protocol integration checks when its health contract changes. It does not require runtime CTest or HF/GPU inference gates. Changes to the health API, server, scheduler or llmx runtime retain applicable host CTest, CPU/server/thread and hosted checks. Model, kernel, device, loader or placement changes retain their correctness and performance gates. Test-only changes rerun the affected tests and checks for changed coverage.
 
@@ -27,7 +37,7 @@ A stack of branches about to merge is pushed as `gate/<name>` so these checks ru
 Branches are merged locally, so no pull request reaches the workflow, and the gates a branch passes before it merges are run locally and recorded in `docs/STATUS.md`.
 A pull request's newer push cancels its older run; every other run has a concurrency group of its own, so each push to `main` keeps its run as the record of that merge and each push to a `gate/<name>` branch keeps its run as the check before it.
 Builds use `--parallel 4`, the hosted runners' core count.
-It contains eight independent checks:
+The full native run contains eight checks:
 
 | Check | Timeout (min) | Coverage |
 |---|---:|---|

@@ -643,6 +643,14 @@ async function checkBrowserHistory() {
   for (const [view, route] of topLevel) {
     await pointerClick(`.global-nav [data-view="${view}"]`);
     await wait(state('?view='+route,view),'show '+route);
+    if (view === 'monitor') {
+      await wait("document.querySelector('#monitor-frame').contentDocument?.URL.endsWith('/monitor/view')",'monitor frame loaded');
+      const monitorEntry = (await cdp('Page.getNavigationHistory')).currentIndex;
+      await evaluate("window.originalMonitorDocument=document.querySelector('#monitor-frame').contentDocument");
+      await pointerClick('#monitor-reload');
+      await wait("document.querySelector('#monitor-frame').contentDocument!==window.originalMonitorDocument",'monitor frame reconnected');
+      assert.equal((await cdp('Page.getNavigationHistory')).currentIndex,monitorEntry,'monitor reconnect creates no entry');
+    }
   }
   await back('?view=monitor','monitor');
   await back('?view=saved-files','workbench');
@@ -668,6 +676,8 @@ async function checkBrowserHistory() {
   await evaluate(`localStorage.setItem('llmx-chat',${JSON.stringify(second.id)})`);
   await reloadDocument();
   await wait(state(home,'chat'),'explicit landing defeats saved recent conversation');
+  await navigateDocument(url + '/');
+  await wait(state(secondRoute,'chat',second.id),'bare URL restores last conversation');
   await navigateDocument(url + '/' + firstRoute);
   await wait(state(firstRoute,'chat',first.id),'explicit conversation link');
   await select(second.id);
@@ -683,8 +693,80 @@ async function checkBrowserHistory() {
   assert(!(await cdp('Page.getNavigationHistory')).entries.some(entry => entry.url.includes(temporary)),'temporary identifier remained out of history URLs');
   await reloadDocument();
   await wait(`document.querySelector('#app').dataset.temporary==='true' && !document.querySelector('[data-action="new"]').disabled`,'temporary reload recovers this tab');
-  await pointerClick('#temporary-button');
-  await wait(state(home,'chat'),'end temporary chat leaves safe landing');
+  const temporaryDraft = 'Private survey detail';
+  await fill('#draft',temporaryDraft);
+  const temporaryEntry = (await cdp('Page.getNavigationHistory')).currentIndex;
+  await evaluate('history.back()');
+  await wait("document.querySelector('#action-dialog').open",'Back asks to end a temporary chat with a draft');
+  await pointerClick('#conversation-cancel');
+  await wait("location.search==='?view=chat' && document.querySelector('#app').dataset.temporary==='true' && !document.querySelector('#action-dialog').open",'cancelling Back keeps temporary entry');
+  assert.equal((await cdp('Page.getNavigationHistory')).currentIndex,temporaryEntry);
+  assert.equal(await evaluate("document.querySelector('#draft').value"),temporaryDraft);
+  await evaluate('history.back()');
+  await wait("document.querySelector('#action-dialog').open",'Back asks again before discarding temporary chat');
+  await pointerClick('#conversation-submit');
+  await wait(state(firstRoute,'chat',first.id),'confirmed Back to saved chat');
+  await forward(home,'chat');
+  assert.equal(await evaluate("sessionStorage.getItem('llmx-temporary-chat')"),null);
+
+  const holdResponse = (request, method) => evaluate(`(() => {
+    const original = window.fetch;
+    window.holdRouteResponse = null;
+    window.fetch = async (path, config) => {
+      const response = await original(path, config);
+      if (path !== ${JSON.stringify(request)} || (config?.method || 'GET') !== ${JSON.stringify(method)}) return response;
+      window.fetch = original;
+      return new Promise(resolve => { window.holdRouteResponse = () => resolve(response); });
+    };
+  })()`);
+  const ready = () => wait("typeof window.holdRouteResponse==='function'",'held route API response');
+  await holdResponse('/api/chats/'+first.id,'GET');
+  await select(first.id); await ready();
+  await pointerClick('.global-nav [data-view="workbench"]');
+  await wait(state('?view=saved-files','workbench'),'Saved files while a chat snapshot is held');
+  const savedFilesEntry = (await cdp('Page.getNavigationHistory')).currentIndex;
+  await evaluate('window.holdRouteResponse(); new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))');
+  assert.equal(await evaluate(state('?view=saved-files','workbench')),true,'late chat snapshot did not hijack Saved files');
+  assert.equal((await cdp('Page.getNavigationHistory')).currentIndex,savedFilesEntry);
+
+  await back(home,'chat');
+  await holdResponse('/api/chats','POST');
+  await send('Send from the previous landing entry'); await ready();
+  await pointerClick('.global-nav [data-view="preferences"]');
+  await wait(state('?view=settings','preferences'),'Settings while first Send is held');
+  const settingsEntry = (await cdp('Page.getNavigationHistory')).currentIndex;
+  await evaluate('window.holdRouteResponse()');
+  await wait(() => apiMutations.some(request => request.method==='POST' && new URL(request.url).pathname.endsWith('/runs')), 'earlier send reached its conversation');
+  await wait("!document.querySelector('#send').disabled",'earlier send released the composer');
+  assert.equal(await evaluate(state('?view=settings','preferences')),true,'first Send completion did not hijack Settings');
+  assert.equal((await cdp('Page.getNavigationHistory')).currentIndex,settingsEntry);
+
+  await back(home,'chat');
+  const startupOverride = await cdp('Page.addScriptToEvaluateOnNewDocument', {source: `(() => {
+    const original = window.fetch;
+    window.releaseStartup = {};
+    window.fetch = async (path, config) => {
+      const response = await original(path, config);
+      if (path !== '/api/session' && path !== '/api/config') return response;
+      return new Promise(resolve => { window.releaseStartup[path] = () => resolve(response); });
+    };
+  })()`});
+  await reloadDocument();
+  await wait("typeof window.releaseStartup?.['/api/session']==='function'", 'held session response');
+  await pointerClick('.global-nav [data-view="workbench"]');
+  assert.equal(await evaluate("location.search"),home,'view remains gated until the session is established');
+  await evaluate("window.releaseStartup['/api/session']()");
+  await wait("typeof window.releaseStartup['/api/config']==='function'", 'held config response');
+  assert.equal(await evaluate("document.querySelector('#app').dataset.view"),'workbench','click survives session startup');
+  await pointerClick('.global-nav [data-view="preferences"]');
+  assert.equal(await evaluate("document.querySelector('#preferences-chat-settings').checkVisibility()"),true,'Settings is available while configuration loads');
+  await pointerClick('#preferences-chat-settings');
+  assert.equal(await evaluate("document.querySelector('#panel-settings').checkVisibility()"),true,'early conversation Settings link opens its panel');
+  await evaluate("window.releaseStartup['/api/config']()");
+  await wait(state(home,'chat'),'startup preserves selected conversation Settings');
+  assert.equal(await evaluate("document.querySelector('#panel-settings').checkVisibility()"),true,'hydrating the view preserves conversation Settings');
+  await back('?view=settings','preferences');
+  await cdp('Page.removeScriptToEvaluateOnNewDocument', {identifier:startupOverride.identifier});
 }
 
 async function checkWideChat() {
@@ -2816,6 +2898,7 @@ try {
   await pointerClick(settingsButton);
   assert.equal(await evaluate("document.querySelector('[data-action=settings]').getAttribute('aria-expanded')"), 'true');
   await pointerClick('.global-nav [data-view=preferences]');
+  await wait("document.querySelector('#preferences-chat-settings').checkVisibility()", 'Settings page selected');
   await pointerClick('#preferences-chat-settings');
   assert.equal(await detailsOpen(), true, 'the Settings page link must always open conversation settings');
   await reloadDocument();
@@ -2920,9 +3003,9 @@ try {
   const composeChats = await evaluate(`(async()=>{
     const a=await ChatShell.api('/chats','POST',{title:'Compose A'});
     const b=await ChatShell.api('/chats','POST',{title:'Compose B'});
-    localStorage.setItem('llmx-chat',a.id); return [a.id,b.id];
+    return [a.id,b.id];
   })()`);
-  await reloadDocument();
+  await navigateDocument(url + '/?chat=' + composeChats[0]);
   await wait("document.querySelector('#chat-title').textContent==='Compose A'", 'compose fixture');
   await openConversationSettings();
   await fill('#setting-system', 'Save these settings in A.');
@@ -4096,7 +4179,7 @@ try {
   await wait("document.querySelector('#action-dialog').open", 'confirmed backup restore dialog');
   await click('#conversation-submit');
   await waitForDocument(beforeRestore, 'backup restore');
-  await wait("document.querySelector('#app').dataset.view==='chat' && window.ChatShell && window.ChatShell.config!==null", 'backup restore reload');
+  await wait("document.querySelector('#app').dataset.view==='preferences' && window.ChatShell && window.ChatShell.config!==null", 'backup restore reload');
   await click('.global-nav [data-view="workbench"]');
   await wait("document.querySelector('.workspace-revision').textContent==='Revision 0'", 'workspace load');
   const modalOwner = await evaluate("(async()=>{const first=window.ChatShell.conversationForm({title:'Dialog owner probe',label:'Name',value:'first'});document.querySelector('#action-dialog').close();const second=window.ChatShell.conversationForm({title:'Overlapping form',label:'Name',value:'second'});await first;return {settled:true,secondAccepted:(await second)!==undefined};})()");
@@ -5063,7 +5146,7 @@ try {
   assert.equal(defaultSettings.tools.length, 0, 'new chat inherited selected tools');
   const availableModel = await evaluate("document.querySelector('#model').value");
   const invalidModelChat = await evaluate("fetch('/api/chats',{method:'POST',headers:{'Content-Type':'application/json','X-Chat-Request':'1'},body:JSON.stringify({settings:{model:'Qwen3.5-0.8B-Q8_0.gguf'}})}).then(r=>r.json()).then(d=>d.id)");
-  await evaluate(`localStorage.setItem('llmx-chat',${JSON.stringify(invalidModelChat)})`); await reloadDocument();
+  await navigateDocument(url + '/?chat=' + invalidModelChat);
   await wait(`document.querySelector('#model').value==='Qwen3.5-0.8B-Q8_0.gguf'`, 'saved unavailable model restored');
   assert.equal(await evaluate("document.querySelector('#model option:checked').textContent"), 'Qwen3.5-0.8B-Q8_0.gguf (unavailable)', 'saved unavailable model is not labeled');
   assert.equal(await evaluate("document.querySelector('#model option:checked').disabled"), true, 'saved unavailable model remains selectable');
@@ -5087,7 +5170,7 @@ try {
   }
   await evaluate("localStorage.removeItem('llmx-test-model-catalog')");
   await cdp('Page.removeScriptToEvaluateOnNewDocument', {identifier: catalogOverride.identifier});
-  await evaluate(`localStorage.setItem('llmx-chat',${JSON.stringify(submittedChat)})`); await reloadDocument();
+  await navigateDocument(url + '/?chat=' + submittedChat);
   await wait(`document.querySelector('.chat-item.active')?.dataset.chat===${JSON.stringify(submittedChat)}`, 'restore prior chat after unavailable-model check');
   await fill('#draft', 'Keep this draft while the model catalogue changes');
   await fill('#setting-temperature', '0.3');
@@ -5158,8 +5241,7 @@ try {
   assert((await evaluate("document.querySelector('#attachments').innerText")).includes('notes.txt'));
   await evaluate("window.restoreCatalogueFetch();delete window.restoreCatalogueFetch");
   const noAnswerChat = await evaluate("ChatShell.api('/chats','POST',{title:'Reply without an answer',settings:{model:'qwen3-local',tools:['echo']}}).then(chat=>chat.id)");
-  await evaluate("localStorage.setItem('llmx-chat',"+JSON.stringify(noAnswerChat)+")");
-  await reloadDocument();
+  await navigateDocument(url + '/?chat=' + noAnswerChat);
   await wait("document.querySelector('#chat-title').textContent==='Reply without an answer' && !document.querySelector('#send').disabled", 'reasoning-only chat ready');
   await send('Run the tool once.');
   await wait("document.querySelector('.tool-call .approval')", 'intermediate tool call awaiting approval');

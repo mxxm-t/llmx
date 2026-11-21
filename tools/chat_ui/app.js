@@ -162,7 +162,10 @@
   }
   function currentRun() { return S.runs.find(r => !terminal(r.status)); }
   function closeStream() { if (S.stream) S.stream.close(); S.stream = null; }
-  document.addEventListener('companion:unauthorized', () => { closeStream(); closePassages(); closeDrawers(false); renderLandingDrafts(false); });
+  document.addEventListener('companion:unauthorized', () => {
+    sessionReady = navigationReady = false; pendingView = null; ++routeEpoch;
+    closeStream(); closePassages(); closeDrawers(false); renderLandingDrafts(false);
+  });
   function connection(text, offline = false) { const el = $('connection'); el.replaceChildren(node('span', 'status-dot'), document.createTextNode(text)); el.classList.toggle('offline', offline); document.querySelector('.inspector-bottom').replaceChildren(node('span', 'status-dot'), document.createTextNode(offline ? text : 'Connected to the model server')); }
   function settings() {
     const value = {model: $('model').value, system: $('setting-system').value};
@@ -443,13 +446,86 @@
     $('library-title').textContent = chatSearch.request ? 'Search results' : S.archive ? 'Archive' : 'Conversations';
     $('archive-toggle').textContent = S.archive ? 'Back to chats' : 'Show archive';
   }
-  async function openChat(id, snapshot = null) {
-    if (S.chat?.temporary && S.chat.id !== id && !await leaveTemporary()) return;
+  const viewRoutes = {chat: 'chat', workbench: 'saved-files', monitor: 'monitor', preferences: 'settings'};
+  let routeEpoch = 0, sessionReady = false, navigationReady = false, shownEntry = null, pendingView = null;
+  function saveRoute(replace = false) {
+    const view = $('app').dataset.view, temporary = view === 'chat' && Boolean(S.chat?.temporary);
+    const search = view === 'chat' && S.chat && !temporary ? '?chat=' + encodeURIComponent(S.chat.id) : '?view=' + viewRoutes[view];
+    const previous = history.state?.llmxChat, same = search === location.search;
+    if (same && previous?.temporary === temporary) { shownEntry = previous; return; }
+    const push = !replace && !same;
+    shownEntry = {position: (previous?.position ?? 0) + Number(push), temporary};
+    history[push ? 'pushState' : 'replaceState']({llmxChat: shownEntry}, '', location.pathname + search);
+  }
+  function selectView(view) {
+    if (!sessionReady) { if (!$('login-dialog').open) pendingView = view; return; }
+    ++routeEpoch;
+    window.ChatShell.renderView(view);
+    saveRoute();
+  }
+  async function restoreRoute() {
+    const epoch = ++routeEpoch, previous = shownEntry, entry = history.state?.llmxChat;
+    const query = new URLSearchParams(location.search), linkedChat = query.get('chat');
+    const legacy = !query.has('chat') && !query.has('view');
+    const view = query.has('chat') ? 'chat' : Object.keys(viewRoutes).find(name => viewRoutes[name] === query.get('view')) || 'chat';
+    window.ChatShell.closeMenu(false);
+    if (view !== 'chat') { window.ChatShell.renderView(view); saveRoute(true); return; }
+    const temporary = entry?.temporary || legacy ? sessionStorage.getItem('llmx-temporary-chat') : null;
+    const lastSelected = legacy || temporary ? localStorage.getItem('llmx-chat') : null;
+    const recent = S.chats.some(chat => chat.id === lastSelected) ? lastSelected : null;
+    const restorePrevious = () => {
+      if (epoch !== routeEpoch) return;
+      const offset = previous?.position - entry?.position;
+      if (offset) history.go(offset); else saveRoute(true);
+    };
+    const target = temporary || linkedChat || recent;
+    if (S.chat?.temporary && S.chat.id === target) { window.ChatShell.renderView('chat'); saveRoute(true); return; }
+    if (S.chat?.temporary) {
+      try { if (!await leaveTemporary()) { restorePrevious(); return; } }
+      catch (error) { toast(error.message); restorePrevious(); return; }
+    }
+    if (epoch !== routeEpoch) return;
+    for (const id of temporary ? [temporary, recent] : [target]) {
+      if (!id) continue;
+      if (id === temporary || !id.startsWith('tmp_')) {
+        try {
+          const opened = await openChat(id, null, {epoch, record: false});
+          if (opened) saveRoute(true);
+          return;
+        } catch (error) {
+          if (epoch !== routeEpoch) return;
+          if (error.status !== 404) throw error;
+        }
+      }
+      if (id === temporary) {
+        sessionStorage.removeItem('llmx-temporary-chat');
+        toast('Your temporary chat has ended or expired.');
+      } else {
+        refreshChats().catch(error => toast(error.message));
+        toast('This conversation is no longer available.');
+      }
+    }
+    if (S.chat) { clearChat({keepDraft: true}); renderSidebar(); }
+    else { restoreDraft(); render(); }
+    window.ChatShell.renderView('chat'); saveRoute(true);
+  }
+  document.addEventListener('companion:navigate', event => selectView(event.detail));
+  window.addEventListener('popstate', () => {
+    if (navigationReady) restoreRoute().catch(error => toast(error.message));
+  });
+  async function openChat(id, snapshot = null, {epoch = ++routeEpoch, record = true} = {}) {
+    if (epoch !== routeEpoch) return false;
+    if (S.chat?.temporary && S.chat.id !== id && !await leaveTemporary()) return false;
+    if (epoch !== routeEpoch) return false;
     rememberDraft(); flushDrafts();
     hideReplyStats();
     pdfSelection?.abort();
     const generation = ++S.generation; banner(configurationWarning());
-    const data = snapshot || await chatSnapshot(id); if (generation !== S.generation) return;
+    const isCurrent = () => generation === S.generation && epoch === routeEpoch;
+    let data;
+    try { data = snapshot || await chatSnapshot(id); }
+    catch (error) { if (isCurrent()) throw error; return false; }
+    if (!isCurrent()) return false;
     rememberDraft(); flushDrafts();
     closeStream();
     closePassages();
@@ -457,9 +533,12 @@
     snapshotBanner();
     restoreDraft();
     if (S.chat.temporary) sessionStorage.setItem('llmx-temporary-chat', id); else localStorage.setItem('llmx-chat', id);
-    loadSettings(); renderSidebar(); render(); closeDrawers();
+    loadSettings(); renderSidebar(); render();
+    window.ChatShell.renderView('chat'); closeDrawers();
+    if (record) saveRoute();
     requestAnimationFrame(() => bottom());
     const run = currentRun(); if (run) subscribe(run);
+    return true;
   }
   function chatCreating(value) {
     creatingChat = value;
@@ -468,24 +547,29 @@
   async function newChat({landing = false} = {}) {
     if (creatingChat || S.busy) return;
     if (!landing && S.chat && !S.chat.temporary && !S.chat.archived && !S.messages.length && !S.runs.length) {
-      closeDrawers(); $('draft').focus(); return;
+      selectView('chat'); closeDrawers(); $('draft').focus(); return;
     }
+    const epoch = ++routeEpoch;
     chatCreating(true);
     try {
       if (S.chat?.temporary && !await leaveTemporary()) return;
+      if (epoch !== routeEpoch) return;
       if (landing) {
         if (S.chat) { clearChat({keepDraft: true}); renderSidebar(); }
-        if ($('app').dataset.view !== 'chat') window.ChatShell.show('chat');
+        window.ChatShell.renderView('chat'); saveRoute();
         closeDrawers(false); $('draft').focus();
         return;
       }
       const generation = S.generation, selectedChat = S.chat?.id;
       const chat = await api('/chats', 'POST', {settings: selectedChat ? S.config.settings_defaults : settings()}); await refreshChats();
-      if (!selectedChat && S.generation === generation && !S.chat) {
+      if (!selectedChat && S.generation === generation && !S.chat && epoch === routeEpoch) {
         rememberDraft(); const value = drafts.get('new'); forgetDraft('new');
         if (value) { drafts.set(chat.id, value); changedDrafts.add(chat.id); }
       }
-      if (generation === S.generation && selectedChat === S.chat?.id) { await openChat(chat.id, {chat, messages: [], runs: []}); if (!selectedChat && S.chat?.id === chat.id) forgetDraft('new'); $('draft').focus(); }
+      if (generation === S.generation && selectedChat === S.chat?.id && await openChat(chat.id, {chat, messages: [], runs: []}, {epoch})) {
+        if (!selectedChat) forgetDraft('new');
+        $('draft').focus();
+      }
     } finally { chatCreating(false); }
   }
   function clearChat({keepDraft = false} = {}) {
@@ -502,29 +586,37 @@
   async function leaveTemporary() {
     if (!S.chat?.temporary) return true;
     if (currentRun() || S.busy) throw new Error('Stop the response before ending this temporary chat.');
+    const id = S.chat.id;
     const end = async () => {
-      try { await api('/chats/' + encodeURIComponent(S.chat.id), 'DELETE'); }
+      try { await api('/chats/' + encodeURIComponent(id), 'DELETE'); }
       catch (error) { if (error.status !== 404) throw error; }
-      clearChat(); await refreshChats();
+      if (S.chat?.id === id) clearChat();
+      await refreshChats();
     };
     if (S.messages.length || $('draft').value.trim() || S.attachments.length)
       return Boolean(await window.ChatShell.conversationForm({title: 'End temporary chat?', description: 'Its messages will be discarded.', destructive: true, submit: 'End chat'}, end));
     await end(); return true;
   }
+  async function endTemporaryChat() {
+    const epoch = ++routeEpoch;
+    if (await leaveTemporary() && epoch === routeEpoch) saveRoute(true);
+  }
   async function temporaryChat() {
     if (creatingChat || S.busy) return;
     if (S.chat?.temporary) {
       chatCreating(true);
-      try { await leaveTemporary(); }
+      try { await endTemporaryChat(); }
       finally { chatCreating(false); }
       return;
     }
     if (!S.config.temporary?.enabled) throw new Error('Temporary chats are unavailable on this server.');
+    const epoch = ++routeEpoch;
     chatCreating(true);
     try {
       const values = settings(); values.tools = [];
       const chat = await api('/chats', 'POST', {temporary: true, settings: values});
-      await openChat(chat.id, {chat, messages: [], runs: []}); $('draft').focus();
+      if (await openChat(chat.id, {chat, messages: [], runs: []}, {epoch})) $('draft').focus();
+      else await api('/chats/' + encodeURIComponent(chat.id), 'DELETE');
     } finally { chatCreating(false); }
   }
   function sidebarChat(id) { return chatSearch.chats.find(chat => chat.id === id) || S.chats.find(chat => chat.id === id) || (S.chat?.id === id ? S.chat : null); }
@@ -1667,7 +1759,7 @@
   }
   async function send() {
     if (currentRun() || S.busy || creatingChat || settingsWrites.has(S.chat?.id)) return;
-    const originalChat = S.chat, generation = S.generation, edit = S.edit;
+    const originalChat = S.chat, generation = S.generation, epoch = routeEpoch, edit = S.edit;
     rememberDraft(); const submittedKey = draftKey(), submittedDraft = S.chat?.temporary ? composeValue() : drafts.get(submittedKey);
     const content = $('draft').value.trim(), revision = composerRevision, attachments = S.attachments.slice();
     if (!content && !attachments.length) { $('draft').focus(); return; }
@@ -1683,9 +1775,9 @@
         const chat = await api('/chats', 'POST', {settings: requestSettings});
         chatId = chat.id; parent = null; chatTitle = chat.title || chatTitle;
         S.chats.unshift(chat);
-        if (S.generation === generation && S.chat === originalChat) {
+        if (S.generation === generation && S.chat === originalChat && epoch === routeEpoch) {
           rememberDraft(); const value = drafts.get('new'); forgetDraft('new');
-          S.chat = chat; localStorage.setItem('llmx-chat', chat.id);
+          S.chat = chat; localStorage.setItem('llmx-chat', chat.id); saveRoute();
           if (value) { drafts.set(chat.id, value); changedDrafts.add(chat.id); }
         }
         renderSidebar();
@@ -1931,7 +2023,7 @@
     if (name === 'new') return newChat();
     if (name === 'home') return newChat({landing: true});
     if (name === 'temporary') return temporaryChat();
-    if (name === 'end-temporary') return leaveTemporary();
+    if (name === 'end-temporary') return endTemporaryChat();
     if (name === 'reply-detail') return jumpToMessage(el.dataset.id);
     if (name === 'find-message' || name === 'outline') return findMessage(name === 'outline');
     if (name === 'transcript') {
@@ -1995,10 +2087,13 @@
       if (name === 'archive') await patchChat({archived: !chat.archived}, chat.id);
       if (name === 'folder') return window.ChatShell.conversationForm({title: 'Move to folder', description: 'Choose an existing folder or enter a new name. Leave empty to remove the folder.', label: 'Folder', value: chat.folder || '', folders: [...new Set(S.chats.map(item => item.folder).filter(Boolean))]}, folder => patchChat({folder}, chat.id));
       if (name === 'delete') {
-        if (chat.temporary) return leaveTemporary();
+        if (chat.temporary) return endTemporaryChat();
+        const epoch = routeEpoch;
         return window.ChatShell.conversationForm({title: 'Delete conversation?', description: 'Delete "' + chat.title + '" and all its branches permanently. This cannot be undone.', destructive: true, submit: 'Delete'}, async () => {
           await api('/chats/' + encodeURIComponent(chat.id), 'DELETE');
-          forgetDraft(chat.id); if (S.chat?.id === chat.id) clearChat(); await refreshChats();
+          forgetDraft(chat.id);
+          if (S.chat?.id === chat.id && epoch === routeEpoch) { clearChat(); saveRoute(true); }
+          await refreshChats();
         });
       }
       if (name === 'duplicate') {
@@ -2076,7 +2171,9 @@
     sidebarRuns.ready = false; syncSidebarRuns();
     try {
       const session = await api('/session'); $('logout-button').hidden = !session.password_required;
-      if (!session.authenticated && session.password_required) { $('login-dialog').showModal(); $('password').focus(); return; }
+      if (!session.authenticated && session.password_required) { pendingView = null; $('login-dialog').showModal(); $('password').focus(); return; }
+      sessionReady = true;
+      if (pendingView) { const view = pendingView; pendingView = null; selectView(view); }
       S.config = await api('/config'); document.dispatchEvent(new CustomEvent('companion:config', {detail: S.config})); connection(S.config.upstream_available ? 'Connected' : 'Unavailable', !S.config.upstream_available);
       configurePdfPicker(Boolean(S.config.pdf_reader));
       if (!S.config.upstream_available) banner(S.config.upstream_error || 'The model server is unavailable. Check the companion connection and try again.');
@@ -2085,13 +2182,7 @@
       sidebarRuns.ready = true; syncSidebarRuns();
       try { for (const key of Object.keys(sessionStorage)) if (key.startsWith(draftPrefix) && key !== draftPrefix + 'new' && !S.chats.some(chat => draftPrefix + chat.id === key)) forgetDraft(key.slice(draftPrefix.length)); } catch (_) { /* Browser storage may be disabled. */ }
       $('temporary-button').hidden = !S.config.temporary?.enabled;
-      const temporary = sessionStorage.getItem('llmx-temporary-chat');
-      if (temporary) {
-        try { await openChat(temporary); return; }
-        catch (error) { if (error.status !== 404) throw error; sessionStorage.removeItem('llmx-temporary-chat'); toast('Your temporary chat has ended or expired.'); }
-      }
-      const previous = localStorage.getItem('llmx-chat');
-      if (previous && S.chats.some(c => c.id === previous)) await openChat(previous); else { restoreDraft(); render(); }
+      navigationReady = true; await restoreRoute();
     } catch (error) { connection('Offline', true); banner(error.message + ' Reload the page to reconnect.'); }
     finally { chatCreating(false); }
   }
@@ -2143,7 +2234,15 @@
     if (files.length) attach(files).catch(error => toast(error.message));
   });
   $('file-input').addEventListener('change', event => { attach(Array.from(event.target.files)).catch(error => toast(error.message)); event.target.value = ''; });
-  $('import-input').addEventListener('change', async event => { const file = event.target.files[0]; event.target.value = ''; if (!file) return; try { if (file.size > 32 * 1024 * 1024) throw new Error('Import must be smaller than 32 MB.'); const chat = await api('/import', 'POST', JSON.parse(await file.text())); await refreshChats(); await openChat(chat.id || chat.chat?.id); toast('Conversation imported.'); } catch (error) { toast('Import failed: ' + error.message); } });
+  $('import-input').addEventListener('change', async event => {
+    const file = event.target.files[0]; event.target.value = ''; if (!file) return;
+    const epoch = ++routeEpoch;
+    try {
+      if (file.size > 32 * 1024 * 1024) throw new Error('Import must be smaller than 32 MB.');
+      const chat = await api('/import', 'POST', JSON.parse(await file.text()));
+      await refreshChats(); await openChat(chat.id || chat.chat?.id, null, {epoch}); toast('Conversation imported.');
+    } catch (error) { toast('Import failed: ' + error.message); }
+  });
   $('search').addEventListener('input', queueChatSearch);
   $('scroll-region').addEventListener('scroll', syncJump, {passive: true});
   const transcriptSize = new ResizeObserver(syncJump);

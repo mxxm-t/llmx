@@ -224,6 +224,12 @@ Select the llmx wordmark to return to the Chat landing page. This keeps the
 draft of the conversation you left and adds no empty row to chat history.
 Ending a temporary chat still uses its existing confirmation.
 
+Browser Back and Forward revisit saved conversations, the Chat landing page,
+Saved files, Monitor and Settings. A copied address opens the same view or
+saved conversation after sign-in. The bare companion address reopens the last
+selected chat when available. A link to a deleted conversation opens the Chat
+landing page.
+
 The transcript, reading controls and composer grow together as the Chat pane
 gets wider. Reply prose keeps a readable line length, and wide code blocks and
 tables use the extra room and scroll within their own blocks when needed.
@@ -427,12 +433,15 @@ narrow screens the labels are Temporary and Normal. The button keeps its width
 when toggled, with a dashed Temporary action and a solid Normal action.
 It is absent from saved history and SQLite backups. Messages, attachments, settings
 and replay events share the normal conversation engine in a separate in-memory
-store. Reloading the page recovers the current temporary chat through an identifier
-in the tab's session storage; no transcript is saved in browser local storage.
+store. The address bar shows the ordinary Chat landing address. Reloading the
+temporary view in the same tab recovers the chat through an identifier in the
+tab's session storage. The identifier stays out of the URL and browser history.
+If the temporary chat expires, reloading returns to the last available saved chat.
 
-Normal chat, End chat, New conversation or selecting another conversation discards the temporary
-chat after confirmation if it has messages or an unsent draft. Stop an active reply
-first. Switching to Monitor, Workspace or Settings leaves the chat open. Closing
+Normal chat, End chat and navigation to another conversation or the Chat landing
+page discard the temporary chat after confirmation if it has messages or an
+unsent draft. This also applies when navigating Back or Forward. Stop an active
+reply first. Switching to Monitor, Saved files or Settings leaves the chat open. Closing
 the tab does not guarantee immediate deletion: abandoned idle chats expire after
 one hour, checked once a minute. Active replies remain until stopped or finished.
 A companion restart removes all temporary chats. At most 16 can be open.

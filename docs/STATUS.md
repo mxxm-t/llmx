@@ -17,18 +17,33 @@ through the full history before reaching the footer.
 - At 1440 x 900 the 28 px rows left 524 px for history. At 320 x 700 the 40 px rows left 242 px. The 667 x 375 landscape check reached the last chat and the footer without overlap.
 - Hosted Chrome could publish the new viewport dimensions before the companion sized its drawer. The geometry check waits for the drawer to reach the viewport height before scrolling to its footer.
 - Reviewed the sidebar [usage](../tools/chat_ui/README.md#conversations). The presentation change lands by fast-forward after its scoped checks.
+
 ## Chat browser history
 
 **Goal.** Restore top-level views and saved conversations with browser Back,
 Forward and reload.
 
-**Done.** The Chrome regression failed on main. Selecting a saved
-conversation left the browser history index at 1, where it expected 2.
+**Done.** The browser owns query addresses for top-level views and saved
+chats. Each explicit address takes precedence over the last selected chat.
+Unavailable chats open the landing page. Temporary chats use the landing
+address and keep their identifiers in this tab's session storage.
 
-**Left.** Connect navigation to the existing view and conversation owners,
-and check storage and temporary-chat behavior.
+**Checks.** The Chrome regression failed on main at the unchanged history
+index when selecting a chat. It passes with Back, Forward and reload across
+views, preserved drafts, missing targets and the temporary discard guard.
+Held chat and first Send responses cannot take over a newer view. Monitor
+reconnection leaves the history index unchanged. The full local workspace
+journey passes, including expiry recovery, backup restore and 200 percent
+zoom. A held session and configuration reproduced a dropped startup click and
+now verify that the click survives authentication, that Settings opens while
+configuration loads, and that startup preserves the selected panel. Local
+`docs` and `dead-code` passed. Logs are in `scratch/chat-browser-history/`.
 
-**Gotchas.** Temporary chat identifiers stay in this tab's session storage.
+This change lands by fast-forward after the scoped Chat workspace checks.
+
+**Gotchas.** The bare address still restores the last selected conversation.
+The Markdown review adds browser navigation to Chat usage and tests. The
+existing companion serves the query addresses through its static entry page.
 
 ## Conversation settings toggle
 

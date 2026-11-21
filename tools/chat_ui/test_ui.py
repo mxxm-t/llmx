@@ -204,7 +204,8 @@ class BrowserTests(unittest.TestCase):
     def test_chat_browser_history(self):
         node, chrome = self.browser_executables()
         with tempfile.TemporaryDirectory() as directory:
-            self.run_focused_browser(node, chrome, Path(directory), "browser-history", ("--browser-history-only",), [])
+            self.run_focused_browser(node, chrome, Path(directory), "browser-history", ("--browser-history-only",),
+                                     [[text_event("History race reply.")]])
 
     def test_chat_wide_layout(self):
         node, chrome = self.browser_executables()

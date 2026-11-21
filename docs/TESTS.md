@@ -190,6 +190,11 @@ The browser distinguishes navigation hover from the selected section in both the
 The Chat history fixture follows Chrome Back and Forward through saved chats,
 the Chat landing page and the other top-level views. It checks reload,
 unavailable conversations, draft restoration and temporary-chat privacy.
+A held chat snapshot or first Send must leave a newer view and its history
+entry intact. Cancelling Back from a temporary chat keeps its draft and entry.
+Reconnecting the Monitor iframe leaves the top-level history index unchanged.
+Held session and configuration responses verify that early clicks survive
+startup while private views still wait for authentication.
 The wide Chat fixture measures the landing page and active transcript at 1440,
 1920 and 2560 pixels with Conversation details open and closed. It checks
 composer and reading-control alignment, bounded prose and expanded reasoning,

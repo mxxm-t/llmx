@@ -165,7 +165,9 @@ window.ChatShell = (() => {
     return $('chat-title').disabled ? $('draft') : $('chat-title');
   }
   function show(view) {
-    if (!labels[view]) return;
+    if (Object.hasOwn(labels, view)) document.dispatchEvent(new CustomEvent('companion:navigate', {detail: view}));
+  }
+  function renderView(view) {
     $('app').dataset.view = view;
     document.querySelectorAll('.global-nav [data-view]').forEach(button => { if (button.dataset.view === view) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); });
     for (const name of ['monitor', 'workbench', 'preferences']) $('view-' + name).hidden = view !== name;
@@ -256,7 +258,6 @@ window.ChatShell = (() => {
   document.addEventListener('companion:unauthorized', () => { $('monitor-frame').removeAttribute('src'); if (!$('login-dialog').open) $('login-dialog').showModal(); });
   document.addEventListener('click', event => {
     const control = event.target.closest('button[data-view]'); if (control) show(control.dataset.view);
-    if (event.target.closest('[data-chat],[data-action="new"],[data-action="temporary"]')) show('chat');
     if (event.target.closest('[data-action="logout"]')) $('monitor-frame').removeAttribute('src');
   }, true);
   $('monitor-reload').addEventListener('click', () => loadMonitor(true)); $('monitor-frame').addEventListener('load', themeMonitor);
@@ -371,5 +372,5 @@ window.ChatShell = (() => {
       catch (error) { backupStatus(error.message, true); throw error; } finally { $('backup-restore').disabled = false; }
     });
   });
-  return {show, viewFocusTarget, api, menu, closeMenu, conversationForm, get config() { return config; }};
+  return {show, renderView, viewFocusTarget, api, menu, closeMenu, conversationForm, get config() { return config; }};
 })();

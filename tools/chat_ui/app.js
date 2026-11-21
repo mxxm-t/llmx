@@ -83,6 +83,34 @@
       drafts.set(key, value); return value;
     } catch (_) { forgetDraft(key); toast('The saved draft could not be restored.'); return null; }
   }
+  function renderLandingDrafts(visible = draftReady && !S.messages.length && !S.chat?.temporary && !$('login-dialog').open) {
+    const list = $('landing-draft-list');
+    list.replaceChildren();
+    if (visible) {
+      const keys = new Set(drafts.keys());
+      try {
+        for (const key of Object.keys(sessionStorage)) if (key.startsWith(draftPrefix)) keys.add(key.slice(draftPrefix.length));
+      } catch (_) { /* In-memory drafts still work when storage is unavailable. */ }
+      for (const chat of S.chats) {
+        if (!keys.has(chat.id) || chat.archived || chat.temporary || chat.id === S.chat?.id) continue;
+        const value = readDraft(chat.id);
+        if (!hasDraft(value)) continue;
+        const row = node('button', 'draft-row'); row.type = 'button'; row.dataset.chat = chat.id;
+        const label = node('span', 'draft-row-label');
+        const excerpt = value.text.trim().slice(0, 160).replace(/\s+/g, ' ');
+        label.append(node('span', 'draft-row-title', chat.title || 'Untitled conversation'),
+          node('span', 'draft-row-preview', excerpt || value.attachments[0]?.name || (value.edit ? 'Editing a message' : 'Unsent message')));
+        row.append(label);
+        if (value.attachments.length) {
+          const count = value.attachments.length;
+          row.append(node('small', '', count + (count === 1 ? ' file' : ' files')));
+        }
+        row.append(icon('M4 12h15m-5-5 5 5-5 5'));
+        list.append(row);
+      }
+    }
+    $('landing-drafts').hidden = !list.childElementCount;
+  }
   function restoreDraft() {
     draftReady = false;
     const value = S.chat?.temporary ? null : readDraft(draftKey());
@@ -90,7 +118,7 @@
     S.edit = value?.edit ? S.messages.find(m => m.id === value.edit && m.role === 'user') || null : null;
     if (value?.edit && !S.edit) toast('The edited message is no longer available. Your draft is kept as a new message.');
     composerRevision++; resizeDraft(); renderAttachments(); $('edit-note').hidden = !S.edit;
-    draftReady = true; draftWarning();
+    draftReady = true; draftWarning(); renderLandingDrafts();
   }
   function clearDrafts() {
     clearTimeout(draftTimer); drafts.clear(); changedDrafts.clear(); volatileDrafts.clear();
@@ -133,7 +161,7 @@
   }
   function currentRun() { return S.runs.find(r => !terminal(r.status)); }
   function closeStream() { if (S.stream) S.stream.close(); S.stream = null; }
-  document.addEventListener('companion:unauthorized', () => { closeStream(); closePassages(); closeDrawers(false); });
+  document.addEventListener('companion:unauthorized', () => { closeStream(); closePassages(); closeDrawers(false); renderLandingDrafts(false); });
   function connection(text, offline = false) { const el = $('connection'); el.replaceChildren(node('span', 'status-dot'), document.createTextNode(text)); el.classList.toggle('offline', offline); document.querySelector('.inspector-bottom').replaceChildren(node('span', 'status-dot'), document.createTextNode(offline ? text : 'Connected to the model server')); }
   function settings() {
     const value = {model: $('model').value, system: $('setting-system').value};
@@ -282,6 +310,7 @@
       list.append(row);
     }
     $('recent-conversations').hidden = !recent.length;
+    renderLandingDrafts();
     queueChatSearch();
   }
   function queueChatSearch() {
@@ -1983,8 +2012,10 @@
       if (el.dataset.action) await action(el.dataset.action, el);
       else if (el.dataset.chat) {
         await openChat(el.dataset.chat);
-        if (el.classList.contains('recent-chat') && S.chat?.id === el.dataset.chat && $('app').dataset.view === 'chat'
-            && (document.activeElement === el || document.activeElement === document.body)) $('chat-title').focus({preventScroll: true});
+        if (S.chat?.id === el.dataset.chat && $('app').dataset.view === 'chat' && (document.activeElement === el || document.activeElement === document.body)) {
+          if (el.classList.contains('draft-row')) $('draft').focus({preventScroll: true});
+          else if (el.classList.contains('recent-chat')) $('chat-title').focus({preventScroll: true});
+        }
       }
       else if (el.dataset.tab) showTab(el.dataset.tab);
 

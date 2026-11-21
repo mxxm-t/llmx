@@ -140,12 +140,12 @@
           </nav>
           <div id="scroll-region" class="scroll-region">
             <section id="messages" class="messages" aria-label="Messages"></section>
+          </div>
+          <div class="composer-area">
             <div id="welcome" class="welcome">
               <h1><label for="draft">New conversation</label></h1>
               <button type="button" class="text-button temporary-saved-files" data-action="attach-files" aria-haspopup="dialog" aria-controls="saved-file-dialog">Browse saved files</button>
             </div>
-          </div>
-          <div class="composer-area">
             <div id="edit-note" class="edit-note" hidden>Editing creates a new branch.<button data-action="cancel-edit">Cancel edit</button></div>
             <form id="composer" class="composer">
               <div id="attachments" class="attachments"></div>
@@ -179,21 +179,23 @@
               </div>
             </form>
             <div class="landing-tools">
-              <section id="recent-conversations" aria-labelledby="recent-title" hidden>
-                <h2 id="recent-title">Recent conversations</h2>
-                <nav id="recent-list" aria-labelledby="recent-title"></nav>
+              <section id="landing-drafts" aria-labelledby="landing-drafts-title" hidden>
+                <h2 id="landing-drafts-title">Unsent drafts</h2>
+                <nav id="landing-draft-list" aria-labelledby="landing-drafts-title"></nav>
               </section>
               <section id="landing-context" aria-labelledby="landing-context-heading">
-                <div class="landing-collection-head">
-                  <h2 id="landing-context-heading">Attach from workspace</h2>
-                  <div class="landing-sources" role="group" aria-label="Workspace source">
-                    <button type="button" data-source="files" aria-pressed="true">Files</button>
-                    <button type="button" data-source="projects" aria-pressed="false">Projects</button>
-                  </div>
+                <h2 id="landing-context-heading">Attach from workspace</h2>
+                <div class="landing-sources" role="group" aria-label="Workspace source">
+                  <button type="button" data-source="files" aria-pressed="true">Files</button>
+                  <button type="button" data-source="projects" aria-pressed="false">Projects</button>
                 </div>
                 <p id="landing-context-status" class="muted" role="status" hidden></p>
                 <div id="landing-context-list"></div>
                 <button id="landing-context-browse" type="button" class="text-button" data-action="attach-files" aria-haspopup="dialog">Browse saved files</button>
+              </section>
+              <section id="recent-conversations" aria-labelledby="recent-title" hidden>
+                <h2 id="recent-title">Recent conversations</h2>
+                <nav id="recent-list" aria-labelledby="recent-title"></nav>
               </section>
             </div>
             <div class="composer-caption">

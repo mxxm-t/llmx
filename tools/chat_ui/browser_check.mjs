@@ -575,6 +575,99 @@ async function checkPromptOutline() {
   await cdp('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
   await wait("document.documentElement.dataset.compact==='false'", 'desktop after outline');
 }
+async function checkLandingDrafts() {
+  const homeDraft = 'Prepare a route for the afternoon survey.';
+  const textDraft = 'Check the eastern marker before the tide turns.';
+  const titles = ['Harbor survey route','Berth measurements','Harbor station notes','Winter archive'];
+  const [textChat,fileChat,cleanChat,archivedChat] = await evaluate(`(async()=>{
+    const ids=[];
+    for (const title of ${JSON.stringify(titles)}) {
+      const empty = title==='Berth measurements';
+      const chat=await ChatShell.api('/import','POST',{version:1,chat:{title,active_leaf:empty?null:'r'},
+        messages:empty?[]:[{id:'r',role:'assistant',content:'Saved station notes for '+title+'.'}]});
+      ids.push(chat.id);
+    }
+    let {revision}=await ChatShell.api('/workspace');
+    for (const [path,content] of [['harbor/route.md','Morning route and marker positions.'],['observations/tide.csv','station,depth\\nA2,4.6\\n']]) {
+      ({revision}=await ChatShell.api('/workspace/file','POST',{revision,path,content}));
+    }
+    await ChatShell.api('/workspace/projects','POST',{name:'Harbor fieldwork',paths:['harbor/route.md','observations/tide.csv']});
+    return ids;
+  })()`);
+  assert.equal(await evaluate("document.querySelector('#landing-drafts').checkVisibility()"),false,'new session starts with no draft suggestions');
+  const sidebar = async () => {
+    if (await evaluate("document.documentElement.dataset.compact==='true'")) {
+      await pointerClick('#sidebar-toggle');
+      await wait("document.querySelector('#sidebar').getBoundingClientRect().left>=0",'sidebar open');
+    }
+  };
+  const select = async id => {
+    await sidebar(); await pointerClick(`.chat-item[data-chat="${id}"]`);
+    await wait(`document.querySelector('.chat-item.active')?.dataset.chat==='${id}'`,'selected saved conversation');
+  };
+  const home = async () => {
+    await sidebar(); await pointerClick('#sidebar [data-action=home]');
+    await wait("!document.querySelector('.chat-item.active') && document.querySelector('#welcome').checkVisibility() && document.activeElement.id==='draft'",'ordinary new-chat home');
+    assert.equal(await evaluate("document.querySelector('#draft').value"),homeDraft);
+  };
+  await reloadDocument();
+  await wait(`document.querySelector('.chat-item[data-chat="${textChat}"]')`,'history for landing drafts');
+  await fill('#draft',homeDraft);
+  await select(archivedChat); await fill('#draft','Keep these winter measurements private.'); await home();
+  await evaluate(`ChatShell.api('/chats/${archivedChat}','PATCH',{archived:true})`);
+  await select(textChat); await fill('#draft',textDraft); await home();
+  await select(fileChat);
+  await upload('#file-input',fixture);
+  await wait("document.querySelector('#attachments .attachment-pill')?.innerText.includes('depth-log.csv')",'file-only draft attached');
+  assert.equal(await evaluate("document.querySelector('#draft').value"),'');
+  await home();
+  await reloadDocument();
+  await wait(`document.querySelector('#draft').value===${JSON.stringify(homeDraft)} && document.querySelector('.landing-context-row')`,'restored home draft and workspace files');
+  for (const [width,height,theme] of [[1440,1000,'light'],[320,800,'dark']]) {
+    await cdp('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width===320});
+    await cdp('Emulation.setEmulatedMedia',{features:[{name:'prefers-color-scheme',value:theme}]});
+    await wait(`innerWidth===${width} && document.documentElement.dataset.theme==='${theme}' && document.documentElement.dataset.compact==='${width===320}'`,'matched home viewport and theme');
+    await screenshot(`landing-${width}-${theme}.png`);
+    assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true);
+  }
+  const draftRows = '#landing-draft-list button[data-chat]';
+  const ids = () => evaluate(`Array.from(document.querySelectorAll(${JSON.stringify(draftRows)}),row=>row.dataset.chat).sort()`);
+  const row = id => `${draftRows}[data-chat="${id}"]`;
+  assert.deepEqual(await ids(),[textChat,fileChat].sort(),'real unsent saved chats only, excluding the archived, untouched, and home drafts');
+  assert.equal(await evaluate("document.querySelector('#landing-drafts').checkVisibility() && document.querySelector('#recent-conversations').checkVisibility() && document.querySelector('#recent-list button').tabIndex===0"),true,'mobile drafts and recent conversations remain available');
+  const textLabel=await evaluate(`document.querySelector(${JSON.stringify(row(textChat))}).innerText`);
+  const fileLabel=await evaluate(`document.querySelector(${JSON.stringify(row(fileChat))}).innerText`);
+  assert(textLabel.includes(titles[0]) && textLabel.includes(textDraft),'text draft shows its title and preview');
+  assert(fileLabel.includes(titles[1]) && fileLabel.includes('depth-log.csv') && fileLabel.includes('1 file'),'attachment-only draft identifies its file');
+  const writes = apiMutations.length;
+  await evaluate(`document.querySelector(${JSON.stringify(row(textChat))}).focus()`);
+  for (const type of ['keyDown','keyUp']) await cdp('Input.dispatchKeyEvent',{type,key:'Enter',code:'Enter',windowsVirtualKeyCode:13,text:type==='keyDown'?'\r':''});
+  await wait(`document.activeElement.id==='draft' && document.querySelector('#draft').value===${JSON.stringify(textDraft)} && document.querySelector('.chat-item.active')?.dataset.chat==='${textChat}'`,'keyboard resumed saved text draft after reload');
+  await home();
+  await pointerClick(row(fileChat));
+  await wait(`document.activeElement.id==='draft' && document.querySelector('.chat-item.active')?.dataset.chat==='${fileChat}' && document.querySelector('#attachments .attachment-pill')?.innerText.includes('depth-log.csv')`,'attachment-only draft resumed after reload');
+  assert.equal(await evaluate("document.querySelector('#draft').value"),'');
+  assert.equal(await evaluate("document.querySelector('#welcome').checkVisibility() && document.querySelectorAll('#messages .message').length===0"),true,'resumed empty saved conversation');
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(row(fileChat))})?.checkVisibility() || false`),false,'current saved chat offered as a resumable draft');
+  await home();
+  assert.equal(apiMutations.length,writes,'resuming saved drafts wrote to the server');
+  await pointerClick(`#recent-list [data-chat="${cleanChat}"]`);
+  await wait(`document.activeElement.id==='chat-title' && document.querySelector('.chat-item.active')?.dataset.chat==='${cleanChat}'`,'mobile recent conversation accessible');
+  await home();
+  await pointerClick('#temporary-button');
+  await wait("document.querySelector('#app').dataset.temporary==='true' && !document.querySelector('#temporary-button').disabled",'temporary landing');
+  await fill('#draft','Private temporary survey note.');
+  assert.equal(await evaluate("document.querySelector('#landing-drafts').checkVisibility()"),false,'temporary mode must hide saved drafts');
+  await pointerClick('#temporary-button');
+  await wait("document.querySelector('#action-dialog').open",'confirm ending the temporary draft');
+  await pointerClick('#conversation-submit');
+  await wait("document.querySelector('#app').dataset.temporary!=='true' && !document.querySelector('#temporary-button').disabled",'ordinary home after temporary chat');
+  assert.deepEqual(await ids(),[textChat,fileChat].sort(),'temporary draft did not leak into home');
+  assert.equal(await evaluate("document.querySelector('#draft').value"),homeDraft);
+  await cdp('Network.clearBrowserCookies');
+  assert.equal(await evaluate("ChatShell.api('/chats').then(()=>200,error=>error.status)"),401);
+  await wait("document.querySelector('#login-dialog').open && !document.querySelector('#landing-drafts').checkVisibility() && !document.querySelector('#landing-draft-list').childElementCount",'clear draft previews when the session locks');
+}
 async function checkLandingContext() {
   const source = key => '#landing-context [data-source='+key+']';
   const row = label => '.landing-context-row[title='+JSON.stringify(label)+']';
@@ -588,6 +681,7 @@ async function checkLandingContext() {
     return {visible, focused:document.activeElement===button};
   })()`);
   await empty('No saved files yet.');
+  assert.equal(await evaluate("document.querySelector('#landing-context-heading').textContent"),'Attach from workspace');
   await evaluate("ChatShell.api('/import','POST',{version:1,chat:{title:'Resume this draft',active_leaf:'reply'},messages:[{id:'reply',role:'assistant',content:'Saved reply'}]})");
   await reloadDocument();
   await shown('.chat-item[data-chat]');
@@ -600,6 +694,7 @@ async function checkLandingContext() {
   await fill('#draft','Review the release notes.');
   await pointerClick(source('projects'));
   await empty('No saved projects yet.');
+  assert.equal(await evaluate("document.querySelector('#landing-context-heading').textContent"),'Use a saved project');
   await pointerClick('#landing-context-browse');
   await wait("document.activeElement.id==='workspace-project-name' && document.querySelector('#workspace-project-form').checkVisibility()", 'create a project from home');
   const ids = await evaluate(`(async()=>{
@@ -648,6 +743,7 @@ async function checkLandingContext() {
   await cdp('Emulation.setDeviceMetricsOverride',{width:320,height:700,deviceScaleFactor:1,mobile:true});
   await wait("document.documentElement.dataset.compact==='true'",'narrow home');
   await pointerClick(source('files')); await shown(row('brief/outline.md'));
+  assert.equal(await evaluate("document.querySelector('#landing-context-heading').textContent"),'Attach from workspace');
   await shown('.recent-chat');
   assert.match(await evaluate("document.querySelector('.recent-chat').textContent"), /Resume this draft/);
   await screenshot('home-context-320.png');
@@ -2090,6 +2186,10 @@ try {
     await checkWorkspaceImport();
     assert.deepEqual(errors, [], 'workspace import browser exceptions');
     console.log('PASS: reviewed native multi-file and folder import, atomic retry, byte preservation, editor conflicts and responsive keyboard controls');
+  } else if (process.argv.includes('--landing-drafts-only')) {
+    await signIn(); await checkLandingDrafts();
+    assert.deepEqual(errors,[],'ordinary landing browser exceptions');
+    console.log('PASS: resume saved text and attachment-only drafts after reload, preserve home draft, archive and temporary isolation, mobile recent navigation');
   } else if (homeContextMode) {
     await signIn(); await checkLandingContext();
     assert.deepEqual(errors,[], 'home context browser exceptions');

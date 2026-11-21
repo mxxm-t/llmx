@@ -351,59 +351,55 @@ kbd {
   scrollbar-color:var(--border) transparent
 }
 .chat-stage:has(#welcome:not([hidden])) {
+  container:landing / inline-size;
   overflow:auto;
   scrollbar-width:thin
 }
-.scroll-region:has(#welcome:not([hidden])) {
+.chat-stage:has(#welcome:not([hidden])) .scroll-region {
   flex:none;
-  overflow:visible;
-  margin-top:clamp(24px,5vh,52px)
+  overflow:visible
 }
+.messages:empty { display:none }
 .welcome {
   display:flex;
   align-items:center;
   justify-content:space-between;
   gap:12px;
-  width:100%;
-  max-width:var(--reading-width);
-  margin:auto;
-  padding:0 var(--page-edge) 12px
+  min-width:0;
+  margin-bottom:18px
 }
 .welcome h1 {
   margin:0;
-  font-size:25px;
+  font-size:clamp(25px,2.4vw,34px);
   font-weight:600;
   line-height:1.25;
   letter-spacing:-.035em
 }
 .landing-tools {
   display:none;
-  gap:24px clamp(22px,3vw,40px);
-  margin-top:30px
+  gap:28px;
+  margin-top:28px
 }
 .workspace:not([data-temporary=true]) .chat-stage:has(#welcome:not([hidden])) .landing-tools { display:grid }
 .landing-tools section { min-width:0 }
 :root[data-compact=false] #recent-conversations { display:none }
-.landing-collection-head,#recent-title {
-  min-height:36px;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px
-}
 .landing-tools h2 {
-  font-size:15px;
+  font-size:17px;
   font-weight:600;
-  letter-spacing:-.015em;
-  margin:0
+  line-height:1.4;
+  letter-spacing:-.02em;
+  margin:0 0 10px
 }
-.landing-sources { display:flex; align-items:center; gap:8px }
-.landing-sources button { min-height:30px; padding:3px 4px; border-bottom:2px solid transparent; color:var(--muted); font-size:12px }
+#landing-context { display:grid; grid-template-columns:minmax(0,1fr) auto; align-content:start; align-items:center }
+#landing-context h2 { margin:0 }
+#landing-context-list,#landing-context-status,#landing-context-browse { grid-column:1 / -1 }
+.landing-sources { display:flex; align-items:center; gap:14px }
+.landing-sources button { min-height:34px; padding:3px 2px; border-bottom:2px solid transparent; color:var(--muted); font-size:13px }
 .landing-sources button[aria-pressed=true] { color:var(--text); border-bottom-color:currentColor; font-weight:600 }
-.landing-sources button:hover,.recent-chat:hover,.landing-context-row:hover { background:var(--inset); color:var(--text) }
-#recent-list,#landing-context-list { border-top:1px solid var(--line) }
+.landing-sources button:hover,.recent-chat:hover,.draft-row:hover,.landing-context-row:hover { background:var(--inset); color:var(--text) }
+#recent-list,#landing-draft-list,#landing-context-list { border-top:1px solid var(--line) }
 #landing-context-list:empty { border:0 }
-.recent-chat,.landing-context-row {
+.recent-chat,.draft-row,.landing-context-row {
   display:flex;
   align-items:center;
   gap:10px;
@@ -415,18 +411,24 @@ kbd {
   font-size:14px
 }
 .recent-chat { justify-content:space-between }
-.recent-name,.landing-context-row .resource-name,.landing-context-row .resource-folder {
+.draft-row { padding-block:11px }
+.draft-row-label { display:grid; flex:1; min-width:0; gap:3px }
+.draft-row-title { font-weight:550 }
+.draft-row-preview { font-size:13px; color:var(--secondary) }
+.draft-row svg { width:16px; height:16px; flex:none; color:var(--muted) }
+.recent-name,.draft-row-title,.draft-row-preview,.landing-context-row .resource-name,.landing-context-row .resource-folder {
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap
 }
-.recent-chat time,.landing-context-row small { flex:none; color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums }
+.recent-chat time,.draft-row small,.landing-context-row small { flex:none; color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums }
 .landing-context-row svg,.context-shortcut svg { width:15px; height:15px; flex:none; color:var(--muted) }
 .landing-context-row .resource-label { display:grid; min-width:0; flex:1; gap:2px }
 .landing-context-row .resource-folder { color:var(--muted); font-size:11px }
 .temporary-saved-files { display:none }
 .workspace[data-temporary=true] .temporary-saved-files { display:inline-block }
 #landing-context-browse,.temporary-saved-files { min-height:32px; padding:4px 3px; color:var(--secondary); font-size:12px; text-decoration:underline; text-underline-offset:3px }
+#landing-context-browse { justify-self:start; margin-top:5px }
 #landing-context-status { margin:0; padding:11px 3px 5px; border-top:1px solid var(--line); font-size:13px }
 .context-shortcut {
   display:inline-flex;
@@ -448,8 +450,28 @@ kbd {
   padding:12px var(--page-edge) 6px
 }
 .chat-stage:has(#welcome:not([hidden])) .composer-area {
-  padding-top:0;
-  padding-bottom:24px
+  padding-top:clamp(28px,7vh,72px);
+  padding-bottom:32px
+}
+.workspace[data-temporary=false] .chat-stage:has(#welcome:not([hidden])) .composer-area { max-width:1090px }
+@container landing (min-width:840px) {
+  .workspace[data-temporary=false] .composer-area {
+    display:grid;
+    grid-template-columns:minmax(0,1fr) minmax(225px,29%);
+    align-items:start;
+    column-gap:clamp(32px,4cqi,52px)
+  }
+  .workspace[data-temporary=false] .composer-area > :is(.welcome,#edit-note,#composer,.composer-caption) { grid-column:1 }
+  .workspace[data-temporary=false] .chat-stage:has(#welcome:not([hidden])) .landing-tools { display:contents }
+  #landing-drafts,#recent-conversations { grid-column:1; margin-top:30px }
+  #landing-context {
+    grid-column:2;
+    grid-row:1 / span 5;
+    grid-template-columns:minmax(0,1fr);
+    border-left:1px solid var(--line);
+    padding:4px 0 0 clamp(20px,2.4cqi,32px)
+  }
+  #landing-context h2 { margin-bottom:10px }
 }
 .chat-stage:has(#welcome:not([hidden])) .composer-caption { display:none }
 .composer {
@@ -459,7 +481,7 @@ kbd {
 }
 .chat-stage:has(#welcome[hidden]) { --reading-width:960px }
 .composer #draft-notice { margin:6px 12px 0 }
-.chat-stage:has(#welcome:not([hidden])) #draft { min-height:80px }
+.chat-stage:has(#welcome:not([hidden])) #draft { min-height:104px }
 #composer:has(#file-drop-hint:not([hidden])) {
   position:relative;
   outline:2px dashed var(--accent);
@@ -1694,10 +1716,6 @@ dialog::backdrop {
     padding-left:25px;
     padding-right:25px
   }
-  .welcome {
-    padding-left:25px;
-    padding-right:25px
-  }
   .connection {
     display:none
   }
@@ -1748,9 +1766,10 @@ dialog::backdrop {
   .inspector {
     width:min(340px,90vw)
   }
-  .welcome { padding:0 16px 12px }
-  .welcome h1 { font-size:22px }
-  .scroll-region:has(#welcome:not([hidden])) { margin-top:26px }
+  .welcome { margin-bottom:14px }
+  .welcome h1 { font-size:25px }
+  .chat-stage:has(#welcome:not([hidden])) .composer-area { padding-top:26px }
+  .chat-stage:has(#welcome:not([hidden])) #draft { min-height:80px }
   .context-shortcut span { display:none }
   .context-shortcut { height:40px; width:40px; padding:0; border-color:transparent }
   .composer-area {

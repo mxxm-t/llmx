@@ -174,6 +174,7 @@
     const controller = new AbortController();
     load = controller;
     const projects = source === 'projects';
+    byId('landing-context-heading').textContent = projects ? 'Use a saved project' : 'Attach from workspace';
     rows.replaceChildren(); notice.hidden = false; notice.textContent = projects ? 'Loading projects...' : 'Loading saved files...';
     browse.dataset.action = projects ? 'attach-project' : 'attach-files';
     browse.setAttribute('aria-haspopup', 'dialog');

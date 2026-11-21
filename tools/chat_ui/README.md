@@ -220,13 +220,21 @@ Select the llmx wordmark to return to the Chat landing page. This keeps the
 draft of the conversation you left and adds no empty row to chat history.
 Ending a temporary chat still uses its existing confirmation.
 
+**Unsent drafts** lists other saved conversations with unfinished messages in
+this browser tab. Each row shows the conversation title and a text excerpt or
+attachment name. Select a row to resume typing with its attachments and edit
+target restored. The draft in **New conversation** stays available when you
+return. The list appears only when a draft is available and excludes archived
+and temporary conversations.
+
 The sidebar highlights the current view and groups saved conversations by pin
 and folder. Select a group heading to collapse or expand it. The archive keeps its own open groups.
 Search shows matches in one list, including conversations in collapsed groups. On a phone, the chat landing
 page also lists up to three recently updated conversations with messages. Archived
 conversations stay in the archive. Select a recent conversation to reopen its
-active branch. Below the composer, **Attach from workspace** lists up to three
-saved files or projects by name. Select a file to open the picker with that path
+active branch. **Attach from workspace** sits beside the composer on wide
+screens and below it on narrow screens. It lists up to three saved files or
+projects by name. Select a file to open the picker with that path
 checked, or a project to review its current files and optional instructions.
 **Browse saved files** and **Browse projects** open the full lists. When the
 workspace has no projects, **Create a project** opens the project editor.

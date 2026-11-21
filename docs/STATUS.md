@@ -5,6 +5,17 @@
 - Goal: Open the exact text or image in the current draft without sending or removing it.
 - Done: Draft filenames open the selected text or image before sending. Sent attachments use the same viewer. PNG and JPEG downloads retain the original bytes.
 - Checks: Chrome reads HTML as literal text, opens both image types by keyboard, checks dimensions, downloaded bytes, focus, unchanged draft contents and separate removal at 320 and 1440 pixels. Find indexes the filename on the thumbnail and highlights it in the transcript. The feature lands by fast-forward after the scoped workspace checks.
+- Checks: Chrome reads HTML as literal text, opens both image types by keyboard, checks dimensions, downloaded bytes, focus, unchanged draft contents and separate removal at 320 and 1440 pixels. The feature lands by fast-forward after the scoped workspace checks.
+## New conversation and unsent drafts (2026-11-21)
+
+The new conversation view places saved files and projects beside the composer
+when the chat pane has room. Unsent drafts show a text excerpt or attachment
+name and reopen the saved conversation with focus in its composer.
+[Conversation usage](../tools/chat_ui/README.md#conversations)
+
+- Chrome restored text and attachment-only drafts after reload, preserved the separate home draft and recorded zero writes when resuming. Archived chats were excluded, temporary chat showed no previews and HTTP 401 cleared the list.
+- Matched Chrome views covered 1440 px light and 320 px dark layouts. The saved-context and full workspace browser checks passed, including file and project review, mobile navigation and 200 percent zoom.
+- Reviewed the Chat documentation against the new entry points. The docs and dead-code components passed. Landing uses a fast-forward after the scoped Chat workspace checks.
 
 ## Workspace editor and draft attachments (2026-11-21, Done)
 

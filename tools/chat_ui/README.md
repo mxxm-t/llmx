@@ -104,7 +104,7 @@ restore it or remove its path from the project before downloading.
 
 Each use takes a snapshot. Editing a saved file later affects the next use.
 The draft and previously sent messages retain their copies. Attaching the same workspace file twice keeps one copy, including when you attach directly from the editor. If the draft already contains a different version
-of a selected file, remove that attachment before adding the new version.
+of a selected file, the editor offers **Replace in draft**. This updates the existing attachment in place, including when all eight slots are in use. It uses your current edit and keeps the saved file intact. In the file or project picker, remove the old attachment before adding a different version.
 Temporary chats can use a project explicitly. Their drafts stay in memory.
 Project definitions live with Workspace files in the companion data directory.
 The conversation database backup covers the copies in saved conversations.

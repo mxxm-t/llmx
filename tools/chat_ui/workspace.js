@@ -566,17 +566,26 @@
   }
   async function attachFile() {
     if (!state.path || state.attaching) return;
-    const loading = viewLoad, selection = state.selection;
+    const loading = viewLoad, selection = state.selection, text = editorText();
     const isCurrent = () => viewLoad === loading && state.selection === selection;
     clearError(); state.attaching = true; updateEditor();
     try {
       if (/[:\\]/.test(state.path)) throw new Error('Use a Workspace path with forward slashes and no colons to attach this file.');
       const name = window.ChatComposer.workspaceName(state.path);
-      await window.ChatComposer.attach([new File([editorText()], name, {type: 'text/plain'})], {fromWorkspace: true});
+      await window.ChatComposer.attach([new File([text], name, {type: 'text/plain'})], {fromWorkspace: true});
       if (isCurrent()) returnToChat(document.getElementById('draft'));
     } catch (problem) {
       if (!isCurrent()) return;
       showError(problem);
+      if (problem.replaceInDraft && editorText() === text) {
+        const replace = control('Replace in draft', '', () => {
+          if (!isCurrent() || editorText() !== text) { clearError(); return; }
+          try { problem.replaceInDraft(); }
+          catch (failure) { showError(failure); error.focus(); return; }
+          clearError(); returnToChat(document.getElementById('draft'));
+        });
+        error.append(replace);
+      }
       error.focus();
     } finally {
       state.attaching = false; updateEditor();
@@ -609,7 +618,7 @@
     if (!state.snapshot?.jobs.some(job => !terminal(job)) || document.hidden || document.getElementById('app').dataset.view !== 'workbench') return;
     state.timer = setTimeout(async () => { try { const running = state.snapshot.jobs.filter(job => !terminal(job)); for (const job of running) { const result = await api('/workspace/jobs/' + encodeURIComponent(job.id)); const index = state.snapshot.jobs.findIndex(item => item.id === job.id); state.snapshot.jobs[index] = result.job; } renderJobs(); if (state.snapshot.jobs.every(terminal)) await load(); else scheduleJobs(); } catch (problem) { showError(problem); } }, 500);
   }
-  editor.addEventListener('input', updateEditor); editor.addEventListener('keyup', updateEditor); editor.addEventListener('click', updateEditor); commandForm.addEventListener('submit', startJob);
+  editor.addEventListener('input', () => { if (displayedError?.replaceInDraft) clearError(); updateEditor(); }); editor.addEventListener('keyup', updateEditor); editor.addEventListener('click', updateEditor); commandForm.addEventListener('submit', startJob);
   projectForm.addEventListener('submit', saveProject);
   document.addEventListener('keydown', event => { if (document.querySelector('dialog[open]')) return; if (document.getElementById('app').dataset.view === 'workbench' && section === 'files' && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); if (!save.disabled) saveFile().catch(showError); } });
   document.addEventListener('companion:view', event => {

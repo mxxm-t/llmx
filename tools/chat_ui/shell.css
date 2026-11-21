@@ -384,6 +384,14 @@
   margin-bottom: 20px;
   color: var(--danger);
 }
+.workspace-error:has(button) {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.workspace-error button {
+  display: block;
+  margin-top: 8px;
+}
 .workbench-layout {
   display: grid;
   grid-template-columns: clamp(200px, 23%, 320px) minmax(0, 1fr);

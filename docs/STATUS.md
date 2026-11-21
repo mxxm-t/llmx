@@ -1,5 +1,11 @@
 # llmx - Development Status
 
+## Replace an edited file in the current draft
+
+- Goal: Update a draft attachment directly from the file editor while preserving its position and other draft content.
+- Done: A single conflicting text attachment offers Replace in draft in the editor. Confirmation updates its slot and returns focus to the composer. Editing again dismisses the offer.
+- Checks: Chrome exercises a full draft, a changed draft, the combined attachment size limit, preserved saved file contents and keyboard acceptance. The feature lands by fast-forward after the scoped workspace checks.
+
 ## Send editor text to a conversation
 
 - Goal: Preserve a workspace editor attachment's text regardless of its filename.

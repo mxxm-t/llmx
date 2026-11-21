@@ -1683,23 +1683,36 @@
       throw new Error(chatId !== S.chat?.id || generation !== S.generation
         ? 'Attachment read cancelled because the selected conversation changed.'
         : 'The draft changed while the attachment was being read. Attach the file again.');
-    if (fromWorkspace) appendWorkspaceAttachments(pending);
-    else appendAttachments(pending);
+    if (fromWorkspace) appendWorkspaceAttachments(pending, true);
+    else setDraftAttachments([...S.attachments, ...pending]);
     if ($('app').dataset.view === 'chat') $('draft').focus();
   }
-  function appendAttachments(pending) {
-    if (S.attachments.length + pending.length > 8) throw new Error('Attach up to 8 files per message.');
-    const total = S.attachments.reduce((sum, attachment) => sum + attachmentBytes(attachment), 0) + pending.reduce((sum, attachment) => sum + attachmentBytes(attachment), 0);
-    if (total > 10 * 1024 * 1024) throw new Error('Attachments exceed 10 MiB. Remove a file before adding more.');
-    S.attachments.push(...pending); composerRevision++; renderAttachments();
+  function setDraftAttachments(files) {
+    if (files.length > 8) throw new Error('Attach up to 8 files per message.');
+    if (files.reduce((sum, file) => sum + attachmentBytes(file), 0) > 10 * 1024 * 1024)
+      throw new Error('Attachments exceed 10 MiB. Remove a file before adding more.');
+    S.attachments.splice(0, S.attachments.length, ...files);
+    composerRevision++; renderAttachments();
   }
-  function appendWorkspaceAttachments(files) {
+  function appendWorkspaceAttachments(files, fromEditor = false) {
     const pending = files.filter(file => {
       const existing = S.attachments.filter(item => item.name === file.name);
-      if (existing.some(item => item.text !== file.text)) throw new Error('Remove the existing ' + file.name + ' attachment to use this version.');
+      if (existing.some(item => item.text !== file.text)) {
+        if (fromEditor && files.length === 1 && existing.length === 1 && typeof existing[0].text === 'string') {
+          const problem = new Error('The draft has another version of ' + file.name + '.');
+          const revision = composerRevision, generation = S.generation;
+          problem.replaceInDraft = () => {
+            if (composerRevision !== revision || generation !== S.generation || !S.attachments.includes(existing[0]))
+              throw new Error('The draft changed. Choose Attach to Chat again.');
+            setDraftAttachments(S.attachments.map(item => item === existing[0] ? file : item));
+          };
+          throw problem;
+        }
+        throw new Error('Remove the existing ' + file.name + ' attachment to use this version.');
+      }
       return !existing.length;
     });
-    if (pending.length) appendAttachments(pending);
+    if (pending.length) setDraftAttachments([...S.attachments, ...pending]);
   }
   function workspaceName(path) { return path.replaceAll('/', ':'); }
   function projectDraft() {

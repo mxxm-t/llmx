@@ -1043,7 +1043,7 @@
         const basename = target.path.split('/').at(-1), html = /\.html?$/i.test(basename);
         const language = html ? 'html' : basename.match(/\.([^.]+)$/)?.[1];
         window.ChatArtifacts.open({name: basename, source: file.content, language}, {
-          initialPreview: html, allowWorkspaceEdit: false, workspacePath: html ? target.path : ''
+          initialPreview: html, workspacePath: target.path
         });
       } catch (problem) {
         if (isCurrent()) {

@@ -224,6 +224,11 @@ class BrowserTests(unittest.TestCase):
             self.run_focused_browser(node, chrome, root, "message-find", ("--message-find-only",), [reply],
                                      node_options=("--require", str(delay_page_list)))
 
+    def test_open_saved_tool_result_in_editor(self):
+        node, chrome = self.browser_executables()
+        with tempfile.TemporaryDirectory() as directory:
+            self.run_focused_browser(node, chrome, Path(directory), "saved-file-editor", ("--write-file-actions-only",), [])
+
     def test_edit_generated_file_at_existing_path(self):
         node, chrome = self.browser_executables()
         with tempfile.TemporaryDirectory() as directory:

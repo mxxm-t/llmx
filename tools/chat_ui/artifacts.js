@@ -45,7 +45,7 @@ window.ChatArtifacts = (() => {
   const sourceButton = node('button', '', 'Source'); sourceButton.type = 'button'; sourceButton.setAttribute('role', 'tab'); sourceButton.setAttribute('aria-selected', 'true'); sourceButton.id = 'artifact-source-tab';
   const previewButton = node('button', '', 'Preview'); previewButton.type = 'button'; previewButton.setAttribute('role', 'tab'); previewButton.setAttribute('aria-selected', 'false'); previewButton.id = 'artifact-preview-tab';
   modes.append(sourceButton, previewButton);
-  const actions = node('div', 'artifact-toolbar-actions'); const edit = node('button', 'secondary-button', 'Edit in workspace'); edit.type = 'button'; const copy = node('button', 'secondary-button', 'Copy'); const save = node('button', 'secondary-button', 'Download'); const wrap = node('button', 'secondary-button', 'Wrap lines'); wrap.type = 'button';
+  const actions = node('div', 'artifact-toolbar-actions'); const edit = node('button', 'secondary-button'); edit.type = 'button'; const copy = node('button', 'secondary-button', 'Copy'); const save = node('button', 'secondary-button', 'Download'); const wrap = node('button', 'secondary-button', 'Wrap lines'); wrap.type = 'button';
   actions.append(edit, wrap, copy, save); toolbar.append(modes, actions);
   const status = node('div', 'artifact-status'); status.setAttribute('role', 'status'); status.hidden = true;
   const content = node('div', 'artifact-content'); const sourcePanel = node('div', 'artifact-source'); sourcePanel.setAttribute('role', 'tabpanel'); sourcePanel.setAttribute('aria-labelledby', sourceButton.id); const pre = node('pre'); const code = node('code'); pre.append(code); sourcePanel.append(pre);
@@ -110,6 +110,7 @@ window.ChatArtifacts = (() => {
     previewButton.hidden = readOnlyAttachment || (current.language !== 'html' && !/\.html?$/i.test(current.name));
     copy.textContent = 'Copy';
     edit.hidden = readOnlyAttachment || !allowWorkspaceEdit;
+    edit.textContent = workspacePath ? 'Open in editor' : 'Edit in workspace';
     if (!dialog.open) dialog.showModal();
     if (initialPreview && !previewButton.hidden) { previewButton.focus(); showPreview(); }
     else sourceButton.focus();

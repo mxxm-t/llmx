@@ -618,7 +618,13 @@
     selectSection(target.path ? 'files' : 'commands');
     const loading = viewLoad, selection = state.jobSelection;
     try {
-      if (target.path) { await openFile(target.path, loading); return; }
+      if (target.path) {
+        if (target.path === state.path && dirty()) {
+          ++state.selection;
+          editor.focus();
+        } else await openFile(target.path, loading);
+        return;
+      }
       await loading;
       if (viewLoad !== loading || selection !== state.jobSelection) return;
       if (!state.snapshot.jobs.some(job => job.id === target.jobId)) throw new Error('This Workspace job is no longer available.');
@@ -647,6 +653,7 @@
   window.ChatWorkspace = {openToolResult, openProjects, openFiles};
   document.addEventListener('visibilitychange', () => { if (!document.hidden && document.getElementById('app').dataset.view === 'workbench') load().catch(showError); });
   document.addEventListener('companion:artifact-edit', async event => {
+    if (event.detail.workspacePath) return openToolResult({path: event.detail.workspacePath});
     selectSection('files');
     const selection = ++state.selection;
     if (!await canReplace() || selection !== state.selection) return;

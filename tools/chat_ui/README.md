@@ -43,7 +43,7 @@ not retried automatically.
 When a tool reads or writes a workspace file, its path appears in the conversation.
 Choose **Attach to draft** to include the current saved text in your follow-up.
 **Open file** on a read takes you to the editor. On a write it opens the saved file for inspection.
-HTML opens in Preview. Choose Source to read the saved text, or Download to keep a copy.
+HTML opens in Preview. Choose **Source** to read the saved text, **Open in editor** to work on the same path, or **Download** to keep a copy. The editor opens the latest saved version or returns to unsaved edits you already have for that file.
 If a write hits a revision conflict, **Open saved copy** opens the version currently in the workspace.
 If that path has no saved file, the conversation shows a message beside the filename.
 

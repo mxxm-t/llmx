@@ -1032,6 +1032,10 @@ const outcomes = [];
 function check(name, ok) { outcomes.push({name, ok: !!ok}); }
 const now = Math.floor(Date.now() / 1000);
 function startup(status, record) { return {status, server: {uptime_s: 0}, requests: {now: {active: 0, queued: 0, paused: 0, kv_tokens: 0}}, startup: record}; }
+const detailPanels = ['topology-view', 'lookup-storage-view', 'rope-summary'];
+function allDetailsSay(message) { return detailPanels.every(id => $(id).textContent.includes(message)); }
+render();
+check('model details wait for first health response', allDetailsSay('Waiting for server health.'));
 state.interval = 2;
 state.error = null;
 state.received = true;
@@ -1059,6 +1063,7 @@ state.startup = startup('starting', {started_unix: now, elapsed_s: 3.25, phase: 
 ]});
 state.startupObservedAt = now;
 render();
+check('model details wait for startup', allDetailsSay('Waiting for model startup to finish.'));
 check('starting phase is shown', $('startup-title').textContent === 'Server starting' && $('startup-summary').textContent.includes('metadata'));
 check('timestamp names the startup response', $('timestamp').textContent.includes('Startup response observed'));
 check('missing byte totals do not invent progress', !$('startup-phases').querySelector('.startup-progress') && !$('startup-phases').textContent.includes('%'));
@@ -1081,6 +1086,7 @@ state.startup = startup('failed', {started_unix: now, elapsed_s: 7, phase: 'fail
 ]});
 state.startupObservedAt = now;
 render();
+check('model details identify failed startup', allDetailsSay('Model startup failed.'));
 check('current failure is explicit and safely rendered', $('startup-title').textContent === 'Startup failed' &&
   $('startup-error').textContent.includes('<svg') && !$('startup-error').querySelector('svg') && $('connection-text').textContent === 'Startup failed');
 state.startupObservedAt = now - 40;
@@ -1100,6 +1106,7 @@ updateLiveRequests(state.latest);
 render();
 check('ready collapses startup panel and clears request rate baseline', $('startup-panel').hidden && state.liveRequests.items[0].pp === null && state.liveRequests.items[0].tg === null);
 check('first ready sample reset prevents reuse of pre-startup rates', $('prompt-value').textContent === '--' && $('throughput-value').textContent === '--');
+check('ready response missing model details uses the compatibility message', allDetailsSay('unavailable from this server version'));
 check('startup panel fits viewport without overflow', document.documentElement.scrollWidth <= innerWidth);
 globalThis.rateTestResults = outcomes;
 document.querySelector('#rate-test-results').textContent = JSON.stringify(outcomes);
@@ -1109,7 +1116,7 @@ document.querySelector('#rate-test-results').textContent = JSON.stringify(outcom
             with self.subTest(width=width):
                 script = cases.replace("TEST_WIDTH", str(width))
                 document = source.replace("</body>", "<pre id='rate-test-results'></pre><script>" + script + "</script></body>")
-                self.assertEqual(len(self.run_browser(document, width)), 15)
+                self.assertEqual(len(self.run_browser(document, width)), 19)
 
     def test_image_encode_progress_rendering(self):
         source = without_stream_start(HTML_FILE.read_text(encoding="utf-8"))

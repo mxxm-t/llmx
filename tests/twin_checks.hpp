@@ -5,7 +5,9 @@
 #include "backends/device_profile.hpp"
 #include "backends/gpu/kernels/shapes.h"
 #include "core/bf16.hpp"
+#include "core/cpus.hpp"
 #include "core/fp16.hpp"
+#include "core/job_threads.hpp"
 #include "format/weight_scales.hpp"
 #include "quant/fp4.hpp"
 #include "quant/types.hpp"
@@ -56,6 +58,13 @@ inline bool f32_close(const std::vector<float>& got, const std::vector<float>& w
     return ok;
 }
 inline bool same(const std::vector<float>& a, const std::vector<float>& b) { return a.size() == b.size() && std::memcmp(a.data(), b.data(), a.size() * sizeof(float)) == 0; }
+// Threads beside the calling one for the host references, whose sums would otherwise hold a test on one core.
+// Only the test's main thread runs jobs on it, since a pool takes one job at a time.
+inline core::JobThreads& reference_threads() {
+    static core::JobThreads pool(size_t(std::max(core::automatic_threads(), 1) - 1));
+    return pool;
+}
+
 // Double sums of the CPU's decoded weights wd over x, columns of nout, and beside each the sum of |w*x| that bounds an F32 reduction's rounding.
 struct DoubleSums {
     std::vector<double> sum, mag;
@@ -63,14 +72,16 @@ struct DoubleSums {
 inline DoubleSums double_sums(const std::vector<float>& wd, const std::vector<float>& x, size_t nin, size_t nout) {
     const size_t n = x.size() / nin * nout;
     DoubleSums d{std::vector<double>(n), std::vector<double>(n)};
-    for (size_t i = 0; i < n; ++i) {
+    reference_threads().run(n, [&](size_t i) {
         const size_t r = i / nout, o = i % nout;
+        double sum = 0, mag = 0;
         for (size_t j = 0; j < nin; ++j) {
             const double p = double(wd[o * nin + j]) * x[r * nin + j];
-            d.sum[i] += p;
-            d.mag[i] += std::fabs(p);
+            sum += p;
+            mag += std::fabs(p);
         }
-    }
+        d.sum[i] = sum, d.mag[i] = mag;
+    });
     return d;
 }
 
@@ -266,22 +277,35 @@ inline float k_min(uint32_t type, const uint8_t* block, int sub) {
     return f16_to_f32(uint16_t(block[2] | (block[3] << 8))) * float(m);
 }
 
-// A twin product's output (o, r) against a double sum of the CPU's decoded weights over the twin of x by its rule, within 1e-6 of its magnitude, each min counted apart since a sub-block's term subtracts it.
-inline bool twin_close(uint32_t type, const std::vector<uint8_t>& w, const std::vector<float>& wd, const std::vector<float>& x, size_t nin, size_t o, size_t r, float L, float got) {
+// Rows `rows` of a twin product y against double sums of the CPU's decoded weights over the twin of x by its rule, each output within 1e-6 of its magnitude, each min counted apart since a sub-block's term subtracts it.
+// Each row's twin is taken once and each output summed in block order on its own index, so the sums are those of one output at a time.
+inline bool twin_close(uint32_t type, const std::vector<uint8_t>& w, const std::vector<float>& wd, const std::vector<float>& x, size_t nin, size_t nout,
+                       const std::vector<size_t>& rows, float L, const std::vector<float>& y) {
     const quant::StorageType& st = *quant::storage_type(type);
-    double sum = 0, mag = 0;
-    float d;
-    int16_t q[32];
-    for (size_t b = 0; b < nin / 32; ++b) {
-        twin_rule(x.data() + r * nin + b * 32, d, q, L);
-        const float dm = k_min(type, w.data() + (o * nin + b * 32) / st.block_size * st.type_size, int(b % (st.block_size / 32)));
-        for (size_t j = 0; j < 32; ++j) {
-            const double xv = double(d) * q[j], wv = wd[o * nin + b * 32 + j];
-            sum += wv * xv;
-            mag += (std::fabs(wv) + 2 * std::fabs(double(dm))) * std::fabs(xv);
+    std::vector<double> xv(nin);
+    std::vector<char> ok(nout);
+    for (size_t r : rows) {
+        float d;
+        int16_t q[32];
+        for (size_t b = 0; b < nin / 32; ++b) {
+            twin_rule(x.data() + r * nin + b * 32, d, q, L);
+            for (size_t j = 0; j < 32; ++j) xv[b * 32 + j] = double(d) * q[j];
         }
+        reference_threads().run(nout, [&](size_t o) {
+            double sum = 0, mag = 0;
+            for (size_t b = 0; b < nin / 32; ++b) {
+                const float dm = k_min(type, w.data() + (o * nin + b * 32) / st.block_size * st.type_size, int(b % (st.block_size / 32)));
+                for (size_t j = 0; j < 32; ++j) {
+                    const double v = xv[b * 32 + j], wv = wd[o * nin + b * 32 + j];
+                    sum += wv * v;
+                    mag += (std::fabs(wv) + 2 * std::fabs(double(dm))) * std::fabs(v);
+                }
+            }
+            ok[o] = std::fabs(y[r * nout + o] - sum) <= 1e-6 * mag + 1e-30;
+        });
+        if (std::find(ok.begin(), ok.end(), 0) != ok.end()) return false;
     }
-    return std::fabs(got - sum) <= 1e-6 * mag + 1e-30;
+    return true;
 }
 
 // Whether a one-column 8-bit MXFP4 row of nin values runs the quad rows' builds on a wave of W lanes: gpu_shape::quad_rows at the 32-lane cluster a 64-lane wave gives rows of 16 blocks or more.
@@ -357,10 +381,7 @@ inline void twin_types(Backend& g, Backend& c, const std::vector<uint32_t>& kind
                     return mine;
                 };
                 const auto check = [&](const std::vector<float>& y, size_t n, const std::string& what) {
-                    bool ok = true;
-                    for (size_t r : {size_t(0), n / 2, n - 1})
-                        for (size_t o = 0; o < nout && ok; ++o) ok = twin_close(type, w, wd, x, nin, o, r, L, y[r * nout + o]);
-                    require(ok, what + " within 1e-6 of a double sum over the twin");
+                    require(twin_close(type, w, wd, x, nin, nout, {0, n / 2, n - 1}, L, y), what + " within 1e-6 of a double sum over the twin");
                 };
                 // Generated rows: each build by the columns a launch takes, sixteen at most, and each column the column alone.
                 for (size_t n : cols) {
@@ -1349,9 +1370,9 @@ inline void nvfp4_scales(Backend& g, Backend& c, const Launches& launches, const
                     require(!std::memcmp(f.data(), y.data(), nout * n * 4), "a scaled " + at + " product of " + std::to_string(n) + " rows in f32 is the F32 product of its decoded rows, bit for bit");
                     continue;
                 }
-                bool ok = true;
-                for (size_t r = 0; r < n && ok; ++r)
-                    for (size_t o = 0; o < nout && ok; ++o) ok = twin_close(T, we, rows[e], x, nin, o, r, dt == Dtype::int8 ? 127.0f : 32767.0f, y[r * nout + o]);
+                std::vector<size_t> every(n);
+                for (size_t r = 0; r < n; ++r) every[r] = r;
+                bool ok = twin_close(T, we, rows[e], x, nin, nout, every, dt == Dtype::int8 ? 127.0f : 32767.0f, y);
                 require(ok, "a scaled " + at + " product of " + std::to_string(n) + " rows in " + dtype_name(dt) + " is within 1e-6 of a double sum over the twin of its decoded rows");
                 // A group of two scaled projections takes one joint twin call (matmul_group), each under its factor.
                 auto g2 = g.alloc(nout * n * 4);
@@ -1360,9 +1381,7 @@ inline void nvfp4_scales(Backend& g, Backend& c, const Launches& launches, const
                 note();
                 for (const auto* out : {got.get(), g2.get()}) {
                     const std::vector<float> yg = read(g, *out, nout * n);
-                    ok = true;
-                    for (size_t r = 0; r < n && ok; ++r)
-                        for (size_t o = 0; o < nout && ok; ++o) ok = twin_close(T, we, rows[e], x, nin, o, r, dt == Dtype::int8 ? 127.0f : 32767.0f, yg[r * nout + o]);
+                    ok = twin_close(T, we, rows[e], x, nin, nout, every, dt == Dtype::int8 ? 127.0f : 32767.0f, yg);
                     require(ok, "a group of two scaled " + at + " projections of " + std::to_string(n) + " rows in " + dtype_name(dt) + " is within the twin bound in each");
                 }
             }

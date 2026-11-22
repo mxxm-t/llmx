@@ -922,7 +922,7 @@ if(LLMX_HAS_BACKEND_ROCM)
 endif()
 if(LLMX_HAS_BACKEND_ROCM)
     # The ROCm backend's buffers, tickets, refusals and F32 ops against the CPU backend; it needs a ROCm device and exits 77 without one.
-    # Its full run took 508 to 583 s on one MI50 with no other work on the card (2026-11-20), so its limit is about twice that.
+    # Its full run took 400 s on one MI50 with 4 CPUs once its host references ran on threads (2026-11-22), 970 s before, so its limit stays at 1200 s.
     add_executable(llmx-backend-rocm-test tests/backend_rocm.cpp)
     target_include_directories(llmx-backend-rocm-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/tests ${CMAKE_CURRENT_BINARY_DIR}/generated ${LLMX_HIP_INCLUDE_DIR})
     target_compile_definitions(llmx-backend-rocm-test PRIVATE __HIP_PLATFORM_AMD__)

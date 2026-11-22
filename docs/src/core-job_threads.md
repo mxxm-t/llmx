@@ -5,5 +5,6 @@
 The calling thread takes the first index and keeps taking indices while any is left, so a job on fewer free cores than threads runs toward the calling thread alone and never waits for a thread that has not woken.
 It decides nothing: what an index names, and what a call may touch, are the caller's.
 
-Three callers: the server's scheduler draws a retiring pass's rows on it (`docs/SERVER.md`, Sampling), a Vulkan tensor group makes each member's queue call of a sum on it (`docs/src/backends-vulkan.md`), and the loader makes the directory tensors a host reads in place on it once the model is built ([inference/load](inference-load.md)).
+Three product callers: the server's scheduler draws a retiring pass's rows on it (`docs/SERVER.md`, Sampling), a Vulkan tensor group makes each member's queue call of a sum on it (`docs/src/backends-vulkan.md`), and the loader makes the directory tensors a host reads in place on it once the model is built ([inference/load](inference-load.md)).
+The GPU backends' tests take their host reference sums on one (`tests/twin_checks.hpp`, docs/TESTS.md).
 The `job-threads` CTest runs it with no thread and with one, three and four.

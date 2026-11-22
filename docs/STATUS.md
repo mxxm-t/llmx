@@ -618,6 +618,26 @@ The job log is `/opt/claude-work/offload/out/20261122-163638-TFIX2-6964/job.log`
 **Left.** Nothing for this change.
 
 **Gotchas.** The failure needs contention; idle runs pass on main.
+
+## backend-rocm's host references on threads (2026-11-22, TFIX1 to TFIX5, branch fix/backend-rocm-time-2 on main 69b54578; tests and docs only, lands by fast-forward as one commit)
+
+**Goal.** `backend-rocm` ran 970 s of its 1200 s CTest limit on one MI50, 834 s of it in twin_close's double sums on one thread, so a loaded host timed it out.
+
+**Done.** twin_close (`tests/twin_checks.hpp`) checks a list of rows, takes each row's twin once and spreads the outputs over `reference_threads` (up to 64), and double_sums runs on the same pool; each output keeps its term order, so the references and verdicts are main's (Fable review: bit identical, no races, every twin_close caller updated). docs/TESTS.md and docs/src/core-job_threads.md say so, and cmake/tests.cmake's note gives the new time with the limit unchanged at 1200 s.
+
+| backend-rocm on one MI50 (renderD130, container capped at 4 CPUs) | main | fix |
+|---|---|---|
+| `types` | 747 s | 260.0 s |
+| full run | 970 s | 399.8 s, PASS, exit 0 |
+
+| Gate | Result |
+|---|---|
+| docs and dead-code, built binary | PASS, on a git-archive copy of the commit |
+
+**Left.** Nothing for this change. 399.8 s is at the 400 s edge Fable set for landing without further work, and the host was contended during the run (hostwait: contended=yes, z_rd_int at 4% each, kcompactd0 and kswapd0 at 1%), so the figure is one contended run, not a floor. main's 970 s is a figure carried from earlier runs whose container cap is unconfirmed, so the ratio is indicative. Follow-ups, none started (ideas.md): spreading each check's rows in one pool index, and memoising sums per shape, dtype and row.
+
+**Gotchas.** The container's 4 CPUs leave about 3 pool workers beside the caller, so a host with more cores gains more. A twin_close call stays on the main thread; only its outputs are spread.
+
 ## server-resume-cache's two racing cases (2026-11-21, RESFLK1 then RESFLK2, branch fix/server-resume-race on main c494eea6f; tests, CMake and docs only, lands by fast-forward as one commit)
 
 **Goal.** server-resume-cache stopped failing one run in a few, at the at_once arm of boundary_is_not_a_history and at keeps_paused_donor, with no server bug behind either.

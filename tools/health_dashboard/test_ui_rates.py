@@ -1107,6 +1107,28 @@ render();
 check('ready collapses startup panel and clears request rate baseline', $('startup-panel').hidden && state.liveRequests.items[0].pp === null && state.liveRequests.items[0].tg === null);
 check('first ready sample reset prevents reuse of pre-startup rates', $('prompt-value').textContent === '--' && $('throughput-value').textContent === '--');
 check('ready response missing model details uses the compatibility message', allDetailsSay('unavailable from this server version'));
+const capacity = () => $('capacity-status').textContent;
+state.latest.requests.now.queued = 2;
+render();
+check('fresh queue is shown', capacity() === 'QUEUED WORK');
+state.ok = false;
+renderStatus();
+check('offline queue keeps its count and identifies the last sample',
+  capacity() === 'LAST SAMPLE' && $('queued-capacity').textContent.startsWith('2 /'));
+state.ok = true;
+state.lastSuccess = now - 30;
+renderStatus();
+check('an expired health sample loses its live label between responses', capacity() === 'LAST SAMPLE');
+state.lastSuccess = now;
+state.paused = true;
+state.view = snapshot();
+renderStatus();
+check('paused view labels the displayed capacity', capacity() === 'VIEW PAUSED');
+state.paused = false;
+state.view = null;
+state.latest.requests.now.paused = 1;
+render();
+check('resumed view shows paused scheduler work', capacity() === 'PAUSED WORK');
 check('startup panel fits viewport without overflow', document.documentElement.scrollWidth <= innerWidth);
 globalThis.rateTestResults = outcomes;
 document.querySelector('#rate-test-results').textContent = JSON.stringify(outcomes);
@@ -1116,7 +1138,7 @@ document.querySelector('#rate-test-results').textContent = JSON.stringify(outcom
             with self.subTest(width=width):
                 script = cases.replace("TEST_WIDTH", str(width))
                 document = source.replace("</body>", "<pre id='rate-test-results'></pre><script>" + script + "</script></body>")
-                self.assertEqual(len(self.run_browser(document, width)), 19)
+                self.assertEqual(len(self.run_browser(document, width)), 24)
 
     def test_image_encode_progress_rendering(self):
         source = without_stream_start(HTML_FILE.read_text(encoding="utf-8"))

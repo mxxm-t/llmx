@@ -1,5 +1,11 @@
 # llmx - Development Status
 
+## Monitor model details during startup
+
+- Model placement, lookup storage and RoPE now distinguish waiting for health, loading, failed startup and missing details in a ready response.
+- Chrome reproduced all three misleading states before the fix and passed at 390 and 1440 px after it. The standalone dashboard and embedded Monitor share the same renderer.
+- Landing: fast-forward after the dashboard, docs and dead-code checks.
+
 ## Web and video search results in Chat
 
 **Goal.** Make web and video sources readable in a conversation's tool activity.

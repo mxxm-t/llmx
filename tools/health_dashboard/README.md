@@ -163,6 +163,7 @@ The Runtime configuration card shows the effective RoPE policy, factor, original
 - A valid HTTP 503 health body with `status: starting` or `status: failed` is
   shown separately from operational telemetry. Startup records do not enter
   inference samples; the first ready sample after startup breaks rate windows.
+  Model placement, lookup storage and RoPE show a waiting or failed-startup message until a ready response supplies their details.
   Phase progress appears only when byte totals are reported, and `bytes_per_s`
   is labeled as the phase average. A failed payload is current only while the
   health endpoint continues to return it; if the endpoint becomes unreachable,

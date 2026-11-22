@@ -27,7 +27,8 @@ credentials excluded from browser snapshots. Fixed shared-asset routes check exa
 SVG/PNG bytes, content types and refusals of unknown paths and traversal. They
 do not require a model. Dashboard browser coverage distinguishes healthy idle
 throughput readouts, held active rates, historical selection, disconnected
-gaps and the independently buffered chart timeline.
+gaps and the independently buffered chart timeline. Startup checks distinguish model
+information that is pending, a failed startup and a ready server that omits a field.
 
 The standalone [chat companion](../tools/chat_ui/README.md) is checked with
 `python -X utf8 -m unittest discover -s tools/chat_ui -v`. The Workspace checks

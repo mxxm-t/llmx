@@ -3731,6 +3731,12 @@ function displayValue(v) {
   if (typeof v === 'boolean') return v ? 'true': 'false';
   return JSON.stringify(v)
 }
+function missingModelDetail(raw, fallback) {
+  if (!raw) return 'Waiting for server health.';
+  if (raw.status === 'starting') return 'Waiting for model startup to finish.';
+  if (raw.status === 'failed') return 'Model startup failed.';
+  return fallback;
+}
 function renderMetadata(raw) {
   const host = $('metadata');
   host.replaceChildren();
@@ -3770,7 +3776,7 @@ function renderRope(raw) {
   fields.replaceChildren();
   const rope = get(raw, 'rope');
   if (rope === undefined) {
-    summary.textContent = 'RoPE details are unavailable from this server version.';
+    summary.textContent = missingModelDetail(raw, 'RoPE details are unavailable from this server version.');
     return
   }
   if (!rope || typeof rope !== 'object' || Array.isArray(rope)) {
@@ -3831,7 +3837,7 @@ function renderTopology(raw) {
   const modes = {single: 'Single backend', layer: 'Layer split', tensor: 'Tensor split', staged_tensor: 'Staged tensor split'};
   if (!t || typeof t !== 'object' || Array.isArray(t) || !Object.prototype.hasOwnProperty.call(modes, t.mode) || !Array.isArray(t.devices) || !Array.isArray(t.stages)) {
     host.append(element('p', 'topology-empty', t === undefined ?
-      'Placement details are unavailable from this server version.' : 'Placement details are unavailable because the topology payload is incomplete.'));
+      missingModelDetail(raw, 'Placement details are unavailable from this server version.') : 'Placement details are unavailable because the topology payload is incomplete.'));
     return
   }
   const validId = v => Number.isInteger(v) && v >= 0;
@@ -3932,11 +3938,11 @@ function renderLookupStorage(raw) {
   host.replaceChildren();
   const topology = get(raw, 'topology');
   if (!topology || typeof topology !== 'object' || Array.isArray(topology) || !Array.isArray(topology.devices)) {
-    host.append(element('p', 'lookup-empty', 'Lookup storage is unavailable from this server version.'));
+    host.append(element('p', 'lookup-empty', missingModelDetail(raw, 'Lookup storage is unavailable from this server version.')));
     return
   }
   if (!Array.isArray(topology.lookups)) {
-    host.append(element('p', 'lookup-empty', 'Lookup storage details are unavailable from this server version.'));
+    host.append(element('p', 'lookup-empty', missingModelDetail(raw, 'Lookup storage details are unavailable from this server version.')));
     return
   }
   if (!topology.lookups.length) {
@@ -4609,9 +4615,9 @@ function render() {
   drawOwnHistory(raw);
   renderServiceStages(raw);
   drawPositions(raw);
-  renderMetadata(raw);
-  renderTopology(raw);
-  renderLookupStorage(raw);
+  renderMetadata(view.latest);
+  renderTopology(view.latest);
+  renderLookupStorage(view.latest);
   renderStartup(view.startup, view.startupObservedAt);
   renderEvents(view.events);
   explorerRows = view.latest ? flattenAll(raw): [];

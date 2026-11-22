@@ -99,8 +99,8 @@ conversation's prefix through state checkpoints ([server](server.md)).
     `attn_norm` and runs the layer's kind:
     - full attention: q with its gates, k and v through one
       `matmul_group`; `norm_rope_partial` from q's rows between the gates
-      into contiguous heads, and in place on k; `kv_write` and
-      `attention`; `sigmoid_mul` gating the output in place by each head's
+      into contiguous heads, and in place on k; `kv_write`;
+      `gated_attention`, the attention gated in place by each head's
       gate read where `attn_q` left it; `attn_output` added into the
       residual.
     - linear attention: one `Backend::delta_step` with the SiLU gate,

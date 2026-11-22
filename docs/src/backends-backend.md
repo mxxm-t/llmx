@@ -144,6 +144,7 @@ placement contracts in `docs/EXECUTION.md`.
   `auxiliary_pools` is empty or supplies, per layer, an `AuxiliaryPool`: the groups of `tokens` whose pooled rows of `width` floats each block also keeps after its token rows (0 tokens for none), which `pool_kv` and `select_kv` write.
   A storage of no heads keeps no K or V and holds pooled rows alone, on every layer, as an entries layer's are.
   The backends here derive their storage from `BlockKVStorage` (`backends-kv_storage.md`), which holds the buffers, the accounting, the growth rule, the whole-budget check and the view checks once.
+- `gated_attention(Q, layer, views, n_views, out, n_head, n_head_kv, head_dim, g)`: `attention`, then `sigmoid_mul` of the output in place, `OutputGate` holding the gate, its rows, strides and runs; the default makes the two calls, and a backend overrides it to skip what only the ungated output needed (the GPU core writes no twin of it).
 - `attention(Q, layer, views, n_views, out, n_head, n_head_kv, head_dim)`:
   causal GQA over every view, shared by decode and prefill. Queries/output
   have shape `[rows, n_head, head_dim]` in view order; row `b` of view `v`

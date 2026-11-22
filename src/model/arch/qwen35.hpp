@@ -623,8 +623,7 @@ private:
         b.norm_rope_partial(q, r, s.rows, 2 * Hq * D, 2 * D, Hq, D, R, w[attn_q_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, backend::RopeForm{}, s.streams);
         b.norm_rope_partial(k, k, s.rows, Hkv * D, D, Hkv, D, R, w[attn_k_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, backend::RopeForm{}, s.streams);
         b.kv_write(s.kv_layer, s.views, s.n_views, k, v);
-        b.attention(q, s.kv_layer, s.views, s.n_views, o, (int)Hq, (int)Hkv, (int)D);
-        b.sigmoid_mul(o, o, backend::CSlice{r.buffer, r.offset + D}, s.rows, Hq, D, 2 * Hq * D, 2 * D, s.runs);
+        b.gated_attention(q, s.kv_layer, s.views, s.n_views, o, (int)Hq, (int)Hkv, (int)D, {backend::CSlice{r.buffer, r.offset + D}, s.rows, 2 * Hq * D, 2 * D, s.runs});
         blocks::join(s, w[attn_output], o);
     }
 

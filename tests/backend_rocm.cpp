@@ -1587,6 +1587,62 @@ void attention_twins(Backend& g, Dtype dt) {
     require(ok, std::string(dt == Dtype::int8 ? "8-bit" : "16-bit") + ": a product of attention's output gives the bits of a product of its copy");
 }
 
+// Gated attention, which writes no twin of the ungated output, gives the output and the product of attention then sigmoid_mul bit for bit, launching the same kernels, the gate read in place from a q-and-gate row as qwen35 lays it.
+void gated_attention_bits(Backend& g, Dtype dt) {
+    const int n_head = 8, n_head_kv = 2, head_dim = 256;
+    const size_t D = head_dim, qw = (size_t)n_head * D, kvw = (size_t)n_head_kv * D, nout = 40;
+    const std::vector<uint8_t> m = q8_matrix(qw, nout, 71);
+    auto mb = g.adopt(m.data(), m.size());
+    const WeightView wv{quant::GGML_TYPE_Q8_0, {mb.get(), 0}};
+    // Producers write the twin class the last product read, so one product in dt first starts both arms of the first case in that class.
+    {
+        const std::vector<float> x = row_classes::values(qw, 70);
+        const RowRun one[1] = {{1, 1}};
+        auto xb = g.adopt(x.data(), x.size() * 4), yb = g.alloc(nout * 4);
+        g.matmul(wv, {xb.get(), 0}, {yb.get(), 0}, qw, nout, 1, {one, 1}, dt);
+        read(g, *yb, nout);
+    }
+    struct Case { size_t hist, rows, extent; };
+    for (const Case cs : {Case{10, 1, 1}, Case{200, 1, 1}, Case{200, 3, 1}, Case{70, 5, 5}, Case{70, 40, 40}}) {
+        const size_t rows = cs.rows, all = cs.hist + rows;
+        const std::vector<float> keys = row_classes::values(all * kvw, 72), vals = row_classes::values(all * kvw, 73), q = row_classes::values(rows * qw, 74, 4.0f),
+                                 r = row_classes::values(rows * 2 * qw, 75, 6.0f);
+        auto kb = g.adopt(keys.data(), keys.size() * 4), vb = g.adopt(vals.data(), vals.size() * 4), qb = g.adopt(q.data(), q.size() * 4), rb = g.adopt(r.data(), r.size() * 4);
+        auto st = g.kv_alloc(1, n_head_kv, D, 512, KVType::f16, KVType::f16);
+        infer::BlockPool pool;
+        pool.configure(st->max_blocks());
+        infer::KVSequence s(&pool, g.kv_layout().block_tokens);
+        s.prepare(all);
+        KVView v = s.view(st.get());
+        g.kv_write(0, &v, 1, {kb.get(), 0}, {vb.get(), 0});
+        v.length = cs.hist;
+        v.nq = rows;
+        v.extent = cs.extent;
+        const RowRun run[1] = {{rows, cs.extent}};
+        const CSlice gate{rb.get(), D};
+        std::vector<float> outs[2], ys[2];
+        std::map<std::string, size_t> ran[2];
+        for (int arm = 0; arm < 2; ++arm) {
+            auto ob = g.alloc(rows * qw * 4), y = g.alloc(nout * rows * 4);
+            rocm_take_launches(g);
+            if (arm == 0) {
+                g.attention({qb.get(), 0}, 0, &v, 1, {ob.get(), 0}, n_head, n_head_kv, head_dim);
+                g.sigmoid_mul({ob.get(), 0}, {ob.get(), 0}, gate, rows, n_head, D, 2 * qw, 2 * D, {run, 1});
+            } else {
+                g.gated_attention({qb.get(), 0}, 0, &v, 1, {ob.get(), 0}, n_head, n_head_kv, head_dim, {gate, rows, 2 * qw, 2 * D, {run, 1}});
+            }
+            g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, qw, nout, rows, {run, 1}, dt);
+            ran[arm] = rocm_take_launches(g);
+            outs[arm] = read(g, *ob, rows * qw);
+            ys[arm] = read(g, *y, nout * rows);
+        }
+        const std::string at = std::string(dt == Dtype::int8 ? "8-bit" : "16-bit") + ", history " + std::to_string(cs.hist) + ", rows " + std::to_string(rows);
+        require(same(outs[0], outs[1]) && same(ys[0], ys[1]), at + ": gated attention gives the output and product of attention then sigmoid_mul");
+        require(ran[0] == ran[1], at + ": gated attention launches the kernels of attention then sigmoid_mul");
+        s.abort();
+    }
+}
+
 // Every pair of extents of one class gives the same bits, through a matmul and through attention after a history (row_classes.hpp's shapes).
 // Prompts shorter than the profile's prompt_rows_below take the decode row builds with the one-column call's bits, and from it the tile, a run-less call by its rows' count (cases in docs/TESTS.md, backend-rocm).
 void prompt_crossover(Backend& g) {
@@ -3476,6 +3532,8 @@ int main(int argc, char** argv) {
             classes(*g);
             attention_twins(*g, Dtype::f16);
             attention_twins(*g, Dtype::int8);
+            gated_attention_bits(*g, Dtype::f16);
+            gated_attention_bits(*g, Dtype::int8);
             attention_chunks(*g);
             attention_tiles::check(*g, rocm_take_launches, require);
             attention_tiles::check_long(*g, rocm_take_launches, require);
@@ -3550,6 +3608,8 @@ int main(int argc, char** argv) {
         fused_norm_rope_kv(*g);
         attention_twins(*g, Dtype::f16);
         attention_twins(*g, Dtype::int8);
+        gated_attention_bits(*g, Dtype::f16);
+        gated_attention_bits(*g, Dtype::int8);
         host_output(*g);
         host_copies(*g);
         attention_chunks(*g);

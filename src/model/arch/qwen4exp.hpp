@@ -995,9 +995,11 @@ private:
                               w[attn_q_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, backend::RopeForm{}, s.streams);
         s.b.norm_rope_partial(s.slot(conv), s.slot(conv), s.rows, HK * D, D, HK, D, R,
                               w[attn_k_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, backend::RopeForm{}, s.streams);
+        const backend::Slice qraw = s.slot(raw);
+        const backend::CSlice gate{qraw.buffer, qraw.offset + D};
         if (s.kind == dense_kind) {
             s.b.kv_write(s.kv_layer, s.views, s.n_views, s.slot(conv), s.slot(value_gate));
-            s.b.attention(s.slot(query), s.kv_layer, s.views, s.n_views, s.slot(recurrent), int(H), int(HK), int(D));
+            s.b.gated_attention(s.slot(query), s.kv_layer, s.views, s.n_views, s.slot(recurrent), int(H), int(HK), int(D), {gate, s.rows, 2 * H * D, 2 * D, s.runs});
         } else {
             s.b.norm_rope_partial(s.slot(index_query), s.slot(index_query), s.rows, IH * I, I, IH, I, R,
                                   w[index_q_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, backend::RopeForm{}, s.streams);
@@ -1007,9 +1009,8 @@ private:
             s.b.select_kv(s.slot(index_query), s.kv_layer, s.views, s.n_views, s.slot(selected), args, w[index_k_norm].slice(), cos, sin, s.group_pos);
             const size_t stride = size_t(cfg_.indexer_budget) + compression - 1;
             s.b.sparse_attention(s.slot(query), s.kv_layer, s.views, s.n_views, s.slot(selected), stride, s.slot(recurrent), int(H), int(HK), int(D));
+            s.b.sigmoid_mul(s.slot(recurrent), s.slot(recurrent), gate, s.rows, H, D, 2 * H * D, 2 * D, s.runs);
         }
-        const backend::Slice qraw = s.slot(raw);
-        s.b.sigmoid_mul(s.slot(recurrent), s.slot(recurrent), {qraw.buffer, qraw.offset + D}, s.rows, H, D, 2 * H * D, 2 * D, s.runs);
         s.b.matmul(w[attn_output].operand(), s.slot(recurrent), s.x, H * D, E, s.rows, s.runs, s.dtype);
     }
 };

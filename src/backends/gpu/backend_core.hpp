@@ -1856,6 +1856,14 @@ public:
         launch(kNormRopeKv, (unsigned)rows, (unsigned)(n_head + n_head_kv), args);
     }
     void attention(CSlice Q, size_t layer, const KVView* views, size_t n_views, Slice out, int n_head, int n_head_kv, int head_dim) override {
+        attend(Q, layer, views, n_views, out, n_head, n_head_kv, head_dim, true);
+    }
+    // The gate rewrites the output and writes the twin a product reads, so the attention writes none of its own.
+    void gated_attention(CSlice Q, size_t layer, const KVView* views, size_t n_views, Slice out, int n_head, int n_head_kv, int head_dim, const OutputGate& g) override {
+        attend(Q, layer, views, n_views, out, n_head, n_head_kv, head_dim, false);
+        sigmoid_mul(out, out, g.gate, g.rows, (size_t)n_head, (size_t)head_dim, g.stride, g.head_stride, g.runs);
+    }
+    void attend(CSlice Q, size_t layer, const KVView* views, size_t n_views, Slice out, int n_head, int n_head_kv, int head_dim, bool twin) {
         if (n_views && !views) throw std::runtime_error(Api::prefix + "attention without views");
         if (n_head <= 0 || n_head_kv <= 0 || n_head % n_head_kv != 0 || head_dim <= 0 || head_dim > (int)kThreads)
             throw std::runtime_error(Api::prefix + "invalid attention dimensions");
@@ -1929,7 +1937,7 @@ public:
             if (nsplit > 1 && (!parts_ || parts_->size() < vneed)) parts_ = alloc(vneed, Memory::device);
             float* vp = nsplit > 1 ? (float*)as_gpu<Api>(*parts_).data() : nullptr;
             // With no row on the tile kernel, the kernel that writes the output writes the twin the output projection reads beside it.
-            const TwinOut t = wide.empty() ? twin_out(out, floats, twin_map({runs.data(), runs.size()}, rows, (size_t)n_head * head_dim)) : TwinOut{};
+            const TwinOut t = twin && wide.empty() ? twin_out(out, floats, twin_map({runs.data(), runs.size()}, rows, (size_t)n_head * head_dim)) : TwinOut{};
             void* tq = t.q;
             float* td = t.d;
             void* ts = t.s;

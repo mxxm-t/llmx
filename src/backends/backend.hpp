@@ -803,6 +803,16 @@ public:
     virtual void attention(CSlice Q, size_t layer, const KVView* views,
                            size_t n_views, Slice out,
                            int n_head, int n_head_kv, int head_dim) = 0;
+    // Attention whose output is then gated in place by sigmoid_mul over `rows` rows, the gate read at its strides as sigmoid_mul reads it; a backend may skip what only the ungated output needed.
+    struct OutputGate {
+        CSlice gate;
+        size_t rows, stride, head_stride;
+        RowRuns runs;
+    };
+    virtual void gated_attention(CSlice Q, size_t layer, const KVView* views, size_t n_views, Slice out, int n_head, int n_head_kv, int head_dim, const OutputGate& g) {
+        attention(Q, layer, views, n_views, out, n_head, n_head_kv, head_dim);
+        sigmoid_mul(out, out, g.gate, g.rows, (size_t)n_head, (size_t)head_dim, g.stride, g.head_stride, g.runs);
+    }
 
     struct IndexArgs {
         size_t heads, dim, rope_dim, compression, budget;

@@ -2606,6 +2606,33 @@ def check_reprefill(model):
     return reused, prompt
 
 
+def check_reprefill_reasoning(model):
+    """A follow-up that sends the reply's reasoning back as reasoning_content, as the chat companion does, under the Qwen 3.8 template, which renders every earlier turn's reasoning: the reply is read again with its reasoning, so the follow-up reuses tokens past the first turn's prompt (docs/SPECULATIVE.md, section 2, Idle re-prefill).
+    Production on 2026-11-22 read the reply again without its reasoning, and a 29000-token follow-up reused nothing; returns the tokens reused and the first turn's prompt."""
+    with open(os.path.join(os.path.dirname(__file__), "data", "baseline_chat_template.json"), encoding="utf-8") as f:
+        template = next(t["template"] for t in json.load(f)["templates"] if t["name"] == "Qwen3.8")
+    with open(os.path.join(os.path.dirname(__file__), "data", "wiki.test.raw"), encoding="utf-8") as f:
+        text = f.read()[:2000]
+    first = {"messages": [{"role": "user", "content": text + "\n\nSummarize this."}], "max_tokens": 160, "temperature": 0, "ignore_eos": True}
+    with tempfile.TemporaryDirectory() as root:
+        path = os.path.join(root, "qwen38.jinja")
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            f.write(template)
+        srv = Server(model, "--chat-template-file", path)
+        try:
+            a = post_ok(srv, "/v1/chat/completions", first)
+            reply = a["choices"][0]["message"]
+            assert reply.get("reasoning_content"), reply
+            srv.wait(lambda h: h["reread"]["since_start"]["jobs"] >= 1, "the first turn's reply was not read again", 60)
+            back = {"role": "assistant", "content": reply["content"], "reasoning_content": reply["reasoning_content"]}
+            b = post_ok(srv, "/v1/chat/completions", dict(first, messages=first["messages"] + [back, {"role": "user", "content": "Shorter."}], max_tokens=8))
+            reused, prompt = b["timings"]["cache_n"], a["usage"]["prompt_tokens"]
+            assert reused > prompt, (reused, prompt, srv.get("/v1/health"))
+        finally:
+            srv.close()
+    return reused, prompt
+
+
 def check_host_tier(model):
     """Donors kept in host memory (docs/SPECULATIVE.md, section 2, Host tier): two conversations of about 500 tokens alternate on a 1024-token pool that holds one finished turn beside the next request, so each turn evicts the other conversation's donor; with the host tier each follow-up promotes its own and reuses its prefix, with the CLI's greedy text, and without it reuses nothing. Returns the tokens the follow-ups reused."""
     with open(os.path.join(os.path.dirname(__file__), "data", "wiki.test.raw"), encoding="utf-8") as f:
@@ -3202,6 +3229,9 @@ def run(require=False):
         print("server: %s, a read-ahead job waiting for spare room while its reply grows says so once  [ok]" % os.path.basename(real))
         reused, first = check_reprefill(real)
         print("server: %s, a chat follow-up reusing %d tokens of a %d-token first turn and its reply, read again while idle, with its reply on a fresh server  [ok]"
+              % (os.path.basename(real), reused, first))
+        reused, first = check_reprefill_reasoning(real)
+        print("server: %s, a chat follow-up sending the reply's reasoning back under the Qwen 3.8 template reusing %d tokens of a %d-token first turn and its reply  [ok]"
               % (os.path.basename(real), reused, first))
         check_unrelated_donor(real)
         check_departed(real)

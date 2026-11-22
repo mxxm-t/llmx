@@ -315,7 +315,7 @@ struct HookedStorage final : backend::BlockKVStorage {
     std::vector<const backend::Buffer*> retired;
     std::vector<const backend::Buffer*> seen;
     HookedStorage(backend::Backend& owner, size_t max_tokens)
-        : BlockKVStorage(owner, "test", 4, 2, 1, 2, max_tokens, backend::KVType::f32, backend::KVType::f16) {}
+        : BlockKVStorage(owner, "test", 4, {{1, 2}, {1, 2}}, max_tokens, backend::KVType::f32, backend::KVType::f16) {}
     void retire(const backend::BufferPtr& old) override { retired.push_back(old.get()); }
     void after_growth(const std::vector<backend::BufferPtr>& keys, const std::vector<backend::BufferPtr>& values) override {
         seen.clear();
@@ -500,6 +500,89 @@ void attention_over_blocks() {
                     }
                 }
         }
+    }
+}
+
+// Layers of two shapes in one storage, as a drafter's own layers beside its target's: each layer's blocks are sized by its shape, a growth keeps every layer's history, and attention on each layer matches a double reference.
+// An op that names another layer's shape is refused, and shapes given equal to the storage's one shape change no byte count.
+void layer_shapes() {
+    backend::CpuBackend cpu;
+    cpu.set_threads(2);
+    const size_t bt = cpu.kv_layout().block_tokens;
+    const std::vector<backend::KVShape> shapes = {{2, 40}, {8, 16}, {2, 40}};
+    {
+        auto any = cpu.kv_alloc(3, 2, 40, 4 * bt, backend::KVType::f16, backend::KVType::f32, {}, {}, shapes);
+        const auto& st = dynamic_cast<const backend::BlockKVStorage&>(*any);
+        size_t total = 0;
+        for (size_t l = 0; l < 3; ++l) {
+            require(st.heads(l) == shapes[l].heads && st.dim(l) == shapes[l].dim, "a layer lost its shape");
+            require(st.k_block_bytes(l) == shapes[l].heads * bt * shapes[l].dim * 2 && st.v_block_bytes(l) == shapes[l].heads * bt * shapes[l].dim * 4,
+                    "a layer's blocks are not sized by its shape");
+            total += st.k_block_bytes(l) + st.v_block_bytes(l);
+        }
+        require(st.total_block_bytes() == total, "a block's bytes are not the sum of its layers'");
+        auto uniform = cpu.kv_alloc(3, 2, 40, 4 * bt, backend::KVType::f16, backend::KVType::f32);
+        auto named = cpu.kv_alloc(3, 2, 40, 4 * bt, backend::KVType::f16, backend::KVType::f32, {}, {}, {{2, 40}, {2, 40}, {2, 40}});
+        require(dynamic_cast<const backend::BlockKVStorage&>(*uniform).total_block_bytes() == dynamic_cast<const backend::BlockKVStorage&>(*named).total_block_bytes(),
+                "shapes equal to the storage's changed its blocks");
+    }
+    rejects([&] { cpu.kv_alloc(3, 2, 40, bt, backend::KVType::f32, backend::KVType::f32, {}, {}, {{2, 40}, {8, 16}}); }, "a shape count other than the layers' accepted");
+    rejects([&] { cpu.kv_alloc(2, 2, 40, bt, backend::KVType::f32, backend::KVType::f32, {}, {}, {{2, 40}, {8, 0}}); }, "heads without width accepted");
+
+    auto st = cpu.kv_alloc(3, 2, 40, 4 * bt, backend::KVType::f32, backend::KVType::f32, {}, {}, shapes);
+    infer::BlockPool pool; pool.configure(st->max_blocks());
+    infer::KVSequence seq(&pool, bt);
+    std::mt19937 rng(11);
+    std::uniform_real_distribution<float> uni(-1.0f, 1.0f);
+    std::vector<std::vector<float>> K(3), V(3);
+    // Three appends, the last two each backing more blocks, so a growth copies every layer's history.
+    const size_t rows = 3;
+    for (size_t n : {bt - 1, bt + 2, rows}) {
+        seq.prepare(n);
+        const backend::KVView view = seq.view(st.get());
+        for (size_t l = 0; l < 3; ++l) {
+            std::vector<float> k(n * shapes[l].heads * shapes[l].dim), v(k.size());
+            for (auto& x : k) x = uni(rng);
+            for (auto& x : v) x = uni(rng);
+            K[l].insert(K[l].end(), k.begin(), k.end());
+            V[l].insert(V[l].end(), v.begin(), v.end());
+            const auto kb = cpu.adopt(k.data(), k.size() * sizeof(float));
+            const auto vb = cpu.adopt(v.data(), v.size() * sizeof(float));
+            cpu.kv_write(l, &view, 1, {kb.get(), 0}, {vb.get(), 0});
+        }
+        if (n != rows) seq.commit();
+    }
+    const backend::KVView view = seq.view(st.get());
+    const size_t past = view.length;
+    for (size_t l = 0; l < 3; ++l) {
+        const int heads = (int)shapes[l].heads, dim = (int)shapes[l].dim, n_head = 2 * heads;
+        std::vector<float> Q(rows * (size_t)n_head * (size_t)dim), out(Q.size(), 0.0f);
+        for (auto& x : Q) x = uni(rng);
+        const auto qb = cpu.adopt(Q.data(), Q.size() * sizeof(float));
+        const auto ob = cpu.adopt(out.data(), out.size() * sizeof(float));
+        cpu.attention({qb.get(), 0}, l, &view, 1, {ob.get(), 0}, n_head, heads, dim);
+        const size_t other = l == 1 ? 0 : 1;
+        rejects([&] { cpu.attention({qb.get(), 0}, l, &view, 1, {ob.get(), 0}, 2 * (int)shapes[other].heads, (int)shapes[other].heads, (int)shapes[other].dim); },
+                "attention in another layer's shape accepted");
+        const double scale = 1.0 / std::sqrt((double)dim);
+        for (size_t b = 0; b < rows; ++b)
+            for (int h = 0; h < n_head; ++h) {
+                const size_t kvh = (size_t)(h / 2), end = past + b + 1;
+                std::vector<double> sc(end);
+                double mx = -1e300, sum = 0;
+                for (size_t t = 0; t < end; ++t) {
+                    double s = 0;
+                    for (int d = 0; d < dim; ++d) s += (double)Q[(b * n_head + h) * dim + d] * K[l][(t * heads + kvh) * dim + d];
+                    sc[t] = s * scale;
+                    mx = std::max(mx, sc[t]);
+                }
+                for (auto& x : sc) { x = std::exp(x - mx); sum += x; }
+                for (int d = 0; d < dim; ++d) {
+                    double acc = 0;
+                    for (size_t t = 0; t < end; ++t) acc += sc[t] / sum * V[l][(t * heads + kvh) * dim + d];
+                    require(std::fabs(out[(b * n_head + h) * dim + d] - acc) <= 1e-5 * (1.0 + std::fabs(acc)), "attention on a layer of its own shape differs from the reference");
+                }
+            }
     }
 }
 
@@ -1193,6 +1276,7 @@ int main() {
         growth_steps_and_peak();
         growth_hooks();
         attention_over_blocks();
+        layer_shapes();
         model_transaction();
         release_syncs();
         batched_views();
@@ -1206,7 +1290,7 @@ int main() {
         host_pool_pressure();
         replay_by_class();
         std::cout << "KV cache: pool, sequence, ownership, on-demand storage, growth steps and peak, growth hooks, "
-                     "reset, paged attention, failed-step transactions, retire-before-release and replay by class pass\n";
+                     "reset, paged attention, layers of their own shape, failed-step transactions, retire-before-release and replay by class pass\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';

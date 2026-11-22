@@ -264,6 +264,11 @@ struct AuxiliaryPool {
     size_t tokens = 0, width = 0;
 };
 
+// A layer's K and V heads and their width, where one layer differs from the storage's others (a drafter's own layers beside its target's).
+struct KVShape {
+    size_t heads = 0, dim = 0;
+};
+
 class KVStorage {
 public:
     virtual ~KVStorage() = default;
@@ -786,13 +791,15 @@ public:
 
     virtual KVLayout kv_layout() const = 0;
 
-    // Allocates block-backed K/V up to max_tokens. Optional auxiliary widths specify F32 values per token for each layer, and pools the pooled rows each layer's blocks also keep (AuxiliaryPool); a storage of no heads holds those rows alone.
+    // Allocates block-backed K/V up to max_tokens, each layer at n_head_kv and head_dim or at its own optional layer shape (BlockKVStorage::shapes).
+    // Optional auxiliary widths specify F32 values per token for each layer, and pools the pooled rows each layer's blocks also keep (AuxiliaryPool); a layer of no heads holds those rows alone.
     virtual std::unique_ptr<KVStorage> kv_alloc(size_t layers, size_t n_head_kv,
                                                 size_t head_dim, size_t max_tokens,
                                                 KVType k_type = KVType::f32,
                                                 KVType v_type = KVType::f32,
                                                 const std::vector<size_t>& auxiliary_widths = {},
-                                                const std::vector<AuxiliaryPool>& auxiliary_pools = {}) = 0;
+                                                const std::vector<AuxiliaryPool>& auxiliary_pools = {},
+                                                const std::vector<KVShape>& layer_shapes = {}) = 0;
 
     // Store token-major [rows, n_head_kv, head_dim] rows, laid out in view order: view v owns the next views[v].nq rows, which go to positions length to length + nq of its sequence, and several views carry several sequences in one call.
     virtual void kv_write(size_t layer, const KVView* views, size_t n_views,

@@ -45,6 +45,13 @@ Images are pushed by digest alone and tagged only by the run that publishes them
 - **Rebase (landing stack land-20261126):** feat/nightly-channel moved the images into `docker/release/images.sh`, `release-build.yml` and `nightly.yml`, so the image joins `images.sh`'s `TARGETS` and the release and nightly notes, rather than the loops this branch edited, and the nightly channel gains `nightly-rocm10`.
 - **Gotchas:** the `amdrocm-runtime10.2` package depends on the whole compiler, so the image unpacks it rather than installing it, and `librocprofiler-register.so.0` is in `amdrocm-base10.2`, which must be downloaded too (the first image lacked it and failed `generate`, 246 MB against 173 MB). `amdgpu.ids` is carried but not opened by `generate`; dropping it is a follow-up that needs the image rerun. ROCm 10 publishes no gfx906 packages, so a later minor release may stop enumerating gfx906; `rocm7` stays the MI50 default.
 
+## KV layers of their own shape (2026-11-22, DSPINE7, branch feat/kv-layer-shapes)
+
+- **Goal:** one KV storage holds layers of different K/V heads and widths, so a drafter whose KV layers differ from its target's (the Qwen3.8-27B DSpine drafter's 8 heads of 128) keeps them beside the target's in the head device's storage; feat/dspine stacks on this branch.
+- **Done:** `kv_alloc` takes optional `layer_shapes` (`backend::KVShape`, one per layer, empty for the one shape on every layer) on the CPU, the GPU core (ROCm, CUDA) and Vulkan; `BlockKVStorage` keeps a shape and K and V block bytes per layer (`heads(l)`, `dim(l)`, `k_block_bytes(l)`, `holds`), `total_block_bytes` their sum, and every op on a layer checks that layer's shape; host history copies and ranges take each layer's block bytes, and the history identity names each layer's shape only when they differ, so a storage of one shape keeps its bytes, offsets and identities. The kv-cache CTest holds two shapes in one storage to a double reference. Fable reviewed the design.
+- **Left:** CTest and suite on the CPU, byte identity against main on Qwen3-0.6B (CPU and a device), a Vulkan and ROCm device run of the backend tests, and the hosted run, at the head that lands; the model side (the fit and the drafter's shapes at `kv_alloc`) is on feat/dspine.
+- **Gotchas:** the ROCm host TU was syntax-checked with hipcc's headers; the CUDA TU shares the same template but was not compiled here (no cuda.h on the rig).
+
 ## Request capacity freshness in Monitor
 
 - The production dashboard showed CURRENT STATE after its inference server stopped. Request capacity now marks the retained counts as LAST SAMPLE and distinguishes pausing the view from paused scheduler work.

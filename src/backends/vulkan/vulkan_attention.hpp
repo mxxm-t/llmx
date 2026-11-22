@@ -57,8 +57,8 @@ inline void VulkanBackend::norm_rope_kv(Slice q, size_t q_stride, size_t n_head,
     ViewTable t = view_table(layer, placed, true);
     if (!t.storage) return;
     VulkanKVStorage& s = *t.storage;
-    const size_t dim = 2 * rope.half, hd = s.heads() * s.dim();
-    if (s.dim() != dim || s.heads() != n_head_kv || t.rows != rows)
+    const size_t dim = 2 * rope.half, hd = n_head_kv * dim;
+    if (!s.holds(layer, n_head_kv, dim) || t.rows != rows)
         throw std::runtime_error("vulkan: attention inputs do not match the KV storage");
     if (floats_from(q) < rows * q_stride || floats_from(k) < rows * kv_stride ||
         floats_from(v) < rows * kv_stride || q_stride < n_head * dim || kv_stride < hd)
@@ -79,13 +79,17 @@ inline KVLayout VulkanBackend::kv_layout() const { return KVLayout{kVkBlockToken
 inline std::unique_ptr<KVStorage> VulkanBackend::kv_alloc(size_t layers, size_t n_head_kv, size_t head_dim,
                                                           size_t max_tokens, KVType k_type,
                                                           KVType v_type,
-                                                          const std::vector<size_t>& auxiliary_widths, const std::vector<AuxiliaryPool>& auxiliary_pools) {
-    if (!layers || (n_head_kv && !head_dim))
-        throw std::runtime_error("vulkan: KV storage without layers, or heads without width");
-    if (n_head_kv && !attention_head_fits(head_dim, dev_->caps.subgroup_size))
-        throw std::runtime_error("vulkan: a head " + std::to_string(head_dim) + " wide is not supported on this device, whose attention takes heads 128 or 256 wide or at most " +
-                                 std::to_string(attention_row_width(dev_->caps.subgroup_size)));
-    return std::make_unique<VulkanKVStorage>(*this, layers, n_head_kv, head_dim, max_tokens, k_type, v_type, auxiliary_widths, auxiliary_pools);
+                                                          const std::vector<size_t>& auxiliary_widths, const std::vector<AuxiliaryPool>& auxiliary_pools,
+                                                          const std::vector<KVShape>& layer_shapes) {
+    const std::vector<KVShape> shapes = BlockKVStorage::shapes("vulkan", layers, n_head_kv, head_dim, layer_shapes);
+    if (shapes.empty()) throw std::runtime_error("vulkan: KV storage without layers, or heads without width");
+    for (const KVShape& shape : shapes) {
+        if (shape.heads && !shape.dim) throw std::runtime_error("vulkan: KV storage without layers, or heads without width");
+        if (shape.heads && !attention_head_fits(shape.dim, dev_->caps.subgroup_size))
+            throw std::runtime_error("vulkan: a head " + std::to_string(shape.dim) + " wide is not supported on this device, whose attention takes heads 128 or 256 wide or at most " +
+                                     std::to_string(attention_row_width(dev_->caps.subgroup_size)));
+    }
+    return std::make_unique<VulkanKVStorage>(*this, shapes, max_tokens, k_type, v_type, auxiliary_widths, auxiliary_pools);
 }
 
 // One dispatch for every view of the batch through the view table, each view's rows scattering into its blocks.
@@ -105,7 +109,7 @@ inline void VulkanBackend::kv_write(size_t layer, const KVView* views, size_t n_
         storage->validate_write_view(*pv.view, layer);
         rows = size_add(rows, pv.view->nq);
     }
-    const size_t hd = size_mul(storage->heads(), storage->dim());
+    const size_t hd = size_mul(storage->heads(layer), storage->dim(layer));
     const size_t kv_floats = size_mul(rows, hd);
     if (!k.buffer || !v.buffer) throw std::runtime_error("vulkan: operand without storage");
     span(*k.buffer, size_mul(k.offset, sizeof(float)), size_mul(kv_floats, sizeof(float)));
@@ -115,7 +119,7 @@ inline void VulkanBackend::kv_write(size_t layer, const KVView* views, size_t n_
     if (!t.storage || !t.rows) return;
     VulkanKVStorage& s = *t.storage;
     s.write_aux(layer, views, n_views, auxiliary);
-    const uint32_t pc[4] = {u32(t.rows), u32(s.heads()), u32(s.dim()), u32(kVkBlockTokens)};
+    const uint32_t pc[4] = {u32(t.rows), u32(s.heads(layer)), u32(s.dim(layer)), u32(kVkBlockTokens)};
     dispatch(kv_variant(K_KV_WRITE, K_KV_WRITE_K16, s),
              {bind(CSlice{s.k_buffer(layer).get(), 0}), bind(CSlice{s.v_buffer(layer).get(), 0}),
               bind(k), bind(v), args(t.words.data(), t.words.size() * sizeof(uint32_t))},
@@ -145,7 +149,7 @@ inline void VulkanBackend::attention(CSlice Q, size_t layer, const KVView* views
     if (full && (head_dim == 64 || head_dim == 72)) {
         ViewTable t = view_table(layer, placed, false);
         VulkanKVStorage& s = *t.storage;
-        check_storage(s, n_head_kv, head_dim);
+        check_storage(s, layer, n_head_kv, head_dim);
         if (s.k_type() != KVType::f32 || s.v_type() != KVType::f32) throw std::runtime_error("vulkan: non-causal attention over a cache that is not f32");
         // A workgroup's multiply-adds: its 64 rows' dots and weighted sums over every key.
         std::vector<std::pair<size_t, size_t>> runs;
@@ -184,7 +188,7 @@ inline void VulkanBackend::attention(CSlice Q, size_t layer, const KVView* views
     }
     if (!narrow.empty()) {
         const VulkanKVStorage& s = storage_of(narrow.front().view->storage);
-        check_storage(s, n_head_kv, head_dim);
+        check_storage(s, layer, n_head_kv, head_dim);
         if (full && (s.k_type() != KVType::f32 || s.v_type() != KVType::f32)) throw std::runtime_error("vulkan: non-causal attention over a cache that is not f32");
         // The output's 16-bit twin, written by whichever kernel writes the output, when the whole batch is this call and a head is whole blocks.
         const bool quant = wide.empty() && head_dim % 32 == 0;
@@ -291,7 +295,7 @@ inline void VulkanBackend::wide_attention(CSlice Q, size_t layer, const std::vec
     };
     if (nsplit <= 1) {
         ViewTable t = view_table(layer, views, false);
-        check_storage(*t.storage, n_head_kv, head_dim);
+        check_storage(*t.storage, layer, n_head_kv, head_dim);
         tiles_of(views, t, bind(out), n, 1);
         return;
     }
@@ -318,7 +322,7 @@ inline void VulkanBackend::wide_attention(CSlice Q, size_t layer, const std::vec
         }
     for (const std::vector<Placed>& piece : pieces) {
         ViewTable t = view_table(layer, piece, false);
-        check_storage(*t.storage, n_head_kv, head_dim);
+        check_storage(*t.storage, layer, n_head_kv, head_dim);
         const size_t scratch_floats = size_mul(size_mul(t.rows, (size_t)n_head), nsplit * stride);
         if (!scratch_ || scratch_->size() < scratch_floats * sizeof(float)) grow(scratch_, scratch_floats * sizeof(float));
         const VkDescriptorBufferInfo scratch{scratch_->handle(), 0, VK_WHOLE_SIZE};
@@ -343,7 +347,7 @@ inline void VulkanBackend::sparse_attention(CSlice query, size_t layer, const KV
     ViewTable table = view_table(layer, placed, false);
     if (!table.rows) return;
     VulkanKVStorage& storage = *table.storage;
-    check_storage(storage, n_head_kv, head_dim);
+    check_storage(storage, layer, n_head_kv, head_dim);
     const size_t width = size_mul(size_t(n_head), size_t(head_dim));
     const size_t count = size_mul(table.rows, width), selections = size_mul(size_mul(table.rows, groups), id_stride);
     auto checked = [](CSlice s, size_t elements) {
@@ -715,9 +719,9 @@ inline VulkanBackend::ViewTable VulkanBackend::view_table(size_t layer, const st
     return t;
 }
 
-// The heads and width attention is asked for against the storage's; the view table has checked the layer.
-inline void VulkanBackend::check_storage(const VulkanKVStorage& s, int n_head_kv, int head_dim) {
-    if ((size_t)head_dim != s.dim() || (size_t)n_head_kv != s.heads())
+// The heads and width attention is asked for against the layer's.
+inline void VulkanBackend::check_storage(const VulkanKVStorage& s, size_t layer, int n_head_kv, int head_dim) {
+    if (!s.holds(layer, (size_t)n_head_kv, (size_t)head_dim))
         throw std::runtime_error("vulkan: attention outside the KV view");
 }
 
@@ -757,9 +761,9 @@ inline KernelId sparse_attention_kernel(uint32_t hg, const VulkanKVStorage& s) {
     }
 }
 
-VulkanKVStorage::VulkanKVStorage(VulkanBackend& owner, size_t layers, size_t heads, size_t dim, size_t max_tokens,
+VulkanKVStorage::VulkanKVStorage(VulkanBackend& owner, const std::vector<KVShape>& shapes, size_t max_tokens,
                                  KVType kt, KVType vt, const std::vector<size_t>& auxiliary_widths, const std::vector<AuxiliaryPool>& auxiliary_pools)
-    : BlockKVStorage(owner, "vulkan", kVkBlockTokens, layers, heads, dim, max_tokens, kt, vt, auxiliary_widths, auxiliary_pools) {}
+    : BlockKVStorage(owner, "vulkan", kVkBlockTokens, shapes, max_tokens, kt, vt, auxiliary_widths, auxiliary_pools) {}
 
 void VulkanKVStorage::retire(const BufferPtr& old) {
     static_cast<VulkanBackend&>(owner()).keep_until_retired(old);

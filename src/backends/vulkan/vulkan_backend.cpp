@@ -2305,7 +2305,8 @@ public:
     std::unique_ptr<KVStorage> kv_alloc(size_t layers, size_t n_head_kv, size_t head_dim,
                                         size_t max_tokens, KVType k_type = KVType::f32,
                                         KVType v_type = KVType::f32,
-                                        const std::vector<size_t>& auxiliary_widths = {}, const std::vector<AuxiliaryPool>& auxiliary_pools = {}) override;
+                                        const std::vector<size_t>& auxiliary_widths = {}, const std::vector<AuxiliaryPool>& auxiliary_pools = {},
+                                        const std::vector<KVShape>& layer_shapes = {}) override;
     void kv_write(size_t layer, const KVView* views, size_t n_views, CSlice k,
                   CSlice v, CSlice auxiliary = {}) override;
     void attention(CSlice Q, size_t layer, const KVView* views, size_t n_views, Slice out,
@@ -2363,7 +2364,7 @@ public:
     // Bytes the split tiled attention's parts may take at once; a call needing more is cut over whole tiles, which changes no bit.
     // 64 MiB holds 1024 rows of 32 heads 128 wide in 4 parts, so only very deep or very wide passes are cut, and it stays small beside the cache.
     size_t attention_scratch_cap_ = size_t(64) << 20;
-    static void check_storage(const VulkanKVStorage& s, int n_head_kv, int head_dim);
+    static void check_storage(const VulkanKVStorage& s, size_t layer, int n_head_kv, int head_dim);
     void keep_until_retired(BufferPtr b);
 
 private:

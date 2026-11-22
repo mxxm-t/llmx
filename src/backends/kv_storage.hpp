@@ -32,14 +32,16 @@ public:
 
     // Fixed when the storage is made, so a thread may read it while another grows the buffers on the device's thread.
     size_t layers() const { return layers_; }
-    size_t heads() const { return heads_; }
-    size_t dim() const { return dim_; }
+    size_t heads(size_t layer) const { return shapes_.at(layer).heads; }
+    size_t dim(size_t layer) const { return shapes_.at(layer).dim; }
+    // Whether `layer` exists and keeps `heads` heads `dim` wide, the check every op on a layer's K and V makes.
+    bool holds(size_t layer, size_t heads, size_t dim) const { return layer < layers_ && shapes_[layer].heads == heads && shapes_[layer].dim == dim; }
     size_t block_tokens() const { return bt_; }
     KVType k_type() const { return kt_; }
     KVType v_type() const { return vt_; }
-    // Block b of a layer's side starts at byte b times these and holds [kv_head][token][head_dim] in the side's type.
-    size_t k_block_bytes() const { return kblock_; }
-    size_t v_block_bytes() const { return vblock_; }
+    // Block b of a layer's side starts at byte b times these and holds [kv_head][token][head_dim] of that layer in the side's type.
+    size_t k_block_bytes(size_t layer) const { return kblock_[layer]; }
+    size_t v_block_bytes(size_t layer) const { return vblock_[layer]; }
     size_t auxiliary_width(size_t layer) const { return aux_widths_.at(layer); }
     size_t auxiliary_block_bytes(size_t layer) const { return auxblock_.at(layer); }
     // A layer's auxiliary block holds its tokens' rows, then with a pool of c one row of the pool's width for each complete group of c tokens, which select_kv writes as the group completes.
@@ -59,15 +61,14 @@ public:
         if (id < backed_) return;
         if (id >= max_) fail("KV block outside the budget");
         const size_t want = growth_target(backed_, id, max_);
-        const size_t kbytes = size_mul(want, kblock_), vbytes = size_mul(want, vblock_);
         // The old buffers and the new are held together while the copies run.
         const size_t peak = std::max(peak_.load(), size_add(allocated_bytes(), size_mul(want, total_block_bytes_)));
-        // A storage of no heads holds no K or V buffer, only its pooled rows.
+        // A layer of no heads holds no K or V buffer, only its pooled rows.
         std::vector<BufferPtr> nk(layers()), nv(layers()), na(layers());
         try {
             for (size_t l = 0; l < layers(); ++l) {
-                if (kblock_) nk[l] = owner_->alloc(kbytes, Memory::device);
-                if (vblock_) nv[l] = owner_->alloc(vbytes, Memory::device);
+                if (kblock_[l]) nk[l] = owner_->alloc(size_mul(want, kblock_[l]), Memory::device);
+                if (vblock_[l]) nv[l] = owner_->alloc(size_mul(want, vblock_[l]), Memory::device);
                 if (auxblock_[l]) na[l] = owner_->alloc(size_mul(want, auxblock_[l]), Memory::device);
                 if (k_[l]) owner_->copy(*nk[l], 0, *k_[l], 0, k_[l]->size());
                 if (v_[l]) owner_->copy(*nv[l], 0, *v_[l], 0, v_[l]->size());
@@ -143,21 +144,34 @@ public:
         }
     }
 
+    // Each layer's shape for kv_alloc: `layer_shapes` where given, one a layer, else `heads` by `dim` on every layer.
+    // The backend then checks each shape against what its kernels take.
+    static std::vector<KVShape> shapes(const char* prefix, size_t layers, size_t heads, size_t dim, const std::vector<KVShape>& layer_shapes) {
+        if (layer_shapes.empty()) return std::vector<KVShape>(layers, KVShape{heads, dim});
+        if (layer_shapes.size() != layers) throw std::runtime_error(std::string(prefix) + ": KV layer shape count differs from its layers");
+        return layer_shapes;
+    }
+
 protected:
     // Nothing is backed yet: the whole budget, `max_tokens` rounded up to whole blocks of every layer's K, V and auxiliary rows, is checked here in bytes.
     // `prefix` starts every error the storage throws, the backend's own.
-    BlockKVStorage(Backend& owner, const char* prefix, size_t block_tokens, size_t layers, size_t heads, size_t dim,
+    BlockKVStorage(Backend& owner, const char* prefix, size_t block_tokens, const std::vector<KVShape>& shapes,
                    size_t max_tokens, KVType kt, KVType vt, const std::vector<size_t>& auxiliary_widths = {}, const std::vector<AuxiliaryPool>& auxiliary_pools = {})
-        : owner_(&owner), prefix_(prefix), bt_(block_tokens), heads_(heads), dim_(dim), layers_(layers),
-          max_(blocks_for(max_tokens, block_tokens)), kt_(kt), vt_(vt),
-          kblock_(size_mul(size_mul(size_mul(heads, block_tokens), dim), kv_elem_bytes(kt))),
-          vblock_(size_mul(size_mul(size_mul(heads, block_tokens), dim), kv_elem_bytes(vt))),
-          k_(layers), v_(layers), auxiliary_(layers), aux_widths_(layers), aux_pools_(layers), auxblock_(layers) {
+        : owner_(&owner), prefix_(prefix), bt_(block_tokens), layers_(shapes.size()), shapes_(shapes),
+          max_(blocks_for(max_tokens, block_tokens)), kt_(kt), vt_(vt), kblock_(layers_), vblock_(layers_),
+          k_(layers_), v_(layers_), auxiliary_(layers_), aux_widths_(layers_), aux_pools_(layers_), auxblock_(layers_) {
+        const size_t layers = layers_;
         if (!auxiliary_widths.empty() && auxiliary_widths.size() != layers)
             fail("auxiliary width count differs from its layers");
         if (!auxiliary_pools.empty() && auxiliary_pools.size() != layers)
             fail("auxiliary pool count differs from its layers");
-        size_t total = size_mul(layers, size_add(kblock_, vblock_));
+        size_t total = 0;
+        for (size_t l = 0; l < layers; ++l) {
+            const size_t values = size_mul(size_mul(shapes_[l].heads, block_tokens), shapes_[l].dim);
+            kblock_[l] = size_mul(values, kv_elem_bytes(kt));
+            vblock_[l] = size_mul(values, kv_elem_bytes(vt));
+            total = size_add(total, size_add(kblock_[l], vblock_[l]));
+        }
         for (size_t l = 0; l < layers; ++l) {
             aux_widths_[l] = auxiliary_widths.empty() ? 0 : auxiliary_widths[l];
             aux_pools_[l] = auxiliary_pools.empty() ? AuxiliaryPool{} : auxiliary_pools[l];
@@ -166,9 +180,9 @@ protected:
             auxblock_[l] = size_mul(size_add(size_mul(block_tokens, aux_widths_[l]), pool.tokens ? size_mul(block_tokens / pool.tokens, pool.width) : 0), sizeof(float));
             total = size_add(total, auxblock_[l]);
         }
-        // A storage of no heads holds pooled rows alone, on every layer.
-        if (!kblock_ && std::any_of(aux_pools_.begin(), aux_pools_.end(), [&](const AuxiliaryPool& p) { return !p.tokens || aux_widths_[size_t(&p - aux_pools_.data())]; }))
-            fail("a KV storage of no heads holds only pooled rows on every layer");
+        // A layer of no heads holds pooled rows alone.
+        for (size_t l = 0; l < layers; ++l)
+            if (!kblock_[l] && (!aux_pools_[l].tokens || aux_widths_[l])) fail("a KV layer of no heads holds only pooled rows");
         total_block_bytes_ = total;
         size_mul(max_, total_block_bytes_);
     }
@@ -202,13 +216,15 @@ private:
 
     Backend* owner_;
     const char* prefix_;
-    size_t bt_, heads_, dim_;
+    size_t bt_;
     const size_t layers_;
+    const std::vector<KVShape> shapes_;
     size_t max_;
     // Growth runs on the device's thread, a stage's in a server, while the scheduler's thread reads what is backed for its accounting.
     std::atomic<size_t> backed_{0}, peak_{0};
     KVType kt_, vt_;
-    size_t kblock_, vblock_, total_block_bytes_ = 0;
+    std::vector<size_t> kblock_, vblock_;
+    size_t total_block_bytes_ = 0;
     std::vector<BufferPtr> k_, v_;
     std::vector<BufferPtr> auxiliary_;
     std::vector<size_t> aux_widths_;

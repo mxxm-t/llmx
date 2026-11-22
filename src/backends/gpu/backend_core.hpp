@@ -265,7 +265,7 @@ const GpuBuffer<Api>& as_gpu(const Buffer& b) {
 template <class Api>
 class GpuKVStorage final : public BlockKVStorage {
 public:
-    GpuKVStorage(GpuBackend<Api>& owner, size_t layers, size_t heads, size_t dim, size_t max_tokens, KVType kt, KVType vt,
+    GpuKVStorage(GpuBackend<Api>& owner, const std::vector<KVShape>& shapes, size_t max_tokens, KVType kt, KVType vt,
                   const std::vector<size_t>& auxiliary_widths, const std::vector<AuxiliaryPool>& auxiliary_pools);
 private:
     void retire(const BufferPtr& old) override;
@@ -1788,10 +1788,15 @@ public:
 
     KVLayout kv_layout() const override { return {kBlockTokens}; }
     std::unique_ptr<KVStorage> kv_alloc(size_t layers, size_t n_head_kv, size_t head_dim, size_t max_tokens, KVType k_type, KVType v_type,
-                                        const std::vector<size_t>& auxiliary_widths, const std::vector<AuxiliaryPool>& auxiliary_pools) override {
-        if (layers == 0 || (n_head_kv && head_dim == 0)) throw std::runtime_error(Api::prefix + "invalid KV storage shape");
-        if (n_head_kv && head_dim > kThreads) throw std::runtime_error(Api::prefix + "a KV head wider than " + std::to_string(kThreads) + " is not implemented");
-        return std::make_unique<GpuKVStorage<Api>>(*this, layers, n_head_kv, head_dim, max_tokens, k_type, v_type, auxiliary_widths, auxiliary_pools);
+                                        const std::vector<size_t>& auxiliary_widths, const std::vector<AuxiliaryPool>& auxiliary_pools,
+                                        const std::vector<KVShape>& layer_shapes) override {
+        const std::vector<KVShape> shapes = BlockKVStorage::shapes(Api::name, layers, n_head_kv, head_dim, layer_shapes);
+        if (shapes.empty()) throw std::runtime_error(Api::prefix + "invalid KV storage shape");
+        for (const KVShape& shape : shapes) {
+            if (shape.heads && shape.dim == 0) throw std::runtime_error(Api::prefix + "invalid KV storage shape");
+            if (shape.heads && shape.dim > kThreads) throw std::runtime_error(Api::prefix + "a KV head wider than " + std::to_string(kThreads) + " is not implemented");
+        }
+        return std::make_unique<GpuKVStorage<Api>>(*this, shapes, max_tokens, k_type, v_type, auxiliary_widths, auxiliary_pools);
     }
     void kv_write(size_t layer, const KVView* views, size_t n_views, CSlice k, CSlice v, CSlice auxiliary) override {
         if (n_views && !views) throw std::runtime_error(Api::prefix + "KV write without views");
@@ -1801,7 +1806,7 @@ public:
         }
         const KvTargets t = kv_targets(layer, views, n_views);
         GpuKVStorage<Api>& s = *t.s;
-        const size_t floats = size_mul(size_mul(t.rows, s.heads()), s.dim());
+        const size_t floats = size_mul(size_mul(t.rows, s.heads(layer)), s.dim(layer));
         span(*k.buffer, k.offset * sizeof(float), size_mul(floats, sizeof(float)));
         span(*v.buffer, v.offset * sizeof(float), size_mul(floats, sizeof(float)));
         // A layer's auxiliary rows go into its own plane of the same blocks, token-major, through the shared storage's copies (BlockKVStorage::write_aux).
@@ -1814,7 +1819,7 @@ public:
         const float* vp = f32(v);
         const int* bp = t.blocks;
         const int* sp = t.slots;
-        int heads = (int)s.heads(), dim = (int)s.dim(), bt = (int)kBlockTokens;
+        int heads = (int)s.heads(layer), dim = (int)s.dim(layer), bt = (int)kBlockTokens;
         int kh = t.k_half, vh = t.v_half;
         const Args args(kc, vc, kp, vp, bp, sp, heads, dim, bt, kh, vh);
         launch(kKvWrite, (unsigned)t.rows, (unsigned)heads, args);
@@ -1829,7 +1834,7 @@ public:
         if (!rope.pos) throw std::runtime_error(Api::prefix + "partial rope without positions");
         const KvTargets t = kv_targets(layer, views, n_views);
         GpuKVStorage<Api>& s = *t.s;
-        if (t.rows != rows || s.dim() != dim || s.heads() != n_head_kv) throw std::runtime_error(Api::prefix + "norm_rope_kv inputs do not match the KV storage");
+        if (t.rows != rows || !s.holds(layer, n_head_kv, dim)) throw std::runtime_error(Api::prefix + "norm_rope_kv inputs do not match the KV storage");
         span(*q.buffer, q.offset * sizeof(float), size_mul(size_add(size_mul(rows - 1, q_stride), size_mul(n_head, dim)), sizeof(float)));
         for (const CSlice& x : {CSlice(k), v}) span(*x.buffer, x.offset * sizeof(float), size_mul(size_mul(rows, kv_stride), sizeof(float)));
         for (const CSlice& w : {q_w, k_w})
@@ -1869,7 +1874,7 @@ public:
             throw std::runtime_error(Api::prefix + "invalid attention dimensions");
         if (!n_views) return;
         GpuKVStorage<Api>& s = storage(views[0]);
-        if ((size_t)head_dim != s.dim() || (size_t)n_head_kv != s.heads()) throw std::runtime_error(Api::prefix + "attention outside the KV view");
+        if (!s.holds(layer, (size_t)n_head_kv, (size_t)head_dim)) throw std::runtime_error(Api::prefix + "attention outside the KV view");
         // Views of a prompt whose extent reaches the profile's attention_tile_rows, causal and of 128- or 256-wide heads, take the tile kernel, the rest the chunk kernel: by the view's extent, its row class, never by how many rows the call holds.
         const size_t tile_rows = dev_.profile.attention_tile_rows;
         std::vector<int32_t> table, firsts, ends, wide;
@@ -1979,7 +1984,7 @@ public:
             head_dim > (int)kThreads || !groups || size_t(n_head_kv) % groups)
             throw std::runtime_error(Api::prefix + "invalid sparse attention dimensions");
         GpuKVStorage<Api>& s = storage(views[0]);
-        if ((size_t)head_dim != s.dim() || (size_t)n_head_kv != s.heads()) throw std::runtime_error(Api::prefix + "sparse attention outside the KV view");
+        if (!s.holds(layer, (size_t)n_head_kv, (size_t)head_dim)) throw std::runtime_error(Api::prefix + "sparse attention outside the KV view");
         std::vector<int32_t> table, firsts, ends;
         for (size_t vi = 0; vi < n_views; ++vi) {
             const KVView& view = views[vi];
@@ -4022,9 +4027,9 @@ private:
 };
 
 template <class Api>
-GpuKVStorage<Api>::GpuKVStorage(GpuBackend<Api>& owner, size_t layers, size_t heads, size_t dim, size_t max_tokens, KVType kt, KVType vt,
+GpuKVStorage<Api>::GpuKVStorage(GpuBackend<Api>& owner, const std::vector<KVShape>& shapes, size_t max_tokens, KVType kt, KVType vt,
                              const std::vector<size_t>& auxiliary_widths, const std::vector<AuxiliaryPool>& auxiliary_pools)
-    : BlockKVStorage(owner, Api::name, kBlockTokens, layers, heads, dim, max_tokens, kt, vt, auxiliary_widths, auxiliary_pools) {}
+    : BlockKVStorage(owner, Api::name, kBlockTokens, shapes, max_tokens, kt, vt, auxiliary_widths, auxiliary_pools) {}
 
 // Dropping the old buffer is enough: its memory waits in the graves for the copies recorded before.
 template <class Api>

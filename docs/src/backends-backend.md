@@ -123,7 +123,7 @@ placement contracts in `docs/EXECUTION.md`.
   precise activations for it; the Vulkan backend keeps the 16-bit twin for
   a Q4_0, Q4_1 or Q6_K head.
 - `kv_layout()`, `kv_alloc(layers, n_head_kv, head_dim, max_tokens, k_type,
-  v_type, auxiliary_widths = {}, auxiliary_pools = {})`, `kv_write(layer, views, n_views, k, v,
+  v_type, auxiliary_widths = {}, auxiliary_pools = {}, layer_shapes = {})`, `kv_write(layer, views, n_views, k, v,
   auxiliary = {})`: the backend-owned half of
   the paged KV cache in `docs/KV-CACHE.md`. Each side is stored as
   `KVType::f32` or `KVType::f16` (the CLI's `--cache-type-k` and
@@ -142,7 +142,8 @@ placement contracts in `docs/EXECUTION.md`.
   `kv_write` requires its token-major `[rows, width]` source on enabled layers, refuses one on disabled layers, and validates all views and sources before writing.
   The optional plane uses the same block ids as K and V; `select_kv` reads it for QSA, where qwen4exp keeps its raw indexer keys.
   `auxiliary_pools` is empty or supplies, per layer, an `AuxiliaryPool`: the groups of `tokens` whose pooled rows of `width` floats each block also keeps after its token rows (0 tokens for none), which `pool_kv` and `select_kv` write.
-  A storage of no heads keeps no K or V and holds pooled rows alone, on every layer, as an entries layer's are.
+  A layer of no heads keeps no K or V and holds pooled rows alone, as an entries layer's are.
+  `layer_shapes` is empty for `n_head_kv` heads `head_dim` wide on every layer, or supplies one `KVShape` per layer, its heads and width, as a drafter whose layers differ from its target's takes; every op on a layer reads that layer's shape, and a backend refuses a width its kernels do not take on any layer.
   The backends here derive their storage from `BlockKVStorage` (`backends-kv_storage.md`), which holds the buffers, the accounting, the growth rule, the whole-budget check and the view checks once.
 - `gated_attention(Q, layer, views, n_views, out, n_head, n_head_kv, head_dim, g)`: `attention`, then `sigmoid_mul` of the output in place, `OutputGate` holding the gate, its rows, strides and runs; the default makes the two calls, and a backend overrides it to skip what only the ungated output needed (the GPU core writes no twin of it).
 - `attention(Q, layer, views, n_views, out, n_head, n_head_kv, head_dim)`:

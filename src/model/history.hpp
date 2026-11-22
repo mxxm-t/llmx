@@ -183,7 +183,7 @@ namespace detail {
 template<class F> inline void block_runs(const backend::BlockKVStorage& st, const int32_t* ids, size_t n, F&& take) {
     for (size_t l = 0; l < st.layers(); ++l)
         for (unsigned side = 0; side < 3; ++side) {
-            const size_t block = side == 0 ? st.k_block_bytes() : side == 1 ? st.v_block_bytes() : st.auxiliary_block_bytes(l);
+            const size_t block = side == 0 ? st.k_block_bytes(l) : side == 1 ? st.v_block_bytes(l) : st.auxiliary_block_bytes(l);
             if (!block) continue;
             for (size_t i = 0; i < n;) {
                 size_t e = i + 1;
@@ -618,7 +618,7 @@ inline std::vector<HostRange> Model::host_ranges(const HostHistory& h, size_t fi
         if (first % bt || length % bt) throw std::logic_error("inference: a range of a host history takes whole blocks");
         size_t at = 0;
         for (size_t l = 0; l < st->layers(); ++l)
-            for (const size_t block : {st->k_block_bytes(), st->v_block_bytes(), st->auxiliary_block_bytes(l)}) {
+            for (const size_t block : {st->k_block_bytes(l), st->v_block_bytes(l), st->auxiliary_block_bytes(l)}) {
                 if (!block) continue;
                 out.push_back(HostRange{i, at + skip * block, n * block});
                 at += held * block;
@@ -972,8 +972,15 @@ inline std::string Model::host_identity() const {
         const backend::Dtype dtype = options_.device_dtypes.empty() ? options_.dtype : options_.device_dtypes[i];
         s += "device " + std::to_string(i) + " " + d.b->identity() + "; dtype " + backend::dtype_name(dtype) + "; used " + std::to_string(d.used);
         if (const auto* st = dynamic_cast<const backend::BlockKVStorage*>(d.storage.get())) {
-            s += "; kv " + std::to_string(st->layers()) + " layers, " + std::to_string(st->block_tokens()) + " tokens a block, " + std::to_string(st->k_block_bytes()) + "+" +
-                 std::to_string(st->v_block_bytes()) + " bytes";
+            s += "; kv " + std::to_string(st->layers()) + " layers, " + std::to_string(st->block_tokens()) + " tokens a block, " + std::to_string(st->k_block_bytes(0)) + "+" +
+                 std::to_string(st->v_block_bytes(0)) + " bytes";
+            // Layers of their own shape name each layer's heads and width; a storage of one shape adds nothing, so its identities are the ones before.
+            bool shaped = false;
+            for (size_t l = 1; l < st->layers(); ++l) shaped |= !st->holds(l, st->heads(0), st->dim(0));
+            if (shaped) {
+                s += "; heads by width";
+                for (size_t l = 0; l < st->layers(); ++l) s += " " + std::to_string(st->heads(l)) + "x" + std::to_string(st->dim(l));
+            }
             bool auxiliary = false;
             for (size_t l = 0; l < st->layers(); ++l) auxiliary |= st->auxiliary_width(l) != 0;
             if (auxiliary) {

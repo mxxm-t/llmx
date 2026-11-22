@@ -68,7 +68,7 @@ class VulkanBackend;
 // A growth's copies run on the queue after it returns, so the old buffers are kept until the command buffer that recorded the copies retires.
 class VulkanKVStorage final : public BlockKVStorage {
 public:
-    VulkanKVStorage(VulkanBackend& owner, size_t layers, size_t heads, size_t dim, size_t max_tokens, KVType kt,
+    VulkanKVStorage(VulkanBackend& owner, const std::vector<KVShape>& shapes, size_t max_tokens, KVType kt,
                     KVType vt, const std::vector<size_t>& auxiliary_widths, const std::vector<AuxiliaryPool>& auxiliary_pools);
 
 private:

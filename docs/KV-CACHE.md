@@ -146,7 +146,8 @@ KVView     { storage, blocks, n_blocks, length, nq, extent }
            one sequence's history, its nq rows of the current pass and
            their extent, which a device chooses its kernels by
 kv_alloc(layers, n_head_kv, head_dim, max_tokens, k_type, v_type,
-         auxiliary_widths = {}, auxiliary_pools = {}) -> KVStorage
+         auxiliary_widths = {}, auxiliary_pools = {},
+         layer_shapes = {}) -> KVStorage
                                                  grows on demand
 kv_write(layer, views, n_views, k, v, auxiliary = {})
                                                  model -> storage, rows in view order
@@ -171,6 +172,7 @@ The auxiliary plane follows the same physical block IDs as K and V, so the seque
 Tensor-group members each retain the full auxiliary row under the shared block IDs.
 Qwen4Exp keeps its raw indexer keys in this plane, and with a pool of its compression the pooled key of each complete group after a block's token rows (`auxiliary_pools`, a group size and a row width per layer), written once as the group completes.
 An entries layer (`Cache::entries`, docs/DEEPSEEK4.md section 4.3) keeps pooled rows alone, in a storage of no heads.
+`layer_shapes` gives a layer heads and a width of its own, as a drafter's KV layers beside its target's need: a layer's blocks hold its own `[kv_head][token][head_dim]`, a block's bytes are the sum over its layers, and the block ids stay one table for every layer.
 
 ### CPU physical layout
 

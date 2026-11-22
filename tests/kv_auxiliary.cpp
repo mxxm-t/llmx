@@ -350,10 +350,11 @@ public:
                                                   size_t max_tokens, backend::KVType k_type,
                                                   backend::KVType v_type,
                                                   const std::vector<size_t>& auxiliary_widths = {},
-                                                  const std::vector<backend::AuxiliaryPool>& auxiliary_pools = {}) override {
+                                                  const std::vector<backend::AuxiliaryPool>& auxiliary_pools = {},
+                                                  const std::vector<backend::KVShape>& layer_shapes = {}) override {
         auxiliary_allocations.push_back(auxiliary_widths);
         return backend::CpuBackend::kv_alloc(layers, n_head_kv, head_dim, max_tokens,
-                                             k_type, v_type, auxiliary_widths, auxiliary_pools);
+                                             k_type, v_type, auxiliary_widths, auxiliary_pools, layer_shapes);
     }
     std::vector<std::vector<size_t>> auxiliary_allocations;
 };
@@ -505,7 +506,7 @@ void model_history() {
     require(range_bytes == host.bytes && host.device_bytes.size() == 1 && host.device_bytes[0] == host.bytes,
             "host ranges do not include all auxiliary block bytes");
 
-    const size_t kv_block_bytes = storage.k_block_bytes();
+    const size_t kv_block_bytes = storage.k_block_bytes(0);
     const size_t aux_offset = 4 * kv_block_bytes;
     const size_t aux_bytes = 2 * bt * 3 * sizeof(float);
     const auto has_range = [](const std::vector<infer::HostRange>& rs, size_t offset, size_t bytes) {

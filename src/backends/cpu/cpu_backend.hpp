@@ -57,16 +57,16 @@ static const size_t KV_BLOCK_TOKENS = 128;
 // Copies are eager, so a growth has no old buffer to keep, and each growth resolves the layers' host pointers once: attention walks the block table for every head of every query.
 class CpuKVStorage final : public BlockKVStorage {
 public:
-    CpuKVStorage(Backend& owner, size_t layers, size_t heads, size_t dim, size_t max_tokens, KVType kt, KVType vt,
+    CpuKVStorage(Backend& owner, const std::vector<KVShape>& shapes, size_t max_tokens, KVType kt, KVType vt,
                  const std::vector<size_t>& auxiliary_widths, const std::vector<AuxiliaryPool>& auxiliary_pools)
-        : BlockKVStorage(owner, "backend", KV_BLOCK_TOKENS, layers, heads, dim, max_tokens, kt, vt, auxiliary_widths, auxiliary_pools),
-          kp_(layers, nullptr), vp_(layers, nullptr) {}
+        : BlockKVStorage(owner, "backend", KV_BLOCK_TOKENS, shapes, max_tokens, kt, vt, auxiliary_widths, auxiliary_pools),
+          kp_(shapes.size(), nullptr), vp_(shapes.size(), nullptr) {}
 
     // Block `id` of a layer as bytes, and as the element type it holds; the caller checks the type and casts once per block.
-    uint8_t* kraw(size_t layer, int32_t id) { return kp_[layer] + (size_t)id * k_block_bytes(); }
-    uint8_t* vraw(size_t layer, int32_t id) { return vp_[layer] + (size_t)id * v_block_bytes(); }
-    const uint8_t* kraw(size_t layer, int32_t id) const { return kp_[layer] + (size_t)id * k_block_bytes(); }
-    const uint8_t* vraw(size_t layer, int32_t id) const { return vp_[layer] + (size_t)id * v_block_bytes(); }
+    uint8_t* kraw(size_t layer, int32_t id) { return kp_[layer] + (size_t)id * k_block_bytes(layer); }
+    uint8_t* vraw(size_t layer, int32_t id) { return vp_[layer] + (size_t)id * v_block_bytes(layer); }
+    const uint8_t* kraw(size_t layer, int32_t id) const { return kp_[layer] + (size_t)id * k_block_bytes(layer); }
+    const uint8_t* vraw(size_t layer, int32_t id) const { return vp_[layer] + (size_t)id * v_block_bytes(layer); }
     float* k(size_t layer, int32_t id) { return (float*)kraw(layer, id); }
     float* v(size_t layer, int32_t id) { return (float*)vraw(layer, id); }
     const float* k(size_t layer, int32_t id) const { return (const float*)kraw(layer, id); }
@@ -879,10 +879,12 @@ public:
     std::unique_ptr<KVStorage> kv_alloc(size_t layers, size_t n_head_kv, size_t head_dim,
                                         size_t max_tokens, KVType k_type = KVType::f32,
                                         KVType v_type = KVType::f32,
-                                        const std::vector<size_t>& auxiliary_widths = {}, const std::vector<AuxiliaryPool>& auxiliary_pools = {}) override {
-        if (layers == 0 || (n_head_kv && head_dim == 0))
+                                        const std::vector<size_t>& auxiliary_widths = {}, const std::vector<AuxiliaryPool>& auxiliary_pools = {},
+                                        const std::vector<KVShape>& layer_shapes = {}) override {
+        const std::vector<KVShape> shapes = BlockKVStorage::shapes("backend", layers, n_head_kv, head_dim, layer_shapes);
+        if (shapes.empty() || std::any_of(shapes.begin(), shapes.end(), [](const KVShape& s) { return s.heads && !s.dim; }))
             throw std::runtime_error("backend: invalid KV storage shape");
-        return std::make_unique<CpuKVStorage>(*this, layers, n_head_kv, head_dim, max_tokens, k_type, v_type, auxiliary_widths, auxiliary_pools);
+        return std::make_unique<CpuKVStorage>(*this, shapes, max_tokens, k_type, v_type, auxiliary_widths, auxiliary_pools);
     }
 
     // A row of floats into a cache side of either type; f16 rounds to nearest, eight at a time through F16C.
@@ -917,8 +919,8 @@ public:
         for (size_t vi = 0; vi < n_views; ++vi) {
             CpuKVStorage& s = storage_of(views[vi]);
             s.validate_write_view(views[vi], layer);
-            if (!vi) { heads = s.heads(); dim = s.dim(); aux_width = s.auxiliary_width(layer); }
-            else if (s.heads() != heads || s.dim() != dim || s.auxiliary_width(layer) != aux_width)
+            if (!vi) { heads = s.heads(layer); dim = s.dim(layer); aux_width = s.auxiliary_width(layer); }
+            else if (!s.holds(layer, heads, dim) || s.auxiliary_width(layer) != aux_width)
                 throw std::runtime_error("backend: KV views of different shapes");
             rows = size_add(rows, views[vi].nq);
         }
@@ -990,7 +992,7 @@ public:
             const float* Q = Q_all + row0 * q_stride;
             float* out = out_all + row0 * q_stride;
             CpuKVStorage& s = storage_of(view);
-            if ((size_t)head_dim != s.dim() || (size_t)n_head_kv != s.heads())
+            if (!s.holds(layer, (size_t)n_head_kv, (size_t)head_dim))
                 throw std::runtime_error("backend: attention outside the KV view");
             s.check_view(view, layer, false);
             const size_t bt = KV_BLOCK_TOKENS;
@@ -1126,7 +1128,7 @@ public:
             const KVView& view = views[vi];
             if (!view.nq) throw std::runtime_error("backend: invalid sparse attention dimensions");
             CpuKVStorage& storage = storage_of(view);
-            if (storage.heads() != (size_t)n_head_kv || storage.dim() != hd)
+            if (!storage.holds(layer, (size_t)n_head_kv, hd))
                 throw std::runtime_error("backend: sparse attention outside the KV view");
             storage.check_view(view, layer, false);
             plans.push_back({&storage, &view, rows});
@@ -1325,7 +1327,7 @@ public:
                 throw std::runtime_error("backend: index token position exceeds 32 bits");
             plan.groups = plan.visible / args.compression;
             plan.storage->check_view(view, layer, false);
-            if (plan.storage->heads() == 0 || plan.storage->dim() == 0 ||
+            if (plan.storage->heads(layer) == 0 || plan.storage->dim(layer) == 0 ||
                 plan.storage->auxiliary_width(layer) != args.dim)
                 throw std::runtime_error("backend: index selection auxiliary width differs from its key dimension");
             if (plan.storage->auxiliary_pool(layer) != args.compression)

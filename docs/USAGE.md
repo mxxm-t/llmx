@@ -1006,8 +1006,15 @@ Neither route waits in the queue, and a text past the context is counted rather 
 `/v1/detokenize` gives the text `llmx detokenize` prints for the ids, with each byte that starts no UTF-8 character replaced by U+FFFD as in a reply, so the `ids` of a whole reply give back its `text`.
 A body that is not a JSON object, a `text` that is not a string, both `text` and `messages` or neither, a text the tokenizer cannot encode, as the generating routes refuse it, and a token id that is not a whole number within the vocabulary are refused with 400, and a body past 64 MiB with 413, in the native error shape.
 
+For a local test, start the server on its default loopback address.
+
 ```
-llmx serve Qwen3-0.6B-Q8_0.gguf --device vulkan:0 --port 8080
+llmx serve Qwen3-0.6B-Q8_0.gguf --device vulkan:0 --port 8080 --no-auth
+```
+
+In a second terminal, stream a reply and tokenize the same prompt.
+
+```sh
 curl -N -H 'Content-Type: application/json' -d '{"prompt":"The capital of France is","max_tokens":16,"stream":true}' http://127.0.0.1:8080/v1/generate
 curl -H 'Content-Type: application/json' -d '{"text":"The capital of France is"}' http://127.0.0.1:8080/v1/tokenize
 ```
@@ -1193,9 +1200,16 @@ Below the table an open level also notes sends that fell behind their arrival ti
 
 The tool exits 0 when every timed request completed and 3 when any failed, after printing the table and its notes and writing `--json`; it exits 1 when the server cannot be reached or the warm-up fails.
 
+Start a local server with room in its queue for either load test.
+
+```
+llmx serve Qwen3-0.6B-Q8_0.gguf --max-queue 256 --no-auth
+```
+
+In a second terminal, run the concurrency sweep or the arrival-rate sweep.
+
 ```
 python tools/server_load.py --input-len 128 --output-len 128 --concurrency 1 2 4 8 16 32 64 --num-prompts 128 --json closed.json
-llmx serve Qwen3-0.6B-Q8_0.gguf --max-queue 256
 python tools/server_load.py --input-len-range 64:1024 --output-len 128 --rate 1 2 4 8 inf --num-prompts 200 --json open.json
 ```
 

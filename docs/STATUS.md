@@ -1,5 +1,11 @@
 # llmx - Development Status
 
+## Local server examples in USAGE
+
+- The HTTP and load-test examples now start a loopback server with an explicit authentication choice and put client commands in a second terminal.
+- The Windows 0.2.0 release refused both old commands. With a small CPU fixture, the corrected examples streamed a reply, tokenized the prompt and completed short concurrency and arrival-rate runs.
+- This docs-only change lands by fast-forward after the docs and dead-code checks.
+
 ## Monitor model details during startup
 
 - Model placement, lookup storage and RoPE now distinguish waiting for health, loading, failed startup and missing details in a ready response.

@@ -447,6 +447,16 @@ A saved tool result opens the latest file in the editor or resumes unsaved chang
 - **Done:** Chat opens at the composer with saved files and up to three recent conversations. The active branch has a local prompt index, text search with jump-to-message and a Markdown transcript download.
 - **Checks:** Chrome exercised both themes at 320, 390, 768 and 1440 px. The 320 and 390 px composer has 16 px side gutters. The message-navigation fixture covers 27 turns, paging, literal matching, alternate branches, draft preservation, focus and export contents.
 - **Landing:** The standalone companion uses the Linux and Windows Chat workspace workflow for the landing head. The change lands by fast-forward after its scoped checks pass.
+## Held norm parts of 256 threads (2026-11-22, CUTS24/CUTS32/CUTS35, branch products/norm-part on 901bd99a)
+
+- **Goal:** a decode norm row run in parts (`rms_norm_held`, `kernels/f32.gpu`) takes less time a call on the ROCm backend, with every bit kept.
+- **Done:** `kNormPart` is 256, and out of place a part of the map-free norm builds (`LLMX_NORM`, template flag P) runs 256 threads that hold their values in registers for rms_norm_row's chains, so a 5120 row runs in 20 parts of 256 values rather than 10 of 512; in place a row keeps one 1024-thread block, and the map builds (`LLMX_NORM_MAJOR`) keep the 1024-thread path, since compiling the branch into them spilled `llmx_rms_norm_32_twin8_major` to 124 bytes of scratch (180 against 53 us a call, prefill -6% in the first A/B).
+  Every norm build has scratch 0 on gfx906.
+- **Measured, Qwen3.6-27B-Q8_0, four MI50 (renderD132-135), `--tensor-width 4 --dtype int8`, ROCm 7.2.1** (/opt/claude-work/cuts32/out/ab2b, base `llmx 0.1.0+g901bd99a4d07` sha256 e4fcc06b, candidate `llmx 0.1.0+g4bb60da9bfad` sha256 5e7365ca, both built by the same script, neither dirty): five alternating pairs of `generate -n 256 --temp 0` give the same text in all ten runs.
+  Base pp / tg tok/s 528.82 / 57.09, 700.05 / 65.29, 700.23 / 62.69, 700.54 / 63.75, 699.26 / 64.00; candidate 696.80 / 65.99, 668.92 / 65.13, 699.97 / 64.42, 440.63 / 53.84, 699.21 / 64.07; medians tg 63.75 / 64.42 (+1.05%, inside the run-to-run band at host load 12 to 18), pp 700.05 / 696.80.
+  Kernel trace of each arm (-n 32): the decode norm's median is 8.96-10.08 us a call on the four agents for base and 7.84-8.80 for the candidate, about 0.15 ms a token at 128 calls, as the microbenchmark gave; the prompt's `llmx_rms_norm_32_twin8_major` is 52.0-52.5 us in both.
+  The candidate's traced run was slower in all (tg32 25.22 against 28.52) with multi-ms stalls in kernels the change does not touch (half8, group_sum, delta_step), read as host contention from one traced run an arm.
+- **Left:** the landing gates (AGENTS.md, Merge gates): CPU and device identity against main for the models it reaches, f16 among them, the suite on a device, CUDA compile (f32.gpu is shared) and the timing round against main.
 ## Norm-rope KV reads first (2026-11-20, BYPASS15, branch perf/norm-rope-kv-reads-first on main ce2b0603b)
 
 - **Goal:** `llmx_norm_rope_kv` (`kernels/f32.gpu`), launched once a layer on qwen3, issues its global reads before its first wait, with every bit kept.

@@ -832,7 +832,7 @@ public:
         const unsigned parts = overlaps(CSlice(dst), rows * stride, src, rows * stride) ? 1 : (unsigned)std::max<size_t>(1, std::min((n + kNormPart - 1) / kNormPart, units));
         Args args(d, s, wp, in, st, eps, parts, q, td, t.s);
         if (build != k) args.put(map);
-        launch_writing({{d, size_mul(rows, std::max<size_t>(n, stride))}}, build, (unsigned)rows, parts, args, 1, kNormThreads);
+        launch_writing({{d, size_mul(rows, std::max<size_t>(n, stride))}}, build, (unsigned)rows, parts, args, 1, parts > 1 && build == k ? kThreads : kNormThreads);
         keep(t, d, rows * n);
     }
     void norm_rope_partial(Slice dst, CSlice src, size_t rows, size_t src_stride, size_t src_head_stride, size_t heads, size_t head_dim,
@@ -2492,7 +2492,7 @@ private:
     }
     static constexpr unsigned kChunks = 16;   // a row's attention chunks at most (kernels/f32.gpu)
     static constexpr unsigned kNormThreads = 1024;   // the held norms' block (kernels/f32.gpu)
-    static constexpr size_t kNormPart = 512;         // the values a held norm's part writes, where the measured gain levels off
+    static constexpr size_t kNormPart = 256;        // the values a held norm's part writes, where the measured gain levels off
     static constexpr size_t kColumns = 16;   // the row kernel's columns (kernels/int16.gpu)
     static constexpr size_t kRowsOut = 8, kRowsIn = 8;   // the blocked exact product's outputs and rows a block (kernels/f32.gpu)
     static constexpr size_t kTileOut = 64, kTileOutTall = 128, kTileRows = 64, kTileRowsTall = 128;   // the prompt tile's outputs, its tall build's, its rows and the K-quants' square build's (kernels/int16.gpu)

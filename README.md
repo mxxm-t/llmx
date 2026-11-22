@@ -67,8 +67,9 @@ The speed figures are being measured again on the released code and will be publ
 ## Install
 
 - **Download** the Linux or Windows archive from the [releases page](https://github.com/mxxm-t/llmx/releases) and check it against `SHA256SUMS`.
+  The [nightly pre-release](https://github.com/mxxm-t/llmx/releases/tag/nightly) holds the same files built from the newest `main`, unchecked by a release's smoke runs ([RELEASE](docs/RELEASE.md#the-nightly-channel)).
   The Linux binary needs glibc 2.35 or later; GPUs need the Vulkan driver or the ROCm 7 runtime the system already has.
-- **Docker:** the `ghcr.io/mxxm-t/llmx:X.Y.Z-vulkan` and `ghcr.io/mxxm-t/llmx:X.Y.Z-rocm7` images run `llmx`. These examples make the API available locally at `http://127.0.0.1:8080/v1`. For clients on other machines, see the [key-file example](docs/RELEASE.md#what-a-release-holds).
+- **Docker:** the `ghcr.io/mxxm-t/llmx:X.Y.Z-vulkan` and `ghcr.io/mxxm-t/llmx:X.Y.Z-rocm7` images run `llmx`, and `ghcr.io/mxxm-t/llmx:chat-X.Y.Z` the chat companion ([RELEASE](docs/RELEASE.md#the-images)). These examples make the API available locally at `http://127.0.0.1:8080/v1`. For clients on other machines, see the [key-file example](docs/RELEASE.md#what-a-release-holds).
 
   ```sh
   docker run --rm --device /dev/dri --group-add "$(getent group render | cut -d: -f3)" -v /path/to/models:/models -p 127.0.0.1:8080:8080 \
@@ -118,7 +119,9 @@ curl http://127.0.0.1:8080/v1/chat/completions -H "Authorization: Bearer $KEY" \
 
 - The server speaks the OpenAI API (`/v1/chat/completions`, `/v1/completions`, `/v1/models`), streamed or whole, with tool calls, so editors and agents that take an OpenAI endpoint work with it ([OPERATING](docs/OPERATING.md)).
   It needs a key file, `--api-key-file`, whose keys requests send as `Authorization: Bearer KEY`, or `--no-auth` to serve every client; it has no TLS, so put a reverse proxy in front of one that faces a network.
-- The [chat companion](tools/chat_ui/README.md) is a browser interface for a running server, with conversations, file workspaces and live request metrics: `python tools/chat_ui/server.py --upstream http://127.0.0.1:8080`.
+- The [chat companion](tools/chat_ui/README.md) is a browser interface for a running server, with conversations, file workspaces and live request metrics: `python tools/chat_ui/server.py --upstream http://127.0.0.1:8080`, then open `http://127.0.0.1:8183`.
+  It needs only Python 3 and comes in the release archives, so the command runs from the extracted directory as from a checkout; add `--api-key-file FILE` with one of the server's keys.
+  The [health dashboard](tools/health_dashboard/README.md) alone charts a server's `/v1/health` on `http://127.0.0.1:8182`: `python tools/health_dashboard/server.py --upstream http://127.0.0.1:8080/v1/health --api-key-file FILE`.
 - Faster answers: `--drafter` drafts tokens ahead, with the same text as without ([SPECULATIVE](docs/SPECULATIVE.md)).
   `lookup` drafts from the prompt and reply, `embedded` from the MTP block a Qwen 3.5 file carries, and a file path from a DeepSeek DSpark file or another drafter file.
   Lookup combines with the others, `--drafter lookup,embedded` or `--drafter lookup,FILE`: it drafts where the text repeats and the model drafter covers the rest.

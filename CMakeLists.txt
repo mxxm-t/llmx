@@ -8,6 +8,7 @@ project(llmx VERSION 0.2.0 LANGUAGES CXX)
 option(LLMX_HAS_BACKEND_VULKAN "Build the Vulkan backend" OFF)
 option(LLMX_HAS_BACKEND_ROCM "Build the ROCm backend (Linux)" OFF)
 option(LLMX_HAS_BACKEND_CUDA "Build the CUDA backend (Linux)" OFF)
+option(LLMX_NIGHTLY "Mark the build identifier as a nightly build of its commit (docs/RELEASE.md)" OFF)
 
 add_executable(llmx
     src/cli/main.cpp
@@ -60,6 +61,7 @@ add_custom_target(llmx-build-info
         "-DVULKAN=${LLMX_BACKEND_VULKAN_FLAG}"
         "-DIPO=${CMAKE_INTERPROCEDURAL_OPTIMIZATION}"
         "-DGLSLC_VERSION=${LLMX_GLSLC_VERSION}"
+        "-DNIGHTLY=${LLMX_NIGHTLY}"
         "-DOUTPUT_FILE=${CMAKE_CURRENT_BINARY_DIR}/generated/llmx-build-info.hpp"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/build-info.cmake"
     BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/generated/llmx-build-info.hpp"

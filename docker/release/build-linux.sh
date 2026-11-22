@@ -2,9 +2,15 @@
 # Builds the Linux release tarball: one llmx binary with the CPU, Vulkan and ROCm backends (docs/RELEASE.md).
 # It runs in a fresh ubuntu:22.04 container with the repository mounted at /src, so the binary needs glibc 2.35 or later and nothing else the host may lack.
 # Usage, from the repository root:
-#   docker run --rm -v "$PWD:/src" -w /src ubuntu:22.04 bash docker/release/build-linux.sh
-# The tarball and its build log land in dist/.
+#   docker run --rm -v "$PWD:/src" -w /src ubuntu:22.04 bash docker/release/build-linux.sh [nightly]
+# The tarball lands in dist/; with nightly the build identifier and the tarball name it a nightly build of the commit (docs/RELEASE.md, The nightly channel).
 set -euo pipefail
+
+case "${1:-}" in
+    "") nightly=OFF ;;
+    nightly) nightly=ON ;;
+    *) echo "usage: build-linux.sh [nightly]" >&2; exit 2 ;;
+esac
 
 VULKAN_SDK_VERSION=1.4.335.0
 ROCM_VERSION=7.2.1
@@ -32,13 +38,19 @@ export VULKAN_SDK=/opt/vulkan-sdk/x86_64
 git config --global --add safe.directory /src
 
 version=$(sed -n 's/^project(llmx VERSION \([0-9.]*\) .*/\1/p' CMakeLists.txt)
-name=llmx-${version}-linux-x86_64
+if [ "$nightly" = ON ]; then
+    name=llmx-nightly-linux-x86_64
+    identifier="${version}+nightly\.[0-9]\{8\}\.g[0-9a-f]\{12,\}"
+else
+    name=llmx-${version}-linux-x86_64
+    identifier="${version}+g[0-9a-f]\{12,\}"
+fi
 rm -rf build-release "dist/${name}" "dist/${name}.tar.gz"
 mkdir -p dist
 
 # libstdc++ and libgcc are linked in, so the binary needs only the C library; the Vulkan loader and the HIP runtime are opened at run time.
 cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF \
-    -DLLMX_HAS_BACKEND_VULKAN=ON -DLLMX_HAS_BACKEND_ROCM=ON \
+    -DLLMX_HAS_BACKEND_VULKAN=ON -DLLMX_HAS_BACKEND_ROCM=ON -DLLMX_NIGHTLY="$nightly" \
     "-DCMAKE_EXE_LINKER_FLAGS=-static-libstdc++ -static-libgcc"
 cmake --build build-release --parallel "$(nproc)"
 
@@ -60,11 +72,12 @@ done
 echo "GLIBC: $(objdump -T "$bin" | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)"
 
 "$bin" --version
-"$bin" --version | grep -q "^llmx ${version}+g[0-9a-f]\{12,\} " || { echo "error: the build identifier lacks the release or the commit, or the tree is dirty" >&2; exit 1; }
+"$bin" --version | grep -q "^llmx ${identifier} " || { echo "error: the build identifier lacks the release or the commit, or the tree is dirty" >&2; exit 1; }
 
 mkdir -p "dist/${name}"
 cp "$bin" README.md "dist/${name}/"
 cp LICENSE THIRD_PARTY_NOTICES.md "dist/${name}/"
+bash docker/release/companion.sh "dist/${name}"
 tar -C dist -czf "dist/${name}.tar.gz" "$name"
 rm -rf "dist/${name}"
 echo "dist/${name}.tar.gz"

@@ -10,6 +10,21 @@
 - **Left:** feeding the reasoning while it is written (the writing trigger still waits for `</think>`), and the first turn of a client that leaves reasoning out under such a template, which reads its content again once (ideas.md).
 - **Landing:** fast-forward.
 
+## Nightly channel and companion release files
+
+**Goal.** Every push to `main` rebuilds one `nightly` pre-release in place with a release's files and images, and every release, versioned or nightly, ships the chat companion and the health dashboard in its archives and as the `chat` image ([RELEASE](RELEASE.md#the-nightly-channel)).
+
+**Done.** `.github/workflows/release-build.yml` holds the build jobs once, called by `release.yml` and the new `nightly.yml`; `docker/release/images.sh` owns the images, their tags, the Docker Hub copies and the cosign signatures, and `docker/release/companion.sh` the companion files.
+Images are pushed by digest alone and tagged only by the run that publishes them, so a cancelled or failed nightly build moves no tag.
+`-DLLMX_NIGHTLY=ON` makes `--version` print `0.2.0+nightly.YYYYMMDD.g<commit>`, the commit's UTC date, and `tests/version.py` accepts that form; the CMake and fallback release numbers are unchanged.
+
+**Checks.** actionlint 1.7.7 over the three workflows, clean but for the word splitting the scripts mean (SC2086); shellcheck on the scripts; `cmake -P cmake/build-info.cmake` with and without `NIGHTLY`; `companion.sh` copies 36 files without tests; the `chat` target built on the rig ran as uid 10001, served HTTP 200 on a host port and printed both servers' `--help`; the suite's `docs` and `dead-code` components on pve1.
+
+**Left.** The first push to `main` after landing creates the pre-release, the one notification the channel sends; its run is watched, since the publish path cannot run from a branch.
+`docker/compose.yaml`, which PR 546 adds, switches its `chat` service to the released image on a branch of its own after 546 lands.
+
+**Landing.** Workflow, build-script and docs change: the `docs` and `dead-code` components and a dry run of the build jobs on a `gate/` branch; lands by fast-forward.
+
 ## Request capacity freshness in Monitor
 
 - The production dashboard showed CURRENT STATE after its inference server stopped. Request capacity now marks the retained counts as LAST SAMPLE and distinguishes pausing the view from paused scheduler work.

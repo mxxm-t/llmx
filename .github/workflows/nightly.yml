@@ -1,0 +1,107 @@
+name: Nightly
+
+# Every push to main rebuilds the one pre-release `nightly` in place: the release's downloads under nightly names and the nightly-vulkan, nightly-rocm7 and nightly-chat images (docs/RELEASE.md, The nightly channel).
+# A manual run on another branch builds everything and publishes nothing.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build
+    # Gitea mirrors main and a fork has none of the keys, so neither runs the channel.
+    if: github.server_url == 'https://github.com' && github.repository == 'mxxm-t/llmx'
+    # A newer push cancels an older build; the publish job below has a group of its own, so a cancel never stops a release half updated.
+    concurrency:
+      group: nightly-build-${{ github.ref }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/release-build.yml
+    with:
+      name: nightly
+      push: ${{ github.ref == 'refs/heads/main' }}
+    secrets: inherit
+
+  publish:
+    name: Update the nightly release
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    concurrency:
+      group: nightly-publish
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      packages: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      # A run whose commit main has moved past leaves the channel to the newer run, so the tag never moves backwards.
+      - name: Main still holds this commit
+        id: head
+        run: |
+          head=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)
+          if [ "$head" = "$GITHUB_SHA" ]; then echo "current=true" >> "$GITHUB_OUTPUT"; else echo "::notice::main is at $head now, its own run updates the nightly release"; fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.head.outputs.current
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: steps.head.outputs.current
+        with:
+          name: release
+          path: dist
+      - name: Log in to GHCR
+        if: steps.head.outputs.current
+        run: echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      - name: Tag and mirror the images
+        if: steps.head.outputs.current
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+          REFS: ${{ needs.build.outputs.refs }}
+        run: bash docker/release/images.sh tag nightly hub $REFS
+      # The tag moves to this commit and the release keeps its id, so no new release is announced; it stays a pre-release and is never marked latest.
+      - name: Update the release
+        if: steps.head.outputs.current
+        run: |
+          repo="$GITHUB_REPOSITORY"
+          version="${{ needs.build.outputs.version }}"
+          image="ghcr.io/${repo,,}"
+          {
+            echo "A build of main at $GITHUB_SHA, \`llmx $version\`, replaced in place by every push to main. It is not a release: no smoke run checks it."
+            echo
+            echo "Downloads: the Linux x86_64 tarball (CPU, Vulkan and ROCm in one binary), the Windows x64 zip (CPU and Vulkan), both with the chat companion and the health dashboard, and SHA256SUMS."
+            echo
+            echo "Images: \`$image:nightly-vulkan\`, \`$image:nightly-rocm7\` and the chat companion's \`$image:nightly-chat\`."
+            echo
+            echo "Pinned digests: ${{ needs.build.outputs.refs }}"
+          } > notes.md
+          if gh api "repos/$repo/git/ref/tags/nightly" > /dev/null 2>&1; then
+            gh api -X PATCH "repos/$repo/git/refs/tags/nightly" -f sha="$GITHUB_SHA" -F force=true > /dev/null
+          else
+            gh api -X POST "repos/$repo/git/refs" -f ref=refs/tags/nightly -f sha="$GITHUB_SHA" > /dev/null
+          fi
+          if gh release view nightly --repo "$repo" > /dev/null 2>&1; then
+            gh release edit nightly --repo "$repo" --prerelease --latest=false --title "llmx nightly" --notes-file notes.md
+            # The archives go first and the checksums after them, and a file no longer built is removed.
+            gh release upload nightly --repo "$repo" --clobber dist/llmx-*
+            others=()
+            for file in dist/*; do case "$file" in dist/llmx-*) ;; *) others+=("$file") ;; esac; done
+            gh release upload nightly --repo "$repo" --clobber "${others[@]}"
+            for asset in $(gh release view nightly --repo "$repo" --json assets --jq '.assets[].name'); do
+              [ -e "dist/$asset" ] || gh release delete-asset nightly "$asset" --repo "$repo" --yes
+            done
+          else
+            gh release create nightly --repo "$repo" --prerelease --latest=false --verify-tag \
+              --title "llmx nightly" --notes-file notes.md dist/*
+          fi

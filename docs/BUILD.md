@@ -342,11 +342,12 @@ CTest runs the native tests in every configuration, and the Vulkan and ROCm buil
 - `g` and at least 12 hex digits name the commit.
 - `.dirty` follows when tracked files differ from that commit; untracked files do not count.
 - `unknown` replaces the commit when git is missing or the source directory is not the top of a git checkout, as in a source archive.
+- `nightly.YYYYMMDD.` comes before the `g` in a build configured with `-DLLMX_NIGHTLY=ON`, which the nightly channel builds ([RELEASE](RELEASE.md#the-nightly-channel)): the date is the commit's, in UTC, so every build of one commit prints the same identifier, and the build fails where git cannot read the commit.
 
 After it comes `numerics` and 16 hex digits, the numerics fingerprint: the SHA-256 over the sources that can change a result's bits, which `cmake/numerics-sources.txt` states (everything under `src/`, `cmake/`, `CMakeLists.txt` and `build.bat` but what it names out). Two builds with one fingerprint, compiler and flags read each other's disk cache (`docs/DISK-TIER.md`, The entry file).
 Every file on disk under those roots is hashed, tracked by git or not, so a stray editor or backup file under `src/` or `cmake/` gives two builds of one commit two fingerprints.
 
-Both routes refresh the identifier and the fingerprint on every build, CMake without reconfiguring, `build.bat` through `cmake/numerics-fingerprint.ps1`; neither needs git for the fingerprint, adds a timestamp or changes the release number.
+Both routes refresh the identifier and the fingerprint on every build, CMake without reconfiguring, `build.bat` through `cmake/numerics-fingerprint.ps1`; neither needs git for the fingerprint, adds the time of the build or changes the release number.
 
 ## After building: the tests
 

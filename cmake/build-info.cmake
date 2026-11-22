@@ -21,8 +21,21 @@ if(GIT_FOUND)
             elseif(dirty EQUAL 1)
                 set(revision "g${commit}.dirty")
             endif()
+            # A nightly build names its commit's UTC date, so every job building one commit prints the same identifier.
+            if(NIGHTLY AND revision MATCHES "^g")
+                execute_process(COMMAND "${GIT_EXECUTABLE}" -C "${SOURCE_ROOT}" log -1 --format=%ct HEAD
+                    OUTPUT_VARIABLE epoch OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+                if(epoch MATCHES "^[0-9]+$")
+                    set(ENV{SOURCE_DATE_EPOCH} "${epoch}")
+                    string(TIMESTAMP day "%Y%m%d" UTC)
+                    set(revision "nightly.${day}.${revision}")
+                endif()
+            endif()
         endif()
     endif()
+endif()
+if(NIGHTLY AND NOT revision MATCHES "^nightly\\.")
+    message(FATAL_ERROR "LLMX_NIGHTLY needs a git checkout whose commit git can read")
 endif()
 
 # The numerics fingerprint (cmake/numerics-sources.txt, docs/DISK-TIER.md, The entry file): each file in, in path order, as "path sha256\n" with CRLF read as LF, and the SHA-256 of those lines.

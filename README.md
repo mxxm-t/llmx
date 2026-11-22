@@ -77,6 +77,21 @@ The speed figures are being measured again on the released code and will be publ
     ghcr.io/mxxm-t/llmx:X.Y.Z-rocm7 serve /models/model.gguf --device rocm:0 --host 0.0.0.0 --no-auth
   ```
 
+### Server and chat companion in containers
+
+On Linux, [docker/compose.yaml](docker/compose.yaml) runs `llmx serve` from the release image and the [chat companion](tools/chat_ui/README.md) built from this checkout, both on the machine's own address `127.0.0.1`.
+The server takes a key from `docker/api-key`, which the companion sends for you, and the companion keeps its conversations in a Docker volume:
+
+```sh
+head -c 32 /dev/urandom | base64 | tr -d '/+=\n' > docker/api-key && chmod 600 docker/api-key
+LLMX_MODELS=/path/to/models LLMX_MODEL=model.gguf docker compose -f docker/compose.yaml --profile vulkan up -d
+```
+
+Open `http://127.0.0.1:8183`.
+The profile `rocm` in place of `vulkan` serves through ROCm, and the file's comments list the other settings, such as `LLMX_DEVICE` and the ports.
+From another computer, forward the port over SSH, `ssh -L 8183:127.0.0.1:8183 HOST`, and open the same address there.
+`docker compose -f docker/compose.yaml --profile vulkan down` stops both and keeps the conversations.
+
 ### Build
 
 From source, with CMake and a C++ compiler; add `-DLLMX_HAS_BACKEND_VULKAN=ON` or `-DLLMX_HAS_BACKEND_ROCM=ON` to the first line for a GPU ([BUILD](docs/BUILD.md)):

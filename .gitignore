@@ -34,3 +34,6 @@ hf-8b-review/
 # Local dashboard review screenshots
 /build-dashboard-review/
 /scratch/chat-ui-browser/
+
+# The key docker/compose.yaml reads; a secret, never committed
+/docker/api-key

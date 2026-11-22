@@ -1,0 +1,57 @@
+# llmx serve and the chat companion on one Linux machine (README, Server and chat companion in containers).
+# Both use the host's network and listen on 127.0.0.1 alone, the only address the companion serves without a password and HTTPS.
+#   head -c 32 /dev/urandom | base64 | tr -d '/+=\n' > docker/api-key && chmod 600 docker/api-key
+#   LLMX_MODELS=~/models LLMX_MODEL=model.gguf docker compose -f docker/compose.yaml --profile vulkan up -d
+# Then open http://127.0.0.1:8183; the profile rocm in place of vulkan serves on an AMD GPU through ROCm.
+# Settings: LLMX_DEVICE (vulkan:0 or rocm:0), LLMX_DRI (/dev/dri, or one render node such as /dev/dri/renderD128), LLMX_PORT (8080), CHAT_PORT (8183).
+# LLMX_VERSION picks the image tag (vulkan, rocm7 or a versioned one), LLMX_API_KEY_FILE the key file (docker/api-key), LLMX_MEMORY and CHAT_MEMORY the memory caps (32g, 1g).
+# The companion's conversations and its optional PDF reader live in the volumes chat-data and pdf-reader, which down keeps unless it is given -v.
+
+x-llmx: &llmx
+  init: true
+  network_mode: host
+  volumes:
+    - ${LLMX_MODELS:?set LLMX_MODELS to the directory holding the model}:/models:ro
+  secrets: [api-key]
+  mem_limit: ${LLMX_MEMORY:-32g}
+
+services:
+  llmx-vulkan:
+    <<: *llmx
+    profiles: [vulkan]
+    image: mxxm/llmx:${LLMX_VERSION:-vulkan}
+    devices: ["${LLMX_DRI:-/dev/dri}"]
+    command: serve /models/${LLMX_MODEL:?set LLMX_MODEL to the model file under LLMX_MODELS} --device ${LLMX_DEVICE:-vulkan:0} --host 127.0.0.1 --port ${LLMX_PORT:-8080} --api-key-file /run/secrets/api-key
+
+  llmx-rocm:
+    <<: *llmx
+    profiles: [rocm]
+    image: mxxm/llmx:${LLMX_VERSION:-rocm7}
+    devices: ["${LLMX_DRI:-/dev/dri}", /dev/kfd]
+    command: serve /models/${LLMX_MODEL:?set LLMX_MODEL to the model file under LLMX_MODELS} --device ${LLMX_DEVICE:-rocm:0} --host 127.0.0.1 --port ${LLMX_PORT:-8080} --api-key-file /run/secrets/api-key
+
+  # The companion is built from this checkout's tools/chat_ui and the monitor it embeds from tools/health_dashboard; it needs only Python's standard library.
+  chat:
+    build:
+      context: ../tools
+      dockerfile_inline: |
+        FROM python:3.12-slim
+        COPY chat_ui /app/chat_ui
+        COPY health_dashboard /app/health_dashboard
+    init: true
+    network_mode: host
+    stop_signal: SIGINT
+    command: python /app/chat_ui/server.py --upstream http://127.0.0.1:${LLMX_PORT:-8080} --port ${CHAT_PORT:-8183} --data-dir /data --api-key-file /run/secrets/api-key
+    volumes:
+      - chat-data:/data
+      - pdf-reader:/app/chat_ui/.pdf-reader
+    secrets: [api-key]
+    mem_limit: ${CHAT_MEMORY:-1g}
+
+secrets:
+  api-key:
+    file: ${LLMX_API_KEY_FILE:-./api-key}
+
+volumes:
+  chat-data:
+  pdf-reader:

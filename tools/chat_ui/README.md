@@ -163,6 +163,15 @@ limits at the reverse proxy for a public deployment.
 This is one owner workspace. Everyone who knows its password can access its
 conversations and tools. There is no multi-user account or role system.
 
+### In containers
+
+On Linux, [docker/compose.yaml](../../docker/compose.yaml) runs `llmx serve` from the release image beside this companion, built from this directory and the monitor's `tools/health_dashboard` on `python:3.12-slim` ([README](../../README.md#server-and-chat-companion-in-containers) gives the commands).
+Both containers use the host's network and listen on `127.0.0.1` alone, so the companion keeps its loopback rules and needs no password, and the server is reachable from this machine only.
+One file, `docker/api-key`, holds a single key: the server reads it as its key file and the companion sends it upstream.
+The data directory is the volume `chat-data` at `/data`, and the PDF reader that Settings installs goes to the volume `pdf-reader`, so both survive a rebuild.
+Workspace commands need a sandbox image and Docker access, which the file does not give the companion.
+For access from another machine, forward the port over SSH, or use the HTTPS deployment above, which the file does not set up.
+
 ## Optional PDF text reader
 
 Open **Settings > Optional features** in the sidebar. Select **Install** next

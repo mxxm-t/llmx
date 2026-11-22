@@ -7,13 +7,18 @@ Nothing here is a speed claim; the figures belong to the measurement records in 
 ## Setups
 
 Each command serves one model on `127.0.0.1:8080`, which only the machine itself can reach.
-`--host 0.0.0.0` listens on every interface; there is no TLS or authentication, so put a reverse proxy in front of a server that faces a network.
+Each also needs `--api-key-file PATH` or `--no-auth`, left out below ([USAGE](USAGE.md), `serve`).
+`--host 0.0.0.0` listens on every interface; there is no TLS, so put a reverse proxy in front of a server that faces a network.
 
 **One GPU**
 
 ```
 llmx serve model.gguf --device vulkan:0 --port 8080
 ```
+
+**In containers, with the chat companion.**
+On Linux, [docker/compose.yaml](../docker/compose.yaml) runs this server from the release image beside the [chat companion](../tools/chat_ui/README.md#in-containers), both on `127.0.0.1` of the host, with one key in `docker/api-key` that the server requires and the companion sends.
+[README](../README.md#server-and-chat-companion-in-containers) gives the commands; the companion is then at `http://127.0.0.1:8183`.
 
 **Two GPUs as a layer split.**
 The model is split into a first and a second half of its layers, fitted to each device's free memory, and `--passes` defaults to one batch per device of the split so both devices work at once.

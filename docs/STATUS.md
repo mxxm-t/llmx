@@ -46,6 +46,16 @@ lists made no remote media requests.
 - **Gates of the README change:** docs only (AGENTS.md, Merge gates): the `docs` and `dead-code` components on this tree.
 - **Left:** the owner publishes the draft; the figures are measured on the released code on quiet cards and return to the README.
 
+## Server and chat companion in containers
+
+- **Goal:** one documented way to run `llmx serve` and the chat companion together in containers, since neither the README nor the Docker Hub overview said how.
+- **Done:** `docker/compose.yaml` runs the release image's server and the companion, built from `tools/chat_ui` and the monitor's `tools/health_dashboard` on `python:3.12-slim`, both on the host network and `127.0.0.1`, with one key file the server requires and the companion sends, volumes for the companion's data and PDF reader, a `vulkan` and a `rocm` profile and memory caps; README, [OPERATING](OPERATING.md) and the companion's README name it.
+- **Checks:** on the MI50 rig (Docker 29.8, Compose 5.5) with one locked card and Qwen3-0.6B Q8_0, both profiles of `mxxm/llmx` 0.2.0 came up; the server answered 401 without the key, the companion listed the model through the key and served its monitor, and a conversation's reply streamed back (15 and 12 delta events, Vulkan and ROCm) and was saved; `down` stopped both in about 2 seconds.
+  The first run found that the companion embeds `tools/health_dashboard`, which the image now copies.
+  The change is docs and a deployment file, so its gates are the `docs` and `dead-code` components, which pass, and it lands by fast-forward.
+- **Left:** a companion image in the release workflow, which would remove the build from a checkout, is a proposal for the owner.
+- **Gotchas:** the companion serves a non-loopback address only with a password and an HTTPS public origin, and Docker's published ports reach a container's own address, never its loopback, so both containers use the host network rather than a private one; the browser's port must be the companion's `--port`, which its Host check compares.
+
 ## Sidebar links
 
 **Goal.** Let the browser open a sidebar destination or saved conversation

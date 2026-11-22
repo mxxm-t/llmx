@@ -1,6 +1,6 @@
 name: Nightly
 
-# Every push to main rebuilds the one pre-release `nightly` in place: the release's downloads under nightly names and the nightly-vulkan, nightly-rocm7 and nightly-chat images (docs/RELEASE.md, The nightly channel).
+# Every push to main rebuilds the one pre-release `nightly` in place: the release's downloads under nightly names and the nightly-vulkan, nightly-rocm7, nightly-rocm10 and nightly-chat images (docs/RELEASE.md, The nightly channel).
 # A manual run on another branch builds everything and publishes nothing.
 on:
   push:
@@ -86,7 +86,7 @@ jobs:
             echo
             echo "Downloads: the Linux x86_64 tarball (CPU, Vulkan and ROCm in one binary), the Windows x64 zip (CPU and Vulkan), both with the chat companion and the health dashboard, and SHA256SUMS."
             echo
-            echo "Images: \`$image:nightly-vulkan\`, \`$image:nightly-rocm7\` and the chat companion's \`$image:nightly-chat\`."
+            echo "Images: \`$image:nightly-vulkan\`, \`$image:nightly-rocm7\`, \`$image:nightly-rocm10\` and the chat companion's \`$image:nightly-chat\`."
             echo
             echo "Pinned digests: ${{ needs.build.outputs.refs }}"
           } > notes.md

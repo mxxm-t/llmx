@@ -2,6 +2,7 @@
 # The build context is the extracted tarball, `llmx` and `tools/` at its top; each image is one target:
 #   docker build --target vulkan -t llmx:vulkan -f docker/release/Dockerfile <dir>
 #   docker build --target rocm7 -t llmx:rocm7 -f docker/release/Dockerfile <dir>
+#   docker build --target rocm10 -t llmx:rocm10 -f docker/release/Dockerfile <dir>
 #   docker build --target chat -t llmx:chat -f docker/release/Dockerfile <dir>
 # The host supplies the cards, through /dev/dri for Vulkan and /dev/dri and /dev/kfd for ROCm.
 
@@ -26,6 +27,36 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends hip-runtime-amd \
     && apt-get purge -y gnupg && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
+ENV LD_LIBRARY_PATH=/opt/rocm/lib
+COPY llmx /usr/local/bin/llmx
+ENTRYPOINT ["llmx"]
+CMD ["--help"]
+
+# The HIP runtime of ROCm 10 from AMD's ROCm Core SDK repository, which loads the binary's own gfx906 code objects although ROCm 10 ships no gfx906 library kernels (docs/ROCM.md).
+# Its runtime package depends on the whole compiler and the base package holds librocprofiler-register, so this stage unpacks both and keeps only libamdhip64, the libraries it loads and libdrm's data, amdgpu.ids.
+FROM ubuntu:24.04 AS rocm10-runtime
+ARG ROCM10_VERSION=10.2.0
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && curl -fsSL https://stable.repo.amd.com/rocm/gpg/packages.gpg -o /etc/apt/trusted.gpg.d/amdrocm.asc \
+    && echo "deb [arch=amd64] https://stable.repo.amd.com/rocm/core/packages/ubuntu2404 stable main" > /etc/apt/sources.list.d/amdrocm.list \
+    && apt-get update \
+    && MM=$(echo "$ROCM10_VERSION" | cut -d. -f1,2) \
+    && cd /tmp && apt-get download "amdrocm-base$MM=$ROCM10_VERSION-*" "amdrocm-runtime$MM=$ROCM10_VERSION-*" "amdrocm-sysdeps$MM=$ROCM10_VERSION-*" \
+    && for d in /tmp/*.deb; do dpkg-deb -x "$d" /tmp/x; done \
+    && src=$(dirname "$(find /tmp/x -name 'libamdhip64.so.7' | head -1)") \
+    && mkdir -p /opt/rocm/lib/rocm_sysdeps/lib /opt/rocm/share/doc \
+    && for lib in "$src/libamdhip64.so.7" $(ldd "$src/libamdhip64.so.7" | awk '$3 ~ /^\/tmp\/x\// {print $3}'); do \
+         cp -L "$lib" "/opt/rocm/lib/${lib#$src/}"; done \
+    && mkdir -p /opt/rocm/lib/rocm_sysdeps/share \
+    && cp -r "$src/rocm_sysdeps/share/libdrm" /opt/rocm/lib/rocm_sysdeps/share/ \
+    && cp -r "$src/../share/doc/." /opt/rocm/share/doc/
+
+FROM ubuntu:24.04 AS rocm10
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=rocm10-runtime /opt/rocm /opt/rocm
 ENV LD_LIBRARY_PATH=/opt/rocm/lib
 COPY llmx /usr/local/bin/llmx
 ENTRYPOINT ["llmx"]

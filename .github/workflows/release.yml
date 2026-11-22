@@ -88,7 +88,7 @@ jobs:
             echo
             echo "Downloads: the Linux x86_64 tarball (CPU, Vulkan and ROCm in one binary), the Windows x64 zip (CPU and Vulkan), both with the chat companion and the health dashboard, and SHA256SUMS."
             echo
-            echo "Images: \`$image:$version-vulkan\`, \`$image:$version-rocm7\` and the chat companion's \`$image:chat-$version\`."
+            echo "Images: \`$image:$version-vulkan\`, \`$image:$version-rocm7\`, \`$image:$version-rocm10\` and the chat companion's \`$image:chat-$version\`."
             echo
             echo "Pinned digests: ${{ needs.build.outputs.refs }}"
           } > notes.md

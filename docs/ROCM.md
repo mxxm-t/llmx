@@ -199,6 +199,26 @@ retained F32 operations and frozen error budgets. Use a conforming decomposition
 or wider fallback until the faster form is qualified. Weight format support
 remains separate from dtype support.
 
+## ROCm 10
+
+ROCm 10 is AMD's ROCm Core SDK, packaged as `amdrocm-*10.2` in its own repository, `https://stable.repo.amd.com/rocm/core/packages/ubuntu2404`.
+Its HIP runtime keeps the name `libamdhip64.so.7`, so the binary built on ROCm 7.2.1 opens it unchanged, and the release's `rocm10` image holds that binary ([RELEASE](RELEASE.md)).
+ROCm 10 publishes library kernels per target for gfx908 and later and none for gfx906; llmx uses no ROCm library and carries its own code objects, and on an MI50 the 10.2.0 runtime enumerates the card and loads them with no override, over the host's unchanged amdgpu driver.
+The `rocm10` image keeps libdrm's `amdgpu.ids` beside the runtime's libdrm, and an `strace -e openat` of `generate` on the image opened no `amdgpu.ids` and no other libdrm data file, so the runtime takes the card's name elsewhere and the file is carried as the package's own data.
+The runtime package `amdrocm-runtime10.2` does not carry `librocprofiler-register.so.0`, which `libamdhip64.so.7` needs; it is in `amdrocm-base10.2`, and an image without it fails with `no HIP runtime (libamdhip64.so) could be opened`.
+
+On one MI50 (Qwen3-0.6B Q8_0, `--dtype auto`, f16, `bench --p 512 --n 128 --r 5`, interleaved rocm7, rocm10, rocm10, rocm7 twice, host load average 25 throughout, so the tg128 spread of 3 to 50 tok/s is the host's), the two images hold the same binary and read alike:
+
+| arm | image | pp512 tok/s (mean of the two blocks) | tg128 tok/s (mean of the two blocks) |
+|-----|-------|------|------|
+| rocm7 | 379 MB | 8734.8 | 351.7 |
+| rocm10 | 173 MB | 8583.3 (one slice at 5882) | 351.5 |
+
+The 7.2.1 build, the 10.2 build and the 7.2.1 build on the 10.2 runtime give byte-identical logits and greedy tokens (auto and int8, prompt, decode and batched), and `ctest -R backend-rocm` passes 3 of 3 on each.
+Sixty short `generate` processes of the 10.2 build on the 10.2 runtime all exit 0, and the suite's `server` component passes on it.
+The ROCm 10.2 clang compiles the kernels for gfx906 and the rest of `LLMX_ROCM_ARCHS`, with other instruction choices than 7.2.1's, so a binary built on it is a separate arm for byte identity and timing.
+gfx942 (MI300X) and gfx950 have the four-way 8-bit, two-way 16-bit and two-way half dots the int16 kernels use under both compilers, so the 16-bit integer dot build could cover them too; it stays gfx906 alone until one runs there.
+
 ## Compute kernels and packed weights
 
 Develop a small set of families in their existing operation boundaries:

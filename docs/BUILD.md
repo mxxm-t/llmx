@@ -191,7 +191,7 @@ gfx942 (AMD MI300X) is in the default list so a ROCm build and the release's bin
 The ROCm 10 SDK seen in the cloud image keeps its clang++ under `lib/llvm/bin`, and the configure finds it there too.
 Nothing links against the HIP runtime: llmx opens `libamdhip64.so` when a ROCm device is first asked for, so a ROCm build still runs on the CPU or a Vulkan device on a machine without ROCm, and `--device rocm:N` there fails with a message.
 The device checks recorded in [STATUS](STATUS.md) ran under ROCm 7.2.1.
-gfx906 is deprecated in ROCm, in maintenance mode since 5.7, so an MI50 or Radeon VII may need a community or self-built ROCm ([ROADMAP](ROADMAP.md)).
+gfx906 is deprecated in ROCm, in maintenance mode since 5.7, and ROCm 10 ships no gfx906 library kernels, but llmx needs none: AMD's own ROCm 7.2.1 and 10.2.0 runtimes run its gfx906 code objects on an MI50 ([ROCM](ROCM.md), ROCm 10).
 The ROCm and Vulkan backends can be built into one binary, both options given.
 
 **Access to the card.**

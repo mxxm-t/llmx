@@ -68,8 +68,8 @@ The speed figures are being measured again on the released code and will be publ
 
 - **Download** the Linux or Windows archive from the [releases page](https://github.com/mxxm-t/llmx/releases) and check it against `SHA256SUMS`.
   The [nightly pre-release](https://github.com/mxxm-t/llmx/releases/tag/nightly) holds the same files built from the newest `main`, unchecked by a release's smoke runs ([RELEASE](docs/RELEASE.md#the-nightly-channel)).
-  The Linux binary needs glibc 2.35 or later; GPUs need the Vulkan driver or the ROCm 7 runtime the system already has.
-- **Docker:** the `ghcr.io/mxxm-t/llmx:X.Y.Z-vulkan` and `ghcr.io/mxxm-t/llmx:X.Y.Z-rocm7` images run `llmx`, and `ghcr.io/mxxm-t/llmx:chat-X.Y.Z` the chat companion ([RELEASE](docs/RELEASE.md#the-images)). These examples make the API available locally at `http://127.0.0.1:8080/v1`. For clients on other machines, see the [key-file example](docs/RELEASE.md#what-a-release-holds).
+  The Linux binary needs glibc 2.35 or later; GPUs need the Vulkan driver or the ROCm 7 or 10 runtime the system already has.
+- **Docker:** the `ghcr.io/mxxm-t/llmx:X.Y.Z-vulkan`, `ghcr.io/mxxm-t/llmx:X.Y.Z-rocm7` and `ghcr.io/mxxm-t/llmx:X.Y.Z-rocm10` images run `llmx`, and `ghcr.io/mxxm-t/llmx:chat-X.Y.Z` the chat companion ([RELEASE](docs/RELEASE.md#the-images)). These examples make the API available locally at `http://127.0.0.1:8080/v1`. For clients on other machines, see the [key-file example](docs/RELEASE.md#what-a-release-holds).
 
   ```sh
   docker run --rm --device /dev/dri --group-add "$(getent group render | cut -d: -f3)" -v /path/to/models:/models -p 127.0.0.1:8080:8080 \
@@ -158,7 +158,7 @@ Qwen3.8-Flash-Next on four MI50s with ROCm, as two groups of two GPUs, 8-bit act
 - **`inference: unsupported metadata general.architecture`:** the file is a model family llmx does not run yet (Models, above).
 - **`--device vulkan: this build has no Vulkan backend`** (or `rocm`): the binary was built without it; use the release download or rebuild with the backend on.
 - **`vulkan: libvulkan.so.1 is not installed` or `vulkan: no device`:** install the GPU's Vulkan driver (on Linux, `libvulkan1` and `mesa-vulkan-drivers`) and add your user to the `render` group.
-- **`rocm: no HIP runtime (libamdhip64.so) could be opened` or `rocm: the HIP runtime sees no device`:** install the ROCm 7 runtime and add your user to the `render` group ([ROCM](docs/ROCM.md)).
+- **`rocm: no HIP runtime (libamdhip64.so) could be opened` or `rocm: the HIP runtime sees no device`:** install the ROCm 7 or 10 runtime and add your user to the `render` group ([ROCM](docs/ROCM.md)).
 - **`placement: the model does not fit the devices' free memory`:** add GPUs to `--device`, lower `--ctx-size`, or use `--cpu-moe` on a mixture-of-experts model.
 - **`... of type X, which the backend of device N does not support`:** that backend lacks the weight format (Quantization types, below); pick another file of the model.
 - **`serve needs --api-key-file PATH, or --no-auth to serve every client`:** give the server a key file, or `--no-auth` on a machine only you reach.

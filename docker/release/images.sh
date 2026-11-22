@@ -5,10 +5,10 @@ set -euo pipefail
 
 COSIGN_VERSION=v2.6.5
 COSIGN_SHA256=c3b4f5410e608af03a5eb0aaac84a4313d8da131248e08ff1759ac70c79d1644
-TARGETS="vulkan rocm7 chat"
+TARGETS="vulkan rocm7 rocm10 chat"
 image="ghcr.io/${GITHUB_REPOSITORY,,}"
 
-# X.Y.Z-vulkan, X.Y.Z-rocm7 and chat-X.Y.Z for a release, nightly-TARGET for the nightly channel.
+# X.Y.Z-vulkan, X.Y.Z-rocm7, X.Y.Z-rocm10 and chat-X.Y.Z for a release, nightly-TARGET for the nightly channel.
 tag_of() {
     if [ "$2" = chat ] && [ "$1" != nightly ]; then echo "chat-$1"; else echo "$1-$2"; fi
 }

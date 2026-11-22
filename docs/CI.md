@@ -34,7 +34,7 @@ A static dashboard presentation change confined to browser HTML, CSS and JavaScr
 The Vulkan job has a 60-minute whole-job limit for its release build, tests and separate unoptimized linked-code analysis. Run 39590483972 passed the build and numerical tests but reached the previous 40-minute limit after only five minutes of linked analysis; the larger limit preserves every check.
 `.github/workflows/release.yml` runs only on a version tag and when a release is published; it builds the release's downloads and images ([RELEASE](RELEASE.md)).
 `.github/workflows/nightly.yml` runs on every push to `main` on GitHub and rebuilds the `nightly` pre-release in place, a newer push cancelling an older build; a manual run on another branch builds without publishing ([RELEASE](RELEASE.md#the-nightly-channel)).
-Both call `.github/workflows/release-build.yml`, which holds the build jobs once: the Linux tarball, the Windows zip, the three images pushed by digest and signed, and the signed `SHA256SUMS`.
+Both call `.github/workflows/release-build.yml`, which holds the build jobs once: the Linux tarball, the Windows zip, the four images pushed by digest and signed, and the signed `SHA256SUMS`.
 A stack of branches about to merge is pushed as `gate/<name>` so these checks run before the merge, and that branch is deleted after it.
 Branches are merged locally, so no pull request reaches the workflow, and the gates a branch passes before it merges are run locally and recorded in `docs/STATUS.md`.
 A pull request's newer push cancels its older run; every other run has a concurrency group of its own, so each push to `main` keeps its run as the record of that merge and each push to a `gate/<name>` branch keeps its run as the check before it.

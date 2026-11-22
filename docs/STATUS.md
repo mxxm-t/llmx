@@ -36,6 +36,15 @@ Images are pushed by digest alone and tagged only by the run that publishes them
 
 **Landing.** Workflow, build-script and docs change: the `docs` and `dead-code` components and a dry run of the build jobs; lands with the landing stack land-20261125, whose gates are recorded there (Landing stack land-20261125, below).
 
+## ROCm 10 release image (2026-11-22, ROC10A to ROC10D, branch roc10a/rocm10-image, ready)
+
+- **Goal:** a `rocm10` release image beside `rocm7`, holding the same binary over the ROCm 10.2.0 HIP runtime, and the ROCm 10 facts in [ROCM](ROCM.md) (ROCm 10).
+- **Done:** on an MI50 with the host's amdgpu driver unchanged, the 10.2.0 runtime from AMD's ROCm Core SDK repository enumerates the card and runs llmx's gfx906 code objects with no override. The ROCm 10.2 clang compiles `f32`, `int16dot` and `int16` for gfx906 and the full `LLMX_ROCM_ARCHS` list. `docker/release/Dockerfile` gains the `rocm10` target, which unpacks the base, runtime and system-library packages and keeps `libamdhip64.so.7`, its `ldd` closure and libdrm's `amdgpu.ids`; the release workflow and [RELEASE](RELEASE.md) name the third image.
+- **Measured (one MI50, 2026-11-23, host load average about 25; ROCM.md, ROCm 10, has the table):** the 7.2.1 build, the 10.2 build and the 7.2.1 build on the 10.2 runtime give byte-identical logits and greedy tokens, `ctest -R backend-rocm` 3 of 3 each, Qwen3-0.6B Q8_0 pp512 8735 tok/s (rocm7 image) against 8583 (rocm10 image, one slice at 5882 under load) and tg128 351.7 against 351.5, 60 of 60 exits 0 on 10.2, and the `server` component passes on 10.2. The image's `generate` works (strace: no `amdgpu.ids` opened).
+- **Left:** the release smoke checklist covers the image at release; nothing else. README changes: the ROCm runtime names in Install and Troubleshooting read ROCm 7 or 10, and Install names the `rocm10` image.
+- **Rebase (landing stack land-20261126):** feat/nightly-channel moved the images into `docker/release/images.sh`, `release-build.yml` and `nightly.yml`, so the image joins `images.sh`'s `TARGETS` and the release and nightly notes, rather than the loops this branch edited, and the nightly channel gains `nightly-rocm10`.
+- **Gotchas:** the `amdrocm-runtime10.2` package depends on the whole compiler, so the image unpacks it rather than installing it, and `librocprofiler-register.so.0` is in `amdrocm-base10.2`, which must be downloaded too (the first image lacked it and failed `generate`, 246 MB against 173 MB). `amdgpu.ids` is carried but not opened by `generate`; dropping it is a follow-up that needs the image rerun. ROCm 10 publishes no gfx906 packages, so a later minor release may stop enumerating gfx906; `rocm7` stays the MI50 default.
+
 ## Request capacity freshness in Monitor
 
 - The production dashboard showed CURRENT STATE after its inference server stopped. Request capacity now marks the retained counts as LAST SAMPLE and distinguishes pausing the view from paused scheduler work.

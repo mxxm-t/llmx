@@ -3378,6 +3378,81 @@ void experts_beside_split() {
     }
 }
 
+// Layer 3 reads layer 1's tensors, as a looped model's execution layers read their physical layer's: the fit counts them once, never cuts between the two, and a tensor group holds each member's shard of them once.
+void shared_tensors_fit() {
+    const auto file = tiny_qwen(6, 2 * 128, true);
+    const infer::ModelWeights weights = infer::gguf_weights(file);
+    const infer::ModelPlan plain = infer::plan_model(weights);
+    infer::ModelPlan shared = plain;
+    for (infer::Role& role : shared.layers[3].roles)
+        for (const infer::Role& source : shared.layers[1].roles)
+            if (source.id == role.id) role.tensor = source.tensor;
+    const infer::ModelOptions options;
+    const auto bytes = [](const std::vector<infer::Matrix>& layer) {
+        size_t n = 0;
+        for (const infer::Matrix& m : layer) n += m.bytes;
+        return n;
+    };
+    for (size_t width : {size_t(1), size_t(2)}) {
+        const infer::Footprint a = infer::footprint(weights, plain, options, width), b = infer::footprint(weights, shared, options, width);
+        require(bytes(b.layers[3]) == 0 && bytes(b.layers[1]) == bytes(a.layers[1]) && bytes(b.layers[2]) == bytes(a.layers[2]),
+                "a tensor two layers share was not counted once, by the first layer that reads it");
+        ++checked;
+    }
+    const infer::Footprint fp = infer::footprint(weights, shared, options);
+    std::vector<infer::DeviceBudget> pair(2);
+    pair[0].name = "a", pair[1].name = "b";
+    pair[0].serves = {0, 1}, pair[1].serves = {1, 0};
+    const infer::LayerSplit fitted = infer::split_layers(fp, pair, 1);
+    require(fitted.stages[0].count == 4 && fitted.stages[1].count == 2, "the fit cut between two layers that share a tensor");
+    const infer::LayerSplit asked = infer::split_layers(fp, pair, 1, {}, std::nullopt, 1, std::nullopt, 0, 2);
+    require(asked.rounds == 1 && asked.stages[0].runs == std::vector<std::pair<int, int>>{{0, 4}},
+            "stage rounds cut between two layers that share a tensor");
+    require(refusal([&] { infer::split_layers(fp, pair, 1, {1, 1}); }).find("share") != std::string::npos,
+            "layer shares that cut between two layers sharing a tensor were not refused");
+    checked += 3;
+    const auto cpus = [](size_t n) {
+        std::vector<backend::BackendPtr> b;
+        for (size_t i = 0; i < n; ++i) {
+            b.push_back(std::make_shared<backend::CpuBackend>());
+            b.back()->set_threads(1);
+        }
+        return b;
+    };
+    infer::Model one(weights, shared, cpus(1), infer::Placement{});
+    const std::vector<float> want = one.prefill(kPrompt);
+    infer::Placement split = infer::placement_for(fitted);
+    infer::Model layered(weights, shared, cpus(2), split);
+    exact(want, layered.prefill(kPrompt), "a layer split of a model whose layers share a tensor differs from one device");
+    // Each member adopts its shard of a tensor once, however many layers read it.
+    std::vector<size_t> loop;
+    for (const infer::Role& role : shared.layers[1].roles)
+        if (role.tensor) loop.push_back(*role.tensor);
+    std::map<std::pair<size_t, const backend::Backend*>, int> shards;
+    std::vector<std::vector<uint8_t>> copies;
+    const infer::AdoptWeight adopt = [&](size_t tensor, backend::Backend& b, const infer::shard::Held* held) {
+        const infer::TensorView& t = weights.tensors[tensor];
+        if (!held) return b.adopt(t.data, t.bytes);
+        if (std::find(loop.begin(), loop.end(), tensor) != loop.end()) ++shards[{tensor, &b}];
+        copies.emplace_back(held->bytes);
+        infer::shard::pack(*held, t.data, copies.back().data());
+        return b.adopt(copies.back().data(), copies.back().size());
+    };
+    infer::Placement group;
+    group.mixer_device = group.ffn_device = std::vector<int>(6, 0);
+    group.width = 2;
+    infer::Model grouped(weights, shared, cpus(2), group, options, adopt);
+    // A group sums its members' partial products, so against one device it holds the F32 bound, as the other group checks do.
+    const std::vector<float> got = grouped.prefill(kPrompt);
+    bool agree = got.size() == want.size();
+    for (size_t i = 0; agree && i < got.size(); ++i) agree = std::fabs(got[i] - want[i]) <= 1e-4f * (1.0f + std::fabs(want[i]));
+    require(agree, "a tensor group of a model whose layers share a tensor is not one device's within the F32 bound");
+    bool once = !shards.empty();
+    for (const auto& [key, n] : shards) once = once && n == 1;
+    require(once, "a tensor group member adopted its shard of a shared tensor once a layer");
+    checked += 3;
+}
+
 int main() {
     try {
         // A fit short of its devices' free memory waits five seconds for it to settle (model/place.hpp, settle), so the cases that make such fits run on threads of their own beside the rest.
@@ -3387,6 +3462,7 @@ int main() {
         tensor_widths();
         pass_values_once_a_stage();
         unsplit_layers_refused();
+        shared_tensors_fit();
         group_fits();
         context_keeps_logits_pages();
         fitted_rows_counted();

@@ -17,6 +17,7 @@ lists made no remote media requests.
 
 ## Release 0.2.0 (2026-11-22)
 
+- **Quick start review:** Verified the reply limits against terminal chat's sampling defaults and the server's route-specific request parser. With two prompt tokens, a 128-token context and EOS ignored, the native route produced 64 tokens, the compatible route produced 126, and an explicit cap of five produced five. USAGE clarifies admission room for uncapped requests. The docs correction lands by fast-forward after the docs and dead-code checks.
 - **Done:** `CMakeLists.txt` and `src/config.hpp` set the release to 0.2.0 together, and the README speaks to a first-time user with downloads, a quick start and a speed table on MI50s.
 - **Speed table:** its figures were measured on main 3b88cfb3a on 2026-11-17, and the README says so above the table; they are being measured again on the released code.
 - **Gates:** docs and version only (AGENTS.md, Merge gates): the `docs` and `dead-code` components on this tree, a build whose `--version` prints 0.2.0, and the hosted run; the change lands by fast-forward.

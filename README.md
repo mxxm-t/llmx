@@ -33,7 +33,8 @@ $model = .\llmx.exe pull Qwen/Qwen3-0.6B-GGUF:Q8_0
 ```
 
 Without `--device` llmx runs on the CPU; `--device vulkan:0` or `--device rocm:0` picks a GPU.
-A reply stops at 64 tokens unless `-n` (or `max_tokens` in a server request) asks for more.
+Terminal chat defaults to 64 tokens per reply. Use `-n` to change the limit.
+The native API also defaults to 64. On the OpenAI-compatible endpoints, set `max_tokens` to limit a reply or omit it for an uncapped reply.
 Without curl 8.4, download a GGUF file yourself and pass its path.
 
 ## Models

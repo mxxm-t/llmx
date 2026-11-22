@@ -62,15 +62,26 @@ int main() {
             server::compat_number(-3.0e38f) != "-9999" || server::compat_number(-inf) != "-9999" || server::compat_number(none) != "-9999")
             throw std::runtime_error("a compatible log-probability not floored at -9999");
         if (jmini::number(-inf) != "null" || jmini::number(none) != "null") throw std::runtime_error("a native log-probability JSON cannot hold not written as null");
-        // A reply is read again as its client sends it back: the compatible route's as its content alone, whatever reasoning came before it, the native route's whole.
+        // A reply is read again as its client sends it back: the compatible route's with its reasoning unless the conversation's last assistant turn came back without one, the native route's whole.
         const chat::ChatFormat keeps = chat::chat_format("{% for m in messages %}|{{ m.role }}:{% if m.reasoning_content is defined %}<{{ m.reasoning_content }}>{% endif %}{{ m.content }}{% endfor %}"
                                                          "{% if add_generation_prompt %}|assistant:<think>\n{% endif %}", "", "");
         const std::string reply = "why\n</think>\n\nanswer";
-        const chat::Message compatible = server::reply_sent_back(keeps, true, true, reply, chat::ToolFormat::none, {}, false, nullptr),
-                            native = server::reply_sent_back(keeps, false, true, reply, chat::ToolFormat::none, {}, false, nullptr);
-        if (compatible.content != "answer" || compatible.reasoning_content) throw std::runtime_error("a compatible chat reply read again with the reasoning its client does not send back");
-        if (keeps.render({{"user", "q", std::nullopt}, compatible, {"user", "r", std::nullopt}}, false) != "|user:q|assistant:answer|user:r")
-            throw std::runtime_error("a compatible chat reply read again as another prompt than its content sent back renders");
+        const std::vector<chat::Message> fresh = {{"user", "q", std::nullopt}}, dropped = {{"user", "p", std::nullopt}, {"assistant", "o", std::nullopt}, {"user", "q", std::nullopt}},
+                                         kept = {{"user", "p", std::nullopt}, {"assistant", "o", std::string("w")}, {"user", "s", std::nullopt}, {"assistant", "t", std::nullopt}, {"user", "q", std::nullopt}};
+        const chat::Message first = server::reply_sent_back(keeps, true, true, reply, chat::ToolFormat::none, {}, false, fresh, nullptr),
+                            without = server::reply_sent_back(keeps, true, true, reply, chat::ToolFormat::none, {}, false, dropped, nullptr),
+                            with = server::reply_sent_back(keeps, true, true, reply, chat::ToolFormat::none, {}, false, kept, nullptr),
+                            native = server::reply_sent_back(keeps, false, true, reply, chat::ToolFormat::none, {}, false, dropped, nullptr);
+        if (first.content != "answer" || first.reasoning_content != "why" || with.content != "answer" || with.reasoning_content != "why")
+            throw std::runtime_error("a compatible chat reply read again without the reasoning its client sends back");
+        if (without.content != "answer" || without.reasoning_content) throw std::runtime_error("a compatible chat reply read again with the reasoning its client does not send back");
+        if (keeps.render({{"user", "q", std::nullopt}, first, {"user", "r", std::nullopt}}, false) != "|user:q|assistant:<why>answer|user:r" ||
+            keeps.render({{"user", "q", std::nullopt}, without, {"user", "r", std::nullopt}}, false) != "|user:q|assistant:answer|user:r")
+            throw std::runtime_error("a compatible chat reply read again as another prompt than its client sends back renders");
+        // A template that reads no reasoning_content renders the content alone, whatever the client sends back.
+        const chat::ChatFormat plain = chat::chat_format("{% for m in messages %}|{{ m.role }}:{{ m.content }}{% endfor %}{% if add_generation_prompt %}|assistant:<think>\n{% endif %}", "", "");
+        const chat::Message unread = server::reply_sent_back(plain, true, true, reply, chat::ToolFormat::none, {}, false, fresh, nullptr);
+        if (unread.content != "answer" || unread.reasoning_content) throw std::runtime_error("a compatible chat reply read again with reasoning a template does not read");
         if (native.content != keeps.assistant(reply).content || native.reasoning_content != keeps.assistant(reply).reasoning_content) throw std::runtime_error("a native chat reply not read again as the format keeps a turn");
         std::cout << "server utf8: surrogate, overlong and out-of-range sequences replaced, valid text unchanged, split characters held back, "
                      "error messages repaired, compatible log-probabilities floored, a reply read again as its client sends it back\n";

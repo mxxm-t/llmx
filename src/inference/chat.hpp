@@ -3390,17 +3390,37 @@ inline std::vector<uint32_t> stable_prefix(const ChatFormat& format, const bpe::
     return ids[0];
 }
 
-// The assistant turn a compatible client sends back for a reply `text`: its content without the reasoning, and with a tool format the calls with their arguments as the reply gave them, one at most with `single`.
+// Whether a compatible client sends a reply's reasoning back: yes where an assistant turn carries reasoning or none is there yet (docs/SPECULATIVE.md, section 2, Idle re-prefill).
+// A turn without reasoning of its own, as one with thinking off, does not count against a client that sent reasoning back before.
+inline bool reasoning_sent_back(const std::vector<Message>& messages) {
+    bool any = false;
+    for (const Message& m : messages) {
+        if (m.role != "assistant") continue;
+        if ((m.reasoning_content && !m.reasoning_content->empty()) || m.content.find("</think>") != std::string::npos) return true;
+        any = true;
+    }
+    return !any;
+}
+
+// The turn a compatible client sends back for a reply `text`: its content, its reasoning where `reasoning` says it comes back, and with a tool format its calls, one at most with `single`.
 // `open`, where given, is set when the text ends inside a call, whose arguments are not yet whole.
-inline Message reply_message(const ChatFormat& format, bool opened, ToolFormat tools, const ToolTypes& typed, bool single, const std::string& text, bool* open = nullptr) {
+inline Message reply_message(const ChatFormat& format, bool opened, ToolFormat tools, const ToolTypes& typed, bool single, const std::string& text, bool reasoning,
+                             bool* open = nullptr) {
     ReplySplit split(opened);
     const ReplySplit::Parts parts = split.feed(text), last = split.finish();
-    if (tools == ToolFormat::none) return format.assistant(parts.content + last.content);
+    // The reasoning goes back as a client sends it, in reasoning_content, which only a template that reads that field renders.
+    const bool kept = reasoning && split.reasoned() && format.program && format.program->reads("reasoning_content");
+    if (tools == ToolFormat::none) {
+        Message m = format.assistant(parts.content + last.content);
+        if (kept) m.reasoning_content = parts.reasoning + last.reasoning;
+        return m;
+    }
     ToolCallSplit calls(tools, typed, single);
     const ToolCallSplit::Parts a = calls.feed(parts.content + last.content);
     if (open) *open = calls.open();
     const ToolCallSplit::Parts b = calls.finish();
     Message m = format.assistant(a.content + b.content);
+    if (kept) m.reasoning_content = parts.reasoning + last.reasoning;
     gather_calls(m.tool_calls, a.calls);
     gather_calls(m.tool_calls, b.calls);
     return m;

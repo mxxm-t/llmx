@@ -174,11 +174,11 @@ inline std::string compat_number(float logprob) {
 }
 
 // The assistant turn a client sends back for a chat reply `text`, which the reply is read again as (Api::next_turn).
-// On the compatible route it is the content alone and the calls in the format `tools` names (chat::reply_message), and on the native route the text whole, as the format keeps a turn.
+// On the compatible route chat::reply_message gives it, with the reasoning where `before` shows the client sends that back (chat::reasoning_sent_back); on the native route it is the text whole.
 inline chat::Message reply_sent_back(const chat::ChatFormat& format, bool compatible, bool opened, const std::string& text, chat::ToolFormat tools,
-                                     const chat::ToolTypes& typed, bool single, bool* open) {
+                                     const chat::ToolTypes& typed, bool single, const std::vector<chat::Message>& before, bool* open) {
     if (!compatible) return format.assistant(text);
-    return chat::reply_message(format, opened, tools, typed, single, text, open);
+    return chat::reply_message(format, opened, tools, typed, single, text, chat::reasoning_sent_back(before), open);
 }
 
 // Cuts a reply's text at the first stop text, which the compatible routes leave out, and holds back the end of the text so far that could still grow into one.
@@ -1054,7 +1054,7 @@ private:
         const Tools tools = tools_of(body);
         bool open = false;
         messages.push_back(reply_sent_back(format_, route == Route::chat_completions, opened, text,
-                                           route == Route::chat_completions && tools.on ? format_.tool_format : chat::ToolFormat::none, tools.typed, tools.single, &open));
+                                           route == Route::chat_completions && tools.on ? format_.tool_format : chat::ToolFormat::none, tools.typed, tools.single, messages, &open));
         if (writing && open) return {};
         return with_runs(chat::stable_prefix(format_, tok_, messages, writing, template_vars(body)), rows);
     }

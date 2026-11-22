@@ -1,5 +1,15 @@
 # llmx - Development Status
 
+## A chat reply read again with the reasoning its client sends back
+
+- **Goal:** a follow-up turn that sends the reply's reasoning back reuses the reply. Production on 2026-11-22 (0.2.0, Qwen3.8-27B Q8_0, the chat companion) reused nothing of a 29000-token follow-up: `the closest held history agrees for 59 tokens (message 2 of 3, assistant), limited by tokens at 59`.
+- **Cause:** the Qwen 3.8 template renders every earlier assistant turn's reasoning (`preserve_thinking` undefined counts as true), and the companion sends it back as `reasoning_content`. The re-prefill job read the reply back as its content alone, as `<think>\n\n</think>\n\n` and the content, so its 8704 rows (the 60-token prompt and the content, to a whole block) left the real follow-up at token 59, a `\n\n` where the follow-up has `\n` and the reasoning.
+- **Done:** `chat::reasoning_sent_back` reads the client shape from the conversation: reasoning sent back where an assistant turn carries some or none is there yet, left out where all came back without; `chat::reply_message` keeps the reasoning in `reasoning_content` where it is sent back and the template reads that field, and `reply_sent_back` passes the conversation. A template that leaves earlier reasoning out renders the same either way.
+- **Tests:** the server component's `check_reprefill_reasoning` (failing-test commit first) and `server-utf8`'s three shapes.
+- **Gates** (server and inference host logic, AGENTS.md, Merge gates), on main 69b54578: the failing test reuses 512 of a 571-token first turn on the test commit and 640 with the fix (Qwen3-0.6B Q8_0, CPU); CTest 91 of 91 and the CPU suite on pve1 at 37c58127, every component passing but docs, whose two over-long comment lines the head fixes (a comment-only delta), with docs and dead-code passing on the head; Qwen3-0.6B byte identity on the CPU against main (logits, per-token logits, greedy, lookup and chat generation) all the same; MI50 server component (`--device vulkan:0 --only server`, binary `llmx 0.2.0+g37c58127b85d`, sha256 c7894405129af0239512..., built from 37c58127 before the head's comment-only fixes, which do not change its coverage): `server PASS`, rc 0, no FAIL or SKIP line, including a chat follow-up sending the reply's reasoning back under the Qwen 3.8 template reusing 704 tokens of a 571-token first turn and its reply (/opt/claude-work/cache1/srvV/server.txt). On the Qwen3.5 tokenizer under the Qwen 3.8 template a turn sent back with its reasoning and one without first differ at the last token of the first turn's prompt, as production's did at 59 of 60.
+- **Left:** feeding the reasoning while it is written (the writing trigger still waits for `</think>`), and the first turn of a client that leaves reasoning out under such a template, which reads its content again once (ideas.md).
+- **Landing:** fast-forward.
+
 ## Request capacity freshness in Monitor
 
 - The production dashboard showed CURRENT STATE after its inference server stopped. Request capacity now marks the retained counts as LAST SAMPLE and distinguishes pausing the view from paused scheduler work.

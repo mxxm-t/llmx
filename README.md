@@ -55,28 +55,13 @@ Without curl 8.4, download a GGUF file yourself and pass its path.
 
 ## How fast is it
 
-These figures were measured on main 3b88cfb3a on 2026-11-17, before this release, and are being measured again on the released code.
-
-AMD Instinct MI50 32 GB, ROCm, `--dtype int8`, a 2048-token prompt and 128 decoded tokens for one user, in tokens per second.
-
-| Model | GPUs | Prompt | Decode |
-|---|---|---:|---:|
-| Qwen3.6-35B-A3B Q4_K_M | 1 | 1252 | 103 |
-| Qwen3.8-27B Q8_0 | 4 | 740 | 63 |
-| Qwen3.8-27B Q8_0 with MTP | 4 | | 99 |
-| Qwen3.8-Flash-Next UD-Q4_K_XL | 4 | 1623 | 67 |
-| DeepSeek-V4.1-Flash-1017 MXFP4 | 10 | 1145 | 34 |
-| DeepSeek-V4.1-Flash with DSpark | 10 | 450 | 48 |
-
-Qwen3.8-27B runs as one group of four GPUs (`--tensor-width 4`), Flash-Next as two groups of two and DeepSeek as five groups of two (`--tensor-width 2`).
-The drafting rows continue a source file; how much drafting gains depends on the text.
+The speed figures are being measured again on the released code and will be published here.
 `llmx bench --model FILE` measures your own machine.
 
 ## Running models bigger than your GPU
 
 - List several GPUs, `--device rocm:0,rocm:1`, and llmx splits the layers over them to fit; add `cpu` to the list to keep the last layers in system RAM ([MULTI-DEVICE](docs/MULTI-DEVICE.md)).
 - `--cpu-moe` keeps a mixture-of-experts model's experts in system RAM and the rest on the GPU, and `--n-cpu-moe N` only the first N layers' experts; not with `--tensor-width`.
-  Qwen3.6-35B-A3B on one MI50 with `--cpu-moe` reads 56 and decodes 21 tokens per second, measured as above.
 - `--load-mode direct` reads the weights around the system's file cache, which loads a large model faster from some file systems; `auto`, the default, picks for you ([USAGE](docs/USAGE.md#reading-the-weights---load-mode)).
 
 ## Install

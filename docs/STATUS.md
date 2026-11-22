@@ -22,6 +22,10 @@ lists made no remote media requests.
 - **Speed table:** its figures were measured on main 3b88cfb3a on 2026-11-17, and the README says so above the table; they are being measured again on the released code.
 - **Gates:** docs and version only (AGENTS.md, Merge gates): the `docs` and `dead-code` components on this tree, a build whose `--version` prints 0.2.0, and the hosted run; the change lands by fast-forward.
 - **Left:** the tag `v0.2.0` on the landed commit builds the draft release ([RELEASE](RELEASE.md)); the smoke checklist runs on the draft's files and the owner publishes it.
+- **Done:** `CMakeLists.txt` and `src/config.hpp` set the release to 0.2.0 together, and the README speaks to a first-time user with downloads and a quick start. The tag `v0.2.0` built the draft release ([RELEASE](RELEASE.md)), and its smoke checklist passed on the draft's files.
+- **Speed table:** the README no longer shows one. Its figures came from main 3b88cfb3a on 2026-11-17, and a check on 2026-11-21 did not reproduce several cells, so the README says the figures are being measured again on the released code; the `--cpu-moe` figure went with it.
+- **Gates of the README change:** docs only (AGENTS.md, Merge gates): the `docs` and `dead-code` components on this tree.
+- **Left:** the owner publishes the draft; the figures are measured on the released code on quiet cards and return to the README.
 
 ## Sidebar links
 

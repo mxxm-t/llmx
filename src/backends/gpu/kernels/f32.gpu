@@ -4780,6 +4780,8 @@ extern "C" __global__ void __launch_bounds__(kThreads, 1) llmx_delta_step(DeltaS
         const float4 q = on ? *(const float4*)&st[src + (unsigned long long)(part + 8u * ii) * vd] : float4{0.0f, 0.0f, 0.0f, 0.0f};
         s[0][ii] = fresh ? 0.0f : q.x, s[1][ii] = fresh ? 0.0f : q.y, s[2][ii] = fresh ? 0.0f : q.z, s[3][ii] = fresh ? 0.0f : q.w;
     }
+    // A product before the step leaves its code in neither cache, so each thread loads one 64 B line of the kernel's code after here into L2, never past the kernel's end label (docs/src/backends-gpu.md, delta_step).
+    const unsigned pf = GPU_CODE_PREFETCH(llmx_delta_step_end, blockIdx.x + gridDim.x * threadIdx.x, 448u);
     // Alpha and beta of head j for every row of the view, a wave a product.
     for (unsigned p = lid / kWave; p < 2u * nq; p += kThreads / kWave) {
         const unsigned long long r = row0 + p / 2u;
@@ -4822,6 +4824,7 @@ extern "C" __global__ void __launch_bounds__(kThreads, 1) llmx_delta_step(DeltaS
             float* d = cdst + cc;
             d[0] = keep0, d[C] = keep1, d[2ull * C] = keep2;
         }
+        code_keep(pf);
         // The q and k channels' carried rows are written by the last of the V heads that read them, once every one has read them.
         __threadfence();
         __syncthreads();
@@ -4925,4 +4928,5 @@ extern "C" __global__ void __launch_bounds__(kThreads, 1) llmx_delta_step(DeltaS
             twin_at(val, o + lid, A.tq, A.td, A.ts, A.tlevel, A.tm, A.major);
         }
     }
+    GPU_CODE_END(llmx_delta_step_end);
 }

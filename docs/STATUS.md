@@ -90,6 +90,16 @@ lists made no remote media requests.
 - **Speed table:** the README no longer shows one. Its figures came from main 3b88cfb3a on 2026-11-17, and a check on 2026-11-21 did not reproduce several cells, so the README says the figures are being measured again on the released code; the `--cpu-moe` figure went with it.
 - **Gates of the README change:** docs only (AGENTS.md, Merge gates): the `docs` and `dead-code` components on this tree.
 - **Left:** the owner publishes the draft; the figures are measured on the released code on quiet cards and return to the README.
+## ROCm delta step code prefetch (2026-11-22, CUTS22 to CUTS40, branch products/delta-code-prefetch on main 69b545788)
+
+- **Goal:** `llmx_delta_step` waits on its own code after the qkv and gate products; each thread prefetches one line of the kernel's code into L2, bounded by the kernel's end label (docs/src/backends-gpu.md, delta_step).
+- **Done:** the failing check first, the CTest `rocm-isa`, which fails on main (no prefetch) and on the unbounded prefetch (no bound; it read past the gfx906 code object by 7668 and 9888 bytes in two builds, and the smaller one faulted with hipErrorIllegalAddress), then the bounded prefetch, which passes it on gfx906, gfx942 and gfx1151.
+  Traced Qwen3.6-27B Q8_0, int8, four MI50 at tensor width 4, -n 32: `delta_step` median 32.64 and 32.80 us on the base against 26.56 and 26.24 us with the unbounded prefetch (two traced pairs on main's predecessor with tile-push-b2); the bounded build read 23.84 us in one traced run and `backend-rocm delta` passes on it.
+  Wall A/B on a quiet host (QUIET1, 2026-11-22 12:58), Qwen3.6-27B Q8_0, int8, four MI50 at tensor width 4, untraced tg 256, 5 interleaved pairs: 66.02 tok/s base against 67.20 with the prefetch, faster in 5 of 5 pairs, -0.26 ms/token, generated text identical in all 10 runs.
+  The asm is port.h's `GPU_CODE_PREFETCH`, `GPU_CODE_END` and `code_keep`, which CUDA defines as no code prefetch, since the asm in the kernel broke the CUDA build (LAND100, landing-1124).
+- **Left:** the landing gates for kernel code: byte identity against main on the CPU and a device, the suite on a device, one timing round against main, the CUDA build and its CTest.
+  No Vulkan code, so no Radeon VII check; no README change.
+- **Gotchas:** `s_getpc_b64` after `s_add_u32` is a pc-relative data address, which `rocm-isa` leaves alone; the label must stay the kernel's last statement or the check's 64-byte tail rule fails.
 
 ## Server and chat companion in containers
 

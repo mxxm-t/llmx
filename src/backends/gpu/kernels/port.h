@@ -1,5 +1,5 @@
 // The only file naming vendor intrinsics: the kernels reach every lane exchange, byte operation, integer dot, scoped atomic, fence and clock through these wrappers.
-// Under HIP each wrapper expands to exactly the builtin the kernels called before it, so moving a call behind one changes no code object.
+// Under HIP each wrapper expands to exactly the builtin or inline assembly the kernels called before it, so moving a call behind one changes no code object.
 #pragma once
 
 #if defined(__HIP__)
@@ -143,6 +143,18 @@ template <int N> using gpu_vector = unsigned __attribute__((ext_vector_type(N)))
 template <int N> __device__ __forceinline__ gpu_vector<N> load_volatile(const gpu_vector<N>* p) { return *(const volatile gpu_vector<N>*)p; }
 // The vector to p in one store.
 template <int N> __device__ __forceinline__ void store_vector(gpu_vector<N>* p, gpu_vector<N> v) { *p = v; }
+// The word of 64-byte line `line` of the kernel's code from here to the label GPU_CODE_END(end) places, read into L2, or 0 past the label or `cap` lines (docs/src/backends-gpu.md, delta_step).
+#define GPU_CODE_PREFETCH(end, line, cap) ({ unsigned long long pc_; int ahead_; asm volatile("s_getpc_b64 %0\n\ts_mov_b32 %1, .L" #end "-." : "=s"(pc_), "=s"(ahead_)); gpu_code_line(pc_, ahead_, line, cap); })
+#define GPU_CODE_END(end) asm volatile(".L" #end ":")
+__device__ __forceinline__ unsigned gpu_code_line(unsigned long long pc, int ahead, unsigned line, unsigned cap) {
+    const long long span = (long long)ahead + (long long)(pc & 63ull);
+    const unsigned lines = span <= 0 ? 0u : span >= 64ll * cap ? cap : (unsigned)(span / 64);
+    unsigned v = 0;
+    if (line < lines) v = *(const volatile unsigned*)((pc & ~63ull) + 64ull * line);
+    return v;
+}
+// Holds a prefetched word live in a register until here, so its load is not dropped.
+__device__ __forceinline__ void code_keep(unsigned v) { asm volatile("" ::"v"(v)); }
 
 #elif defined(__CUDACC__)
 
@@ -413,6 +425,10 @@ __device__ __forceinline__ gpu_vector4 load_volatile(const gpu_vector4* p) {
 // The vector to p in one store: nvcc splits a plain store into four word stores where a loop stores one value to several places, and keeps st.global.wt whole.
 // A system-scope strong store, so the staging words a peer spins on with system-scope volatile loads are a pair the PTX memory model orders (docs/src/backends-gpu.md).
 __device__ __forceinline__ void store_vector(gpu_vector4* p, gpu_vector4 v) { __stwt((uint4*)p, make_uint4(v.x, v.y, v.z, v.w)); }
+// No code prefetch: PTX has no read of the kernel's own code, so the word is 0 and no label is placed.
+#define GPU_CODE_PREFETCH(end, line, cap) 0u
+#define GPU_CODE_END(end)
+__device__ __forceinline__ void code_keep(unsigned) {}
 
 // tanh as (1 - e) / (1 + e) of e = expf(-2|x|) with an IEEE divide, since CUDA's tanhf flushes subnormals in its reciprocal and the kernels keep them (tests/cuda_sass.py).
 __device__ __forceinline__ float gpu_tanhf(float x) {

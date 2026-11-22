@@ -10,6 +10,7 @@ const [url, executable, profile, artifacts, fixture, imageFixture, originalDashb
 const pdfMode = process.argv.find(arg => arg.startsWith('--pdf-only='))?.split('=')[1];
 const featuresMode = process.argv.includes('--features-only');
 const homeContextMode = process.argv.includes('--home-context-only');
+const searchResultsMode = process.argv.includes('--image-results-only');
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const startupTimeoutArg = process.argv.find(arg => arg.startsWith('--startup-timeout-ms='));
 const startupTimeoutCandidate = startupTimeoutArg ? Number(startupTimeoutArg.slice('--startup-timeout-ms='.length)) : NaN;
@@ -1657,7 +1658,7 @@ try {
     if (data.method === 'Network.requestWillBeSent' && new URL(data.params.request.url).pathname === '/api/workspace/files') {
       savedFileReads.push(new URL(data.params.request.url).searchParams.getAll('path'));
     }
-    if ((pdfMode || featuresMode || homeContextMode) && data.method === 'Network.requestWillBeSent') browserRequests.push(data.params.request);
+    if ((pdfMode || featuresMode || homeContextMode || searchResultsMode) && data.method === 'Network.requestWillBeSent') browserRequests.push(data.params.request);
     if (pdfMode && data.method === 'Target.attachedToTarget') {
       const {sessionId, targetInfo} = data.params;
       pdfWorkers.push(targetInfo.url);
@@ -1682,7 +1683,7 @@ try {
   await cdp('Emulation.setDeviceMetricsOverride', {width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false});
   await cdp('Emulation.setEmulatedMedia', {features: [{name: 'prefers-color-scheme', value: 'dark'}]});
   await navigateDocument(url);
-  if (process.argv.includes('--image-results-only')) {
+  if (searchResultsMode) {
     await signIn();
     const origin = 'https://pictures.example.invalid';
     const title = 'Northern lights <b>in winter</b>';
@@ -1740,7 +1741,105 @@ try {
     }
     assert(opened,'source click navigated a new tab to the fixture page');
     await cdp('Target.closeTarget',{targetId:opened.targetId});
-    console.log('PASS: image links, source opened in a new tab, MCP envelopes, raw results, fallback and phone layout');
+    const thumbnail = origin+'/field-survey-thumbnail.png';
+    const web = {query:'harbor survey',results:[
+      {title:'Tide tables for the inner harbor',url:'https://charts.example.invalid/harbor/tides',snippet:'High and low water predictions for the survey stations.'},
+      {title:'Coastal field notes',url:'https://notes.example.invalid/fieldwork',snippet:'How to record a consistent set of water-depth observations.'},
+    ]};
+    const video = {query:'read a tide gauge',videos:[
+      {title:'Reading the harbor gauge',url:'https://video.example.invalid/watch/gauge',duration:'05:42',description:'A field demonstration of the station gauge.',thumbnail},
+      {title:'Recording a depth sounding',url:'https://fieldwork.example.invalid/clips/sounding',duration:125,description:'Take two readings before moving to the next station.',thumbnail},
+    ]};
+    const entry = (id,name,result,extra={}) => ({id,name,result,arguments:'{}',status:'completed',...extra});
+    const content = value => ({content:[{type:'text',text:JSON.stringify(value)}]});
+    const many = {results:Array.from({length:23},(_,i)=>({title:'Field record '+(i+1),url:'https://charts.example.invalid/record/'+(i+1)})),
+      appendix:'Complete record '.repeat(1200)};
+    const sdkVideo = content(video);
+    const cases = [
+      entry('sdk-video','search_videos',{...sdkVideo,structuredContent:{result:sdkVideo.content[0].text}}),
+      entry('bare-web','search_web',{results:[{url:'https://notes.example.invalid/untitled'},{url:'data:text/plain,unused'}]}),
+      entry('many-web','search_web',many), entry('empty-web','search_web',{results:[]}), entry('empty-video','search_videos',{videos:[]}),
+      entry('generic','lookup',web), entry('near-name','local_search_web',web), entry('wrong-shape','search_web',video),
+      entry('invalid-items','search_videos',{videos:[null,{url:'ftp://video.example.invalid/clip'}]}),
+      entry('adapter-error','search_web',{results:[],error:'Search provider unavailable'}),
+      entry('error-result','search_web',{...content(web),isError:true}), entry('failed-web','search_web',web,{status:'failed'}),
+      entry('mixed-parts','search_web',{content:[...content(web).content,{type:'text',text:'another part'}]}),
+    ];
+    const itinerary = await evaluate(`ChatShell.api('/import','POST',${JSON.stringify({version:1,chat:{title:'Harbor survey sources',active_leaf:'video-answer'},messages:[
+      {id:'fixture',role:'assistant',content:'Earlier sources.',tool_calls:cases},
+      {id:'web-prompt',parent_id:'fixture',role:'user',content:'Find tide tables and field notes for the harbor survey.'},
+      {id:'web-answer',parent_id:'web-prompt',role:'assistant',content:'These references cover tides and field observations.',tool_calls:[entry('web-main','research__search_web',content(web))]},
+      {id:'video-prompt',parent_id:'web-answer',role:'user',content:'Find a short demonstration of reading the harbor gauge.'},
+      {id:'video-answer',parent_id:'video-prompt',role:'assistant',content:'Here are two field demonstrations.',tool_calls:[entry('video-main','tools__search_videos',{structuredContent:video,content:[]})]},
+    ]})})`);
+    await reloadDocument();
+    await wait(`document.querySelector('.chat-item[data-chat="${itinerary.id}"]')`,'saved harbor search chat');
+    await pointerClick(`.chat-item[data-chat="${itinerary.id}"]`);
+    const call = id => '[data-tool-call="'+id+'"]';
+    await wait(`document.querySelector('${call('video-main')}')`,'search transcript');
+    for (const [kind,items] of [['web',web.results],['video',video.videos]]) {
+      const card=call(kind+'-main'), summary=card+' > details > summary', results=card+' .tool-search-results';
+      await pointerClick(summary);
+      for (const [width,height] of [[1440,1000],[320,800]]) {
+        await cdp('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width===320});
+        for (const theme of ['light','dark']) {
+          await cdp('Emulation.setEmulatedMedia',{features:[{name:'prefers-color-scheme',value:theme}]});
+          await wait(`innerWidth===${width} && document.documentElement.dataset.theme==='${theme}'`,'search result viewport and theme');
+          await evaluate(`{const region=document.getElementById('scroll-region'),top=document.querySelector('${summary}').getBoundingClientRect().top;
+            region.scrollTop+=top-region.getBoundingClientRect().top-24;}`);
+          await screenshot(`search-${kind}-${width}-${theme}.png`);
+        }
+        const labels = items.map(item=>[item.title,item.url,'_blank','noopener noreferrer']);
+        assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('${results} a'),a=>[a.textContent,a.href,a.target,a.rel])`),labels);
+        assert.equal(await evaluate(`document.querySelector('${results}').getAttribute('aria-label')`),kind==='web'?'Web search results':'Video search results');
+        for (const [i,item] of items.entries()) {
+          const row=await evaluate(`document.querySelectorAll('${results} li')[${i}].innerText`);
+          assert(row.includes(new URL(item.url).hostname) && row.includes(item.snippet || item.description),'source and excerpt: '+row);
+          if (item.duration) assert(row.includes(i===0?'05:42':'2:05'),'video duration: '+row);
+        }
+        assert.equal(await evaluate(`document.documentElement.scrollWidth<=innerWidth && Array.from(document.querySelectorAll('${results} a')).every(a=>{
+          const r=a.getBoundingClientRect();return r.left>=0 && r.right<=innerWidth && r.width>0 && a.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));
+        })`),true,kind+' links fit and accept pointer input at '+width);
+        await evaluate(`document.querySelector('${summary}').focus({preventScroll:true})`);
+        for (const item of items) {
+          for (const type of ['keyDown','keyUp'])
+            await cdp('Input.dispatchKeyEvent',{type,key:'Tab',code:'Tab',windowsVirtualKeyCode:9});
+          const focused=await evaluate(`{const a=document.activeElement; a.matches('${results} a') ? [a.textContent,a.href] : null}`);
+          assert.deepEqual(focused,[item.title,item.url],kind+' Tab order at '+width);
+        }
+      }
+      await pointerClick(card+' .tool-body > details > summary');
+      assert.equal(await evaluate(`document.querySelector('${card} .tool-body > details pre').checkVisibility()`),true,'raw result disclosure opens');
+      await pointerClick(summary);
+    }
+    assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('${call('bare-web')} .tool-search-results a'),a=>a.textContent)`),['notes.example.invalid']);
+    assert.equal(await evaluate(`document.querySelector('${call('bare-web')} .tool-search-results li').textContent.split('notes.example.invalid').length`),2,'hostname fallback appeared twice');
+    assert.equal(await evaluate(`document.querySelectorAll('${call('sdk-video')} .tool-search-results li').length`),2);
+    for (const kind of ['web','video'])
+      assert.equal(await evaluate(`document.querySelector('${call('empty-'+kind)} .tool-search-empty')?.textContent`),'No '+kind+' results.');
+    for (const id of ['generic','near-name','wrong-shape','invalid-items','adapter-error','error-result','failed-web','mixed-parts']) {
+      const result=cases.find(item=>item.id===id).result;
+      const raw=await evaluate(`{const body=document.querySelector('${call(id)} .tool-body');
+        const label=Array.from(body.children).find(child=>child.classList.contains('section-label') && child.textContent==='RESULT');
+        const preview=label?.nextElementSibling; preview?.tagName==='PRE' ? preview.textContent : null}`);
+      assert(raw,'missing raw result body: '+id);
+      if (result.content) assert.equal(raw,result.content.map(part=>part.text).join('\n\n'),id);
+      else assert.deepEqual(JSON.parse(raw),result,id);
+    }
+    const large=call('many-web');
+    assert.equal(await evaluate(`document.querySelectorAll('${large} .tool-search-results li').length`),20);
+    const downloads=path.join(profile,'downloads');
+    await mkdir(downloads,{recursive:true}); await cdp('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:downloads});
+    await pointerClick(large+' > details > summary'); await pointerClick(large+' .tool-body > button');
+    await wait(async()=>{
+      try { return (await readFile(path.join(downloads,'tool-result.json'),'utf8')).length>0; }
+      catch (error) { if(error.code==='ENOENT') return false; throw error; }
+    },'full search JSON download');
+    assert.deepEqual(JSON.parse(await readFile(path.join(downloads,'tool-result.json'),'utf8')),many);
+    assert(browserRequests.some(request=>new URL(request.url).pathname==='/api/import'),'search request recorder missed the fixture import');
+    assert.equal(browserRequests.some(request=>new URL(request.url).hostname.endsWith('.example.invalid')),false,'showing search results fetched an external link or thumbnail');
+    assert.deepEqual(errors,[],'search result browser exceptions');
+    console.log('PASS: image, web and video search links, MCP envelopes, safely displayed sources, full JSON, raw fallback and phone layout');
   } else if (process.argv.includes('--write-file-actions-only')) {
     await signIn();
     const filename = 'nested/saved & exact.txt', source = 'Saved bytes \u00e9\n';

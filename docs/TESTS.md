@@ -95,7 +95,10 @@ later typing needs fresh discard approval and newer existing or unsaved files
 remain selected when an old response arrives.
 The image-search tool fixture opens its source link in a separate Chrome tab,
 checks the image and thumbnail destinations at phone and desktop widths and
-verifies that displaying the result fetches no remote images.
+verifies that displaying the result fetches no remote images. The same fixture
+checks readable web and video links, source domains, excerpts and durations,
+empty results and raw fallbacks. A full JSON download from a capped preview
+retains every entry.
 
 Browser checks preserve the prompt, attachments and settings through catalogue
 refusals and recover the connection after a successful retry.

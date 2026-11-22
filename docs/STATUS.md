@@ -1,5 +1,20 @@
 # llmx - Development Status
 
+## Web and video search results in Chat
+
+**Goal.** Make web and video sources readable in a conversation's tool activity.
+
+**Done.** Web and video searches show linked titles, source domains and available
+descriptions or durations. Empty lists have a message. The existing image links,
+raw response disclosure and full JSON download remain available.
+
+**Checks.** Chrome exercised both MCP response shapes, link safety and keyboard
+navigation, raw fallbacks and downloading all 23 records from a 20-entry preview.
+Desktop (1440 px) and phone (320 px) captures cover both themes. Opening the
+lists made no remote media requests.
+
+**Landing.** Fast-forward after the scoped Chat workspace checks.
+
 ## Release 0.2.0 (2026-11-22)
 
 - **Done:** `CMakeLists.txt` and `src/config.hpp` set the release to 0.2.0 together, and the README speaks to a first-time user with downloads, a quick start and a speed table on MI50s.

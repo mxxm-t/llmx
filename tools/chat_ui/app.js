@@ -1237,37 +1237,67 @@
     });
     return row;
   }
-  function imageResultLinks(result, parts) {
+  function imageResultRow(item) {
+    const title = typeof item.title === 'string' && item.title.trim();
+    const image = window.ChatRender.link(title || 'Open image', item.image_url);
+    const thumbnail = window.ChatRender.link(image ? 'Thumbnail' : title || 'Open thumbnail', item.thumbnail_url);
+    if (!image && !thumbnail) return null;
+    const row = node('li'), links = node('span');
+    row.append(image || thumbnail);
+    const source = window.ChatRender.link('Source', item.source_url);
+    if (source) {
+      if (title) source.setAttribute('aria-label', 'Source for ' + title);
+      links.append(source);
+    }
+    if (image && thumbnail && image.href !== thumbnail.href) {
+      if (title) thumbnail.setAttribute('aria-label', 'Thumbnail for ' + title);
+      links.append(thumbnail);
+    }
+    if (links.childElementCount) row.append(links);
+    return row;
+  }
+  function videoDuration(value) {
+    if (typeof value === 'string') return value.trim();
+    if (!Number.isFinite(value) || value < 0) return '';
+    const minutes = Math.floor(value / 60);
+    const seconds = String(Math.floor(value % 60)).padStart(2, '0');
+    if (minutes < 60) return minutes + ':' + seconds;
+    return Math.floor(minutes / 60) + ':' + String(minutes % 60).padStart(2, '0') + ':' + seconds;
+  }
+  function searchResultRow(item, video) {
+    const title = typeof item.title === 'string' ? item.title.trim() : '';
+    const link = window.ChatRender.link(title, item.url);
+    if (!link) return null;
+    const row = node('li');
+    if (!title) link.textContent = link.hostname;
+    row.append(link);
+    const metadata = [title && link.hostname, video && videoDuration(item.duration)].filter(Boolean);
+    if (metadata.length) row.append(node('small', '', metadata.join(' \u00b7 ')));
+    const snippet = video ? item.description : item.snippet;
+    if (typeof snippet === 'string' && snippet.trim()) row.append(node('p', '', snippet.trim()));
+    return row;
+  }
+  function toolSearchResults(name, result, parts) {
+    const method = typeof name === 'string' ? name.split('__').at(-1) : '';
+    const video = method === 'search_videos';
+    const field = video ? 'videos' : method === 'search_web' ? 'results' : 'images';
     let payload = result?.structuredContent ?? result;
-    if (!Array.isArray(payload?.images) && parts.length === 1 && parts[0]?.type === 'text'
+    if (!Array.isArray(payload?.[field]) && parts.length === 1 && parts[0]?.type === 'text'
         && typeof parts[0].text === 'string' && parts[0].text.length <= 65536) {
       payload = toolJson(parts[0].text);
     }
-    if (!Array.isArray(payload?.images) || !payload.images.length) return null;
-    const list = node('ul', 'tool-image-results');
-    list.setAttribute('aria-label', 'Image search results');
-    for (const item of payload.images.slice(0, 20)) {
+    const items = payload?.[field], images = field === 'images';
+    if (!Array.isArray(items) || (!images && (payload.error || payload.isError))) return null;
+    if (!items.length) return images ? null : node('p', 'tool-search-empty', video ? 'No video results.' : 'No web results.');
+    const list = images ? node('ul', 'tool-image-results') : node('ol', 'tool-search-results');
+    list.setAttribute('aria-label', (images ? 'Image' : video ? 'Video' : 'Web') + ' search results');
+    for (const item of items.slice(0, 20)) {
       if (!item || typeof item !== 'object') continue;
-      const title = typeof item.title === 'string' && item.title.trim();
-      const image = window.ChatRender.link(title || 'Open image', item.image_url);
-      const thumbnail = window.ChatRender.link(image ? 'Thumbnail' : title || 'Open thumbnail', item.thumbnail_url);
-      if (!image && !thumbnail) continue;
-      const row = node('li'), links = node('span');
-      row.append(image || thumbnail);
-      const source = window.ChatRender.link('Source', item.source_url);
-      if (source) {
-        if (title) source.setAttribute('aria-label', 'Source for ' + title);
-        links.append(source);
-      }
-      if (image && thumbnail && image.href !== thumbnail.href) {
-        if (title) thumbnail.setAttribute('aria-label', 'Thumbnail for ' + title);
-        links.append(thumbnail);
-      }
-      if (links.childElementCount) row.append(links);
-      list.append(row);
+      const row = images ? imageResultRow(item) : searchResultRow(item, video);
+      if (row) list.append(row);
     }
     if (!list.childElementCount) return null;
-    if (payload.images.length <= 20) return list;
+    if (items.length <= 20) return list;
     const group = node('div');
     group.append(list, node('small', 'muted', 'The full result includes more entries.'));
     return group;
@@ -1293,8 +1323,8 @@
       body.append(node('div', 'section-label', 'RESULT'));
       const full = json(result); const readable = parts.filter(part => part?.type === 'text' && typeof part.text === 'string').map(part => part.text).join('\n\n');
       const preview = readable || full;
-      const images = call.status === 'completed' && !call.error && !result?.isError && imageResultLinks(result, parts);
-      body.append(images || node('pre', '', preview.slice(0, 16384) + (preview.length > 16384 ? '\n[Preview truncated]' : '')));
+      const search = call.status === 'completed' && !call.error && !result?.isError && toolSearchResults(call.name, result, parts);
+      body.append(search || node('pre', '', preview.slice(0, 16384) + (preview.length > 16384 ? '\n[Preview truncated]' : '')));
       const structured = node('details'); structured.append(node('summary', '', 'Structured result'), node('pre', '', full.slice(0, 16384) + (full.length > 16384 ? '\n[Preview truncated]' : ''))); body.append(structured);
       if (full.length > 16384 || preview.length > 16384) {
         const download = node('button', 'secondary-button', 'Download full result');

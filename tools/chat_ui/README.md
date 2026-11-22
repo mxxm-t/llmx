@@ -537,15 +537,23 @@ execute concurrently; at most 16 tool calls per model reply and 16 model/tool
 rounds per run are accepted. The companion permits at most eight saved-chat
 runs and eight temporary-chat runs at once.
 
-Open a completed image-search call in the transcript to see its result links.
-Select a title to open the image, **Source** to visit its page or **Thumbnail**
-to open the smaller image when supplied. These links open in a new tab.
-Chat loads no remote images when you open the result.
+Open a completed search call in the transcript to inspect its results. A web
+or video title opens the original page in a new tab. The source domain appears
+beside any video duration, followed by the available snippet or description.
+For an image, the title opens the image itself. **Source** opens its page and
+**Thumbnail** opens the smaller image when supplied. Opening a result list
+makes no requests to those sites.
 
-A tool can return an `images` array in MCP structured content or as JSON in a
-single text block. Each entry can supply `title`, `image_url`, `thumbnail_url`
-and `source_url`. The list previews up to 20 entries. **Structured result**
-keeps the raw response available.
+The `search_web` tool supplies a `results` array with `url`, `title` and
+optional `snippet`. The `search_videos` tool supplies a `videos` array with
+`url`, `title` and optional `description` and `duration`. MCP server prefixes
+such as `images__search_web` are supported. A missing title falls back to
+the linked hostname. An image tool can return an `images` array with
+`title`, `image_url`, `thumbnail_url` and `source_url`.
+
+Chat reads these arrays from MCP structured content or JSON in a single text
+block and previews up to 20 entries. **Structured result** keeps the raw data
+available, with **Download full result** for a truncated preview.
 
 The activity view keeps the full bounded tool result. A result larger than
 64 KiB is explicitly shortened before it enters the next model prompt; the

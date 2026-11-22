@@ -4561,9 +4561,6 @@ function render() {
     txt(key + '-capacity', fmt(m('requests.now.' + key)) + ' / ' + fmt(m('requests.limits.' + key)));
     fill(key + '-bar', m('requests.now.' + key), m('requests.limits.' + key))
   }
-  const paused = m('requests.now.paused'),
-  queued = m('requests.now.queued');
-  txt('capacity-status', !view.latest ? 'WAITING': number(paused) && paused > 0 ? 'PAUSED WORK': number(queued) && queued > 0 ? 'QUEUED WORK': 'CURRENT STATE');
   const outputField = chartConfigurations.find(config => config.id === 'throughput').fields[0];
   const throughputConfig = chartConfigurations.find(config => config.id === 'throughput');
   const latestSample = view.samples.at(-1);
@@ -4651,6 +4648,16 @@ function renderStatus() {
   $('notice').classList.toggle('show', messages.length > 0);
   if (!state.paused) renderStartup(state.startup, state.startupObservedAt);
   const view = state.paused && state.view ? state.view: snapshot();
+  const requests = get(view.latest, 'requests.now');
+  let capacity = 'WAITING';
+  if (requests && !view.startup) {
+    if (state.paused) capacity = 'VIEW PAUSED';
+    else if (stale) capacity = 'LAST SAMPLE';
+    else if (number(requests.paused) && requests.paused > 0) capacity = 'PAUSED WORK';
+    else if (number(requests.queued) && requests.queued > 0) capacity = 'QUEUED WORK';
+    else capacity = 'CURRENT STATE';
+  }
+  txt('capacity-status', capacity);
   txt('timestamp', view.startup && number(view.startupObservedAt) ?
     (state.paused ? 'Paused at startup response ': 'Startup response observed ') + new Date(view.startupObservedAt * 1000).toLocaleString() + ' / ' + duration(Math.max(0, Date.now() / 1000 - view.startupObservedAt)) + ' ago' :
     view.lastSuccess === null ? 'Waiting for the first health sample.': (state.paused ? 'Paused at ': 'Last successful sample ') + new Date(view.lastSuccess * 1000).toLocaleString() + ' / ' + duration(Math.max(0, Date.now() / 1000 - view.lastSuccess)) + ' ago');

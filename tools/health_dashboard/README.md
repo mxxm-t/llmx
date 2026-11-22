@@ -103,6 +103,7 @@ The Runtime configuration card shows the effective RoPE policy, factor, original
   retain the last measured interval as stale in the headline and request cards,
   then become unavailable. Missing counters, resets and collector gaps remain
   unavailable, and stale or disconnected chart tails are shaded unavailable.
+  Request capacity labels retained counts as the last sample when health goes stale and marks a frozen view as paused.
   A new per-request rate becomes available after two distinct
   snapshots. Old APIs retain the collector-time aggregate fallback, which can
   differ from per-request runtime rates. Long passes reveal prompt work only at

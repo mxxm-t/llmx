@@ -1,5 +1,10 @@
 # llmx - Development Status
 
+## Request capacity freshness in Monitor
+
+- The production dashboard showed CURRENT STATE after its inference server stopped. Request capacity now marks the retained counts as LAST SAMPLE and distinguishes pausing the view from paused scheduler work.
+- Chrome reproduced the incorrect labels at 390 and 1440 px. The corrected view passes the same disconnect, age, pause and recovery checks. This presentation change lands by fast-forward after the dashboard, docs and dead-code checks.
+
 ## Local server examples in USAGE
 
 - The HTTP and load-test examples now start a loopback server with an explicit authentication choice and put client commands in a second terminal.

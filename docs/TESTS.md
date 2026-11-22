@@ -29,6 +29,7 @@ do not require a model. Dashboard browser coverage distinguishes healthy idle
 throughput readouts, held active rates, historical selection, disconnected
 gaps and the independently buffered chart timeline. Startup checks distinguish model
 information that is pending, a failed startup and a ready server that omits a field.
+Request capacity retains the last counts on disconnect and distinguishes stale, frozen and live views.
 
 The standalone [chat companion](../tools/chat_ui/README.md) is checked with
 `python -X utf8 -m unittest discover -s tools/chat_ui -v`. The Workspace checks

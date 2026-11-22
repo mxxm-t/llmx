@@ -6,6 +6,8 @@ Standard library only; the command and usage checks ask the built binary for its
 """
 import ast
 import collections
+import contextlib
+import datetime
 import functools
 import hashlib
 import io
@@ -23,11 +25,15 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import common
 import cli
 
-CHECKS = ("link", "path", "line-pin", "name", "command", "usage", "test-name", "src-page", "section", "comment", "readme")
+sys.path.insert(0, os.path.join(common.ROOT, "tools"))
+import release_notes
+
+CHECKS = ("link", "path", "line-pin", "name", "command", "usage", "test-name", "src-page", "section", "comment", "readme", "changelog")
+CHANGELOG = "CHANGELOG.md"
 
 
 def doc_files(texts):
-    return sorted(p for p in texts if p in ("README.md", "AGENTS.md") or re.fullmatch(r"docs/(src/)?[^/]+\.md", p))
+    return sorted(p for p in texts if p in ("README.md", "AGENTS.md", CHANGELOG) or re.fullmatch(r"docs/(src/)?[^/]+\.md", p))
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -55,7 +61,8 @@ def heading_region(doc, title, level):
 def doc_lines(doc, text):
     """(line number, line, region, fenced) for every line of `doc` but a fence's own."""
     fence, stack = False, {}
-    base = "plan" if doc in PLAN_DOCS else "live"
+    # The changelog records what each release changed, so the names it gives may since be gone.
+    base = "plan" if doc in PLAN_DOCS else "record" if doc == CHANGELOG else "live"
     for n, line in enumerate(text.split("\n"), 1):
         if line.lstrip().startswith("```"):
             fence = not fence
@@ -912,9 +919,58 @@ def readme_findings(tree):
     return found
 
 
+# ----------------------------------------------------------------------------------------------------------------------
+# CHANGELOG.md: the notes the release workflows print, read by the parser they call (docs/RELEASE.md, The changelog).
+
+CHANGELOG_KINDS = ("Added", "Changed", "Deprecated", "Removed", "Fixed", "Security")
+CMAKE_VERSION = re.compile(r"^project\(llmx VERSION ([0-9.]+)", re.M)
+
+
+def changelog_findings(tree):
+    """`changelog`: Unreleased opens CHANGELOG.md, each version heading is `## [X.Y.Z] - YYYY-MM-DD` and newer than the next, subsections are the kinds of change, no link is a reference link a printed section would lose, and the version CMakeLists.txt carries has notes."""
+    found = Findings()
+
+    def add(name, n, why):
+        found.add("changelog", CHANGELOG, name, n, why)
+
+    text = tree.texts.get(CHANGELOG)
+    if text is None:
+        add("missing", 1, "the release workflows print a section of CHANGELOG.md; restore it")
+        return found
+    lines = text.split("\n")
+    sections = release_notes.sections(text)
+    if not sections or sections[0][0] != release_notes.UNRELEASED or sections[0][1]:
+        add("unreleased", sections[0][2] if sections else 1, "the first section must be ## [%s], without a date" % release_notes.UNRELEASED)
+    newer = None
+    for name, date, n, body in sections:
+        version = tuple(int(v) for v in name.split(".")) if name and re.fullmatch(r"\d+\.\d+\.\d+", name) else None
+        try:
+            datetime.date.fromisoformat(date or "")
+        except ValueError:
+            date = None
+        if n != sections[0][2] and not (version and date):
+            add("heading " + lines[n - 1], n, "a release's heading is ## [X.Y.Z] - YYYY-MM-DD, a real date")
+        if version and date:
+            if newer and (version >= newer[0] or date > newer[1]):
+                add("order " + name, n, "versions go newest first, each older and no later than the one above it")
+            newer = (version, date)
+        for i, line in enumerate(body, n + 1):
+            if line.startswith("### ") and line[4:].strip() not in CHANGELOG_KINDS:
+                add("kind " + line[4:].strip(), i, "a subsection is one of " + ", ".join(CHANGELOG_KINDS))
+    for n, line in enumerate(lines, 1):
+        if re.match(r"\[[^\]]+\]:\s", line):
+            add("reference link", n, "a reference link's definition is not printed with a section; write the link inline")
+    m = CMAKE_VERSION.search(tree.texts.get("CMakeLists.txt", ""))
+    if not m:
+        add("anchor project(llmx VERSION", 1, "CMakeLists.txt no longer opens a line with project(llmx VERSION X.Y.Z; update CMAKE_VERSION")
+    elif release_notes.notes(text, m.group(1)) is None:
+        add("version " + m.group(1), 1, "CMakeLists.txt carries %s, whose release needs notes; move the Unreleased lines under ## [%s] - YYYY-MM-DD" % (m.group(1), m.group(1)))
+    return found
+
+
 def all_findings(tree, digests):
     found = {}
-    for check in (reference_findings, usage_findings, test_name_findings, src_page_findings, readme_findings):
+    for check in (reference_findings, usage_findings, test_name_findings, src_page_findings, readme_findings, changelog_findings):
         found.update(check(tree))
     found.update(comment_findings(tree, digests))
     return found
@@ -1045,8 +1101,27 @@ def planted(tree, plants):
     return copy
 
 
+def release_notes_cli_ok():
+    """The notes the release workflows print: a missing section and an empty version section fail, and an empty Unreleased section names the last release."""
+    cases = [("1.0.0", 1, ""), ("0.9.0", 1, ""), ("0.8.5", 1, ""), ("Unreleased", 0, "No changes are listed since 0.9.0.\n"), ("0.8.0", 0, "### Fixed\n\n- planted\n")]
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "CHANGELOG.md")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("# Changelog\n\n## [Unreleased]\n\n### Added\n\n## [0.9.0] - 2026-02-01\n\n## [0.8.5] - 2026-01-02\n\n### Added\n\nProse alone.\n\n"
+                    "## [0.8.0] - 2026-01-01\n\n### Fixed\n\n- planted\n")
+        ok = True
+        for section, code, printed in cases:
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                got = release_notes.main(["release_notes.py", section, path])
+            if (got, out.getvalue()) != (code, printed):
+                print("  self-test: release_notes.py %s exited %d and printed %r, not %d and %r" % (section, got, out.getvalue(), code, printed))
+                ok = False
+    return ok
+
+
 def self_test(tree, found, listed):
-    """The planted faults: a dangling path, a broken link, an unpinned line number, a command line with a flag it does not take, a script given a flag of a module it imports without handing it its arguments, a heading reference without backticks in a record, a missing heading of the same doc, a comment naming a doc that does not exist, a qualified name whose member only a string holds, a wrong flag and a wrong default in USAGE.md, a page for a file that does not exist, two CTests removed while docs/TESTS.md describes them, README rows, a flag and a doc the README check must report, and a stale list entry.
+    """The planted faults: a dangling path, a broken link, an unpinned line number, a command line with a flag it does not take, a script given a flag of a module it imports without handing it its arguments, a heading reference without backticks in a record, a missing heading of the same doc, a comment naming a doc that does not exist, a qualified name whose member only a string holds, a wrong flag and a wrong default in USAGE.md, a page for a file that does not exist, two CTests removed while docs/TESTS.md describes them, README rows, a flag and a doc the README check must report, changelog faults, and a stale list entry.
     A correct pinned line reference must give no finding.
     The faults one check reports share a copy of the tree, so each check runs once."""
     page = "docs/src/core-utf8.md"
@@ -1105,6 +1180,19 @@ def self_test(tree, found, listed):
             ("a doc the Documentation section does not reach", ("readme", README, "docs/PLANTED.md"))]),
         (readme_findings, planted(tree, [(GPU_CORE[0], GPU_CORE[1].split()[1], "x")]), [
             ("a renamed anchor in the GPU core", ("readme", README, "anchor " + GPU_CORE[1]))]),
+        (changelog_findings, planted(tree, [(CHANGELOG, "## [Unreleased]", "## [0.0.1] - 2026-01-01\n\n- planted\n\n"),
+                                            (CHANGELOG, None, "\n## 0.0.2\n\n- planted\n\n## [0.0.3] - 2026-13-45\n\n- planted\n\n## [99.0.0] - 2026-01-01\n\n### Improved\n\n- planted\n"),
+                                            (CHANGELOG, None, "\n[99.0.0]: https://example.invalid/planted\n"),
+                                            ("CMakeLists.txt", "project(llmx VERSION", "project(llmx VERSION 98.0.0 LANGUAGES CXX)\n")]), [
+            ("a changelog not opened by Unreleased", ("changelog", CHANGELOG, "unreleased")),
+            ("a release heading without its date", ("changelog", CHANGELOG, "heading ## 0.0.2")),
+            ("a release heading with an impossible date", ("changelog", CHANGELOG, "heading ## [0.0.3] - 2026-13-45")),
+            ("a version newer than the one above it", ("changelog", CHANGELOG, "order 99.0.0")),
+            ("a subsection that is no kind of change", ("changelog", CHANGELOG, "kind Improved")),
+            ("a reference link", ("changelog", CHANGELOG, "reference link")),
+            ("a release version without notes", ("changelog", CHANGELOG, "version 98.0.0"))]),
+        (changelog_findings, planted(tree, [("CMakeLists.txt", "project(llmx VERSION", "project(llmx")]), [
+            ("a moved version line in CMakeLists.txt", ("changelog", CHANGELOG, "anchor project(llmx VERSION"))]),
     ]
     ok, count = True, 2
     for check, planted_tree, faults in cases:
@@ -1123,6 +1211,9 @@ def self_test(tree, found, listed):
     other = ("readme", README, "--other-flag")
     if other in readme_findings(planted(tree, [(README, "\n## Documentation", "\nRun `python tools/x.py --other-flag`.\n\n## Documentation")])):
         print("  self-test: a flag of a python script was reported as an llmx flag")
+        ok = False
+    count += 5
+    if not release_notes_cli_ok():
         ok = False
     key = ("comment", "src/core/utf8.hpp", "wall")
     count += 3

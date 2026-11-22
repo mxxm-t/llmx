@@ -256,6 +256,7 @@ When you start (or pick up) a feature:
   prompt, so keep it current.
 - A feature lands with a test the hosted workflow runs, or its STATUS block names the hand check that covers it and says why no hosted runner can run it.
 - A bug fix lands its failing test first: a commit that adds the test, failing on the unfixed code, then the fix that makes it pass.
+- A change a user notices adds its lines under Unreleased in `CHANGELOG.md`, in plain words for someone running llmx (`docs/RELEASE.md`, The changelog).
 - A branch lands as at most two commits: the failing test, where it has one, then the change with its tests, its documentation and its STATUS entry.
   Its working commits, review fixes and checkpoints are squashed into those before it lands, so main's history holds what changed and why, not how the branch got there; a docs-only branch lands as one commit.
 - Don't invent new directions - follow the roadmap. When the feature ships,

@@ -28,7 +28,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
       # CMake's project version and the fallback config of build.bat move together (AGENTS.md, Checkpoints), and the tag names that version.
-      # A tag on a commit main does not hold builds no draft.
+      # A tag on a commit main does not hold builds no draft, and neither does a version CHANGELOG.md has no notes for.
       - id: v
         run: |
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "::error::$GITHUB_SHA is not on main"; exit 1; }
@@ -36,7 +36,8 @@ jobs:
           cmake_version=$(sed -n 's/^project(llmx VERSION \([0-9.]*\) .*/\1/p' CMakeLists.txt)
           config_version=$(sed -n 's/^#define LLMX_RELEASE_VERSION "\(.*\)"/\1/p' src/config.hpp)
           echo "tag $tag, CMakeLists.txt $cmake_version, src/config.hpp $config_version"
-          [ "$tag" = "$cmake_version" ] && [ "$tag" = "$config_version" ]
+          [ "$tag" = "$cmake_version" ] && [ "$tag" = "$config_version" ] || exit 1
+          python3 tools/release_notes.py "$tag" > /dev/null
           echo "version=$tag" >> "$GITHUB_OUTPUT"
 
   build:
@@ -75,6 +76,7 @@ jobs:
         run: |
           echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           bash docker/release/images.sh tag "${{ needs.version.outputs.version }}" $REFS
+      # The notes open with the version's section of CHANGELOG.md, and the step fails without one.
       - name: Create the draft
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -82,6 +84,8 @@ jobs:
           version="${{ needs.version.outputs.version }}"
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
           {
+            python3 tools/release_notes.py "$version"
+            echo
             echo "Downloads: the Linux x86_64 tarball (CPU, Vulkan and ROCm in one binary), the Windows x64 zip (CPU and Vulkan), both with the chat companion and the health dashboard, and SHA256SUMS."
             echo
             echo "Images: \`$image:$version-vulkan\`, \`$image:$version-rocm7\` and the chat companion's \`$image:chat-$version\`."

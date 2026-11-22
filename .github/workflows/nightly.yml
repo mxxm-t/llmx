@@ -80,6 +80,10 @@ jobs:
           {
             echo "A build of main at $GITHUB_SHA, \`llmx $version\`, replaced in place by every push to main. It is not a release: no smoke run checks it."
             echo
+            echo "Changes since the last release, from the Unreleased section of CHANGELOG.md:"
+            echo
+            python3 tools/release_notes.py Unreleased
+            echo
             echo "Downloads: the Linux x86_64 tarball (CPU, Vulkan and ROCm in one binary), the Windows x64 zip (CPU and Vulkan), both with the chat companion and the health dashboard, and SHA256SUMS."
             echo
             echo "Images: \`$image:nightly-vulkan\`, \`$image:nightly-rocm7\` and the chat companion's \`$image:nightly-chat\`."

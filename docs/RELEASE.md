@@ -2,7 +2,7 @@
 
 A release is a version tag on a gated `main` commit.
 `.github/workflows/release.yml` builds its downloads and images from that tag and leaves them in a draft release; the owner publishes the draft once the device smoke runs below have passed.
-This page says what each artifact holds, how to cut a release, what to check before publishing it, how the nightly channel follows `main`, and which repository secrets the signing steps read.
+This page says what each artifact holds, how the changelog is kept, how to cut a release, what to check before publishing it, how the nightly channel follows `main`, and which repository secrets the signing steps read.
 
 ## What a release holds
 
@@ -70,15 +70,26 @@ While the release is a draft only the versioned tags exist, and they can already
 Publishing it adds the floating tags `vulkan`, `rocm7` and `chat` and copies all six to Docker Hub, by digest, when its secrets are set.
 An image for ROCm 10 and a CUDA image come with later releases.
 
+## The changelog
+
+[`CHANGELOG.md`](../CHANGELOG.md) lists what each release changed for its users, newest first, in the style of Keep a Changelog: a `## [Unreleased]` section on top, then one `## [X.Y.Z] - YYYY-MM-DD` section per release, each with `### Added`, `### Changed`, `### Deprecated`, `### Removed`, `### Fixed` or `### Security` subsections.
+It is written for someone running llmx: what they can do now, or what behaves differently, in plain words, without branch names, internal tests or measurements of the gates.
+
+- **Each landing adds its lines.** A change a user notices adds a line under Unreleased in the commit that lands it; a change nobody outside the project notices adds none. No check sees a missing line, so review holds it.
+- **The release moves them.** The branch that sets a new version (Cutting a release, below) moves the Unreleased lines under `## [X.Y.Z]` with the date of the tag and leaves Unreleased empty.
+- **The notes are its sections.** `tools/release_notes.py X.Y.Z` prints a version's section, which opens the release's notes above its downloads; it fails for a version without a section, or whose section lists no `- ` entry, and so does the release workflow's first job, before any build.
+  The nightly pre-release's notes give the Unreleased section, or name the last release when it is empty.
+- **The docs check holds its form.** The `changelog` check of the `docs` component ([TESTS](TESTS.md)) fails a changelog that Unreleased does not open, a version heading of another form or out of order, another kind of subsection, a reference-style link, which a printed section would lose, and a `CMakeLists.txt` version without notes, so a version change that forgot the changelog fails at landing, not at the tag.
+
 ## Cutting a release
 
 1. Pick a `main` commit whose landing gates passed ([STATUS](STATUS.md)) and whose hosted run is green.
-2. On a branch off it, set the version in both places the build reads (AGENTS.md, Checkpoints): `project(llmx VERSION X.Y.Z ...)` in `CMakeLists.txt` and `LLMX_RELEASE_VERSION` in `src/config.hpp`.
+2. On a branch off it, set the version in both places the build reads (AGENTS.md, Checkpoints): `project(llmx VERSION X.Y.Z ...)` in `CMakeLists.txt` and `LLMX_RELEASE_VERSION` in `src/config.hpp`, and move the Unreleased lines of `CHANGELOG.md` under `## [X.Y.Z] - YYYY-MM-DD` (The changelog, above).
    This change is docs-and-version only and lands like any other branch.
 3. Tag the landed commit `vX.Y.Z` and push the tag to GitHub.
-   The workflow's first job refuses a tag on a commit `main` does not hold or that differs from either version, and the build scripts refuse a binary whose `--version` lacks the commit or reports a dirty tree.
+   The workflow's first job refuses a tag on a commit `main` does not hold, that differs from either version or whose version has no notes in `CHANGELOG.md`, and the build scripts refuse a binary whose `--version` lacks the commit or reports a dirty tree.
    The Linux job's 180-minute limit is twice an estimate: it stays untimed on a hosted runner until the first tag run, which is best pushed to a test repository first.
-4. The workflow's jobs, which `.github/workflows/release-build.yml` holds for this workflow and the nightly one, build the tarball, the zip and the three images and push the images to GHCR by digest, signing what they have keys for and writing `SHA256SUMS`; the `draft` job gives the images their versioned tags and creates the draft release with every file attached and the images' digests in its notes.
+4. The workflow's jobs, which `.github/workflows/release-build.yml` holds for this workflow and the nightly one, build the tarball, the zip and the three images and push the images to GHCR by digest, signing what they have keys for and writing `SHA256SUMS`; the `draft` job gives the images their versioned tags and creates the draft release with every file attached, and the version's changelog section and the images' digests in its notes.
 5. Run the smoke checklist below on the draft's files.
 6. The owner publishes the draft, which runs the workflow's `publish` job.
 
@@ -121,6 +132,7 @@ Every push to `main` on GitHub rebuilds one pre-release, `nightly`, in place: `.
 - **A newer push cancels an older build.** Its images then carry no tag, since a build pushes them by digest alone; the publish job tags them, mirrors them and replaces the files only while `main` still points at its commit, and in a concurrency group no push cancels, so the channel never moves backwards and never stops half replaced.
   While the files are replaced, for under a minute, `SHA256SUMS` may name the previous archives.
 - **No smoke run checks it:** a nightly build has passed the landing gates of its commit, not the smoke checklist above.
+- **Its notes list what is not yet released:** the Unreleased section of `CHANGELOG.md` (The changelog, above).
 - **A manual run on another branch** (`workflow_dispatch`) builds every file and image and publishes nothing; a fork or the Gitea mirror runs none of it.
 
 ## Signing keys

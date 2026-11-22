@@ -10,6 +10,17 @@
 - **Left:** feeding the reasoning while it is written (the writing trigger still waits for `</think>`), and the first turn of a client that leaves reasoning out under such a template, which reads its content again once (ideas.md).
 - **Landing:** fast-forward.
 
+## Changelog
+
+**Goal.** A user-facing `CHANGELOG.md` whose sections are the release notes: a version release's notes open with its section, and the nightly pre-release's give Unreleased ([RELEASE](RELEASE.md#the-changelog)).
+
+**Done.** `CHANGELOG.md` holds 0.2.0 and the changes landed on `main` since the `v0.2.0` tag; `tools/release_notes.py` prints a section and fails for a missing or empty version section, and `release.yml` runs it in its first job and in the draft's notes, `nightly.yml` in the nightly notes.
+The `docs` component's new `changelog` check holds the file's form and requires notes for the version `CMakeLists.txt` carries, with planted faults and the script's exit codes in its self-test; AGENTS.md asks each user-visible landing for its Unreleased lines.
+
+**Depends on.** PR 550 (`feat/nightly-channel`), which adds `nightly.yml` and splits the release workflow; this branch stacks on it and lands after it or with it.
+
+**Landing.** Workflow, tool and docs change: the `docs` and `dead-code` components, actionlint and shellcheck over the workflows, and a dry run of `tools/release_notes.py` on 0.2.0 and Unreleased; lands by fast-forward.
+
 ## Nightly channel and companion release files
 
 **Goal.** Every push to `main` rebuilds one `nightly` pre-release in place with a release's files and images, and every release, versioned or nightly, ships the chat companion and the health dashboard in its archives and as the `chat` image ([RELEASE](RELEASE.md#the-nightly-channel)).

@@ -214,6 +214,7 @@ A device without the asked form runs the next wider one and says so ([PRECISION]
 ## Documentation
 
 For users:
+- [CHANGELOG](CHANGELOG.md): what each release changed.
 - [USAGE](docs/USAGE.md): every command and flag.
 - [OPERATING](docs/OPERATING.md): running a server, reading its health, fixing problems.
 - [SERVER](docs/SERVER.md): how the server schedules users, and its cache.

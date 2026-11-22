@@ -292,6 +292,7 @@ delegated to a `backend::Backend`.
     device of its part, and a tensor two roles take on one device is adopted
     there once, which is how a tied head beside the embedding reads the
     embedding's buffer and how each tensor reaches each backend at most once.
+    A member's shard, or a role's run of rows, is a buffer of its own, kept by tensor and device so roles of several layers that hold the same bytes of a tensor (`shard::same`) share one, its F8_E4M3 grid with it.
     A tensor no role takes is never read, so an unused scalar or empty F32
     tensor, and views that share bytes, are accepted.
     A CPU backend starts its worker pool on its first parallel dispatch, so a fresh one has started no threads when these checks run.

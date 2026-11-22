@@ -72,6 +72,13 @@ Images are pushed by digest alone and tagged only by the run that publishes them
 - **Left:** a long (over 8192 tokens) row for the window bound and golden drafts from it through the numpy port; taps on qwen35; the Radeon VII run of `backend-vulkan --dspine`; the CUDA checks; the block on ROCm end to end against the CPU golden; the refinement tail's steps batched; tensor group parts; tests (pairing refusals); the drafting set.
 - **Gotchas:** the drafter ropes all 128 dims of a head (sections 64,0,0,0) where the target ropes 64 of 256, so it needs rope tables of its own; a block of 16 drafts needs marks of at least 17 rows for qwen35's recurrent layers; the reference orders candidates by id, which only decides ties; the window counts back from each query, block rows included.
 
+## Tensors shared by several layers in the fit and the shards
+
+- **Goal:** the contract step of Inkling-2-Mini (its design on feat/inkling2, gitea PR 551, section 7 step 2): a tensor several layers take is counted once by the fit and held once by each tensor-group member, and no split point falls between layers that take one tensor. No other model has such a tensor, so their placements and bytes do not change.
+- **Done:** `footprint` charges each tensor to the first layer that takes it and names it in `Footprint::joined` at the later layers of its span; `split_layers` places no split point there, refuses shares that would, and takes fewer stage rounds; `resolve_tensors` keeps each shard or run of rows by tensor and device (`shard::same`). Test first: `shared_tensors_fit` in `tests/placement.cpp`.
+- **Left:** the landing gates for model and placement code: Qwen3-0.6B CPU ids against main, CTest and the CPU suite (pve1), a device suite and the timing round with the landing stack.
+- **Gotchas:** the rule is generic, so an architecture that shares one small tensor across every layer would keep the whole model on one device; the refusal names the tensor. A split of sharers placed by hand, not by the fit, still runs, each device adopting the tensor once.
+
 ## Request capacity freshness in Monitor
 
 - The production dashboard showed CURRENT STATE after its inference server stopped. Request capacity now marks the retained counts as LAST SAMPLE and distinguishes pausing the view from paused scheduler work.

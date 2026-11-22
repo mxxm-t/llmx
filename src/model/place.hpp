@@ -74,6 +74,9 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
     Footprint fp;
     fp.layers.resize(plan.layers.size());
     fp.lookups.resize(plan.layers.size());
+    // Each tensor is counted once, by the first layer that takes it, as the runtime adopts it once a device: owner[t] is that layer and its entry, last[t] the last layer that takes it.
+    std::vector<std::pair<size_t, size_t>> owner(weights.tensors.size(), {SIZE_MAX, 0});
+    std::vector<size_t> last(weights.tensors.size(), 0);
     for (size_t l = 0; l < plan.layers.size(); ++l) {
         std::vector<std::pair<size_t, const Role*>> taken;
         const LayerPlan& layer = plan.layers[l];
@@ -94,15 +97,24 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
             if (role.tensor && role.kind != RoleKind::source && !(lookup_role == &role && weights.tensors[*role.tensor].row_source))
                 taken.push_back({*role.tensor, &role});
         std::stable_sort(taken.begin(), taken.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
-        for (size_t k = 0; k < taken.size(); ++k) {
-            const bool product = taken[k].second->kind == RoleKind::matrix;
-            if (k && taken[k].first == taken[k - 1].first) {
-                fp.layers[l].back().product = fp.layers[l].back().product || product;
+        for (const auto& [t, role] : taken) {
+            const bool product = role->kind == RoleKind::matrix;
+            last[t] = l;
+            if (owner[t].first != SIZE_MAX) {
+                Matrix& counted = fp.layers[owner[t].first][owner[t].second];
+                counted.product = counted.product || product;
                 continue;
             }
-            fp.layers[l].push_back(matrix(taken[k].first, product, taken[k].second));
+            owner[t] = {l, fp.layers[l].size()};
+            fp.layers[l].push_back(matrix(t, product, role));
         }
     }
+    // No split point falls between two layers that take one tensor (split_layers): each later layer of its span names it.
+    fp.joined.assign(plan.layers.size(), std::string());
+    for (size_t t = 0; t < owner.size(); ++t)
+        if (owner[t].first != SIZE_MAX)
+            for (size_t l = owner[t].first + 1; l <= last[t]; ++l)
+                if (fp.joined[l].empty()) fp.joined[l] = weights.tensors[t].name;
     std::vector<const Matrix*> counted;
     bool head_output = false, head_norm = false;
     for (size_t i = 0; i < plan.pass.size(); ++i) {

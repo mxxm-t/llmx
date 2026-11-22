@@ -202,6 +202,16 @@ inline void zero_runs(const Held& h, F f) {
     }
 }
 
+// Whether two copies hold the same bytes of one tensor, so one buffer serves both.
+inline bool same(const Held& a, const Held& b) {
+    const auto span = [](const Span& x, const Span& y) { return x.begin == y.begin && x.count == y.count; };
+    const auto part = [&](const Part& x, const Part& y) { return span(x.own, y.own) && span(x.cover, y.cover); };
+    const auto run = [](const Run& x, const Run& y) { return x.from == y.from && x.bytes == y.bytes && x.to == y.to && x.zero == y.zero; };
+    return a.axis == b.axis && a.bytes == b.bytes && a.row == b.row && a.packed_row == b.packed_row && a.rows == b.rows &&
+           std::equal(a.parts.begin(), a.parts.end(), b.parts.begin(), b.parts.end(), part) &&
+           std::equal(a.columns.begin(), a.columns.end(), b.columns.begin(), b.columns.end(), run);
+}
+
 // A member's packed copy of a tensor whose bytes are at `src`, into `dst`, which holds h.bytes.
 inline void pack(const Held& h, const uint8_t* src, uint8_t* dst) {
     file_runs(h, 0, SIZE_MAX, [&](const Run& r) { std::memcpy(dst + r.to, src + r.from, r.bytes); });

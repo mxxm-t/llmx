@@ -16,6 +16,7 @@
 #include <optional>
 #include <condition_variable>
 #include <deque>
+#include <map>
 #include <mutex>
 #include <thread>
 
@@ -1724,6 +1725,13 @@ private:
     void resolve_tensors(const ModelWeights& weights, const AdoptWeight& adopt) {
         const size_t n_devices = devices_.size();
         std::vector<backend::BufferPtr> taken(weights.tensors.size() * n_devices);
+        // Each copy of part of a tensor made for a device, kept by tensor and device so roles of several layers that read the same part share one buffer, as take shares a whole tensor.
+        struct Kept {
+            shard::Held held;
+            backend::BufferPtr data, scales;
+            size_t scale_count = 0;
+        };
+        std::map<std::pair<size_t, size_t>, std::vector<Kept>> kept;
         // A failed later adoption must drain while this local cache still owns earlier scale uploads.
         struct Pending {
             Model& model;
@@ -1767,16 +1775,23 @@ private:
                     return b.adopt(packed_.back().data(), packed_.back().size());
                 };
                 const shard::Held held = shard::held(role, t, width_, member);
-                backend::BufferPtr buffer = hold(i, held);
-                // An F8_E4M3 shard takes the part of its grid over the rows and inputs it holds (shard::grid).
-                if (weight.scale_count && t.type == quant::GGML_TYPE_F8_E4M3) {
-                    const shard::Held grid = shard::grid(held, t, weight.scale_shift);
-                    weight.scales = hold(*t.scale, grid);
-                    weight.scale_count = grid.bytes / sizeof(float);
+                std::vector<Kept>& copies = kept[{i, device + member}];
+                auto copy = std::find_if(copies.begin(), copies.end(), [&](const Kept& k) { return shard::same(k.held, held); });
+                if (copy == copies.end()) {
+                    Kept made{held, hold(i, held), weight.scales, weight.scale_count};
+                    // An F8_E4M3 shard takes the part of its grid over the rows and inputs it holds (shard::grid).
+                    if (weight.scale_count && t.type == quant::GGML_TYPE_F8_E4M3) {
+                        const shard::Held grid = shard::grid(held, t, weight.scale_shift);
+                        made.scales = hold(*t.scale, grid);
+                        made.scale_count = grid.bytes / sizeof(float);
+                    }
+                    copy = copies.insert(copies.end(), std::move(made));
                 }
                 const size_t n = (size_t)shard::share(role, width_, member);
                 const bool rows = role.shard.axis == Axis::rows;
-                weight.data = std::move(buffer);
+                weight.data = copy->data;
+                weight.scales = copy->scales;
+                weight.scale_count = copy->scale_count;
                 weight.nin = rows ? size_t(role.in) : n;
                 weight.nout = rows ? n : size_t(role.out);
             } else {

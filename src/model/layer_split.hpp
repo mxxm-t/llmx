@@ -31,7 +31,8 @@ struct LookupMemory {
 
 // What a model asks of the memory of the devices it runs on, part by part; an architecture computes it from its file and options.
 struct Footprint {
-    std::vector<std::vector<Matrix>> layers;   // each layer's weights
+    std::vector<std::vector<Matrix>> layers;   // each layer's weights, a tensor several layers take counted by the first
+    std::vector<std::string> joined;           // for each layer, a tensor it and an earlier layer take, so no split point falls before it; empty where none does
     std::vector<LookupMemory> lookups;         // optional external lookup storage, aligned with layers
     Matrix embedding;                          // the embedding table
     Matrix output;                             // the head's matrix, the embedding table itself when tied
@@ -376,6 +377,12 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
 
     std::vector<int> count(N, 0);
     std::vector<int> drafts(N, 0);
+    // What a split point before layer i would put on two devices: a tensor layers on both sides take, or none.
+    const auto joined = [&](size_t i) -> const std::string* { return i < L && i < fp.joined.size() && !fp.joined[i].empty() ? &fp.joined[i] : nullptr; };
+    const auto refuse_cut = [&](size_t i, const char* what) {
+        if (const std::string* t = joined(i))
+            throw std::runtime_error(std::string("split: ") + what + " put a split point before layer " + std::to_string(i) + ", and layers on both sides of it take " + *t);
+    };
     if (!shares.empty()) {
         // Shares are proportions: each device's layers are its share of the total, rounded so the counts add to the model's layers, the remainders going to the largest fractions first.
         size_t sum = 0;
@@ -389,6 +396,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
         }
         std::stable_sort(fraction.begin(), fraction.end(), [](const auto& x, const auto& y) { return x.first > y.first; });
         for (size_t i = 0; given < L; ++i, ++given) ++count[fraction[i].second];
+        for (size_t d = 0, at = 0; d < N; ++d) refuse_cut(at += (size_t)count[d], "the layer shares");
     }
     {
         // A plan ranks by its layers on devices that read in place, its busiest device's layers (a pipeline's pace), its devices holding drafter stages apart from the head, then the busiest device's bytes (docs/src/model-layer_split.md).
@@ -430,6 +438,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
                             const size_t k0 = !shares.empty() ? (size_t)fixed[d] : last ? L - i : 1, k1 = !shares.empty() ? (size_t)fixed[d] : L - i;
                             for (size_t k = k0; k >= 1 && k <= k1 && i + k <= L; ++k) {
                                 if (last && i + k != L) break;
+                                if (joined(i + k)) continue;
                                 const size_t base = need(d, i, k, first, last, h);
                                 if (!fits(d, base)) break;
                                 for (size_t n = last ? S - t : 0; t + n <= S; ++n) {
@@ -521,6 +530,8 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
         const auto runs = round_runs(count, R);
         const Host h = host_for(used, R);
         bool ok = host_fits(h);
+        for (const auto& device_runs : runs)
+            for (const auto& run : device_runs) ok = ok && !joined((size_t)run.first);
         LayerSplit::Stage scratch;
         for (size_t d : used) ok = ok && fits(d, hold(d, runs[d], h, scratch));
         if (ok) break;

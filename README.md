@@ -68,13 +68,13 @@ The speed figures are being measured again on the released code and will be publ
 
 - **Download** the Linux or Windows archive from the [releases page](https://github.com/mxxm-t/llmx/releases) and check it against `SHA256SUMS`.
   The Linux binary needs glibc 2.35 or later; GPUs need the Vulkan driver or the ROCm 7 runtime the system already has.
-- **Docker:** the `ghcr.io/mxxm-t/llmx:X.Y.Z-vulkan` and `ghcr.io/mxxm-t/llmx:X.Y.Z-rocm7` images run `llmx`; give them the GPU and serve on all addresses ([RELEASE](docs/RELEASE.md)):
+- **Docker:** the `ghcr.io/mxxm-t/llmx:X.Y.Z-vulkan` and `ghcr.io/mxxm-t/llmx:X.Y.Z-rocm7` images run `llmx`. These examples make the API available locally at `http://127.0.0.1:8080/v1`. For clients on other machines, see the [key-file example](docs/RELEASE.md#what-a-release-holds).
 
   ```sh
-  docker run --rm --device /dev/dri --group-add "$(getent group render | cut -d: -f3)" -v /path/to/models:/models -p 8080:8080 \
-    ghcr.io/mxxm-t/llmx:X.Y.Z-vulkan serve /models/model.gguf --device vulkan:0 --host 0.0.0.0
-  docker run --rm --device /dev/kfd --device /dev/dri --group-add "$(getent group render | cut -d: -f3)" -v /path/to/models:/models -p 8080:8080 \
-    ghcr.io/mxxm-t/llmx:X.Y.Z-rocm7 serve /models/model.gguf --device rocm:0 --host 0.0.0.0
+  docker run --rm --device /dev/dri --group-add "$(getent group render | cut -d: -f3)" -v /path/to/models:/models -p 127.0.0.1:8080:8080 \
+    ghcr.io/mxxm-t/llmx:X.Y.Z-vulkan serve /models/model.gguf --device vulkan:0 --host 0.0.0.0 --no-auth
+  docker run --rm --device /dev/kfd --device /dev/dri --group-add "$(getent group render | cut -d: -f3)" -v /path/to/models:/models -p 127.0.0.1:8080:8080 \
+    ghcr.io/mxxm-t/llmx:X.Y.Z-rocm7 serve /models/model.gguf --device rocm:0 --host 0.0.0.0 --no-auth
   ```
 
 ### Build

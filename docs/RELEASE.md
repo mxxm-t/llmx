@@ -28,15 +28,15 @@ The ROCm kernels are embedded for the default list of AMD architectures, gfx906 
 
 **The images** hold the tarball's binary itself, so every Linux artifact runs the same bytes.
 Their entry point is `llmx`, so the arguments of `docker run` are its command line.
-The server listens on `127.0.0.1` unless told otherwise, so serving from a container needs `--host 0.0.0.0`:
+To serve clients on other machines, bind to `0.0.0.0` inside the container and publish its port. Create a private key file on the host with one randomly generated bearer key per line, then mount it read-only. Clients send the key in the `Authorization` header as described in [Server authentication](SERVER.md#authentication).
 
 ```sh
 docker run --rm --device /dev/dri --group-add "$(getent group render | cut -d: -f3)" \
-  -v /path/to/models:/models -p 8080:8080 \
-  ghcr.io/mxxm-t/llmx:X.Y.Z-vulkan serve /models/model.gguf --device vulkan:0 --host 0.0.0.0
+  -v /path/to/models:/models -v /path/to/llmx.keys:/run/llmx.keys:ro -p 8080:8080 \
+  ghcr.io/mxxm-t/llmx:X.Y.Z-vulkan serve /models/model.gguf --device vulkan:0 --host 0.0.0.0 --api-key-file /run/llmx.keys
 docker run --rm --device /dev/kfd --device /dev/dri --group-add "$(getent group render | cut -d: -f3)" \
-  -v /path/to/models:/models -p 8080:8080 \
-  ghcr.io/mxxm-t/llmx:X.Y.Z-rocm7 serve /models/model.gguf --device rocm:0 --host 0.0.0.0
+  -v /path/to/models:/models -v /path/to/llmx.keys:/run/llmx.keys:ro -p 8080:8080 \
+  ghcr.io/mxxm-t/llmx:X.Y.Z-rocm7 serve /models/model.gguf --device rocm:0 --host 0.0.0.0 --api-key-file /run/llmx.keys
 ```
 
 While the release is a draft only the versioned tags exist, and they can already be pulled from GHCR before the smoke runs: a draft keeps the release unpublished, not those two tags.

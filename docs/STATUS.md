@@ -593,6 +593,21 @@ A saved tool result opens the latest file in the editor or resumes unsaved chang
   The layer split (width 1, 64 heads a card, so the 64-head build) is flat: main 2134.63 and 2132.32, the branch 2137.03 and 2138.29.
 - **Left:** `backend-cuda sparse_tile_pair` at the next CUDA card session, the suite on a device and the hosted run at the landing head; README unchanged (kernel speed only).
 - **Gotchas:** the 64-head and 32-head builds decode the same 640 kept rows a query row, so halving the heads does not halve the pair: Fable's fit of the 128- and 512-row slopes puts about 1.7 ms of the 4.91 in the per-row decode and staging, the target for a decoded-once copy of the kept rows.
+## placement's pipelined cut under host load (2026-11-22, TFIX1 to TFIX3, branch fix/placement-device-times on main d85448509; tests and docs only, lands by fast-forward as one commit)
+
+**Goal.** `placement` stopped failing "a pipelined prompt's cut did not follow its stages' own lines" when the host is loaded, with no placement bug behind it.
+
+**Done.** `TimedCpu` in `tests/placement.cpp` still spins each submission for its line's time, and now reports that time through `busy_ms` as a device's timestamps would, so a stalled host thread no longer moves the measured prices the cut is chosen from. A negative control times both stages at one line and must miss the 2% bound, so the check still tells the lines apart. docs/TESTS.md says so.
+
+| placement on pve1, 2 cores beside 6 spinning threads, 8 interleaved runs each | main c231b8ecc | fix |
+|---|---|---|
+| runs passing | 5 of 8 (3 fail at the cut check) | 8 of 8 (1229 checks) |
+
+The job log is `/opt/claude-work/offload/out/20261122-163638-TFIX2-6964/job.log` on the rig.
+
+**Left.** Nothing for this change.
+
+**Gotchas.** The failure needs contention; idle runs pass on main.
 ## server-resume-cache's two racing cases (2026-11-21, RESFLK1 then RESFLK2, branch fix/server-resume-race on main c494eea6f; tests, CMake and docs only, lands by fast-forward as one commit)
 
 **Goal.** server-resume-cache stopped failing one run in a few, at the at_once arm of boundary_is_not_a_history and at keeps_paused_donor, with no server bug behind either.

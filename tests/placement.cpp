@@ -1251,34 +1251,48 @@ void pipelined_slicings_match() {
     }
 }
 
-// A stage playing a device that holds each submission fixed_ms and row_ms a row of its widest matmul, spun on its thread so the CPU's own busy time (Backend::busy_ms) measures it; `cut` collects those rows.
+// A stage playing a device: each submission spins `line`'s time for its widest matmul, and busy_ms reports `reported`'s, as device timestamps would, so host load moves no price; `cut` collects those rows.
 struct TimedCpu : FailingCpu {
-    infer::StageLine line;
+    infer::StageLine line, reported;
     size_t rows = 0;
     std::vector<size_t> cut;
-    explicit TimedCpu(infer::StageLine l) : line(l) { plays_device = true; }
+    std::mutex busy_mutex;
+    std::vector<double> busy{0.0};   // by ticket, the reported time of every submission up to it
+    TimedCpu(infer::StageLine l, infer::StageLine r) : line(l), reported(r) { plays_device = true; }
+    explicit TimedCpu(infer::StageLine l) : TimedCpu(l, l) {}
     void matmul(backend::WeightView weight, backend::CSlice x, backend::Slice y,
                 size_t nin, size_t nout, size_t nbatch, backend::RowRuns runs = {}, backend::Dtype dtype = backend::Dtype::f16) override {
         rows = std::max(rows, nbatch);
         FailingCpu::matmul(weight, x, y, nin, nout, nbatch, runs, dtype);
     }
     backend::Ticket submit() override {
+        double ms = 0;
         if (rows) {
             cut.push_back(rows);
+            ms = reported.at(rows);
             const auto until = std::chrono::steady_clock::now() + std::chrono::duration<double, std::milli>(line.at(std::exchange(rows, 0)));
             while (std::chrono::steady_clock::now() < until) std::this_thread::yield();
         }
-        return FailingCpu::submit();
+        {
+            std::lock_guard<std::mutex> lk(busy_mutex);
+            busy.push_back(busy.back() + ms);
+        }
+        const backend::Ticket t = FailingCpu::submit();
+        require(t + 1 == busy.size(), "a timed stage's tickets were not one a submission");
+        return t;
+    }
+    double busy_ms(backend::Ticket a, backend::Ticket b) override {
+        std::lock_guard<std::mutex> lk(busy_mutex);
+        return a <= b && b < busy.size() ? busy[b] - busy[a] : -1.0;
     }
 };
 
 // A heavy first stage and a lighter last one, each its own line: after a few prefills a 240-row prompt's cut at a 48-row ubatch finishes within 2% of the best cut found of a first slice and a ratio between slices, priced by those lines.
-// One line copied to both stages prices them as one flow shop of equal stages, whose equal cut leaves the light stage a long drain.
-void pipelined_cut_follows_stage_lines() {
+// One line copied to both stages (`reported`, the lines the stages are timed at) prices them as one flow shop of equal stages, whose equal cut leaves the light stage a long drain and must miss the bound.
+bool pipelined_cut_within(const std::vector<infer::StageLine>& truth, const std::vector<infer::StageLine>& reported) {
     const auto weights = tiny_qwen(3, 2 * 128, true);
-    const std::vector<infer::StageLine> truth{{4, 1.0}, {4, 0.5}};
-    auto first = std::make_shared<TimedCpu>(truth[0]);
-    infer::PlacedModel placed = pipelined(weights, {first, std::make_shared<TimedCpu>(truth[1])}, {1, 2});
+    auto first = std::make_shared<TimedCpu>(truth[0], reported[0]);
+    infer::PlacedModel placed = pipelined(weights, {first, std::make_shared<TimedCpu>(truth[1], reported[1])}, {1, 2});
     infer::Model& split = *placed.model;
     const size_t cap = 48;
     std::vector<uint32_t> prompt(240);
@@ -1305,8 +1319,15 @@ void pipelined_cut_follows_stage_lines() {
             }
             best = std::min(best, finish(cut));
         }
-    require(first->cut.size() == split.prefill_slices() && finish(first->cut) <= 1.02 * best, "a pipelined prompt's cut did not follow its stages' own lines");
-    ++checked;
+    require(first->cut.size() == split.prefill_slices(), "a pipelined prompt's slices were not the cut its first stage ran");
+    return finish(first->cut) <= 1.02 * best;
+}
+
+void pipelined_cut_follows_stage_lines() {
+    const std::vector<infer::StageLine> truth{{4, 1.0}, {4, 0.5}};
+    require(pipelined_cut_within(truth, truth), "a pipelined prompt's cut did not follow its stages' own lines");
+    require(!pipelined_cut_within(truth, {truth[1], truth[1]}), "a cut priced at one line for both stages met the bound, so the check cannot tell the lines apart");
+    checked += 2;
 }
 
 // A backend on the last stage fails while the first stage is chunks ahead, on top of a history: at its first attention on chunk 2 of 5, and at the head on the last chunk, the unpriced cut being 3, 1, 3, 3 and 3 rows.

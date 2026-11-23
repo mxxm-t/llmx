@@ -1,5 +1,15 @@
 # llmx - Development Status
 
+## CUDA sm_90 spill of the pushing held Q8_0 build (2026-11-23, SASS1, branch fix/cuda-sm90-held-push on main bfb7f517e)
+
+- **Goal:** the CUDA CTest `cuda-sass` passes on main again. It failed with `no kernel spills to local memory outside the listed families: llmx_q8_0_half8_1h4p on sm_90`.
+- **Cause:** the pushing held builds came in with the tile push, whose hosted CI builds no CUDA. On sm_90 at CUDA 12.9 ptxas capped `llmx_q8_0_half8_1h4p` at 48 registers, five blocks an SM, and spilled two body words (8 bytes stored, 12 loaded), where the pushless `llmx_q8_0_half8_1h4` takes 54 registers and four blocks without a spill.
+- **Done:** `LLMX_HELD_PUSH` takes `LLMX_TILE8_BOUNDS(4)`, which asks CUDA for four blocks an SM, a cap of 64 registers, and is the 256-thread bound alone on HIP, so the ROCm kernels are the same text after the macro.
+  ptxas on sm_90 gives h2p 40, h3p 48, h4p 61 and h5p 63 registers, none with a stack frame, and no arithmetic changes.
+  Tried and not taken: `__launch_bounds__(kThreads, 5)` still spilled 4 bytes at 48 registers, and `__maxnreg__(56)` did not spill but drops the 256-thread bound.
+- **Gates:** the CUDA build with `cuda-sass`, `gpu-core`, `gpu-port` and `cuda-driver`, the failing run on main being the failing test; `rocm-isa` and the gfx906 code objects of the pushing builds against main's; `docs` and `dead-code`. The Windows Vulkan build does not compile `kernels/int16.gpu`.
+- **Left:** no card has timed the pushing builds on CUDA, where the four-block cap may cost occupancy.
+
 ## A chat reply read again with the reasoning its client sends back
 
 - **Goal:** a follow-up turn that sends the reply's reasoning back reuses the reply. Production on 2026-11-22 (0.2.0, Qwen3.8-27B Q8_0, the chat companion) reused nothing of a 29000-token follow-up: `the closest held history agrees for 59 tokens (message 2 of 3, assistant), limited by tokens at 59`.

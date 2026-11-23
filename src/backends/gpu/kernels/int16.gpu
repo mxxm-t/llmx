@@ -2861,7 +2861,7 @@ LLMX_HELD(llmx_q8_0_half8_1h3, 3)
 LLMX_HELD(llmx_q8_0_half8_1h4, 4)
 LLMX_HELD(llmx_q8_0_half8_1h5, 5)
 // The held builds that also push the call's rows to the tensor group's peers (held_push).
-#define LLMX_HELD_PUSH(name, NS) extern "C" __global__ void __launch_bounds__(kThreads) name(RowCall c, const signed char* q, const float* dx, unsigned long long nin, int ncols, int add, GroupTail t) { q8_0_half_held<NS>(c, q, dx, nin, add); held_push(c, t); }
+#define LLMX_HELD_PUSH(name, NS) extern "C" __global__ void LLMX_TILE8_BOUNDS(4) name(RowCall c, const signed char* q, const float* dx, unsigned long long nin, int ncols, int add, GroupTail t) { q8_0_half_held<NS>(c, q, dx, nin, add); held_push(c, t); }
 LLMX_HELD_PUSH(llmx_q8_0_half8_1h2p, 2)
 LLMX_HELD_PUSH(llmx_q8_0_half8_1h3p, 3)
 LLMX_HELD_PUSH(llmx_q8_0_half8_1h4p, 4)

@@ -139,6 +139,7 @@ inline void VulkanBackend::attention(CSlice Q, size_t layer, const KVView* views
     for (const Placed& pv : placed) {
         if (!pv.view->nq) throw std::runtime_error("vulkan: invalid attention dimensions");
         if (pv.view->causal == full) throw std::runtime_error("vulkan: causal and non-causal views in one attention call");
+        if (pv.view->window && full) throw std::runtime_error("vulkan: a window on a non-causal view");
     }
     const size_t qstride = (size_t)n_head * head_dim;
     const float scale = 1.0f / std::sqrt((float)head_dim);
@@ -174,7 +175,7 @@ inline void VulkanBackend::attention(CSlice Q, size_t layer, const KVView* views
     std::vector<Placed> wide, narrow;
     for (const Placed& pv : placed) {
         const size_t extent = pv.view->extent ? pv.view->extent : pv.view->nq;
-        (!full && extent >= dev_->profile.attention_tile_rows && (head_dim == 128 || head_dim == 256) ? wide : narrow).push_back(pv);
+        (!full && !pv.view->window && extent >= dev_->profile.attention_tile_rows && (head_dim == 128 || head_dim == 256) ? wide : narrow).push_back(pv);
     }
     if (!wide.empty()) {
         // With every view here and the integer-dot tile reading the output next, the output's twin written beside it (shaders/attention_tile.comp).
@@ -198,10 +199,17 @@ inline void VulkanBackend::attention(CSlice Q, size_t layer, const KVView* views
         // The choice follows the view alone, so a row takes the same grouping beside any batch; a non-causal view takes one head a workgroup, attention_full having no grouped form.
         const size_t group = (size_t)(n_head / n_head_kv);
         const uint32_t hg = full ? 1u : group % 4 == 0 ? 4u : group % 3 == 0 ? 3u : group % 2 == 0 ? 2u : 1u;
+        // A view whose window starts a row past position 0 takes the window builds, one head a workgroup, a dispatch for each window; its other views run the builds they ran before.
         std::vector<Placed> sets[2];
-        for (const Placed& pv : narrow) sets[hg > 1 && size_add(pv.view->length, pv.view->nq) >= dev_->profile.attention_group_from ? 1 : 0].push_back(pv);
+        std::map<size_t, std::vector<Placed>> windows;
+        for (const Placed& pv : narrow) {
+            const size_t end = size_add(pv.view->length, pv.view->nq);
+            if (pv.view->window && end > pv.view->window) windows[pv.view->window].push_back(pv);
+            else sets[hg > 1 && end >= dev_->profile.attention_group_from ? 1 : 0].push_back(pv);
+        }
         for (int grouped = 0; grouped < 2; ++grouped)
             if (!sets[grouped].empty()) narrow_attention(Q, layer, sets[grouped], out, n_head, n_head_kv, head_dim, grouped ? hg : 1u, xq, quant, rows);
+        for (const auto& [window, set] : windows) narrow_attention(Q, layer, set, out, n_head, n_head_kv, head_dim, 1u, xq, quant, rows, window);
         if (quant) keep_twin(slot, bind(out), n, 0);
     }
 }
@@ -209,14 +217,15 @@ inline void VulkanBackend::attention(CSlice Q, size_t layer, const KVView* views
 // The per-row kernel over views taken `hg` query heads a workgroup: splits chosen from each row's history length, doubling the chunk until the profile's split limit fits, and a merge when a row splits.
 // A row computes identically beside longer rows, whose extra splits are empty for it; `rows` is the call's, whose twin `xq` holds where `quant`.
 inline void VulkanBackend::narrow_attention(CSlice Q, size_t layer, const std::vector<Placed>& views, Slice out, int n_head, int n_head_kv, int head_dim, uint32_t hg,
-                                            VkDescriptorBufferInfo xq, bool quant, size_t rows) {
+                                            VkDescriptorBufferInfo xq, bool quant, size_t rows, size_t window) {
     ViewTable t = view_table(layer, views, false);
     VulkanKVStorage& s = *t.storage;
     const bool full = !views.front().view->causal;
     const size_t qstride = (size_t)n_head * head_dim, n = rows * qstride;
+    // A windowed row's splits cover its span alone.
     size_t longest = 0;
     for (const Placed& pv : views)
-        longest = std::max(longest, size_add(pv.view->length, pv.view->nq));
+        longest = std::max(longest, window ? std::min(window, size_add(pv.view->length, pv.view->nq)) : size_add(pv.view->length, pv.view->nq));
     const size_t pairs = t.rows * (size_t)n_head;
     const DeviceProfile& prof = dev_->profile;
     const size_t chunk = prof.attention_split_chunk;
@@ -233,6 +242,9 @@ inline void VulkanBackend::narrow_attention(CSlice Q, size_t layer, const std::v
         ? VkDescriptorBufferInfo{scratch_->handle(), 0, VK_WHOLE_SIZE} : bind(out);
     // Heads 128 wide take the kernel whose 16 lanes read a token's row in one load each, several tokens a subgroup, and heads 256 wide its build of 32 lanes a token (shaders/attention_vec.comp).
     const KernelId kernel = full ? K_ATTENTION_FULL
+                          : window ? (head_dim == 256 ? kv_variant(K_ATTENTION_VEC_D256_WINDOW, K_ATTENTION_VEC_D256_K16_WINDOW, s)
+                                      : head_dim == 128 ? kv_variant(K_ATTENTION_VEC_WINDOW, K_ATTENTION_VEC_K16_WINDOW, s)
+                                      : kv_variant(K_ATTENTION_WINDOW, K_ATTENTION_K16_WINDOW, s))
                           : head_dim == 128 || head_dim == 256 ? vec_attention_kernel(head_dim, hg, s)
                           : (hg > 1 ? kv_variant(K_ATTENTION_G4, K_ATTENTION_K16_G4, s) : kv_variant(K_ATTENTION, K_ATTENTION_K16, s));
     // A non-causal call is cut into dispatches of bounded work by its (row, head) pairs, each pair's splits in one dispatch.
@@ -244,7 +256,8 @@ inline void VulkanBackend::narrow_attention(CSlice Q, size_t layer, const std::v
     }
     for (size_t i = 0; i + 1 < cuts.size(); ++i) {
         if (cuts.size() > 2) isolate();
-        pc.wg0 = u32(cuts[i] * nsplit);
+        // The window builds read the window in wg0's place.
+        pc.wg0 = window ? uint32_t(std::min<size_t>(window, UINT32_MAX)) : u32(cuts[i] * nsplit);
         dispatch(kernel,
                  {bind(Q), bind(out), bind(CSlice{s.k_buffer(layer).get(), 0}), bind(CSlice{s.v_buffer(layer).get(), 0}),
                   args(t.words.data(), t.words.size() * sizeof(uint32_t)), scratch, xq},

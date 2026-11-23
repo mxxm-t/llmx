@@ -1,0 +1,28 @@
+#version 450
+// Backend::matmul_at_ids over the head rows gathered into `head`, a workgroup a (candidate c, group g): out[g*k*k + j*k + c] = the sum of x row g*per+j times w times head row g*k+c, -inf for an id of nrows or more.
+// Each product is (x*w)*h in double, x*w exact, and the sum the fixed tree of double_sum.glsl, the GPU core's arithmetic.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint width; uint nrows; uint k; uint per; } p;
+layout(set = 0, binding = 0) writeonly buffer O { float o[]; };
+layout(set = 0, binding = 1) readonly buffer X { float x[]; };
+layout(set = 0, binding = 2) readonly buffer W { float w[]; };
+layout(set = 0, binding = 3) readonly buffer H { float head[]; };
+layout(set = 0, binding = 4) readonly buffer I { uint ids[]; };
+shared double red2[256];
+#include "double_sum.glsl"
+void main() {
+    uint c = gl_WorkGroupID.x, g = gl_WorkGroupID.y, lid = gl_LocalInvocationID.x;
+    uint h = (g * p.k + c) * p.width;
+    bool valid = ids[g * p.k + c] < p.nrows;
+    for (uint j = 0u; j < p.per; ++j) {
+        uint xr = (g * p.per + j) * p.width;
+        precise double sum = 0.0;
+        for (uint e = lid; e < p.width; e += 256u) {
+            precise double xw = double(x[xr + e]) * double(w[e]);
+            precise double t = xw * double(head[h + e]);
+            sum += t;
+        }
+        sum = double_sum(sum);
+        if (lid == 0u) o[(g * p.k + j) * p.k + c] = valid ? float(sum) : -1.0 / 0.0;
+    }
+}

@@ -6,6 +6,7 @@
 #include "row_classes.hpp"
 #include "twin_checks.hpp"
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -18,8 +19,12 @@ using twin_checks::Launches;
 using twin_checks::Require;
 using twin_checks::read;
 
+// The window builds a backend runs for heads 64, 128 and 256 wide over f16 sides, by the names its launches report.
+using WindowBuilds = std::array<std::string, 3>;
+inline const WindowBuilds kGpuWindowBuilds{"llmx_attention_chunk_window", "llmx_attention_vec_window", "llmx_attention_vec256_window"};
+
 // A drafter block's 16 rows after `hist` positions under windows below, at and past the history, heads 64 (the chunk kernel), 128 and 256 wide (the per-row kernels).
-inline void window(Backend& g, Backend& c, const Launches& take, const Require& require) {
+inline void window(Backend& g, Backend& c, const Launches& take, const Require& require, const WindowBuilds& builds = kGpuWindowBuilds) {
     const int n_head = 4, n_head_kv = 2;
     const size_t rows = 16;
     for (const int dim : {64, 128, 256})
@@ -52,7 +57,7 @@ inline void window(Backend& g, Backend& c, const Launches& take, const Require& 
                     out[k] = read(b, *ob, rows * qw);
                     if (k == 0) {
                         const auto ran = take(b);
-                        const std::string body = dim == 64 ? "llmx_attention_chunk_window" : dim == 256 ? "llmx_attention_vec256_window" : "llmx_attention_vec_window";
+                        const std::string& body = builds[dim == 64 ? 0 : dim == 128 ? 1 : 2];
                         require(ran.count(body) == (end > win), what + (end > win ? " runs its window build" : " runs no window build, since no row starts past 0"));
                         bool alone = true;
                         for (size_t r = 0; r < rows; ++r) {

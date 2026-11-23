@@ -13,6 +13,10 @@ layout(push_constant) uniform P {
     uint rows; uint n_head; uint n_head_kv; uint dim; uint bt; float scale; uint nsplit; uint chunk; uint quant; uint max_parts; uint hg;
 #ifdef LLMX_SPARSE
     uint selected_stride; uint id_shift; uint id_groups;
+#elif defined(LLMX_WINDOW)
+    // A windowed row attends only positions above its own minus `window` (KVView::window), in the place of the non-causal build's first workgroup.
+    uint window;
+    uint xrows;
 #else
     // The non-causal build's first workgroup of the call (docs/VISION.md, section 3); the causal builds do not read it.
     uint wg0;
@@ -99,6 +103,10 @@ void main() {
 #else
 #ifdef LLMX_FULL
     uint len = view_hist(v) + view_nq(v), chunk = p.chunk;
+#elif defined(LLMX_WINDOW)
+    // The window build reads a row's span alone, its positions from `begin`, so its splits follow the span.
+    uint whole = view_hist(v) + b + 1u, begin = whole > p.window ? whole - p.window : 0u;
+    uint len = whole - begin, chunk = p.chunk;
 #else
     uint len = view_hist(v) + b + 1u, chunk = p.chunk;
 #endif
@@ -125,6 +133,8 @@ void main() {
         uint token = slot_token(sb, t, visible);
         if (token >= visible) continue;
         uint base = view_block(v, token / p.bt) * bf + (kvh * p.bt + token % p.bt) * p.dim;
+#elif defined(LLMX_WINDOW)
+        uint base = view_block(v, (begin + t) / p.bt) * bf + (kvh * p.bt + (begin + t) % p.bt) * p.dim;
 #else
         uint base = view_block(v, t / p.bt) * bf + (kvh * p.bt + t % p.bt) * p.dim;
 #endif

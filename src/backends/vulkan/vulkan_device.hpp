@@ -268,6 +268,7 @@ struct Device {
     VkPhysicalDeviceMemoryProperties memory{};
     DeviceCaps caps{};            // what this device says of itself
     DeviceProfile profile{};      // what measuring its kernels said (backends/device_profile.hpp)
+    bool float64 = false; // shaderFloat64, enabled where the device has it, for the kernels that sum in double
     bool mxfp4 = false; // MXFP4 range repair and partials require F64 and the declared float controls
     bool f16_inputs = false; // native half conversion preserves range and rounds ties to even
     bool preserve_float32 = false; // optional matrix modules retain subnormal values

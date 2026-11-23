@@ -1,0 +1,49 @@
+#version 450
+// Backend::sigmoid_gate_rows, a workgroup a (run of 256 columns, row): msg = sigmoid(q[q_rows[r]] + s[from[r]] + bias) * v[from[r]] * scale[q_rows[r]], zeros where from[r] is ~0u.
+// The CPU's float steps in its order, with the exponential and the quotient formed in double and rounded once, since a driver's float exp and divide are not correctly rounded.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint width; uint rows; } p;
+layout(set = 0, binding = 0) writeonly buffer M { float msg[]; };
+layout(set = 0, binding = 1) readonly buffer Q { float q[]; };
+layout(set = 0, binding = 2) readonly buffer S { float s[]; };
+layout(set = 0, binding = 3) readonly buffer V { float v[]; };
+layout(set = 0, binding = 4) readonly buffer B { float bias[]; };
+layout(set = 0, binding = 5) readonly buffer G { float scale[]; };
+// q_rows[0, rows) and then from[0, rows).
+layout(set = 0, binding = 6) readonly buffer R { uint idx[]; };
+// e^x for a float x to about 2^-42: x = k ln2 + r with |r| <= ln2 / 2, a degree-11 Taylor sum of e^r, then 2^k; past the float range it gives inf or 0 as expf does.
+double exp_double(float xf) {
+    if (xf > 89.0) return 1.0 / 0.0;
+    if (xf < -104.0) return 0.0;
+    precise double x = double(xf);
+    double k = floor(x * 1.4426950408889634 + 0.5);
+    precise double r = (x - k * 6.93147180369123816490e-01) - k * 1.90821492927058770002e-10;
+    precise double e = 1.0 / 39916800.0;
+    e = e * r + 1.0 / 3628800.0;
+    e = e * r + 1.0 / 362880.0;
+    e = e * r + 1.0 / 40320.0;
+    e = e * r + 1.0 / 5040.0;
+    e = e * r + 1.0 / 720.0;
+    e = e * r + 1.0 / 120.0;
+    e = e * r + 1.0 / 24.0;
+    e = e * r + 1.0 / 6.0;
+    e = e * r + 0.5;
+    e = e * r + 1.0;
+    e = e * r + 1.0;
+    return ldexp(e, int(k));
+}
+void main() {
+    uint r = gl_WorkGroupID.y, i = gl_WorkGroupID.x * 256u + gl_LocalInvocationID.x;
+    if (i >= p.width) return;
+    uint at = r * p.width + i, qr = idx[r], fr = idx[p.rows + r];
+    if (fr == 0xffffffffu) {
+        msg[at] = 0.0;
+        return;
+    }
+    precise float a = q[qr * p.width + i] + s[fr * p.width + i];
+    precise float arg = -(a + bias[i]);
+    precise float den = 1.0 + float(exp_double(arg));
+    float quot = float(double(v[fr * p.width + i]) / double(den));
+    precise float y = quot * scale[qr];
+    msg[at] = y;
+}

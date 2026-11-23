@@ -11,6 +11,10 @@ layout(push_constant) uniform P {
     uint rows; uint n_head; uint n_head_kv; uint dim; uint bt; float scale; uint nsplit; uint chunk; uint quant; uint max_parts; uint hg;
 #ifdef LLMX_SPARSE
     uint selected_stride; uint id_shift; uint id_groups;
+#elif defined(LLMX_WINDOW)
+    // A windowed row attends only positions above its own minus `window` (KVView::window), in the place attention.comp's non-causal build keeps its first workgroup.
+    uint window;
+    uint xrows;
 #else
     // Unread here: the place attention.comp's non-causal build keeps its first workgroup.
     uint wg0;
@@ -35,6 +39,15 @@ layout(push_constant) uniform P {
 #define GROUP 1
 #endif
 const uint HG = GROUP;
+#if defined(LLMX_WINDOW) && (defined(LLMX_SPARSE) || GROUP > 1)
+#error "the window build reads one head a workgroup over plain histories"
+#endif
+// The window build reads a row's span alone, its positions from `begin` (TOKEN), so its splits follow the span; other builds read from position 0.
+#ifdef LLMX_WINDOW
+#define TOKEN(t) (begin + (t))
+#else
+#define TOKEN(t) (t)
+#endif
 layout(set = 0, binding = 0) readonly buffer Q { float q[]; };
 layout(set = 0, binding = 1) writeonly buffer O { float o[]; };
 layout(set = 0, binding = 6) writeonly buffer XQ { uint xq[]; };
@@ -113,6 +126,12 @@ void main() {
     uint visible = view_hist(v) + b + 1u;
     uint start = 0u, end = p.selected_stride << p.id_shift;
     uint sb = slot_base(view_row0(v) + b, kvh);
+#elif defined(LLMX_WINDOW)
+    uint whole = view_hist(v) + b + 1u, begin = whole > p.window ? whole - p.window : 0u;
+    uint len = whole - begin, chunk = p.chunk;
+    while ((len + chunk - 1u) / chunk > p.max_parts) chunk *= 2u;
+    uint start = min(split * chunk, len);
+    uint end = min(len, start + chunk);
 #else
     uint len = view_hist(v) + b + 1u, chunk = p.chunk;
     while ((len + chunk - 1u) / chunk > p.max_parts) chunk *= 2u;
@@ -214,7 +233,7 @@ void main() {
         if (token >= visible) continue;
         uint b0 = view_block(v, token / p.bt) * bf + (kvh * p.bt + token % p.bt) * p.dim + d0;
 #else
-        uint b0 = view_block(v, t / p.bt) * bf + (kvh * p.bt + t % p.bt) * p.dim + d0;
+        uint b0 = view_block(v, TOKEN(t) / p.bt) * bf + (kvh * p.bt + TOKEN(t) % p.bt) * p.dim + d0;
 #endif
         float k0[8], v0[8];
         k_load8(b0, k0);

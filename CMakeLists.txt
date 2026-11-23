@@ -88,7 +88,8 @@ if(LLMX_HAS_BACKEND_VULKAN)
         sigmoid_mul gated_rms_norm causal_conv_silu dilated_conv_silu_add delta_rule argmax_rows
         group_rms_norm silu_scaled mix_streams inject_streams signed_sqrt_gate
         kv_index_pool kv_index_scores_tile kv_index_select kv_index_select_wide add_bias gelu layer_norm_rows mix_rows hold
-        hc_coeffs hc_collapse_norm hc_expand sparse_softmax sparse_columns topk_rows compress_pool indexer_scores indexer_scores_tile raw_index_scores pool_write model_format_qdq route_sqrt_softplus)
+        hc_coeffs hc_collapse_norm hc_expand sparse_softmax sparse_columns topk_rows compress_pool indexer_scores indexer_scores_tile raw_index_scores pool_write model_format_qdq route_sqrt_softplus
+        unit_rows sigmoid_gate_rows matmul_at_ids chain_pick)
     # A variant is the same source compiled with a define, "name=source=DEFINE"; the row kernel is one module per family of types, since one module for all of them raised every path's registers.
     set(LLMX_VK_VARIANTS moe_route_s1=moe_route=LLMX_SLOTS1 moe_route_s2=moe_route=LLMX_SLOTS2 moe_route_s4=moe_route=LLMX_SLOTS4 moe_route_s8=moe_route=LLMX_SLOTS8
         matmul_row_iq4_dot=matmul_row=LLMX_IQ4+LLMX_DOT+LLMX_PRESERVE_F32
@@ -283,6 +284,12 @@ if(LLMX_HAS_BACKEND_VULKAN)
         attention_tile_d256=attention_tile=LLMX_D256 attention_tile_d256_k16=attention_tile=LLMX_D256+LLMX_K16
         attention_tile_d256_v16=attention_tile=LLMX_D256+LLMX_V16 attention_tile_d256_kv16=attention_tile=LLMX_D256+LLMX_K16+LLMX_V16
         attention_vec_d256=attention_vec=LLMX_D256 attention_vec_d256_k16=attention_vec=LLMX_D256+LLMX_K16
+        attention_window=attention=LLMX_WINDOW attention_k16_window=attention=LLMX_WINDOW+LLMX_K16
+        attention_v16_window=attention=LLMX_WINDOW+LLMX_V16 attention_kv16_window=attention=LLMX_WINDOW+LLMX_K16+LLMX_V16
+        attention_vec_window=attention_vec=LLMX_WINDOW attention_vec_k16_window=attention_vec=LLMX_WINDOW+LLMX_K16
+        attention_vec_v16_window=attention_vec=LLMX_WINDOW+LLMX_V16 attention_vec_kv16_window=attention_vec=LLMX_WINDOW+LLMX_K16+LLMX_V16
+        attention_vec_d256_window=attention_vec=LLMX_D256+LLMX_WINDOW attention_vec_d256_k16_window=attention_vec=LLMX_D256+LLMX_WINDOW+LLMX_K16
+        attention_vec_d256_v16_window=attention_vec=LLMX_D256+LLMX_WINDOW+LLMX_V16 attention_vec_d256_kv16_window=attention_vec=LLMX_D256+LLMX_WINDOW+LLMX_K16+LLMX_V16
         attention_vec_d256_v16=attention_vec=LLMX_D256+LLMX_V16 attention_vec_d256_kv16=attention_vec=LLMX_D256+LLMX_K16+LLMX_V16
         attention_vec_d256_g2=attention_vec=LLMX_D256+LLMX_G2 attention_vec_d256_k16_g2=attention_vec=LLMX_D256+LLMX_K16+LLMX_G2
         attention_vec_d256_v16_g2=attention_vec=LLMX_D256+LLMX_V16+LLMX_G2 attention_vec_d256_kv16_g2=attention_vec=LLMX_D256+LLMX_K16+LLMX_V16+LLMX_G2

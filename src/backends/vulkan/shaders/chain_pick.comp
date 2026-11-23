@@ -1,0 +1,23 @@
+#version 450
+// Backend::chain_pick, an invocation a chain: j the best of the chain's first score row, then each step's candidate at j and j the best of the next step's row j, a tie to the lower index.
+layout(local_size_x = 64) in;
+layout(push_constant) uniform P { uint seqs; uint steps; uint k; } p;
+layout(set = 0, binding = 0) writeonly buffer N { uint next[]; };
+layout(set = 0, binding = 1) readonly buffer S { float score[]; };
+layout(set = 0, binding = 2) readonly buffer C { uint cand[]; };
+uint best(uint row) {
+    uint j = 0u;
+    for (uint c = 1u; c < p.k; ++c)
+        if (score[row + c] > score[row + j]) j = c;
+    return j;
+}
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= p.seqs) return;
+    uint kk = p.k * p.k;
+    uint j = best(i * kk);
+    for (uint t = 0u; t < p.steps; ++t) {
+        next[t * p.seqs + i] = cand[(t * p.seqs + i) * p.k + j];
+        if (t + 1u < p.steps) j = best(((t + 1u) * p.seqs + i) * kk + j * p.k);
+    }
+}

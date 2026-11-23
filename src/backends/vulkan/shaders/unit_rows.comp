@@ -1,0 +1,30 @@
+#version 450
+// Backend::unit_rows, a workgroup a row: the row's sum of squares in double over the fixed tree of double_sum.glsl, its mean or sum rounded to float, the root and the scale in double rounded once to float.
+// Every lane has read its elements for the sum before any lane writes, so dst may be src (docs/src/backends-vulkan.md).
+layout(local_size_x = 256) in;
+// mode 0 divides by the root mean square, 1 by the length, 2 by nothing; `norms` is written where `has_norms` is set.
+layout(push_constant) uniform P { uint n; float gain; float eps; uint mode; uint has_norms; } p;
+layout(set = 0, binding = 0) buffer D { float dst[]; };
+layout(set = 0, binding = 1) writeonly buffer N { float norms[]; };
+layout(set = 0, binding = 2) buffer S { float src[]; };
+shared double red2[256];
+#include "double_sum.glsl"
+void main() {
+    uint row = gl_WorkGroupID.x, lid = gl_LocalInvocationID.x;
+    uint base = row * p.n;
+    float scale = p.gain;
+    if (p.mode != 2u) {
+        precise double sum = 0.0;
+        for (uint i = lid; i < p.n; i += 256u) {
+            double x = double(src[base + i]);
+            sum += x * x;
+        }
+        sum = double_sum(sum);
+        float s = max(float(p.mode == 0u ? sum / double(p.n) : sum), 1.17549435e-38);
+        float norm = float(sqrt(double(s)));
+        if (p.has_norms != 0u && lid == 0u) norms[row] = norm;
+        precise float den = norm + p.eps;
+        scale = float(double(p.gain) / double(den));
+    }
+    for (uint i = lid; i < p.n; i += 256u) dst[base + i] = src[base + i] * scale;
+}

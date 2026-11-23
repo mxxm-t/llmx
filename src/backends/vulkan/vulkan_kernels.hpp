@@ -1190,6 +1190,54 @@ const uint32_t kSpvAttentionFullTileD72[] = {
 const uint32_t kSpvHold[] = {
 #include "vulkan/hold.inc"
 };
+const uint32_t kSpvAttentionWindow[] = {
+#include "vulkan/attention_window.inc"
+};
+const uint32_t kSpvAttentionK16Window[] = {
+#include "vulkan/attention_k16_window.inc"
+};
+const uint32_t kSpvAttentionV16Window[] = {
+#include "vulkan/attention_v16_window.inc"
+};
+const uint32_t kSpvAttentionKV16Window[] = {
+#include "vulkan/attention_kv16_window.inc"
+};
+const uint32_t kSpvAttentionVecWindow[] = {
+#include "vulkan/attention_vec_window.inc"
+};
+const uint32_t kSpvAttentionVecK16Window[] = {
+#include "vulkan/attention_vec_k16_window.inc"
+};
+const uint32_t kSpvAttentionVecV16Window[] = {
+#include "vulkan/attention_vec_v16_window.inc"
+};
+const uint32_t kSpvAttentionVecKV16Window[] = {
+#include "vulkan/attention_vec_kv16_window.inc"
+};
+const uint32_t kSpvAttentionVecD256Window[] = {
+#include "vulkan/attention_vec_d256_window.inc"
+};
+const uint32_t kSpvAttentionVecD256K16Window[] = {
+#include "vulkan/attention_vec_d256_k16_window.inc"
+};
+const uint32_t kSpvAttentionVecD256V16Window[] = {
+#include "vulkan/attention_vec_d256_v16_window.inc"
+};
+const uint32_t kSpvAttentionVecD256KV16Window[] = {
+#include "vulkan/attention_vec_d256_kv16_window.inc"
+};
+const uint32_t kSpvUnitRows[] = {
+#include "vulkan/unit_rows.inc"
+};
+const uint32_t kSpvCodeMessages[] = {
+#include "vulkan/sigmoid_gate_rows.inc"
+};
+const uint32_t kSpvRowsDotGroup[] = {
+#include "vulkan/matmul_at_ids.inc"
+};
+const uint32_t kSpvChainPick[] = {
+#include "vulkan/chain_pick.inc"
+};
 
 // IDs, diagnostic names and module bindings share this order; cache variants rely on adjacent IDs.
 #define LLMX_VULKAN_KERNELS(X) \
@@ -1535,6 +1583,22 @@ const uint32_t kSpvHold[] = {
     X(K_NORM_ROPE_PARTIAL_FORM, "norm_rope_partial_form", kSpvNormRopePartialForm, sizeof(kSpvNormRopePartialForm), 7, nullptr) \
     X(K_SILU_MUL_CLAMP, "silu_mul_clamp", kSpvSiluMulClamp, sizeof(kSpvSiluMulClamp), 4, nullptr) \
     X(K_MODEL_FORMAT_QDQ, "model_format_qdq", kSpvModelFormatQdq, sizeof(kSpvModelFormatQdq), 2, nullptr, nullptr, 0, kPreserve32, 0) \
+    X(K_ATTENTION_WINDOW, "attention_window", kSpvAttentionWindow, sizeof(kSpvAttentionWindow), 7, nullptr) \
+    X(K_ATTENTION_K16_WINDOW, "attention_k16_window", kSpvAttentionK16Window, sizeof(kSpvAttentionK16Window), 7, nullptr) \
+    X(K_ATTENTION_V16_WINDOW, "attention_v16_window", kSpvAttentionV16Window, sizeof(kSpvAttentionV16Window), 7, nullptr) \
+    X(K_ATTENTION_KV16_WINDOW, "attention_kv16_window", kSpvAttentionKV16Window, sizeof(kSpvAttentionKV16Window), 7, nullptr) \
+    X(K_ATTENTION_VEC_WINDOW, "attention_vec_window", kSpvAttentionVecWindow, sizeof(kSpvAttentionVecWindow), 7, nullptr) \
+    X(K_ATTENTION_VEC_K16_WINDOW, "attention_vec_k16_window", kSpvAttentionVecK16Window, sizeof(kSpvAttentionVecK16Window), 7, nullptr) \
+    X(K_ATTENTION_VEC_V16_WINDOW, "attention_vec_v16_window", kSpvAttentionVecV16Window, sizeof(kSpvAttentionVecV16Window), 7, nullptr) \
+    X(K_ATTENTION_VEC_KV16_WINDOW, "attention_vec_kv16_window", kSpvAttentionVecKV16Window, sizeof(kSpvAttentionVecKV16Window), 7, nullptr) \
+    X(K_ATTENTION_VEC_D256_WINDOW, "attention_vec_d256_window", kSpvAttentionVecD256Window, sizeof(kSpvAttentionVecD256Window), 7, nullptr) \
+    X(K_ATTENTION_VEC_D256_K16_WINDOW, "attention_vec_d256_k16_window", kSpvAttentionVecD256K16Window, sizeof(kSpvAttentionVecD256K16Window), 7, nullptr) \
+    X(K_ATTENTION_VEC_D256_V16_WINDOW, "attention_vec_d256_v16_window", kSpvAttentionVecD256V16Window, sizeof(kSpvAttentionVecD256V16Window), 7, nullptr) \
+    X(K_ATTENTION_VEC_D256_KV16_WINDOW, "attention_vec_d256_kv16_window", kSpvAttentionVecD256KV16Window, sizeof(kSpvAttentionVecD256KV16Window), 7, nullptr) \
+    X(K_UNIT_ROWS, "unit_rows", kSpvUnitRows, sizeof(kSpvUnitRows), 3, nullptr) \
+    X(K_CODE_MESSAGES, "sigmoid_gate_rows", kSpvCodeMessages, sizeof(kSpvCodeMessages), 7, nullptr) \
+    X(K_ROWS_DOT_GROUP, "matmul_at_ids", kSpvRowsDotGroup, sizeof(kSpvRowsDotGroup), 5, nullptr) \
+    X(K_CHAIN_PICK, "chain_pick", kSpvChainPick, sizeof(kSpvChainPick), 3, nullptr) \
     X(K_HOLD, "hold", kSpvHold, sizeof(kSpvHold), 1, nullptr)
 
 #define LLMX_KERNEL_ID(id, name, ...) id,

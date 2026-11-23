@@ -674,8 +674,9 @@ public:
         e2.pNext = &e11;
         e2.features.shaderStorageBufferArrayDynamicIndexing = VK_TRUE;
         e2.features.shaderInt16 = VK_TRUE;
-        d.mxfp4 = f2.features.shaderFloat64 && (d.float_controls & kMxfp4Controls) == kMxfp4Controls;
-        e2.features.shaderFloat64 = d.mxfp4 ? VK_TRUE : VK_FALSE;
+        d.float64 = f2.features.shaderFloat64;
+        d.mxfp4 = d.float64 && (d.float_controls & kMxfp4Controls) == kMxfp4Controls;
+        e2.features.shaderFloat64 = d.float64 ? VK_TRUE : VK_FALSE;
 
         uint32_t ext_count = 0;
         check(fn.vkEnumerateDeviceExtensionProperties(d.physical, nullptr, &ext_count, nullptr),
@@ -1063,8 +1064,12 @@ public:
         return out;
     }
 
-    // Every op but mixed routed products, since grouped expert projections must share one storage type, and the model formats where the device cannot keep subnormals, which their kernel needs.
-    bool implements(Op op) const override { return op != Op::mixed_experts && op != Op::sigmoid_routing && op != Op::attention_window && op != Op::unit_rows && op != Op::sigmoid_gate_rows && op != Op::matmul_at_ids && op != Op::chain_pick && ((op != Op::model_format_qdq && op != Op::model_format_pack) || dev_->preserve_float32); }
+    // Every op but mixed routed products, since grouped expert projections must share one storage type, and the model formats where the device cannot keep subnormals.
+    // The ops that sum in double need the device's double.
+    bool implements(Op op) const override {
+        if (op == Op::unit_rows || op == Op::sigmoid_gate_rows || op == Op::matmul_at_ids) return dev_->float64;
+        return op != Op::mixed_experts && op != Op::sigmoid_routing && ((op != Op::model_format_qdq && op != Op::model_format_pack) || dev_->preserve_float32);
+    }
 
     // Host worker counts mean nothing to a device.
     void set_threads(int) override {}
@@ -1874,6 +1879,61 @@ public:
         select_rows_of(ids, scores, lens, rows, n, k, k, offset, 0, 1, n);
     }
 
+    // A DSpine drafter's ops, each the CPU's arithmetic: sums in double over a fixed tree, and a driver's float root, quotient and exponential replaced by double ones rounded once (shaders/unit_rows.comp and the three after it).
+    void unit_rows(Slice dst, Slice norms, CSlice src, size_t rows, size_t n, float gain, float eps, RowScale mode) override {
+        if (!n) throw std::runtime_error("vulkan: unit rows of no width");
+        if (!rows) return;
+        if (!dev_->float64) lacks(Op::unit_rows);
+        if (floats_from(dst) < size_mul(rows, n) || floats_from(src) < size_mul(rows, n) || (norms.buffer && floats_from(norms) < rows))
+            throw std::runtime_error("vulkan: unit rows operand outside its allocation");
+        const struct { uint32_t n; float gain, eps; uint32_t mode, has_norms; } pc{u32(n), gain, eps, mode == RowScale::rms ? 0u : mode == RowScale::l2 ? 1u : 2u,
+                                                                                  norms.buffer ? 1u : 0u};
+        dispatch(K_UNIT_ROWS, {bind(dst), norms.buffer ? bind(norms) : bind(dst), bind(src)}, &pc, sizeof(pc), u32(rows));
+    }
+    void sigmoid_gate_rows(Slice msg, CSlice q, CSlice s, CSlice v, CSlice bias, CSlice scale, size_t rows, size_t width, const uint32_t* q_rows, const uint32_t* from) override {
+        if (!width) throw std::runtime_error("vulkan: code messages of no width");
+        if (!rows) return;
+        if (!q_rows || !from) throw std::runtime_error("vulkan: code messages without their rows");
+        if (!dev_->float64) lacks(Op::sigmoid_gate_rows);
+        size_t qn = 0, fn = 0;
+        std::vector<uint32_t> idx(q_rows, q_rows + rows);
+        idx.insert(idx.end(), from, from + rows);
+        for (size_t r = 0; r < rows; ++r) {
+            if (from[r] == UINT32_MAX) continue;
+            qn = std::max(qn, size_t(q_rows[r]) + 1);
+            fn = std::max(fn, size_t(from[r]) + 1);
+        }
+        if (floats_from(msg) < size_mul(rows, width) || floats_from(bias) < width || floats_from(q) < size_mul(qn, width) || floats_from(scale) < qn ||
+            floats_from(s) < size_mul(fn, width) || floats_from(v) < size_mul(fn, width))
+            throw std::runtime_error("vulkan: code messages operand outside its allocation");
+        const uint32_t pc[2] = {u32(width), u32(rows)};
+        dispatch(K_CODE_MESSAGES, {bind(msg), bind(q), bind(s), bind(v), bind(bias), bind(scale), args(idx.data(), idx.size() * sizeof(uint32_t))}, pc, sizeof(pc),
+                 u32((width + 255) / 256), u32(rows));
+    }
+    // The head rows gathered by the embedding's kernel into dot_rows_, then a workgroup a (candidate, group) sums each of the group's rows against its candidate.
+    void matmul_at_ids(Slice out, CSlice x, CSlice w, WeightView head, size_t width, size_t nrows, CSlice ids, size_t groups, size_t k, size_t per) override {
+        if (!width || !k || !per || per > k || nrows >= UINT32_MAX) throw std::runtime_error("vulkan: invalid grouped row dot dimensions");
+        if (!groups) return;
+        if (!dev_->float64) lacks(Op::matmul_at_ids);
+        const size_t picks = size_mul(groups, k);
+        if (floats_from(out) < size_mul(picks, k) || floats_from(x) < size_mul(size_mul(groups, per), width) || floats_from(w) < width || floats_from(ids) < picks)
+            throw std::runtime_error("vulkan: grouped row dot operand outside its allocation");
+        const size_t need = size_mul(size_mul(picks, width), sizeof(float));
+        if (!dot_rows_ || dot_rows_->size() < need) grow(dot_rows_, need);
+        embed_ids(Slice{dot_rows_.get(), 0}, head, width, nrows, ids, picks);
+        const uint32_t pc[4] = {u32(width), u32(nrows), u32(k), u32(per)};
+        dispatch(K_ROWS_DOT_GROUP, {bind(out), bind(x), bind(w), bind(CSlice{dot_rows_.get(), 0}), bind(ids)}, pc, sizeof(pc), u32(k), u32(groups));
+    }
+    void chain_pick(Slice next, CSlice score, CSlice cand, size_t seqs, size_t steps, size_t k) override {
+        if (!k) throw std::runtime_error("vulkan: a chain over no candidates");
+        if (!seqs || !steps) return;
+        if (floats_from(next) < size_mul(steps, seqs) || floats_from(score) < size_mul(size_mul(steps, seqs), size_mul(k, k)) ||
+            floats_from(cand) < size_mul(size_mul(steps, seqs), k))
+            throw std::runtime_error("vulkan: chain pick operand outside its allocation");
+        const uint32_t pc[3] = {u32(seqs), u32(steps), u32(k)};
+        dispatch(K_CHAIN_PICK, {bind(next), bind(score), bind(cand)}, pc, sizeof(pc), u32((seqs + 63) / 64));
+    }
+
     void candidate_blocks(Slice blocks, CSlice scores, CSlice lens, size_t rows, size_t n, size_t block_size, size_t k) override {
         if (!block_size || !n || n >= UINT32_MAX) throw std::runtime_error("vulkan: invalid candidate block dimensions");
         if (!rows || !k) return;
@@ -2356,8 +2416,9 @@ public:
     };
     PooledPlane pooled_plane(size_t layer, const KVView* views, size_t n_views, size_t dim, bool writing, const char* op);
     // The per-row attention over the narrow views taken `hg` query heads a workgroup, with its merge; `rows` is the call's, whose twin `xq` holds where `quant`.
+    // `window` nonzero runs the window builds over views whose window starts a row past position 0 (KVView::window).
     void narrow_attention(CSlice Q, size_t layer, const std::vector<Placed>& views, Slice out, int n_head, int n_head_kv, int head_dim, uint32_t hg,
-                          VkDescriptorBufferInfo xq, bool quant, size_t rows);
+                          VkDescriptorBufferInfo xq, bool quant, size_t rows, size_t window = 0);
     // The tiled prompt attention over the wide views, split over history at depth (shaders/attention_tile.comp).
     void wide_attention(CSlice Q, size_t layer, const std::vector<Placed>& views, Slice out, int n_head, int n_head_kv, int head_dim,
                         VkDescriptorBufferInfo xq, bool quant, uint32_t major, size_t rows);
@@ -2597,6 +2658,7 @@ private:
     std::shared_ptr<VulkanBuffer> bindable_; // a matrix input off the storage offset alignment, copied to its start (bindable)
     std::shared_ptr<VulkanBuffer> parts_;     // a split integer-dot tile call's partial sums
     std::shared_ptr<VulkanBuffer> argmax_parts_;   // an argmax's partials, a slice of a row each; likewise
+    std::shared_ptr<VulkanBuffer> dot_rows_;   // matmul_at_ids's gathered head rows, grown as calls need
     std::shared_ptr<VulkanBuffer> moe_out_;   // a routed down projection's slots before they are combined
     std::shared_ptr<VulkanBuffer> moe_tab_;   // a routed tile call's grouping (shaders/moe_group.comp)
     std::shared_ptr<VulkanBuffer> moe_count_; // the fused routed step's finished workgroups, zero between calls (shaders/moe_step_route.comp)

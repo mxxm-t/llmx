@@ -31,6 +31,7 @@
 #include "moe_step.hpp"
 #include "qwen35_checks.hpp"
 #include "deepseek4_checks.hpp"
+#include "dspine_checks.hpp"
 #include "vision_checks.hpp"
 
 namespace {
@@ -534,6 +535,31 @@ size_t check_int8(backend::Backend& vk) {
         }
     }
     return values;
+}
+
+// A DSpine drafter's windowed attention and the four ops of its block against the CPU, on a backend that times its kernels so the window builds are seen to run (dspine_checks.hpp).
+// The ops in double need the device's shaderFloat64; without it they are refused and their checks are skipped.
+void check_dspine() {
+    const auto owner = backend::make_vulkan_backend(0, true);
+    backend::Backend& vk = *owner;
+    backend::CpuBackend cpu;
+    // A kernel's dispatches since the last reading, its variants counted under its own name.
+    const twin_checks::Launches take = [](backend::Backend& b) {
+        std::map<std::string, size_t> ran;
+        for (const auto& [name, ms] : b.kernel_times().kernels) {
+            (void)ms;
+            const size_t cut = name.find("_window");
+            ++ran[cut == std::string::npos ? name : name.substr(0, cut + 7)];
+        }
+        return ran;
+    };
+    const twin_checks::Require req = [](bool ok, const std::string& what) { require(ok, what.c_str()); };
+    dspine_checks::window(vk, cpu, take, req, {"attention_kv16_window", "attention_vec_kv16_window", "attention_vec_d256_kv16_window"});
+    if (!vk.implements(backend::Op::unit_rows)) {
+        std::cout << "backend-vulkan: the DSpine ops in double skipped: the device has no shaderFloat64\n";
+        return;
+    }
+    dspine_checks::ops(vk, cpu, req, {1, 4, 1});
 }
 
 size_t check_int8_twin_width() {
@@ -5597,9 +5623,9 @@ int main(int argc, char** argv) {
     const std::string mode = argc >= 2 ? argv[1] : "", arg = argc >= 3 ? argv[2] : "";
     const std::string isa_dir = argc == 3 && mode == "--isa" ? arg : "";
     const bool columns_only = mode == "--decode-columns", rates_only = mode == "--decode-rates", routed_only = mode == "--routed" && argc == 2;
-    const bool deepseek_only = mode == "--deepseek4" && argc == 2;
-    if (argc > 3 || (argc >= 2 && isa_dir.empty() && !columns_only && !rates_only && !routed_only && !deepseek_only)) {
-        std::cerr << "usage: llmx-backend-vulkan-test [--isa DIR | --decode-columns [TYPES] | --decode-rates [TYPES] | --routed | --deepseek4]\n";
+    const bool deepseek_only = mode == "--deepseek4" && argc == 2, dspine_only = mode == "--dspine" && argc == 2;
+    if (argc > 3 || (argc >= 2 && isa_dir.empty() && !columns_only && !rates_only && !routed_only && !deepseek_only && !dspine_only)) {
+        std::cerr << "usage: llmx-backend-vulkan-test [--isa DIR | --decode-columns [TYPES] | --decode-rates [TYPES] | --routed | --deepseek4 | --dspine]\n";
         return 2;
     }
     backend::BackendPtr b;
@@ -5612,6 +5638,11 @@ int main(int argc, char** argv) {
     try {
         if (rates_only) {
             report_decode_rates(named_types(*b, arg));
+            return 0;
+        }
+        if (dspine_only) {
+            check_dspine();
+            std::cout << "backend-vulkan: dspine windowed attention and ops against the CPU\n";
             return 0;
         }
         if (deepseek_only) {
@@ -5637,6 +5668,7 @@ int main(int argc, char** argv) {
             return 0;
         }
         check_float_ops();
+        check_dspine();
         check_decode_contraction();
         std::cout << "backend-vulkan: " << check_input_offsets(*b) << " matrix outputs of inputs at float offsets equal to offset zero\n";
         std::cout << "backend-vulkan: " << backend::vulkan_device_name(*b) << "\n";

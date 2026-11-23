@@ -1,5 +1,7 @@
 # Tests
 
+The Ubuntu CI job runs `bash tests/hub_overview.sh` with a local stand-in for Docker Hub. It compares the submitted description with the complete versioned overview.
+
 The Workspace tool tests check that repeated writes of identical text leave both revision and checkpoints intact, while stale changes to different text are refused.
 
 The Chat browser checks cover returning home with the wordmark and working from an empty Workspace through editing, preview and attachment. The saved-file picker checks cover nested filenames, selection and cancellation, duplicate attachments and keyboard navigation from the composer. Its HTTP test verifies metadata-only listing and ordered reads of up to eight files at a single revision.

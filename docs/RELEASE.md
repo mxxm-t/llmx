@@ -69,6 +69,8 @@ docker run --rm --network host -v /path/to/llmx.key:/run/llmx.key:ro ghcr.io/mxx
 
 While the release is a draft only the versioned tags exist, and they can already be pulled from GHCR before the smoke runs: a draft keeps the release unpublished, not those tags.
 Publishing it adds the floating tags `vulkan`, `rocm7`, `rocm10` and `chat` and copies all eight to Docker Hub, by digest, when its secrets are set.
+It also sets the Docker Hub overview from `docker/hub-overview.md`, whose `X.Y.Z` becomes the version, through `docker/hub-overview.sh`; the nightly channel leaves it alone.
+The `Docker Hub overview` workflow (`.github/workflows/hub-overview.yml`, run by hand with a version) sets it again for a published release without cutting one.
 The `rocm10` image holds the same binary as `rocm7`: ROCm 10's HIP runtime keeps the name `libamdhip64.so.7` and loads the binary's gfx906 code objects on an MI50, although ROCm 10 ships no gfx906 kernels of its own ([ROCM](ROCM.md), ROCm 10).
 A CUDA image comes with a later release.
 

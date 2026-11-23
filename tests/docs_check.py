@@ -790,6 +790,7 @@ def src_page_findings(tree):
 # README: its support tables, flags and documentation list against the code and docs that hold the same facts.
 
 README = "README.md"
+HUB_OVERVIEW = "docker/hub-overview.md"
 GPU_CORE = ("src/backends/gpu/backend_core.hpp", "TypeKernels kTypes[] =")
 # The table each backend's supports_type reads: CPU the decoder registry, Vulkan its weight formats, ROCm and CUDA the shared GPU core's types.
 TYPE_TABLES = {"cpu": ("src/quant/quant.hpp", "Registry() : types_"), "vulkan": ("src/backends/vulkan/vulkan_kernels.hpp", "WeightKernels weight_formats[] ="),
@@ -893,6 +894,13 @@ def readme_findings(tree):
                     if listed != twins:
                         add("f16 %s integer blocks" % h.split()[0], n, "lists %s; %s gives %s twin kernels, so list exactly those" % (
                             ", ".join(sorted(listed)), GPU_CORE[0], ", ".join(sorted(twins))))
+
+    hub = tree.texts.get(HUB_OVERVIEW, "")
+    if "X.Y.Z" not in hub:
+        found.add("readme", HUB_OVERVIEW, "X.Y.Z", 1, "holds no X.Y.Z placeholder for the release version; write the version as X.Y.Z")
+    for n, line in enumerate(hub.split("\n"), 1):
+        if re.search(r"(?<![\w.])\d+\.\d+\.\d+(?![\w.])", line):
+            found.add("readme", HUB_OVERVIEW, "version", n, "names a literal version; write X.Y.Z, which docker/hub-overview.sh replaces")
 
     taken = set().union(*tree.commands.values()) | {"--help"}
     for n, line, _, fence in doc_lines(README, text):
@@ -1101,6 +1109,13 @@ def planted(tree, plants):
     return copy
 
 
+def planted_text(tree, path, text):
+    """`tree` with the text of `path` replaced."""
+    copy = object.__new__(Tree)
+    copy.__dict__.update(tree.__dict__, texts=dict(tree.texts, **{path: text}))
+    return copy
+
+
 def release_notes_cli_ok():
     """The notes the release workflows print: a missing section and an empty version section fail, and an empty Unreleased section names the last release."""
     cases = [("1.0.0", 1, ""), ("0.9.0", 1, ""), ("0.8.5", 1, ""), ("Unreleased", 0, "No changes are listed since 0.9.0.\n"), ("0.8.0", 0, "### Fixed\n\n- planted\n")]
@@ -1208,6 +1223,12 @@ def self_test(tree, found, listed):
                 print("  self-test: a correct pinned line reference was reported: %s" % "; ".join(" | ".join(k) for k in wrong))
                 ok = False
     count += 1
+    count += 2
+    for what, text in (("a literal version", "mxxm/llmx:0.2.0-rocm7"), ("no placeholder", "")):
+        edited = tree.texts[HUB_OVERVIEW].replace("X.Y.Z", "") + text if what == "no placeholder" else None
+        if not any(k[:2] == ("readme", HUB_OVERVIEW) for k in readme_findings(planted(tree, [(HUB_OVERVIEW, None, text)]) if edited is None else planted_text(tree, HUB_OVERVIEW, edited))):
+            print("  self-test: a Docker Hub overview with %s was not reported" % what)
+            ok = False
     other = ("readme", README, "--other-flag")
     if other in readme_findings(planted(tree, [(README, "\n## Documentation", "\nRun `python tools/x.py --other-flag`.\n\n## Documentation")])):
         print("  self-test: a flag of a python script was reported as an llmx flag")

@@ -120,3 +120,8 @@ jobs:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
         run: bash docker/release/images.sh tag "${GITHUB_REF_NAME#v}" hub floating tags
+      - name: Docker Hub overview
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: bash docker/hub-overview.sh "${GITHUB_REF_NAME#v}"

@@ -76,6 +76,9 @@ jobs:
           done
           python -X utf8 tests/test_ci_annotations.py
           python -X utf8 .github/test_ci_scope.py
+      - name: Docker Hub overview render
+        if: runner.os == 'Linux'
+        run: bash tests/hub_overview.sh
       - name: Health dashboard tests
         run: python -X utf8 -m unittest discover -s tools/health_dashboard -v
       - name: Test fixture downloader

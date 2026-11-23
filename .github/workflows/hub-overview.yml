@@ -1,0 +1,30 @@
+name: Docker Hub overview
+
+# Sets the Docker Hub overview for a published release without cutting one (docs/RELEASE.md, The images).
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Published release version, X.Y.Z
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  overview:
+    name: Set the overview
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set the overview
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "version must be X.Y.Z" >&2; exit 1; }
+          bash docker/hub-overview.sh "$VERSION"

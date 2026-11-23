@@ -83,18 +83,30 @@ size_t check_ops(Pair& p) {
             require(std::memcmp(alone.data(), r.second.data() + 5 * stride, width * sizeof(float)) == 0, "layer_norm_rows of a row alone differs from the row beside others");
         }
     }
-    // GELU in both forms over values from 1e-30 to 1e5 of both signs and a uniform spread where it bends.
-    // The bound is absolute where values are small, not the kernel's precision: Vulkan's erf form, within 1.5e-7, is about 1e-3 relative below -3, where gelu is under 4e-4.
+    // GELU in both forms over values from 1e-30 to 1e5 of both signs, a uniform spread where it bends and a dense sweep of the negative tail.
+    // The tanh form is held within 1e-6 absolute; the erf form within 16 float units of the CPU's value and 1e-9 absolute, so a 1 + erf that cancels below -2 fails.
     std::vector<float> g = uniform(65536, 407, -12.0f, 12.0f);
     for (int e = -30; e <= 5; ++e)
         for (float s : {1.0f, -1.0f, 3.7f, -3.7f}) g.push_back(s * std::pow(10.0f, float(e)));
+    for (int i = 0; i <= 4000; ++i) g.push_back(-6.0f + float(i) / 1000.0f);
     Pair::In gi = p.in(g);
     for (backend::GeluForm form : {backend::GeluForm::tanh, backend::GeluForm::erf}) {
         Pair::Out d = p.out(g.size());
         p.cpu.gelu(d.cs(), gi.cs(), g.size(), form);
         p.dev.gelu(d.vs(), gi.vs(), g.size(), form);
         auto r = p.results(d);
-        values += close(r.first, r.second, 1e-6, form == backend::GeluForm::erf ? "gelu (erf) differs from the CPU beyond 1e-6" : "gelu (tanh) differs from the CPU beyond 1e-6");
+        if (form == backend::GeluForm::tanh) {
+            values += close(r.first, r.second, 1e-6, "gelu (tanh) differs from the CPU beyond 1e-6");
+            continue;
+        }
+        for (size_t i = 0; i < g.size(); ++i) {
+            const double want = r.first[i], got = r.second[i];
+            if (!(std::fabs(got - want) <= 16.0 * std::ldexp(std::fabs(want), -23) + 1e-9)) {
+                std::fprintf(stderr, "  gelu (erf) at %.9g: cpu %.9g device %.9g\n", double(g[i]), want, got);
+                require(false, "gelu (erf) differs from the CPU beyond 16 float units and 1e-9");
+            }
+        }
+        values += g.size();
     }
     // The rope over two streams, a head's first quarter of pairs by the patch's row and the rest by its column, with and without a norm, and one stream without a norm.
     for (size_t hd : {size_t(64), size_t(72), size_t(128)}) {

@@ -264,6 +264,7 @@ struct Device {
     VkQueue copy_queue = VK_NULL_HANDLE;   // for a tensor group's sum copies beside the work (VulkanBackend::copy_beside): a transfer-only family's queue, else a second queue of the family, else none
     uint32_t queue_family = 0;
     bool matched_barriers = false; // the queue plan's barrier form (QueuePlan)
+    bool radv = false;             // Mesa RADV, the driver whose barrier behaviour tagged_push's weak barriers rely on
     std::string queue_report;      // the probe's cells and choice, or why it fell back, for --verbose
     uint32_t copy_family = 0;              // copy_queue's family
     VkPhysicalDeviceProperties props{};

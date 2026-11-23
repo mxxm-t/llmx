@@ -822,6 +822,7 @@ public:
         const uint32_t bits = d.props.limits.timestampComputeAndGraphics ? qf[d.queue_family].timestampValidBits : 0;
         d.stamp_mask = bits >= 64 ? ~uint64_t(0) : (uint64_t(1) << bits) - 1;
         d.matched_barriers = plan.first.matched;
+        d.radv = drv.driverID == VK_DRIVER_ID_MESA_RADV;
         d.queue_report = plan.second;
         // Queues: the chosen family's (two where it has them and no transfer-only family exists, the second being the copy queue), the receive family's, and the transfer-only family's copy queue.
         const float priority[2] = {1.0f, 1.0f};
@@ -2655,6 +2656,7 @@ private:
     uint32_t chunk_limit_ = kFirstChunk;
     Ticket dispatched_ = 0;
     bool unordered_ = false;   // barriers left out (unordered)
+    bool bare_ = false;        // dispatches record no barrier, settle none and order no step (tagged_push places its own)
     // While unordered an op still orders its own steps, and every step what it reads or writes of the scratch the backend keeps across calls (order_step).
     int op_depth_ = 0;                  // op calls recording, one inside another
     size_t op_steps_ = 0;               // steps the outermost op call has recorded
@@ -2769,10 +2771,22 @@ private:
                            VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
         const VkPipelineStageFlags stages = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT;
         dev_->fn.vkCmdPipelineBarrier(cmd, stages, stages, 0, 1, &mb, 0, nullptr, 0, nullptr);
+        since_ = 0;
     }
-    // Under matched barriers, before a command of stages `next`: an owed barrier from the stages used since the last one, or, with none owed, one from every stage before when `next` is outside the last barrier's second scope.
+    // A compute-to-compute barrier that settles nothing barrier() owes: execution order alone with no access, or with SHADER_WRITE the shader writes also written back from L2, where another device reads them.
+    void compute_barrier(VkCommandBuffer cmd, VkAccessFlags src) {
+        VkMemoryBarrier mb{};
+        mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+        mb.srcAccessMask = src;
+        dev_->fn.vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, src ? 1 : 0, src ? &mb : nullptr, 0, nullptr, 0, nullptr);
+    }
+    // Before a command of stages `next`, under matched barriers: an owed barrier from the stages used since the last one, or, with none owed, one from every stage before when `next` is outside the last barrier's second scope.
+    // Under full barriers it only notes the stages used since the last one.
     void settle(VkCommandBuffer cmd, VkPipelineStageFlags next) {
-        if (!dev_->matched_barriers) return;
+        if (!dev_->matched_barriers) {
+            since_ |= next;
+            return;
+        }
         if (!owed_ && !(next & ~covered_)) {
             since_ |= next;
             return;
@@ -2791,9 +2805,11 @@ private:
         since_ = next;
         owed_ = false;
     }
-    // An owed barrier as the full one, before a command buffer ends and before an ownership barrier.
+    // An owed barrier as the full one, before a command buffer ends and before an ownership barrier; no command has used a stage since.
     void settle_all(VkCommandBuffer cmd) {
-        if (owed_) settle(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT);
+        if (!owed_) return;
+        settle(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT);
+        since_ = 0;
     }
 
     VulkanBuffer& staging();
@@ -2819,6 +2835,7 @@ private:
     uint32_t ring_index_ = 0;
     bool open_ = false;
     bool owed_ = false;   // matched barriers: a barrier is owed before the next command
+    // since_: the stages used since the last barrier that settled (under full barriers too); before_ and covered_: that barrier's scopes, matched barriers only.
     VkPipelineStageFlags since_ = 0, before_ = 0, covered_ = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT;
     VkSemaphore timeline_ = VK_NULL_HANDLE;
     // Four copy submissions a layer, so a ring this deep lets the recording thread run 64 layers ahead of the copies before it waits for one.

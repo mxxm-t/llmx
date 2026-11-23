@@ -563,6 +563,152 @@ size_t check_route(const std::vector<std::unique_ptr<backend::VulkanBackend>>& d
     return checks;
 }
 
+// Member 0's recorded commands, read from its device's function table: 'B' a barrier with its first memory barrier's accesses (none for an execution-only one), 'D' a dispatch, 'C' a copy.
+struct Recorded {
+    char kind;
+    VkAccessFlags src, dst;
+};
+std::vector<Recorded> recorded;
+PFN_vkCmdPipelineBarrier real_barrier;
+PFN_vkCmdDispatch real_dispatch;
+PFN_vkCmdCopyBuffer real_copy;
+void VKAPI_PTR record_barrier(VkCommandBuffer c, VkPipelineStageFlags s, VkPipelineStageFlags d, VkDependencyFlags f, uint32_t mn, const VkMemoryBarrier* m, uint32_t bn,
+                              const VkBufferMemoryBarrier* b, uint32_t in, const VkImageMemoryBarrier* i) {
+    recorded.push_back({'B', mn ? m[0].srcAccessMask : 0u, mn ? m[0].dstAccessMask : 0u});
+    real_barrier(c, s, d, f, mn, m, bn, b, in, i);
+}
+void VKAPI_PTR record_dispatch(VkCommandBuffer c, uint32_t x, uint32_t y, uint32_t z) {
+    recorded.push_back({'D', 0, 0});
+    real_dispatch(c, x, y, z);
+}
+void VKAPI_PTR record_copy(VkCommandBuffer c, VkBuffer s, VkBuffer d, uint32_t n, const VkBufferCopy* r) {
+    recorded.push_back({'C', 0, 0});
+    real_copy(c, s, d, n, r);
+}
+
+// A tagged sum's barriers on member 0, between the rows' writer (a dispatch, or a copy where `copied`), the sender, the gate and a dispatch reading the rows.
+// On RADV only the write-back barrier between sender and gate, elsewhere one making shader writes visible; after a dispatch the sender follows by execution order alone where `weak_before`, after a copy by a full barrier.
+void require_barriers(bool copied, bool radv, bool weak_before) {
+    std::vector<size_t> cmds;
+    for (size_t i = 0; i < recorded.size(); ++i)
+        if (recorded[i].kind != 'B') cmds.push_back(i);
+    require(cmds.size() >= 4, "a tagged sum between a writer and a reader did not record four commands on member 0");
+    auto between = [&](size_t a) {
+        std::vector<Recorded> b;
+        for (size_t i = cmds[a] + 1; i < cmds[a + 1]; ++i) b.push_back(recorded[i]);
+        return b;
+    };
+    const std::vector<Recorded> before = between(0), middle = between(1), after = between(2);
+    require(recorded[cmds[0]].kind == (copied ? 'C' : 'D'), "the rows' writer is not the first command recorded");
+    const auto shows = [](const std::vector<Recorded>& b) {
+        return std::any_of(b.begin(), b.end(), [](const Recorded& r) { return (r.src & VK_ACCESS_SHADER_WRITE_BIT) && (r.dst & VK_ACCESS_SHADER_READ_BIT); });
+    };
+    if (radv) require(middle.size() == 1 && middle[0].src == VK_ACCESS_SHADER_WRITE_BIT && middle[0].dst == 0, "the sender and the gate are not separated by the write-back barrier alone");
+    else require(shows(middle), "off RADV the sender and the gate are not separated by a barrier making shader writes visible");
+    const bool visible = shows(after);
+    require(visible, "a dispatch reading the rows after a tagged sum is not behind a barrier making shader writes visible");
+    if (copied) {
+        const bool full = std::any_of(before.begin(), before.end(), [](const Recorded& r) { return (r.src & VK_ACCESS_TRANSFER_WRITE_BIT) && (r.dst & VK_ACCESS_SHADER_READ_BIT); });
+        require(full, "a sender after a copy into its rows is not behind a barrier making the copy visible");
+    } else {
+        if (radv) require(before.size() == 1, "a sender after a dispatch writing its rows is not behind exactly one barrier");
+        else require(shows(before), "off RADV a sender after a dispatch writing its rows is not behind a barrier making shader writes visible");
+        if (weak_before) require(before[0].src == 0 && before[0].dst == 0, "a sender after a dispatch writing its rows is behind a memory barrier rather than execution order");
+    }
+}
+
+// Tagged sums over two members between a writer of each member's rows, a dispatch or a copy by turns, and a dispatch reading them, ordered and then unordered: member 0's barriers as require_barriers holds them.
+// Ordered, each epoch's read is the oracle's sum; the reader leaves the rows in the cache of the units it ran on, so a reader behind too weak a barrier would see the last epoch's rows.
+size_t check_tagged_barriers(const std::vector<std::unique_ptr<backend::VulkanBackend>>& devices) {
+    constexpr size_t rows = 4096, limit = 3072, n = 3072, E = 32;
+    if (devices.size() < 2) {
+        std::cout << "vulkan-sum: skip a tagged sum's barriers, fewer than two devices\n";
+        return 0;
+    }
+    std::vector<backend::Backend*> group{devices[0].get(), devices[1].get()};
+    // The rows outlive the collective, whose teardown waits for the members' queued work.
+    std::vector<group_sums::Case> cases;
+    std::vector<backend::BufferPtr> src, out;
+    auto c = devices[0]->join(group, rows, 1);
+    require(c != nullptr, "no Vulkan collective over devices that share memory");
+    if (!backend::VulkanSumTest::tag(*c, limit)) {
+        std::cout << "vulkan-sum: skip a tagged sum's barriers, a member lacking a receive queue, a clock or uncached memory\n";
+        return 0;
+    }
+    for (size_t el = 0; el < E; ++el) cases.push_back(group_sums::make(2, n, uint32_t(9500 + el)));
+    for (size_t m = 0; m < 2; ++m) {
+        src.push_back(group[m]->alloc(E * n * sizeof(float)));
+        out.push_back(group[m]->alloc(E * n * sizeof(float)));
+        for (size_t el = 0; el < E; ++el) group[m]->write(*src[m], el * n * sizeof(float), cases[el].partial[m].data(), n * sizeof(float));
+        group[m]->submit();
+    }
+    backend::Fn& fn = devices[0]->device()->fn;
+    const backend::Fn saved = fn;
+    real_barrier = saved.vkCmdPipelineBarrier;
+    real_dispatch = saved.vkCmdDispatch;
+    real_copy = saved.vkCmdCopyBuffer;
+    fn.vkCmdPipelineBarrier = record_barrier;
+    fn.vkCmdDispatch = record_dispatch;
+    fn.vkCmdCopyBuffer = record_copy;
+    const bool matched = devices[0]->device()->matched_barriers, on_radv = devices[0]->device()->radv;
+    const auto restore = [&] {
+        fn = saved;
+        for (size_t m = 0; m < 2; ++m) {
+            devices[m]->device()->radv = on_radv;
+            group[m]->unordered(false);
+        }
+    };
+    size_t checks = 0;
+    try {
+        // On RADV the barriers other drivers take run as well, the members' driver flag cleared.
+        for (int arm = 0; arm < (on_radv ? 4 : 2); ++arm) {
+            const bool radv = on_radv && arm < 2;
+            const int unordered = arm % 2;
+            for (size_t m = 0; m < 2; ++m) devices[m]->device()->radv = radv;
+            for (backend::Backend* d : group) d->unordered(unordered != 0);
+            for (size_t el = 0; el < E; ++el) {
+                const bool copied = el % 2 == 1;
+                recorded.clear();
+                for (size_t m = 0; m < 2; ++m) {
+                    const backend::Slice p = c->partial(m);
+                    if (copied) {
+                        group[m]->copy(*p.buffer, p.offset * sizeof(float), *src[m], el * n * sizeof(float), n * sizeof(float));
+                    } else {
+                        const backend::CSlice s{src[m].get(), el * n};
+                        devices[m]->sum_rows(p, &s, 1, n, nullptr, true);
+                    }
+                }
+                c->sum_in_place(n, 1);
+                for (size_t m = 0; m < 2; ++m) {
+                    const backend::CSlice p = c->partial(m);
+                    devices[m]->sum_rows(backend::Slice{out[m].get(), el * n}, &p, 1, n, nullptr, true);
+                }
+                require_barriers(copied, radv, radv && (matched || unordered));
+                for (backend::Backend* d : group) d->submit();
+                ++checks;
+            }
+            for (backend::Backend* d : group) d->unordered(false);
+            if (unordered) continue;
+            for (size_t m = 0; m < 2; ++m) {
+                std::vector<float> got(E * n);
+                group[m]->read(*out[m], 0, got.data(), got.size() * sizeof(float));
+                for (size_t el = 0; el < E; ++el) {
+                    std::vector<float> want(n);
+                    for (size_t j = 0; j < n; ++j) want[j] = cases[el].partial[0][j] + cases[el].partial[1][j];
+                    require(!std::memcmp(got.data() + el * n, want.data(), n * sizeof(float)), "a dispatch reading the rows after a tagged sum did not read the oracle's sum");
+                    ++checks;
+                }
+            }
+        }
+    } catch (...) {
+        restore();
+        throw;
+    }
+    restore();
+    std::cout << "vulkan-sum: " << checks << " checks of a tagged sum's barriers and reads behind them, " << (matched ? "matched" : "full") << " barriers" << (on_radv ? ", RADV's and other drivers'" : "") << "\n";
+    return checks;
+}
+
 // Two tagged groups sharing a member, {0, 1} and {1, 2}: 6 sums of each with both batches open and the first member's flush alone submitting them, then 12 alternating, ordered and then unordered.
 // A flush that closed one group would leave the other's senders without receivers, and alternating sums whose receivers queued by group would wait on each other, both until the cap aborts.
 size_t check_shared(const std::vector<std::unique_ptr<backend::VulkanBackend>>& devices) {
@@ -912,6 +1058,8 @@ size_t check_submit_faults(const std::vector<std::unique_ptr<backend::VulkanBack
 } // namespace
 
 int main() {
+    // A lost device aborts, so each check's line is written as it finishes.
+    std::cout << std::unitbuf;
     try {
         auto owner = std::make_unique<backend::VulkanBackend>(0);
         const size_t checks = check_sources(*owner);
@@ -935,6 +1083,7 @@ int main() {
         }
         const size_t routed = check_route(devices);
         std::cout << "vulkan-sum: " << routed << " collective checks over " << devices.size() << " devices\n";
+        check_tagged_barriers(devices);
         const size_t shared = check_shared(devices);
         std::cout << "vulkan-sum: " << shared << " checks of two tagged groups sharing a member, ordered and unordered\n";
         const size_t routes = check_routes(devices), thrown = check_tag_throws(devices);

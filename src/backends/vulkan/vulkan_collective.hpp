@@ -46,18 +46,37 @@ inline void VulkanBackend::tagged_push(Slice rows, Buffer& control, const VkDesc
     const VkDescriptorBufferInfo src = bind(rows), ctl = bind(Slice{&control, 0});
     uint32_t pc[13] = {u32(n), epoch, u32(self), u32(members), G, C, G, 0, 1, cap, 16u | 8u, gen, slots};
     static_assert(kMaxTensorWidth == 16 && 2 + kMaxTensorWidth <= kMaxBuffers, "a tagged region a member below");
-    // While unordered no barrier follows a dispatch, and the sender must follow the rows' writers and what follows the gate must wait for it.
-    if (unordered_) barrier(open());
+    // On RADV coherent bindings load from L2, so after compute writers execution order suffices and a write-back is all the gate needs; the Vulkan model promises neither, so other drivers take full barriers (docs/src/backends-vulkan.md).
+    // A transfer writer's data may not be in L2, so it takes the full barrier.
+    const bool weak = dev_->radv;
+    if (weak && since_ == VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT) compute_barrier(open(), 0);
+    else if (since_ || owed_) {
+        VkCommandBuffer cmd = open();
+        barrier(cmd);
+        settle_all(cmd);
+    }
+    bare_ = true;
+    struct Clear {
+        bool& bare;
+        ~Clear() { bare = false; }
+    } clear{bare_};
     for (int pass = 0; pass < 2; ++pass) {
         dispatch(K_FLAG_PUSH, {src, ctl, peers[0], peers[1], peers[2], peers[3], peers[4], peers[5], peers[6], peers[7], peers[8], peers[9], peers[10], peers[11], peers[12],
                                peers[13], peers[14], peers[15]},
                  pc, sizeof(pc), G);
-        // While unordered the sender's tagged stores reach the peers only at a barrier, so the gate waits behind one.
-        if (unordered_ && pass == 0) barrier(open());
+        // The sender's stores to the peers' inboxes stay in its L2 until a write-back, which the gate waits for.
+        if (pass == 0 && weak) compute_barrier(open(), VK_ACCESS_SHADER_WRITE_BIT);
+        // Under matched barriers barrier() only owes one and the bare gate settles nothing, so the barrier is settled here.
+        if (pass == 0 && !weak) {
+            VkCommandBuffer cmd = open();
+            barrier(cmd);
+            settle(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+        }
         pc[8] = 0;
         pc[10] = 8u;
     }
-    if (unordered_) barrier(open());
+    // What follows reads the rows the receiver wrote and the writes whose barrier waited, so the full barrier, or the one owed, follows the gate.
+    barrier(open());
     forget_written(src.buffer, 0, VK_WHOLE_SIZE);
 }
 

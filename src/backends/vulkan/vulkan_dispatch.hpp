@@ -182,7 +182,7 @@ inline void VulkanBackend::dispatch(KernelId id, std::initializer_list<VkDescrip
                 forget_written(b.buffer, b.offset, floats ? b.offset + floats * sizeof(float) : VK_WHOLE_SIZE);
             }
     VkCommandBuffer cmd = open();
-    if (unordered_) {
+    if (unordered_ && !bare_) {
         std::array<std::pair<VkBuffer, bool>, kMaxBuffers> uses;
         if (buffers.size() > uses.size()) throw std::logic_error("vulkan: a kernel of more buffers than order_step holds");
         size_t e = 0;
@@ -190,7 +190,8 @@ inline void VulkanBackend::dispatch(KernelId id, std::initializer_list<VkDescrip
             for (uint32_t j = 0; j < (src.counts ? src.counts[i] : 1); ++j, ++e) uses[e] = {buffers.begin()[e].buffer, (written >> i & 1) != 0};
         order_step(cmd, uses.data(), e);
     }
-    settle(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+    if (bare_) since_ |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    else settle(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
     bind_kernel(cmd, id, k, buffers.begin(), push, push_bytes);
     if (dev_->timestamps) {
         stamp_before(cmd);
@@ -199,9 +200,9 @@ inline void VulkanBackend::dispatch(KernelId id, std::initializer_list<VkDescrip
     } else {
         dev_->fn.vkCmdDispatch(cmd, groups_x, groups_y, 1);
     }
-    if (!unordered_) barrier(cmd);
+    if (!unordered_ && !bare_) barrier(cmd);
     // A pass is submitted in chunks so the device starts on the first while the host records the rest; the ordered timeline makes the last chunk's ticket cover them all.
-    if (++chunk_ >= chunk_limit_ && !defer_chunk) flush();
+    if (++chunk_ >= chunk_limit_ && !defer_chunk && !bare_) flush();
 }
 
 // A kernel's pipeline, its buffers as push descriptors and its push constants on `cmd`, for dispatch and for a command buffer of another queue (VulkanCollective's receivers).

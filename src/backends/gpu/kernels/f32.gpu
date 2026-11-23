@@ -1172,86 +1172,97 @@ __device__ inline void exact_row(const unsigned char* W, const float* X, float* 
     const float s = exact_sum<D>(W, X, nin, o, d);
     if (threadIdx.x % kWave == 0) Y[o] = add ? Y[o] + s : s;
 }
-// vector_steps over C rows of X, nin apart: the weights loaded once for all of them, each row's chains stepped as exact_wave steps its one.
-template <class D, int J, int U, int C>
-__device__ inline void vector_steps_cols(const unsigned char* row, const float* const (&X)[C], unsigned long long u, float (&s)[C][J]) {
-    float4 a[U][J / 4], b[C][U][J / 4];
-#pragma unroll
-    for (int q = 0; q < U; ++q)
-#pragma unroll
-        for (int k = 0; k < J / 4; ++k) {
-            a[q][k] = D::load4(row, u + 4 * k + q * kThreads);
-#pragma unroll
-            for (int c = 0; c < C; ++c) b[c][q][k] = ((const float4*)X[c])[(u + 4 * k + q * kThreads) / 4];
-        }
-    schedule_barrier();
-#pragma unroll
-    for (int c = 0; c < C; ++c)
-#pragma unroll
-        for (int q = 0; q < U; ++q)
-#pragma unroll
-            for (int k = 0; k < J / 4; ++k) {
-                s[c][4 * k] = fmaf(a[q][k].x, b[c][q][k].x, s[c][4 * k]);
-                s[c][4 * k + 1] = fmaf(a[q][k].y, b[c][q][k].y, s[c][4 * k + 1]);
-                s[c][4 * k + 2] = fmaf(a[q][k].z, b[c][q][k].z, s[c][4 * k + 2]);
-                s[c][4 * k + 3] = fmaf(a[q][k].w, b[c][q][k].w, s[c][4 * k + 3]);
-            }
-}
-template <class D, int J, int U, int C>
-__device__ inline void vector_run_cols(const unsigned char* row, const float* const (&X)[C], unsigned long long first, unsigned long long full, unsigned long long m, float (&s)[C][J]) {
-    for (; m + U <= full; m += U) vector_steps_cols<D, J, U, C>(row, X, first + m * kThreads, s);
-    if constexpr (U > 1) vector_run_cols<D, J, U / 2, C>(row, X, first, full, m, s);
-}
-// exact_wave over up to C rows of X at once, a wave an output reading its weight row once: each row's output the bits of exact_wave on that row alone; rows past `nrows` repeat the last and are not written.
-template <class D, int C>
+// R outputs by G rows of X a wave, rows on the grid's second dimension G at a time, each (output, row) the bits of exact_sum on that row alone: lane t holds chains 4t to 4t + 3 and those 4 kWave on.
+// Levels at or above 4 kWave fold in registers, the next three scatter the 8 pairs over the top lane bits, the rest go by shuffles and the last two in the lane; rows and outputs past the call are not written.
+template <class D, int R, int G>
 __device__ void exact_cols(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, unsigned long long nrows, int add) {
-    constexpr int J = kThreads / kWave;
+    static_assert(R * G == 8 && kWave >= 16, "the scatter takes the 8 (output, row) pairs over three lane bits");
+    constexpr int J = kThreads / kWave, K = J / 4;
     const int t = threadIdx.x % kWave;
-    const unsigned long long o = (unsigned long long)blockIdx.x * (kThreads / kWave) + threadIdx.x / kWave;
-    if (o >= nout) return;
-    const unsigned char* row = W + o * D::row_bytes(nin);
-    const unsigned long long n = D::units(nin), full = n / kThreads, first = (unsigned long long)J * t;
-    const float* x[C];
-    bool aligned = (unsigned long long)row % D::align == 0;
+    const unsigned long long o0 = ((unsigned long long)blockIdx.x * (kThreads / kWave) + threadIdx.x / kWave) * R, b0 = (unsigned long long)blockIdx.y * G;
+    if (o0 >= nout) return;
+    const unsigned char* rows[R];
+    const float* x[G];
+    bool aligned = true;
 #pragma unroll
-    for (int c = 0; c < C; ++c) {
-        x[c] = X + (c < (int)nrows ? c : (int)nrows - 1) * nin;
-        aligned = aligned && (unsigned long long)x[c] % 16 == 0;
+    for (int r = 0; r < R; ++r) {
+        rows[r] = W + (o0 + r < nout ? o0 + r : nout - 1) * D::row_bytes(nin);
+        aligned = aligned && (unsigned long long)rows[r] % D::align == 0;
     }
-    float s[C][J];
 #pragma unroll
-    for (int c = 0; c < C; ++c)
+    for (int g = 0; g < G; ++g) {
+        x[g] = X + (b0 + g < nrows ? b0 + g : nrows - 1) * nin;
+        aligned = aligned && (unsigned long long)x[g] % 16 == 0;
+    }
+    const unsigned long long n = D::units(nin), full = n / kThreads, first = 4ull * t;
+    float s[8][J];
 #pragma unroll
-        for (int j = 0; j < J; ++j) s[c][j] = 0.0f;
-    bool done = false;
-    if constexpr (D::vector)
-        if (aligned) {
-            done = true;
-            vector_run_cols<D, J, kBatchBytes / (J * D::weight_bytes), C>(row, x, first, full, 0, s);
+    for (int q = 0; q < 8; ++q)
+#pragma unroll
+        for (int j = 0; j < J; ++j) s[q][j] = 0.0f;
+    if (D::vector && aligned) {
+        for (unsigned long long m = 0; m < full; ++m) {
+            const unsigned long long u = first + m * kThreads;
+            float4 w[R][K];
+#pragma unroll
+            for (int r = 0; r < R; ++r)
+#pragma unroll
+                for (int k = 0; k < K; ++k) w[r][k] = D::load4(rows[r], u + 4 * kWave * k);
+#pragma unroll
+            for (int g = 0; g < G; ++g)
+#pragma unroll
+                for (int k = 0; k < K; ++k) {
+                    const float4 a = ((const float4*)x[g])[(u + 4 * kWave * k) / 4];
+#pragma unroll
+                    for (int r = 0; r < R; ++r) {
+                        float* z = s[r * G + g] + 4 * k;
+                        z[0] = fmaf(w[r][k].x, a.x, z[0]), z[1] = fmaf(w[r][k].y, a.y, z[1]), z[2] = fmaf(w[r][k].z, a.z, z[2]), z[3] = fmaf(w[r][k].w, a.w, z[3]);
+                    }
+                }
         }
-    if (!done) {
+    } else {
         for (unsigned long long m = 0; m < full; ++m)
 #pragma unroll
-            for (int c = 0; c < C; ++c)
+            for (int j = 0; j < J; ++j)
 #pragma unroll
-                for (int j = 0; j < J; ++j) s[c][j] = D::step(row, x[c], first + j + m * kThreads, s[c][j]);
+                for (int q = 0; q < 8; ++q) s[q][j] = D::step(rows[q / G], x[q % G], first + j % 4 + 4 * kWave * (j / 4) + m * kThreads, s[q][j]);
     }
 #pragma unroll
-    for (int c = 0; c < C; ++c)
+    for (int j = 0; j < J; ++j) {
+        const unsigned long long u = first + j % 4 + 4 * kWave * (j / 4) + full * kThreads;
+        if (u < n)
 #pragma unroll
-        for (int j = 0; j < J; ++j)
-            if (first + j + full * kThreads < n) s[c][j] = D::step(row, x[c], first + j + full * kThreads, s[c][j]);
+            for (int q = 0; q < 8; ++q) s[q][j] = D::step(rows[q / G], x[q % G], u, s[q][j]);
+    }
 #pragma unroll
-    for (int c = 0; c < C; ++c) {
+    for (int h = K / 2; h > 0; h >>= 1)
 #pragma unroll
-        for (int h = kThreads / 2; h >= J; h >>= 1)
+        for (int q = 0; q < 8; ++q)
 #pragma unroll
-            for (int j = 0; j < J; ++j) s[c][j] += shuffle_down(s[c][j], h / J, kWave);
+            for (int i = 0; i < 4 * h; ++i) s[q][i] += s[q][i + 4 * h];
+    // Each scatter level keeps the half of the pairs its lane bit names and adds the partner lane's sum of the same pairs; adds commute, so either order gives exact_sum's bits.
+    const bool top = t & (kWave / 2), mid = t & (kWave / 4), low = t & (kWave / 8);
+    float v4[4][4], v2[2][4], v1[4];
 #pragma unroll
-        for (int h = J / 2; h > 0; h >>= 1)
+    for (int k = 0; k < 4; ++k)
 #pragma unroll
-            for (int j = 0; j < h; ++j) s[c][j] += s[c][j + h];
-        if (t == 0 && c < (int)nrows) Y[c * nout + o] = add ? Y[c * nout + o] + s[c][0] : s[c][0];
+        for (int i = 0; i < 4; ++i) v4[k][i] = (top ? s[4 + k][i] : s[k][i]) + shuffle_xor(top ? s[k][i] : s[4 + k][i], kWave / 2);
+#pragma unroll
+    for (int k = 0; k < 2; ++k)
+#pragma unroll
+        for (int i = 0; i < 4; ++i) v2[k][i] = (mid ? v4[2 + k][i] : v4[k][i]) + shuffle_xor(mid ? v4[k][i] : v4[2 + k][i], kWave / 4);
+#pragma unroll
+    for (int i = 0; i < 4; ++i) v1[i] = (low ? v2[1][i] : v2[0][i]) + shuffle_xor(low ? v2[0][i] : v2[1][i], kWave / 8);
+#pragma unroll
+    for (int h = kWave / 16; h > 0; h >>= 1)
+#pragma unroll
+        for (int i = 0; i < 4; ++i) v1[i] += shuffle_xor(v1[i], h);
+    const float y = (v1[0] + v1[2]) + (v1[1] + v1[3]);
+    const int q = (top ? 4 : 0) + (mid ? 2 : 0) + (low ? 1 : 0);
+    const unsigned long long o = o0 + q / G, b = b0 + q % G;
+    if (t % (kWave / 8) == 0 && o < nout && b < nrows) {
+        float* out = Y + b * nout + o;
+        *out = add ? *out + y : y;
     }
 }
 template <class D>
@@ -1333,9 +1344,9 @@ template <class D> __device__ void routed_exact(const unsigned char* W, const fl
     }
 LLMX_EXACT(f32, ExactF32)
 LLMX_EXACT(q8_0, ExactQ8)
-#define LLMX_COLS(t, C, D)     extern "C" __global__ void __launch_bounds__(kThreads) llmx_matmul_cols##C##_##t(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout,                                                     unsigned long long nrows, int add) {                                                                                  exact_cols<D, C>(W, X, Y, nin, nout, nrows, add);                                                                                                           }
-LLMX_COLS(f32, 2, ExactF32)
+#define LLMX_COLS(t, G, D)     extern "C" __global__ void __launch_bounds__(kThreads) llmx_matmul_cols##G##_##t(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, unsigned long long nrows, int add) { exact_cols<D, 8 / G, G>(W, X, Y, nin, nout, nrows, add); }
 LLMX_COLS(f32, 4, ExactF32)
+LLMX_COLS(f32, 8, ExactF32)
 
 // Rows of a table of type T decoded: dst row i = table row ids[i], `width` floats each, and a zero row for an id of `nrows` or more; offsets are 64-bit, since a lookup table passes 4 GiB.
 template <class T> __device__ void gather_decoded(float* dst, const unsigned char* table, const unsigned* ids, unsigned long long width, unsigned nrows, float factor = 1.0f) {
@@ -1366,6 +1377,10 @@ LLMX_DECODED(q5_0, Q5_0)
 LLMX_DECODED(q5_1, Q5_1)
 LLMX_DECODED(bf16, BF16)
 LLMX_DECODED(f16, F16)
+LLMX_COLS(bf16, 4, ExactDecoded<rq::BF16>)
+LLMX_COLS(bf16, 8, ExactDecoded<rq::BF16>)
+LLMX_COLS(f16, 4, ExactDecoded<rq::F16>)
+LLMX_COLS(f16, 8, ExactDecoded<rq::F16>)
 LLMX_DECODED(iq4_nl, IQ4_NL)
 LLMX_DECODED(mxfp4, MXFP4)
 LLMX_DECODED(q2_k, Q2_K)

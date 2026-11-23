@@ -183,14 +183,20 @@ inline std::vector<std::array<size_t, 2>> flash_shapes(uint32_t type) {
 
 // Each given exact type's product over several rows must give each output the bits of its row alone through the one-row build, plain and added, at each side of a block's outputs and rows.
 // The widths give lanes chains of unequal length (2561, 2080), lanes without one (100), the hyper-connection maps' 10240 and F32 rows off the vector loads' alignment (2561).
-inline void exact_rows(Backend& g, const std::vector<uint32_t>& kinds, const Launches& launches, const Require& require) {
-    const size_t nouts[] = {1, 13, 512}, nrows[] = {2, 3, 4, 5, 7, 8, 9, 33};
+inline void exact_rows(Backend& g, DeviceProfile& profile, const std::vector<uint32_t>& kinds, const Launches& launches, const Require& require) {
+    const size_t nouts[] = {1, 13, 512}, nrows[] = {2, 3, 4, 5, 7, 8, 9, 12, 16, 17, 33};
+    const size_t keep = profile.exact_cols_upto;
     for (uint32_t type : kinds) {
         const std::string name = quant::storage_type(type)->name;
         const size_t block = quant::storage_type(type)->block_size;
         std::string tname = name;
         for (char& ch : tname) ch = char(std::tolower(ch));
-        const auto build = [&](size_t n) { return type == quant::GGML_TYPE_F32 && n <= 4 ? std::string(n <= 2 ? "llmx_matmul_cols2_f32" : "llmx_matmul_cols4_f32") : "llmx_matmul_rows_" + tname; };
+        // The column types take the 8-row build past four rows and the 4-row build for up to four, or for a remainder of up to four past whole groups of eight, up to the profile's exact_cols_upto rows.
+        // They run at the device's exact_cols_upto, the counts past it on the row block (4 and 5 stand at the default's edge), at 1, every count on the row block, and at 33, every count on the column builds.
+        const bool cols = type == quant::GGML_TYPE_F32 || type == quant::GGML_TYPE_BF16 || type == quant::GGML_TYPE_F16;
+        const auto on_cols = [&](size_t n) { return cols && n <= profile.exact_cols_upto; };
+        const auto build = [&](size_t n) { return on_cols(n) ? "llmx_matmul_cols" + std::string(n <= 4 ? "4_" : "8_") + tname : "llmx_matmul_rows_" + tname; };
+        const auto tail = [&](size_t n) { return on_cols(n) && n > 4 && n % 8 && n % 8 <= 4; };
         const std::vector<size_t> widths = block == 1 ? std::vector<size_t>{2560, 2561, 100, 10240} : block == 32 ? std::vector<size_t>{2560, 2080} : std::vector<size_t>{2560};
         for (size_t nin : widths)
         for (size_t nout : nouts) {
@@ -209,14 +215,18 @@ inline void exact_rows(Backend& g, const std::vector<uint32_t>& kinds, const Lau
             }
             const std::vector<float> x = row_classes::values(nin * 33, uint32_t(nout + 11)), y0 = row_classes::values(nout * 33, uint32_t(nout + 17));
             auto wb = g.adopt(w.data(), w.size()), xb = g.adopt(x.data(), x.size() * 4), yb = g.alloc(nout * 33 * 4), y1 = g.alloc(nout * 4);
+            for (size_t upto : cols ? std::vector<size_t>{keep, 1, 33} : std::vector<size_t>{keep})
             for (size_t n : nrows)
                 for (int add = 0; add < 2; ++add) {
-                    const std::string at = name + " " + std::to_string(nin) + "->" + std::to_string(nout) + " over " + std::to_string(n) + " rows" + (add ? ", added" : "");
+                    profile.exact_cols_upto = upto;
+                    const std::string at = name + " " + std::to_string(nin) + "->" + std::to_string(nout) + " over " + std::to_string(n) + " rows" + (add ? ", added" : "") + (cols ? ", columns up to " + std::to_string(upto) : "");
                     g.write(*yb, 0, y0.data(), y0.size() * 4);
                     launches(g);
                     if (add) g.matmul_add({type, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, n, {}, Dtype::f32);
                     else g.matmul({type, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, n, {}, Dtype::f32);
-                    require(launches(g).count(build(n)) == 1, "a " + at + " exact product takes " + build(n));
+                    const auto ran = launches(g);
+                    require(ran.count(build(n)) == 1, "a " + at + " exact product takes " + build(n));
+                    require(!on_cols(n) || n <= 4 || ran.count("llmx_matmul_cols4_" + tname) == (tail(n) ? 1u : 0u), "a " + at + " exact product takes the 4-row build for a remainder of up to four rows and only then");
                     const std::vector<float> all = read(g, *yb, nout * 33);
                     bool ok = std::memcmp(all.data() + n * nout, y0.data() + n * nout, (33 - n) * nout * 4) == 0;
                     for (size_t r = 0; r < n && ok; ++r) {
@@ -227,6 +237,7 @@ inline void exact_rows(Backend& g, const std::vector<uint32_t>& kinds, const Lau
                     }
                     require(ok, "every row of a " + at + " exact product is the row alone, bit for bit, and nothing past it is written");
                 }
+            profile.exact_cols_upto = keep;
         }
     }
 }
@@ -1022,7 +1033,7 @@ struct Bits {
                     launches(g);
                     g.matmul(wt, {xb.get(), 0}, {yb.get(), 0}, nin, nout, n, {runs, 2}, Dtype::f16);
                     const auto ran = launches(g);
-                    require(ran.count("llmx_f16_tile") == 1 && ran.count("llmx_matmul_rows_f16") == 1, "a " + at + " call of decode columns and a prompt takes the exact rows and the half tile");
+                    require(ran.count("llmx_f16_tile") == 1 && ran.count("llmx_matmul_cols4_f16") == 1, "a " + at + " call of decode columns and a prompt takes the 4-row column build and the half tile");
                     const std::vector<float> mixed = read(g, *yb, nout * n);
                     g.matmul(wt, {xb.get(), 0}, {y1.get(), 0}, nin, nout, 3, {}, Dtype::f32);
                     require(std::memcmp(read(g, *y1, nout * 3).data(), mixed.data(), nout * 3 * 4) == 0, "a " + at + " call's decode columns have the exact product's bits");

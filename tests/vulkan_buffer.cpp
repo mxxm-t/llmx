@@ -1081,7 +1081,9 @@ struct CollectiveCalls {
         };
         for (size_t s = 0; s < submitted.size(); ++s) for (const auto& e : submitted[s].events) {
             auto& p = state[e.payload];
-            const uint32_t local = backend::VulkanLifetimeTest::device(*members[submitted[s].member])->queue_family;
+            const auto dv = backend::VulkanLifetimeTest::device(*members[submitted[s].member]);
+            // A device with a receive family has buffers concurrent over its families and names no family of its own in a transfer.
+            const uint32_t local = dv->receive_family == UINT32_MAX ? dv->queue_family : VK_QUEUE_FAMILY_IGNORED;
             if (e.op == Op::write) {
                 if (p.reader != SIZE_MAX && !ordered(p.reader, s)) return fail("overwrite precedes prior consumer", e.payload, s);
                 p.write = e; p.writer = s; p.release = p.acquired = SIZE_MAX;

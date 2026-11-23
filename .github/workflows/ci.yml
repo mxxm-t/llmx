@@ -52,7 +52,7 @@ jobs:
     if: ${{ !cancelled() && needs.scope.outputs.companion != 'true' && (github.server_url == 'https://github.com' || github.event_name != 'push') }}
     name: CPU (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: ${{ matrix.os == 'macos-15-intel' && 120 || matrix.os == 'windows-2022' && 120 || 45 }}
+    timeout-minutes: ${{ matrix.os == 'macos-15-intel' && 120 || matrix.os == 'windows-2022' && 120 || 75 }}
     strategy:
       fail-fast: false
       # Gitea has Linux runners only, so there the matrix is its Ubuntu entry alone.

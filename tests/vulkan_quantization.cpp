@@ -2,6 +2,7 @@
 #include "backends/vulkan/vulkan_backend.cpp"
 #include "backends/cpu/cpu_backend.hpp"
 #include "core/fp16.hpp"
+#include <chrono>
 #include <algorithm>
 #include <cstring>
 #include <functional>
@@ -196,6 +197,41 @@ void check_float_identity(backend::VulkanBackend& preserved, backend::VulkanBack
     }
     std::cout << "vulkan-quantization: " << checked << " ordinary F32 outputs, " << failed << " differ between modules\n";
     require(failed == 0, "F32 rows changed under Q8 preservation");
+}
+
+// F16 weights through the float tile cost at most 1.5 times BF16 weights of the same shape, since both widen 16-bit values exactly before the same sums.
+// A 4096 by 12288 product over 300 rows with BF16 inputs took 15 times as long with F16 weights on an MI50, and a submission of such calls passed the driver's job timeout (docs/VULKAN.md, Kernel notes).
+void check_f16_tile_time(backend::VulkanBackend& b) {
+    const size_t nin = 4096, nout = 12288, rows = 300;
+    std::vector<uint16_t> h16(nin * nout), hb(nin * nout);
+    uint32_t seed = 977;
+    for (size_t i = 0; i < h16.size(); ++i) {
+        seed = seed * 1664525u + 1013904223u;
+        const float v = float(int(seed >> 21) - 1024) / 8192.0f;
+        uint32_t bits;
+        std::memcpy(&bits, &v, 4);
+        h16[i] = f32_to_f16(v);
+        hb[i] = uint16_t(bits >> 16);
+    }
+    std::vector<float> x(nin * rows);
+    for (size_t i = 0; i < x.size(); ++i) x[i] = float(int(i % 61) - 30) / 64.0f;
+    const auto wh = b.adopt(h16.data(), h16.size() * 2), wb = b.adopt(hb.data(), hb.size() * 2), xb = b.adopt(x.data(), x.size() * 4);
+    const auto yb = b.alloc(nout * rows * 4, backend::Memory::device);
+    auto time = [&](uint32_t type, const backend::Buffer* w) {
+        double best = 1e300;
+        for (int rep = 0; rep < 3; ++rep) {
+            b.matmul({type, {w, 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, rows, {}, backend::Dtype::bf16);
+            b.sync();
+            const auto t0 = std::chrono::steady_clock::now();
+            b.matmul({type, {w, 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, rows, {}, backend::Dtype::bf16);
+            b.sync();
+            best = std::min(best, std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
+        }
+        return best;
+    };
+    const double f16 = time(quant::GGML_TYPE_F16, wh.get()), bf16 = time(quant::GGML_TYPE_BF16, wb.get());
+    std::cout << "vulkan-quantization: F16 weight tile " << f16 << " ms, BF16 " << bf16 << " ms\n";
+    if (f16 > 1.5 * bf16) throw std::runtime_error("vulkan-quantization: F16 weights through the float tile cost more than 1.5 times BF16 weights");
 }
 
 // The wide float tile (shaders/matmul_tile_wide.comp) against the float tile on the same inputs, every output bit for bit, since a call takes either by its width.
@@ -1081,6 +1117,7 @@ int main() {
         check_elementwise_subnormals(*b);
         check_elementwise_subnormals(*fallback);
         check_float_identity(*b, *fallback);
+        check_f16_tile_time(*b);
         check_wide_tile(*b, backend::VulkanQuantizationTest::preserves_float32(*b) ? "preserving" : "plain");
         check_wide_tile(*fallback, "plain");
         check_combine_identity(*b, *fallback);

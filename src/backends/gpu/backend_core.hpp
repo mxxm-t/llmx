@@ -3885,6 +3885,11 @@ private:
         std::lock_guard<std::mutex> lk(failed_mu_);
         if (failed_.empty()) failed_ = Api::prefix + where + " failed on the device with " + Api::error_name(e);
     }
+    // Whether the device reported an asynchronous failure, which a collective's wait cancels its sum for.
+    bool device_failed() noexcept {
+        std::lock_guard<std::mutex> lk(failed_mu_);
+        return !failed_.empty();
+    }
     // A group sum that gave up on this device (fault_) throws once, at the next call that checks; the collective's later sums take the conservative path, so the backend goes on.
     void raise_failed() {
         {

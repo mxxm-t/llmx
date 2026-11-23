@@ -11,6 +11,20 @@
 - **Left:** no card has timed the pushing builds on CUDA, where the four-block cap may cost occupancy.
 - **Landing:** with the landing stack land-20261128, whose gates are recorded there (Landing stack land-20261128, below).
 
+## A GPU group sum stops waiting for a card that is gone (2026-11-19, SUMSAFE1, revived 2026-11-23 by REVIVE1 and REVIVE2 as fix/group-sum-deadline on main bfb7f517; lands by fast-forward as two commits, the failing test and then the fix)
+
+- **Goal:** one card's hardware fault never takes the host: at 01:05 on 2026-11-19 an uncorrectable ATHUB error on one MI50 left its tensor group's live members spinning in their sums for ever, since a serving sum carried no deadline (`timeout_` 0 outside the probe), and the whole host was lost.
+- **Done:** every sum's member waits for a late peer up to `kSumTimeoutMs`, 30 s of its device's wall clock, the probe keeping its one second (`collective_core.hpp`); the kernel already compared that deadline once a tick, so no kernel or hot-path change, and a sum that runs out leaves NaN, sets the status and fault words, throws once on each live backend and turns the collective conservative, as a probe that runs out did.
+  `GpuCollective::wait` cancels the sum where a member's device reported an error (`GpuBackend::device_failed`), so its peers stop at the next tick rather than at the deadline.
+  30 s is 30 times the lag a live peer was seen to reach (a stream over a second behind in drafts-on 2x2 serving).
+  Main's collective grew since the branch was written (transports, copies, pulls); the fix is the same few lines on it and the test commit was rebased with its fake Api merged with main's `refuse_elapsed` and `no_binary` switches.
+  REVIVE2 ported the test to main's collective (2026-11-23): a collective over peer writes, picks of one-shot, shares, chain and wrap by size, and `GroupSignal::done` for the port's meeting words.
+  Focused checks (pve1, CPU build): `gpu-core` fails on the test commit with main's source in the ten deadline and gone-member checks and passes on the fix; `dead-code` and `docs` pass at the fix.
+- **Test:** `gpu-core` (docs/TESTS.md) holds every serving sum's deadline and a CPU port of the kernel's meeting with a member that never comes.
+- **Left:** the landing stack's card-free CUDA CTest, since the change is in `src/backends/gpu`, and the device check COORD runs on a group of free cards: `backend-rocm` and `backend-cuda` (their sums' bits and the late-peer test) and one 2x2 drafts-on serve cell for no give-up and the same output hashes.
+  After a give-up the collective takes the conservative path, whose live members wait on the gone card's events with no bound, so a later sum on a group with a dead card still hangs its live streams (no spin); refusing later sums on a collective whose sum ran out is the follow-up this branch does not make.
+  README unchanged (no user-facing change).
+
 ## A chat reply read again with the reasoning its client sends back
 
 - **Goal:** a follow-up turn that sends the reply's reasoning back reuses the reply. Production on 2026-11-22 (0.2.0, Qwen3.8-27B Q8_0, the chat companion) reused nothing of a 29000-token follow-up: `the closest held history agrees for 59 tokens (message 2 of 3, assistant), limited by tokens at 59`.

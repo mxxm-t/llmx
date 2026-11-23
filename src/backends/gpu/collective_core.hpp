@@ -42,6 +42,7 @@ constexpr size_t kGroupBlocks = 32;       // the kernel's signal slots a member,
 constexpr unsigned kPushTile = 16;        // blocks of a pushing held build whose rows go out together (kernels/int16.gpu, held_push)
 constexpr size_t kChainBlocks = 16, kChainUnits = 4096;  // the kernel's chain blocks each way and float4 units a chunk
 constexpr unsigned kProbeTimeoutMs = 1000;   // how long a probe sum's member waits for its peers before the probe finds peer writes unseen
+constexpr unsigned kSumTimeoutMs = 30000;    // how long any other sum's member waits for a peer before it takes the peer's card as gone
 constexpr size_t kTimedFloor = 4096, kTimedSums = 3, kTimedRounds = 3;   // the least floats a form is timed at, the sums of each timing and its rounds
 constexpr double kTimedSpanMs = 0.5;   // a short timing's rounds each span about this long, so a few microseconds of host jitter do not pick the form after a first
 constexpr size_t kDuelRounds = 5;      // interleaved timings of the wrap and the best other pick before the wrap is kept
@@ -128,7 +129,7 @@ constexpr double kOrderMargin = 0.04;    // how much faster than the groups it r
 const char* transport_name(GroupTransport t) { return t == GroupTransport::peer_writes ? "peer writes" : t == GroupTransport::host_writes ? "host writes" : "peer pulls"; }
 
 // A tensor group's ordered sum (docs/src/backends-gpu.md, the collective): each member's kernel, on its own stream, sends its partial rows to its peers in the transport and form the sum's size takes and adds them in member order.
-// A member waits for a late peer as long as it takes, and a sum the host cancelled or a probe that ran out turns the collective to the conservative path for good, where each member pulls the peers' rows behind events.
+// A member waits for a late peer up to kSumTimeoutMs of its device's clock, and a sum that ran out or the host cancelled turns the collective to the conservative path for good, where each member pulls the peers' rows behind events.
 template <class Api>
 class GpuCollective final : public Collective {
 public:
@@ -151,7 +152,7 @@ public:
                 Api::check(Api::event_create(&ready_[m], false), "event_create");
                 int khz = 0;
                 Api::check(Api::wall_clock_khz(&khz, b.dev_.index), "wall_clock_khz");
-                timeout_[m] = probe ? (unsigned long long)khz * kProbeTimeoutMs : 0;
+                timeout_[m] = (unsigned long long)khz * (probe ? kProbeTimeoutMs : kSumTimeoutMs);
                 tick_[m] = (unsigned long long)khz;
             }
             // The one-shot takes at most a block a multiprocessor of the devices its members share, so every members blocks stay resident while they wait for their peers; the timing lowers it where fewer win.
@@ -182,6 +183,7 @@ public:
     Slice partial(size_t member) override { return {partial_.at(member).get(), 0}; }
 
     // The members' submissions that hold the sum, made here where the caller has not yet submitted; a sum that gave up turns the collective conservative.
+    // A member whose device reported an error cancels the sum, so its peers stop waiting for it now rather than at their deadline.
     void wait(size_t back) noexcept override {
         const std::vector<Ticket>& sum = back ? before_ : last_;
         for (size_t m = 0; m < sum.size(); ++m) {
@@ -190,6 +192,7 @@ public:
                 try { b.record(); } catch (const std::exception&) { continue; }
             }
             b.wait(sum[m]);
+            if (b.device_failed()) cancel();
         }
         settle();
     }
@@ -708,12 +711,12 @@ private:
             }
     }
 
-    // A sum some member's launch of which failed: the members whose kernels did launch stop waiting for it, and the collective turns conservative now.
+    // A sum some member's launch of which failed, or whose device reported an error: the members whose kernels did launch stop waiting for it, and the collective turns conservative now.
     void cancel() noexcept {
         if (!fast_) return;
         host_store(&status_[members_.size()], 1u);
         fast_ = false;
-        std::fprintf(stderr, "%sa tensor group's sum was cancelled since a member's launch failed; the group's later sums take the conservative path\n", Api::prefix.c_str());
+        std::fprintf(stderr, "%sa tensor group's sum was cancelled since a member's launch or device failed; the group's later sums take the conservative path\n", Api::prefix.c_str());
     }
 
     // A member's staging slots, past its signal block, and the slots pulls copy into: under host writes device memory of their own, else the same.
@@ -785,7 +788,7 @@ private:
     std::vector<unsigned*> tiles_;
     std::vector<BufferPtr> partial_;
     std::vector<typename Api::Event> ready_;   // per member, the event behind its pulls' copies
-    std::vector<unsigned long long> timeout_, tick_;   // per member in its wall-clock ticks: a probe's kProbeTimeoutMs, else 0 for none, and a millisecond
+    std::vector<unsigned long long> timeout_, tick_;   // per member in its wall-clock ticks: a probe's kProbeTimeoutMs, else kSumTimeoutMs, and a millisecond
     unsigned* status_ = nullptr;   // host memory, a word a member, set by a kernel that gave up, then the host's cancel word
     std::vector<Ticket> last_, before_;   // per member, the ticket holding the last sum and the sum before it
     std::vector<typename Api::Stream> copy_stream_;   // per member under host writes, the stream its copies' copies go on

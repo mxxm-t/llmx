@@ -612,7 +612,7 @@ extern "C" __global__ void __launch_bounds__(kThreads) llmx_group_shares(const G
 // A member's words: [0] its rows' chunks sent to every owner, [1] its total's chunks sent, [2] abort; the counts only grow, so nothing is armed again.
 __device__ inline unsigned long long* copy_word(const GroupPeers* p, int k, int w) { return (unsigned long long*)p->signal[k] + w; }
 
-// Thread 0 waits until a peer's word reaches `want`, giving up where a member aborted, the host cancelled or a probe's deadline passed; every thread then reads after the barrier.
+// Thread 0 waits until a peer's word reaches `want`, giving up where a member aborted, the host cancelled or the sum's deadline passed; every thread then reads after the barrier.
 __device__ bool copy_wait(const GroupPeers* p, unsigned long long* word, unsigned long long want, int rank, unsigned long long deadline, unsigned long long tick, int* failed) {
     if (!threadIdx.x && !atomic_load_relaxed_block(failed)) {
         unsigned long long next = (unsigned long long)wall_clock() + tick;

@@ -2912,7 +2912,7 @@ void collective() {
         std::cout << "backend-rocm: a launch that failed while join timed the forms left the group conservative and exact\n";
     }
     {
-        // A member whose launch comes after a host stall longer than any wait: its peer is alive but late, so the sum stays fast and exact and nothing throws.
+        // A member whose launch comes after a host stall longer than the probe's wait, within kSumTimeoutMs: its peer is alive but late, so the sum stays fast and exact and nothing throws.
         std::vector<BackendPtr> e = rocm_devices(2);
         std::unique_ptr<Collective> c = e[0]->join(raw(e, 2), 64, 97);
         std::vector<float> rows(97), want(97);

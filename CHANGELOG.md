@@ -8,11 +8,17 @@ Each release's notes on the [releases page](https://github.com/mxxm-t/llmx/relea
 
 ### Added
 
-- The `ghcr.io/mxxm-t/llmx:X.Y.Z-rocm10` image runs llmx over the ROCm 10.2 HIP runtime beside the `rocm7` image, and the Linux binary runs on a system's ROCm 10 runtime as on ROCm 7.
+- A `rocm10` release image runs llmx on the ROCm 10.2 runtime ([ROCm](docs/ROCM.md)).
+- A DSpine drafter (`--drafter FILE`) drafts a block of tokens beside a Qwen 3.5-family model ([speculative decoding](docs/SPECULATIVE.md)).
 
 ### Changed
 
-- Qwen3.6-27B generates tokens faster with ROCm on four MI50s as one tensor group with 8-bit activations; prompt speed is unchanged.
+- Qwen3.6-27B decodes faster with ROCm on four MI50s as one tensor group at `--dtype int8` ([tensor split](docs/TENSOR-SPLIT.md)).
+
+### Fixed
+
+- Chat templates that use Jinja's `float` filter, such as Inkling-2-Mini's, render ([chat templates](docs/src/inference-chat.md)).
+- DeepSeek-V4.1-Flash with its DSpark drafter fits the ten-card layer split ([speculative decoding](docs/SPECULATIVE.md)).
 
 ## [0.2.1] - 2026-11-23
 

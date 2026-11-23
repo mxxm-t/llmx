@@ -36,12 +36,12 @@ Images are pushed by digest alone and tagged only by the run that publishes them
 
 **Landing.** Workflow, build-script and docs change: the `docs` and `dead-code` components and a dry run of the build jobs; lands with the landing stack land-20261125, whose gates are recorded there (Landing stack land-20261125, below).
 
-## ROCm 10 release image (2026-11-22, ROC10A to ROC10D, branch roc10a/rocm10-image, ready)
+## ROCm 10 release image (2026-11-22, ROC10A to ROC10D, branch roc10a/rocm10-image)
 
 - **Goal:** a `rocm10` release image beside `rocm7`, holding the same binary over the ROCm 10.2.0 HIP runtime, and the ROCm 10 facts in [ROCM](ROCM.md) (ROCm 10).
 - **Done:** on an MI50 with the host's amdgpu driver unchanged, the 10.2.0 runtime from AMD's ROCm Core SDK repository enumerates the card and runs llmx's gfx906 code objects with no override. The ROCm 10.2 clang compiles `f32`, `int16dot` and `int16` for gfx906 and the full `LLMX_ROCM_ARCHS` list. `docker/release/Dockerfile` gains the `rocm10` target, which unpacks the base, runtime and system-library packages and keeps `libamdhip64.so.7`, its `ldd` closure and libdrm's `amdgpu.ids`; the release workflow and [RELEASE](RELEASE.md) name the third image.
 - **Measured (one MI50, 2026-11-23, host load average about 25; ROCM.md, ROCm 10, has the table):** the 7.2.1 build, the 10.2 build and the 7.2.1 build on the 10.2 runtime give byte-identical logits and greedy tokens, `ctest -R backend-rocm` 3 of 3 each, Qwen3-0.6B Q8_0 pp512 8735 tok/s (rocm7 image) against 8583 (rocm10 image, one slice at 5882 under load) and tg128 351.7 against 351.5, 60 of 60 exits 0 on 10.2, and the `server` component passes on 10.2. The image's `generate` works (strace: no `amdgpu.ids` opened).
-- **Left:** the release smoke checklist covers the image at release; nothing else. README changes: the ROCm runtime names in Install and Troubleshooting read ROCm 7 or 10, and Install names the `rocm10` image.
+- **Left:** the release smoke checklist covers the image at release; it lands with the landing stack land-20261126, whose gates are recorded there (Landing stack land-20261126, below). README changes: the ROCm runtime names in Install and Troubleshooting read ROCm 7 or 10, and Install names the `rocm10` image.
 - **Rebase (landing stack land-20261126):** feat/nightly-channel moved the images into `docker/release/images.sh`, `release-build.yml` and `nightly.yml`, so the image joins `images.sh`'s `TARGETS` and the release and nightly notes, rather than the loops this branch edited, and the nightly channel gains `nightly-rocm10`.
 - **Gotchas:** the `amdrocm-runtime10.2` package depends on the whole compiler, so the image unpacks it rather than installing it, and `librocprofiler-register.so.0` is in `amdrocm-base10.2`, which must be downloaded too (the first image lacked it and failed `generate`, 246 MB against 173 MB). `amdgpu.ids` is carried but not opened by `generate`; dropping it is a follow-up that needs the image rerun. ROCm 10 publishes no gfx906 packages, so a later minor release may stop enumerating gfx906; `rocm7` stays the MI50 default.
 
@@ -97,7 +97,7 @@ lists made no remote media requests.
   Traced Qwen3.6-27B Q8_0, int8, four MI50 at tensor width 4, -n 32: `delta_step` median 32.64 and 32.80 us on the base against 26.56 and 26.24 us with the unbounded prefetch (two traced pairs on main's predecessor with tile-push-b2); the bounded build read 23.84 us in one traced run and `backend-rocm delta` passes on it.
   Wall A/B on a quiet host (QUIET1, 2026-11-22 12:58), Qwen3.6-27B Q8_0, int8, four MI50 at tensor width 4, untraced tg 256, 5 interleaved pairs: 66.02 tok/s base against 67.20 with the prefetch, faster in 5 of 5 pairs, -0.26 ms/token, generated text identical in all 10 runs.
   The asm is port.h's `GPU_CODE_PREFETCH`, `GPU_CODE_END` and `code_keep`, which CUDA defines as no code prefetch, since the asm in the kernel broke the CUDA build (LAND100, landing-1124).
-- **Left:** the landing gates for kernel code: byte identity against main on the CPU and a device, the suite on a device, one timing round against main, the CUDA build and its CTest.
+- **Left:** nothing for this change; it lands with the landing stack land-20261126, whose gates are recorded there (Landing stack land-20261126, below).
   No Vulkan code, so no Radeon VII check; no README change.
 - **Gotchas:** `s_getpc_b64` after `s_add_u32` is a pc-relative data address, which `rocm-isa` leaves alone; the label must stay the kernel's last statement or the check's 64-byte tail rule fails.
 
@@ -121,7 +121,7 @@ lists made no remote media requests.
 - **Port onto main:** main's collective stages a set of areas per transport and picks a transport, form and block cap by size (`GpuSumPick`), so the push takes the table and half of the pick's transport, and the pick is made once before the members flush.
 - **Measured on c494eea6f (CUTS16, CUTS17, QUIET1):** one MI50 quad, Qwen3.6-27B Q8_0 int8 tw4 decode, quiet blocks +0.97 tok/s (SE 0.08, about +1.5%); QUIET1's 5 untraced pairs on the rebooted rig +1.18 tok/s (-0.26 ms a token), generated text the same. Not yet measured on main.
 - **Checks:** `backend-rocm`'s `held_push` (docs/TESTS.md, backend-rocm) on a quad; `docs` and `dead-code` on the tree that lands.
-- **Left:** the decode A/B against main aeecb4ec1 with a witness that the pushing build runs (the pick at the decode row may not be the one-shot), the device suite, the hosted run and the full CUDA build at the landing; the push at prompt sums and on Vulkan are not tried. README unchanged (a speed-up no table names).
+- **Left:** the push at prompt sums and on Vulkan are not tried. It lands with the landing stack land-20261126, whose gates are recorded there (Landing stack land-20261126, below), which gives the decode A/B against main and the witness that the pushing builds run. README unchanged (a speed-up no table names).
 
 ## ROCm delta step on the four-way dot (2026-11-22, CUTS26 to CUTS38, branch products/delta-dot4 on products/delta-code-prefetch)
 
@@ -130,7 +130,7 @@ lists made no remote media requests.
   gfx906 code of `llmx_delta_step`: 60 `v_bfe_i32` and 43 24-bit integer multiplies on the base, 2 and 0 with the change, 4484 against 4124 disassembly lines, 32 `v_dot4_i32_i8` in both.
   Qwen3.6-27B Q8_0, int8, four MI50 at tensor width 4, traced -n 32 on a quiet rig, a warm-up pair and 8 interleaved pairs scored by a rule written before the run: the per-token median of delta_step's sum 0.0507 ms/token lower per agent (se 0.0095, paired t 5.31, 8 of 8 pairs), the next kernel's median +0.20 us (limit 0.3), total kernel time 0.227 ms/token lower, generated text identical in all 18 runs; two runs had a kernel over 1 ms in the window and are kept.
   Both arms carried tile-push-b2 and the delta step code prefetch, which the change touches neither of.
-- **Left:** the landing gates for kernel code: byte identity against main on the CPU and a device, the suite on a device (`backend-rocm`, `delta_step_bits`), one timing round against main.
+- **Left:** nothing for this change; it lands with the landing stack land-20261126, whose gates are recorded there (Landing stack land-20261126, below).
   No Vulkan code, so no Radeon VII check; no README change.
 - **Gotchas:** under CUDA `GPU_IMMA8` already gives `dot4_i8`, so only HIP gfx9 changes; HIP targets without `GPU_DOT4` keep the loop.
 
@@ -685,7 +685,7 @@ A saved tool result opens the latest file in the editor or resumes unsaved chang
 
 All 33 cells pass at widths 2, 3 and 4; with a submit after every sum, main loses W4 256 to RCCL. Large sums time the same either way, so the window removes only submit cost. The full table and log are `/opt/claude-work/sums43/out/table1.md` and `/opt/claude-work/sums42/out/c7.log` on the rig (host contended, load average 14 to 35).
 
-**Left.** Nothing for this change; the CUDA arm runs at the next CUDA card session.
+**Left.** Nothing for this change; the CUDA arm runs at the next CUDA card session. It lands with the landing stack land-20261126, whose gates are recorded there (Landing stack land-20261126, below).
 
 **Gotchas.** A pass has producer kernels between sums, so its sums start with member skew the bench does not have.
 ## placement's pipelined cut under host load (2026-11-22, TFIX1 to TFIX3, branch fix/placement-device-times on main d85448509; tests and docs only, lands by fast-forward as one commit)
@@ -980,6 +980,62 @@ This test-only correction lands by fast-forward with the companion workflow.
 - **Checks:** The independent Chrome regression failed in 59.797 seconds before the fix and passed in 54.855 seconds after it. The combined browser fixture over public main `2ea30d410` passed in 66.845 seconds, including both themes at 1440, 390 and 320 pixels and 200 percent CSS zoom. Desktop preference, transient Settings access, mobile drawer state and toggle geometry passed. JavaScript syntax, whitespace and independent integration review passed. Dead-code passed with 17 expected findings and 20 planted faults in 34.8 seconds; docs passed with zero findings and 29 planted faults in 31.8 seconds and runs once more after this record.
 - **Landing:** Fast-forward from `2ea30d410` after final documentation validation and a fresh main check. This is static presentation only, with no server, runtime, API or numerical changes. The existing docs CLI remains applicable because native source and build inputs are unchanged. Full Markdown review checks references to details, temporary labels and layout; the companion README and TESTS own the updated behavior. Receipts are in `scratch/reading-landing/`, with independent matched screenshots in the main workspace's `scratch/chat-reading-layout/`.
 - **Gotchas:** Composer Settings and the narrow drawer are transient. Only explicit docked Details actions save the preference. Long titles can still truncate. Chrome emulation does not establish physical phone or Safari coverage. Settings semantics and history search remain separate audit work.
+## Landing stack land-20261126 (2026-11-23, LAND104 to LAND104D, on main ed836276d, lands by fast-forward)
+
+**What lands.** Seven commits on main ed836276d, by fast-forward, in order: roc10a/rocm10-image, products/tile-push-main, tests/sums-window-submit, products/delta-code-prefetch (failing test, then the change), products/delta-dot4 and this record.
+Each branch's own block above or below gives its change and measurements; this record gives the gates of the head 287a68990 and the record on it.
+feat/kv-layer-shapes, feat/dspine, feat/dspine-device and fix/shared-tensor-fit, picked first, went to the Radeon VII stack, since feat/kv-layer-shapes changes Vulkan device code; cuda/bf16-decode-cols was dropped, as it carries the unlanded cuda/bf16-prompt-tile, whose bit-exact fit on sm_86 and 16k HF check are open (gitea PR 544).
+roc10a/rocm10-image was ported by hand over feat/nightly-channel, which moved the images into `docker/release/images.sh` (its block's Rebase line); the other picks met only docs/STATUS.md and `docs/src/backends-gpu.md`, and every block and sentence was kept.
+
+**rocm-isa.** CTest on the gfx906-only ROCm build failed `rocm-isa` alone (95 of 96), since it required gfx942 and gfx1151 code objects that build does not compile, while a build for other targets is supported (docs/BUILD.md, The ROCm backend on Linux).
+The fix, folded into products/delta-code-prefetch's test commit (now a432388f), reads only those of its three targets the bundle holds, prints the others as not built and exits 77, a skip, when it holds none.
+On the build with CMake's full GPU list it passes gfx906, gfx942 and gfx1151 before and after the fix; on the gfx906-only build it passes gfx906 and names the other two as not built.
+
+**Rebase.** The gates ran at f73898f5, the stack on a4f0c989e; main became 98821a764, which replaced a4f0c989e and differs from it in `tools/release_notes.py`'s `--help` and docs/STATUS.md alone, and the stack was rebased onto it without a conflict.
+Main then became ed836276d (v0.2.1), which differs from 98821a764 in the version strings of CMakeLists.txt and src/config.hpp and in CHANGELOG.md, whose Unreleased lines moved under 0.2.1; no build, runtime, kernel or test input reads those, so the gates carry forward.
+The stack was rebased onto it, and CHANGELOG.md now has a fresh Unreleased section above 0.2.1 that holds this stack's two lines alone, with 0.2.1 as tagged.
+Docs and dead-code passed on a git-archive copy of the new head with the stack's own Vulkan build, and `tools/release_notes.py` prints the Unreleased and 0.2.1 sections.
+No build, runtime or test input those gates read changes in that delta, so they carry forward (AGENTS.md, Merge gates); the rocm-isa fix changes the ROCm CTest's coverage, so the ROCm build and its CTest were rerun at 287a68990, and docs and dead-code were rerun on this commit.
+
+**Builds** (rig, one script, clean clones, ROCm image 7.2.1): Vulkan `llmx 0.2.0+gf73898f5f148` numerics 2056ebcd1b120c15 (sha256 cc3b9eec18a2); ROCm, gfx906, the same version (sha256 c167b6565adb), and at 287a68990 for the rerun; the ROCm build of `llmx-backend-rocm-test` with CMake's full GPU list; the CPU build and its CTest; the CUDA build of `llmx`, `llmx-backend-cuda-test` and `llmx-gpu-core-test`, which compiles.
+Main's arm is main 3e4d6d422's builds `llmx 0.2.0+g3e4d6d422798` numerics 6c5aafaa5ce16a95 (ROCm sha256 b5c466b3d716), whose model, kernel, device and placement code equals ed836276d's.
+
+| Check | Result |
+|---|---|
+| CTest, CPU build | 91/91 |
+| CTest, Vulkan build, one MI50 (renderD131) | 112/112 |
+| CTest, ROCm build, one MI50 | f73898f5 on renderD134: 95/96, `rocm-isa` failing as above, backend-rocm in 318.6 s against its 1200 s limit; 287a68990 on renderD136 (`llmx 0.2.0+g287a68990d5c`, numerics 2056ebcd1b120c15, sha256 0643fa74a2eb): 96/96, `rocm-isa` passing gfx906 with gfx942 and gfx1151 named as not built, backend-rocm in 204.2 s |
+| `rocm-isa`, ROCm build with CMake's full GPU list | gfx906, gfx942 and gfx1151 pass, before and after the fix |
+| CUDA build of `llmx`, `llmx-backend-cuda-test`, `llmx-gpu-core-test` | compiles (exit 0); no card, so not run |
+| Suite on the CPU, Vulkan build, `--no-perf-floor` | every component passes |
+| Suite on one MI50 (renderD131), `--device vulkan:0` | every component passes but minimax, skipped as Vulkan does not implement `sigmoid_routing`; server passes |
+| Suite on one MI50 (renderD134), `--device rocm:0` | every component passes but minimax, skipped the same way; server passes |
+| Identity against main, Qwen3-0.6B Q8_0 | 16 of 16 output files equal on each of cpu:auto and cpu:f32, vulkan:0 auto and f32, and rocm:0 f16 and int8 (logits, per-token, generation, lookup and four short prompts) |
+| Identity against main, Qwen3.6-27B Q8_0, four MI50 (renderD132-135) at tensor width 4 | 6 of 6 equal: logits, generation and lookup in int8 and f16 |
+| Timing against main, the same four MI50, `bench --p 512 --n 128 --r 4` | every cell within the rule's -2.0%, medians below |
+| Witness | a `--profile` run of the stack on the same cards launches `llmx_q8_0_half8_1h5p` and `llmx_q8_0_half8_1h2p`, the pushing builds, and `llmx_delta_step` |
+| docs, dead-code | pass on a git-archive copy of this record's commit, with the stack's Vulkan build as `--exe` |
+| Hosted | the workflow run of this commit on GitHub (gate/land-20261126) |
+
+Timing (out/t27 on the rig, rule written before the runs in out/t27/rule.txt): blocks s m m s m s s m, each int8 then f16, all 16 runs kept; a cell is the median of each arm's 4 run means, in tok/s.
+
+| Cell | main | stack | Delta |
+|---|---|---|---|
+| int8 pp512 | 822.46 | 822.23 | -0.03% |
+| int8 tg128 | 56.34 | 68.29 | +21.22% |
+| f16 pp512 | 651.71 | 650.22 | -0.23% |
+| f16 tg128 | 54.06 | 56.70 | +4.89% |
+
+Every run is flagged: the host's 1-minute load average was 25.9 to 39.3, above the rule's 24, with other agents' build and test containers busy.
+The decode cells are noisy under that load (main's int8 tg128 run means 47.43 to 67.46, one with a spread of 15.43), so the +21% is not the change's size: the stack's median against main's int8 run at the lowest load (30.1, 67.46 tok/s) is +1.2%, near the +1.5% (tile push) and +1.8% (delta step prefetch) the branches measured on a quiet host.
+The direction the rule expected, int8 decode faster, holds; `CHANGELOG.md` claims no figure.
+DeepSeek was not run: the tile push acts only at tensor width 3 or more on an MI50 (`held_push_members`) and DeepSeek runs at width 2, and the delta step is Qwen 3.5's linear attention.
+
+The CPU and device suites ran with `--no-perf-floor`, since the rig's other jobs share its cores.
+Radeon VII check: not required: the stack changes no Vulkan or Windows device code; `device_profile.hpp` gains a field set only in the MI50's ROCm entry (AGENTS.md, Merge gates).
+README: roc10a/rocm10-image's Install and Troubleshooting ROCm lines read ROCm 7 or 10, and Install names the `rocm10` image; no other README change.
+`CHANGELOG.md` Unreleased gains the `rocm10` image under Added and the decode speed-up under Changed.
+
 ## Landing stack land-20261125 (2026-11-23, LAND103, on main 3e4d6d422, lands by fast-forward)
 
 **What lands.** Six commits on main 3e4d6d422, by fast-forward, in order: fix/reasoning-sent-back (failing test, then the fix), fix/backend-rocm-time-2, feat/nightly-channel, feat/changelog and this record.
@@ -1001,7 +1057,7 @@ feat/changelog's commit also adds the Unreleased lines of `CHANGELOG.md` for the
 | Release dry run | `docker/release/build-linux.sh nightly` in ubuntu:22.04 writes `llmx-nightly-linux-x86_64.tar.gz` with `tools/chat_ui` and `tools/health_dashboard`, and its llmx prints `llmx 0.2.0+nightly.20261123.gd11c837d23a2`; the vulkan, rocm7 and chat images build from it and print the same version; nothing pushed |
 | Compose | `docker compose config` with the vulkan and the rocm profile: exit 0 |
 | actionlint 1.7.7 with shellcheck | four SC2086 infos, the same as on main |
-| Release notes dry run | `tools/release_notes.py` prints 0.2.0 (20 lines) and Unreleased (19 lines), and refuses 0.2.1, which has no section yet |
+| Release notes dry run | `tools/release_notes.py` prints 0.2.0 (20 lines), 0.2.1 (19 lines) and Unreleased (7 lines) |
 | Hosted | the workflow run of this commit on GitHub (gate/land-20261125) |
 
 The first hosted run (45097338044, on a4f0c989e) failed only in the CPU job, whose loop over every `python -X utf8 tools/*.py --help` reached `tools/release_notes.py`, which read `--help` as a version and exited 1.

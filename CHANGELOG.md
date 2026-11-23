@@ -6,6 +6,14 @@ Each release's notes on the [releases page](https://github.com/mxxm-t/llmx/relea
 
 ## [Unreleased]
 
+### Added
+
+- The `ghcr.io/mxxm-t/llmx:X.Y.Z-rocm10` image runs llmx over the ROCm 10.2 HIP runtime beside the `rocm7` image, and the Linux binary runs on a system's ROCm 10 runtime as on ROCm 7.
+
+### Changed
+
+- Qwen3.6-27B generates tokens faster with ROCm on four MI50s as one tensor group with 8-bit activations; prompt speed is unchanged.
+
 ## [0.2.1] - 2026-11-23
 
 ### Added

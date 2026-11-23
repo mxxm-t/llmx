@@ -708,6 +708,7 @@ Q2_K and Q3_K prepare their scale metadata once per thread's aligned run of 4, 8
 From the comment at line 2:
 
 - Y[b*nout + o] = dot(row o, X column b) for wide batches: a workgroup computes a TILE_ROWS x TILE_COLS output tile, walking the inner dimension one stage at a time.
+- F16 weights widen two at a time through `f16_pair_to_f32`, the same exact values as `f16_to_f32` without its branches, which cost F16 weights 6 to 16 times BF16 weights (docs/VULKAN.md, Kernel notes).
 - Each step stages the dequantized W tile and the X tile in shared memory, and every thread accumulates a MROWS x 4 micro-tile in registers.
 - TILE_ROWS is a specialization constant: a taller tile reads less shared memory per product but yields fewer workgroups, so the backend picks it per call.
 - Rows past nout and columns past nbatch read as zero and are not stored.

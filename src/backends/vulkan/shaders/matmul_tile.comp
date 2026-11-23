@@ -330,10 +330,20 @@ void main() {
             uint k = k0 + wseg * WVALS + i;
             wh[i] = uint(w16[row < p.nout && k < p.nin ? wr * p.nin + k : 0u]);
         }
+#ifdef LLMX_WEIGHT_F16
+        // Two halves at a time through the branch-free widening the row kernels use, the same exact values as f16_to_f32.
+        for (uint i = 0u; i < WVALS; i += 2u) {
+            uint k = k0 + wseg * WVALS + i;
+            vec2 f = f16_pair_to_f32(wh[i] | (wh[i + 1u] << 16u));
+            ws[wseg * WVALS + i][wrow] = row < p.nout && k < p.nin ? f.x : 0.0;
+            ws[wseg * WVALS + i + 1u][wrow] = row < p.nout && k + 1u < p.nin ? f.y : 0.0;
+        }
+#else
         for (uint i = 0u; i < WVALS; ++i) {
             uint k = k0 + wseg * WVALS + i;
             ws[wseg * WVALS + i][wrow] = row < p.nout && k < p.nin ? WEIGHT_FLOAT(wh[i]) : 0.0;
         }
+#endif
 #else
         if (row < p.nout) {
             if (type == TYPE_Q8_0) {

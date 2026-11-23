@@ -212,6 +212,15 @@ What each part of a forward pass computes in, on every backend; `--dtype` by bac
 | `F8_E4M3` weights (FP8 checkpoints) | Each E4M3 code is exact in binary16 and F32, and its F32 grid scale (one per 128 inputs of a row or of a 128-row block, [weight_scales](src/format-weight_scales.md)) multiplies each 128-input partial, summed in F32; under `f16`, the default, the activations are rounded to binary16 first, the class of Q8_0's products, and under `f32` the product is exact F32 arithmetic. E4M3 has no exact 8-bit integer form (a block of 128 spans up to 17 binades), so `int8` runs it as `f16` with the warning naming the path. The CPU and Vulkan run it; Vulkan's row runs scale each lane's 16-input partial and its tiles each 128-input block sum, the same rule in another order, and a device without the half conversion controls runs F32 inputs, the wider path |
 | `MXFP4` and the other quantized weight types | Decoded exactly; `MXFP4` has no 8-bit form, so `int8` runs it as `f16`; on Vulkan it needs a device with double-precision support |
 
+### Attention value sums
+
+Attention's softmax normaliser and its weighted sum of values are never one F32 chain over all keys.
+A weight far below the leading one, about 1.2e-8 of the total when one key scores 18 above the rest, is under half an ulp of a running sum near 1, so a single chain dropped every such product and a 1296-key image row lost about 1.5e-5.
+The CPU sums each KV cache block of 128 keys from zero and adds that partial to the total, the blocks at absolute positions so a decode row and a prompt row keep the same bits, and the Vulkan flash kernel of non-causal 64- and 72-wide heads sums each staged tile of 16 keys from zero into a block total that starts from zero every 16 tiles (256 keys) and joins the running total at the block's end. ROCm and CUDA cut the keys into at most 16 chunks of at least 256 keys, each one chain, and merge the chunks.
+A view of at most one block keeps its bits, since its only partial is added to zero.
+`vision-ops` holds the CPU, and the device backends' vision checks each device, to 4e-6 (1 + |ref|) of a double softmax over 1296 and 4096 keys with one dominant key.
+The block holding the dominant key still drops its other keys, about 3e-6 at most here. The Vulkan text attention kernels (`attention.comp`, `attention_tile_rows.glsl`) and the ROCm and CUDA chunks still sum one chain over their keys.
+
 ## 6. Approved delivery order (2026-09-30)
 
 Each step lands on its own branch off `main`, with its gate:

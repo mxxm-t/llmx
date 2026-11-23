@@ -557,6 +557,7 @@ From the comment at line 2:
 - A group of eight lanes takes rows r and r + 32 and holds their queries, scaled, and their outputs in registers, lane c owning dimensions 4c + 32k (and 64 + c of a 72-wide head).
 - Keys and values pass through shared memory 16 at a time.
 - Scores go eight keys at a time: each lane's partial dot over its dimensions, then a butterfly over the eight lanes that leaves key 8g + c's score in lane c; the online softmax is F32, and each key's weight reaches the weighted sum by shuffle from the lane that scored it.
+- Each tile's weighted sum and weight total start from zero and join a block total, itself started from zero every 16 tiles (256 keys) and folded into the running total at the block's end (docs/PRECISION.md, Attention value sums).
 - Every loop has a constant count and is unrolled, so no private array is indexed at run time and no driver spills one to scratch.
 - A row's arithmetic is the same in any tile and any dispatch, so a call cut into pieces gives the bits of the uncut call.
 

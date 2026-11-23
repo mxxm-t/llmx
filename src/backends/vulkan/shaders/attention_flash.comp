@@ -17,8 +17,8 @@ const uint DIM = 64u;
 #elif defined(LLMX_D72)
 const uint DIM = 72u;
 #endif
-// Rows of a workgroup, keys of a staged tile, and a head's width in vec4s.
-const uint THREADS = 256u, TQ = 64u, BK = 16u, D4 = DIM / 4u;
+// Rows of a workgroup, keys of a staged tile, tiles summed from zero before they join the total, and a head's width in vec4s.
+const uint THREADS = 256u, TQ = 64u, BK = 16u, FOLD = 16u, D4 = DIM / 4u;
 // Each group of eight lanes takes rows r and r + 32 of the tile; lane c ends with the scores of keys c + 8 g of a staged tile and owns query and output columns 4 c + 32 k (and 64 + c of a 72-wide head).
 const uint RPG = TQ * 8u / THREADS, LANES = 8u, GROUPS = THREADS / 8u, KPL = BK / LANES, RUNS = 2u;
 shared vec4 ks[BK * D4];
@@ -54,17 +54,21 @@ void main() {
         qt[s] = q[qb + 16u + c / 4u][c & 3u] * p.scale;
 #endif
     }
-    vec4 acc[RPG][RUNS];
-    float m[RPG], l[RPG];
+    // Totals at max ma, and the current block's sums from zero at max m, folded into the totals every FOLD tiles (docs/PRECISION.md, Attention value sums).
+    vec4 acc[RPG][RUNS], blk[RPG][RUNS];
+    float m[RPG], ma[RPG], l[RPG], bl[RPG];
 #ifdef LLMX_D72
-    float at[RPG];
+    float at[RPG], bt[RPG];
 #endif
     [[unroll]] for (uint s = 0u; s < RPG; ++s) {
-        [[unroll]] for (uint k = 0u; k < RUNS; ++k) acc[s][k] = vec4(0.0);
+        [[unroll]] for (uint k = 0u; k < RUNS; ++k) { acc[s][k] = vec4(0.0); blk[s][k] = vec4(0.0); }
         m[s] = -1.0 / 0.0;
+        ma[s] = -1.0 / 0.0;
         l[s] = 0.0;
+        bl[s] = 0.0;
 #ifdef LLMX_D72
         at[s] = 0.0;
+        bt[s] = 0.0;
 #endif
     }
     uint end = hist + nq;
@@ -109,7 +113,7 @@ void main() {
                 sc[s][g] = (up1 ? part[s][1] : part[s][0]) + subgroupShuffleXor(up1 ? part[s][0] : part[s][1], 1u);
             }
         }
-        float w[RPG][KPL];
+        float w[RPG][KPL], cr[RPG];
         [[unroll]] for (uint s = 0u; s < RPG; ++s) {
             float mt = -1.0 / 0.0;
             [[unroll]] for (uint j = 0u; j < KPL; ++j) {
@@ -129,25 +133,51 @@ void main() {
             sum += subgroupShuffleXor(sum, 1u);
             sum += subgroupShuffleXor(sum, 2u);
             sum += subgroupShuffleXor(sum, 4u);
-            l[s] = l[s] * corr + sum;
+            bl[s] = bl[s] * corr + sum;
             m[s] = mn;
-            [[unroll]] for (uint k = 0u; k < RUNS; ++k) acc[s][k] *= corr;
+            cr[s] = corr;
+        }
+        // The tile's weighted sum in key order from zero, each weight from the lane that scored it, then added to the rescaled block total.
+        vec4 loc[RPG][RUNS];
 #ifdef LLMX_D72
-            at[s] *= corr;
+        float lt[RPG];
+#endif
+        [[unroll]] for (uint s = 0u; s < RPG; ++s) {
+            [[unroll]] for (uint k = 0u; k < RUNS; ++k) loc[s][k] = vec4(0.0);
+#ifdef LLMX_D72
+            lt[s] = 0.0;
 #endif
         }
-        // The weighted sum over the tile's keys in order, each key's weight taken from the lane that scored it.
         [[unroll]] for (uint kk = 0u; kk < BK; ++kk) {
             float wa[RPG];
             [[unroll]] for (uint s = 0u; s < RPG; ++s) wa[s] = subgroupShuffle(w[s][kk / LANES], gbase + kk % LANES);
             [[unroll]] for (uint k = 0u; k < RUNS; ++k) {
                 vec4 vv = vs[kk * D4 + 8u * k + c];
-                [[unroll]] for (uint s = 0u; s < RPG; ++s) acc[s][k] += wa[s] * vv;
+                [[unroll]] for (uint s = 0u; s < RPG; ++s) loc[s][k] += wa[s] * vv;
             }
 #ifdef LLMX_D72
             float vt = vs[kk * D4 + 16u + c / 4u][c & 3u];
-            [[unroll]] for (uint s = 0u; s < RPG; ++s) at[s] += wa[s] * vt;
+            [[unroll]] for (uint s = 0u; s < RPG; ++s) lt[s] += wa[s] * vt;
 #endif
+        }
+        [[unroll]] for (uint s = 0u; s < RPG; ++s) {
+            [[unroll]] for (uint k = 0u; k < RUNS; ++k) blk[s][k] = blk[s][k] * cr[s] + loc[s][k];
+#ifdef LLMX_D72
+            bt[s] = bt[s] * cr[s] + lt[s];
+#endif
+        }
+        if ((t0 / BK) % FOLD == FOLD - 1u || t0 + BK >= end) {
+            [[unroll]] for (uint s = 0u; s < RPG; ++s) {
+                float f = ma[s] == -1.0 / 0.0 ? 0.0 : exp(ma[s] - m[s]);
+                [[unroll]] for (uint k = 0u; k < RUNS; ++k) { acc[s][k] = acc[s][k] * f + blk[s][k]; blk[s][k] = vec4(0.0); }
+                l[s] = l[s] * f + bl[s];
+                bl[s] = 0.0;
+#ifdef LLMX_D72
+                at[s] = at[s] * f + bt[s];
+                bt[s] = 0.0;
+#endif
+                ma[s] = m[s];
+            }
         }
     }
     uint qstride = p.n_head * DIM;

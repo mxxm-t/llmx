@@ -1027,10 +1027,15 @@ public:
                             max_score = std::max(max_score, scores[t0 + j]);
                         }
                     }
+                    // Each sum below adds a cache block's terms from zero, then that partial to the total, so a small term meets at most its block's sum (docs/PRECISION.md, Attention value sums).
                     float sum = 0.0f;
-                    for (size_t t = begin; t < end; ++t) {
-                        scores[t] = std::exp(scores[t] - max_score);
-                        sum += scores[t];
+                    for (size_t t0 = begin - begin % bt; t0 < end; t0 += bt) {
+                        float part = 0.0f;
+                        for (size_t t = std::max(t0, begin); t < std::min(t0 + bt, end); ++t) {
+                            scores[t] = std::exp(scores[t] - max_score);
+                            part += scores[t];
+                        }
+                        sum += part;
                     }
                     float* dst = out + (size_t)b * q_stride + (size_t)h * hd;
                     // Normalize once; each lane then keeps sequence order while its partial sum stays in a register across KV rows.
@@ -1049,9 +1054,11 @@ public:
                             for (size_t t0 = begin - begin % bt; t0 < end; t0 += bt) {
                                 const uint16_t* vb = vblock16(t0) + d;
                                 const size_t n = std::min(bt, end - t0);
+                                __m256 part = _mm256_setzero_ps();
                                 for (size_t j = t0 < begin ? begin - t0 : 0; j < n; ++j)
-                                    acc = _mm256_add_ps(acc, _mm256_mul_ps(_mm256_set1_ps(scores[t0 + j]),
-                                                                           _mm256_cvtph_ps(_mm_loadu_si128((const __m128i*)(vb + j * hd)))));
+                                    part = _mm256_add_ps(part, _mm256_mul_ps(_mm256_set1_ps(scores[t0 + j]),
+                                                                             _mm256_cvtph_ps(_mm_loadu_si128((const __m128i*)(vb + j * hd)))));
+                                acc = _mm256_add_ps(acc, part);
                             }
                             _mm256_storeu_ps(dst + d, acc);
                         }
@@ -1060,7 +1067,9 @@ public:
                             for (size_t t0 = begin - begin % bt; t0 < end; t0 += bt) {
                                 const uint16_t* vb = vblock16(t0) + d;
                                 const size_t n = std::min(bt, end - t0);
-                                for (size_t j = t0 < begin ? begin - t0 : 0; j < n; ++j) acc = std::fma(scores[t0 + j], f16_to_f32(vb[j * hd]), acc);
+                                float part = 0.0f;
+                                for (size_t j = t0 < begin ? begin - t0 : 0; j < n; ++j) part = std::fma(scores[t0 + j], f16_to_f32(vb[j * hd]), part);
+                                acc += part;
                             }
                             dst[d] = acc;
                         }
@@ -1073,14 +1082,18 @@ public:
                         for (size_t t0 = begin - begin % bt; t0 < end; t0 += bt) {
                             const float* vb = vblock(t0) + d;
                             const size_t n = std::min(bt, end - t0);
+                            __m256 p0 = _mm256_setzero_ps(), p1 = _mm256_setzero_ps();
+                            __m256 p2 = _mm256_setzero_ps(), p3 = _mm256_setzero_ps();
                             for (size_t j = t0 < begin ? begin - t0 : 0; j < n; ++j) {
                                 const float* v = vb + j * hd;
                                 const __m256 sw = _mm256_set1_ps(scores[t0 + j]);
-                                a0 = _mm256_add_ps(a0, _mm256_mul_ps(sw, _mm256_loadu_ps(v)));
-                                a1 = _mm256_add_ps(a1, _mm256_mul_ps(sw, _mm256_loadu_ps(v + 8)));
-                                a2 = _mm256_add_ps(a2, _mm256_mul_ps(sw, _mm256_loadu_ps(v + 16)));
-                                a3 = _mm256_add_ps(a3, _mm256_mul_ps(sw, _mm256_loadu_ps(v + 24)));
+                                p0 = _mm256_add_ps(p0, _mm256_mul_ps(sw, _mm256_loadu_ps(v)));
+                                p1 = _mm256_add_ps(p1, _mm256_mul_ps(sw, _mm256_loadu_ps(v + 8)));
+                                p2 = _mm256_add_ps(p2, _mm256_mul_ps(sw, _mm256_loadu_ps(v + 16)));
+                                p3 = _mm256_add_ps(p3, _mm256_mul_ps(sw, _mm256_loadu_ps(v + 24)));
                             }
+                            a0 = _mm256_add_ps(a0, p0); a1 = _mm256_add_ps(a1, p1);
+                            a2 = _mm256_add_ps(a2, p2); a3 = _mm256_add_ps(a3, p3);
                         }
                         _mm256_storeu_ps(dst + d, a0); _mm256_storeu_ps(dst + d + 8, a1);
                         _mm256_storeu_ps(dst + d + 16, a2); _mm256_storeu_ps(dst + d + 24, a3);
@@ -1090,9 +1103,11 @@ public:
                         for (size_t t0 = begin - begin % bt; t0 < end; t0 += bt) {
                             const float* vb = vblock(t0) + d;
                             const size_t n = std::min(bt, end - t0);
+                            __m256 part = _mm256_setzero_ps();
                             for (size_t j = t0 < begin ? begin - t0 : 0; j < n; ++j)
-                                acc = _mm256_add_ps(acc, _mm256_mul_ps(_mm256_set1_ps(scores[t0 + j]),
-                                                                       _mm256_loadu_ps(vb + j * hd)));
+                                part = _mm256_add_ps(part, _mm256_mul_ps(_mm256_set1_ps(scores[t0 + j]),
+                                                                         _mm256_loadu_ps(vb + j * hd)));
+                            acc = _mm256_add_ps(acc, part);
                         }
                         _mm256_storeu_ps(dst + d, acc);
                     }
@@ -1101,7 +1116,9 @@ public:
                         for (size_t t0 = begin - begin % bt; t0 < end; t0 += bt) {
                             const float* vb = vblock(t0) + d;
                             const size_t n = std::min(bt, end - t0);
-                            for (size_t j = t0 < begin ? begin - t0 : 0; j < n; ++j) acc = std::fma(scores[t0 + j], vb[j * hd], acc);
+                            float part = 0.0f;
+                            for (size_t j = t0 < begin ? begin - t0 : 0; j < n; ++j) part = std::fma(scores[t0 + j], vb[j * hd], part);
+                            acc += part;
                         }
                         dst[d] = acc;
                     }

@@ -1,7 +1,7 @@
 # Releases
 
 A release is a version tag on a gated `main` commit.
-`.github/workflows/release.yml` builds its downloads and images from that tag and leaves them in a draft release; the owner publishes the draft once the device smoke runs below have passed.
+`.github/workflows/release.yml` builds its downloads and images from that tag and leaves them in a draft release, which is published once the device smoke runs below have passed.
 This page says what each artifact holds, how the changelog is kept, how to cut a release, what to check before publishing it, how the nightly channel follows `main`, and which repository secrets the signing steps read.
 
 ## What a release holds
@@ -95,7 +95,7 @@ It is written for someone running llmx: what they can do now, or what behaves di
    The Linux job's 180-minute limit is twice an estimate: it stays untimed on a hosted runner until the first tag run, which is best pushed to a test repository first.
 4. The workflow's jobs, which `.github/workflows/release-build.yml` holds for this workflow and the nightly one, build the tarball, the zip and the four images and push the images to GHCR by digest, signing what they have keys for and writing `SHA256SUMS`; the `draft` job gives the images their versioned tags and creates the draft release with every file attached, and the version's changelog section and the images' digests in its notes.
 5. Run the smoke checklist below on the draft's files.
-6. The owner publishes the draft, which runs the workflow's `publish` job.
+6. Once every smoke item passes, the release operator publishes the draft, which runs the workflow's `publish` job, and checks that job passed; after a failed item nothing is published, and the owner decides what happens to the draft.
 
 The tarball can be built the same way on any Linux machine with Docker, from the repository root at the tagged commit:
 
@@ -116,9 +116,9 @@ Each item runs on the draft's own files, checked against `SHA256SUMS` first.
 - **The companion:** on the MI50, against `llmx serve` with a key file, the tarball's `tools/chat_ui/server.py` and the `chat-X.Y.Z` image each stream a reply in the browser, and the tarball's `tools/health_dashboard/server.py` and the image's alternate command each chart the server's health.
 - **Signatures, when the keys are set:** `minisign -Vm SHA256SUMS -p llmx.pub` and `cosign verify --key cosign.pub ghcr.io/mxxm-t/llmx:X.Y.Z-vulkan` (and `X.Y.Z-rocm7`, `X.Y.Z-rocm10`, `chat-X.Y.Z`) succeed.
 
-Record the results, with each binary's `--version`, in the release's STATUS entry before the owner publishes.
+Record the results, with each binary's `--version`, in the release's STATUS entry.
 
-A failed smoke run deletes the draft release, the `vX.Y.Z` tag and the four version-tagged images `X.Y.Z-vulkan`, `X.Y.Z-rocm7`, `X.Y.Z-rocm10` and `chat-X.Y.Z` from GHCR, so nothing of that version stays pullable; the fix lands on `main` and the release is cut again from step 1.
+A failed smoke run keeps the draft, the tag and the images while the owner decides; the usual outcome deletes the draft release, the `vX.Y.Z` tag and the four version-tagged images `X.Y.Z-vulkan`, `X.Y.Z-rocm7`, `X.Y.Z-rocm10` and `chat-X.Y.Z` from GHCR, so nothing of that version stays pullable, and the fix lands on `main` and the release is cut again from step 1.
 
 ## The nightly channel
 

@@ -8,6 +8,8 @@ import sys
 
 CHANGELOG = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "CHANGELOG.md")
 UNRELEASED = "Unreleased"
+REPO = "https://github.com/mxxm-t/llmx/blob/"
+RELATIVE_LINK = re.compile(r"\]\((?![a-z][a-z0-9+.-]*:|#|/)([^)\s]+)\)")
 HEADING = re.compile(r"## \[([^\]]+)\](?: - (\d{4}-\d\d-\d\d))?$")
 
 
@@ -38,6 +40,11 @@ def notes(text, name):
     return None
 
 
+def absolute_links(body, ref):
+    """`body` with each relative link target made a GitHub blob URL at `ref`, since a release page resolves a relative link under /releases/tag/."""
+    return RELATIVE_LINK.sub(lambda m: "](%s%s/%s)" % (REPO, ref, m.group(1)), body)
+
+
 def main(argv):
     if len(argv) == 2 and argv[1] in ("-h", "--help"):
         print("usage: release_notes.py VERSION|%s [CHANGELOG.md]" % UNRELEASED)
@@ -51,7 +58,7 @@ def main(argv):
     if body is None:
         print("%s has no section ## [%s] with notes; a release needs its changes listed (docs/RELEASE.md, The changelog)" % (path, argv[1]), file=sys.stderr)
         return 1
-    print(body)
+    print(absolute_links(body, "main" if argv[1] == UNRELEASED else "v" + argv[1]))
     return 0
 
 

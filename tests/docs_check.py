@@ -931,11 +931,13 @@ def readme_findings(tree):
 # CHANGELOG.md: the notes the release workflows print, read by the parser they call (docs/RELEASE.md, The changelog).
 
 CHANGELOG_KINDS = ("Added", "Changed", "Deprecated", "Removed", "Fixed", "Security")
+CHANGELOG_LINE_MAX = 160
+CHANGELOG_SENTENCES_MAX = 2
 CMAKE_VERSION = re.compile(r"^project\(llmx VERSION ([0-9.]+)", re.M)
 
 
 def changelog_findings(tree):
-    """`changelog`: Unreleased opens CHANGELOG.md, each version heading is `## [X.Y.Z] - YYYY-MM-DD` and newer than the next, subsections are the kinds of change, no link is a reference link a printed section would lose, and the version CMakeLists.txt carries has notes."""
+    """`changelog`: Unreleased opens CHANGELOG.md, each version heading is `## [X.Y.Z] - YYYY-MM-DD` and newer than the next, subsections are the kinds of change, no link is a reference link a printed section would lose, an entry is one short line of at most two sentences, and the version CMakeLists.txt carries has notes."""
     found = Findings()
 
     def add(name, n, why):
@@ -968,6 +970,12 @@ def changelog_findings(tree):
     for n, line in enumerate(lines, 1):
         if re.match(r"\[[^\]]+\]:\s", line):
             add("reference link", n, "a reference link's definition is not printed with a section; write the link inline")
+    for n, line in enumerate(lines, 1):
+        if not line.startswith("- "):
+            continue
+        prose = re.sub(r"\]\([^)]*\)", "]", re.sub(r"`[^`]*`", "`", line))
+        if len(line) > CHANGELOG_LINE_MAX or len(re.findall(r"[.!?](?:\s|$)", prose)) > CHANGELOG_SENTENCES_MAX:
+            add("long entry " + line[:40], n, "an entry is one line of at most %d characters and %d sentences; the reasons, flags and figures go in the doc it links" % (CHANGELOG_LINE_MAX, CHANGELOG_SENTENCES_MAX))
     m = CMAKE_VERSION.search(tree.texts.get("CMakeLists.txt", ""))
     if not m:
         add("anchor project(llmx VERSION", 1, "CMakeLists.txt no longer opens a line with project(llmx VERSION X.Y.Z; update CMAKE_VERSION")
@@ -1117,13 +1125,13 @@ def planted_text(tree, path, text):
 
 
 def release_notes_cli_ok():
-    """The notes the release workflows print: a missing section and an empty version section fail, and an empty Unreleased section names the last release."""
-    cases = [("1.0.0", 1, ""), ("0.9.0", 1, ""), ("0.8.5", 1, ""), ("Unreleased", 0, "No changes are listed since 0.9.0.\n"), ("0.8.0", 0, "### Fixed\n\n- planted\n")]
+    """The notes the release workflows print: a missing section and an empty version section fail, and an empty Unreleased section names the last release, and a relative link prints as a GitHub blob URL at the version's tag."""
+    cases = [("1.0.0", 1, ""), ("0.9.0", 1, ""), ("0.8.5", 1, ""), ("Unreleased", 0, "No changes are listed since 0.9.0.\n"), ("0.8.0", 0, "### Fixed\n\n- planted ([a](https://github.com/mxxm-t/llmx/blob/v0.8.0/docs/X.md#y), [b](#z), [c](https://example.invalid/w))\n")]
     with tempfile.TemporaryDirectory() as d:
         path = os.path.join(d, "CHANGELOG.md")
         with open(path, "w", encoding="utf-8") as f:
             f.write("# Changelog\n\n## [Unreleased]\n\n### Added\n\n## [0.9.0] - 2026-02-01\n\n## [0.8.5] - 2026-01-02\n\n### Added\n\nProse alone.\n\n"
-                    "## [0.8.0] - 2026-01-01\n\n### Fixed\n\n- planted\n")
+                    "## [0.8.0] - 2026-01-01\n\n### Fixed\n\n- planted ([a](docs/X.md#y), [b](#z), [c](https://example.invalid/w))\n")
         ok = True
         for section, code, printed in cases:
             out = io.StringIO()
@@ -1132,6 +1140,9 @@ def release_notes_cli_ok():
             if (got, out.getvalue()) != (code, printed):
                 print("  self-test: release_notes.py %s exited %d and printed %r, not %d and %r" % (section, got, out.getvalue(), code, printed))
                 ok = False
+    if release_notes.absolute_links("[a](docs/X.md#y) [b](#z)", "main") != "[a](%smain/docs/X.md#y) [b](#z)" % release_notes.REPO:
+        print("  self-test: release_notes.absolute_links did not rewrite a relative link at main")
+        ok = False
     return ok
 
 
@@ -1198,6 +1209,7 @@ def self_test(tree, found, listed):
         (changelog_findings, planted(tree, [(CHANGELOG, "## [Unreleased]", "## [0.0.1] - 2026-01-01\n\n- planted\n\n"),
                                             (CHANGELOG, None, "\n## 0.0.2\n\n- planted\n\n## [0.0.3] - 2026-13-45\n\n- planted\n\n## [99.0.0] - 2026-01-01\n\n### Improved\n\n- planted\n"),
                                             (CHANGELOG, None, "\n[99.0.0]: https://example.invalid/planted\n"),
+                                            (CHANGELOG, None, "\n- One. Two. Three.\n- " + "x" * 160 + "\n"),
                                             ("CMakeLists.txt", "project(llmx VERSION", "project(llmx VERSION 98.0.0 LANGUAGES CXX)\n")]), [
             ("a changelog not opened by Unreleased", ("changelog", CHANGELOG, "unreleased")),
             ("a release heading without its date", ("changelog", CHANGELOG, "heading ## 0.0.2")),
@@ -1205,6 +1217,8 @@ def self_test(tree, found, listed):
             ("a version newer than the one above it", ("changelog", CHANGELOG, "order 99.0.0")),
             ("a subsection that is no kind of change", ("changelog", CHANGELOG, "kind Improved")),
             ("a reference link", ("changelog", CHANGELOG, "reference link")),
+            ("an entry of three sentences", ("changelog", CHANGELOG, "long entry - One. Two. Three.")),
+            ("an entry longer than a line", ("changelog", CHANGELOG, "long entry - " + "x" * 38)),
             ("a release version without notes", ("changelog", CHANGELOG, "version 98.0.0"))]),
         (changelog_findings, planted(tree, [("CMakeLists.txt", "project(llmx VERSION", "project(llmx")]), [
             ("a moved version line in CMakeLists.txt", ("changelog", CHANGELOG, "anchor project(llmx VERSION"))]),

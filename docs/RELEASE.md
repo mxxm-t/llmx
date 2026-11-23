@@ -78,12 +78,13 @@ A CUDA image comes with a later release.
 
 [`CHANGELOG.md`](../CHANGELOG.md) lists what each release changed for its users, newest first, in the style of Keep a Changelog: a `## [Unreleased]` section on top, then one `## [X.Y.Z] - YYYY-MM-DD` section per release, each with `### Added`, `### Changed`, `### Deprecated`, `### Removed`, `### Fixed` or `### Security` subsections.
 It is written for someone running llmx: what they can do now, or what behaves differently, in plain words, without branch names, internal tests or measurements of the gates.
+Each entry is one line of about 120 characters and one sentence, ends with a link to the doc that explains the change, and leaves reasons, examples, flag lists and history to that doc.
 
 - **Each landing adds its lines.** A change a user notices adds a line under Unreleased in the commit that lands it; a change nobody outside the project notices adds none. No check sees a missing line, so review holds it.
 - **The release moves them.** The branch that sets a new version (Cutting a release, below) moves the Unreleased lines under `## [X.Y.Z]` with the date of the tag and leaves Unreleased empty.
-- **The notes are its sections.** `tools/release_notes.py X.Y.Z` prints a version's section, which opens the release's notes above its downloads; it fails for a version without a section, or whose section lists no `- ` entry, and so does the release workflow's first job, before any build.
+- **The notes are its sections.** `tools/release_notes.py X.Y.Z` prints a version's section, with each relative link made a GitHub URL at the version's tag (at `main` for Unreleased) because a release page would not resolve it, which opens the release's notes above its downloads; it fails for a version without a section, or whose section lists no `- ` entry, and so does the release workflow's first job, before any build.
   The nightly pre-release's notes give the Unreleased section, or name the last release when it is empty.
-- **The docs check holds its form.** The `changelog` check of the `docs` component ([TESTS](TESTS.md)) fails a changelog that Unreleased does not open, a version heading of another form or out of order, another kind of subsection, a reference-style link, which a printed section would lose, and a `CMakeLists.txt` version without notes, so a version change that forgot the changelog fails at landing, not at the tag.
+- **The docs check holds its form.** The `changelog` check of the `docs` component ([TESTS](TESTS.md)) fails a changelog that Unreleased does not open, a version heading of another form or out of order, another kind of subsection, a reference-style link, which a printed section would lose, an entry of more than 160 characters or 2 sentences, and a `CMakeLists.txt` version without notes, so a version change that forgot the changelog fails at landing, not at the tag.
 
 ## Cutting a release
 

@@ -2061,6 +2061,37 @@ void service_by_hand() {
         const auto [high, high_stall, high_after] = calibrated(30, 0);
         require(std::fabs(high - bound) < 1e-9 && std::fabs(high_after - bound) < 1e-9, "the calibration moved a fixed cost past kCalibrationShare of the least");
         (void)high_stall;
+        // A band's calibration is bounded by the lines it is added to when they are used, not only when it was learned: a band above priced by band 0's line keeps its calibration while band 0's fixed costs fall.
+        // Bounded only when learned, the fallen lines less the old calibration priced no fixed cost at all and cut a prompt from history position kBandTokens into one-row slices.
+        {
+            infer::SlicePeriods q;
+            std::vector<double> f;
+            const auto [s0, b0] = held(even, truth);
+            q.observe(s0, b0, 1000, {});
+            const auto [s1, b1] = held(first, truth);
+            q.observe(s1, b1, 1000, f);
+            for (int k = 0; k < 4; ++k) {
+                std::vector<double> predicted_deep(4, 0.0);
+                for (const auto& part : even) infer::pipeline_add(predicted_deep, q.lines(1, 4), part.second);
+                const auto [s, b] = held(even, truth, infer::kBandTokens);
+                q.observe(s, b, 0.5 * predicted_deep.back(), predicted_deep);
+            }
+            std::vector<infer::StageLine> cheap = truth;
+            for (infer::StageLine& l : cheap) l.fixed_ms /= 4;
+            for (int k = 0; k < 40; ++k) {
+                const auto parts = q.cut(0, 2048, 4, 512, 0, f);
+                std::vector<double> wall(4, 0.0);
+                for (const auto& part : parts) infer::pipeline_add(wall, cheap, part.second);
+                const auto [s, b] = held(parts, cheap);
+                q.observe(s, b, wall.back(), f);
+            }
+            const auto deep_lines = q.lines(1, 4), low_lines = q.lines(0, 4);
+            bool positive = deep_lines.size() == 4;
+            for (size_t s = 0; s < deep_lines.size(); ++s) positive = positive && deep_lines[s].fixed_ms > 0.25 * low_lines[s].fixed_ms;
+            const auto deep_cut = q.cut(infer::kBandTokens, 2048, 4, 512, 0, f);
+            require(positive && deep_cut.size() <= 2 * q.cut(0, 2048, 4, 512, 0, f).size(),
+                    "a calibration learned against an earlier line took a later line's fixed cost to nothing and cut the prompt into one-row slices");
+        }
         // A first prefill measured cold, at a cost a row that grows with its rows as a model's first prefill after a load pays, or one at a uniform excess, is shed by the next prefill: each stage's line is the clean prefills' from the second on.
         // Kept, a cold prefill's points refuse a stage's line for up to 32 prefills and bias it after, as DeepSeek-V4.1-Flash's layer split on ten MI50s showed, and a uniform excess sets the lines its share too high.
         for (const size_t S : {2, 5, 10})

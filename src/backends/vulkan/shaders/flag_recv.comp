@@ -1,0 +1,124 @@
+#version 450
+#extension GL_EXT_shader_realtime_clock : require
+// A tensor group's flagged sum, receiver side, for epochs base + 1 to base + E of batch gen: each group waits, bounded by cap ticks, for every peer's flag, then sums in member order as sum_rows.comp and acks the epoch.
+// Groups in [own_lo, own_hi) sum the members' rows (and with keep 4 write the sum to L for the all-gather); the others take the owning member's summed share; a timeout aborts batch gen and writes nothing.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint n; uint base; uint E; uint self; uint members; uint G; uint C; uint Gc; uint group_base; uint own_lo; uint own_hi; uint cap; uint keep; uint gen; uint slots; } p;
+layout(set = 0, binding = 0) buffer Res { float r[]; };
+layout(set = 0, binding = 1) writeonly buffer K { float kept[]; };
+layout(set = 0, binding = 2) readonly volatile coherent buffer Own { float own[]; };
+layout(set = 0, binding = 3) volatile coherent buffer Ctl { uint ctl[]; };
+layout(set = 0, binding = 4) writeonly buffer L { float l[]; };
+// R and T alias binding 5, each peer's flagged inbox or its tagged region as keep 8 says, so the kernel binds 21 buffers; no dispatch reads both.
+layout(set = 0, binding = 5) readonly volatile coherent buffer In { float x[]; } R[16];
+layout(set = 0, binding = 5) readonly volatile coherent buffer Tagged { uvec4 v[]; } T[16];
+shared uint s_abort, s_fault;
+uint aborted() { return ctl[0] == p.gen ? 1u : 0u; }
+// Keep 8, mesh only, groups of C <= 256 slots: lane t polls slot g * C + t of each peer in member order, accepts a slot holding its epoch, aborts at once on a later epoch (its row overwritten) and spins on an earlier one.
+// The sum is taken from the accepted polls, never a second read, and the workgroup agrees on an abort before it writes anything.
+void tagged(uint g, uint t) {
+    const uint j = g * p.C + t;
+    const bool live = t < p.C && j < p.slots && 3u * j < p.n;
+    if (t == 0u) ctl[16u * (g + 1u)] = p.base;
+    for (uint el = 1u; el <= p.E; ++el) {
+        const uint e = p.base + el, row = (e & 7u) * p.slots;
+        const uint t0 = clockRealtime2x32EXT().x;
+        // fault: 1 the batch's abort word seen, 2 this lane's timeout or overwritten row.
+        uint fault = aborted(), it = 0u;
+        vec3 s = vec3(0.0);
+        // Lanes leave the spin at different times, but every lane running one instance of the member loop holds the same k, so T[k] stays dynamically uniform.
+        for (uint k = 0u; k < p.members && live && fault == 0u; ++k) {
+            vec3 v = vec3(0.0);
+            for (;;) {
+                if (k == p.self) {
+                    if (int(ctl[16u * (g + 1u) + 1u] - e) >= 0) {
+                        v = vec3(own[3u * j], 3u * j + 1u < p.n ? own[3u * j + 1u] : 0.0, 3u * j + 2u < p.n ? own[3u * j + 2u] : 0.0);
+                        break;
+                    }
+                } else {
+                    const uvec4 w = T[k].v[row + j];
+                    const int d = int(w.w - e);
+                    if (d == 0) { v = uintBitsToFloat(w.xyz); break; }
+                    if (d > 0) { fault = 2u; break; }
+                }
+                if ((++it & 15u) == 0u) {
+                    fault = aborted();
+                    if (fault == 0u && clockRealtime2x32EXT().x - t0 > p.cap) fault = 2u;
+                    if (fault != 0u) break;
+                }
+            }
+            if (fault == 0u) s = k == 0u ? v : s + v;
+        }
+        if (fault == 2u) atomicExchange(ctl[0], p.gen);
+        if (t == 0u) { s_abort = 0u; s_fault = 0u; }
+        barrier();
+        if (fault != 0u) s_abort = 1u;
+        if (fault == 2u) s_fault = 1u;
+        barrier();
+        if (s_abort != 0u) {
+            if (t == 0u && s_fault != 0u) atomicAdd(ctl[2], 1u);
+            return;
+        }
+        for (uint c = 0u; c < 3u && live; ++c) {
+            const uint i = 3u * j + c;
+            if (i >= p.n) break;
+            if ((p.keep & 1u) != 0u) kept[i] = s[c];
+            if ((p.keep & 2u) != 0u) r[i] = s[c];
+            else r[i] += s[c];
+        }
+        memoryBarrierBuffer();
+        barrier();
+        if (t == 0u) ctl[16u * (g + 1u)] = e;
+    }
+}
+void main() {
+    const uint g = p.group_base + gl_WorkGroupID.x, t = gl_LocalInvocationID.x;
+    if (g >= p.G) return;
+    if ((p.keep & 8u) != 0u) {
+        tagged(g, t);
+        return;
+    }
+    const bool owned = g >= p.own_lo && g < p.own_hi;
+    const uint lo = g * p.C, hi = min(p.n, lo + p.C), share = g / p.Gc;
+    // The ack starts the batch at its base, which releases the own sender's first epochs whatever an earlier, aborted batch left.
+    if (t == 0u) ctl[16u * (g + 1u)] = p.base;
+    for (uint el = 1u; el <= p.E; ++el) {
+        const uint e = p.base + el, row = p.G * 16u + (e & 7u) * p.n;
+        if (t == 0u) {
+            uint ab = ctl[0] == p.gen ? 1u : 0u, it = 0u;
+            const uint t0 = clockRealtime2x32EXT().x;
+            // Every 16 spins the wait rereads the abort, so a peer's timeout ends this wait too; epochs compare by signed difference, as they wrap.
+            while (owned && ab == 0u && int(ctl[16u * (g + 1u) + 1u] - e) < 0)
+                if ((++it & 15u) == 0u) {
+                    ab = ctl[0] == p.gen ? 1u : 0u;
+                    if (ab == 0u && clockRealtime2x32EXT().x - t0 > p.cap) { ab = 1u; atomicAdd(ctl[2], 1u); atomicExchange(ctl[0], p.gen); }
+                }
+            for (uint k = 0u; k < p.members && ab == 0u; ++k) {
+                if (k == p.self || (!owned && k != share)) continue;
+                while (ab == 0u && int(floatBitsToUint(R[k].x[g * 16u]) - e) < 0)
+                    if ((++it & 15u) == 0u) {
+                        ab = ctl[0] == p.gen ? 1u : 0u;
+                        if (ab == 0u && clockRealtime2x32EXT().x - t0 > p.cap) { ab = 1u; atomicAdd(ctl[2], 1u); atomicExchange(ctl[0], p.gen); }
+                    }
+            }
+            s_abort = ab;
+        }
+        barrier();
+        if (s_abort != 0u) return;
+        memoryBarrierBuffer();
+        for (uint i = lo + t; i < hi; i += 256u) {
+            float s;
+            if (owned) {
+                s = p.self == 0u ? own[i] : R[0].x[row + i];
+                for (uint k = 1u; k < p.members; ++k) s += k == p.self ? own[i] : R[k].x[row + i];
+                if ((p.keep & 4u) != 0u) l[i] = s;
+            } else s = R[share].x[row + i];
+            if ((p.keep & 1u) != 0u) kept[i] = s;
+            if ((p.keep & 2u) != 0u) r[i] = s;
+            else r[i] += s;
+        }
+        memoryBarrierBuffer();
+        barrier();
+        if (t == 0u) ctl[16u * (g + 1u)] = e;
+    }
+}

@@ -190,24 +190,8 @@ inline void VulkanBackend::dispatch(KernelId id, std::initializer_list<VkDescrip
             for (uint32_t j = 0; j < (src.counts ? src.counts[i] : 1); ++j, ++e) uses[e] = {buffers.begin()[e].buffer, (written >> i & 1) != 0};
         order_step(cmd, uses.data(), e);
     }
-    std::vector<VkWriteDescriptorSet> writes(k.bindings);
-    const VkDescriptorBufferInfo* next = buffers.begin();
-    for (uint32_t i = 0; i < k.bindings; ++i) {
-        VkWriteDescriptorSet& w = writes[i];
-        w = VkWriteDescriptorSet{};
-        w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        w.dstBinding = i;
-        w.descriptorCount = src.counts ? src.counts[i] : 1;
-        w.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        w.pBufferInfo = next;
-        next += w.descriptorCount;
-    }
     settle(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-    dev_->fn.vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, k.pipeline);
-    dev_->fn.vkCmdPushDescriptorSetKHR(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, k.layout, 0,
-                                       (uint32_t)writes.size(), writes.data());
-    dev_->fn.vkCmdPushConstants(cmd, k.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0,
-                                (uint32_t)push_bytes, push);
+    bind_kernel(cmd, id, k, buffers.begin(), push, push_bytes);
     if (dev_->timestamps) {
         stamp_before(cmd);
         dev_->fn.vkCmdDispatch(cmd, groups_x, groups_y, 1);
@@ -217,7 +201,26 @@ inline void VulkanBackend::dispatch(KernelId id, std::initializer_list<VkDescrip
     }
     if (!unordered_) barrier(cmd);
     // A pass is submitted in chunks so the device starts on the first while the host records the rest; the ordered timeline makes the last chunk's ticket cover them all.
-    if (++chunk_ >= chunk_limit_) flush();
+    if (++chunk_ >= chunk_limit_ && !defer_chunk) flush();
+}
+
+// A kernel's pipeline, its buffers as push descriptors and its push constants on `cmd`, for dispatch and for a command buffer of another queue (VulkanCollective's receivers).
+inline void VulkanBackend::bind_kernel(VkCommandBuffer cmd, KernelId id, const Kernel& k, const VkDescriptorBufferInfo* buffers, const void* push, size_t push_bytes) {
+    const KernelSource& src = kKernels[id];
+    std::vector<VkWriteDescriptorSet> writes(k.bindings);
+    for (uint32_t i = 0; i < k.bindings; ++i) {
+        VkWriteDescriptorSet& w = writes[i];
+        w = VkWriteDescriptorSet{};
+        w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        w.dstBinding = i;
+        w.descriptorCount = src.counts ? src.counts[i] : 1;
+        w.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        w.pBufferInfo = buffers;
+        buffers += w.descriptorCount;
+    }
+    dev_->fn.vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, k.pipeline);
+    dev_->fn.vkCmdPushDescriptorSetKHR(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, k.layout, 0, (uint32_t)writes.size(), writes.data());
+    dev_->fn.vkCmdPushConstants(cmd, k.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, (uint32_t)push_bytes, push);
 }
 
 // A diagnostics backend's timestamp before an op it times: a reading interval takes as many pools as its ops need, each reset as the interval first reaches it.

@@ -1238,6 +1238,13 @@ const uint32_t kSpvRowsDotGroup[] = {
 const uint32_t kSpvChainPick[] = {
 #include "vulkan/chain_pick.inc"
 };
+// A tensor group's flagged sum through the peers' inboxes, sender and receiver (docs/TENSOR-SPLIT.md); their spins read the device clock.
+const uint32_t kSpvFlagPush[] = {
+#include "vulkan/flag_push.inc"
+};
+const uint32_t kSpvFlagRecv[] = {
+#include "vulkan/flag_recv.inc"
+};
 
 // IDs, diagnostic names and module bindings share this order; cache variants rely on adjacent IDs.
 #define LLMX_VULKAN_KERNELS(X) \
@@ -1599,7 +1606,9 @@ const uint32_t kSpvChainPick[] = {
     X(K_CODE_MESSAGES, "sigmoid_gate_rows", kSpvCodeMessages, sizeof(kSpvCodeMessages), 7, nullptr) \
     X(K_ROWS_DOT_GROUP, "matmul_at_ids", kSpvRowsDotGroup, sizeof(kSpvRowsDotGroup), 5, nullptr) \
     X(K_CHAIN_PICK, "chain_pick", kSpvChainPick, sizeof(kSpvChainPick), 3, nullptr) \
-    X(K_HOLD, "hold", kSpvHold, sizeof(kSpvHold), 1, nullptr)
+    X(K_HOLD, "hold", kSpvHold, sizeof(kSpvHold), 1, nullptr) \
+    X(K_FLAG_PUSH, "flag_push", kSpvFlagPush, sizeof(kSpvFlagPush), 3, kFlagPushCounts) \
+    X(K_FLAG_RECV, "flag_recv", kSpvFlagRecv, sizeof(kSpvFlagRecv), 6, kFlagRecvCounts)
 
 #define LLMX_KERNEL_ID(id, name, ...) id,
 enum KernelId { LLMX_VULKAN_KERNELS(LLMX_KERNEL_ID) K_COUNT };
@@ -2049,6 +2058,10 @@ const uint32_t kMatmulReduceCounts[2] = {3, 1};
 // A tensor group's sum: the residual, the kept rows and one source a member (shaders/sum_rows.comp declares the 16).
 const uint32_t kSumRowsCounts[3] = {1, 1, uint32_t(kMaxTensorWidth)};
 static_assert(kMaxTensorWidth == 16, "shaders/sum_rows.comp declares 16 sources");
+// The flagged sum's sender: its rows, its control words and one peer inbox or tagged region a member; its receiver: residual, kept, own rows, control, gathered share and one inbox or tagged region a member.
+const uint32_t kFlagPushCounts[3] = {1, 1, uint32_t(kMaxTensorWidth)};
+const uint32_t kFlagRecvCounts[6] = {1, 1, 1, 1, 1, uint32_t(kMaxTensorWidth)};
+static_assert(kMaxTensorWidth == 16, "shaders/flag_push.comp and flag_recv.comp declare 16 inboxes, their tagged regions on the same binding");
 
 #define LLMX_KERNEL_NAME(id, name, ...) name,
 const char* const kKernelNames[K_COUNT] = { LLMX_VULKAN_KERNELS(LLMX_KERNEL_NAME) };

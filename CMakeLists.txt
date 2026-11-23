@@ -87,7 +87,7 @@ if(LLMX_HAS_BACKEND_VULKAN)
         quantize_xw matmul_tile_q matmul_reduce matmul_vec_q8 moe_route moe_combine moe_group moe_step_route moe_step_act attention_vec
         sigmoid_mul gated_rms_norm causal_conv_silu dilated_conv_silu_add delta_rule argmax_rows
         group_rms_norm silu_scaled mix_streams inject_streams signed_sqrt_gate
-        kv_index_pool kv_index_scores_tile kv_index_select kv_index_select_wide add_bias gelu layer_norm_rows mix_rows hold
+        kv_index_pool kv_index_scores_tile kv_index_select kv_index_select_wide add_bias gelu layer_norm_rows mix_rows hold flag_push flag_recv
         hc_coeffs hc_collapse_norm hc_expand sparse_softmax sparse_columns topk_rows compress_pool indexer_scores indexer_scores_tile raw_index_scores pool_write model_format_qdq route_sqrt_softplus
         unit_rows sigmoid_gate_rows matmul_at_ids chain_pick)
     # A variant is the same source compiled with a define, "name=source=DEFINE"; the row kernel is one module per family of types, since one module for all of them raised every path's registers.

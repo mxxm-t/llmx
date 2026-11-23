@@ -1,0 +1,54 @@
+#version 450
+#extension GL_EXT_shader_realtime_clock : require
+// A tensor group's flagged sum, sender side: mode 1 stores this member's rows of group g into each peer's inbox row epoch & 7, mode 2 then publishes the epoch in group g's flag word, after the host's write-back barrier.
+// Mode 4 sends group g only to the member owning its share (g / Gc), mode 8 first waits, bounded by cap ticks, for the own receiver's ack of epoch - lag; a timeout aborts batch gen, which stops every later store and flag of that batch.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint n; uint epoch; uint self; uint members; uint G; uint C; uint Gc; uint group_base; uint lag; uint cap; uint mode; uint gen; uint slots; } p;
+layout(set = 0, binding = 0) readonly coherent buffer Src { uint src[]; };
+// 0 the last aborted batch's gen, 1 sender timeouts, 2 receiver faults (timeouts and overwritten tagged rows), 16 (g + 1) the own receiver's ack of group g, the next word the own rows' epoch.
+layout(set = 0, binding = 1) volatile coherent buffer Ctl { uint ctl[]; };
+// S and T alias binding 2, each peer's flagged inbox or its tagged region as the mode needs, so the kernel binds 18 buffers; no dispatch reads both.
+layout(set = 0, binding = 2) volatile coherent buffer In { uint x[]; } S[16];
+layout(set = 0, binding = 2) volatile coherent buffer Tagged { uvec4 v[]; } T[16];
+shared uint s_abort;
+void main() {
+    const uint g = p.group_base + gl_WorkGroupID.x, t = gl_LocalInvocationID.x;
+    if (g >= p.G) return;
+    if (t == 0u) {
+        uint ab = ctl[0] == p.gen ? 1u : 0u, it = 0u;
+        const uint t0 = clockRealtime2x32EXT().x;
+        // Epochs wrap, so they compare by signed difference; an ack below the batch's base holds the sender until its receiver rebases it.
+        if ((p.mode & 8u) != 0u)
+            while (ab == 0u && int(ctl[16u * (g + 1u)] + p.lag - p.epoch) < 0)
+                if ((++it & 15u) == 0u) {
+                    ab = ctl[0] == p.gen ? 1u : 0u;
+                    if (ab == 0u && clockRealtime2x32EXT().x - t0 > p.cap) { ab = 1u; atomicAdd(ctl[1], 1u); atomicExchange(ctl[0], p.gen); }
+                }
+        s_abort = ab;
+    }
+    barrier();
+    if (s_abort != 0u) return;
+    // Mode 16, mesh only: group g's C tagged slots, three floats and the epoch in one 16-byte store each, go to each peer's tagged row epoch & 7 of `slots` slots, then the own rows' epoch, and no flag word.
+    if ((p.mode & 16u) != 0u) {
+        const uint j = g * p.C + t;
+        if (t < p.C && j < p.slots && 3u * j < p.n) {
+            // Floats past n go as zeros, so a slot never carries another sum's words.
+            const uint i = 3u * j, row = (p.epoch & 7u) * p.slots;
+            const uvec4 w = uvec4(src[i], i + 1u < p.n ? src[i + 1u] : 0u, i + 2u < p.n ? src[i + 2u] : 0u, p.epoch);
+            for (uint k = 0u; k < p.members; ++k)
+                if (k != p.self) T[k].v[row + j] = w;
+        }
+        barrier();
+        if (t == 0u) ctl[16u * (g + 1u) + 1u] = p.epoch;
+        return;
+    }
+    const uint share = g / p.Gc, lo = g * p.C, hi = min(p.n, lo + p.C), row = p.G * 16u + (p.epoch & 7u) * p.n;
+    // The peer index comes from push constants and the workgroup id only, so every lane indexes S with the same value.
+    for (uint k = 0u; k < p.members; ++k) {
+        if (k == p.self || ((p.mode & 4u) != 0u && k != share)) continue;
+        if ((p.mode & 1u) != 0u)
+            for (uint i = lo + t; i < hi; i += 256u) S[k].x[row + i] = src[i];
+        if ((p.mode & 2u) != 0u && t == 0u) S[k].x[g * 16u] = p.epoch;
+    }
+    if ((p.mode & 2u) != 0u && t == 0u) ctl[16u * (g + 1u) + 1u] = p.epoch;
+}

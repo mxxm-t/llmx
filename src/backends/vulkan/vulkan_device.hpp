@@ -317,6 +317,19 @@ struct Device {
     uint64_t stamp_mask = 0;     // the queue's valid timestamp bits; zero where its queue does not timestamp, so no submission is timed (busy_ms)
     bool uncached_memory = false;   // host memory the device reads past its caches (VK_AMD_device_coherent_memory), which a held queue's release counter takes
     bool device_clock = false;   // shaders read the device's clock (VK_KHR_shader_clock's shaderDeviceClock), which a held queue's wait is bounded by
+    // The queue of the other compute family among queue_candidates, where a tensor group's persistent receivers run beside the senders; null with one candidate, which turns the tagged route off.
+    uint32_t receive_family = UINT32_MAX;
+    VkQueue receive_queue = VK_NULL_HANDLE;
+    uint32_t families[2] = {};   // the queue family and the receive family, which every buffer is shared by where both exist (share)
+
+    // Buffers of a device with a receive queue are concurrent over both families, since the receivers there use a member's rows, control words and tagged rows that its stream uses too.
+    void share(VkBufferCreateInfo& bi) const {
+        bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        if (receive_family == UINT32_MAX) return;
+        bi.sharingMode = VK_SHARING_MODE_CONCURRENT;
+        bi.queueFamilyIndexCount = 2;
+        bi.pQueueFamilyIndices = families;
+    }
 
     // Guarded per handle: construction can fail between creating a handle and loading its destroy function.
     ~Device() {

@@ -98,7 +98,7 @@ public:
         bi.size = (bytes + 3) & ~size_t(3);
         bi.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
                    VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-        bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        dev_->share(bi);
         check(dev_->fn.vkCreateBuffer(dev_->device, &bi, nullptr, &buffer_), "vkCreateBuffer");
         try {
             VkMemoryRequirements req{};
@@ -145,8 +145,10 @@ public:
         }
     }
     // Device memory shared with other devices as a dma-buf (`fd` < 0, exported by this device), or another device's imported from `fd`, whose ownership the import takes (docs/TENSOR-SPLIT.md, section 4.3).
-    VulkanBuffer(std::shared_ptr<Device> dev, size_t bytes, int fd)
+    // With `uncached`, memory every access reaches past the device's caches where it enabled such types, as a word one queue spins on and another queue or device writes needs.
+    VulkanBuffer(std::shared_ptr<Device> dev, size_t bytes, int fd, bool uncached = false)
         : dev_(std::move(dev)), size_(bytes) {
+        const VkMemoryPropertyFlags spun = uncached && dev_->uncached_memory ? VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD | VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD : 0;
         VkExternalMemoryBufferCreateInfo ei{};
         ei.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO;
         ei.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
@@ -155,7 +157,7 @@ public:
         bi.pNext = &ei;
         bi.size = (bytes + 3) & ~size_t(3);
         bi.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-        bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        dev_->share(bi);
         try {
             check(dev_->fn.vkCreateBuffer(dev_->device, &bi, nullptr, &buffer_), "vkCreateBuffer");
             VkMemoryRequirements req{};
@@ -177,10 +179,10 @@ public:
                 check(dev_->memory_fd_props(dev_->device, VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT, fd, &fp), "vkGetMemoryFdPropertiesKHR");
                 types &= fp.memoryTypeBits;
                 ai.pNext = &im;
-                ai.memoryTypeIndex = dev_->memory_type(types, 0, 0, 0);
+                ai.memoryTypeIndex = dev_->memory_type(types, 0, spun, 0);
             } else {
                 ai.pNext = &ex;
-                ai.memoryTypeIndex = dev_->memory_type(types, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+                ai.memoryTypeIndex = dev_->memory_type(types, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | spun, 0, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
             }
             check(dev_->fn.vkAllocateMemory(dev_->device, &ai, nullptr, &memory_), "vkAllocateMemory (shared)");
             fd = -1;
@@ -214,7 +216,7 @@ public:
         bi.pNext = &ei;
         bi.size = bytes;
         bi.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-        bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        dev_->share(bi);
         check(dev_->fn.vkCreateBuffer(dev_->device, &bi, nullptr, &buffer_), "vkCreateBuffer");
         try {
             VkMemoryRequirements req{};

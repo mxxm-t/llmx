@@ -33,6 +33,7 @@ namespace backend {
 namespace {
 
 struct MoeBuild;   // the fused routed step's builds (vulkan_moe.hpp)
+class VulkanCollective;   // a tensor group's collective (vulkan_collective.hpp)
 
 // The one thread that makes a tensor group's queue calls, in the order they are handed over, so the recording thread hands a submission over and records on (docs/TENSOR-SPLIT.md, section 4.3).
 // A call that fails settles its own tickets and every later job's without calling, so no waiter hangs; the next hand-over runs the owners' recovery and throws the failure, and the jobs after it run again.
@@ -102,6 +103,9 @@ public:
         std::lock_guard<std::mutex> lk(mu_);
         owners_.erase(std::remove_if(owners_.begin(), owners_.end(), [&](const auto& o) { return o.first == owner; }), owners_.end());
     }
+
+    // The group's collectives with an open batch of tagged sums, which the next submission of any member closes together (VulkanCollective::close_open); recording thread only.
+    std::vector<VulkanCollective*> open_batches;
 
 private:
     void loop() {
@@ -534,6 +538,7 @@ class VulkanBackend final : public Backend {
     friend struct VulkanLifetimeTest;
     friend struct VulkanQuantizationTest;
     friend struct VulkanIndexTest;
+    friend struct VulkanSumTest;
 public:
     explicit VulkanBackend(int index, bool diagnostics = false) : dev_(std::make_shared<Device>()), timed_(diagnostics) {
         Device& d = *dev_;
@@ -801,8 +806,17 @@ public:
         qi.queueFamilyIndex = d.queue_family;
         qi.queueCount = 1;
         qi.pQueuePriorities = &priority;
+        VkDeviceQueueCreateInfo queues[2] = {qi, qi};
         di.queueCreateInfoCount = 1;
-        di.pQueueCreateInfos = &qi;
+        for (uint32_t c : candidates)
+            if (d.exchange && c != d.queue_family && d.receive_family == UINT32_MAX) {
+                d.receive_family = c;
+                d.families[0] = d.queue_family;
+                d.families[1] = c;
+                queues[1].queueFamilyIndex = c;
+                di.queueCreateInfoCount = 2;
+            }
+        di.pQueueCreateInfos = queues;
         check(fn.vkCreateDevice(d.physical, &di, nullptr, &d.device), "vkCreateDevice");
 #define LLMX_VK_LOAD_DEVICE(name) \
         fn.name = (PFN_##name)fn.vkGetDeviceProcAddr(d.device, #name); \
@@ -835,6 +849,7 @@ public:
         if (!fn.vkCmdPushDescriptorSetKHR)
             throw std::runtime_error("vulkan: the device has no vkCmdPushDescriptorSetKHR");
         fn.vkGetDeviceQueue(d.device, d.queue_family, 0, &d.queue);
+        if (d.receive_family != UINT32_MAX && d.exchange) fn.vkGetDeviceQueue(d.device, d.receive_family, 0, &d.receive_queue);
 
         VkCommandPoolCreateInfo pi{};
         pi.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -1230,6 +1245,9 @@ public:
     std::string pci_root() const override { return dev_->pci_root; }
     size_t collective_bytes_per_row(size_t members, size_t width) const override;
     static size_t two_shot_crossover(size_t members);
+    static size_t tagged_crossover(size_t members);
+    void tagged_push(Slice rows, Buffer& control, const VkDescriptorBufferInfo* peers, size_t n, uint32_t epoch, size_t self, size_t members, uint32_t gen, uint32_t slots, uint32_t cap);
+    void record_receiver(VkCommandBuffer cmd, const VkDescriptorBufferInfo* buffers, const uint32_t* push, size_t push_words, uint32_t groups);
 
     // While held, each submission is followed by a wait on the device that the next submission or kHoldMs of the device's clock ends, keeping the device busy between stages (Backend::hold_between_submissions).
     // A device whose shaders cannot read its clock keeps no hold, since a wait it cannot bound outlives a killed process.
@@ -1320,9 +1338,14 @@ public:
         return reinterpret_cast<const std::atomic<uint32_t>*>(hold_.word->mapped())[1].load() != hold_.seq;
     }
 
+    bool defer_chunk = false;   // while one tagged sum is recorded across the members, its chunk flush waits for the sum's end
+    // The group's open batches closed with this submission (VulkanCollective::close_open), so no sender reaches a queue without its receivers.
+    Ticket close_batches(bool report);
+
     // The queue's submission of the open command buffer, after letting a held queue go, waiting on the semaphores a group's exchange left (wait_on).
     // On a submitter, a failure not yet given out is thrown here unless `report` is false, when this submission is given up and the failure kept.
     Ticket flush(bool report = true) {
+        if (submitter_ && !submitter_->open_batches.empty()) return close_batches(report);
         const Submission s = prepare({});
         if (!submitter_) return queued(s, s.queue(*dev_));
         const Ticket t = queued(s, VK_SUCCESS);
@@ -1335,20 +1358,24 @@ public:
         return t;
     }
 
-    // A submitter's group: every queue call of this backend goes to it from now on, in the order handed over.
+    // A submitter's group: every queue call of this backend goes to it from now on, in the order handed over, until each collective that routed it gives it back.
     void submit_through(const std::shared_ptr<VulkanSubmitter>& s) {
-        if (submitter_ == s) return;
+        if (submitter_ == s) {
+            ++routes_;
+            return;
+        }
         if (submitter_) throw std::logic_error("vulkan: a device in two tensor groups' submitters");
         sync();
         // Every ticket so far was queued here.
         made_ticket_.store(tickets_.last(), std::memory_order_release);
         good_ticket_.store(tickets_.last(), std::memory_order_release);
         submitter_ = s;
+        routes_ = 1;
     }
     const std::shared_ptr<VulkanSubmitter>& submitter() const { return submitter_; }
-    // Its queue calls its own again, once the submitter has made every call handed over.
+    // One collective's route given back; the last makes its queue calls its own again, once the submitter has made every call handed over.
     void submit_alone() noexcept {
-        if (!submitter_) return;
+        if (!submitter_ || --routes_) return;
         submitter_->drain();
         submitter_.reset();
     }
@@ -2511,6 +2538,7 @@ private:
     void dispatch(KernelId id, std::initializer_list<VkDescriptorBufferInfo> buffers,
                   const void* push, size_t push_bytes, uint32_t groups_x, uint32_t groups_y = 1,
                   int variant = 0, std::initializer_list<size_t> extents = {});
+    void bind_kernel(VkCommandBuffer cmd, KernelId id, const Kernel& k, const VkDescriptorBufferInfo* buffers, const void* push, size_t push_bytes);
 
     // The open command buffer, beginning the next ring slot once its last submission has retired.
     VkCommandBuffer open() {
@@ -2605,6 +2633,7 @@ private:
     VkPipelineStageFlags since_ = 0, before_ = 0, covered_ = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT;
     VkSemaphore timeline_ = VK_NULL_HANDLE;
     std::shared_ptr<VulkanSubmitter> submitter_;   // a tensor group's queue thread, which makes this backend's queue calls once set
+    size_t routes_ = 0;                            // live collectives that routed this backend through submitter_; recording thread only
     std::atomic<Ticket> made_ticket_{0};          // on a submitter, the last ticket whose queue call was made or given up
     std::atomic<Ticket> good_ticket_{0};          // of those, the last whose call was made
     std::mutex lost_mu_;

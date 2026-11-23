@@ -21252,6 +21252,1333 @@
           "expected": "<|im_start|>system\nReasoning effort is set to xhigh. Please think carefully through the task, validate key assumptions, consider plausible alternatives, and prioritize correctness, consistency, and clarity in the final answer.<|im_end|>\n<|im_start|>user\na<|im_end|>\n<|im_start|>assistant\n<think>\nqr\n</think>\n\no<|im_end|>\n<|im_start|>user\nb<|im_end|>\n<|im_start|>assistant\n<think>\n"
         }
       ]
+    },
+    {
+      "name": "Inkling-2-Mini (unsloth GGUF)",
+      "origin": [
+        "unsloth/Inkling-2-Mini-GGUF 45fd08764f2b0bf16b03a5483a80e5c7aaec8772 Mainline_Support/Inkling-2-Mini-UD-Q8_K_XL.gguf_file",
+        "unsloth/Inkling-2-Mini-GGUF 45fd08764f2b0bf16b03a5483a80e5c7aaec8772 Mainline_Support/Inkling-2-Mini-UD-Q4_K_XL.gguf_file"
+      ],
+      "template": "{%- set effort_map = {\"none\": 0.0, \"minimal\": 0.1, \"low\": 0.2, \"medium\": 0.7, \"high\": 0.9, \"xhigh\": 0.99, \"max\": 0.99} -%}\n{%- set role_token = {\"user\": \"<|message_user|>\", \"assistant\": \"<|message_model|>\", \"system\": \"<|message_system|>\", \"tool\": \"<|message_tool|>\"} -%}\n\n{%- macro emit_thinking_effort() -%}\n    {%- set eff = reasoning_effort if reasoning_effort is defined and reasoning_effort is not none else 0.9 -%}\n    {%- if eff is string -%}\n        {%- set key = eff | trim -%}\n        {%- if key not in effort_map -%}\n            {{- raise_exception(\"Unknown reasoning_effort: \" ~ eff) -}}\n        {%- endif -%}\n        {%- set num = effort_map[key] -%}\n    {%- else -%}\n        {%- set num = eff | float -%}\n    {%- endif -%}\n    {%- if num < 0.0 or num > 0.99 -%}\n        {{- raise_exception(\"reasoning_effort must be in [0.0, 0.99]\") -}}\n    {%- endif -%}\n    {{- \"<|message_system|><|content_text|>Thinking effort level: \" -}}\n    {%- if num == 0.0 -%}0{%- else -%}{{ num }}{%- endif -%}\n    {{- \"<|end_message|>\" -}}\n{%- endmacro -%}\n\n{%- if tools -%}\n    {%- set tool_state = namespace(specs=[]) -%}\n    {%- for tool in tools -%}\n        {%- set fn = tool.function if tool.function is defined else tool -%}\n        {%- set spec = {\n            \"description\": (fn.description if fn.description is defined and fn.description else \"\"),\n            \"name\": fn.name,\n            \"parameters\": (fn.parameters if fn.parameters is defined and fn.parameters else {}),\n            \"type\": (tool.type if tool.type is defined and tool.type else \"function\"),\n        } -%}\n        {%- set tool_state.specs = tool_state.specs + [spec] -%}\n    {%- endfor -%}\n    {{- \"<|message_system|>tool_declare<|content_xml|>\" -}}\n    {{- tool_state.specs | tojson(sort_keys=true, separators=(\",\", \":\")) -}}\n    {{- \"<|end_message|>\" -}}\n{%- endif -%}\n\n{%- set state = namespace(effort_emitted=false) -%}\n{%- for message in messages -%}\n    {%- if message.role not in role_token -%}\n        {{- raise_exception(\"Unknown message role: \" ~ message.role) -}}\n    {%- endif -%}\n    {%- if not state.effort_emitted and message.role != \"system\" -%}\n        {{- emit_thinking_effort() -}}\n        {%- set state.effort_emitted = true -%}\n    {%- endif -%}\n\n    {%- set header = namespace(text=role_token[message.role]) -%}\n    {%- if message.role == \"tool\" -%}\n        {%- if message.name is defined and message.name -%}\n            {%- set header.text = header.text ~ message.name -%}\n        {%- elif message.tool_call_id is defined and message.tool_call_id -%}\n            {%- for prev in messages -%}\n                {%- if prev.role == \"assistant\" and prev.tool_calls -%}\n                    {%- for tc in prev.tool_calls -%}\n                        {%- if tc.id is defined and tc.id == message.tool_call_id and tc.function.name is defined -%}\n                            {%- set header.text = header.text ~ tc.function.name -%}\n                        {%- endif -%}\n                    {%- endfor -%}\n                {%- endif -%}\n            {%- endfor -%}\n        {%- endif -%}\n    {%- elif message.role == \"assistant\" and message.name is defined and message.name -%}\n        {%- set header.text = header.text ~ message.name -%}\n    {%- endif -%}\n    {%- set rtok = header.text -%}\n    {%- set rendered -%}\n\n    {%- if message.role == \"assistant\" and message.reasoning_content is defined and message.reasoning_content -%}\n        {{- rtok ~ \"<|content_thinking|>\" ~ message.reasoning_content ~ \"<|end_message|>\" -}}\n    {%- endif -%}\n\n    {%- if message.content is string and (message.content or not (message.role == \"assistant\" and (message.tool_calls or message.reasoning_content))) -%}\n        {{- rtok ~ \"<|content_text|>\" ~ message.content ~ \"<|end_message|>\" -}}\n    {%- elif message.content -%}\n        {%- for part in message.content -%}\n            {%- if part is string -%}\n                {{- rtok ~ \"<|content_text|>\" ~ part ~ \"<|end_message|>\" -}}\n            {%- elif part.type is not defined or part.type in (\"text\", \"input_text\") -%}\n                {%- set text_part = (part.text if part.text is defined and part.text is string else \"\") -%}\n                {{- rtok ~ \"<|content_text|>\" ~ text_part ~ \"<|end_message|>\" -}}\n            {%- elif part.type in (\"image\", \"input_image\", \"image_url\") -%}\n                {%- if message.role not in (\"user\", \"tool\") -%}\n                    {{- raise_exception(\"Image content is only supported for user and tool messages\") -}}\n                {%- endif -%}\n                {{- rtok ~ \"<|content_image|><|unused_200054|><|end_message|>\" -}}\n            {%- elif part.type in (\"audio\", \"input_audio\", \"audio_url\") -%}\n                {{- raise_exception(\"Inkling 2 does not accept audio input\") -}}\n            {%- else -%}\n                {{- raise_exception(\"Unsupported content part type: \" ~ part.type) -}}\n            {%- endif -%}\n        {%- endfor -%}\n    {%- endif -%}\n\n    {%- if message.role == \"assistant\" and message.tool_calls -%}\n        {%- for tc in message.tool_calls -%}\n            {%- set fn = tc.function -%}\n            {%- if fn.name is not defined or fn.name is not string -%}\n                {{- raise_exception(\"tool call function name must be a string\") -}}\n            {%- endif -%}\n            {%- if message.name is defined and message.name and message.name != fn.name -%}\n                {{- raise_exception(\"assistant name \" ~ message.name ~ \" does not match its tool call \" ~ fn.name) -}}\n            {%- endif -%}\n            {%- set args = fn.arguments if fn.arguments is defined and fn.arguments else {} -%}\n            {%- if args is string -%}\n                {{- raise_exception(\"tool call arguments must be a parsed object, not a JSON string; canonicalize upstream\") -}}\n            {%- endif -%}\n            {%- if args is not mapping -%}\n                {{- raise_exception(\"tool call arguments must be an object\") -}}\n            {%- endif -%}\n            {{- \"<|message_model|>\" ~ fn.name ~ \"<|content_invoke_tool_json|>\" -}}\n            {{- '{\"name\":' ~ (fn.name | tojson(sort_keys=true, separators=(\",\", \":\"))) ~ ',\"args\":' -}}\n            {{- \"{\" -}}\n            {%- for key, value in args | dictsort(case_sensitive=true) -%}\n                {{- (key | tojson) ~ \":\" ~ (value | tojson(separators=(\",\", \":\"))) -}}\n                {%- if not loop.last -%},{%- endif -%}\n            {%- endfor -%}\n            {{- \"}}<|end_message|>\" -}}\n        {%- endfor -%}\n    {%- endif -%}\n\n    {%- if message.role == \"assistant\" -%}\n        {{- \"<|content_model_end_sampling|>\" -}}\n    {%- endif -%}\n    {%- endset -%}\n    {%- if message.role == \"assistant\" -%}\n        {%- generation -%}{{- rendered -}}{%- endgeneration -%}\n    {%- else -%}\n        {{- rendered -}}\n    {%- endif -%}\n{%- endfor -%}\n\n{%- if not state.effort_emitted -%}\n    {{- emit_thinking_effort() -}}\n{%- endif -%}\n",
+      "sha256": "53a9035f3255945704b5857657cfb00c1165090c0641c4f782a0cbf268cc16dc",
+      "cases": [
+        {
+          "name": "legacy-0-open-nogen",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are helpful."
+            },
+            {
+              "role": "user",
+              "content": "Remember violet."
+            }
+          ],
+          "generate": false,
+          "expected": "<|message_system|><|content_text|>You are helpful.<|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Remember violet.<|end_message|>"
+        },
+        {
+          "name": "legacy-0-open-gen",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are helpful."
+            },
+            {
+              "role": "user",
+              "content": "Remember violet."
+            }
+          ],
+          "generate": true,
+          "expected": "<|message_system|><|content_text|>You are helpful.<|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Remember violet.<|end_message|>"
+        },
+        {
+          "name": "legacy-0-complete-nogen",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are helpful."
+            },
+            {
+              "role": "user",
+              "content": "Remember violet."
+            },
+            {
+              "role": "assistant",
+              "content": "<think>Reason.</think>\n\nAnswer."
+            }
+          ],
+          "generate": false,
+          "expected": "<|message_system|><|content_text|>You are helpful.<|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Remember violet.<|end_message|><|message_model|><|content_text|><think>Reason.</think>\n\nAnswer.<|end_message|><|content_model_end_sampling|>"
+        },
+        {
+          "name": "legacy-0-complete-gen",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are helpful."
+            },
+            {
+              "role": "user",
+              "content": "Remember violet."
+            },
+            {
+              "role": "assistant",
+              "content": "<think>Reason.</think>\n\nAnswer."
+            }
+          ],
+          "generate": true,
+          "expected": "<|message_system|><|content_text|>You are helpful.<|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Remember violet.<|end_message|><|message_model|><|content_text|><think>Reason.</think>\n\nAnswer.<|end_message|><|content_model_end_sampling|>"
+        },
+        {
+          "name": "legacy-1-open-nogen",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are helpful."
+            },
+            {
+              "role": "user",
+              "content": "Remember violet."
+            },
+            {
+              "role": "assistant",
+              "content": "<think>Private reasoning.</think>\n\nViolet."
+            },
+            {
+              "role": "user",
+              "content": "What color?"
+            }
+          ],
+          "generate": false,
+          "expected": "<|message_system|><|content_text|>You are helpful.<|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Remember violet.<|end_message|><|message_model|><|content_text|><think>Private reasoning.</think>\n\nViolet.<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|>What color?<|end_message|>"
+        },
+        {
+          "name": "legacy-1-open-gen",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are helpful."
+            },
+            {
+              "role": "user",
+              "content": "Remember violet."
+            },
+            {
+              "role": "assistant",
+              "content": "<think>Private reasoning.</think>\n\nViolet."
+            },
+            {
+              "role": "user",
+              "content": "What color?"
+            }
+          ],
+          "generate": true,
+          "expected": "<|message_system|><|content_text|>You are helpful.<|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Remember violet.<|end_message|><|message_model|><|content_text|><think>Private reasoning.</think>\n\nViolet.<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|>What color?<|end_message|>"
+        },
+        {
+          "name": "legacy-1-complete-nogen",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are helpful."
+            },
+            {
+              "role": "user",
+              "content": "Remember violet."
+            },
+            {
+              "role": "assistant",
+              "content": "<think>Private reasoning.</think>\n\nViolet."
+            },
+            {
+              "role": "user",
+              "content": "What color?"
+            },
+            {
+              "role": "assistant",
+              "content": "<think>Reason.</think>\n\nAnswer."
+            }
+          ],
+          "generate": false,
+          "expected": "<|message_system|><|content_text|>You are helpful.<|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Remember violet.<|end_message|><|message_model|><|content_text|><think>Private reasoning.</think>\n\nViolet.<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|>What color?<|end_message|><|message_model|><|content_text|><think>Reason.</think>\n\nAnswer.<|end_message|><|content_model_end_sampling|>"
+        },
+        {
+          "name": "legacy-1-complete-gen",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are helpful."
+            },
+            {
+              "role": "user",
+              "content": "Remember violet."
+            },
+            {
+              "role": "assistant",
+              "content": "<think>Private reasoning.</think>\n\nViolet."
+            },
+            {
+              "role": "user",
+              "content": "What color?"
+            },
+            {
+              "role": "assistant",
+              "content": "<think>Reason.</think>\n\nAnswer."
+            }
+          ],
+          "generate": true,
+          "expected": "<|message_system|><|content_text|>You are helpful.<|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Remember violet.<|end_message|><|message_model|><|content_text|><think>Private reasoning.</think>\n\nViolet.<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|>What color?<|end_message|><|message_model|><|content_text|><think>Reason.</think>\n\nAnswer.<|end_message|><|content_model_end_sampling|>"
+        },
+        {
+          "name": "legacy-2-open-nogen",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are helpful."
+            },
+            {
+              "role": "user",
+              "content": "Remember violet."
+            },
+            {
+              "role": "assistant",
+              "content": "<think>Private reasoning.</think>\n\nViolet."
+            },
+            {
+              "role": "user",
+              "content": "What color?"
+            },
+            {
+              "role": "assistant",
+              "content": "Violet again."
+            },
+            {
+              "role": "user",
+              "content": "Say it again."
+            }
+          ],
+          "generate": false,
+          "expected": "<|message_system|><|content_text|>You are helpful.<|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Remember violet.<|end_message|><|message_model|><|content_text|><think>Private reasoning.</think>\n\nViolet.<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|>What color?<|end_message|><|message_model|><|content_text|>Violet again.<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|>Say it again.<|end_message|>"
+        },
+        {
+          "name": "legacy-2-open-gen",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are helpful."
+            },
+            {
+              "role": "user",
+              "content": "Remember violet."
+            },
+            {
+              "role": "assistant",
+              "content": "<think>Private reasoning.</think>\n\nViolet."
+            },
+            {
+              "role": "user",
+              "content": "What color?"
+            },
+            {
+              "role": "assistant",
+              "content": "Violet again."
+            },
+            {
+              "role": "user",
+              "content": "Say it again."
+            }
+          ],
+          "generate": true,
+          "expected": "<|message_system|><|content_text|>You are helpful.<|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Remember violet.<|end_message|><|message_model|><|content_text|><think>Private reasoning.</think>\n\nViolet.<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|>What color?<|end_message|><|message_model|><|content_text|>Violet again.<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|>Say it again.<|end_message|>"
+        },
+        {
+          "name": "legacy-2-complete-nogen",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are helpful."
+            },
+            {
+              "role": "user",
+              "content": "Remember violet."
+            },
+            {
+              "role": "assistant",
+              "content": "<think>Private reasoning.</think>\n\nViolet."
+            },
+            {
+              "role": "user",
+              "content": "What color?"
+            },
+            {
+              "role": "assistant",
+              "content": "Violet again."
+            },
+            {
+              "role": "user",
+              "content": "Say it again."
+            },
+            {
+              "role": "assistant",
+              "content": "<think>Reason.</think>\n\nAnswer."
+            }
+          ],
+          "generate": false,
+          "expected": "<|message_system|><|content_text|>You are helpful.<|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Remember violet.<|end_message|><|message_model|><|content_text|><think>Private reasoning.</think>\n\nViolet.<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|>What color?<|end_message|><|message_model|><|content_text|>Violet again.<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|>Say it again.<|end_message|><|message_model|><|content_text|><think>Reason.</think>\n\nAnswer.<|end_message|><|content_model_end_sampling|>"
+        },
+        {
+          "name": "legacy-2-complete-gen",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are helpful."
+            },
+            {
+              "role": "user",
+              "content": "Remember violet."
+            },
+            {
+              "role": "assistant",
+              "content": "<think>Private reasoning.</think>\n\nViolet."
+            },
+            {
+              "role": "user",
+              "content": "What color?"
+            },
+            {
+              "role": "assistant",
+              "content": "Violet again."
+            },
+            {
+              "role": "user",
+              "content": "Say it again."
+            },
+            {
+              "role": "assistant",
+              "content": "<think>Reason.</think>\n\nAnswer."
+            }
+          ],
+          "generate": true,
+          "expected": "<|message_system|><|content_text|>You are helpful.<|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Remember violet.<|end_message|><|message_model|><|content_text|><think>Private reasoning.</think>\n\nViolet.<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|>What color?<|end_message|><|message_model|><|content_text|>Violet again.<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|>Say it again.<|end_message|><|message_model|><|content_text|><think>Reason.</think>\n\nAnswer.<|end_message|><|content_model_end_sampling|>"
+        },
+        {
+          "name": "user-only",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Hello there."
+            }
+          ],
+          "generate": true,
+          "expected": "<|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Hello there.<|end_message|>"
+        },
+        {
+          "name": "reply-raw",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Remember violet."
+            },
+            {
+              "role": "assistant",
+              "content": "<think>\nThe user wants a color kept.\n</think>\n\nViolet it is."
+            },
+            {
+              "role": "user",
+              "content": "What color?"
+            }
+          ],
+          "generate": true,
+          "expected": "<|message_system|><|content_text|>You are a helpful assistant.<|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Remember violet.<|end_message|><|message_model|><|content_text|><think>\nThe user wants a color kept.\n</think>\n\nViolet it is.<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|>What color?<|end_message|>"
+        },
+        {
+          "name": "reply-split",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Remember violet."
+            },
+            {
+              "role": "assistant",
+              "content": "Violet it is.",
+              "reasoning_content": "The user wants a color kept."
+            },
+            {
+              "role": "user",
+              "content": "What color?"
+            }
+          ],
+          "generate": true,
+          "expected": "<|message_system|><|content_text|>You are a helpful assistant.<|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Remember violet.<|end_message|><|message_model|><|content_thinking|>The user wants a color kept.<|end_message|><|message_model|><|content_text|>Violet it is.<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|>What color?<|end_message|>"
+        },
+        {
+          "name": "reply-split-last",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Remember violet."
+            },
+            {
+              "role": "assistant",
+              "content": "Violet it is.",
+              "reasoning_content": "The user wants a color kept."
+            }
+          ],
+          "generate": false,
+          "expected": "<|message_system|><|content_text|>You are a helpful assistant.<|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Remember violet.<|end_message|><|message_model|><|content_thinking|>The user wants a color kept.<|end_message|><|message_model|><|content_text|>Violet it is.<|end_message|><|content_model_end_sampling|>"
+        },
+        {
+          "name": "empty-reasoning",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Hi."
+            },
+            {
+              "role": "assistant",
+              "content": "Hello.",
+              "reasoning_content": ""
+            },
+            {
+              "role": "user",
+              "content": "Again."
+            }
+          ],
+          "generate": true,
+          "expected": "<|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Hi.<|end_message|><|message_model|><|content_text|>Hello.<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|>Again.<|end_message|>"
+        },
+        {
+          "name": "tool-turns",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": "Checking."
+            },
+            {
+              "role": "tool",
+              "content": "{\"t\": 21}"
+            },
+            {
+              "role": "tool",
+              "content": "clear"
+            },
+            {
+              "role": "user",
+              "content": "Thanks."
+            }
+          ],
+          "generate": true,
+          "expected": "<|message_system|><|content_text|>You are a helpful assistant.<|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Weather?<|end_message|><|message_model|><|content_text|>Checking.<|end_message|><|content_model_end_sampling|><|message_tool|><|content_text|>{\"t\": 21}<|end_message|><|message_tool|><|content_text|>clear<|end_message|><|message_user|><|content_text|>Thanks.<|end_message|>"
+        },
+        {
+          "name": "tool-last",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Run it."
+            },
+            {
+              "role": "assistant",
+              "content": "Running."
+            },
+            {
+              "role": "tool",
+              "content": "done"
+            }
+          ],
+          "generate": true,
+          "expected": "<|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Run it.<|end_message|><|message_model|><|content_text|>Running.<|end_message|><|content_model_end_sampling|><|message_tool|><|content_text|>done<|end_message|>"
+        },
+        {
+          "name": "tool-response-user",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Start."
+            },
+            {
+              "role": "assistant",
+              "content": "Started."
+            },
+            {
+              "role": "user",
+              "content": "<tool_response>\nok\n</tool_response>"
+            }
+          ],
+          "generate": true,
+          "expected": "<|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Start.<|end_message|><|message_model|><|content_text|>Started.<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|><tool_response>\nok\n</tool_response><|end_message|>"
+        },
+        {
+          "name": "tools-system",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Weather in Z\u00fcrich?"
+            }
+          ],
+          "generate": true,
+          "tools": [
+            {
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "description": "Temperature in \u00b0C for a city, such as Z\u00fcrich or \u6771\u4eac.",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "city": {
+                      "type": "string",
+                      "description": "The city's name \u2013 in any script."
+                    },
+                    "days": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 7
+                    },
+                    "unit": {
+                      "type": "string",
+                      "enum": [
+                        "celsius",
+                        "fahrenheit"
+                      ],
+                      "x-note": {
+                        "z": 1,
+                        "a": [
+                          true,
+                          null,
+                          0.5,
+                          "\u00e9"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "city"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "function",
+              "function": {
+                "name": "noop",
+                "description": "  Does nothing.  ",
+                "parameters": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          ],
+          "expected": "<|message_system|>tool_declare<|content_xml|>[{\"description\":\"Temperature in \u00b0C for a city, such as Z\u00fcrich or \u6771\u4eac.\",\"name\":\"get_weather\",\"parameters\":{\"properties\":{\"city\":{\"description\":\"The city's name \u2013 in any script.\",\"type\":\"string\"},\"days\":{\"maximum\":7,\"minimum\":1,\"type\":\"integer\"},\"unit\":{\"enum\":[\"celsius\",\"fahrenheit\"],\"type\":\"string\",\"x-note\":{\"a\":[true,null,0.5,\"\u00e9\"],\"z\":1}}},\"required\":[\"city\"],\"type\":\"object\"},\"type\":\"function\"},{\"description\":\"  Does nothing.  \",\"name\":\"noop\",\"parameters\":{\"properties\":{},\"type\":\"object\"},\"type\":\"function\"}]<|end_message|><|message_system|><|content_text|>You are a helpful assistant.<|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Weather in Z\u00fcrich?<|end_message|>"
+        },
+        {
+          "name": "tools-no-system",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            }
+          ],
+          "generate": true,
+          "tools": [
+            {
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "description": "Temperature in \u00b0C for a city, such as Z\u00fcrich or \u6771\u4eac.",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "city": {
+                      "type": "string",
+                      "description": "The city's name \u2013 in any script."
+                    },
+                    "days": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 7
+                    },
+                    "unit": {
+                      "type": "string",
+                      "enum": [
+                        "celsius",
+                        "fahrenheit"
+                      ],
+                      "x-note": {
+                        "z": 1,
+                        "a": [
+                          true,
+                          null,
+                          0.5,
+                          "\u00e9"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "city"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "function",
+              "function": {
+                "name": "noop",
+                "description": "  Does nothing.  ",
+                "parameters": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          ],
+          "expected": "<|message_system|>tool_declare<|content_xml|>[{\"description\":\"Temperature in \u00b0C for a city, such as Z\u00fcrich or \u6771\u4eac.\",\"name\":\"get_weather\",\"parameters\":{\"properties\":{\"city\":{\"description\":\"The city's name \u2013 in any script.\",\"type\":\"string\"},\"days\":{\"maximum\":7,\"minimum\":1,\"type\":\"integer\"},\"unit\":{\"enum\":[\"celsius\",\"fahrenheit\"],\"type\":\"string\",\"x-note\":{\"a\":[true,null,0.5,\"\u00e9\"],\"z\":1}}},\"required\":[\"city\"],\"type\":\"object\"},\"type\":\"function\"},{\"description\":\"  Does nothing.  \",\"name\":\"noop\",\"parameters\":{\"properties\":{},\"type\":\"object\"},\"type\":\"function\"}]<|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Weather?<|end_message|>"
+        },
+        {
+          "name": "tool-call-dict",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": {
+                      "city": "Z\u00fcrich",
+                      "days": 3,
+                      "unit": {
+                        "b": 1,
+                        "a": [
+                          "x",
+                          null
+                        ]
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "{\"t\": 21}"
+            },
+            {
+              "role": "user",
+              "content": "Thanks."
+            }
+          ],
+          "generate": true,
+          "tools": [
+            {
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "description": "Temperature in \u00b0C for a city, such as Z\u00fcrich or \u6771\u4eac.",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "city": {
+                      "type": "string",
+                      "description": "The city's name \u2013 in any script."
+                    },
+                    "days": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 7
+                    },
+                    "unit": {
+                      "type": "string",
+                      "enum": [
+                        "celsius",
+                        "fahrenheit"
+                      ],
+                      "x-note": {
+                        "z": 1,
+                        "a": [
+                          true,
+                          null,
+                          0.5,
+                          "\u00e9"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "city"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "function",
+              "function": {
+                "name": "noop",
+                "description": "  Does nothing.  ",
+                "parameters": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          ],
+          "expected": "<|message_system|>tool_declare<|content_xml|>[{\"description\":\"Temperature in \u00b0C for a city, such as Z\u00fcrich or \u6771\u4eac.\",\"name\":\"get_weather\",\"parameters\":{\"properties\":{\"city\":{\"description\":\"The city's name \u2013 in any script.\",\"type\":\"string\"},\"days\":{\"maximum\":7,\"minimum\":1,\"type\":\"integer\"},\"unit\":{\"enum\":[\"celsius\",\"fahrenheit\"],\"type\":\"string\",\"x-note\":{\"a\":[true,null,0.5,\"\u00e9\"],\"z\":1}}},\"required\":[\"city\"],\"type\":\"object\"},\"type\":\"function\"},{\"description\":\"  Does nothing.  \",\"name\":\"noop\",\"parameters\":{\"properties\":{},\"type\":\"object\"},\"type\":\"function\"}]<|end_message|><|message_system|><|content_text|>You are a helpful assistant.<|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Weather?<|end_message|><|message_model|>get_weather<|content_invoke_tool_json|>{\"name\":\"get_weather\",\"args\":{\"city\":\"Z\u00fcrich\",\"days\":3,\"unit\":{\"b\":1,\"a\":[\"x\",null]}}}<|end_message|><|content_model_end_sampling|><|message_tool|><|content_text|>{\"t\": 21}<|end_message|><|message_user|><|content_text|>Thanks.<|end_message|>"
+        },
+        {
+          "name": "tool-call-string",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": "Let me check.",
+              "tool_calls": [
+                {
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Paris\"}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "sunny"
+            }
+          ],
+          "generate": true,
+          "tools": [
+            {
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "description": "Temperature in \u00b0C for a city, such as Z\u00fcrich or \u6771\u4eac.",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "city": {
+                      "type": "string",
+                      "description": "The city's name \u2013 in any script."
+                    },
+                    "days": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 7
+                    },
+                    "unit": {
+                      "type": "string",
+                      "enum": [
+                        "celsius",
+                        "fahrenheit"
+                      ],
+                      "x-note": {
+                        "z": 1,
+                        "a": [
+                          true,
+                          null,
+                          0.5,
+                          "\u00e9"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "city"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "function",
+              "function": {
+                "name": "noop",
+                "description": "  Does nothing.  ",
+                "parameters": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          ],
+          "error_type": "TemplateError",
+          "error": "tool call arguments must be a parsed object, not a JSON string; canonicalize upstream"
+        },
+        {
+          "name": "tool-calls-two",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Both."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "name": "noop",
+                  "arguments": {}
+                },
+                {
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": {
+                      "city": "Z\u00fcrich",
+                      "days": 3,
+                      "unit": {
+                        "b": 1,
+                        "a": [
+                          "x",
+                          null
+                        ]
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "ok"
+            },
+            {
+              "role": "tool",
+              "content": "done"
+            },
+            {
+              "role": "user",
+              "content": "Next."
+            }
+          ],
+          "generate": true,
+          "tools": [
+            {
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "description": "Temperature in \u00b0C for a city, such as Z\u00fcrich or \u6771\u4eac.",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "city": {
+                      "type": "string",
+                      "description": "The city's name \u2013 in any script."
+                    },
+                    "days": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 7
+                    },
+                    "unit": {
+                      "type": "string",
+                      "enum": [
+                        "celsius",
+                        "fahrenheit"
+                      ],
+                      "x-note": {
+                        "z": 1,
+                        "a": [
+                          true,
+                          null,
+                          0.5,
+                          "\u00e9"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "city"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "function",
+              "function": {
+                "name": "noop",
+                "description": "  Does nothing.  ",
+                "parameters": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          ],
+          "error_type": "UndefinedError",
+          "error": "'dict object' has no attribute 'function'"
+        },
+        {
+          "name": "content-parts",
+          "messages": [
+            {
+              "role": "system",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Be brief."
+                }
+              ]
+            },
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Hello "
+                },
+                {
+                  "type": "text",
+                  "text": "world"
+                }
+              ]
+            },
+            {
+              "role": "assistant",
+              "content": "Hi."
+            },
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "image"
+                },
+                {
+                  "type": "text",
+                  "text": "What is this?"
+                }
+              ]
+            }
+          ],
+          "generate": true,
+          "expected": "<|message_system|><|content_text|>Be brief.<|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Hello <|end_message|><|message_user|><|content_text|>world<|end_message|><|message_model|><|content_text|>Hi.<|end_message|><|content_model_end_sampling|><|message_user|><|content_image|><|unused_200054|><|end_message|><|message_user|><|content_text|>What is this?<|end_message|>"
+        },
+        {
+          "name": "no-user",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            }
+          ],
+          "generate": true,
+          "expected": "<|message_system|><|content_text|>You are a helpful assistant.<|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|>"
+        },
+        {
+          "name": "empty",
+          "messages": [],
+          "generate": true,
+          "expected": "<|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|>"
+        },
+        {
+          "name": "late-system",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Hi."
+            },
+            {
+              "role": "system",
+              "content": "Late."
+            }
+          ],
+          "generate": true,
+          "expected": "<|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Hi.<|end_message|><|message_system|><|content_text|>Late.<|end_message|>"
+        },
+        {
+          "name": "developer",
+          "messages": [
+            {
+              "role": "developer",
+              "content": "Be terse."
+            },
+            {
+              "role": "user",
+              "content": "Hi."
+            }
+          ],
+          "generate": true,
+          "error_type": "TemplateError",
+          "error": "Unknown message role: developer"
+        },
+        {
+          "name": "unknown-role",
+          "messages": [
+            {
+              "role": "narrator",
+              "content": "Once."
+            },
+            {
+              "role": "user",
+              "content": "Hi."
+            }
+          ],
+          "generate": true,
+          "error_type": "TemplateError",
+          "error": "Unknown message role: narrator"
+        },
+        {
+          "name": "unicode",
+          "messages": [
+            {
+              "role": "system",
+              "content": ""
+            },
+            {
+              "role": "user",
+              "content": "Gr\u00fc\u00dfe \u2013 \u4f60\u597d \ud83d\ude42 \"q\" \\ <t> & 'a'\ttab"
+            }
+          ],
+          "generate": true,
+          "expected": "<|message_system|><|content_text|><|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Gr\u00fc\u00dfe \u2013 \u4f60\u597d \ud83d\ude42 \"q\" \\ <t> & 'a'\ttab<|end_message|>"
+        },
+        {
+          "name": "whitespace",
+          "messages": [
+            {
+              "role": "user",
+              "content": "  padded  \n\n"
+            },
+            {
+              "role": "assistant",
+              "content": "\n\n<think>\n  spaced  \n</think>\n\n  reply  \n"
+            },
+            {
+              "role": "user",
+              "content": "next"
+            }
+          ],
+          "generate": true,
+          "expected": "<|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>  padded  \n\n<|end_message|><|message_model|><|content_text|>\n\n<think>\n  spaced  \n</think>\n\n  reply  \n<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|>next<|end_message|>"
+        },
+        {
+          "name": "two-thinks",
+          "messages": [
+            {
+              "role": "user",
+              "content": "q"
+            },
+            {
+              "role": "assistant",
+              "content": "<think>a</think>b</think>c"
+            },
+            {
+              "role": "user",
+              "content": "r"
+            }
+          ],
+          "generate": true,
+          "expected": "<|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>q<|end_message|><|message_model|><|content_text|><think>a</think>b</think>c<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|>r<|end_message|>"
+        }
+      ],
+      "server_cases": [
+        {
+          "name": "client-calls",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Weather in Paris and Tokyo?",
+              "name": "alice"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Paris\"}"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"T\u014dky\u014d\", \"days\": 3}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "21",
+              "tool_call_id": "call_1",
+              "name": "get_weather"
+            },
+            {
+              "role": "tool",
+              "content": "18",
+              "tool_call_id": "call_2"
+            }
+          ],
+          "generate": true,
+          "expected": "<|message_system|><|content_text|>You are a helpful assistant.<|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Weather in Paris and Tokyo?<|end_message|><|message_model|>get_weather<|content_invoke_tool_json|>{\"name\":\"get_weather\",\"args\":{\"city\":\"Paris\"}}<|end_message|><|message_model|>get_weather<|content_invoke_tool_json|>{\"name\":\"get_weather\",\"args\":{\"city\":\"T\u014dky\u014d\",\"days\":3}}<|end_message|><|content_model_end_sampling|><|message_tool|>get_weather<|content_text|>21<|end_message|><|message_tool|>get_weather<|content_text|>18<|end_message|>"
+        },
+        {
+          "name": "client-call-content",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": "Let me check.",
+              "tool_calls": [
+                {
+                  "id": "call_a",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Z\u00fcrich\", \"unit\": {\"b\": 1.0, \"a\": [1e5, -0, 2.50, -0.0, 12, null, true]}}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "sunny",
+              "tool_call_id": "call_a"
+            },
+            {
+              "role": "user",
+              "content": "Thanks."
+            }
+          ],
+          "generate": true,
+          "expected": "<|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Weather?<|end_message|><|message_model|><|content_text|>Let me check.<|end_message|><|message_model|>get_weather<|content_invoke_tool_json|>{\"name\":\"get_weather\",\"args\":{\"city\":\"Z\u00fcrich\",\"unit\":{\"b\":1.0,\"a\":[100000.0,0,2.5,-0.0,12,null,true]}}}<|end_message|><|content_model_end_sampling|><|message_tool|>get_weather<|content_text|>sunny<|end_message|><|message_user|><|content_text|>Thanks.<|end_message|>"
+        },
+        {
+          "name": "client-loop",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Plan a trip."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "ok",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Oslo\"}"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "cold",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "done",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "expected": "<|message_system|><|content_text|>You are a helpful assistant.<|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Plan a trip.<|end_message|><|message_model|>noop<|content_invoke_tool_json|>{\"name\":\"noop\",\"args\":{}}<|end_message|><|content_model_end_sampling|><|message_tool|>noop<|content_text|>ok<|end_message|><|message_model|>get_weather<|content_invoke_tool_json|>{\"name\":\"get_weather\",\"args\":{\"city\":\"Oslo\"}}<|end_message|><|message_model|>noop<|content_invoke_tool_json|>{\"name\":\"noop\",\"args\":{}}<|end_message|><|content_model_end_sampling|><|message_tool|>get_weather<|content_text|>cold<|end_message|><|message_tool|>noop<|content_text|>done<|end_message|>"
+        },
+        {
+          "name": "client-call-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": {
+                      "city": "Rome",
+                      "days": 2.0
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "warm",
+              "tool_call_id": "call_1"
+            }
+          ],
+          "generate": true,
+          "expected": "<|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Weather?<|end_message|><|message_model|>get_weather<|content_invoke_tool_json|>{\"name\":\"get_weather\",\"args\":{\"city\":\"Rome\",\"days\":2.0}}<|end_message|><|content_model_end_sampling|><|message_tool|>get_weather<|content_text|>warm<|end_message|>"
+        },
+        {
+          "name": "client-call-not-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "not json"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "[1, 2]"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": ""
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "error_type": "TemplateError",
+          "error": "tool call arguments must be a parsed object, not a JSON string; canonicalize upstream"
+        }
+      ],
+      "split_turns": true,
+      "tool_format": "none",
+      "reference_keeps": "split",
+      "first": {
+        "expected": "<|message_system|><|content_text|><|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>a<|end_message|>"
+      },
+      "turns": [
+        {
+          "expected": "<|message_system|><|content_text|><|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>a<|end_message|><|message_model|><|content_text|>Plain reply.<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|>b<|end_message|>"
+        },
+        {
+          "expected": "<|message_system|><|content_text|><|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>a<|end_message|><|message_model|><|content_thinking|>plan<|end_message|><|message_model|><|content_text|>reply<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|>b<|end_message|>"
+        },
+        {
+          "expected": "<|message_system|><|content_text|><|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>a<|end_message|><|message_model|><|content_thinking|>plan<|end_message|><|message_model|><|content_text|>reply<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|>b<|end_message|>"
+        },
+        {
+          "expected": "<|message_system|><|content_text|><|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>a<|end_message|><|message_model|><|content_thinking|>a<|end_message|><|message_model|><|content_text|>c<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|>b<|end_message|>"
+        },
+        {
+          "expected": "<|message_system|><|content_text|><|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>a<|end_message|><|message_model|><|content_thinking|>r<|end_message|><|message_model|><|content_text|>  reply<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|>b<|end_message|>"
+        },
+        {
+          "expected": "<|message_system|><|content_text|><|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>a<|end_message|><|message_model|><|content_thinking|>r<|end_message|><|message_model|><|content_text|>\treply<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|>b<|end_message|>"
+        },
+        {
+          "expected": "<|message_system|><|content_text|><|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>a<|end_message|><|message_model|><|content_thinking|>qr<|end_message|><|message_model|><|content_text|>o<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|>b<|end_message|>"
+        }
+      ]
     }
   ],
   "features": [
@@ -21814,6 +23141,110 @@
           "messages": [],
           "generate": true,
           "expected": "9.0 -10.0 0.0 -0.0 -0.0 -0.0 -4.0 inf 1.5 0.5 -1.0 3.0 0.3333333333333333 1.4142135623730951 True True True True True True True False"
+        }
+      ]
+    },
+    {
+      "name": "float",
+      "template": "{{ '1_0'|float }} {{ ' 1e3 '|float }} {{ '\\t-2.5\\n'|float }} {{ '+.5'|float }} {{ '5.'|float }} {{ '1E-5'|float }} {{ 'inf'|float }} {{ '-Infinity'|float }} {{ '+nAn'|float }} {{ '-0'|float }} {{ '1e400'|float }} {{ '-1e-400'|float }} {{ '\\x0b7\\x0c\\r'|float }} {{ '0x10'|float }} {{ '1__0'|float }} {{ '_1'|float }} {{ '1_'|float }} {{ '1_.5'|float }} {{ ''|float }} {{ ' '|float }} {{ '.'|float }} {{ 'e5'|float }} {{ '1e'|float }} {{ '1e+'|float }} {{ '1.5.2'|float }} {{ 'infx'|float }} {{ 'nan(1)'|float }} {{ '\\x1c7'|float }} {{ '1 2'|float }} {{ '0.1'|float + '0.2'|float }} {{ 7|float }} {{ 4611686018427387905|float }} {{ true|float }} {{ false|float }} {{ 2.5|float }} {{ none|float }} {{ [1]|float }} {{ {}|float }} {{ messages|float }} {{ {'a': 1}.keys()|float }} {{ 'x'|float('d') }} {{ 'x'|float(default=none) }} {{ '3'|float('d') }} {{ 'x'|float(1) + 1 }} {{ ['1', ' 2', 'z']|map('float')|list }} {{ ('0.7'|float) < 0.99 }} {{ 0.9|float }} {{ messages|map(attribute='content')|map('float', -1)|list }}",
+      "cases": [
+        {
+          "name": "conversation-0",
+          "messages": [
+            {
+              "role": "system",
+              "content": "S"
+            },
+            {
+              "role": "user",
+              "content": "U"
+            }
+          ],
+          "generate": true,
+          "expected": "10.0 1000.0 -2.5 0.5 5.0 1e-05 inf -inf nan -0.0 inf -0.0 7.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.30000000000000004 7.0 4.611686018427388e+18 1.0 0.0 2.5 0.0 0.0 0.0 0.0 0.0 d None 3.0 2 [1.0, 2.0, 0.0] True 0.9 [-1, -1]"
+        },
+        {
+          "name": "conversation-1",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are helpful."
+            },
+            {
+              "role": "user",
+              "content": "Hi"
+            },
+            {
+              "role": "assistant",
+              "content": "Hello!",
+              "reasoning_content": "greet"
+            },
+            {
+              "role": "user",
+              "content": "Bye"
+            }
+          ],
+          "generate": true,
+          "expected": "10.0 1000.0 -2.5 0.5 5.0 1e-05 inf -inf nan -0.0 inf -0.0 7.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.30000000000000004 7.0 4.611686018427388e+18 1.0 0.0 2.5 0.0 0.0 0.0 0.0 0.0 d None 3.0 2 [1.0, 2.0, 0.0] True 0.9 [-1, -1, -1, -1]"
+        },
+        {
+          "name": "conversation-2",
+          "messages": [],
+          "generate": true,
+          "expected": "10.0 1000.0 -2.5 0.5 5.0 1e-05 inf -inf nan -0.0 inf -0.0 7.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.30000000000000004 7.0 4.611686018427388e+18 1.0 0.0 2.5 0.0 0.0 0.0 0.0 0.0 d None 3.0 2 [1.0, 2.0, 0.0] True 0.9 []"
+        }
+      ]
+    },
+    {
+      "name": "errors-float",
+      "template": "{% set n = messages|length %}{% if n == 2 %}{{ nothing|float }}{% elif n == 4 %}{{ messages[0].nope|float(0) }}{% else %}{{ 'x'|float(nothing) }}|{{ (1|float) is float }}{% endif %}",
+      "cases": [
+        {
+          "name": "conversation-0",
+          "messages": [
+            {
+              "role": "system",
+              "content": "S"
+            },
+            {
+              "role": "user",
+              "content": "U"
+            }
+          ],
+          "generate": true,
+          "error_type": "UndefinedError",
+          "error": "'nothing' is undefined"
+        },
+        {
+          "name": "conversation-1",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are helpful."
+            },
+            {
+              "role": "user",
+              "content": "Hi"
+            },
+            {
+              "role": "assistant",
+              "content": "Hello!",
+              "reasoning_content": "greet"
+            },
+            {
+              "role": "user",
+              "content": "Bye"
+            }
+          ],
+          "generate": true,
+          "error_type": "UndefinedError",
+          "error": "'dict object' has no attribute 'nope'"
+        },
+        {
+          "name": "conversation-2",
+          "messages": [],
+          "generate": true,
+          "expected": "|True"
         }
       ]
     },

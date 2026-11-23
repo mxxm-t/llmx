@@ -245,6 +245,16 @@ FEATURES = [
                " {{ 1e308 // 1e-308 }} {{ 5.5 % 2 }} {{ -5.5 % 2 }} {{ 5 % -3.0 }} {{ (0.1 + 0.2) // 0.1 }} {{ 1 / 3 }} {{ 2 ** 0.5 }}"
                " {{ 1 <= 1.0 }} {{ 'b' >= 'a' }} {{ [1, 2] <= [1, 2] }} {{ (1, 2) > (1,) }} {{ 2 is gt 1 }} {{ 2 is le 2 }}"
                " {{ 'a' is lt 'b' }} {{ 3 is ge 4 }}"),
+    ("float", "{{ '1_0'|float }} {{ ' 1e3 '|float }} {{ '\\t-2.5\\n'|float }} {{ '+.5'|float }} {{ '5.'|float }} {{ '1E-5'|float }}"
+              " {{ 'inf'|float }} {{ '-Infinity'|float }} {{ '+nAn'|float }} {{ '-0'|float }} {{ '1e400'|float }} {{ '-1e-400'|float }}"
+              " {{ '\\x0b7\\x0c\\r'|float }} {{ '0x10'|float }} {{ '1__0'|float }} {{ '_1'|float }} {{ '1_'|float }} {{ '1_.5'|float }}"
+              " {{ ''|float }} {{ ' '|float }} {{ '.'|float }} {{ 'e5'|float }} {{ '1e'|float }} {{ '1e+'|float }} {{ '1.5.2'|float }}"
+              " {{ 'infx'|float }} {{ 'nan(1)'|float }} {{ '\\x1c7'|float }} {{ '1 2'|float }} {{ '0.1'|float + '0.2'|float }}"
+              " {{ 7|float }} {{ 4611686018427387905|float }} {{ true|float }} {{ false|float }} {{ 2.5|float }} {{ none|float }}"
+              " {{ [1]|float }} {{ {}|float }} {{ messages|float }} {{ {'a': 1}.keys()|float }} {{ 'x'|float('d') }}"
+              " {{ 'x'|float(default=none) }} {{ '3'|float('d') }} {{ 'x'|float(1) + 1 }} {{ ['1', ' 2', 'z']|map('float')|list }}"
+              " {{ ('0.7'|float) < 0.99 }} {{ 0.9|float }} {{ messages|map(attribute='content')|map('float', -1)|list }}"),
+    ("errors-float", by_length("{{ nothing|float }}", "{{ messages[0].nope|float(0) }}", "{{ 'x'|float(nothing) }}|{{ (1|float) is float }}")),
     ("errors-concat", by_length("{{ 'a' + 1 }}", "{{ [1] + 'a' }}", "{{ (1,) + [1] }}")),
     ("errors-operands", by_length("{{ 1 + 'a' }}", "{{ 'a' * 1.5 }}", "{{ [1] * [2] }}")),
     ("errors-compare", by_length("{{ 'a' > 1 }}", "{{ 'a' <= 1 }}", "{% set d = {'a': 1} %}{{ d.values() < d.values() }}")),

@@ -460,7 +460,9 @@ void check_tool_template(const std::string& name, const chat::ChatFormat& format
             bytes.push_back(at += tok.decode({ ids[i] }).size());
         }
         const size_t own = chat::own_end_tokens(format, tok, c, {});
-        if (points.size() != c.size() + own) {
+        // A prompt with no end token, as under Inkling-2-Mini's template, which ends only a reply with its own, leaves the ends to the renders (the server's MessageEnds), which must end on a token.
+        const bool renders = points.empty();
+        if (!renders && points.size() != c.size() + own) {
             tally.fail(where + ": " + std::to_string(points.size()) + " end tokens for " + std::to_string(c.size()) + " messages and " + std::to_string(own) + " of the template's own");
             continue;
         }
@@ -474,7 +476,9 @@ void check_tool_template(const std::string& name, const chat::ChatFormat& format
             size_t len = part.size();
             while (len > 0 && (part[len - 1] == '\n' || part[len - 1] == ' ')) --len;
             const size_t rows = (size_t)(std::upper_bound(bytes.begin(), bytes.end(), len) - bytes.begin());
-            if (rows != points[own + k - 1]) tally.fail(where + ": message " + std::to_string(k) + " ends at row " + std::to_string(points[own + k - 1]) + " by the end tokens and " + std::to_string(rows) + " by its render");
+            if (renders) {
+                if (!std::binary_search(bytes.begin(), bytes.end(), len)) tally.fail(where + ": message " + std::to_string(k) + "'s render ends inside a token");
+            } else if (rows != points[own + k - 1]) tally.fail(where + ": message " + std::to_string(k) + " ends at row " + std::to_string(points[own + k - 1]) + " by the end tokens and " + std::to_string(rows) + " by its render");
         }
         if (!compared) tally.fail(where + ": no render of the conversation up to a message begins its prompt");
     }
@@ -750,6 +754,10 @@ int main(int argc, char** argv) {
         check_limit("eq given two arguments", "{{ [1, 2]|select('eq', 1, 2)|list }}", false, "eq() takes at most 1 arguments", tally);
         check_limit("odd given an argument", "{{ [1, 2]|select('odd', 1)|list }}", false, "odd() takes at most 0 arguments", tally);
         check_limit("join given an attribute", "{{ ['a', 'b']|join(', ', 'x') }}", false, "join's attribute argument is not supported", tally);
+        check_limit("float given two arguments", "{{ '1'|float(0, 1) }}", false, "float() takes at most 1 arguments", tally);
+        // Python's float reads digits and spaces of any script, so text beyond ASCII fails rather than read differently.
+        check_limit("float of an Arabic-Indic digit", "{{ '\\u0661'|float }}", false, "float of text beyond ASCII is not supported", tally);
+        check_limit("float of a no-break space", "{{ '1\\u00a0'|float }}", false, "float of text beyond ASCII is not supported", tally);
         // The tests Jinja names by operator, reached by string through the select filters.
         check_output("the operator-named tests",
                      "{{ [1, 2, 1, 3]|select('==', 1)|list }}{{ [1, 2, 3]|reject('<', 2)|list }}{{ [1, 2, 3]|select('>=', 2)|list }}"

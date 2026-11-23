@@ -8,7 +8,7 @@
 - **Tests:** the server component's `check_reprefill_reasoning` (failing-test commit first) and `server-utf8`'s three shapes.
 - **Gates** (server and inference host logic, AGENTS.md, Merge gates), on main 69b54578: the failing test reuses 512 of a 571-token first turn on the test commit and 640 with the fix (Qwen3-0.6B Q8_0, CPU); CTest 91 of 91 and the CPU suite on pve1 at 37c58127, every component passing but docs, whose two over-long comment lines the head fixes (a comment-only delta), with docs and dead-code passing on the head; Qwen3-0.6B byte identity on the CPU against main (logits, per-token logits, greedy, lookup and chat generation) all the same; MI50 server component (`--device vulkan:0 --only server`, binary `llmx 0.2.0+g37c58127b85d`, sha256 c7894405129af0239512..., built from 37c58127 before the head's comment-only fixes, which do not change its coverage): `server PASS`, rc 0, no FAIL or SKIP line, including a chat follow-up sending the reply's reasoning back under the Qwen 3.8 template reusing 704 tokens of a 571-token first turn and its reply (/opt/claude-work/cache1/srvV/server.txt). On the Qwen3.5 tokenizer under the Qwen 3.8 template a turn sent back with its reasoning and one without first differ at the last token of the first turn's prompt, as production's did at 59 of 60.
 - **Left:** feeding the reasoning while it is written (the writing trigger still waits for `</think>`), and the first turn of a client that leaves reasoning out under such a template, which reads its content again once (ideas.md).
-- **Landing:** fast-forward.
+- **Landing:** with the landing stack land-20261125, whose gates are recorded there (Landing stack land-20261125, below).
 
 ## Changelog
 
@@ -19,7 +19,7 @@ The `docs` component's new `changelog` check holds the file's form and requires 
 
 **Depends on.** PR 550 (`feat/nightly-channel`), which adds `nightly.yml` and splits the release workflow; this branch stacks on it and lands after it or with it.
 
-**Landing.** Workflow, tool and docs change: the `docs` and `dead-code` components, actionlint and shellcheck over the workflows, and a dry run of `tools/release_notes.py` on 0.2.0 and Unreleased; lands by fast-forward.
+**Landing.** Workflow, tool and docs change: the `docs` and `dead-code` components, actionlint and shellcheck over the workflows, and a dry run of `tools/release_notes.py` on 0.2.0 and Unreleased; lands with the landing stack land-20261125, whose gates are recorded there (Landing stack land-20261125, below).
 
 ## Nightly channel and companion release files
 
@@ -32,9 +32,9 @@ Images are pushed by digest alone and tagged only by the run that publishes them
 **Checks.** actionlint 1.7.7 over the three workflows, clean but for the word splitting the scripts mean (SC2086); shellcheck on the scripts; `cmake -P cmake/build-info.cmake` with and without `NIGHTLY`; `companion.sh` copies 36 files without tests; the `chat` target built on the rig ran as uid 10001, served HTTP 200 on a host port and printed both servers' `--help`; the suite's `docs` and `dead-code` components on pve1.
 
 **Left.** The first push to `main` after landing creates the pre-release, the one notification the channel sends; its run is watched, since the publish path cannot run from a branch.
-`docker/compose.yaml`, which PR 546 adds, switches its `chat` service to the released image on a branch of its own after 546 lands.
+`docker/compose.yaml` still builds its `chat` service from the tree; switching it to the released image goes on a branch of its own.
 
-**Landing.** Workflow, build-script and docs change: the `docs` and `dead-code` components and a dry run of the build jobs on a `gate/` branch; lands by fast-forward.
+**Landing.** Workflow, build-script and docs change: the `docs` and `dead-code` components and a dry run of the build jobs; lands with the landing stack land-20261125, whose gates are recorded there (Landing stack land-20261125, below).
 
 ## Request capacity freshness in Monitor
 
@@ -660,7 +660,7 @@ The job log is `/opt/claude-work/offload/out/20261122-163638-TFIX2-6964/job.log`
 |---|---|
 | docs and dead-code, built binary | PASS, on a git-archive copy of the commit |
 
-**Left.** Nothing for this change. 399.8 s is at the 400 s edge Fable set for landing without further work, and the host was contended during the run (hostwait: contended=yes, z_rd_int at 4% each, kcompactd0 and kswapd0 at 1%), so the figure is one contended run, not a floor. main's 970 s is a figure carried from earlier runs whose container cap is unconfirmed, so the ratio is indicative. Follow-ups, none started (ideas.md): spreading each check's rows in one pool index, and memoising sums per shape, dtype and row.
+**Left.** Nothing for this change; it lands with the landing stack land-20261125, whose gates are recorded there (Landing stack land-20261125, below). 399.8 s is at the 400 s edge Fable set for landing without further work, and the host was contended during the run (hostwait: contended=yes, z_rd_int at 4% each, kcompactd0 and kswapd0 at 1%), so the figure is one contended run, not a floor. main's 970 s is a figure carried from earlier runs whose container cap is unconfirmed, so the ratio is indicative. Follow-ups, none started (ideas.md): spreading each check's rows in one pool index, and memoising sums per shape, dtype and row.
 
 **Gotchas.** The container's 4 CPUs leave about 3 pool workers beside the caller, so a host with more cores gains more. A twin_close call stays on the main thread; only its outputs are spread.
 
@@ -921,6 +921,38 @@ This test-only correction lands by fast-forward with the companion workflow.
 - **Checks:** The independent Chrome regression failed in 59.797 seconds before the fix and passed in 54.855 seconds after it. The combined browser fixture over public main `2ea30d410` passed in 66.845 seconds, including both themes at 1440, 390 and 320 pixels and 200 percent CSS zoom. Desktop preference, transient Settings access, mobile drawer state and toggle geometry passed. JavaScript syntax, whitespace and independent integration review passed. Dead-code passed with 17 expected findings and 20 planted faults in 34.8 seconds; docs passed with zero findings and 29 planted faults in 31.8 seconds and runs once more after this record.
 - **Landing:** Fast-forward from `2ea30d410` after final documentation validation and a fresh main check. This is static presentation only, with no server, runtime, API or numerical changes. The existing docs CLI remains applicable because native source and build inputs are unchanged. Full Markdown review checks references to details, temporary labels and layout; the companion README and TESTS own the updated behavior. Receipts are in `scratch/reading-landing/`, with independent matched screenshots in the main workspace's `scratch/chat-reading-layout/`.
 - **Gotchas:** Composer Settings and the narrow drawer are transient. Only explicit docked Details actions save the preference. Long titles can still truncate. Chrome emulation does not establish physical phone or Safari coverage. Settings semantics and history search remain separate audit work.
+## Landing stack land-20261125 (2026-11-23, LAND103, on main 3e4d6d422, lands by fast-forward)
+
+**What lands.** Six commits on main 3e4d6d422, by fast-forward, in order: fix/reasoning-sent-back (failing test, then the fix), fix/backend-rocm-time-2, feat/nightly-channel, feat/changelog and this record.
+Each branch's own block above gives its change and measurements; this record gives the gates of the head d11c837d2 and the record on it.
+Rebased onto 3e4d6d422 without a code conflict: fix/backend-rocm-time-2, feat/nightly-channel and feat/changelog each met the block above it at the top of this file, and every block was kept.
+feat/changelog's commit also adds the Unreleased lines of `CHANGELOG.md` for the compose file, which landed with land-20261124, and for the reasoning fix and the nightly channel, which land here.
+
+**Builds** (rig, one script, a clean clone at d11c837d2): Vulkan `llmx 0.2.0+gd11c837d23a2` numerics 03abe256cf9d3e36 (sha256 aa6bcef5b8a3); the ROCm build of `llmx-backend-rocm-test` with CMake's full GPU list; the CUDA build of `llmx-backend-cuda-test`, which compiles. Main's arm is main 57697418a's Vulkan build `llmx 0.2.0+g57697418a9e2` from land-20261124, whose source differs from 3e4d6d422 by docs/STATUS.md alone.
+
+| Check | Result |
+|---|---|
+| CTest, Vulkan build, one MI50 (renderD128) | 112/112 |
+| CTest `-R backend-rocm`, ROCm build, one MI50 (renderD130) | 3/3: backend-rocm in 219.0 s against its 1200 s limit, backend-rocm-sixteen, backend-rocm-scratch |
+| CUDA build of `llmx-backend-cuda-test` | compiles (exit 0); no card, so not run |
+| Suite on the CPU, Vulkan build, `--no-perf-floor` | every component passes but two: docs, whose one finding was the four branch blocks naming this record before it was in the tree (docs row below), and reference-generator, whose tests could not import numpy because a numpy built for Python 3.12 was on the container's path; that path also made raw-blocks skip its numpy checks. Rerun without it: reference-generator passes (128 tests, one skipped), raw-blocks with `--require-tools` passes |
+| Identity against main, Qwen3-0.6B Q8_0 on cpu:auto and cpu:f32 | 16 of 16 output files equal (logits, per-token, generation, lookup and four short prompts) |
+| server component on one MI50 (renderD128), `--device vulkan:0 --only server` | pass, the follow-up sending the reply's reasoning back under the Qwen 3.8 template reusing 704 tokens of a 571-token first turn |
+| docs, dead-code | pass on a git-archive copy of this record's commit, with the stack's Vulkan build as `--exe` |
+| Release dry run | `docker/release/build-linux.sh nightly` in ubuntu:22.04 writes `llmx-nightly-linux-x86_64.tar.gz` with `tools/chat_ui` and `tools/health_dashboard`, and its llmx prints `llmx 0.2.0+nightly.20261123.gd11c837d23a2`; the vulkan, rocm7 and chat images build from it and print the same version; nothing pushed |
+| Compose | `docker compose config` with the vulkan and the rocm profile: exit 0 |
+| actionlint 1.7.7 with shellcheck | four SC2086 infos, the same as on main |
+| Release notes dry run | `tools/release_notes.py` prints 0.2.0 (20 lines) and Unreleased (19 lines), and refuses 0.2.1, which has no section yet |
+| Hosted | the workflow run of this commit on GitHub (gate/land-20261125) |
+
+The first hosted run (45097338044, on a4f0c989e) failed only in the CPU job, whose loop over every `python -X utf8 tools/*.py --help` reached `tools/release_notes.py`, which read `--help` as a version and exited 1.
+The fix, `-h` and `--help` printing the usage on stdout with exit 0, is folded into feat/changelog's commit, now 2b898bced, and this record is the commit on it.
+The builds, CTest, the suites, the identity check, the server component and the release dry run above ran at d11c837d2, and the fold changes only `tools/release_notes.py`, which no build, runtime or test input reads, so they carry forward; the tools help loop, `tests/test_ci_annotations.py`, `.github/test_ci_scope.py`, the release notes dry run on 0.2.0 and Unreleased, and docs and dead-code were rerun on this commit.
+
+The CPU suite ran with `--no-perf-floor`, since the rig's other jobs share its cores; no timing gate applies to this stack, which changes no model, kernel, device or placement code (AGENTS.md, Merge gates).
+Radeon VII check: not required: the stack changes no Vulkan or Windows device code (AGENTS.md, Merge gates).
+README: feat/nightly-channel names the nightly pre-release, the `chat` image and the companion and health dashboard in the archives, and feat/changelog links `CHANGELOG.md`; no support row changes.
+
 ## Landing stack land-20261124 (2026-11-22, LAND100 to LAND102B, on main 69b545788, lands by fast-forward)
 
 **What lands.** Twelve commits on main 69b545788, by fast-forward, in order: products/norm-part, fix/held-inject-args (failing test, then the fix), keff/held-xlds, products/attention-gate, fix/slicer-fallback (failing test, then the fix), fix/slicer-dispatch-order (failing test, then the change), docs/chat-compose, fix/placement-device-times and this record.

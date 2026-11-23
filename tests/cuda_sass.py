@@ -243,8 +243,13 @@ def main():
         require(not no_dp4a, f"{arch}: the int8 rows sum with IDP.4A" + (" (not " + ", ".join(no_dp4a) + ")" if no_dp4a else ""))
     for kernel in ("f32", "int16"):
         text = subprocess.run([cuobjdump, "-ptx", os.path.join(gen, kernel + ".fatbin")], capture_output=True, text=True, check=True).stdout
-        asked = sorted(set(re.findall(r"([a-z0-9]+(?:\.[a-z0-9]+)*\.ftz(?:\.[a-z0-9]+)*)", text)) - {"ex2.approx.ftz.f32"})
-        require(not asked, f"{kernel}: the PTX asks for flushing only in the math library's ex2.approx.ftz" + (" (" + ", ".join(asked[:8]) + ")" if asked else ""))
+        # The math library's erfcf in llmx_gelu takes two rcp.approx.ftz.f32 of arguments at least 1 and returns 0 above 10.055, so neither flush can act; the allowance holds for that kernel alone.
+        ftz = r"([a-z0-9]+(?:\.[a-z0-9]+)*\.ftz(?:\.[a-z0-9]+)*)"
+        gelu = re.search(r"\.entry llmx_gelu\(.*?\n}", text, re.S)
+        body = gelu.group(0) if gelu else ""
+        rest = text[:gelu.start()] + text[gelu.end():] if gelu else text
+        asked = sorted((set(re.findall(ftz, rest)) - {"ex2.approx.ftz.f32"}) | (set(re.findall(ftz, body)) - {"ex2.approx.ftz.f32", "rcp.approx.ftz.f32"}))
+        require(not asked, f"{kernel}: the PTX asks for flushing only in the math library's ex2.approx.ftz, and in llmx_gelu's erfcf rcp.approx.ftz" + (" (" + ", ".join(asked[:8]) + ")" if asked else ""))
     return 1 if failures else 0
 
 

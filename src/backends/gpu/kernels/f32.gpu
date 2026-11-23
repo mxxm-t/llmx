@@ -926,8 +926,8 @@ extern "C" __global__ void llmx_gelu(float* dst, const float* src, unsigned long
     const unsigned long long i = (unsigned long long)blockIdx.x * kThreads + threadIdx.x;
     if (i >= n) return;
     const float x = src[i];
-    const float c = erf_form ? erff(x * 0.70710678f) : gpu_tanhf(0.79788456f * fmaf(0.044715f * x, x * x, x));
-    dst[i] = 0.5f * x * (1.0f + c);
+    // The erf form through erfc, since 1 + erf cancels for negative x.
+    dst[i] = erf_form ? 0.5f * x * erfcf(-x * 0.70710678f) : 0.5f * x * (1.0f + gpu_tanhf(0.79788456f * fmaf(0.044715f * x, x * x, x)));
 }
 
 // A block a row of `width` floats: dst[row * width + j] += bias[j].

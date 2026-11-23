@@ -43,6 +43,13 @@
 2. Speed ideas from Fable in `ideas.md` (a BF16 twin of X shared by grouped projections, one launch for grouped projections, ldmatrix and cp.async staging, wider warp tiles).
 
 **Gotchas.** The probe's model is per architecture, as for the TF32 tile. `describe()` prints the emulation warning on a CUDA bf16 run, which is accurate: only BF16 weights' prompts are in BF16.
+## GELU's erf form through erfc on Vulkan and ROCm (2026-11-24, INKVIS5 and INKVIS6, branch fix/vulkan-gelu-erf on main e9daf3b6d)
+
+- **Goal:** GELU's erf form keeps its digits for negative inputs on the devices. Vulkan's `gelu.comp` took erf by Abramowitz and Stegun 7.1.26 and the GPU core's `llmx_gelu` took 1 + erff, and both cancel below x = -2, about 1e-3 relative at -4.
+- **Done:** both take 0.5 x erfc(-x / sqrt 2): `gelu.comp` by a Chebyshev fit of fractional error below 1.2e-7, `llmx_gelu` by erfcf. The CPU keeps its double form. One shared op fixed in place, no new op.
+- **Test:** the vision ops check (`tests/vision_checks.hpp`) holds the erf form within 16 float units of the CPU and 1e-9 absolute over a dense sweep of the negative tail. On one MI50, the test commit 1f022b9ed fails `backend-rocm vision` and CTest `backend-vulkan` on it (x = -3.369: -0.0012697100 on ROCm and -0.0012698105 on Vulkan against the CPU's -0.0012696750), and the fix 9db9b8af8 passes both.
+- **Claim:** the op's accuracy only. On the Inkling-2 vision tower the model-level change is reordering noise (better on the photo, worse at 1080p), so no model accuracy gain is claimed.
+- **Left:** the landing gates: byte identity against main on the CPU and a device for the models with erf GELU (the vision towers), their HF errors re-recorded, the suite on a device, the Radeon VII check and one timing round. No README or CHANGELOG change.
 
 ## CUDA sm_90 spill of the pushing held Q8_0 build (2026-11-23, SASS1, branch fix/cuda-sm90-held-push on main bfb7f517e)
 

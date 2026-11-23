@@ -827,7 +827,7 @@ From the comment at line 2:
 
 ### `src/backends/vulkan/shaders/gelu.comp`
 
-- dst[i] = gelu(src[i]) in F32, the erf form through Abramowitz and Stegun 7.1.26 (within 1.5e-7 of erf, since GLSL has none) and the tanh form with its argument clamped where tanh is 1; dst may be src.
+- dst[i] = gelu(src[i]) in F32, the erf form as 0.5 x erfc(-x / sqrt 2) through a Chebyshev fit of erfc (fractional error below 1.2e-7, since GLSL has no erf; 1 + erf would cancel for negative x) and the tanh form with its argument clamped where tanh is 1; dst may be src.
 
 ### `src/backends/vulkan/shaders/layer_norm_rows.comp`
 

@@ -25,6 +25,14 @@
   After a give-up the collective takes the conservative path, whose live members wait on the gone card's events with no bound, so a later sum on a group with a dead card still hangs its live streams (no spin); refusing later sums on a collective whose sum ran out is the follow-up this branch does not make.
   README unchanged (no user-facing change).
 
+## Gated attention layer in one launch (2026-11-23, FUSE8 to FUSE14, branch products/a3-gated-attention on main bfb7f517b)
+
+- **Goal:** Run a decode row of qwen35's full attention, q and k norm and rope, the cache write, attention and the gate, in one GPU launch where it took four, for Qwen3.6-27B decode at a tensor width of 4.
+- **Done:** `Backend::gated_attention_layer` makes the four calls by default; the GPU core's override runs a decode row of one causal view, heads 256 wide, one rope stream and each gate beside its q head in `llmx_attention_gated256` and its merge past one split, and anything else on the four calls. qwen35's full attention calls it. `backend-rocm attention` holds the layer's output, product and cache to the four calls bit for bit at lengths 1 to 16384 on f16 and f32 caches in both twin classes, with the launch witness, and several rows, two views and a gate apart from q to the four calls.
+- **Measured:** Qwen3.6-27B Q8_0, `--dtype int8`, ROCm gfx906, four MI50s as one tensor group, one sequence, 256 generated tokens, 96 interleaved runs (24 ABBA/BAAB blocks, host load about 61): the candidate 5dd3ef301 against a layout control b0eea3f84 (the same files, the fused path never taken) saves 0.55 ms a token, noise band 0.28 (label permutation), nulls A-A -0.09 and L-L -0.27, one output md5 (/opt/claude-work/fuse13/out/c5/sum.txt). That is about 3% of a 16 to 19 ms token; the windows give the difference, not tok/s.
+- **Left:** qwen4exp's dense layers make the same four calls and could call it, with their own byte identity on Flash-Next; `llmx_attention_gated256` and its merge copy the bodies of `attention_vec<256>` and its merge and could be builds of those templates, as the sparse ones are, after a timing round (Fable). The landing gates run in the landing stack.
+- **Gotchas:** A backend that fuses the layer may leave the formed q and k unwritten, unlike `norm_rope_kv`, so nothing after the layer may read them. Vulkan keeps the default.
+
 ## A chat reply read again with the reasoning its client sends back
 
 - **Goal:** a follow-up turn that sends the reply's reasoning back reuses the reply. Production on 2026-11-22 (0.2.0, Qwen3.8-27B Q8_0, the chat companion) reused nothing of a 29000-token follow-up: `the closest held history agrees for 59 tokens (message 2 of 3, assistant), limited by tokens at 59`.

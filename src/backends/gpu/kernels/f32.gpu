@@ -2177,6 +2177,128 @@ extern "C" __global__ void llmx_sigmoid_mul(float* dst, const float* x, const fl
     twin_at(v, i, tq, td, ts, tlevel, tm, major);
 }
 
+// A decode row of a gated attention layer in one launch (Backend::gated_attention_layer): a block a (head, split) forms its q head from the q+gate row and, in the split holding the new token, the new k with the norm_rope_held bits.
+// The new k and v stand in for the last slot, one block per kv head writes them to the cache at the KV target, and the sigmoid gate is applied in the epilogue (one split) or in llmx_attention_gated_merge256.
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_attention_gated256(const float* raw, const float* q_w, const float* kraw, const float* v, const float* k_w, float eps,
+        const float* cos, const float* sin, const unsigned* pos, int half, float* O, void* kc, void* vc, const int* table, const int* ends, const int* target, int n_head,
+        int heads_kv, int bt, int k_half, int v_half, float scale, int nsplit, int chunk0, int max_parts, float* partials, void* tq, float* td, void* ts, int tlevel,
+        LLMX_GRID_CONST TwinMap tm, int major) {
+    constexpr int DIM = 256, LANES = DIM / 8, STREAMS = kThreads / LANES;
+    __shared__ float ms[STREAMS], ls[STREAMS];
+    __shared__ float accs[STREAMS * DIM];
+    __shared__ float lds[kThreads], hs[kThreads], os[kThreads], qs[DIM], ks[DIM], vs[DIM];
+    const int split = blockIdx.x % nsplit, h = blockIdx.x / nsplit;
+    const int len = ends[0];
+    if (len == 0) return;
+    const int ratio = n_head / heads_kv, kvh = h / ratio, lid = threadIdx.x, stream = lid / LANES, d0 = (lid % LANES) * 8;
+    const float* c = cos + (unsigned long long)pos[0] * half;
+    const float* s = sin + (unsigned long long)pos[0] * half;
+    const unsigned long long qgrow = (unsigned long long)h * 2 * DIM;
+    norm_rope_held(qs, raw + qgrow, DIM, half, q_w, eps, c, s, lds, hs, os);
+    __syncthreads();
+    int chunk = chunk0;
+    while ((len + chunk - 1) / chunk > max_parts) chunk *= 2;
+    const int start = min(split * chunk, len), end = start + min(chunk, len - start), last = len - 1;
+    const bool has_new = last >= start && last < end;
+    if (has_new) {
+        const unsigned long long in = (unsigned long long)kvh * DIM;
+        norm_rope_held(ks, kraw + in, DIM, half, k_w, eps, c, s, lds, hs, os);
+        const float kn = ks[lid], vn = v[in + lid];
+        if (h % ratio == 0) {
+            const unsigned long long out = (((unsigned long long)target[0] * heads_kv + kvh) * bt + target[1]) * DIM + lid;
+            kv_store(kc, out, kn, k_half);
+            kv_store(vc, out, vn, v_half);
+        }
+        __syncthreads();
+        ks[lid] = k_half ? __half2float(__float2half_rn(kn)) : kn;
+        vs[lid] = v_half ? __half2float(__float2half_rn(vn)) : vn;
+        __syncthreads();
+    }
+    float qv[8], acc[8], m = -INFINITY, l = 0.0f;
+    for (int e = 0; e < 8; ++e) {
+        qv[e] = qs[d0 + e];
+        acc[e] = 0.0f;
+    }
+    for (int slot = start + stream; slot < end; slot += STREAMS) {
+        float k8[8], v8[8];
+        if (slot == last) {
+            for (int e = 0; e < 8; ++e) {
+                k8[e] = ks[d0 + e];
+                v8[e] = vs[d0 + e];
+            }
+        } else {
+            const unsigned long long at = (((unsigned long long)table[slot / bt] * heads_kv + kvh) * bt + slot % bt) * DIM + d0;
+            load8(kc, at, k_half, k8);
+            load8(vc, at, v_half, v8);
+        }
+        float part = 0.0f;
+        for (int e = 0; e < 8; ++e) part = fmaf(qv[e], k8[e], part);
+        for (int o = LANES / 2; o > 0; o /= 2) part += shuffle_xor(part, o, LANES);
+        const float sc = part * scale, mn = fmaxf(m, sc);
+        const float corr = expf(m - mn), w = expf(sc - mn);
+        l = fmaf(l, corr, w);
+        for (int e = 0; e < 8; ++e) acc[e] = fmaf(w, v8[e], acc[e] * corr);
+        m = mn;
+    }
+    if (lid == stream * LANES) {
+        ms[stream] = m;
+        ls[stream] = l;
+    }
+    for (int e = 0; e < 8; ++e) accs[stream * DIM + d0 + e] = acc[e];
+    __syncthreads();
+    if (lid >= DIM) return;
+    float M = ms[0];
+    for (int i = 1; i < STREAMS; ++i) M = fmaxf(M, ms[i]);
+    float L = 0.0f, A = 0.0f;
+    for (int i = 0; i < STREAMS; ++i) {
+        if (isinf(ms[i])) continue;
+        const float cc = expf(ms[i] - M);
+        L = fmaf(ls[i], cc, L);
+        A = fmaf(accs[i * DIM + lid], cc, A);
+    }
+    const unsigned long long orow = (unsigned long long)h * DIM;
+    if (nsplit == 1) {
+        const float y = (A / L) * (1.0f / (1.0f + expf(-raw[qgrow + DIM + lid])));
+        O[orow + lid] = y;
+        twin_at(y, orow + lid, tq, td, ts, tlevel, tm, major);
+    } else {
+        float* out = partials + ((unsigned long long)h * nsplit + split) * (DIM + 2);
+        out[2 + lid] = A;
+        if (lid == 0) {
+            out[0] = M;
+            out[1] = L;
+        }
+    }
+}
+
+// The merge sums of llmx_attention_vec_merge256 for one decode row, then the sigmoid gate as llmx_sigmoid_mul forms it.
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_attention_gated_merge256(const float* partials, float* O, int nsplit, const float* raw, void* tq, float* td, void* ts,
+        int tlevel, LLMX_GRID_CONST TwinMap tm, int major) {
+    constexpr int DIM = 256;
+    __shared__ float sw[kThreads], sl[kThreads];
+    const int h = blockIdx.x, lid = threadIdx.x;
+    const float* base = partials + (unsigned long long)h * nsplit * (DIM + 2);
+    float M = -INFINITY;
+    for (int i = 0; i < nsplit; ++i) M = fmaxf(M, base[i * (DIM + 2)]);
+    if (lid < nsplit) {
+        const float mi = base[lid * (DIM + 2)];
+        sw[lid] = isinf(mi) ? 0.0f : expf(mi - M);
+        sl[lid] = base[lid * (DIM + 2) + 1];
+    }
+    __syncthreads();
+    if (lid >= DIM) return;
+    float L = 0.0f, A = 0.0f;
+    for (int i = 0; i < nsplit; ++i) {
+        const float c = sw[i];
+        if (c == 0.0f) continue;
+        L = fmaf(sl[i], c, L);
+        A = fmaf(base[i * (DIM + 2) + 2 + lid], c, A);
+    }
+    const float y = (A / L) * (1.0f / (1.0f + expf(-raw[(unsigned long long)h * 2 * DIM + DIM + lid])));
+    O[(unsigned long long)h * DIM + lid] = y;
+    twin_at(y, (unsigned long long)h * DIM + lid, tq, td, ts, tlevel, tm, major);
+}
+
 // A block a (row, head): x's RMS norm against w, times SiLU or, with `sig`, the sigmoid of z; dst may be x, since every value is read into the sum before the block's barrier.
 extern "C" __global__ void llmx_gated_rms_norm(float* dst, const float* x, const float* z, const float* w, int dim, float eps, int sig, void* tq, float* td, void* ts, int tlevel, LLMX_GRID_CONST TwinMap tm, int major) {
     __shared__ float lds[kThreads];

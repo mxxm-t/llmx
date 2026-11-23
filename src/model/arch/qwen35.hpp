@@ -821,11 +821,8 @@ private:
         const backend::Slice r = s.slot(2), k = s.slot(3), v = s.slot(4), q = s.slot(5), o = s.slot(6);
         b.matmul_group({blocks::projection(w[attn_q], r), blocks::projection(w[attn_k], k), blocks::projection(w[attn_v], v)}, h, E, s.rows, s.runs, s.dtype);
         const backend::CSlice cos{s.tables[0].get(), 0}, sin{s.tables[1].get(), 0};
-        const size_t R = (size_t)cfg_.rope_dim;
-        b.norm_rope_partial(q, r, s.rows, 2 * Hq * D, 2 * D, Hq, D, R, w[attn_q_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, backend::RopeForm{}, s.streams);
-        b.norm_rope_partial(k, k, s.rows, Hkv * D, D, Hkv, D, R, w[attn_k_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, backend::RopeForm{}, s.streams);
-        b.kv_write(s.kv_layer, s.views, s.n_views, k, v);
-        b.gated_attention(q, s.kv_layer, s.views, s.n_views, o, (int)Hq, (int)Hkv, (int)D, {backend::CSlice{r.buffer, r.offset + D}, s.rows, 2 * Hq * D, 2 * D, s.runs});
+        const backend::Backend::GatedLayer in{q, r, k, v, (size_t)cfg_.rope_dim, w[attn_q_norm].slice(), w[attn_k_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, s.streams};
+        b.gated_attention_layer(in, s.kv_layer, s.views, s.n_views, o, (int)Hq, (int)Hkv, (int)D, {backend::CSlice{r.buffer, r.offset + D}, s.rows, 2 * Hq * D, 2 * D, s.runs});
         blocks::join(s, w[attn_output], o);
     }
 

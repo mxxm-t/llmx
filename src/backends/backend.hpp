@@ -831,6 +831,28 @@ public:
         sigmoid_mul(out, out, g.gate, g.rows, (size_t)n_head, (size_t)head_dim, g.stride, g.head_stride, g.runs);
     }
 
+    // A gated attention layer from its projections: q and k normed per head and rotated over rope_dim, k and v written to the cache, then gated_attention (docs/QWEN35.md).
+    // raw holds each head's q and gate 2 * head_dim apart; q and k receive the formed heads, which a backend that forms them on chip may leave unwritten.
+    struct GatedLayer {
+        Slice q;
+        CSlice raw;
+        Slice k;
+        CSlice v;
+        size_t rope_dim;
+        CSlice q_w, k_w;
+        float eps;
+        CSlice cos, sin;
+        const uint32_t* pos;
+        RopeStreams streams;
+    };
+    virtual void gated_attention_layer(const GatedLayer& in, size_t layer, const KVView* views, size_t n_views, Slice out, int n_head, int n_head_kv, int head_dim, const OutputGate& g) {
+        const size_t D = (size_t)head_dim, Hq = (size_t)n_head, Hkv = (size_t)n_head_kv;
+        norm_rope_partial(in.q, in.raw, g.rows, g.stride, g.head_stride, Hq, D, in.rope_dim, in.q_w, in.eps, in.cos, in.sin, in.pos, RopeForm{}, in.streams);
+        norm_rope_partial(in.k, in.k, g.rows, Hkv * D, D, Hkv, D, in.rope_dim, in.k_w, in.eps, in.cos, in.sin, in.pos, RopeForm{}, in.streams);
+        kv_write(layer, views, n_views, in.k, in.v);
+        gated_attention(in.q, layer, views, n_views, out, n_head, n_head_kv, head_dim, g);
+    }
+
     struct IndexArgs {
         size_t heads, dim, rope_dim, compression, budget;
         float eps;

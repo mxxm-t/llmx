@@ -1644,6 +1644,78 @@ void gated_attention_bits(Backend& g, Dtype dt) {
     }
 }
 
+// The gated attention layer against the base's four calls, output, product and both cache sides bit for bit.
+void gated_attention_layer_bits(Backend& g, Dtype dt) {
+    const size_t Hq = 8, Hkv = 2, D = 256, qw = Hq * D, kvw = Hkv * D, nout = 40, ctx = 16640;
+    const std::vector<uint8_t> m = q8_matrix(qw, nout, 81);
+    auto mb = g.adopt(m.data(), m.size());
+    const WeightView wv{quant::GGML_TYPE_Q8_0, {mb.get(), 0}};
+    const std::vector<float> cosv = row_classes::values(ctx * D / 2, 82), sinv = row_classes::values(ctx * D / 2, 83), qwt = row_classes::values(D, 84), kwt = row_classes::values(D, 85);
+    auto cb = g.adopt(cosv.data(), cosv.size() * 4), sb = g.adopt(sinv.data(), sinv.size() * 4), qwb = g.adopt(qwt.data(), qwt.size() * 4), kwb = g.adopt(kwt.data(), kwt.size() * 4);
+    struct Case { size_t hist, rows, views, rope; KVType kt; bool apart = false; };
+    const Case cases[] = {{0, 1, 1, 64, KVType::f16},     {31, 1, 1, 64, KVType::f16}, {32, 1, 1, 64, KVType::f32}, {32, 1, 1, 256, KVType::f16}, {223, 1, 1, 64, KVType::f16},
+                          {4095, 1, 1, 64, KVType::f32}, {16383, 1, 1, 64, KVType::f16}, {40, 3, 1, 64, KVType::f16}, {40, 1, 2, 64, KVType::f16}, {40, 1, 1, 64, KVType::f16, true}};
+    for (const Case& cs : cases) {
+        const size_t rows = cs.rows * cs.views;
+        const bool fits = cs.rows == 1 && cs.views == 1 && !cs.apart;
+        const std::vector<float> hk = row_classes::values(std::max<size_t>(cs.hist, 1) * kvw, 86), hv = row_classes::values(std::max<size_t>(cs.hist, 1) * kvw, 87);
+        const std::vector<float> r = row_classes::values(rows * 2 * qw, 88, 4.0f), k = row_classes::values(rows * kvw, 89, 3.0f), v = row_classes::values(rows * kvw, 90);
+        const std::vector<float> ga = row_classes::values(rows * qw, 91);
+        std::vector<uint32_t> pos(rows);
+        for (size_t i = 0; i < rows; ++i) pos[i] = (uint32_t)(cs.hist + i % cs.rows);
+        std::vector<RowRun> run;
+        for (size_t i = 0; i < cs.views; ++i) run.push_back({(i + 1) * cs.rows, cs.rows});
+        std::vector<float> outs[2], ys[2];
+        std::vector<uint8_t> caches[2][2];
+        std::map<std::string, size_t> ran[2];
+        for (int arm = 0; arm < 2; ++arm) {
+            auto rb = g.adopt(r.data(), r.size() * 4), kb = g.adopt(k.data(), k.size() * 4), vb = g.adopt(v.data(), v.size() * 4);
+            auto gb = g.adopt(ga.data(), ga.size() * 4);
+            auto qb = g.alloc(rows * qw * 4), ob = g.alloc(rows * qw * 4), y = g.alloc(nout * rows * 4);
+            auto st = g.kv_alloc(1, Hkv, D, ctx, cs.kt, cs.kt);
+            infer::BlockPool pool;
+            pool.configure(st->max_blocks());
+            std::vector<std::unique_ptr<infer::KVSequence>> seqs;
+            std::vector<KVView> views;
+            for (size_t i = 0; i < cs.views; ++i) {
+                seqs.push_back(std::make_unique<infer::KVSequence>(&pool, g.kv_layout().block_tokens));
+                if (cs.hist) {
+                    seqs[i]->prepare(cs.hist);
+                    const KVView hview = seqs[i]->view(st.get());
+                    auto hkb = g.adopt(hk.data(), cs.hist * kvw * 4), hvb = g.adopt(hv.data(), cs.hist * kvw * 4);
+                    g.kv_write(0, &hview, 1, {hkb.get(), 0}, {hvb.get(), 0});
+                    seqs[i]->commit();
+                }
+                seqs[i]->prepare(cs.rows);
+            }
+            for (auto& sq : seqs) views.push_back(sq->view(st.get()));
+            const Backend::GatedLayer in{{qb.get(), 0}, {rb.get(), 0}, {kb.get(), 0}, {vb.get(), 0}, cs.rope, {qwb.get(), 0}, {kwb.get(), 0}, 1e-6f, {cb.get(), 0}, {sb.get(), 0}, pos.data(), {}};
+            const Backend::OutputGate gate = cs.apart ? Backend::OutputGate{{gb.get(), 0}, rows, qw, D, {run.data(), run.size()}} : Backend::OutputGate{{rb.get(), D}, rows, 2 * qw, 2 * D, {run.data(), run.size()}};
+            rocm_take_launches(g);
+            if (arm == 0) g.Backend::gated_attention_layer(in, 0, views.data(), views.size(), {ob.get(), 0}, (int)Hq, (int)Hkv, (int)D, gate);
+            else g.gated_attention_layer(in, 0, views.data(), views.size(), {ob.get(), 0}, (int)Hq, (int)Hkv, (int)D, gate);
+            g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, qw, nout, rows, {run.data(), run.size()}, dt);
+            ran[arm] = rocm_take_launches(g);
+            outs[arm] = read(g, *ob, rows * qw);
+            ys[arm] = read(g, *y, nout * rows);
+            auto* bs = dynamic_cast<BlockKVStorage*>(st.get());
+            for (int side = 0; side < 2; ++side) {
+                const Buffer& buf = side ? *bs->v_buffer(0) : *bs->k_buffer(0);
+                caches[arm][side].resize(buf.size());
+                g.read(buf, 0, caches[arm][side].data(), buf.size());
+            }
+            for (auto& sq : seqs) sq->abort();
+        }
+        const std::string at = std::string(dt == Dtype::int8 ? "8-bit" : "16-bit") + (cs.kt == KVType::f32 ? ", f32 cache" : ", f16 cache") + ", history " + std::to_string(cs.hist) +
+                               ", rows " + std::to_string(cs.rows) + ", views " + std::to_string(cs.views) + ", rope " + std::to_string(cs.rope) + (cs.apart ? ", gate apart" : "");
+        require(same(outs[0], outs[1]) && same(ys[0], ys[1]), at + ": the gated attention layer gives the output and product of its four calls");
+        require(caches[0][0] == caches[1][0] && caches[0][1] == caches[1][1], at + ": the gated attention layer writes the cache of its four calls");
+        const size_t one = ran[1].count("llmx_attention_gated256") ? ran[1].at("llmx_attention_gated256") : 0;
+        if (fits) require(one == 1, at + ": a decode row runs in llmx_attention_gated256");
+        else require(one == 0 && ran[0] == ran[1], at + ": several rows, views or a gate apart take the four calls");
+    }
+}
+
 // Every pair of extents of one class gives the same bits, through a matmul and through attention after a history (row_classes.hpp's shapes).
 // Prompts shorter than the profile's prompt_rows_below take the decode row builds with the one-column call's bits, and from it the tile, a run-less call by its rows' count (cases in docs/TESTS.md, backend-rocm).
 void prompt_crossover(Backend& g) {
@@ -3608,6 +3680,8 @@ int main(int argc, char** argv) {
             attention_twins(*g, Dtype::int8);
             gated_attention_bits(*g, Dtype::f16);
             gated_attention_bits(*g, Dtype::int8);
+            gated_attention_layer_bits(*g, Dtype::f16);
+            gated_attention_layer_bits(*g, Dtype::int8);
             attention_chunks(*g);
             attention_tiles::check(*g, rocm_take_launches, require);
             attention_tiles::check_long(*g, rocm_take_launches, require);
@@ -3685,6 +3759,8 @@ int main(int argc, char** argv) {
         attention_twins(*g, Dtype::int8);
         gated_attention_bits(*g, Dtype::f16);
         gated_attention_bits(*g, Dtype::int8);
+        gated_attention_layer_bits(*g, Dtype::f16);
+        gated_attention_layer_bits(*g, Dtype::int8);
         host_output(*g);
         host_copies(*g);
         attention_chunks(*g);

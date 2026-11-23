@@ -5,7 +5,7 @@
 **Goal.** BF16 files' prompts on CUDA run on tensor cores in the F16 class, toward vLLM on the same RTX 3090: Qwen3-0.6B pp512/pp2048 TTFT 172/754 ms against 38/72, c16 439 against 2515 tok/s (CUDA104, docs/CUDA.md, BF16 prompt tile).
 
 **Done.**
-- `bf16_tile` and `llmx_bf16_tile` (`kernels/int16.gpu`) on `mma_tf32` (`port.h`, `GPU_TF32_MMA`), loaded where the module holds it (CUDA from sm_80, `GPU_TF32_MMA`), the BF16 row's `half` in `kTypes`, `half_product` reused; a half tile runs only where its kernel loaded, so ROCm is unchanged.
+- `bf16_tile` and `llmx_bf16_tile` (`kernels/int16.gpu`) on `mma_tf32` (`port.h`, `GPU_FLOAT_MMA`), loaded where the module holds it (CUDA from sm_80, `GPU_FLOAT_MMA`), the BF16 row's `half` in `kTypes`, `half_product` reused; a half tile runs only where its kernel loaded, so ROCm is unchanged.
 - `MatrixPath::f16_mma` (`f16-mma`): `tests/common.py` refuses it, so no HF check can pass the tile before its budget is frozen.
 - `twin_checks::Bits::half_tile` takes BF16 too where the module has the tile (CUDA): double-sum bound on binary16 inputs with BF16 weights below and above binary16's range, subnormal and signed-zero weights, row bits across row counts, added outputs and decode columns; on ROCm it checks BF16 prompts keep the exact rows.
 - Choice reviewed with Fable: TF32 over BF16-to-F16 weights (inexact) and BF16 mma (BF16 class, flips auto); c = 0 a group and an F32 add so the non-IEEE part is one 8-term sum of exact products.
@@ -24,6 +24,25 @@
 5. Open deficit: TTFT at pp2048, 1 output token, 166.4 ms (B bf16) and 195.8 ms (A f16) against vLLM 61.8 and 62.5 ms (bench pp2048 12681 and 10745 tok/s); pp512 26.1 and 33.6 against 21.4 and 20.9 ms.
 
 **Gotchas.** The tile's bits are per architecture (sm_80, 86, 89, 90 and 120 may align differently). Activations above 65504 become inf as on the F16 tile.
+
+## CUDA native BF16 tile for --dtype bf16 (2026-11-23, CUDA130, branch cuda/bf16-mma on cuda/bf16-prompt-tile 86575ae5)
+
+**Goal.** `--dtype bf16` on CUDA runs BF16 files' prompts on BF16 tensor cores (mma m16n8k16, F32 sums), never the default, for the speed gate against vLLM's default BF16 on the same RTX 3090 (owner 2026-11-23, option 1, step B). Depends on cuda/bf16-prompt-tile (step A), which lands first.
+
+**Done.**
+- `bf16_tile<Bf16>` (`kernels/int16.gpu`), one template over the instruction: `llmx_bf16_tile` (TF32, unchanged) and `llmx_bf16_tile_bf16` (`mma_bf16` in `port.h`), weights staged as stored, activations rounded to BF16 as `f32_to_bf16` rounds them, each 16-value group from zero added in k order; `GPU_TF32_MMA` renamed `GPU_FLOAT_MMA`.
+- Dispatch (`backend_core.hpp`): `TypeKernels::brain` names a type's BF16 tile (BF16 alone), `product` picks the tile by dtype and `half_product` records `bf16-mma`; at bf16 `integer()` is false, so twins never run and every other product, F16 and quantized weights and decode columns among them, takes the exact F32 rows; `delta_form` keeps the fused exact step at bf16.
+- Advertising: `native_dtypes()` unchanged (f16, f32, int8), so auto on a BF16 file keeps the F16 class; `emulates_dtype(bf16)` where the module holds `llmx_bf16_tile_bf16` (CUDA from sm_80), and `dtype_path(bf16)` names the BF16 tile and the F32 products. Design reviewed with Fable (a679d77f).
+- Tests: `twin_checks` `bf16_class` (BF16 tile within the F32 bound of the double sum over BF16 inputs past binary16's range, row bits across row counts, `bf16-mma` witness; F16 weights and tile-less modules keep their F32 bits), `backend-cuda` advertising check, `bf16-tile` at `--dtype bf16` (ubatch 16 and 80 require `bf16-mma`, ubatch 1 `f32`), `common.hf_bounds` accepts `bf16-mma` at bf16 only with a frozen record.
+- Budget (frozen before any device run): `tools/calibrate_dtype.py --class bf16-mma`, the frozen BF16 class reproduced on each of the 30 fixtures, then BF16 weights and the 10 `bf16-tile` runs, 15 sum models (single sums of 16 and chains of 8 and 4 at the TF32 probe's alignment, and the 12 single-sum envelope models): max logit 0.02715269, NLL 0.00129688 for every model, equal to plain BF16 on the same weights, every model's cut reached; record `dtypes["bf16-mma"]`, and `common.hf_bounds` holds `bf16-mma` to the BF16 budget (0.05409974, 0.00792457), headroom 1.99x and 6.11x. The mma_linear unit test passed after the chain generalisation (`cuda130/cal/unit.log` on the rig).
+- Probe: `cuda130/probe/bf16_probe.cu` on the rig fits the instruction against 96 sum models (single sums of 16, chains of 8 and 4; guard bits 0 to 3, cut rz/floor, final rz/rne, norm/inputs leads) over five vector sets; run on S131 (238 s): calibrated fit 1:rz:rz:inputs:k8, zero mismatches.
+- Device results (S131 2026-11-23 21:51-22:38 and S133 23:57-00:17, RTX 3090 sm_86, CUDA 13.0, default clocks, Qwen3-0.6B BF16 safetensors): `bf16-tile` at bf16 max logit error 0.00246 untied and 0.00293 tied against the 0.0541 bound; the HF baseline passes top-1 6/6 on five files; the 16k checks at bf16 have 0 misses (raw 509 exact and 3 ties, chat 510 and 2); `llmx bench` prompts at `--dtype bf16` pp512 20946 against 3541 tok/s on main (5.9x) and pp2048 12681 against 3157 (4.0x), decode unchanged (389 against 387 tok/s at 1 seq); backend-cuda rc 0 with 0 failures on S133.
+
+**Left.**
+1. Open deficits to the CUDA vLLM gate (S131, vLLM 0.33.0 on the same card and files, speed-loop items, profile first): serving decode at 16 streams (512 in, 128 out) has TPOT p50 15.0 ms against 10.4 ms in `llmx bench` at 16 seqs and vLLM 4.98 ms (llmx 1015 against vLLM 2617 tok/s), about 4.6 ms a step of server overhead; TTFT at pp2048 with 1 output token is 166.4 ms against vLLM 61.8 ms (pp512 26.1 against 21.4 ms).
+2. Speed ideas from Fable in `ideas.md` (a BF16 twin of X shared by grouped projections, one launch for grouped projections, ldmatrix and cp.async staging, wider warp tiles).
+
+**Gotchas.** The probe's model is per architecture, as for the TF32 tile. `describe()` prints the emulation warning on a CUDA bf16 run, which is accurate: only BF16 weights' prompts are in BF16.
 
 ## CUDA sm_90 spill of the pushing held Q8_0 build (2026-11-23, SASS1, branch fix/cuda-sm90-held-push on main bfb7f517e)
 

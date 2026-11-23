@@ -990,6 +990,7 @@ struct Bits {
     // A tile row has the bits of the same row in a call of another row count, added outputs the plain ones added, and decode columns the exact product's bits; without the TF32 tile BF16 keeps the exact rows.
     void half_tile(Backend& g, bool bf16_tile) {
         tile_edges(g, bf16_tile);
+        bf16_class(g, bf16_tile);
         const size_t R = 130;
         for (const bool bf16 : {false, true})
         for (size_t nin : {size_t(32), size_t(96), size_t(2560)})
@@ -1056,6 +1057,56 @@ struct Bits {
     std::string exact_kernel_name(Backend& g, bool bf16, size_t rows) {
         const std::string type = bf16 ? "bf16" : "f16";
         return profile_of(g).exact_on_columns(rows) ? "llmx_matmul_cols" + std::string(rows <= 4 ? "4_" : "8_") + type : "llmx_matmul_rows_" + type;
+    }
+
+    // At bf16 a BF16 weight's prompt takes the BF16 tile where the module has it: outputs within the F32 bound of the double sum over BF16-rounded inputs past binary16's range, a row's bits in any row count, the path bf16-mma.
+    // Every other product at bf16 has its F32 call's bits: F16 weights, which have no BF16 tile, and BF16 weights where the module has none.
+    void bf16_class(Backend& g, bool bf16_tile) {
+        const size_t R = 70;
+        for (const bool bf16 : {true, false})
+            for (size_t nin : {size_t(32), size_t(96), size_t(2560)})
+                for (size_t nout : {size_t(1), size_t(64), size_t(65), size_t(130)}) {
+                    const std::string shape = std::string(bf16 ? "BF16 " : "F16 ") + std::to_string(nin) + "->" + std::to_string(nout) + " at bf16";
+                    const bool tiled = bf16 && bf16_tile;
+                    std::vector<uint8_t> w(nin * nout * 2);
+                    std::vector<float> wf(nin * nout);
+                    const std::vector<float> wv = row_classes::values(nin * nout, uint32_t(5 * nin + nout), 0.05f);
+                    for (size_t i = 0; i < wf.size(); ++i) {
+                        uint16_t h = bf16 ? f32_to_bf16(i % 83 == 7 ? wv[i] * 1e-30f : i % 79 == 11 ? wv[i] * 1e6f : wv[i]) : f32_to_f16(wv[i]);
+                        if (i % 89 == 5) h = i % 2 ? 0x8000 : 0x0000;
+                        w[2 * i] = uint8_t(h), w[2 * i + 1] = uint8_t(h >> 8);
+                        wf[i] = bf16 ? bf16_to_f32(h) : f16_to_f32(h);
+                    }
+                    std::vector<float> x = row_classes::values(nin * R, uint32_t(nin + 7 * nout));
+                    for (size_t i = 0; i < x.size(); i += 61) x[i] *= i % 2 ? 3e5f : 1e-9f;   // inputs past binary16's range at both ends, which BF16 keeps
+                    std::vector<float> xb16(x.size());
+                    for (size_t i = 0; i < x.size(); ++i) xb16[i] = bf16_to_f32(f32_to_bf16(x[i]));
+                    const DoubleSums want = double_sums(wf, xb16, nin, nout);
+                    auto wb = g.adopt(w.data(), w.size()), xb = g.adopt(x.data(), x.size() * 4), yb = g.alloc(nout * R * 4), y1 = g.alloc(nout * R * 4);
+                    const WeightView wt{bf16 ? quant::GGML_TYPE_BF16 : quant::GGML_TYPE_F16, {wb.get(), 0}};
+                    for (size_t rows : {size_t(2), size_t(64), size_t(65)}) {
+                        const std::string at = shape + " over " + std::to_string(rows) + " rows";
+                        launches(g);
+                        MatrixPaths paths;
+                        g.swap_matrix_paths(paths);
+                        g.matmul(wt, {xb.get(), 0}, {yb.get(), 0}, nin, nout, rows, {}, Dtype::bf16);
+                        g.swap_matrix_paths(paths);
+                        const auto ran = launches(g);
+                        const std::vector<float> all = read(g, *yb, nout * rows);
+                        require(ran.count("llmx_bf16_tile_bf16") == (tiled ? 1u : 0u) && !ran.count("llmx_bf16_tile") && !ran.count("llmx_f16_tile"), "a " + at + " prompt takes the BF16 tile only for BF16 weights where the module has it");
+                        require(paths.take() == std::vector<std::string>{tiled ? "bf16-mma" : "f32"}, "a " + at + " prompt records the path it took");
+                        if (!tiled) {
+                            g.matmul(wt, {xb.get(), 0}, {y1.get(), 0}, nin, nout, rows, {}, Dtype::f32);
+                            require(std::memcmp(read(g, *y1, nout * rows).data(), all.data(), nout * rows * 4) == 0, "a " + at + " prompt has the bits of its F32 call");
+                            continue;
+                        }
+                        const DoubleSums part{std::vector<double>(want.sum.begin(), want.sum.begin() + std::ptrdiff_t(nout * rows)),
+                                              std::vector<double>(want.mag.begin(), want.mag.begin() + std::ptrdiff_t(nout * rows))};
+                        exact_close(all, part, "a " + at + " BF16 tile against the double sum on BF16 inputs");
+                        g.matmul(wt, {xb.get(), 0}, {y1.get(), 0}, nin, nout, rows + 1, {}, Dtype::bf16);
+                        require(std::memcmp(read(g, *y1, nout * rows).data(), all.data(), nout * rows * 4) == 0, "a " + at + " BF16 tile row keeps its bits in a call of one row more");
+                    }
+                }
     }
 
     // The half tile's dispatch edges (backend_core.hpp, product): one launch where nin is a multiple of 32, the call has two rows or more and the weights and inputs sit on 16 bytes, the exact rows otherwise with the bits of the same call at F32.

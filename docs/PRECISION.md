@@ -62,7 +62,8 @@ The auto-preference list advertises a dtype only after the backend implements th
 - CPU (AVX2, F16C, no AVX-512 BF16): F16, F32.
 - Vulkan on the MI50 and the Radeon VII: F16 (qualified block-int16, wider F32, and a capability-gated NVFP4 tile input path), F32.
 - ROCm on the MI50: F16 (binary16 inputs with F32 sums for F16 weights' prompt tiles, block-int16 rows and prompt tiles for Q8_0, Q4_0, Q4_1, Q4_K, Q5_K, Q6_K, Q5_0, Q5_1, Q2_K, Q3_K, IQ4_NL, IQ4_XS, IQ2_XXS, IQ2_XS, IQ2_S, IQ3_XXS, IQ3_S, IQ1_S, IQ1_M, Q1_0, Q2_0, MXFP4 and NVFP4 (NVFP4 under one factor a tensor; under one an expert it stays F32), F32 for F32, BF16, TQ1_0 and TQ2_0 weights and F16 weights' generated rows; qualification in [STATUS](STATUS.md)), F32, and int8 (block-int8 for the same types under the frozen int8 budget, F16 weights as in the F16 class, F32 for F32, BF16, TQ1_0 and TQ2_0 weights).
-- A device with BF16 arithmetic lists BF16 first once its BF16 kernels exist.
+- A device with BF16 arithmetic lists BF16 first once its BF16 kernels cover every reached family.
+- CUDA: F16 (the TF32 tile for BF16 weights' prompts, `f16-mma`), F32 and int8; an explicit BF16 is emulated, BF16 weights' prompts on the BF16 tile (`bf16-mma`) and every other product in F32, so it is not listed and auto never selects it.
 
 Eligible Vulkan NVFP4 tiles can round F32 activations to binary16 inputs, then widen them for F32 products and sums. This path requires the device's F16 conversion and matching F16/F32 preservation controls; otherwise the tile uses F32 inputs. Packed weights and software decoding are unchanged. Device and model qualification is summarized in [STATUS](STATUS.md).
 
@@ -71,6 +72,7 @@ Eligible Vulkan NVFP4 tiles can round F32 activations to binary16 inputs, then w
 - `block-int16`: blocks of 32 scaled to 16-bit integers, which may implement the F16 class once it passes the F16 budget and its exact range checks (rule 4);
 - `block-int8`: blocks of 32 scaled to 8-bit integers, the form of the `int8` class (section 5), held to that class's own budget (section 4); auto never selects it.
 - `f16-mma`: the F16 class's binary16 activations and BF16 weights on CUDA's TF32 tensor cores, each 8-value group summed by the instruction's own alignment from zero and added in F32 in k order; it takes the F16 budget because its calibration record shows it within that budget (TF32 group sums, below).
+- `bf16-mma`: the BF16 class's BF16 activations and BF16 weights on CUDA's BF16 tensor cores, each 16-value group summed by the instruction from zero and added in F32 in k order; it takes the BF16 budget because its calibration record shows it within that budget (BF16 group sums, below).
 The groups name weight types (`MXFP4`), `quantized` for packed quantized formats excluding F32, F16 and BF16 storage, or a phase (`prompts`, `decode`).
 
 **Witnesses.** A static catalog describes possible paths; it does not prove which path a call executed. Tests use the actual dispatched path for the measured phase, shape and operation role, through a counter, kernel name or forced-path unit check. The selected plan alone never chooses a looser bound for a path that stayed F32. Check both sides of every threshold and grouped, routed and split callers. Existing Vulkan per-kernel timing names may provide this evidence without a new profiling system.
@@ -328,6 +330,15 @@ Each model's alignment cut changed a product in 0.52 to 4.0 million groups over 
 The record is `dtypes["f16-mma"]` in `tests/data/dtype_budget.json`, refrozen with the tile's fixture before any device run, and the tool refuses to write it at or above the F16 budget; `common.hf_bounds` then holds `f16-mma` runs to the F16 budget (0.00330472 and 0.00029664, 1.80 and 1.77 times the record's maxima), the stricter choice.
 The probe of the instruction on an RTX 3090 (sm_86, docs/STATUS.md, CUDA BF16 prompt tile) fits none of those 12 but fits `1:rz:rz:inputs:k4` bit for bit: two chained sums of 4, the first half's F32 result one more term of the second, each aligned to its terms' largest exponent (a product's the sum of its inputs' exponents), one guard bit, truncated toward zero, and the sum truncated to F32.
 That model (`PROBED` in the tool) is calibrated first and the 12 stay beside it for architectures not yet probed; a card that fits neither is recalibrated before any candidate HF run.
+
+### BF16 group sums of the CUDA BF16 tile
+
+At `--dtype bf16` the tile (docs/CUDA.md, BF16 prompt tile) takes BF16 activations and BF16 weights on mma m16n8k16, whose 16 exact products the instruction sums by its own alignment, and adds each group's sum to the F32 sum in k order.
+`python tools/calibrate_dtype.py --class bf16-mma --output FILE` measures that class as the f16-mma class is measured, with the frozen BF16 class reproduced on each of the 30 fixtures first, the inputs rounded to BF16, groups of 16, and the BF16 budget as its limit.
+No probe of the instruction exists yet, so the sum models are single sums of 16 and chains of 8 and 4 at the TF32 probe's alignment (`1:rz:rz:inputs`, `:k8`, `:k4`) beside the 12 single-sum envelope models (`BF16_MODELS` in the tool).
+Every model gave logit 0.02715269 and NLL 0.00129688 at most, the plain BF16 class on the same BF16 weights to the bit, so the cost is BF16 rounding and not the sums; the tile's own fixture measured at most 0.00496066 and 0.00031410.
+The record is `dtypes["bf16-mma"]` in `tests/data/dtype_budget.json`, and `common.hf_bounds` holds `bf16-mma` runs to the BF16 budget (0.05409974 and 0.00792457, 1.99 and 6.11 times the record's maxima).
+A card's probe must fit one of those models bit for bit before a candidate HF run counts; one that fits none is recalibrated with the fitted model first.
 
 ## 9. Precision and range (clarified 2026-09-30)
 

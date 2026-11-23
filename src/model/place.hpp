@@ -449,7 +449,7 @@ struct DtypePlan {
         return s + "\n";
     }
 };
-// A device without the requested dtype takes a fast exact emulation, else the next wider dtype it has, with a warning: f16 for int8, f32 otherwise (docs/PRECISION.md, rule 2).
+// A device without the requested dtype takes its emulation, the class's inputs where it has them and wider products elsewhere, else the next wider dtype it has, with a warning: f16 for int8, f32 otherwise (docs/PRECISION.md, rule 2).
 inline DtypePlan resolve_dtype(backend::Dtype declared, const std::vector<backend::BackendPtr>& backends, const std::vector<std::string>& names,
                                std::optional<backend::Dtype> requested = {}) {
     if (backends.empty()) throw std::runtime_error("dtype: no device");

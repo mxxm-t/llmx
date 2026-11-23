@@ -201,7 +201,10 @@ Converting the weights to binary16 instead would lose BF16's range below 2^-17 a
 Each 8-value group's product starts from zero and is added to the F32 sum in k order, so a row's bits depend on nin alone, as on the F16 tile; decode columns of a call keep the exact rows (`half_product`).
 The instruction sums the 8 exact products by its own alignment, not as IEEE F32: on an RTX 3090 (sm_86) a probe fits it bit for bit as two chained sums of 4, the first's F32 result a term of the second, each aligned to its largest input exponent sum with one guard bit and truncated.
 So the tile records the path `f16-mma` rather than `f16`; its calibration over that model and the envelope of single-sum models costs no more than binary16 rounding, so HF checks hold it to the F16 budget (docs/PRECISION.md, TF32 group sums of the CUDA BF16 tile).
-Only targets from sm_80 have the instructions, so `GPU_TF32_MMA` is 0 for older targets and under HIP and their modules lack the tile, which the backend then leaves unloaded: BF16 prompts on Turing and Volta and on AMD keep the exact rows.
+`--dtype bf16` takes the same tile on BF16 tensor cores (`mma_bf16`, m16n8k16, kernel `llmx_bf16_tile_bf16`): the weights are its inputs as stored and the activations are rounded to BF16 as they are staged, the BF16 class's inputs, with each 16-value group's product added to the F32 sum in k order; it records `bf16-mma`.
+Every other product at bf16 takes the exact F32 rows, F16 weights, quantized weights and decode columns among them, since the F16 tiles' binary16 inputs are narrower than BF16's range; so CUDA reports bf16 as emulated and auto never selects it, and a BF16 file's default stays the F16 class on the TF32 tile.
+Its calibration record and bound are in docs/PRECISION.md (BF16 group sums of the CUDA BF16 tile).
+Only targets from sm_80 have the instructions, so `GPU_FLOAT_MMA` is 0 for older targets and under HIP and their modules lack the tile, which the backend then leaves unloaded: BF16 prompts on Turing and Volta and on AMD keep the exact rows, and `--dtype bf16` falls back to F32 there.
 
 ## Open questions
 

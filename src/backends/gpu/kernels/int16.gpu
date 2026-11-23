@@ -803,15 +803,15 @@ __device__ void f16_tile(const TileCall& c, const float* X) {
         }
 }
 
-#if GPU_TF32_MMA
-// The F16 class's prompt tile for BF16 weights on TF32 tensor cores, f16_tile's 64 by 64: weights widened exactly and activations rounded to binary16 as they are staged, both exact in TF32.
-// Each 8-value group's product starts from zero and is added to the F32 sum in k order, so a row's bits depend on nin alone (docs/CUDA.md, BF16 prompt tile).
-__device__ void bf16_tile(const TileCall& c, const float* X) {
-    constexpr int OUTS = kTileOut, ROWS = kTileRows, PAD = 36;   // a stage row holds a step's 32 values, padded so the fragment loads of a warp take 32 banks
+#if GPU_FLOAT_MMA
+// BF16 weights' prompt tile, f16_tile's 64 by 64 on tensor cores: TF32 over activations rounded to binary16 (the F16 class), or with Bf16 BF16 over activations rounded to BF16 (the BF16 class), weights exact in both.
+// Each group's product (8 values on TF32, 16 on BF16) starts from zero and is added to the F32 sum in k order, so a row's bits depend on nin alone (docs/CUDA.md, BF16 prompt tile).
+template <bool Bf16> __device__ void bf16_tile(const TileCall& c, const float* X) {
+    constexpr int OUTS = kTileOut, ROWS = kTileRows, WORDS = Bf16 ? 16 : 32, PAD = WORDS + 4;   // a stage row holds a step's 32 values as words (BF16 pairs or TF32 values), padded so the fragment loads of a warp take 32 banks
     const unsigned long long nout = c.nout[0], nrows = c.nrows, nin = c.nin, steps = nin / 32;
     __shared__ __attribute__((aligned(16))) unsigned ws[2][OUTS * PAD];
     __shared__ __attribute__((aligned(16))) unsigned xs[2][ROWS * PAD];
-    const int t = threadIdx.x, r = t / 4, seg = t % 4;   // weight row and activation row r staged, values 8 * seg..
+    const int t = threadIdx.x, r = t / 4, seg = t % 4, at = WORDS / 4 * seg;   // weight row and activation row r staged, values 8 * seg.. at word at
     const int lane = t % 32, g = lane / 4, q = lane % 4, mt = (t / 32) % 4, nb = (t / 128) * 32;   // a warp's 16 outputs from 16 * mt and 32 rows from nb
     const unsigned long long o = (unsigned long long)blockIdx.x * OUTS + r, b = (unsigned long long)blockIdx.y * ROWS + r;
     const bool wok = o < nout, xok = b < nrows;
@@ -827,13 +827,25 @@ __device__ void bf16_tile(const TileCall& c, const float* X) {
         x0 = *(const float4*)(xrow + k * 32), x1 = *(const float4*)(xrow + k * 32 + 4);
     };
     const auto half = [](float v) { return __float_as_uint(__half2float(__float2half_rn(v))); };
+    // f32_to_bf16 of src/core/bf16.hpp: nearest even, a NaN kept quiet.
+    const auto brain = [](float v) {
+        const unsigned u = __float_as_uint(v);
+        return (u & 0x7fffffffu) > 0x7f800000u ? (u >> 16) | 0x40u : (u + 0x7fffu + ((u >> 16) & 1u)) >> 16;
+    };
+    const auto pair = [&](float lo, float hi) { return brain(lo) | brain(hi) << 16; };
+    const uint4 zero = make_uint4(0, 0, 0, 0);
     const auto store = [&](int s) {
-        const uint4 w0 = wok ? make_uint4(wv.x << 16, wv.x & 0xffff0000u, wv.y << 16, wv.y & 0xffff0000u) : make_uint4(0, 0, 0, 0);
-        const uint4 w1 = wok ? make_uint4(wv.z << 16, wv.z & 0xffff0000u, wv.w << 16, wv.w & 0xffff0000u) : make_uint4(0, 0, 0, 0);
-        const uint4 h0 = xok ? make_uint4(half(x0.x), half(x0.y), half(x0.z), half(x0.w)) : make_uint4(0, 0, 0, 0);
-        const uint4 h1 = xok ? make_uint4(half(x1.x), half(x1.y), half(x1.z), half(x1.w)) : make_uint4(0, 0, 0, 0);
-        *(uint4*)&ws[s][r * PAD + 8 * seg] = w0, *(uint4*)&ws[s][r * PAD + 8 * seg + 4] = w1;
-        *(uint4*)&xs[s][r * PAD + 8 * seg] = h0, *(uint4*)&xs[s][r * PAD + 8 * seg + 4] = h1;
+        if constexpr (Bf16) {
+            *(uint4*)&ws[s][r * PAD + at] = wok ? wv : zero;
+            *(uint4*)&xs[s][r * PAD + at] = xok ? make_uint4(pair(x0.x, x0.y), pair(x0.z, x0.w), pair(x1.x, x1.y), pair(x1.z, x1.w)) : zero;
+        } else {
+            const uint4 w0 = wok ? make_uint4(wv.x << 16, wv.x & 0xffff0000u, wv.y << 16, wv.y & 0xffff0000u) : zero;
+            const uint4 w1 = wok ? make_uint4(wv.z << 16, wv.z & 0xffff0000u, wv.w << 16, wv.w & 0xffff0000u) : zero;
+            const uint4 h0 = xok ? make_uint4(half(x0.x), half(x0.y), half(x0.z), half(x0.w)) : zero;
+            const uint4 h1 = xok ? make_uint4(half(x1.x), half(x1.y), half(x1.z), half(x1.w)) : zero;
+            *(uint4*)&ws[s][r * PAD + at] = w0, *(uint4*)&ws[s][r * PAD + at + 4] = w1;
+            *(uint4*)&xs[s][r * PAD + at] = h0, *(uint4*)&xs[s][r * PAD + at + 4] = h1;
+        }
     };
     // Step k computes from stage k % 2 while step k + 1's values, loaded before it, are stored to the other stage.
     load(0);
@@ -842,8 +854,9 @@ __device__ void bf16_tile(const TileCall& c, const float* X) {
     for (unsigned long long k = 0; k < steps; ++k) {
         const int s = (int)(k & 1);
         if (k + 1 < steps) load(k + 1);
+        // A group is 8 words in either form, at the same fragment positions (port.h, mma_tf32 and mma_bf16).
 #pragma unroll
-        for (int kk = 0; kk < 32; kk += 8) {
+        for (int kk = 0; kk < WORDS; kk += 8) {
             const unsigned* wa = &ws[s][(16 * mt + g) * PAD + kk + q];
             const unsigned a[4] = {wa[0], wa[8 * PAD], wa[4], wa[8 * PAD + 4]};
 #pragma unroll
@@ -851,7 +864,8 @@ __device__ void bf16_tile(const TileCall& c, const float* X) {
                 const unsigned* xb = &xs[s][(nb + 8 * n + g) * PAD + kk + q];
                 const unsigned bv[2] = {xb[0], xb[4]};
                 float d[4];
-                mma_tf32(d, a, bv);
+                if constexpr (Bf16) mma_bf16(d, a, bv);
+                else mma_tf32(d, a, bv);
 #pragma unroll
                 for (int i = 0; i < 4; ++i) acc[n][i] = acc[n][i] + d[i];
             }
@@ -2955,8 +2969,9 @@ LLMX_HALF(llmx_q8_0_half8_16_r4, 16, 4, 4)
 
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_tile16(LLMX_GRID_CONST TileCall c, const short* q, const float* dx) { q8_0_tile<short, 4>(c, q, dx); }
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_f16_tile(LLMX_GRID_CONST TileCall c, const float* X) { f16_tile(c, X); }
-#if GPU_TF32_MMA
-extern "C" __global__ void __launch_bounds__(kThreads) llmx_bf16_tile(LLMX_GRID_CONST TileCall c, const float* X) { bf16_tile(c, X); }
+#if GPU_FLOAT_MMA
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_bf16_tile(LLMX_GRID_CONST TileCall c, const float* X) { bf16_tile<false>(c, X); }
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_bf16_tile_bf16(LLMX_GRID_CONST TileCall c, const float* X) { bf16_tile<true>(c, X); }
 #endif
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_f8_e4m3_tile(LLMX_GRID_CONST TileCall c, const float* X, const float* grid, unsigned long long shift) { f8_tile(c, X, grid, (unsigned)shift); }
 extern "C" __global__ void LLMX_TILE8_BOUNDS(2) llmx_q8_0_tile8(LLMX_GRID_CONST TileCall c, const signed char* q, const float* dx) { q8_0_tile<signed char, 4>(c, q, dx); }

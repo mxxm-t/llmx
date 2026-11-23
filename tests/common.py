@@ -467,8 +467,8 @@ def hf_bounds(dtype, devices, family=None, fixture=None):
         assert isinstance(device, list) and all(isinstance(p, str) for p in device), "malformed matrix-path witness"
         assert len(device) == len(set(device)), "duplicate matrix-path witness"
         paths.update(device)
-    assert paths and paths <= {"f32", "f16", "f16-mma", "bf16", "block-int16", "block-int8"}, "missing, unknown or unqualified matrix path"
-    allowed = {"f32": {"f32"}, "f16": {"f32", "f16", "f16-mma", "block-int16"}, "bf16": {"f32", "bf16"}, "int8": {"f32", "f16-mma", "block-int16", "block-int8"}}
+    assert paths and paths <= {"f32", "f16", "f16-mma", "bf16", "bf16-mma", "block-int16", "block-int8"}, "missing, unknown or unqualified matrix path"
+    allowed = {"f32": {"f32"}, "f16": {"f32", "f16", "f16-mma", "block-int16"}, "bf16": {"f32", "bf16", "bf16-mma"}, "int8": {"f32", "f16-mma", "block-int16", "block-int8"}}
     assert paths <= allowed[dtype], "matrix paths disagree with the execution dtype"
     if paths == {"f32"}:
         bound = F32_HF_LOGIT_BOUND
@@ -490,6 +490,8 @@ def hf_bounds(dtype, devices, family=None, fixture=None):
         doc = json.load(f)
     # The TF32 tile's sums take the F16 budget only once its own calibration record shows it within that budget (tools/calibrate_dtype.py, f16-mma).
     assert "f16-mma" not in paths or "f16-mma" in doc["dtypes"], "f16-mma has no frozen calibration record"
+    # The BF16 tile's sums likewise take the BF16 budget only once its record shows it within that budget (tools/calibrate_dtype.py, bf16-mma).
+    assert "bf16-mma" not in paths or "bf16-mma" in doc["dtypes"], "bf16-mma has no frozen calibration record"
     if family == "q3-k" and dtype != "bf16":
         family = None
     if family is not None:

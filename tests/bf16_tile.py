@@ -43,11 +43,11 @@ def golden():
 
 
 def witnessed(model, text, dtype, ubatch, expected):
-    """The matrix paths of `logits` over `text`'s last two rows, which must be each device's `expected` set, or hold no f16-mma where it is None; the last row is held to the HF golden's case."""
+    """The matrix paths of `logits` over `text`'s last two rows, which must be each device's `expected` set, or hold no tensor-core path where it is None; the last row is held to the HF golden's case."""
     p = common.run_process(["logits", model, text, "--last", "2", "--top", "257", "--dtype", dtype, "--ubatch", str(ubatch)], cache="f32", text=True)
     assert p.returncode == 0, "bf16-tile logits failed: " + p.stdout + p.stderr
     devices = common.matrix_paths(p.stderr)["devices"]
-    assert not any("f16-mma" in d for d in devices) if expected is None else all(set(d) == expected for d in devices), "bf16-tile %s ubatch %d over %d rows: paths %s, expected %s" % (dtype, ubatch, len(text), devices, sorted(expected or ()))
+    assert not any({"f16-mma", "bf16-mma"} & set(d) for d in devices) if expected is None else all(set(d) == expected for d in devices), "bf16-tile %s ubatch %d over %d rows: paths %s, expected %s" % (dtype, ubatch, len(text), devices, sorted(expected or ()))
     fields = p.stdout.splitlines()[-1].split()
     assert int(fields[0]) == len(text) - 1, p.stdout
     return {int(i): float(v) for i, v in zip(fields[1::2], fields[2::2])}, common.hf_execution(p.stderr)
@@ -66,12 +66,13 @@ def run():
             error, _ = common.check_hf_fixture(name, model, fixture["cases"], fixture["perplexity"], LONG, (1, 2, 5, 16, 80))
             worst = max(worst, error)
             long_case = fixture["cases"][-1]
-            # On CUDA every product of a call of two rows or more takes the tile, int8 included since BF16 has no 8-bit build; a call of one row, and f32, keep the exact products.
+            # On CUDA every product of a call of two rows or more takes the TF32 tile, int8 included since BF16 has no 8-bit build, and at bf16 the BF16 tile; a call of one row, and f32, keep the exact products.
             for text, dtype, ubatch, expected in ((LONG, "f16", 16, {"f16-mma"}), (LONG, "f16", 80, {"f16-mma"}), (LONG, "int8", 16, {"f16-mma"}),
-                                                  ("ab", "f16", 16, {"f16-mma"}), (LONG, "f16", 1, {"f32"}), (LONG, "f32", 16, {"f32"})):
+                                                  ("ab", "f16", 16, {"f16-mma"}), (LONG, "f16", 1, {"f32"}), (LONG, "f32", 16, {"f32"}),
+                                                  (LONG, "bf16", 16, {"bf16-mma"}), (LONG, "bf16", 80, {"bf16-mma"}), (LONG, "bf16", 1, {"f32"})):
                 got, bounds = witnessed(model, text, dtype, ubatch, expected if cuda else None)
                 case = next(c for c in fixture["cases"] if c["text"] == text)
                 worst = max(worst, common.hf_logit_error("%s %s ubatch %d" % (name, dtype, ubatch), got, case["logits"], bound=bounds["logit"]))
     print("bf16-tile: BF16 weights, widths 64/96, all 257 logits and NLL vs HF at ubatch 1/2/5/16/80, threads 1/4, tied/untied; %s; max error %.8f  [ok]"
-          % ("f16-mma witnessed on every product of 2 rows or more at f16 and int8, f32 at one row and at f32" if cuda else "no f16-mma off CUDA", worst))
+          % ("f16-mma witnessed on every product of 2 rows or more at f16 and int8, bf16-mma at bf16, f32 at one row and at f32" if cuda else "no tensor-core path off CUDA", worst))
     return True

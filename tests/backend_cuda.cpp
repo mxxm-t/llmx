@@ -297,6 +297,9 @@ void types(const CudaDevice& d, Backend& g, Backend& cpu) {
         guarded("stream_twins" + form, [&] { twin_checks::stream_twins(g, dt, cuda_take_launches, require); });
     }
     guarded("imma_tile", [&] { imma_tile(g, d.caps); });
+    // An explicit bf16 is carried on the BF16 tile and F32 rows, so it is emulated and never in the auto list (docs/PRECISION.md, section 2).
+    require(g.native_dtypes() == std::vector<Dtype>{Dtype::f16, Dtype::f32, Dtype::int8} && g.emulates_dtype(Dtype::bf16) && !g.emulates_dtype(Dtype::f16), "CUDA lists f16, f32 and int8 and emulates bf16");
+    require(g.dtype_path(Dtype::bf16) == "bf16 (BF16 tile inputs), f32 (other products, decode columns, routers)", "CUDA's bf16 catalog names the BF16 tile and its F32 products: " + g.dtype_path(Dtype::bf16));
     twin_checks::Bits bits{d.caps, cuda_profile, cuda_take_launches, [](bool ok, const std::string& what) { if (!ok) require(false, what); }};
     const int before = failures;
     guarded("half_tile", [&] { bits.half_tile(g, true); });

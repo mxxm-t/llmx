@@ -284,7 +284,7 @@ class SlicePeriods {
 public:
     // The points a stage keeps in a band, its latest: about sixteen prefills of sixteen slices, so the line follows the present costs and planning stays bounded however many prompts run.
     static constexpr size_t kBandPoints = 256;
-    // The prefills a band's calibration averages over, and the share of the least fixed cost it may move a stage's, chosen by the simulation in docs/src/model-slicing.md.
+    // The prefills a band's calibration averages over, and the share of the least fixed cost of the lines it is added to that it may move a stage's, chosen by the simulation in docs/src/model-slicing.md.
     static constexpr size_t kCalibrationWindow = 4;
     static constexpr double kCalibrationShare = 0.5;
 
@@ -328,7 +328,7 @@ public:
     }
 
     // A prefill's slices, each stage's busy time on each (negative where unmeasured), and its wall time against `finish`, its cut's prediction, which calibrates the fixed costs the busy times leave out.
-    // Each band adds the mean of its last kCalibrationWindow samples, each the residual over the finish's change for one more ms of every fixed cost, bounded by kCalibrationShare of the least (docs/src/model-slicing.md).
+    // Each band adds the mean of its last kCalibrationWindow samples, each the residual over the finish's change for one more ms of every fixed cost on top of the calibration applied (docs/src/model-slicing.md).
     void observe(const std::vector<std::pair<size_t, size_t>>& slices, const std::vector<std::vector<double>>& busy, double wall_ms, const std::vector<double>& finish) {
         const size_t n = std::min(slices.size(), busy.size()), prefill = prefills_++;
         std::vector<size_t> seen;
@@ -363,24 +363,20 @@ public:
         const double cells = more.back() - at.back();
         if (!(cells > 0)) return;
         for (size_t b : seen) {
+            const double applied = calibration(b, fit(b, finish.size()));
             auto& [mean, samples] = extra_[b];
-            samples.push_back(mean + (wall_ms - finish.back()) / cells);
+            samples.push_back(applied + (wall_ms - finish.back()) / cells);
             if (samples.size() > kCalibrationWindow) samples.erase(samples.begin());
             mean = 0;
             for (const double x : samples) mean += x / double(samples.size());
-            const auto raw = fit(b, finish.size());
-            double least = std::numeric_limits<double>::infinity();
-            for (const StageLine& l : raw) least = std::min(least, l.fixed_ms);
-            if (!raw.empty()) mean = std::clamp(mean, -kCalibrationShare * least, kCalibrationShare * least);
         }
     }
 
     // Each stage's line in `band`, else in the nearest band below where every stage has one, with `band`'s calibration; none until then.
     std::vector<StageLine> lines(size_t band, size_t stages) const {
         auto l = fit(band, stages);
-        const auto e = extra_.find(band);
-        if (e != extra_.end())
-            for (StageLine& x : l) x.fixed_ms = std::max(0.0, x.fixed_ms + e->second.first);
+        const double extra = calibration(band, l);
+        for (StageLine& x : l) x.fixed_ms += extra;
         return l;
     }
 
@@ -420,8 +416,17 @@ private:
         if (std::fabs(k - depth_) > 0.1 * depth_) extra_.clear();
         depth_ = k;
     }
-    std::map<size_t, std::pair<double, std::vector<double>>> extra_;   // a band's fixed-cost calibration: its bounded mean and its last samples
+    std::map<size_t, std::pair<double, std::vector<double>>> extra_;   // a band's fixed-cost calibration: the mean of its last samples and the samples
     size_t prefills_ = 0;
+
+    // `band`'s calibration bounded by kCalibrationShare of the least fixed cost of `l`, the lines it is added to, so every fixed cost stays at least half its line's whatever line it was learned against.
+    double calibration(size_t band, const std::vector<StageLine>& l) const {
+        const auto e = extra_.find(band);
+        if (e == extra_.end() || l.empty()) return 0;
+        double least = std::numeric_limits<double>::infinity();
+        for (const StageLine& x : l) least = std::min(least, x.fixed_ms);
+        return std::clamp(e->second.first, -kCalibrationShare * least, kCalibrationShare * least);
+    }
 
     // Each stage's line in `band`, else in the nearest band below where every stage has one, through the points of prefills `since` to before `until`.
     std::vector<StageLine> fit(size_t band, size_t stages, size_t since = 0, size_t until = std::numeric_limits<size_t>::max()) const {

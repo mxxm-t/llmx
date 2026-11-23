@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(llmx VERSION 0.2.0 LANGUAGES CXX)
+project(llmx VERSION 0.2.1 LANGUAGES CXX)
 
 # llmx: a dependency-free GGUF runtime, built on Windows, Linux and macOS.
 # The CPU backend is always built; the Vulkan backend is opt-in through LLMX_HAS_BACKEND_VULKAN and needs its SDK, the ROCm backend through LLMX_HAS_BACKEND_ROCM, on Linux, with the ROCm SDK, and the CUDA backend through LLMX_HAS_BACKEND_CUDA, on Linux, with the CUDA toolkit.

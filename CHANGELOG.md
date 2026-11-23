@@ -6,6 +6,8 @@ Each release's notes on the [releases page](https://github.com/mxxm-t/llmx/relea
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-23
+
 ### Added
 
 - The chat companion shows web and video search results in a conversation's tool activity as linked titles with their sites and, where the search gives them, descriptions or durations; an empty result says so.

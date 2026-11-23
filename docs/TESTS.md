@@ -1689,6 +1689,7 @@ It prints one skip line where llmx does not run the architecture, on a device wh
 A tensor group's sums are held to the vendor collective library's all-reduce on the same devices by `tools/sums_vs_reference.py`.
 It runs the `vsnccl` mode of `llmx-backend-rocm-test` or `llmx-backend-cuda-test`, which times a joined group's in-place F32 sums per size, and `all_reduce_perf` of rccl-tests or nccl-tests in one process over the same first W visible devices, the arms alternating cycle by cycle.
 The sizes are 1 to 512 rows of a 5120-wide hidden state, the 65537-float odd row and a 256-float row, both arms take the median of 15 repetitions of the same number of back-to-back calls, and the check fails where llmx's median over the cycles is slower than the reference's at any size and width.
+vsnccl submits each member once per timed window of calls, as a pass submits a stage and as all_reduce_perf queues its calls, and prints the time with a submit after every sum beside it as `llmx-each`, which the check does not judge.
 An earlier build's test binary, given as the before arm, is timed in the same cycles and printed beside them without being judged.
 A run that fails or passes `--timeout` (300 s) is reported with its last line and the session goes on, and a size llmx or the reference has no time for fails the check.
 No hosted runner has more than one GPU, so it runs by hand on a multi-GPU machine:

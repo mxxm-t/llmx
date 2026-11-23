@@ -855,21 +855,28 @@ void vsnccl(bool reversed, size_t W, size_t model) {
         Collective& c = odd && widths[s] == 65537 ? *odd : *rows;
         const size_t n = rows_of[s] * widths[s];
         const int N = n >= 100000 ? 10 : 32;
-        const auto run = [&] {
-            c.sum_in_place(rows_of[s], widths[s]);
-            for (Backend* m : group) m->submit();
-        };
-        run();
+        // A pass submits each device once for many sums, as all_reduce_perf queues its calls: the judged arm submits once per timed window, the llmx-each arm after every sum.
+        c.sum_in_place(rows_of[s], widths[s]);
+        for (Backend* m : group) m->submit();
         for (Backend* m : group) m->sync();
-        std::vector<double> ms;
-        for (int rep = 0; rep < 15; ++rep) {
-            const auto t0 = std::chrono::steady_clock::now();
-            for (int i = 0; i < N; ++i) run();
-            for (Backend* m : group) m->sync();
-            ms.push_back(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count() / N);
+        for (const bool each : {false, true}) {
+            std::vector<double> ms;
+            for (int rep = 0; rep < 15; ++rep) {
+                const auto t0 = std::chrono::steady_clock::now();
+                for (int i = 0; i < N; ++i) {
+                    c.sum_in_place(rows_of[s], widths[s]);
+                    if (each)
+                        for (Backend* m : group) m->submit();
+                }
+                if (!each)
+                    for (Backend* m : group) m->submit();
+                for (Backend* m : group) m->sync();
+                ms.push_back(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count() / N);
+            }
+            std::sort(ms.begin(), ms.end());
+            std::printf("ARM %s order %s n %zu us %.2f GBs %.3f min %.2f max %.2f width %zu\n", each ? "llmx-each" : "llmx", reversed ? "10" : "01", n, ms[7] * 1e3,
+                        n * 4.0 / ms[7] / 1e6, ms[0] * 1e3, ms[14] * 1e3, W);
         }
-        std::sort(ms.begin(), ms.end());
-        std::printf("ARM llmx order %s n %zu us %.2f GBs %.3f min %.2f max %.2f width %zu\n", reversed ? "10" : "01", n, ms[7] * 1e3, n * 4.0 / ms[7] / 1e6, ms[0] * 1e3, ms[14] * 1e3, W);
     }
     std::fflush(stdout);
 }

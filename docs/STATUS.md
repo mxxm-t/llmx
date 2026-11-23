@@ -650,6 +650,23 @@ A saved tool result opens the latest file in the editor or resumes unsaved chang
   The layer split (width 1, 64 heads a card, so the 64-head build) is flat: main 2134.63 and 2132.32, the branch 2137.03 and 2138.29.
 - **Left:** `backend-cuda sparse_tile_pair` at the next CUDA card session, the suite on a device and the hosted run at the landing head; README unchanged (kernel speed only).
 - **Gotchas:** the 64-head and 32-head builds decode the same 640 kept rows a query row, so halving the heads does not halve the pair: Fable's fit of the 128- and 512-row slopes puts about 1.7 ms of the 4.91 in the per-row decode and staging, the target for a decoded-once copy of the kept rows.
+## Sums timed per window of calls (2026-11-23, SUMS42 to SUMS43, branch tests/sums-window-submit on main 3e4d6d422; tests and docs only, lands by fast-forward as one commit)
+
+**Goal.** `tools/sums_vs_reference.py` judges llmx sums the way a pass issues them, so the comparison with `all_reduce_perf` is like for like.
+
+**Done.** The `vsnccl` mode of `llmx-backend-rocm-test` and `llmx-backend-cuda-test` submits each member once per timed window of back-to-back sums, as a pass submits a stage and as all_reduce_perf queues its calls, and prints the time with a submit after every sum beside it as `llmx-each`, which the check does not judge. Every sum still pays its host issue, and each reads the previous one in place, so sums do not overlap (Fable). docs/TESTS.md says so.
+
+| MI50 renderD132-135, 5 alternating cycles, median us | W2 256 | W3 256 | W4 256 | W4 5120 | W4 2621440 |
+|---|---|---|---|---|---|
+| main, submit per sum | 11.32 | 15.21 | 34.85 | 27.26 | 2074.61 |
+| this branch, per window | 5.82 | 7.60 | 10.95 | 15.51 | 2069.02 |
+| RCCL all_reduce_perf | 16.79 | 24.87 | 31.07 | 46.29 | 2361.00 |
+
+All 33 cells pass at widths 2, 3 and 4; with a submit after every sum, main loses W4 256 to RCCL. Large sums time the same either way, so the window removes only submit cost. The full table and log are `/opt/claude-work/sums43/out/table1.md` and `/opt/claude-work/sums42/out/c7.log` on the rig (host contended, load average 14 to 35).
+
+**Left.** Nothing for this change; the CUDA arm runs at the next CUDA card session.
+
+**Gotchas.** A pass has producer kernels between sums, so its sums start with member skew the bench does not have.
 ## placement's pipelined cut under host load (2026-11-22, TFIX1 to TFIX3, branch fix/placement-device-times on main d85448509; tests and docs only, lands by fast-forward as one commit)
 
 **Goal.** `placement` stopped failing "a pipelined prompt's cut did not follow its stages' own lines" when the host is loaded, with no placement bug behind it.

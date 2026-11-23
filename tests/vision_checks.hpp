@@ -37,8 +37,53 @@ std::vector<float> attend(backend::Backend& b, const std::vector<float>& q, cons
     return out;
 }
 
+// Attention over n keys where key 0 scores 18.25 above the rest, its values +1 against -1 for every other key, so each other weight is about 1.2e-8 of the total.
+// Returns the worst error of `b`'s outputs as a fraction of 4e-6 (1 + |ref|) against a double softmax: one F32 chain over the keys drops every small product against the leading one (docs/PRECISION.md, Attention value sums).
+double dominant_key(backend::Backend& b, int hd, size_t n) {
+    const int heads = 2;
+    const size_t w = size_t(heads) * size_t(hd);
+    const float root = std::sqrt(float(hd));
+    std::vector<float> q(n * w, 0.0f), k = uniform(n * w, 420 + uint32_t(hd), -0.25f, 0.25f), v(n * w, -1.0f);
+    for (size_t t = 0; t < n; ++t)
+        for (int h = 0; h < heads; ++h) {
+            q[t * w + size_t(h) * size_t(hd)] = 1.0f;
+            k[t * w + size_t(h) * size_t(hd)] *= root;
+        }
+    for (int h = 0; h < heads; ++h) {
+        k[size_t(h) * size_t(hd)] = 18.25f * root;
+        for (int i = 0; i < hd; ++i) v[size_t(h) * size_t(hd) + size_t(i)] = 1.0f;
+    }
+    // Every query row is the same, so a head's output is one value: the weighted mean of +1 and -1 by the keys' first dimensions.
+    std::vector<double> ref(static_cast<size_t>(heads));
+    for (int h = 0; h < heads; ++h) {
+        double m = -1e300, num = 0.0, den = 0.0;
+        for (size_t t = 0; t < n; ++t) m = std::max(m, double(k[t * w + size_t(h) * size_t(hd)]) / std::sqrt(double(hd)));
+        for (size_t t = 0; t < n; ++t) {
+            const double e = std::exp(double(k[t * w + size_t(h) * size_t(hd)]) / std::sqrt(double(hd)) - m);
+            num += e * double(v[t * w + size_t(h) * size_t(hd)]);
+            den += e;
+        }
+        ref[size_t(h)] = num / den;
+    }
+    const std::vector<float> got = attend(b, q, k, v, n, n, heads, hd);
+    double worst = 0.0;
+    for (size_t i = 0; i < got.size(); ++i) {
+        const double r = ref[(i % w) / size_t(hd)];
+        worst = std::max(worst, std::fabs(double(got[i]) - r) / (4e-6 * (1.0 + std::fabs(r))));
+    }
+    return worst;
+}
+
 size_t check_ops(Pair& p) {
     size_t values = 0;
+    // A long view's value sums hold small weights beside a dominant one, at the towers' head widths, an Inkling 1080p image's 1296 patches and 4096.
+    for (int hd : {64, 72})
+        for (size_t n : {size_t(1296), size_t(4096)}) {
+            const double e = dominant_key(p.dev, hd, n);
+            const std::string at = "attention over " + std::to_string(n) + " keys with a dominant one, head width " + std::to_string(hd) + ": " + std::to_string(e) + " of its bound";
+            require(e <= 1.0, at.c_str());
+            values += n * 2 * size_t(hd);
+        }
     for (size_t width : {size_t(48), size_t(72), size_t(1152), size_t(4304)}) {
         const size_t rows = 37;
         const auto x = uniform(rows * width, 400 + uint32_t(width), -3.0f, 5.0f), bias = uniform(width, 401 + uint32_t(width));

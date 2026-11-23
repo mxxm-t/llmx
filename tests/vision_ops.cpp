@@ -12,6 +12,7 @@
 
 #include "backends/cpu/cpu_backend.hpp"
 #include "core/fp16.hpp"
+#include "vision_checks.hpp"
 
 namespace {
 
@@ -415,6 +416,16 @@ void attention_full() {
     }
 }
 
+// The value sums over 1296 and 4096 keys hold small weights beside a dominant one (vision::dominant_key), at the towers' head widths.
+void dominant_key() {
+    CpuBackend cpu;
+    for (int hd : {64, 72})
+        for (size_t n : {size_t(1296), size_t(4096)}) {
+            const double e = vision::dominant_key(cpu, hd, n);
+            require(e <= 1.0, "attention over " + std::to_string(n) + " keys with a dominant one, head width " + std::to_string(hd) + ": " + std::to_string(e) + " of its bound");
+        }
+}
+
 void declared() {
     CpuBackend cpu;
     for (backend::Op op : {backend::Op::layer_norm, backend::Op::gelu, backend::Op::add_bias, backend::Op::mix_rows, backend::Op::rope_streams,
@@ -433,6 +444,7 @@ int main() {
         mix_rows();
         rope_streams();
         attention_full();
+        dominant_key();
     } catch (const std::exception& e) {
         std::cerr << "vision-ops: FAIL: " << e.what() << "\n";
         return 1;

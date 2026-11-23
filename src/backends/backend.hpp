@@ -93,14 +93,14 @@ inline bool overlaps(CSlice a, size_t an, CSlice b, size_t bn) {
 
 // int8 rounds the inputs of matrix products to 8 bits (docs/PRECISION.md): a speed option below the default precision, which auto never chooses.
 enum class Dtype { f32, f16, bf16, int8 };
-enum class MatrixPath { f32, f16, bf16, block_int16, block_int8 };
+enum class MatrixPath { f32, f16, bf16, block_int16, block_int8, f16_mma };
 
 // The dispatched matrix forms, accumulated without allocating; read after the work has completed.
 class MatrixPaths {
 public:
     void record(MatrixPath path) { bits_ |= 1u << unsigned(path); }
     std::vector<std::string> take() {
-        static const char* const names[] = {"f32", "f16", "bf16", "block-int16", "block-int8"};
+        static const char* const names[] = {"f32", "f16", "bf16", "block-int16", "block-int8", "f16-mma"};
         std::vector<std::string> paths;
         for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i)
             if (bits_ & (1u << i)) paths.emplace_back(names[i]);

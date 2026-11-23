@@ -70,6 +70,7 @@ Eligible Vulkan NVFP4 tiles can round F32 activations to binary16 inputs, then w
 - `f32`, `f16`, `bf16`: activations in that type;
 - `block-int16`: blocks of 32 scaled to 16-bit integers, which may implement the F16 class once it passes the F16 budget and its exact range checks (rule 4);
 - `block-int8`: blocks of 32 scaled to 8-bit integers, the form of the `int8` class (section 5), held to that class's own budget (section 4); auto never selects it.
+- `f16-mma`: the F16 class's binary16 activations and BF16 weights on CUDA's TF32 tensor cores, each 8-value group summed by the instruction's own alignment from zero and added in F32 in k order; it takes the F16 budget because its calibration record shows it within that budget (TF32 group sums, below).
 The groups name weight types (`MXFP4`), `quantized` for packed quantized formats excluding F32, F16 and BF16 storage, or a phase (`prompts`, `decode`).
 
 **Witnesses.** A static catalog describes possible paths; it does not prove which path a call executed. Tests use the actual dispatched path for the measured phase, shape and operation role, through a counter, kernel name or forced-path unit check. The selected plan alone never chooses a looser bound for a path that stayed F32. Check both sides of every threshold and grouped, routed and split callers. Existing Vulkan per-kernel timing names may provide this evidence without a new profiling system.
@@ -316,6 +317,17 @@ A zero term is +0, where the old forms gave -0 for some signs of the scale, the 
 MXFP4 keeps the multiply, since its E8M0 scale times 1.5 * 2^23 can overflow.
 The CUDA tensor-core tile's biased sums keep the multiply (`sum_float`), and the 16-bit tiles and the row builds take no bias.
 Under CUDA the vector body still runs for IQ2_XS, IQ2_S, IQ1_M and NVFP4, and there the no-min types keep `k_term`, so CUDA's bits are main's.
+
+### TF32 group sums of the CUDA BF16 tile
+
+`bf16_tile` (docs/CUDA.md, BF16 prompt tile) sums each 8-value group of exact products in the TF32 instruction, which aligns them to the largest and drops low bits rather than rounding as IEEE F32 does.
+`python tools/calibrate_dtype.py --class f16-mma --output FILE` measures that class: first the frozen F16 class must reproduce on each of the 30 fixtures, then every matrix is rounded to BF16 in the reference and the candidate alike and each non-router product is summed by each of 13 sum models, the probed one below and 0, 2 or 3 bits below a product's 24 kept, truncated toward zero or down, the group's sum truncated or rounded to F32.
+Every model gave the same maximum, logit 0.00183499 and NLL 0.00016782 (mxfp4-moe seed 12345), below the plain F16 class on the same BF16 weights (0.00190556 and 0.00016990), so the cost is binary16 rounding and not the sums, and the spread between models is binary16 ties moved by F32 sum order.
+Those 30 fixtures have widths the tile never takes (37, 19 and 84), so the record also holds the 10 of `tests/bf16_tile.py`, tied and untied at its own weights and 4 further seeds, every width a multiple of 32; there the plain F16 class on the BF16 weights must stay below the F16 budget, and it measured at most logit 0.00063205 and NLL 0.00002978, the f16-mma class 0.00063205 and 0.00003397 (5.2 and 8.7 times below the budget), leaving the record's maxima unchanged.
+Each model's alignment cut changed a product in 0.52 to 4.0 million groups over the 40 fixtures (`model_max`, `cut_groups`), so the sums the models differ on were reached.
+The record is `dtypes["f16-mma"]` in `tests/data/dtype_budget.json`, refrozen with the tile's fixture before any device run, and the tool refuses to write it at or above the F16 budget; `common.hf_bounds` then holds `f16-mma` runs to the F16 budget (0.00330472 and 0.00029664, 1.80 and 1.77 times the record's maxima), the stricter choice.
+The probe of the instruction on an RTX 3090 (sm_86, docs/STATUS.md, CUDA BF16 prompt tile) fits none of those 12 but fits `1:rz:rz:inputs:k4` bit for bit: two chained sums of 4, the first half's F32 result one more term of the second, each aligned to its terms' largest exponent (a product's the sum of its inputs' exponents), one guard bit, truncated toward zero, and the sum truncated to F32.
+That model (`PROBED` in the tool) is calibrated first and the 12 stay beside it for architectures not yet probed; a card that fits neither is recalibrated before any candidate HF run.
 
 ## 9. Precision and range (clarified 2026-09-30)
 

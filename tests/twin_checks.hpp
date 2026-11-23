@@ -194,7 +194,7 @@ inline void exact_rows(Backend& g, DeviceProfile& profile, const std::vector<uin
         // The column types take the 8-row build past four rows and the 4-row build for up to four, or for a remainder of up to four past whole groups of eight, up to the profile's exact_cols_upto rows.
         // They run at the device's exact_cols_upto, the counts past it on the row block (4 and 5 stand at the default's edge), at 1, every count on the row block, and at 33, every count on the column builds.
         const bool cols = type == quant::GGML_TYPE_F32 || type == quant::GGML_TYPE_BF16 || type == quant::GGML_TYPE_F16;
-        const auto on_cols = [&](size_t n) { return cols && n <= profile.exact_cols_upto; };
+        const auto on_cols = [&](size_t n) { return cols && profile.exact_on_columns(n); };
         const auto build = [&](size_t n) { return on_cols(n) ? "llmx_matmul_cols" + std::string(n <= 4 ? "4_" : "8_") + tname : "llmx_matmul_rows_" + tname; };
         const auto tail = [&](size_t n) { return on_cols(n) && n > 4 && n % 8 && n % 8 <= 4; };
         const std::vector<size_t> widths = block == 1 ? std::vector<size_t>{2560, 2561, 100, 10240} : block == 32 ? std::vector<size_t>{2560, 2080} : std::vector<size_t>{2560};
@@ -986,22 +986,25 @@ struct Bits {
 
     void exact_close(const std::vector<float>& got, const DoubleSums& d, const std::string& what) const { require(twin_checks::exact_close(got, d), what); }
 
-    // F16 weights' prompt tile (half_product): outputs within the F32 bound of the double sum over binary16-rounded inputs, subnormal and signed-zero weights and inputs among them, past every tile edge.
-    // A tile row has the bits of the same row in a call of another row count, added outputs the plain ones added, and decode columns in a call the exact product's bits.
-    void half_tile(Backend& g) {
+    // The 16-bit weights' prompt tiles (half_product, and BF16's TF32 tile where bf16_tile): outputs within the F32 bound of the double sum over binary16-rounded inputs, subnormal and signed-zero weights among them, past every tile edge.
+    // A tile row has the bits of the same row in a call of another row count, added outputs the plain ones added, and decode columns the exact product's bits; without the TF32 tile BF16 keeps the exact rows.
+    void half_tile(Backend& g, bool bf16_tile) {
+        tile_edges(g, bf16_tile);
         const size_t R = 130;
+        for (const bool bf16 : {false, true})
         for (size_t nin : {size_t(32), size_t(96), size_t(2560)})
             for (size_t nout : {size_t(1), size_t(63), size_t(64), size_t(65), size_t(130)}) {
-                const std::string shape = "F16 " + std::to_string(nin) + "->" + std::to_string(nout);
+                const std::string shape = std::string(bf16 ? "BF16 " : "F16 ") + std::to_string(nin) + "->" + std::to_string(nout);
+                const std::string tile = bf16 ? "llmx_bf16_tile" : "llmx_f16_tile";
                 std::vector<uint8_t> w(nin * nout * 2);
                 std::vector<float> wf(nin * nout);
                 const std::vector<float> wv = row_classes::values(nin * nout, uint32_t(nin + nout), 0.05f);
                 for (size_t i = 0; i < wf.size(); ++i) {
-                    uint16_t h = f32_to_f16(wv[i]);
-                    if (i % 97 == 3) h = uint16_t(1 + i % 1023);   // subnormal weights
+                    uint16_t h = bf16 ? f32_to_bf16(i % 83 == 7 ? wv[i] * 1e-30f : i % 79 == 11 ? wv[i] * 1e6f : wv[i]) : f32_to_f16(wv[i]);   // BF16 weights below and above binary16's range
+                    if (i % 97 == 3) h = uint16_t(1 + i % (bf16 ? 127 : 1023));   // subnormal weights
                     if (i % 89 == 5) h = i % 2 ? 0x8000 : 0x0000;
                     w[2 * i] = uint8_t(h), w[2 * i + 1] = uint8_t(h >> 8);
-                    wf[i] = f16_to_f32(h);
+                    wf[i] = bf16 ? bf16_to_f32(h) : f16_to_f32(h);
                 }
                 std::vector<float> x = row_classes::values(nin * R, uint32_t(nin + 3 * nout));
                 for (size_t i = 0; i < x.size(); i += 53) x[i] = (i % 2 ? -3e-6f : 4e-7f) * float(1 + i % 5);   // inputs rounding to binary16 subnormals
@@ -1009,12 +1012,18 @@ struct Bits {
                 for (size_t i = 0; i < x.size(); ++i) xh[i] = f16_to_f32(f32_to_f16(x[i]));
                 const DoubleSums want = double_sums(wf, xh, nin, nout);
                 auto wb = g.adopt(w.data(), w.size()), xb = g.adopt(x.data(), x.size() * 4), yb = g.alloc(nout * R * 4), y1 = g.alloc(nout * R * 4);
-                const WeightView wt{quant::GGML_TYPE_F16, {wb.get(), 0}};
+                const WeightView wt{bf16 ? quant::GGML_TYPE_BF16 : quant::GGML_TYPE_F16, {wb.get(), 0}};
+                if (bf16 && !bf16_tile) {
+                    launches(g);
+                    g.matmul(wt, {xb.get(), 0}, {yb.get(), 0}, nin, nout, 64, {}, Dtype::f16);
+                    require(!launches(g).count(tile), "a " + shape + " prompt keeps the exact rows where the module has no BF16 tile");
+                    continue;
+                }
                 for (size_t rows : {size_t(2), size_t(63), size_t(64), size_t(65), size_t(R - 3)}) {
                     const std::string at = shape + " over " + std::to_string(rows) + " rows";
                     launches(g);
                     g.matmul(wt, {xb.get(), 0}, {yb.get(), 0}, nin, nout, rows, {}, Dtype::f16);
-                    require(launches(g).count("llmx_f16_tile") == 1, "a " + at + " prompt takes the half tile");
+                    require(launches(g).count(tile) == 1, "a " + at + " prompt takes the half tile");
                     const std::vector<float> all = read(g, *yb, nout * rows);
                     const DoubleSums part{std::vector<double>(want.sum.begin(), want.sum.begin() + std::ptrdiff_t(nout * rows)),
                                           std::vector<double>(want.mag.begin(), want.mag.begin() + std::ptrdiff_t(nout * rows))};
@@ -1033,7 +1042,7 @@ struct Bits {
                     launches(g);
                     g.matmul(wt, {xb.get(), 0}, {yb.get(), 0}, nin, nout, n, {runs, 2}, Dtype::f16);
                     const auto ran = launches(g);
-                    require(ran.count("llmx_f16_tile") == 1 && ran.count("llmx_matmul_cols4_f16") == 1, "a " + at + " call of decode columns and a prompt takes the 4-row column build and the half tile");
+                    require(ran.count(tile) == 1 && ran.count(exact_kernel_name(g, bf16, 3)) == 1, "a " + at + " call of decode columns and a prompt takes the exact product of three columns and the half tile");
                     const std::vector<float> mixed = read(g, *yb, nout * n);
                     g.matmul(wt, {xb.get(), 0}, {y1.get(), 0}, nin, nout, 3, {}, Dtype::f32);
                     require(std::memcmp(read(g, *y1, nout * 3).data(), mixed.data(), nout * 3 * 4) == 0, "a " + at + " call's decode columns have the exact product's bits");
@@ -1041,6 +1050,87 @@ struct Bits {
                     require(std::memcmp(read(g, *y1, nout * rows).data(), mixed.data() + 3 * nout, nout * rows * 4) == 0, "a " + at + " call's prompt rows have the half tile's bits");
                 }
             }
+    }
+
+    // The exact product of F16 or BF16 rows that skip the tile: the column build where the device profile puts the count on the columns (DeviceProfile::exact_on_columns, which the backend asks too), else the row block.
+    std::string exact_kernel_name(Backend& g, bool bf16, size_t rows) {
+        const std::string type = bf16 ? "bf16" : "f16";
+        return profile_of(g).exact_on_columns(rows) ? "llmx_matmul_cols" + std::string(rows <= 4 ? "4_" : "8_") + type : "llmx_matmul_rows_" + type;
+    }
+
+    // The half tile's dispatch edges (backend_core.hpp, product): one launch where nin is a multiple of 32, the call has two rows or more and the weights and inputs sit on 16 bytes, the exact rows otherwise with the bits of the same call at F32.
+    // Offsets count floats, so 1, 2 and 4 are 4, 8 and 16 bytes; a tile call at an offset has the bits of the aligned call, and a call whose runs are all decode columns takes no tile.
+    void tile_edges(Backend& g, bool bf16_tile) {
+        const size_t nout = 65, maxin = 64, maxrows = 64;
+        struct Edge { size_t nin, rows, xo, wo, yo; bool add; std::vector<RowRun> runs; bool tile; };
+        const std::vector<Edge> edges = {
+            {32, 2, 0, 0, 0, false, {}, true}, {64, 2, 0, 0, 0, false, {}, true}, {31, 2, 0, 0, 0, false, {}, false}, {33, 2, 0, 0, 0, false, {}, false},
+            {33, 64, 0, 0, 0, false, {}, false}, {32, 1, 0, 0, 0, false, {}, false}, {32, 2, 1, 0, 0, false, {}, false}, {32, 2, 2, 0, 0, false, {}, false},
+            {32, 2, 4, 0, 0, false, {}, true}, {32, 2, 0, 1, 0, false, {}, false}, {32, 2, 0, 2, 0, false, {}, false}, {32, 2, 0, 4, 0, false, {}, true},
+            {32, 2, 0, 0, 1, false, {}, true}, {33, 2, 0, 0, 0, true, {}, false}, {32, 2, 1, 0, 0, true, {}, false}, {32, 2, 0, 0, 0, false, {{2, 1}}, false},
+        };
+        for (const bool bf16 : {false, true}) {
+            const std::string tile = bf16 ? "llmx_bf16_tile" : "llmx_f16_tile";
+            const auto exact_kernel = [&](size_t rows) { return exact_kernel_name(g, bf16, rows); };
+            const std::string half_path = bf16 ? "f16-mma" : "f16";
+            const bool has = !bf16 || bf16_tile;
+            const std::vector<float> wv = row_classes::values(maxin * nout, 77u, 0.05f), x = row_classes::values(maxin * maxrows, 78u), y0 = row_classes::values(nout * maxrows, 79u);
+            std::vector<uint8_t> w(wv.size() * 2);
+            for (size_t i = 0; i < wv.size(); ++i) {
+                const uint16_t h = bf16 ? f32_to_bf16(wv[i]) : f32_to_f16(wv[i]);
+                w[2 * i] = uint8_t(h), w[2 * i + 1] = uint8_t(h >> 8);
+            }
+            auto wb = g.alloc(w.size() + 16), xb = g.alloc((x.size() + 4) * 4);
+            auto yb = g.alloc((y0.size() + 4) * 4), yf = g.alloc((y0.size() + 4) * 4);
+            std::vector<float> aligned;
+            for (const Edge& e : edges) {
+                const std::string at = std::string(bf16 ? "BF16 " : "F16 ") + std::to_string(e.nin) + "->" + std::to_string(nout) + " over " + std::to_string(e.rows) + " rows, offsets " + std::to_string(e.xo) +
+                                       "/" + std::to_string(e.wo) + "/" + std::to_string(e.yo) + (e.add ? ", added" : "") + (e.runs.empty() ? "" : ", decode columns");
+                g.write(*wb, e.wo * 4, w.data(), w.size());
+                g.write(*xb, e.xo * 4, x.data(), x.size() * 4);
+                const WeightView wt{bf16 ? quant::GGML_TYPE_BF16 : quant::GGML_TYPE_F16, {wb.get(), e.wo}};
+                const backend::RowRuns runs{e.runs.data(), e.runs.size()};
+                const auto call = [&](Buffer& y, Dtype dt) {
+                    g.write(y, e.yo * 4, y0.data(), nout * e.rows * 4);
+                    if (e.add) g.matmul_add(wt, {xb.get(), e.xo}, {&y, e.yo}, e.nin, nout, e.rows, runs, dt);
+                    else g.matmul(wt, {xb.get(), e.xo}, {&y, e.yo}, e.nin, nout, e.rows, runs, dt);
+                };
+                launches(g);
+                MatrixPaths paths;
+                g.swap_matrix_paths(paths);
+                call(*yb, Dtype::f16);
+                g.swap_matrix_paths(paths);
+                const auto ran = launches(g);
+                const auto count = [&](const std::string& k) { const auto it = ran.find(k); return it == ran.end() ? size_t(0) : it->second; };
+                const bool tiled = e.tile && has;
+                require(count(tile) == (tiled ? 1u : 0u), "a " + at + (tiled ? " prompt takes the half tile once" : " prompt takes no half tile"));
+                require(e.rows < 2 || tiled || count(exact_kernel(e.rows)) == 1, "a " + at + " prompt takes the exact product once");
+                require(paths.take() == (tiled ? std::vector<std::string>{half_path} : std::vector<std::string>{"f32"}), "a " + at + " prompt records the path it took");
+                const std::vector<float> got = read(g, *yb, e.yo + nout * e.rows);
+                if (tiled) {
+                    if (e.nin != 32) continue;
+                    if (aligned.empty()) aligned.assign(got.begin(), got.end());
+                    require(std::memcmp(got.data() + e.yo, aligned.data(), nout * e.rows * 4) == 0, "a " + at + " half tile has the bits of the aligned call");
+                    continue;
+                }
+                call(*yf, Dtype::f32);
+                require(std::memcmp(read(g, *yf, e.yo + nout * e.rows).data() + e.yo, got.data() + e.yo, nout * e.rows * 4) == 0, "a " + at + " prompt has the bits of its F32 call");
+            }
+            // A one-row tile run after decode columns: the columns take the exact rows, the row the half tile.
+            const RowRun mixed[2] = {{3, 1}, {4, 64}};
+            g.write(*wb, 0, w.data(), w.size());
+            g.write(*xb, 0, x.data(), x.size() * 4);
+            launches(g);
+            MatrixPaths paths;
+            g.swap_matrix_paths(paths);
+            g.matmul({bf16 ? quant::GGML_TYPE_BF16 : quant::GGML_TYPE_F16, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, 32, nout, 4, {mixed, 2}, Dtype::f16);
+            g.swap_matrix_paths(paths);
+            const auto ran = launches(g);
+            const auto count = [&](const std::string& k) { const auto it = ran.find(k); return it == ran.end() ? size_t(0) : it->second; };
+            const std::string at = std::string(bf16 ? "a BF16" : "an F16") + " call of three decode columns and a one-row prompt";
+            require(count(tile) == (has ? 1u : 0u) && count(exact_kernel(3)) == 1, at + " takes the exact product of its columns once and the half tile once where the module has it");
+            require(paths.take() == (has ? std::vector<std::string>{"f32", half_path} : std::vector<std::string>{"f32"}), at + " records both paths");
+        }
     }
 
     // The one-column Q8_0 decode row of one wave of W lanes, on the host, in the kernels' order, then the xor tree from W / 2.

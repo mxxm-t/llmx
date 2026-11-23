@@ -1912,6 +1912,41 @@ class DtypeCalibration(unittest.TestCase):
             observer.remove.assert_called_once_with()
             rounder.remove.assert_called_once_with()
 
+    @unittest.skipUnless(importlib.util.find_spec("torch"), "torch, which the TF32 group-sum emulation runs on")
+    def test_mma_linear_group_sums_on_hand_built_vectors(self):
+        # Each expected output is worked by hand from the sum model (docs/PRECISION.md), not from another implementation.
+        import torch
+        u = 2.0 ** -23
+        cases = [
+            # G bits kept below the largest product, then the final rounding of the cut sum to F32.
+            ([1, 1], [1, 3 * 2 ** -25], None, {"0:rz:rne:norm": 1.0, "2:rz:rz:norm": 1.0, "2:rz:rne:norm": 1 + u, "3:floor:rne:norm": 1 + u}),
+            # A small negative product truncates to zero, or floors to one unit below.
+            ([1, 1], [1, -2 ** -30], None, {"0:rz:rne:norm": 1.0, "0:floor:rne:norm": 1 - u, "0:floor:rz:norm": 1 - u}),
+            # The unit follows the largest product's exponent, or the sum of the inputs' exponents one below it.
+            ([1.5, 1], [1.5, 3 * 2 ** -23], None, {"0:rz:rne:norm": 2.25 + 2 ** -22, "0:rz:rne:inputs": 2.25 + 2 ** -21}),
+            # Groups of 8 are added to the F32 sum one at a time in k order, so two half units each round away; an all-zero group adds nothing.
+            ([1] + [0] * 7 + [1] + [0] * 7 + [1] + [0] * 7 + [0] * 8, [1] + [0] * 7 + [2 ** -24] + [0] * 7 + [2 ** -24] + [0] * 7 + [0] * 8, None,
+             {"3:rz:rne:norm": 1.0, "3:rz:rne:inputs": 1.0}),
+            # Under k4 a group is two sums of 4: a first half cancelling to zero leaves the second half's small product uncut, which one sum of 8 cuts to zero.
+            ([1, 1, 0, 0, 1, 0, 0, 0], [1, -1, 0, 0, 2 ** -30, 0, 0, 0], None, {"1:rz:rz:inputs:k4": 2 ** -30, "1:rz:rz:inputs": 0.0}),
+            # The first half's sum is a term of the second, cut at the second half's unit, so the same small product in k 0 to 3 is lost.
+            ([1, 0, 0, 0, 1, 1, 0, 0], [2 ** -30, 0, 0, 0, 1, -1, 0, 0], None, {"1:rz:rz:inputs:k4": 0.0, "1:rz:rz:inputs": 0.0}),
+            # Inputs round to binary16 first (1 + 2^-11 ties to 1), a width short of 8 is padded with zero products, and the bias is added last.
+            ([1 + 2 ** -11, 1, 1], [1, 1, 1], [0.5], {"0:rz:rne:norm": 3.5, "3:floor:rz:inputs": 3.5, "1:rz:rz:inputs:k4": 3.5}),
+        ]
+        for x, w, bias, expected in cases:
+            for spec, value in expected.items():
+                with self.subTest(x=x, w=w, spec=spec):
+                    xs = torch.tensor([[x], [x]], dtype=torch.float32)
+                    ws = torch.tensor([w], dtype=torch.float32)
+                    b = torch.tensor(bias, dtype=torch.float32) if bias else None
+                    out = self.calibration.mma_linear(xs, ws, b, torch, spec)
+                    self.assertEqual(tuple(out.shape), (2, 1, 1))
+                    self.assertEqual(out.dtype, torch.float32)
+                    self.assertEqual(out.flatten().tolist(), [value, value])
+        with self.assertRaisesRegex(AssertionError, "unknown final rounding"):
+            self.calibration.mma_linear(torch.ones(1, 8), torch.ones(1, 8), None, torch, "0:rz:up:norm")
+
     def test_split_q5_moe_uses_every_expert(self):
         import q5_1
         ordinary = q5_1.fixture(False, True)[0]

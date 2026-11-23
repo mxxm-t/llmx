@@ -467,8 +467,8 @@ def hf_bounds(dtype, devices, family=None, fixture=None):
         assert isinstance(device, list) and all(isinstance(p, str) for p in device), "malformed matrix-path witness"
         assert len(device) == len(set(device)), "duplicate matrix-path witness"
         paths.update(device)
-    assert paths and paths <= {"f32", "f16", "bf16", "block-int16", "block-int8"}, "missing, unknown or unqualified matrix path"
-    allowed = {"f32": {"f32"}, "f16": {"f32", "f16", "block-int16"}, "bf16": {"f32", "bf16"}, "int8": {"f32", "block-int16", "block-int8"}}
+    assert paths and paths <= {"f32", "f16", "f16-mma", "bf16", "block-int16", "block-int8"}, "missing, unknown or unqualified matrix path"
+    allowed = {"f32": {"f32"}, "f16": {"f32", "f16", "f16-mma", "block-int16"}, "bf16": {"f32", "bf16"}, "int8": {"f32", "f16-mma", "block-int16", "block-int8"}}
     assert paths <= allowed[dtype], "matrix paths disagree with the execution dtype"
     if paths == {"f32"}:
         bound = F32_HF_LOGIT_BOUND
@@ -483,11 +483,13 @@ def hf_bounds(dtype, devices, family=None, fixture=None):
                     bound += spread
                     break
         return {"logit": bound, "nll": 1e-5}
-    # int8 runs as f16 where no product had an 8-bit build, and is held to f16's budget there.
+    # int8 runs as f16 where no product had an 8-bit build, BF16 weights' TF32 tile among them, and is held to f16's budget there.
     if dtype == "int8" and "block-int8" not in paths:
         dtype = "f16"
     with open(os.path.join(ROOT, "tests", "data", "dtype_budget.json"), encoding="utf-8") as f:
         doc = json.load(f)
+    # The TF32 tile's sums take the F16 budget only once its own calibration record shows it within that budget (tools/calibrate_dtype.py, f16-mma).
+    assert "f16-mma" not in paths or "f16-mma" in doc["dtypes"], "f16-mma has no frozen calibration record"
     if family == "q3-k" and dtype != "bf16":
         family = None
     if family is not None:
@@ -646,12 +648,18 @@ def ppl_command(model, path, case, mode, ubatch=None):
     return args
 
 
-def hf_execution(stderr, family=None, fixture=None):
-    """Exactly one completed CLI diagnostic witness; only actual paths choose the frozen bound."""
+def matrix_paths(stderr):
+    """Exactly one completed CLI diagnostic witness, its effective dtype and each device's dispatched matrix paths."""
     records = [line[len("matrix-paths: "):] for line in stderr.splitlines() if line.startswith("matrix-paths: ")]
     assert len(records) == 1, "missing or repeated matrix-path witness"
     record = json.loads(records[0])
     assert isinstance(record, dict) and set(record) == {"dtype", "devices"}, "malformed matrix-path record"
+    return record
+
+
+def hf_execution(stderr, family=None, fixture=None):
+    """The frozen bounds of the paths the one completed CLI diagnostic witness names; only actual paths choose the bound."""
+    record = matrix_paths(stderr)
     return hf_bounds(record["dtype"], record["devices"], family, fixture)
 
 

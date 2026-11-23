@@ -192,6 +192,17 @@ At 128 outputs the dense guard bounds the 32-bit weight offsets to about 31.5 mi
 Each IMMA's per-32 fold costs about 16 FP32 instructions, fixed by the formats' scales and the CPU's bits; Ada and Hopper double the IMMA rate an SM, so there the fold takes as many issue slots as the IMMA and the tile caps near 50 to 60 percent of the integer peak rather than Ampere's 35 to 45, and fewer issues a fold, not a wider integer sum, is the next lever there.
 ROCm does not build the tensor-core body (`GPU_IMMA8`), so MI300X's int8 tile stays on four-way dots, with MFMA int8 its own lever.
 
+## BF16 prompt tile
+
+CUDA advertises f16, f32 and int8, so a BF16 file runs in the F16 class: exact weights, activations rounded to binary16, F32 sums.
+Without a tile its prompts took the exact F32 rows (`exact_rows`, no tensor cores): Qwen3-0.6B pp512 and pp2048 TTFT were 172 and 754 ms on one RTX 3090 against vLLM's 38 and 72 (CUDA104, 2026-11-21).
+`bf16_tile` (`kernels/int16.gpu`, kernel `llmx_bf16_tile`) runs those prompts on TF32 tensor cores (`mma_tf32`, m16n8k8, `port.h`): a BF16 weight widens to TF32 exactly and a binary16 activation does too, so the instruction reads exactly the class's inputs.
+Converting the weights to binary16 instead would lose BF16's range below 2^-17 and above 65504, and BF16 inputs would be the BF16 class, which CUDA does not advertise.
+Each 8-value group's product starts from zero and is added to the F32 sum in k order, so a row's bits depend on nin alone, as on the F16 tile; decode columns of a call keep the exact rows (`half_product`).
+The instruction sums the 8 exact products by its own alignment, not as IEEE F32: on an RTX 3090 (sm_86) a probe fits it bit for bit as two chained sums of 4, the first's F32 result a term of the second, each aligned to its largest input exponent sum with one guard bit and truncated.
+So the tile records the path `f16-mma` rather than `f16`; its calibration over that model and the envelope of single-sum models costs no more than binary16 rounding, so HF checks hold it to the F16 budget (docs/PRECISION.md, TF32 group sums of the CUDA BF16 tile).
+Only targets from sm_80 have the instructions, so `GPU_TF32_MMA` is 0 for older targets and under HIP and their modules lack the tile, which the backend then leaves unloaded: BF16 prompts on Turing and Volta and on AMD keep the exact rows.
+
 ## Open questions
 
 - How far the F16 class trails the reference runtime's 8-bit tensor-core prefill on NVIDIA; int8 is the matched cell, and the FP16 tensor-core candidate is the answer if the gap is wide.

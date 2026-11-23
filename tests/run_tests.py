@@ -19,6 +19,7 @@ import f32
 import safetensors_dir
 import int8
 import half_weights
+import bf16_tile
 import moe
 import mxfp4
 import q5_0
@@ -129,6 +130,7 @@ def main():
                   ("f32", f32.run),
                   ("safetensors", safetensors_dir.run),
                   ("half-weights", lambda: half_weights.run(require=args.require_tools)),
+                  ("bf16-tile", bf16_tile.run),
                   ("moe", moe.run),
                   ("int8", int8.run),
                   ("mxfp4", lambda: mxfp4.run(require=args.require_tools)),

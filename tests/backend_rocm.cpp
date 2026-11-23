@@ -3958,7 +3958,7 @@ int main(int argc, char** argv) {
         if (argc > 1 && std::string(argv[1]) == "types") {
             types(*g, *c);
             exact_rows(*g);
-            bits().half_tile(*g);
+            bits().half_tile(*g, false);
             twin_types(*g, *c);
             biased_edges(*g);
             bits().q8_decode_bits(*g);
@@ -3976,7 +3976,7 @@ int main(int argc, char** argv) {
         ops(*g, *c);
         types(*g, *c);
         exact_rows(*g);
-        bits().half_tile(*g);
+        bits().half_tile(*g, false);
         twin_types(*g, *c);
         biased_edges(*g);
         bits().q8_decode_bits(*g);

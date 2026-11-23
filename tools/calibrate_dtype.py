@@ -20,6 +20,11 @@ Run once in the HF reference environment of tools/gen_baseline.py, then commit t
     python tools/calibrate_dtype.py --family iq3-xxs --output FILE
     python tools/calibrate_dtype.py --family iq1-s --output FILE
     python tools/calibrate_dtype.py --family iq1-m --output FILE
+    python tools/calibrate_dtype.py --class f16-mma --output FILE
+
+The f16-mma class is the F16 class on BF16 weights with each matrix sum taken as the CUDA TF32 tile takes it (int16.gpu, bf16_tile): groups of 8 in k order, each group's exact products aligned to its largest, cut G bits below that product's 24, the cut sum rounded to F32, and the group added to the F32 sum; on sm_86 a group is two such sums of 4, the first's result a term of the second (PROBED).
+Its fixtures are the 16-bit classes' with every matrix rounded to BF16 in the reference and the candidate alike, then tests/bf16_tile.py's, whose every width the tile takes, at its own weights and at SEEDS; its error is the largest over the sum models given (by default ENVELOPE), and every Linear but the router takes the model, a superset of the tile's reach.
+The F16 class must reproduce first on the 16-bit fixtures, and on the tile's fixture, which the F16 record does not hold, plain F16 on its BF16 weights must stay below the F16 budget.
 
 Q1_0 and Q2_0 also measure prospective F16 costs; each existing BF16 entry
 must reproduce unchanged before its missing F16 entry can be added.
@@ -40,7 +45,12 @@ sys.path.insert(0, HERE)
 SEEDS = (0, 1, 2, 3)      # further weights beside each fixture's own
 MARGIN = 2.0              # budget over the largest error measured
 DTYPES = ("f16", "bf16", "int8")
+MMA = "f16-mma"
+# Sum models G:align:final:reference[:k4] of the TF32 group sum: the one the sm_86 probe fits bit for bit, then the single-sum envelope kept for unprobed architectures (docs/PRECISION.md).
+PROBED = ("1:rz:rz:inputs:k4",)
+ENVELOPE = tuple("%d:%s:%s:norm" % (g, a, f) for g in (0, 2, 3) for a in ("rz", "floor") for f in ("rz", "rne"))
 BUDGET = os.path.join(HERE, "..", "tests", "data", "dtype_budget.json")
+CUTS = {}                 # sum model -> groups whose alignment cut changed a product, so a record shows the cut was reached
 
 
 def round_int8(x, torch):
@@ -54,8 +64,71 @@ def round_int8(x, torch):
     return (q * d).reshape(x.shape)
 
 
+def mma_linear(x, w, bias, torch, spec):
+    """`x` rounded to binary16 times `w`, each 8-value group of k summed by sum model `spec` (G:align:final:reference[:k4]) from zero and added to the F32 sum in k order.
+
+    With k4 a group is two chained halves, as the probe found m16n8k8 on sm_86: the first half's F32 sum joins the second half's products as one more term, aligned by its own leading exponent.
+    """
+    g, align, final, reference, *halves = spec.split(":")
+    assert reference in ("norm", "inputs"), "unknown reference " + reference
+    assert halves in ([], ["k4"]), "unknown group shape " + ":".join(halves)
+    assert final in ("rz", "rne"), "unknown final rounding " + final
+    shape, n = x.shape[:-1], x.shape[-1]
+    pad = -n % 8   # zero products, which change no group's alignment, fill a last group of a width the tile would not take
+    x = torch.nn.functional.pad(x.to(torch.float16).to(torch.float64).reshape(-1, n), (0, pad))
+    w = torch.nn.functional.pad(w.to(torch.float64), (0, pad))
+    p = (x[:, None, :] * w[None, :, :]).reshape(x.shape[0], w.shape[0], (n + pad) // 8, 8)   # binary16 times BF16 products are exact in float64
+    if reference == "norm":
+        lead = torch.frexp(p.abs())[1] - 1
+    else:   # the sum of the inputs' exponents, one below a product of significands of 2 or more
+        ex, ew = torch.frexp(x.abs())[1] - 1, torch.frexp(w.abs())[1] - 1
+        lead = (ex[:, None, :] + ew[None, :, :]).reshape(p.shape)
+    lead = lead.masked_fill(p == 0, -100000)
+
+    def aligned_sum(terms, leads):
+        top = leads.amax(-1, keepdim=True)
+        top = top.masked_fill(top == -100000, 0)   # an all-zero group sums to zero at any unit
+        unit = torch.ldexp(torch.ones_like(terms[..., :1]), top - 23 - int(g))
+        assert unit.min() > 0, "alignment unit underflowed"
+        cut = {"rz": torch.trunc, "floor": torch.floor}[align](terms / unit)
+        CUTS[spec] = CUTS.get(spec, 0) + int((cut * unit != terms).any(-1).sum())
+        v = cut.sum(-1) * unit[..., 0]   # exact for G below about 25, where each cut term stays below 2^27
+        if final == "rz":
+            m, e = torch.frexp(v)
+            v = torch.ldexp(torch.trunc(torch.ldexp(m, torch.full_like(e, 24))), e - 24)
+        return v.to(torch.float32).to(torch.float64)
+
+    if halves:
+        first = aligned_sum(p[..., :4], lead[..., :4])
+        first_lead = (torch.frexp(first)[1] - 1).masked_fill(first == 0, -100000)
+        groups = aligned_sum(torch.cat([p[..., 4:], first[..., None]], -1), torch.cat([lead[..., 4:], first_lead[..., None]], -1))
+    else:
+        groups = aligned_sum(p, lead)
+    groups = groups.to(torch.float32)
+    acc = torch.zeros(groups.shape[:2], dtype=torch.float32)
+    for k in range(groups.shape[2]):
+        acc = acc + groups[..., k]
+    if bias is not None:
+        acc = acc + bias.to(torch.float32)
+    assert torch.isfinite(acc).all() or not torch.isfinite(x).all(), "non-finite TF32 group sum"
+    return acc.reshape(*shape, w.shape[0])
+
+
+def bf16_weights(model, torch):
+    """Every matrix of `model` rounded to BF16 in place, as a BF16 file holds it; vectors such as norms stay float32."""
+    with torch.no_grad():
+        for p in model.parameters():
+            if p.dim() >= 2:
+                p.copy_(p.to(torch.bfloat16).to(torch.float32))
+
+
 def rounding(model, torch, dtype):
     """Hooks rounding each matrix product's input to `dtype`, routers excepted; returns the handles."""
+    if dtype.startswith(MMA + ":"):
+        spec = dtype[len(MMA) + 1:]
+        return [module.register_forward_hook(lambda m, args, out: mma_linear(args[0], m.weight, m.bias, torch, spec))
+                for name, module in model.named_modules()
+                if isinstance(module, torch.nn.Linear) and not name.endswith("mlp.gate")]
     if dtype == "int8":
         def to(x):
             return round_int8(x, torch)
@@ -231,16 +304,76 @@ def family_budget(family, torch, transformers):
     return doc
 
 
+def mma_budget(torch, transformers, specs):
+    """The f16-mma class over the 16-bit fixtures on BF16 weights, after the frozen F16 class reproduces on each; refused above the F16 budget, which its runs then take."""
+    from f32 import weight_hash
+    with open(BUDGET, encoding="utf-8") as f:
+        doc = json.load(f)
+    import bf16_tile
+    from gen_baseline import tiny_bf16_tile
+    frozen = {(r["fixture"], r["seed"]): r for r in doc["dtypes"]["f16"]["runs"]}
+    f16 = doc["dtypes"]["f16"]
+    tile = ((("bf16-tile-%s" % ("tied" if tied else "untied"), seed) + tiny_bf16_tile(tied, seed)) for tied in (False, True) for seed in (12345,) + SEEDS)
+    runs, model_max = [], {}
+    for name, seed, model, weights in list(models()) + list(tile):
+        texts = (bf16_tile.TEXTS, bf16_tile.CONTEXTS) if name.startswith("bf16-tile") else (None, (4, 16))
+        digest = weight_hash(weights)
+        if name.startswith("bf16-tile"):
+            plain = errors(model, torch, "f16", *texts)
+            if plain[0] >= f16["logit_budget"] or plain[1] >= f16["nll_budget"]:
+                raise ValueError("plain f16 on %s seed %d costs more than the frozen F16 budget" % (name, seed))
+        else:
+            prior = frozen[(name, seed)]
+            logit, nll = errors(model, torch, "f16")
+            if (digest, logit, nll) != (prior["weights_sha256"], prior["logit_error"], prior["nll_error"]):
+                raise ValueError("frozen f16 class does not reproduce on %s seed %d" % (name, seed))
+            bf16_weights(model, torch)
+            plain = errors(model, torch, "f16")
+        check = errors(model, torch, MMA + ":40:rz:rne:norm", *texts)   # near-exact group sums: the plain F16 class up to F32 sum order
+        per = []
+        for spec in specs:
+            before = CUTS.get(spec, 0)
+            l, n = errors(model, torch, MMA + ":" + spec, *texts)
+            per.append({"model": spec, "logit_error": l, "nll_error": n, "cut_groups": CUTS[spec] - before})
+        for r in per:
+            worst = model_max.setdefault(r["model"], {"logit_error": 0.0, "nll_error": 0.0})
+            worst.update(logit_error=max(worst["logit_error"], r["logit_error"]), nll_error=max(worst["nll_error"], r["nll_error"]))
+            worst["cut_groups"] = worst.get("cut_groups", 0) + r["cut_groups"]
+        run = {"fixture": name, "seed": seed, "weights_sha256": digest, "weights": "bf16",
+               "logit_error": max(r["logit_error"] for r in per), "nll_error": max(r["nll_error"] for r in per),
+               "f16_logit_error": plain[0], "f16_nll_error": plain[1], "wide_logit_error": check[0], "wide_nll_error": check[1]}
+        runs.append(run)
+        print("%-18s seed %-6d %s logit %.8f nll %.8f (f16 on bf16 weights %.8f %.8f, wide %.8f %.8f)" %
+              (name, seed, MMA, run["logit_error"], run["nll_error"], plain[0], plain[1], check[0], check[1]), flush=True)
+        del model
+    if not all(m["cut_groups"] for m in model_max.values()):
+        raise ValueError("a sum model's alignment cut changed no product")
+    measured = dict(budgets({MMA: runs})[MMA], sum_models=list(specs), model_max=model_max, weights="bf16")
+    if measured["max_logit_error"] >= f16["logit_budget"] or measured["max_nll_error"] >= f16["nll_budget"]:
+        raise ValueError("f16-mma costs more than the F16 budget allows; it needs a budget of its own")
+    doc["dtypes"][MMA] = measured
+    return doc
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--output", required=True, help="new result file; never overwrites a frozen budget")
     parser.add_argument("--family", choices=("q5-0", "q5-1", "q3-k", "iq4-xs", "iq3-s", "iq2-s", "iq2-xxs", "iq2-xs", "iq3-xxs", "iq1-s", "iq1-m", "tq1-0", "tq2-0", "nvfp4", "q1-0", "q2-0"), help="measure this raw-block fixture family; Q3_K measures BF16 only, Q1_0/Q2_0 F16 and BF16")
+    parser.add_argument("--class", dest="cls", choices=(MMA,), help="measure the f16-mma class of the TF32 tile on BF16 weights")
+    parser.add_argument("--sum-models", default=",".join(PROBED + ENVELOPE), help="f16-mma sum models G:align:final:reference[:k4], comma separated (default: the probed model and the envelope)")
     args = parser.parse_args(argv)
     import torch
     import transformers
     if torch.__version__ != "2.5.1+cpu" or transformers.__version__ != "4.55.2":
         raise SystemExit("calibration requires torch 2.5.1+cpu and transformers 4.55.2")
     torch.set_num_threads(1)
+    if args.cls:
+        doc = mma_budget(torch, transformers, args.sum_models.split(","))
+        with open(args.output, "x", encoding="utf-8", newline="\n") as f:
+            json.dump(doc, f, indent=1)
+            f.write("\n")
+        print("wrote %s" % args.output)
+        return
     if args.family:
         doc = family_budget(args.family, torch, transformers)
         with open(args.output, "x", encoding="utf-8", newline="\n") as f:

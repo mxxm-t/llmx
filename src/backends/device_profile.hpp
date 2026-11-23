@@ -85,6 +85,7 @@ struct DeviceProfile {
     size_t prompt_rows_below = 2;
     // GPU core only: rows up to which an F32, F16 or BF16 exact product takes the column builds rather than the 8-by-8 row block; both give every output its one-row bits, and the crossover is measured (docs/STATUS.md).
     size_t exact_cols_upto = 4;
+    bool exact_on_columns(size_t rows) const { return rows > 1 && rows <= exact_cols_upto; }
     // Prompt extent from which a routed projection takes the tile kernel over each expert's rows rather than the row kernel per entry, by weight family (the Vulkan weight descriptor): F32, Q8_0 and Q6_K, then Q4_0 and Q4_1, Q4_K and Q5_K.
     size_t moe_tile_from = 32, moe_tile_from_q4 = 96, moe_tile_from_q4k = 64, moe_tile_from_q5k = 48;
     // Splitting a row's attention history across workgroups: parts of this many tokens, the part doubling until at most this many cover the row, for heads 128 wide and narrower and for 256 wide (docs/STATUS.md), each at most 256.

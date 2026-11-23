@@ -308,6 +308,11 @@ public:
             if (k == kIndexerScoresInt && !dev_.caps.integer_dot && !Api::dot4_everywhere) continue;
             if (k >= kTallQ4K8 && k <= kSquareQ6K8 && !Api::int8_tensor_tiles) continue;
             const typename Api::Error found = Api::module_function(&kernels_[k], m, kKernelNames[k]);
+            // BF16's TF32 tile is in the modules of targets that have the instruction alone (GPU_TF32_MMA in kernels/port.h): CUDA from sm_80, never HIP.
+            if (found != Api::kSuccess && k == kBF16Tile) {
+                kernels_[k] = {};
+                continue;
+            }
             if (found != Api::kSuccess) Api::check(found, (std::string("module_function ") + kKernelNames[k]).c_str());
         }
         for (size_t s = 0; s < kRingSlots; ++s) {
@@ -676,7 +681,7 @@ public:
             if (t.twin) twins += std::string(twins.empty() ? "" : "/") + t.name;
         std::string halves;
         for (const TypeKernels& t : kTypes)
-            if (t.half != kKernels) halves += std::string(halves.empty() ? "f16 (" : "/") + t.name;
+            if (t.half != kKernels && kernels_[t.half]) halves += std::string(halves.empty() ? "f16 (" : "/") + t.name;
         halves += halves.empty() ? "" : " tile inputs), ";
         const std::string form = dtype == Dtype::int8 ? "block-int8 (" : "block-int16 (";
         return halves + form + twins + (dev_.caps.integer_dot ? std::string(" rows, and tiles on the ") + (dtype == Dtype::int8 ? "8" : "16") + "-bit dot), f32 (" : " rows and tiles), f32 (") + exact + ")";
@@ -2440,7 +2445,7 @@ private:
                   kRowsQ1016x1, kRowsQ1016x2, kRowsQ1016x4, kRowsQ1016x8, kRowsQ1016x16, kRowsQ108x1, kRowsQ108x2, kRowsQ108x4, kRowsQ108x8, kRowsQ108x16, kTileQ1016, kTileQ108, kRoutedQ1016, kRoutedQ108, kGroupedQ1016x2, kGroupedQ1016x4, kGroupedQ1016x8, kGroupedQ108x2, kGroupedQ108x4, kGroupedQ108x8, kRoutedTileQ1016, kRoutedTileQ108, kRoutedNarrowQ1016, kRoutedStream16Q108, kRoutedStreamQ108, kRoutedMidQ1016, kRoutedMidQ108,
                   kRowsQ2016x1, kRowsQ2016x2, kRowsQ2016x4, kRowsQ2016x8, kRowsQ2016x16, kRowsQ208x1, kRowsQ208x2, kRowsQ208x4, kRowsQ208x8, kRowsQ208x16, kTileQ2016, kTileQ208, kRoutedQ2016, kRoutedQ208, kGroupedQ2016x2, kGroupedQ2016x4, kGroupedQ2016x8, kGroupedQ208x2, kGroupedQ208x4, kGroupedQ208x8, kRoutedTileQ2016, kRoutedTileQ208, kRoutedNarrowQ2016, kRoutedStream16Q208, kRoutedStreamQ208, kRoutedMidQ2016, kRoutedMidQ208,
                   kRowsNVFP416x1, kRowsNVFP416x2, kRowsNVFP416x4, kRowsNVFP416x8, kRowsNVFP416x16, kRowsNVFP48x1, kRowsNVFP48x2, kRowsNVFP48x4, kRowsNVFP48x8, kRowsNVFP48x16, kTileNVFP416, kTileNVFP48, kRoutedNVFP416, kRoutedNVFP48, kGroupedNVFP416x2, kGroupedNVFP416x4, kGroupedNVFP416x8, kGroupedNVFP48x2, kGroupedNVFP48x4, kGroupedNVFP48x8, kRoutedTileNVFP416, kRoutedTileNVFP48, kRoutedNarrowNVFP416, kRoutedStream16NVFP48, kRoutedStreamNVFP48, kRoutedMidNVFP416, kRoutedMidNVFP48,
-                  kQuarterQ5016x1, kQuarterQ5016x2, kQuarterQ5016x4, kQuarterQ5016x8, kQuarterQ5016x16, kQuarterRoutedQ5016, kQuarterGroupedQ5016x2, kQuarterGroupedQ5016x4, kQuarterGroupedQ5016x8, kQuarterQ4016x1, kQuarterQ4016x2, kQuarterQ4016x4, kQuarterQ4016x8, kQuarterQ4016x16, kQuarterRoutedQ4016, kQuarterGroupedQ4016x2, kQuarterGroupedQ4016x4, kQuarterGroupedQ4016x8, kQuarterQ4116x1, kQuarterQ4116x2, kQuarterQ4116x4, kQuarterQ4116x8, kQuarterQ4116x16, kQuarterRoutedQ4116, kQuarterGroupedQ4116x2, kQuarterGroupedQ4116x4, kQuarterGroupedQ4116x8, kQuarterQ5116x1, kQuarterQ5116x2, kQuarterQ5116x4, kQuarterQ5116x8, kQuarterQ5116x16, kQuarterRoutedQ5116, kQuarterGroupedQ5116x2, kQuarterGroupedQ5116x4, kQuarterGroupedQ5116x8, kHcMix, kHcMix8, kHcEntry, kHcEntry8, kMoeStepUpQ4K, kMoeStepUpQ5K, kMoeStepDownQ51, kMoeStepDownQ8, kMoeStepUpQ4KW, kMoeStepUpQ5KW, kF16Tile, kF8Tile, kTallQ4K8, kTallQ5K8, kTallQ6K8, kSquareQ4K8, kSquareQ5K8, kSquareQ6K8, kKernels };
+                  kQuarterQ5016x1, kQuarterQ5016x2, kQuarterQ5016x4, kQuarterQ5016x8, kQuarterQ5016x16, kQuarterRoutedQ5016, kQuarterGroupedQ5016x2, kQuarterGroupedQ5016x4, kQuarterGroupedQ5016x8, kQuarterQ4016x1, kQuarterQ4016x2, kQuarterQ4016x4, kQuarterQ4016x8, kQuarterQ4016x16, kQuarterRoutedQ4016, kQuarterGroupedQ4016x2, kQuarterGroupedQ4016x4, kQuarterGroupedQ4016x8, kQuarterQ4116x1, kQuarterQ4116x2, kQuarterQ4116x4, kQuarterQ4116x8, kQuarterQ4116x16, kQuarterRoutedQ4116, kQuarterGroupedQ4116x2, kQuarterGroupedQ4116x4, kQuarterGroupedQ4116x8, kQuarterQ5116x1, kQuarterQ5116x2, kQuarterQ5116x4, kQuarterQ5116x8, kQuarterQ5116x16, kQuarterRoutedQ5116, kQuarterGroupedQ5116x2, kQuarterGroupedQ5116x4, kQuarterGroupedQ5116x8, kHcMix, kHcMix8, kHcEntry, kHcEntry8, kMoeStepUpQ4K, kMoeStepUpQ5K, kMoeStepDownQ51, kMoeStepDownQ8, kMoeStepUpQ4KW, kMoeStepUpQ5KW, kF16Tile, kF8Tile, kTallQ4K8, kTallQ5K8, kTallQ6K8, kSquareQ4K8, kSquareQ5K8, kSquareQ6K8, kBF16Tile, kKernels };
     static constexpr size_t kHcColumns = 8;   // llmx_hc_mix8's columns, hc_mix<8> in kernels/int16.gpu, which backend-rocm twins holds at 2 to 16 rows
     // The build for n columns: one column's own, else the one of up to kHcColumns.
     static Kernel hc_build(size_t n) { return n == 1 ? kHcMix : kHcMix8; }
@@ -2482,7 +2487,7 @@ private:
                                                            "llmx_q1_0_rows16_1", "llmx_q1_0_rows16_2", "llmx_q1_0_rows16_4", "llmx_q1_0_rows16_8", "llmx_q1_0_rows16_16", "llmx_q1_0_rows8_1", "llmx_q1_0_rows8_2", "llmx_q1_0_rows8_4", "llmx_q1_0_rows8_8", "llmx_q1_0_rows8_16", "llmx_q1_0_tile16", "llmx_q1_0_tile8", "llmx_q1_0_routed16", "llmx_q1_0_routed8", "llmx_q1_0_routed16_g2", "llmx_q1_0_routed16_g4", "llmx_q1_0_routed16_g8", "llmx_q1_0_routed8_g2", "llmx_q1_0_routed8_g4", "llmx_q1_0_routed8_g8", "llmx_q1_0_routed_tile16", "llmx_q1_0_routed_tile8", "llmx_q1_0_routed_narrow16", "llmx_q1_0_routed_stream16_8", "llmx_q1_0_routed_stream8", "llmx_q1_0_routed_mid16", "llmx_q1_0_routed_mid8",
                                                            "llmx_q2_0_rows16_1", "llmx_q2_0_rows16_2", "llmx_q2_0_rows16_4", "llmx_q2_0_rows16_8", "llmx_q2_0_rows16_16", "llmx_q2_0_rows8_1", "llmx_q2_0_rows8_2", "llmx_q2_0_rows8_4", "llmx_q2_0_rows8_8", "llmx_q2_0_rows8_16", "llmx_q2_0_tile16", "llmx_q2_0_tile8", "llmx_q2_0_routed16", "llmx_q2_0_routed8", "llmx_q2_0_routed16_g2", "llmx_q2_0_routed16_g4", "llmx_q2_0_routed16_g8", "llmx_q2_0_routed8_g2", "llmx_q2_0_routed8_g4", "llmx_q2_0_routed8_g8", "llmx_q2_0_routed_tile16", "llmx_q2_0_routed_tile8", "llmx_q2_0_routed_narrow16", "llmx_q2_0_routed_stream16_8", "llmx_q2_0_routed_stream8", "llmx_q2_0_routed_mid16", "llmx_q2_0_routed_mid8",
                                                            "llmx_nvfp4_rows16_1", "llmx_nvfp4_rows16_2", "llmx_nvfp4_rows16_4", "llmx_nvfp4_rows16_8", "llmx_nvfp4_rows16_16", "llmx_nvfp4_rows8_1", "llmx_nvfp4_rows8_2", "llmx_nvfp4_rows8_4", "llmx_nvfp4_rows8_8", "llmx_nvfp4_rows8_16", "llmx_nvfp4_tile16", "llmx_nvfp4_tile8", "llmx_nvfp4_routed16", "llmx_nvfp4_routed8", "llmx_nvfp4_routed16_g2", "llmx_nvfp4_routed16_g4", "llmx_nvfp4_routed16_g8", "llmx_nvfp4_routed8_g2", "llmx_nvfp4_routed8_g4", "llmx_nvfp4_routed8_g8", "llmx_nvfp4_routed_tile16", "llmx_nvfp4_routed_tile8", "llmx_nvfp4_routed_narrow16", "llmx_nvfp4_routed_stream16_8", "llmx_nvfp4_routed_stream8", "llmx_nvfp4_routed_mid16", "llmx_nvfp4_routed_mid8",
-                                                           "llmx_q5_0_quarter_rows16_1", "llmx_q5_0_quarter_rows16_2", "llmx_q5_0_quarter_rows16_4", "llmx_q5_0_quarter_rows16_8", "llmx_q5_0_quarter_rows16_16", "llmx_q5_0_quarter_routed16", "llmx_q5_0_quarter_routed16_g2", "llmx_q5_0_quarter_routed16_g4", "llmx_q5_0_quarter_routed16_g8", "llmx_q4_0_quarter_rows16_1", "llmx_q4_0_quarter_rows16_2", "llmx_q4_0_quarter_rows16_4", "llmx_q4_0_quarter_rows16_8", "llmx_q4_0_quarter_rows16_16", "llmx_q4_0_quarter_routed16", "llmx_q4_0_quarter_routed16_g2", "llmx_q4_0_quarter_routed16_g4", "llmx_q4_0_quarter_routed16_g8", "llmx_q4_1_quarter_rows16_1", "llmx_q4_1_quarter_rows16_2", "llmx_q4_1_quarter_rows16_4", "llmx_q4_1_quarter_rows16_8", "llmx_q4_1_quarter_rows16_16", "llmx_q4_1_quarter_routed16", "llmx_q4_1_quarter_routed16_g2", "llmx_q4_1_quarter_routed16_g4", "llmx_q4_1_quarter_routed16_g8", "llmx_q5_1_quarter_rows16_1", "llmx_q5_1_quarter_rows16_2", "llmx_q5_1_quarter_rows16_4", "llmx_q5_1_quarter_rows16_8", "llmx_q5_1_quarter_rows16_16", "llmx_q5_1_quarter_routed16", "llmx_q5_1_quarter_routed16_g2", "llmx_q5_1_quarter_routed16_g4", "llmx_q5_1_quarter_routed16_g8", "llmx_hc_mix", "llmx_hc_mix8", "llmx_hc_entry", "llmx_hc_entry8", "llmx_moe_step_up_q4_k", "llmx_moe_step_up_q5_k", "llmx_moe_step_down_q5_1", "llmx_moe_step_down_q8_0", "llmx_moe_step_up_q4_k_w", "llmx_moe_step_up_q5_k_w", "llmx_f16_tile", "llmx_f8_e4m3_tile", "llmx_q4_k_tile8_tall", "llmx_q5_k_tile8_tall", "llmx_q6_k_tile8_tall", "llmx_q4_k_tile8_square", "llmx_q5_k_tile8_square", "llmx_q6_k_tile8_square"};
+                                                           "llmx_q5_0_quarter_rows16_1", "llmx_q5_0_quarter_rows16_2", "llmx_q5_0_quarter_rows16_4", "llmx_q5_0_quarter_rows16_8", "llmx_q5_0_quarter_rows16_16", "llmx_q5_0_quarter_routed16", "llmx_q5_0_quarter_routed16_g2", "llmx_q5_0_quarter_routed16_g4", "llmx_q5_0_quarter_routed16_g8", "llmx_q4_0_quarter_rows16_1", "llmx_q4_0_quarter_rows16_2", "llmx_q4_0_quarter_rows16_4", "llmx_q4_0_quarter_rows16_8", "llmx_q4_0_quarter_rows16_16", "llmx_q4_0_quarter_routed16", "llmx_q4_0_quarter_routed16_g2", "llmx_q4_0_quarter_routed16_g4", "llmx_q4_0_quarter_routed16_g8", "llmx_q4_1_quarter_rows16_1", "llmx_q4_1_quarter_rows16_2", "llmx_q4_1_quarter_rows16_4", "llmx_q4_1_quarter_rows16_8", "llmx_q4_1_quarter_rows16_16", "llmx_q4_1_quarter_routed16", "llmx_q4_1_quarter_routed16_g2", "llmx_q4_1_quarter_routed16_g4", "llmx_q4_1_quarter_routed16_g8", "llmx_q5_1_quarter_rows16_1", "llmx_q5_1_quarter_rows16_2", "llmx_q5_1_quarter_rows16_4", "llmx_q5_1_quarter_rows16_8", "llmx_q5_1_quarter_rows16_16", "llmx_q5_1_quarter_routed16", "llmx_q5_1_quarter_routed16_g2", "llmx_q5_1_quarter_routed16_g4", "llmx_q5_1_quarter_routed16_g8", "llmx_hc_mix", "llmx_hc_mix8", "llmx_hc_entry", "llmx_hc_entry8", "llmx_moe_step_up_q4_k", "llmx_moe_step_up_q5_k", "llmx_moe_step_down_q5_1", "llmx_moe_step_down_q8_0", "llmx_moe_step_up_q4_k_w", "llmx_moe_step_up_q5_k_w", "llmx_f16_tile", "llmx_f8_e4m3_tile", "llmx_q4_k_tile8_tall", "llmx_q5_k_tile8_tall", "llmx_q6_k_tile8_tall", "llmx_q4_k_tile8_square", "llmx_q5_k_tile8_square", "llmx_q6_k_tile8_square", "llmx_bf16_tile"};
     // A type's twin kernels by form and columns, with its routed builds' break-evens and tile extents (docs/src/backends-gpu.md, weight types).
     // kKernels marks a build the type lacks.
     struct TwinKernels {
@@ -2617,7 +2622,7 @@ private:
         {quant::GGML_TYPE_F32, "F32", kMatmul, kRowsExactF32, kGather, kRoutedExactF32, nullptr, kColsF32x4},          {quant::GGML_TYPE_Q8_0, "Q8_0", kMatmulQ8, kRowsExactQ8, kGatherQ8, kRoutedExactQ8, &kQ8Twins, kKernels},
         {quant::GGML_TYPE_Q4_K, "Q4_K", kMatmulQ4K, kRowsExactQ4K, kGatherQ4K, kRoutedExactQ4K, &kQ4KTwins, kKernels}, {quant::GGML_TYPE_Q5_K, "Q5_K", kMatmulQ5K, kRowsExactQ5K, kGatherQ5K, kRoutedExactQ5K, &kQ5KTwins, kKernels},
         {quant::GGML_TYPE_Q6_K, "Q6_K", kMatmulQ6K, kRowsExactQ6K, kGatherQ6K, kRoutedExactQ6K, &kQ6KTwins, kKernels}, {quant::GGML_TYPE_Q5_0, "Q5_0", kMatmulQ50, kRowsExactQ50, kGatherQ50, kRoutedExactQ50, &kQ50Twins, kKernels},
-        {quant::GGML_TYPE_Q5_1, "Q5_1", kMatmulQ51, kRowsExactQ51, kGatherQ51, kRoutedExactQ51, &kQ51Twins, kKernels},    {quant::GGML_TYPE_BF16, "BF16", kMatmulBF16, kRowsExactBF16, kGatherBF16, kRoutedExactBF16, nullptr, kColsBF16x4},
+        {quant::GGML_TYPE_Q5_1, "Q5_1", kMatmulQ51, kRowsExactQ51, kGatherQ51, kRoutedExactQ51, &kQ51Twins, kKernels},    {quant::GGML_TYPE_BF16, "BF16", kMatmulBF16, kRowsExactBF16, kGatherBF16, kRoutedExactBF16, nullptr, kColsBF16x4, kBF16Tile},
         {quant::GGML_TYPE_F16, "F16", kMatmulF16, kRowsExactF16, kGatherF16, kRoutedExactF16, nullptr, kColsF16x4, kF16Tile},
         {quant::GGML_TYPE_Q4_0, "Q4_0", kMatmulQ40, kRowsExactQ40, kGatherQ40, kRoutedExactQ40, &kQ40Twins, kKernels},     {quant::GGML_TYPE_Q4_1, "Q4_1", kMatmulQ41, kRowsExactQ41, kGatherQ41, kRoutedExactQ41, &kQ41Twins, kKernels},
         {quant::GGML_TYPE_IQ4_NL, "IQ4_NL", kMatmulIQ4NL, kRowsExactIQ4NL, kGatherIQ4NL, kRoutedExactIQ4NL, &kIQ4NLTwins, kKernels},
@@ -3111,8 +3116,8 @@ private:
         float* y = f32(Y);
         unsigned long long ni = nin, no = nout;
         int add = accumulate;
-        // Prompt rows of a type with a half tile take it outside the F32 class, on whole steps of 32 values (half_product).
-        if (nbatch > 1 && dtype != Dtype::f32 && kinds.half != kKernels && nin % 32 == 0 && ((uintptr_t)w | (uintptr_t)x) % 16 == 0)
+        // Prompt rows of a type with a half tile in this module take it outside the F32 class, on whole steps of 32 values (half_product).
+        if (nbatch > 1 && dtype != Dtype::f32 && kinds.half != kKernels && kernels_[kinds.half] && nin % 32 == 0 && ((uintptr_t)w | (uintptr_t)x) % 16 == 0)
             return half_product(kinds, weight, w, x, y, nin, nout, nbatch, add, runs);
         if (on_columns(kinds, nbatch)) {
             exact_columns(kinds, w, x, y, nin, nout, nbatch, add);
@@ -3134,7 +3139,7 @@ private:
         record_matrix_path(MatrixPath::f32);
     }
     // Whether rows of an exact product take the type's column builds: from two up to the profile's exact_cols_upto, past which a call, a prompt's among them, takes the 8-by-8 row block; both give the same bits.
-    bool on_columns(const TypeKernels& kinds, size_t rows) const { return kinds.cols != kKernels && rows > 1 && rows <= dev_.profile.exact_cols_upto; }
+    bool on_columns(const TypeKernels& kinds, size_t rows) const { return kinds.cols != kKernels && dev_.profile.exact_on_columns(rows); }
     // Rows of X on a type's column builds, each output the bits of its one-row product (kernels/f32.gpu, exact_cols): two to four rows take the 4-row build, more the 8-row build over groups of eight.
     // A remainder of four or fewer past whole groups of eight takes the 4-row build, since the 8-row build costs eight rows whatever it is given (docs/STATUS.md).
     void exact_columns(const TypeKernels& kinds, const uint8_t* w, const float* x, float* y, size_t nin, size_t nout, size_t nbatch, int add) {
@@ -3186,7 +3191,8 @@ private:
             begin = end;
         }
         if (begin != nbatch) throw std::runtime_error(Api::prefix + "row runs short of the call");
-        if (tiled) record_matrix_path(MatrixPath::f16);
+        // The tensor-core tile sums each group of 8 inside the instruction, so it is witnessed apart from the F16 class's IEEE sums and held to its own budget (docs/CUDA.md, BF16 prompt tile).
+        if (tiled) record_matrix_path(kinds.half == kBF16Tile ? MatrixPath::f16_mma : MatrixPath::f16);
         if (exact) record_matrix_path(MatrixPath::f32);
     }
     // A projection of a call: its weight rows, its output and their count.

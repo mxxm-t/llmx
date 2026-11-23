@@ -299,7 +299,7 @@ void types(const CudaDevice& d, Backend& g, Backend& cpu) {
     guarded("imma_tile", [&] { imma_tile(g, d.caps); });
     twin_checks::Bits bits{d.caps, cuda_profile, cuda_take_launches, [](bool ok, const std::string& what) { if (!ok) require(false, what); }};
     const int before = failures;
-    guarded("half_tile", [&] { bits.half_tile(g); });
+    guarded("half_tile", [&] { bits.half_tile(g, true); });
     guarded("q8_decode_bits", [&] { bits.q8_decode_bits(g); });
     guarded("q8_columns_bits", [&] { bits.q8_columns_bits(g); });
     guarded("mxfp4_decode_bits", [&] { bits.mxfp4_decode_bits(g); });

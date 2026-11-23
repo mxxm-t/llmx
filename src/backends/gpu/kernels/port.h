@@ -21,6 +21,8 @@
 #endif
 // 1 where the int8 class runs in one module on the four-way dot and the 8-bit integer tensor cores: never under HIP, whose dot module (LLMX_DOT16) and delta step rows (rows.h, dot8) take dot4_i8.
 #define GPU_IMMA8 0
+// 1 where the module has the TF32 tensor-core prompt tile of BF16 weights (int16.gpu, bf16_tile): never under HIP, where BF16 prompts keep the exact F32 rows.
+#define GPU_TF32_MMA 0
 // The launch bounds of the dense int8 tiles, which HIP leaves at the block size so gfx9 keeps its code.
 #define LLMX_TILE8_BOUNDS(blocks) __launch_bounds__(kThreads)
 // The one-shot group sum at five waves a SIMD, so the 16 blocks each of a 16-rank group stay resident together on one 60-compute-unit gfx906 (docs/src/backends-gpu.md).
@@ -273,6 +275,15 @@ __device__ __forceinline__ float dot2_f16(unsigned a, unsigned b, float s) {
 // Every CUDA target has the four-way dot (GPU_DOT4, above), and from sm_80 the 8-bit integer tensor cores, so the int8 class takes both in its one module.
 // Before sm_80 the tensor-core products below are four-way dots over exchanged fragments: the same wrapping int32 sums, slower.
 #define GPU_IMMA8 1
+// From sm_80 the targets have TF32 tensor cores, which BF16 weights and binary16 activations both reach exactly; older targets' modules lack the tile.
+#define GPU_TF32_MMA (__CUDA_ARCH__ >= 800)
+// d = the 16 by 8 product of a (16 rows by 8 TF32 values) and b (8 values by 8 columns), summed from zero in F32 (mma m16n8k8 tf32).
+// Lane l holds a's rows l / 4 and l / 4 + 8 at columns l % 4 (a[0], a[1]) and l % 4 + 4 (a[2], a[3]), b's column l / 4 at rows l % 4 and l % 4 + 4, and d as mma_s8's.
+__device__ __forceinline__ void mma_tf32(float (&d)[4], const unsigned (&a)[4], const unsigned (&b)[2]) {
+    asm("mma.sync.aligned.m16n8k8.row.col.f32.tf32.tf32.f32 {%0, %1, %2, %3}, {%4, %5, %6, %7}, {%8, %9}, {%10, %10, %10, %10};"
+        : "=f"(d[0]), "=f"(d[1]), "=f"(d[2]), "=f"(d[3])
+        : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b[0]), "r"(b[1]), "f"(0.0f));
+}
 // The dense int8 tiles' blocks an SM: two hold a tile to 128 registers, which the tensor-core fragments pass otherwise (docs/STATUS.md, CUDA int8 tiles of every type on the tensor cores).
 #define LLMX_TILE8_BOUNDS(blocks) __launch_bounds__(kThreads, blocks)
 #define LLMX_ONE_SHOT_BOUNDS __launch_bounds__(kThreads)

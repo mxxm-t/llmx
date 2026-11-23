@@ -79,6 +79,13 @@ Images are pushed by digest alone and tagged only by the run that publishes them
 - **Left:** the landing gates for model and placement code: Qwen3-0.6B CPU ids against main, CTest and the CPU suite (pve1), a device suite and the timing round with the landing stack.
 - **Gotchas:** the rule is generic, so an architecture that shares one small tensor across every layer would keep the whole model on one device; the refusal names the tensor. A split of sharers placed by hand, not by the fit, still runs, each device adopting the tensor once.
 
+## Cold-start test priced by fixed prices
+
+- **Cause.** server-passes-cpu's `cold_start` failed once in LAND102's ROCm CTest under host load 32 to 41: "the prompt's first slice after the reply began decoding took 256 rows". The case priced its passes by their measured time, and a reply priced past the objective's gap (125 ms at 8 tokens a second) leaves the 1800-token prompt unread until the wait bound (`Scheduler::plan`), so the 40-token reply ended first and the prompt's first slice was a whole ubatch after it. The scheduler follows its service rule there; the test assumed fast measured prices. No window of `plan` reaches the check: a pass formed before the reply's first token retires within the P passes the check skips (Fable).
+- **Done.** The first commit adds a case pricing decode rows at 250 ms through `Scheduler::stage_ms`, which fails with the loaded run's message on every run. The fix, from XDEV's 620dd312f, prices every case's passes at its decode rows' price and 2 ms for prompt rows, a slice riding the replies' pass included: at 5 ms the first slice beside the decoding reply takes at most two steps of 16, and at 250 ms a 12-token reply leaves the prompt unread until its last pass, after which it takes 256 rows.
+- **Checks.** server-passes-cpu on pve1 (llmx-build-vk:ccache, 16 CPUs) passed 6 of 6 runs with the fix (job 20261123-045010-FLAKE1-2682); with the fix reverted the 250 ms case fails every run with "the prompt's first slice after the reply began decoding took 256 rows" (20261123-044421-FLAKE1-13888 for the original message). Docs and dead-code pass on a git-archive copy.
+- **Landing.** Tests only (AGENTS.md, Merge gates): the component on CPU, docs and dead-code, the hosted run; it lands by fast-forward.
+
 ## Request capacity freshness in Monitor
 
 - The production dashboard showed CURRENT STATE after its inference server stopped. Request capacity now marks the retained counts as LAST SAMPLE and distinguishes pausing the view from paused scheduler work.

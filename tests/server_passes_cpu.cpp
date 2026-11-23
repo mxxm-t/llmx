@@ -1377,12 +1377,14 @@ void cold_start(const gguf::GGUFModel& weights, uint32_t vocab) {
     const size_t pool = 32 * kBlock;
     constexpr int kWide = 256;
     Submitters seen;
-    const Req reply{prompt_of(61, 4, vocab), 40}, prompt{prompt_of(62, 1800, vocab), 4};
-    struct Case { size_t stages; double decode_ms; };
-    for (const Case c : {Case{1, 5}, Case{2, 5}, Case{3, 5}, Case{1, 250}}) {
+    const Req prompt{prompt_of(62, 1800, vocab), 4};
+    struct Case { size_t stages; bool defer_prompt; };
+    for (const Case c : {Case{1, false}, Case{2, false}, Case{3, false}, Case{1, true}}) {
         const size_t stages = c.stages;
         const size_t passes = stages == 1 ? 1 : stages + 1;
-        const std::string where = "a reply and a prompt on a fresh server on " + std::to_string(stages) + " stage" + (stages == 1 ? "" : "s");
+        // The slow reply is short, so its passes end well within kPromptWaitMs of wall time even on a loaded host.
+        const Req reply{prompt_of(61, 4, vocab), c.defer_prompt ? 12 : 40};
+        const std::string where = "a reply and a prompt on a fresh server on " + std::to_string(stages) + " stage" + (stages == 1 ? "" : "s") + (c.defer_prompt ? " with a slow reply" : "");
         const Make split = on(weights, [&seen, stages] {
             std::vector<backend::BackendPtr> v;
             for (size_t i = 0; i < stages; ++i) v.push_back(std::make_shared<Slow>(&seen, 2));
@@ -1390,7 +1392,9 @@ void cold_start(const gguf::GGUFModel& weights, uint32_t vocab) {
         });
         auto model = split(pool, kWide);
         server::Scheduler sched(*model, tok, kSeqs, 64, passes);
-        sched.stage_ms = [c](size_t, const server::PassWork& w) { return w.decode_rows ? c.decode_ms : 2.0; };
+        const double decode_ms = c.defer_prompt ? 250.0 : 5.0;
+        // Fixed prices, since a measured one follows host load: a pass costs its decode rows' price and 2 ms for prompt rows, so a slice riding the replies' pass is priced too.
+        sched.stage_ms = [decode_ms](size_t, const server::PassWork& w) { return (w.decode_rows ? decode_ms : 0.0) + (w.chunks.empty() ? 0.0 : 2.0); };
         std::vector<server::Scheduler::Retired> retired;
         sched.on_retire = [&](const server::Scheduler::Retired& t) { retired.push_back(t); };
         auto a = sched.submit(reply.prompt, params_of(reply));
@@ -1407,22 +1411,32 @@ void cold_start(const gguf::GGUFModel& weights, uint32_t vocab) {
         sched.stop();
         runner.join();
         // The pass that gave the reply its first token, then the first slice of the prompt formed after it: a pass retiring more than P passes later was formed after it.
-        size_t first = retired.size();
-        for (size_t i = 0; i < retired.size() && first == retired.size(); ++i)
-            for (size_t e = 0; e < retired[i].requests.size(); ++e)
-                if (retired[i].requests[e] == a.get() && retired[i].from[e] + retired[i].rows[e] == reply.prompt.size()) first = i;
+        size_t first = retired.size(), last_reply = 0;
+        for (size_t i = 0; i < retired.size(); ++i) {
+            for (size_t e = 0; e < retired[i].requests.size(); ++e) {
+                if (retired[i].requests[e] != a.get()) continue;
+                last_reply = i;
+                if (retired[i].from[e] + retired[i].rows[e] == reply.prompt.size()) first = i;
+            }
+        }
         require(first < retired.size(), where + ": the reply's prompt never retired");
-        size_t next = 0;
+        size_t next = 0, selected = retired.size();
         bool alone = true;
         for (size_t i = first + 1; i < retired.size() && !next; ++i)
             for (size_t e = 0; e < retired[i].requests.size(); ++e) {
                 if (retired[i].requests[e] != b.get() || retired[i].from[e] + retired[i].rows[e] == prompt.prompt.size()) continue;
                 if (i == first + 1) alone = false;
-                if (i > first + passes) next = retired[i].rows[e];
+                if (i > first + passes) {
+                    next = retired[i].rows[e];
+                    selected = i;
+                }
             }
-        // One step while unpriced, or two once that step and the replies' pass are priced, against a whole ubatch before the rule.
-        require(next > 0 && next <= 2 * server::kPieceStep, where + ": the prompt's first slice after the reply began decoding took " + std::to_string(next) + " rows, against one step of " +
-                                                                std::to_string(server::kPieceStep) + " while the replies' pass had no price");
+        if (c.defer_prompt) {
+            require(selected > last_reply && next == kWide, where + ": the deferred prompt did not resume with a full slice after the reply finished");
+        } else {
+            require(selected <= last_reply, where + ": no prompt slice overlapped the decoding reply");
+            require(next > 0 && next <= 2 * server::kPieceStep, where + ": the first overlapping prompt slice took " + std::to_string(next) + " rows");
+        }
         require(stages > 1 || alone, where + ": on one pass in flight the reply's first decode pass carried the prompt's rows before it was priced");
         ++checks;
     }

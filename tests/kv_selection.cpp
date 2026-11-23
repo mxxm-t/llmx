@@ -562,18 +562,23 @@ struct History {
         identity.sin.assign(tokens * (c.rope_dim / 2), 0.0f);
     }
     // The ids of `rows` rows after `length` tokens, each required to be the oracle's.
-    std::vector<uint32_t> run(Backend& device, size_t length, size_t rows, const std::string& label) {
-        const backend::KVView view = cache.view(length, rows, map);
-        std::vector<float> q(rows * c.heads * c.dim, 0.0f);
-        for (size_t r = 0; r < rows * c.heads; ++r) q[r * c.dim] = 1.0f;
+    std::vector<uint32_t> run(Backend& device, size_t length, size_t rows, const std::string& label) { return run(device, {{length, rows}}, label); }
+    // The same over one call of several views, each a (length, rows) of this history.
+    std::vector<uint32_t> run(Backend& device, const std::vector<std::pair<size_t, size_t>>& spans, const std::string& label) {
+        std::vector<backend::KVView> views;
         std::vector<uint32_t> pos;
         std::vector<std::vector<uint32_t>> want;
-        for (size_t r = 0; r < rows; ++r) {
-            pos.push_back(uint32_t(length + r));
-            want.push_back(oracle_row(keys, length + r + 1, c.heads, c.dim, c.compression, c.budget, c.eps));
+        for (const auto& [length, rows] : spans) {
+            views.push_back(cache.view(length, rows, map));
+            for (size_t r = 0; r < rows; ++r) {
+                pos.push_back(uint32_t(length + r));
+                want.push_back(oracle_row(keys, length + r + 1, c.heads, c.dim, c.compression, c.budget, c.eps));
+            }
         }
+        std::vector<float> q(pos.size() * c.heads * c.dim, 0.0f);
+        for (size_t r = 0; r < pos.size() * c.heads; ++r) q[r * c.dim] = 1.0f;
         const std::vector<float> unit(c.dim, 1.0f);
-        return run_selection(device, c, &view, 1, q, rows, unit, unit, identity, pos, &want, label);
+        return run_selection(device, c, views.data(), views.size(), q, pos.size(), unit, unit, identity, pos, &want, label);
     }
 };
 
@@ -644,6 +649,34 @@ void wide_crossover(Backend& device, const std::string& name) {
         require(normal == natural, "the normal selection's ids differ from the profile's forms on " + name);
     }
 #endif
+}
+
+// Rows on each side of the most tokens a row takes every group of, (budget / compression + 1) * compression - 1, alone and in prompt views that straddle it (docs/TESTS.md, kv-selection).
+// Every row must give the oracle's ids and sentinels; on a GPU-core device each view with a fitting row is one llmx_kv_index_all launch, and the rest score 16 rows a launch from the first row past the edge.
+void identity_rows(Backend& device, const std::string& name) {
+    History h(device, distinct_angles(600));
+    const size_t whole = (h.c.budget / h.c.compression + 1) * h.c.compression - 1;
+    using Spans = std::vector<std::pair<size_t, size_t>>;
+    const Spans cases[] = {{{whole - 2, 1}}, {{whole - 1, 1}}, {{whole, 1}},          {{whole - 3, 2}},          {{whole - 1, 2}},
+                           {{whole - 18, 20}}, {{whole - 17, 17}}, {{whole - 2, 19}}, {{whole - 2, 3}, {100, 2}}, {{100, 2}, {whole - 2, 19}}};
+    for (const Spans& spans : cases) {
+        std::string at = "views";
+        size_t all = 0, chunks = 0;
+        for (const auto& [length, rows] : spans) {
+            const size_t taken = whole > length ? std::min(rows, whole - length) : 0;
+            all += taken != 0;
+            chunks += (rows - taken + 15) / 16;
+            at += " of " + std::to_string(rows) + " rows seeing " + std::to_string(length + 1) + " to " + std::to_string(length + rows) + " tokens,";
+        }
+        at += " " + std::to_string(whole) + " the most a row takes whole";
+        launches(device, name);
+        h.run(device, spans, at);
+        auto ran = launches(device, name);
+        if (!gpu_core_hooks::on(name)) continue;
+        require(ran["llmx_kv_index_all"] == all && ran["llmx_kv_index_scores"] == chunks,
+                at + ": llmx_kv_index_all ran " + std::to_string(ran["llmx_kv_index_all"]) + " times, not " + std::to_string(all) + ", and llmx_kv_index_scores " + std::to_string(ran["llmx_kv_index_scores"]) +
+                    ", not " + std::to_string(chunks) + ", on " + name);
+    }
 }
 
 // The selection's time a call through select_kv, rows of one and of 16 after histories of 1024 to 65536 groups, budget 2048 and compression 4, printed and not checked.
@@ -964,6 +997,7 @@ int main(int argc, char** argv) {
         }
         synthetic_long(*device);
         wide_crossover(*device, device_name);
+        identity_rows(*device, device_name);
         pooled_rows_kept(*device);
         pooled_at_positions(*device);
         std::cout << "kv-selection: PASS (" << checks << " checks) on " << device_name << '\n';

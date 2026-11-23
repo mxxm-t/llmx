@@ -1378,7 +1378,9 @@ void cold_start(const gguf::GGUFModel& weights, uint32_t vocab) {
     constexpr int kWide = 256;
     Submitters seen;
     const Req reply{prompt_of(61, 4, vocab), 40}, prompt{prompt_of(62, 1800, vocab), 4};
-    for (const size_t stages : {size_t(1), size_t(2), size_t(3)}) {
+    struct Case { size_t stages; double decode_ms; };
+    for (const Case c : {Case{1, 5}, Case{2, 5}, Case{3, 5}, Case{1, 250}}) {
+        const size_t stages = c.stages;
         const size_t passes = stages == 1 ? 1 : stages + 1;
         const std::string where = "a reply and a prompt on a fresh server on " + std::to_string(stages) + " stage" + (stages == 1 ? "" : "s");
         const Make split = on(weights, [&seen, stages] {
@@ -1388,6 +1390,7 @@ void cold_start(const gguf::GGUFModel& weights, uint32_t vocab) {
         });
         auto model = split(pool, kWide);
         server::Scheduler sched(*model, tok, kSeqs, 64, passes);
+        sched.stage_ms = [c](size_t, const server::PassWork& w) { return w.decode_rows ? c.decode_ms : 2.0; };
         std::vector<server::Scheduler::Retired> retired;
         sched.on_retire = [&](const server::Scheduler::Retired& t) { retired.push_back(t); };
         auto a = sched.submit(reply.prompt, params_of(reply));

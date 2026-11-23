@@ -229,7 +229,7 @@ For users:
 - [ASSETS](docs/ASSETS.md): the models llmx is checked with.
 - [ROADMAP](docs/ROADMAP.md): what is planned.
 
-For contributors: [AGENTS](AGENTS.md), [ARCHITECTURE](docs/ARCHITECTURE.md), [ADDING-AN-ARCHITECTURE](docs/ADDING-AN-ARCHITECTURE.md), [EXECUTION](docs/EXECUTION.md), [DEVICE-EXECUTION](docs/DEVICE-EXECUTION.md), [KV-CACHE](docs/KV-CACHE.md), [CACHE-PLAN](docs/CACHE-PLAN.md), [TESTS](docs/TESTS.md), [CI](docs/CI.md) and [STATUS](docs/STATUS.md); the design plans [DEEPSEEK4](docs/DEEPSEEK4.md), [CUDA](docs/CUDA.md) and [DISK-TIER](docs/DISK-TIER.md).
+For contributors: [AGENTS](AGENTS.md), [ARCHITECTURE](docs/ARCHITECTURE.md), [ADDING-AN-ARCHITECTURE](docs/ADDING-AN-ARCHITECTURE.md), [EXECUTION](docs/EXECUTION.md), [DEVICE-EXECUTION](docs/DEVICE-EXECUTION.md), [DEVICE-TUNING](docs/DEVICE-TUNING.md), [KV-CACHE](docs/KV-CACHE.md), [CACHE-PLAN](docs/CACHE-PLAN.md), [TESTS](docs/TESTS.md), [CI](docs/CI.md) and [STATUS](docs/STATUS.md); the design plans [DEEPSEEK4](docs/DEEPSEEK4.md), [CUDA](docs/CUDA.md) and [DISK-TIER](docs/DISK-TIER.md).
 
 ## License
 

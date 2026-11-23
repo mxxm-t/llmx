@@ -243,6 +243,7 @@ A fresh agent (or human) can jump straight into a feature by reading, in order:
 4. `docs/STATUS.md` - what is already in flight and where each feature stands.
 
 When you start (or pick up) a feature:
+- Kernel or speed work starts from `docs/DEVICE-TUNING.md`, the measured device limits, the patterns that worked and failed, and how to measure, and adds its own result there, a null one included.
 - A new model architecture is a module under `src/model/arch/`, built in the order and held to the gates `docs/ADDING-AN-ARCHITECTURE.md` gives.
 - Keep each independent feature on its own branch based on current main.
   Do not base unrelated work on another unmerged feature. If a dependency is

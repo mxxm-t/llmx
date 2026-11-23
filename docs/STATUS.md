@@ -33,6 +33,25 @@
 - **Left:** qwen4exp's dense layers make the same four calls and could call it, with their own byte identity on Flash-Next; `llmx_attention_gated256` and its merge copy the bodies of `attention_vec<256>` and its merge and could be builds of those templates, as the sparse ones are, after a timing round (Fable). The landing gates run in the landing stack.
 - **Gotchas:** A backend that fuses the layer may leave the formed q and k unwritten, unlike `norm_rope_kv`, so nothing after the layer may read them. Vulkan keeps the default.
 
+## QSA identity rows in one launch (2026-11-21, FNGATE3 then FNGATE4, branch perf/qsa-identity-rows, revived 2026-11-23 by REVIVE1 on main bfb7f517)
+
+- **Goal:** Cut the launches and device time of QSA key selection for rows that take every group they see.
+- **Done:** `select_kv` writes each such row (visible tokens at most (budget / compression + 1) * compression - 1) with `llmx_kv_index_all`, one launch a view, after `pool_view` as before; the other rows score and select as they did. The ids are the select kernel's for count == take by construction.
+- **Measured (Qwen3.8-Flash-Next UD-Q4_K_XL, ROCm int8, 4 MI50, layer split over 4 devices, pp2048, `bench --profile`):** budget 2048 and compression 4 make every pp2048 row an identity row.
+
+  | per device, pp2048 | main c494eea6f | candidate 8d7612085 |
+  |---|---|---|
+  | `llmx_kv_index_scores` + `llmx_kv_index_select` | 14.4 ms | 0 |
+  | `llmx_kv_index_all` | 0 | 0.22 ms |
+  | dispatches sampled (rocm:0) | 3156 | 3000 |
+  | pp2048 tok/s, 4-run ABBA (contended host) | 2052.3 / 2001.1 | 1971.7 / 2065.2 |
+
+  The device-time cut is about 2% of a pass; tok/s is neutral within noise, since the untraced prompt is not host-recording bound and the slice count varied from 4 to 14 between runs.
+- **Correctness:** greedy 64-token text identical to main on 1248- and 5391-token prompts at the layer-4 split and at `--tensor-width 2`; the `kv-selection` check passes on rocm:0 (734151 checks, 916908 with the edge check).
+- **Forced-path check:** `kv-selection` gains `identity_rows`: views of 1, 2, 3, 17, 19 and 20 rows at visible = whole - 1, whole and whole + 1, one- and two-view calls, with exact `llmx_kv_index_all` and `llmx_kv_index_scores` launch counts and the ids of the select path. It passes on the candidate (916908 checks, rocm:0, gfx906 build) and fails on main sources with the same test: `views of 1 rows seeing 2050 to 2050 tokens, 2051 the most a row takes whole: llmx_kv_index_all ran 0 times, not 1` (/opt/claude-work/revive2/qsa.log).
+- **Left:** landing gates by scope (kernel code): byte identity on CPU and a device, the device suite, one timing round against main (the claim is launches and device time, tok/s is neutral), the hosted run; Vulkan's select_kv is not checked for the same loop and is recorded as left work.
+- **Gotchas:** the identity arm must keep `pool_view` before it; later above-budget rows read the pooled history.
+
 ## A chat reply read again with the reasoning its client sends back
 
 - **Goal:** a follow-up turn that sends the reply's reasoning back reuses the reply. Production on 2026-11-22 (0.2.0, Qwen3.8-27B Q8_0, the chat companion) reused nothing of a 29000-token follow-up: `the closest held history agrees for 59 tokens (message 2 of 3, assistant), limited by tokens at 59`.

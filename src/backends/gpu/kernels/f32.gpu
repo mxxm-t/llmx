@@ -2914,6 +2914,13 @@ extern "C" __global__ void llmx_kv_index_select(const float* scores, unsigned* i
     for (unsigned t = lid; t < visible % compression; t += kThreads) out[take * compression + t] = count * compression + t;
 }
 
+// A block a row that takes every group it sees: llmx_kv_index_select's ids for such a row, its visible positions in order and UINT32_MAX to `stride`.
+extern "C" __global__ void llmx_kv_index_all(unsigned* ids, unsigned hist, unsigned stride) {
+    const unsigned r = blockIdx.x, visible = hist + r + 1u;
+    unsigned* out = ids + (unsigned long long)r * stride;
+    for (unsigned i = threadIdx.x; i < stride; i += kThreads) out[i] = i < visible ? i : 0xffffffffu;
+}
+
 // llmx_kv_index_select over slices of 1024 groups, a block a (slice, row) of at most 16 rows and five launches by `stage`: histograms of 11, 11 and 10 bits into `state`, each slice's greater and equal counts, their emission.
 // Per row `state` holds the three histograms (2048, 2048 and 1024 bins, zero between calls), then the bits and rank found; every row's slice counts follow the 16 rows.
 constexpr unsigned kSelectSlice = 1024, kSelectRowWords = 5122, kSelectPrefix = 5120, kSelectRank = 5121, kSelectRows = 16;

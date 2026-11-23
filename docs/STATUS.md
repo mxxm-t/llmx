@@ -86,6 +86,13 @@ Images are pushed by digest alone and tagged only by the run that publishes them
 - **Checks.** server-passes-cpu on pve1 (llmx-build-vk:ccache, 16 CPUs) passed 6 of 6 runs with the fix (job 20261123-045010-FLAKE1-2682); with the fix reverted the 250 ms case fails every run with "the prompt's first slice after the reply began decoding took 256 rows" (20261123-044421-FLAKE1-13888 for the original message). Docs and dead-code pass on a git-archive copy.
 - **Landing.** Tests only (AGENTS.md, Merge gates): the component on CPU, docs and dead-code, the hosted run; it lands by fast-forward.
 
+## Resume tests priced by fixed prices
+
+- **Cause.** server-resume (`cpu-resume`) failed 1 of 6 on main under host load 22 to 42: "a victim still prefilling: 0 taken back and 0 rows recomputed". Its runs priced passes by their measured time, and a reply priced past the objective's gap (125 ms) leaves the 384-token prompt beside it unread until the wait bound, so the uncapped reply filled the pool and paused a victim that had read nothing. The scheduler follows its service rule there; the test assumed fast measured prices (Fable).
+- **Done.** The harness's `serve` takes a `stage_ms` that prices every pass (`Scheduler::stage_ms`). The first commit prices the prefilling victim's decode rows at 250 ms, which fails with the loaded run's message on every run; the fix prices every pass of `alone_then_together`, alone and together, at 5 ms of decode rows and 2 ms of prompt rows.
+- **Checks.** cpu-resume on pve1 passed 6 of 6 runs with the fix (job 20261123-045010-FLAKE1-1399); with decode priced 250 ms on the prefilling victim alone the case fails every run with "a victim still prefilling: 0 taken back and 0 rows recomputed" (20261123-044935-FLAKE1-17831). Docs and dead-code pass on a git-archive copy.
+- **Landing.** Tests only (AGENTS.md, Merge gates): the group on CPU, docs and dead-code, the hosted run; it lands by fast-forward.
+
 ## Request capacity freshness in Monitor
 
 - The production dashboard showed CURRENT STATE after its inference server stopped. Request capacity now marks the retained counts as LAST SAMPLE and distinguishes pausing the view from paused scheduler work.

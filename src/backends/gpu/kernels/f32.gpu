@@ -936,6 +936,81 @@ extern "C" __global__ void llmx_add_bias(float* dst, const float* bias, unsigned
     for (unsigned j = threadIdx.x; j < width; j += kThreads) y[j] += bias[j];
 }
 
+// A DSpine drafter's ops (Backend::unit_rows, sigmoid_gate_rows, matmul_at_ids, chain_pick), each the CPU's arithmetic: sums of squares and dots in double, a block's sum a fixed tree.
+__device__ inline double block_sum_double(double v) {
+    __shared__ double part[kThreads];
+    part[threadIdx.x] = v;
+    __syncthreads();
+    for (unsigned w = kThreads / 2; w > 0; w /= 2) {
+        if (threadIdx.x < w) part[threadIdx.x] += part[threadIdx.x + w];
+        __syncthreads();
+    }
+    const double s = part[0];
+    __syncthreads();
+    return s;
+}
+// A block a row; mode 0 divides by the root mean square, 1 by the length, 2 by nothing.
+extern "C" __global__ void llmx_unit_rows(float* dst, float* norms, const float* src, unsigned long long n, float gain, float eps, int mode) {
+    const float* x = src + blockIdx.x * n;
+    float* y = dst + blockIdx.x * n;
+    float scale = gain;
+    if (mode != 2) {
+        double sum = 0.0;
+        for (unsigned long long i = threadIdx.x; i < n; i += kThreads) sum += __dmul_rn((double)x[i], (double)x[i]);
+        sum = block_sum_double(sum);
+        const float norm = sqrtf(fmaxf((float)(mode == 0 ? sum / (double)n : sum), 0x1p-126f));
+        if (norms && threadIdx.x == 0) norms[blockIdx.x] = norm;
+        scale = gain / (norm + eps);
+    }
+    for (unsigned long long i = threadIdx.x; i < n; i += kThreads) y[i] = x[i] * scale;
+}
+// A block a (column run, row): msg row r = sigmoid(q[q_rows[r]] + s[from[r]] + bias) * v[from[r]] * scale[q_rows[r]], zeros where from[r] is ~0u.
+extern "C" __global__ void llmx_sigmoid_gate_rows(float* msg, const float* q, const float* s, const float* v, const float* bias, const float* scale, unsigned width,
+                                              const unsigned* q_rows, const unsigned* from) {
+    const unsigned r = blockIdx.y, i = blockIdx.x * kThreads + threadIdx.x;
+    if (i >= width) return;
+    float* y = msg + (unsigned long long)r * width;
+    if (from[r] == ~0u) {
+        y[i] = 0.0f;
+        return;
+    }
+    const unsigned long long qa = (unsigned long long)q_rows[r] * width + i, fa = (unsigned long long)from[r] * width + i;
+    y[i] = v[fa] / (1.0f + expf(-(q[qa] + s[fa] + bias[i]))) * scale[q_rows[r]];
+}
+// A block a (candidate c, group g) over the head rows gathered into `rows`: out[g*k*k + j*k + c] = the double sum of x row g*per+j times w times head row g*k+c, -inf for an id of nrows or more.
+extern "C" __global__ void llmx_matmul_at_ids(float* out, const float* x, const float* w, const float* rows, const unsigned* ids, unsigned long long width, unsigned nrows,
+                                               unsigned k, unsigned per) {
+    const unsigned c = blockIdx.x, g = blockIdx.y;
+    const float* h = rows + ((unsigned long long)g * k + c) * width;
+    const bool valid = ids[g * k + c] < nrows;
+    for (unsigned j = 0; j < per; ++j) {
+        const float* xr = x + ((unsigned long long)g * per + j) * width;
+        double sum = 0.0;
+        for (unsigned long long e = threadIdx.x; e < width; e += kThreads) sum += __dmul_rn((double)xr[e] * (double)w[e], (double)h[e]);
+        sum = block_sum_double(sum);
+        if (threadIdx.x == 0) out[((unsigned long long)g * k + j) * k + c] = valid ? (float)sum : -INFINITY;
+    }
+}
+// A thread a chain: the walk of Backend::chain_pick, ties to the lower index.
+extern "C" __global__ void llmx_chain_pick(unsigned* next, const float* score, const unsigned* cand, unsigned seqs, unsigned steps, unsigned k) {
+    const unsigned i = blockIdx.x * kThreads + threadIdx.x;
+    if (i >= seqs) return;
+    const unsigned long long kk = (unsigned long long)k * k;
+    const float* row = score + i * kk;
+    unsigned j = 0;
+    for (unsigned c = 1; c < k; ++c)
+        if (row[c] > row[j]) j = c;
+    for (unsigned t = 0; t < steps; ++t) {
+        next[(unsigned long long)t * seqs + i] = cand[((unsigned long long)t * seqs + i) * k + j];
+        if (t + 1 == steps) break;
+        row = score + ((unsigned long long)(t + 1) * seqs + i) * kk + (unsigned long long)j * k;
+        unsigned b = 0;
+        for (unsigned c = 1; c < k; ++c)
+            if (row[c] > row[b]) b = c;
+        j = b;
+    }
+}
+
 // A block a (row, head) of K and V rows into their KV blocks: row r lands in block blocks[r] at token slot slots[r], [kv_head][token][head_dim] in the side's type (1 for f16).
 extern "C" __global__ void llmx_kv_write(void* kc, void* vc, const float* k, const float* v, const int* blocks, const int* slots,
                                          int heads, int dim, int bt, int k_half, int v_half) {
@@ -1532,11 +1607,11 @@ __device__ inline unsigned slot_token(const unsigned* row, unsigned shift, int t
 }
 
 // A block a (row, head, chunk) of the split attention, an online softmax over the chunk's 64-position tiles in order, its state written to `part` for llmx_attention_merge.
-// SPARSE reads the row's `stride` selection slots in place of its positions (slot_token), a slot outside the row's causal prefix skipped.
-template <bool SPARSE>
+// SPARSE reads the row's `stride` selection slots for its positions (slot_token), a slot outside its causal prefix skipped, and WINDOW the row's ends[r] positions from starts[r] (KVView::window).
+template <bool SPARSE, bool WINDOW = false>
 __device__ inline void attention_chunk(const float* Q, float* part, const void* kc, const void* vc, const int* table, const int* firsts, const int* ends,
                                        int n_head, int ratio, int heads_kv, int dim, int bt, int k_half, int v_half, float scale, const unsigned* ids,
-                                       int stride, unsigned shift, int groups) {
+                                       int stride, unsigned shift, int groups, const int* starts = nullptr) {
     __shared__ float sc[64];
     __shared__ float red[64];
     __shared__ unsigned tok[64];
@@ -1548,6 +1623,7 @@ __device__ inline void attention_chunk(const float* Q, float* part, const void* 
     const float* q = Q + ((unsigned long long)r * n_head + h) * dim;
     const int kvh = h / ratio;
     const int* blocks = table + firsts[r];
+    const int begin = WINDOW ? starts[r] : 0;
     const unsigned* row_ids = SPARSE ? slot_ids(ids, r, kvh, heads_kv, groups, stride, shift) : nullptr;
     float m = -INFINITY, l = 0.0f, acc = 0.0f;
     for (int base = first; base < last; base += 64) {
@@ -1558,7 +1634,7 @@ __device__ inline void attention_chunk(const float* Q, float* part, const void* 
         if (SPARSE) __syncthreads();
         const int p = t / 4, quarter = t % 4;
         const bool valid = SPARSE ? tok[p] != ~0u : base + p < last;
-        const int pos = SPARSE ? (valid ? (int)tok[p] : 0) : base + p;
+        const int pos = SPARSE ? (valid ? (int)tok[p] : 0) : begin + base + p;
         float s = 0.0f;
         if (valid) {
             const unsigned long long at = (((unsigned long long)blocks[pos / bt] * heads_kv + kvh) * bt + pos % bt) * dim;
@@ -1599,7 +1675,7 @@ __device__ inline void attention_chunk(const float* Q, float* part, const void* 
             float v = acc * a;
             for (int j = 0; j < 64 && base + j < last; ++j) {
                 if (SPARSE && tok[j] == ~0u) continue;
-                const int pj = SPARSE ? (int)tok[j] : base + j;
+                const int pj = SPARSE ? (int)tok[j] : begin + base + j;
                 const unsigned long long at = (((unsigned long long)blocks[pj / bt] * heads_kv + kvh) * bt + pj % bt) * dim + t;
                 const float vd = v_half ? __half2float(((const __half*)vc)[at]) : ((const float*)vc)[at];
                 v = fmaf(sc[j], vd, v);
@@ -1619,6 +1695,11 @@ extern "C" __global__ void llmx_attention_chunk(const float* Q, float* part, con
                                                 const int* ends, int n_head, int ratio, int heads_kv, int dim, int bt, int k_half, int v_half,
                                                 float scale) {
     attention_chunk<false>(Q, part, kc, vc, table, firsts, ends, n_head, ratio, heads_kv, dim, bt, k_half, v_half, scale, nullptr, 0, 0u, 1);
+}
+extern "C" __global__ void llmx_attention_chunk_window(const float* Q, float* part, const void* kc, const void* vc, const int* table, const int* firsts,
+                                                       const int* ends, int n_head, int ratio, int heads_kv, int dim, int bt, int k_half, int v_half,
+                                                       float scale, const int* starts) {
+    attention_chunk<false, true>(Q, part, kc, vc, table, firsts, ends, n_head, ratio, heads_kv, dim, bt, k_half, v_half, scale, nullptr, 0, 0u, 1, starts);
 }
 extern "C" __global__ void llmx_sparse_attention_chunk(const float* Q, float* part, const void* kc, const void* vc, const int* table, const int* firsts,
                                                        const int* ends, int n_head, int ratio, int heads_kv, int dim, int bt, int k_half, int v_half,
@@ -1785,10 +1866,11 @@ LLMX_ATTENTION_TILE(llmx_attention_tile256, 256)
 
 // Causal attention of rows that attend one at a time in the Vulkan per-row design, heads 128 or 256 wide: a block a (row, head, split), its streams merged in stream order.
 // One split writes O and its twin and several write partials for llmx_attention_vec_merge; SPARSE splits its selected ids by the stride alone.
-template <int DIM, bool SPARSE>
+template <int DIM, bool SPARSE, bool WINDOW = false>
 __device__ inline void attention_vec(const float* Q, float* O, const void* kc, const void* vc, const int* table, const int* firsts, const int* ends,
                                      int n_head, int heads_kv, int bt, int k_half, int v_half, float scale, int nsplit, int chunk0, int max_parts,
-                                     float* partials, void* tq, float* td, void* ts, int tlevel, const TwinMap* tm, const unsigned* ids, int stride, unsigned shift, int groups) {
+                                     float* partials, void* tq, float* td, void* ts, int tlevel, const TwinMap* tm, const unsigned* ids, int stride, unsigned shift, int groups,
+                                     const int* starts = nullptr) {
     constexpr int LANES = DIM / 8, STREAMS = kThreads / LANES;
     __shared__ float ms[STREAMS], ls[STREAMS];
     __shared__ float accs[STREAMS * DIM];
@@ -1810,7 +1892,7 @@ __device__ inline void attention_vec(const float* Q, float* O, const void* kc, c
     for (int slot = start + stream; slot < end; slot += STREAMS) {
         const unsigned id = SPARSE ? slot_token(row_ids, shift, slot, len) : 0u;
         if (SPARSE && id >= (unsigned)len) continue;
-        const int t = SPARSE ? (int)id : slot;
+        const int t = SPARSE ? (int)id : (WINDOW ? starts[r] : 0) + slot;
         const unsigned long long at = (((unsigned long long)blocks[t / bt] * heads_kv + kvh) * bt + t % bt) * DIM + d0;
         float k8[8], v8[8];
         load8(kc, at, k_half, k8);
@@ -1879,6 +1961,16 @@ extern "C" __global__ void llmx_attention_vec256_major(const float* Q, float* O,
     attention_vec<256, false>(Q, O, kc, vc, table, firsts, ends, n_head, heads_kv, bt, k_half, v_half, scale, nsplit, chunk0, max_parts, partials, tq, td, ts, tlevel, &tm,
                               nullptr, 0, 0u, 1);
 }
+// A windowed view's rows (KVView::window): ends[r] positions from starts[r], with no twin written beside the output.
+#define LLMX_WINDOW_VEC(name, D) \
+    extern "C" __global__ void name(const float* Q, float* O, const void* kc, const void* vc, const int* table, const int* firsts, const int* ends, int n_head, \
+                                    int heads_kv, int bt, int k_half, int v_half, float scale, int nsplit, int chunk0, int max_parts, float* partials, \
+                                    const int* starts) { \
+        attention_vec<D, false, true>(Q, O, kc, vc, table, firsts, ends, n_head, heads_kv, bt, k_half, v_half, scale, nsplit, chunk0, max_parts, partials, nullptr, \
+                                      nullptr, nullptr, 0, nullptr, nullptr, 0, 0u, 1, starts); \
+    }
+LLMX_WINDOW_VEC(llmx_attention_vec_window, 128)
+LLMX_WINDOW_VEC(llmx_attention_vec256_window, 256)
 #define LLMX_SPARSE_VEC(name, D) \
     extern "C" __global__ void name(const float* Q, float* O, const void* kc, const void* vc, const int* table, const int* firsts, const int* ends, int n_head, \
                                     int heads_kv, int bt, int k_half, int v_half, float scale, int nsplit, int chunk, float* partials, const unsigned* ids, \

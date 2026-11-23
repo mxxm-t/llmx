@@ -18,6 +18,7 @@
 #include "scratch_growth.hpp"
 #include "twin_checks.hpp"
 #include "attention_tiles.hpp"
+#include "dspine_checks.hpp"
 #include "vision_checks.hpp"
 
 #include <algorithm>
@@ -323,11 +324,11 @@ void refusals(Backend& g) {
     require(throws([&] { g.matmul({quant::GGML_TYPE_I8, {w.get(), 0}}, {x.get(), 0}, {y.get(), 0}, 256, 4, 1); }), "an I8 matmul is refused");
     require(throws([&] { g.matmul({quant::GGML_TYPE_Q4_K, {w.get(), 0}}, {x.get(), 0}, {y.get(), 0}, 128, 4, 1); }), "a Q4_K row ending inside a block is refused");
     require(throws([&] { g.matmul({quant::GGML_TYPE_Q8_0, {w.get(), 0}}, {x.get(), 0}, {y.get(), 0}, 48, 4, 1); }), "a Q8_0 row ending inside a block is refused");
-    // The ops ROCm implements are its `implements`, which the kernel checks below reach one by one: every op but the three it lacks.
+    // The ops ROCm implements are its `implements`, which the kernel checks below reach one by one: every op but the ones it lacks.
     // The loop ends at Op's last enumerator (backend.hpp), so an Op appended there moves this end with it.
-    for (int i = 0; i <= int(Op::attention_window); ++i) {
+    for (int i = 0; i <= int(Op::chain_pick); ++i) {
         const Op op = Op(i);
-        const bool lacked = op == Op::mixed_experts || op == Op::sigmoid_routing || op == Op::attention_window;
+        const bool lacked = op == Op::mixed_experts || op == Op::sigmoid_routing;
         require(g.implements(op) != lacked, std::string("the backend reports ") + backend::op_name(op) + (lacked ? ", which it lacks" : " as it lacks it"));
     }
 }
@@ -3592,6 +3593,13 @@ int main(int argc, char** argv) {
             std::cout << (failures ? "backend-rocm scratch: FAIL\n" : "backend-rocm scratch: PASS\n");
             return failures ? 1 : 0;
         }
+        // `dspine` runs only a DSpine drafter's ops, windowed attention and the four of its block.
+        if (argc > 1 && std::string(argv[1]) == "dspine") {
+            dspine_checks::window(*g, *c, rocm_take_launches, require);
+            dspine_checks::ops(*g, *c, require, {1, 4, 1});
+            std::cout << (failures ? "backend-rocm dspine: FAIL\n" : "backend-rocm dspine: PASS\n");
+            return failures ? 1 : 0;
+        }
         // `attention` runs only the attention checks, the focused test of its kernels.
         if (argc > 1 && std::string(argv[1]) == "attention") {
             attention(*g, *c);
@@ -3603,6 +3611,7 @@ int main(int argc, char** argv) {
             attention_chunks(*g);
             attention_tiles::check(*g, rocm_take_launches, require);
             attention_tiles::check_long(*g, rocm_take_launches, require);
+            dspine_checks::window(*g, *c, rocm_take_launches, require);
             vec_bits(*g);
             ds4::sparse_grouped(*g, rocm_caps, rocm_take_launches, require);
             std::cout << (failures ? "backend-rocm attention: FAIL\n" : "backend-rocm attention: PASS\n");
@@ -3681,6 +3690,8 @@ int main(int argc, char** argv) {
         attention_chunks(*g);
         attention_tiles::check(*g, rocm_take_launches, require);
         attention_tiles::check_long(*g, rocm_take_launches, require);
+        dspine_checks::window(*g, *c, rocm_take_launches, require);
+        dspine_checks::ops(*g, *c, require, {1, 4, 1});
         vec_bits(*g);
         ds4::sparse_grouped(*g, rocm_caps, rocm_take_launches, require);
         pass_args(*g);

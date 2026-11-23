@@ -1,6 +1,7 @@
 // backend-cuda: CUDA device 0, buffers, a refused allocation, the F32 matmul against the CPU, every weight type's products and row classes, the qwen35, routed and DeepSeek-V4.1 ops, attention tiles, and two-device groups and handoffs.
 // Its modes `types`, `qwen35`, `moe`, `deepseek4`, `groups`, `bench` and `sums` run one part each (docs/TESTS.md); it exits 77 where there is no driver or device.
 #include "attention_tiles.hpp"
+#include "dspine_checks.hpp"
 #include "backends/cuda/cuda_backend.hpp"
 #include "backends/cuda/cuda_device.hpp"
 #include "backends/devices.hpp"
@@ -1035,7 +1036,8 @@ int main(int argc, char** argv) {
     if (!only_types) qwen35(d, *g);
     if (!only_types) moe(d, *g, *cpu);
     if (!only_types) deepseek4(*g);
-    if (!only_types) guarded("attention tiles", [&] { attention_tiles::check(*g, cuda_take_launches, require); attention_tiles::check_long(*g, cuda_take_launches, require); });
+    if (!only_types) guarded("attention tiles", [&] { attention_tiles::check(*g, cuda_take_launches, require); attention_tiles::check_long(*g, cuda_take_launches, require); dspine_checks::window(*g, *cpu, cuda_take_launches, require); });
+    if (!only_types) guarded("dspine ops", [&] { dspine_checks::ops(*g, *cpu, require, {1, 4, 1}); });
     if (!only_types) vision_ops(*g);
     if (!only_types) groups();
     return failures ? 1 : 0;

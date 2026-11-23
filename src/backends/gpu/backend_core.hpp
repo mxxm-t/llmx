@@ -307,7 +307,8 @@ public:
             // The integer index tile is built for the targets with the 8-bit dot alone (GPU_DOT4 in kernels/port.h): under HIP the dot module marks them, and the API says where every target has it.
             if (k == kIndexerScoresInt && !dev_.caps.integer_dot && !Api::dot4_everywhere) continue;
             if (k >= kTallQ4K8 && k <= kSquareQ6K8 && !Api::int8_tensor_tiles) continue;
-            Api::check(Api::module_function(&kernels_[k], m, kKernelNames[k]), "module_function");
+            const typename Api::Error found = Api::module_function(&kernels_[k], m, kKernelNames[k]);
+            if (found != Api::kSuccess) Api::check(found, (std::string("module_function ") + kKernelNames[k]).c_str());
         }
         for (size_t s = 0; s < kRingSlots; ++s) {
             args_.slots[s] = std::make_shared<GpuBuffer<Api>>(kArgBytes, true, graves_);
@@ -410,7 +411,8 @@ public:
                op == Op::hc_coeffs || op == Op::hc_collapse_norm || op == Op::hc_expand || op == Op::sparse_attention_sink || op == Op::topk_rows ||
                op == Op::candidate_blocks || op == Op::compress_pool || op == Op::indexer_scores || op == Op::model_format_qdq || op == Op::model_format_pack || op == Op::pool_write ||
                op == Op::sqrt_softplus_routing || op == Op::silu_mul_clamp || op == Op::rope_forms || op == Op::mix_rows || op == Op::layer_norm || op == Op::gelu || op == Op::add_bias || op == Op::rope_streams ||
-               op == Op::attention_full || op == Op::glu_quick_gelu || op == Op::raw_index_scores || op == Op::sparse_attention_blocks;
+               op == Op::attention_full || op == Op::glu_quick_gelu || op == Op::raw_index_scores || op == Op::sparse_attention_blocks || op == Op::attention_window ||
+               op == Op::unit_rows || op == Op::sigmoid_gate_rows || op == Op::matmul_at_ids || op == Op::chain_pick;
     }
     // A generated token is a class; a prompt's extent is classed by the tiles it reaches, product, routed and attention (docs/src/backends-gpu.md, batch invariance).
     size_t row_class(size_t extent) const override {
@@ -1528,6 +1530,70 @@ public:
         if (!rows || !k) return;
         topk_select(ids, scores, lens, rows, n, k, k, offset, 0, 1, n);
     }
+    // A DSpine drafter's ops, each a kernel of kernels/f32.gpu doing the CPU's arithmetic (Backend::unit_rows and the three after it).
+    void unit_rows(Slice dst, Slice norms, CSlice src, size_t rows, size_t n, float gain, float eps, RowScale mode) override {
+        if (!n) throw std::runtime_error(Api::prefix + "unit rows of no width");
+        if (!rows) return;
+        if (rows > UINT32_MAX) throw std::runtime_error(Api::prefix + "unit rows of more rows than a grid holds");
+        floats(dst, size_mul(rows, n));
+        floats(src, size_mul(rows, n));
+        if (norms.buffer) floats(norms, rows);
+        unsigned long long nn = n;
+        int m = mode == RowScale::rms ? 0 : mode == RowScale::l2 ? 1 : 2;
+        const Args args(f32(dst), norms.buffer ? f32(norms) : (float*)nullptr, f32(src), nn, gain, eps, m);
+        launch(kUnitRows, (unsigned)rows, 1, args);
+    }
+    void sigmoid_gate_rows(Slice msg, CSlice q, CSlice s, CSlice v, CSlice bias, CSlice scale, size_t rows, size_t width, const uint32_t* q_rows, const uint32_t* from) override {
+        if (!width || width > UINT32_MAX) throw std::runtime_error(Api::prefix + "code messages of no width");
+        if (!rows) return;
+        if (!q_rows || !from) throw std::runtime_error(Api::prefix + "code messages without their rows");
+        size_t qn = 0, fn = 0;
+        for (size_t r = 0; r < rows; ++r) {
+            if (from[r] == UINT32_MAX) continue;
+            qn = std::max(qn, size_t(q_rows[r]) + 1);
+            fn = std::max(fn, size_t(from[r]) + 1);
+        }
+        floats(msg, size_mul(rows, width));
+        floats(bias, width);
+        if (qn) {
+            floats(q, size_mul(qn, width));
+            floats(scale, qn);
+            floats(s, size_mul(fn, width));
+            floats(v, size_mul(fn, width));
+        }
+        unsigned wd = (unsigned)width;
+        const Args args(f32(msg), f32(q), f32(s), f32(v), f32(bias), f32(scale), wd, (const unsigned*)arg(q_rows, rows * sizeof(uint32_t)),
+                        (const unsigned*)arg(from, rows * sizeof(uint32_t)));
+        launch(kSigmoidGateRows, (unsigned)((width + kThreads - 1) / kThreads), (unsigned)rows, args);
+    }
+    // The head rows gathered by the embedding's kernel into scratch, then a block a (candidate, group) sums each of the group's rows against its candidate.
+    void matmul_at_ids(Slice out, CSlice x, CSlice w, WeightView head, size_t width, size_t nrows, CSlice ids, size_t groups, size_t k, size_t per) override {
+        if (!width || !k || !per || per > k || k > UINT32_MAX || nrows > UINT32_MAX) throw std::runtime_error(Api::prefix + "invalid grouped row dot dimensions");
+        if (!groups) return;
+        const size_t picks = size_mul(groups, k);
+        floats(out, size_mul(picks, k));
+        floats(x, size_mul(size_mul(groups, per), width));
+        floats(w, width);
+        floats(ids, picks);
+        const size_t need = size_mul(size_mul(picks, width), sizeof(float));
+        if (!dot_rows_ || dot_rows_->size() < need) dot_rows_ = alloc(need, Memory::device);
+        embed_ids(Slice{dot_rows_.get(), 0}, head, width, nrows, ids, picks);
+        unsigned long long wd = width;
+        unsigned nr = (unsigned)nrows, kk = (unsigned)k, pp = (unsigned)per;
+        const Args args(f32(out), f32(x), f32(w), (const float*)as_gpu<Api>(*dot_rows_).data(), (const unsigned*)f32(ids), wd, nr, kk, pp);
+        launch(kMatmulAtIds, kk, (unsigned)groups, args);
+    }
+    void chain_pick(Slice next, CSlice score, CSlice cand, size_t seqs, size_t steps, size_t k) override {
+        if (!k || k > UINT32_MAX) throw std::runtime_error(Api::prefix + "a chain over no candidates");
+        if (!seqs || !steps) return;
+        if (seqs > UINT32_MAX || steps > UINT32_MAX) throw std::runtime_error(Api::prefix + "a chain of more sequences or steps than 32 bits name");
+        floats(next, size_mul(steps, seqs));
+        floats(score, size_mul(size_mul(steps, seqs), size_mul(k, k)));
+        floats(cand, size_mul(size_mul(steps, seqs), k));
+        unsigned sq = (unsigned)seqs, st = (unsigned)steps, kk = (unsigned)k;
+        const Args args((unsigned*)f32(next), f32(score), (const unsigned*)f32(cand), sq, st, kk);
+        launch(kChainPick, (unsigned)((seqs + kThreads - 1) / kThreads), 1, args);
+    }
     void candidate_blocks(Slice blocks, CSlice scores, CSlice lens, size_t rows, size_t n, size_t block_size, size_t k) override {
         if (!block_size || !n || n >= UINT32_MAX) throw std::runtime_error(Api::prefix + "invalid candidate block dimensions");
         if (!rows || !k) return;
@@ -1877,10 +1943,10 @@ public:
         if (!s.holds(layer, (size_t)n_head_kv, (size_t)head_dim)) throw std::runtime_error(Api::prefix + "attention outside the KV view");
         // Views of a prompt whose extent reaches the profile's attention_tile_rows, causal and of 128- or 256-wide heads, take the tile kernel, the rest the chunk kernel: by the view's extent, its row class, never by how many rows the call holds.
         const size_t tile_rows = dev_.profile.attention_tile_rows;
-        std::vector<int32_t> table, firsts, ends, wide;
+        std::vector<int32_t> table, firsts, ends, wide, starts;
         std::vector<RowRun> runs;   // the views as the rows' runs, for the layout of the twin written beside the output
         int32_t row0 = 0, tiles = 0;
-        bool narrow = false;
+        bool narrow = false, windowed = false;
         for (size_t vi = 0; vi < n_views; ++vi) {
             const KVView& view = views[vi];
             if (&storage(view) != &s) throw std::runtime_error(Api::prefix + "attention over views of different storages");
@@ -1888,15 +1954,20 @@ public:
             const int32_t first = (int32_t)table.size();
             table.insert(table.end(), view.blocks, view.blocks + used);
             const size_t extent = view.extent ? view.extent : view.nq;
-            const bool tiled = view.causal && extent >= tile_rows && (head_dim == 128 || head_dim == 256) && view.nq;
+            if (view.window && !view.causal) throw std::runtime_error(Api::prefix + "a window on a non-causal view");
+            const bool tiled = view.causal && !view.window && extent >= tile_rows && (head_dim == 128 || head_dim == 256) && view.nq;
             if (tiled) {
                 wide.insert(wide.end(), {row0, (int32_t)view.nq, (int32_t)view.length, first, tiles});
                 tiles += (int32_t)((view.nq + 31) / 32);
             }
             narrow = narrow || (!tiled && view.nq);
+            // A windowed row's end is its span, the positions from its start through its own (CpuBackend::attention).
             for (size_t b = 0; b < view.nq; ++b) {
+                const size_t end = view.causal ? view.length + b + 1 : view.length + view.nq, begin = view.window && end > view.window ? end - view.window : 0;
                 firsts.push_back(first);
-                ends.push_back(tiled ? 0 : (int32_t)(view.causal ? view.length + b + 1 : view.length + view.nq));
+                ends.push_back(tiled ? 0 : (int32_t)(end - begin));
+                starts.push_back((int32_t)begin);
+                windowed = windowed || begin;
             }
             row0 += (int32_t)view.nq;
             if (view.nq) runs.push_back({(size_t)row0, extent});
@@ -1910,14 +1981,16 @@ public:
         float* o = f32(out);
         const void* kc = as_gpu<Api>(*s.k_buffer(layer)).data();
         const void* vc = as_gpu<Api>(*s.v_buffer(layer)).data();
-        // The table, firsts, ends and tile views in one set, which every layer of the pass reads alike.
+        // The table, firsts, ends, tile views and, under a window, the starts in one set, which every layer of the pass reads alike.
         const size_t nt = table.size();
         table.insert(table.end(), firsts.begin(), firsts.end());
         table.insert(table.end(), ends.begin(), ends.end());
         table.insert(table.end(), wide.begin(), wide.end());
+        if (windowed) table.insert(table.end(), starts.begin(), starts.end());
         const int* tp = (const int*)pass_arg(table.data(), table.size() * sizeof(int32_t));
         const int* fp = tp + nt;
         const int* ep = fp + rows;
+        const int* sp = ep + rows + wide.size();
         int ratio = n_head / n_head_kv, bt = (int)kBlockTokens;
         int kh = s.k_type() == KVType::f16, vh = s.v_type() == KVType::f16;
         float scale = 1.0f / std::sqrt((float)head_dim);
@@ -1942,16 +2015,21 @@ public:
             if (nsplit > 1 && (!parts_ || parts_->size() < vneed)) parts_ = alloc(vneed, Memory::device);
             float* vp = nsplit > 1 ? (float*)as_gpu<Api>(*parts_).data() : nullptr;
             // With no row on the tile kernel, the kernel that writes the output writes the twin the output projection reads beside it.
-            const TwinOut t = twin && wide.empty() ? twin_out(out, floats, twin_map({runs.data(), runs.size()}, rows, (size_t)n_head * head_dim)) : TwinOut{};
+            const TwinOut t = twin && wide.empty() && !windowed ? twin_out(out, floats, twin_map({runs.data(), runs.size()}, rows, (size_t)n_head * head_dim)) : TwinOut{};
             void* tq = t.q;
             float* td = t.d;
             void* ts = t.s;
             TwinMap map = t.map;
             int tl = !t.q ? 0 : t.int8 ? 2 : 1, none = 0;
-            const Kernel k = head_dim == 256 ? kAttentionVec256 : kAttentionVec, build = twin_build(k, map);
-            Args args(q, o, kc, vc, tp, fp, ep, n_head, n_head_kv, bt, kh, vh, scale, nsplit, chunk, max_parts, vp, tq, td, ts, nsplit > 1 ? none : tl);
-            if (build != k) args.put(map);
-            launch(build, (unsigned)(rows * n_head * nsplit), 1, args);
+            if (windowed) {
+                const Args args(q, o, kc, vc, tp, fp, ep, n_head, n_head_kv, bt, kh, vh, scale, nsplit, chunk, max_parts, vp, sp);
+                launch(head_dim == 256 ? kAttentionVec256Window : kAttentionVecWindow, (unsigned)(rows * n_head * nsplit), 1, args);
+            } else {
+                const Kernel k = head_dim == 256 ? kAttentionVec256 : kAttentionVec, build = twin_build(k, map);
+                Args args(q, o, kc, vc, tp, fp, ep, n_head, n_head_kv, bt, kh, vh, scale, nsplit, chunk, max_parts, vp, tq, td, ts, nsplit > 1 ? none : tl);
+                if (build != k) args.put(map);
+                launch(build, (unsigned)(rows * n_head * nsplit), 1, args);
+            }
             if (nsplit > 1) {
                 const Kernel mk = head_dim == 256 ? kAttentionVecMerge256 : kAttentionVecMerge, mbuild = twin_build(mk, map);
                 Args margs(vp, o, ep, n_head, nsplit, tq, td, ts, tl);
@@ -1961,7 +2039,10 @@ public:
             keep(t, o, floats);
             return;
         }
-        if (narrow) {
+        if (narrow && windowed) {
+            const Args args(q, pp, kc, vc, tp, fp, ep, n_head, ratio, n_head_kv, head_dim, bt, kh, vh, scale, sp);
+            launch(kAttentionChunkWindow, (unsigned)rows, (unsigned)n_head, args, kChunks);
+        } else if (narrow) {
             const Args args(q, pp, kc, vc, tp, fp, ep, n_head, ratio, n_head_kv, head_dim, bt, kh, vh, scale);
             launch(kAttentionChunk, (unsigned)rows, (unsigned)n_head, args, kChunks);
         } else {
@@ -2279,7 +2360,7 @@ private:
                   kRowsExactF32, kRowsExactQ8, kRowsExactQ4K, kRowsExactQ5K, kRowsExactQ6K, kRowsExactQ50, kRowsExactQ40, kRowsExactQ41, kRowsExactQ51, kRowsExactBF16, kRowsExactF16, kRowsExactIQ4NL, kRowsExactMXFP4, kRowsExactNVFP4, kRowsExactQ2K, kRowsExactQ3K, kRowsExactIQ4XS, kRowsExactIQ2XXS, kRowsExactIQ2XS, kRowsExactIQ2S, kRowsExactIQ3XXS, kRowsExactIQ3S, kRowsExactIQ1S, kRowsExactIQ1M, kRowsExactTQ10, kRowsExactTQ20, kRowsExactQ10, kRowsExactQ20, kRowsExactF8, kSparseVecG4, kSparseVec256G4, kColsF32x2, kColsF32x4, kMoeStepRoute,
                   kHcCoeffsCollapse, kHcExpand, kModelFormatQdq, kTopkRows, kCompressPool, kIndexerScores, kIndexerScoresTile, kIndexerScoresInt, kRawIndexScores, kPoolWrite, kSparseScoresFew16, kSparseValuesFew16, kSparseScoresFew8, kSparseValuesFew8, kSparseScoresFew4, kSparseValuesFew4, kSparseScoresFew2, kSparseValuesFew2, kSparseScoresFew32, kSparseValuesFew16x2, kSparseScoresTile, kSparseValuesTile, kSparseScoresTile32, kSparseValuesTile32, kRouteSqrtSoftplus, kRouteStepF32, kRouteStepBF16,
 
-                  kNormRopeForm, kDeltaStep, kMixRows, kLayerNormRows, kGelu, kAddBias,
+                  kNormRopeForm, kDeltaStep, kMixRows, kLayerNormRows, kGelu, kAddBias, kAttentionChunkWindow, kAttentionVecWindow, kAttentionVec256Window, kUnitRows, kSigmoidGateRows, kMatmulAtIds, kChainPick,
                   kRows16x1, kRows16x2, kRows16x2r4, kRows16x4, kRows16x4r4, kRows16x8, kRows16x8r4, kRows16x16, kTile16,
                   kRows8x1, kRows8x2, kRows8x2r4, kRows8x4, kRows8x4r4, kRows8x8, kRows8x8r4, kRows8x16, kTile8, kTileReduce,
                   kHalf8x1, kHalf8x1p, kHalf8x1r2, kHalf8x1s1, kHalf8x1r2s1, kHalf8x1r2s4, kHalf8x1h2, kHalf8x1h3, kHalf8x1h4, kHalf8x1h5, kHalf8x1h2p, kHalf8x1h3p, kHalf8x1h4p, kHalf8x1h5p, kHalf8x2, kHalf8x2r4, kHalf8x4, kHalf8x4r4, kHalf8x8, kHalf8x8r4, kHalf8x16, kHalf8x16r4, kHalf8x9, kHalf8x10, kHalf8x11, kHalf8x12, kHalf8x13, kHalf8x14, kHalf8x15, kTile16Tall, kTile8Tall, kRouted16, kRouted8, kRoutedHalf8, kRoutedHalf8s1, kGrouped16x2, kGrouped16x4, kGrouped16x8, kGrouped8x2, kGrouped8x4, kGrouped8x8, kGroupedHalf8x2, kGroupedHalf8x4, kGroupedHalf8x8, kRoutedTile16, kRoutedTile8, kRoutedNarrow16, kRoutedNarrow8, kRoutedStream8, kRoutedThinMXFP416,
@@ -2316,7 +2397,7 @@ private:
                                                            "llmx_twin16", "llmx_twin8", "llmx_silu_mul_twin16_major", "llmx_silu_mul_twin8_major",
                                                            "llmx_rms_norm_16_twin16_major", "llmx_rms_norm_16_twin8_major", "llmx_rms_norm_32_twin16_major",
                                                            "llmx_rms_norm_32_twin8_major", "llmx_attention_vec_major", "llmx_attention_vec_merge_major",
-                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_group_chain", "llmx_group_shares", "llmx_group_copies", "llmx_group_arm", "llmx_group_add_check", "llmx_group_push", "llmx_group_take", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_argmax_part", "llmx_argmax_pick", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q4_0", "llmx_routed_q4_1", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_f16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_routed_nvfp4", "llmx_routed_q2_k", "llmx_routed_q3_k", "llmx_routed_iq4_xs", "llmx_routed_iq2_xxs", "llmx_routed_iq2_xs", "llmx_routed_iq2_s", "llmx_routed_iq3_xxs", "llmx_routed_iq3_s", "llmx_routed_iq1_s", "llmx_routed_iq1_m", "llmx_routed_tq1_0", "llmx_routed_tq2_0", "llmx_routed_q1_0", "llmx_routed_q2_0", "llmx_routed_f8_e4m3", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q4_0", "llmx_matmul_rows_q4_1", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_f16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_matmul_rows_nvfp4", "llmx_matmul_rows_q2_k", "llmx_matmul_rows_q3_k", "llmx_matmul_rows_iq4_xs", "llmx_matmul_rows_iq2_xxs", "llmx_matmul_rows_iq2_xs", "llmx_matmul_rows_iq2_s", "llmx_matmul_rows_iq3_xxs", "llmx_matmul_rows_iq3_s", "llmx_matmul_rows_iq1_s", "llmx_matmul_rows_iq1_m", "llmx_matmul_rows_tq1_0", "llmx_matmul_rows_tq2_0", "llmx_matmul_rows_q1_0", "llmx_matmul_rows_q2_0", "llmx_matmul_rows_f8_e4m3", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols2_f32", "llmx_matmul_cols4_f32", "llmx_moe_step_route", "llmx_hc_coeffs_collapse", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_indexer_scores_tile", "llmx_indexer_scores_int", "llmx_raw_index_scores", "llmx_pool_write", "llmx_sparse_scores_few16", "llmx_sparse_values_few16", "llmx_sparse_scores_few8", "llmx_sparse_values_few8", "llmx_sparse_scores_few4", "llmx_sparse_values_few4", "llmx_sparse_scores_few2", "llmx_sparse_values_few2", "llmx_sparse_scores_few32", "llmx_sparse_values_few16x2", "llmx_sparse_scores_tile", "llmx_sparse_values_tile", "llmx_sparse_scores_tile32", "llmx_sparse_values_tile32", "llmx_route_sqrt_softplus", "llmx_route_step_f32", "llmx_route_step_bf16", "llmx_norm_rope_form", "llmx_delta_step", "llmx_mix_rows", "llmx_layer_norm_rows", "llmx_gelu", "llmx_add_bias", "llmx_q8_0_rows16_1",
+                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_group_chain", "llmx_group_shares", "llmx_group_copies", "llmx_group_arm", "llmx_group_add_check", "llmx_group_push", "llmx_group_take", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_argmax_part", "llmx_argmax_pick", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q4_0", "llmx_routed_q4_1", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_f16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_routed_nvfp4", "llmx_routed_q2_k", "llmx_routed_q3_k", "llmx_routed_iq4_xs", "llmx_routed_iq2_xxs", "llmx_routed_iq2_xs", "llmx_routed_iq2_s", "llmx_routed_iq3_xxs", "llmx_routed_iq3_s", "llmx_routed_iq1_s", "llmx_routed_iq1_m", "llmx_routed_tq1_0", "llmx_routed_tq2_0", "llmx_routed_q1_0", "llmx_routed_q2_0", "llmx_routed_f8_e4m3", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q4_0", "llmx_matmul_rows_q4_1", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_f16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_matmul_rows_nvfp4", "llmx_matmul_rows_q2_k", "llmx_matmul_rows_q3_k", "llmx_matmul_rows_iq4_xs", "llmx_matmul_rows_iq2_xxs", "llmx_matmul_rows_iq2_xs", "llmx_matmul_rows_iq2_s", "llmx_matmul_rows_iq3_xxs", "llmx_matmul_rows_iq3_s", "llmx_matmul_rows_iq1_s", "llmx_matmul_rows_iq1_m", "llmx_matmul_rows_tq1_0", "llmx_matmul_rows_tq2_0", "llmx_matmul_rows_q1_0", "llmx_matmul_rows_q2_0", "llmx_matmul_rows_f8_e4m3", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols2_f32", "llmx_matmul_cols4_f32", "llmx_moe_step_route", "llmx_hc_coeffs_collapse", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_indexer_scores_tile", "llmx_indexer_scores_int", "llmx_raw_index_scores", "llmx_pool_write", "llmx_sparse_scores_few16", "llmx_sparse_values_few16", "llmx_sparse_scores_few8", "llmx_sparse_values_few8", "llmx_sparse_scores_few4", "llmx_sparse_values_few4", "llmx_sparse_scores_few2", "llmx_sparse_values_few2", "llmx_sparse_scores_few32", "llmx_sparse_values_few16x2", "llmx_sparse_scores_tile", "llmx_sparse_values_tile", "llmx_sparse_scores_tile32", "llmx_sparse_values_tile32", "llmx_route_sqrt_softplus", "llmx_route_step_f32", "llmx_route_step_bf16", "llmx_norm_rope_form", "llmx_delta_step", "llmx_mix_rows", "llmx_layer_norm_rows", "llmx_gelu", "llmx_add_bias", "llmx_attention_chunk_window", "llmx_attention_vec_window", "llmx_attention_vec256_window", "llmx_unit_rows", "llmx_sigmoid_gate_rows", "llmx_matmul_at_ids", "llmx_chain_pick", "llmx_q8_0_rows16_1",
 
                                                            "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_2_r4", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_4_r4",
                                                            "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_8_r4", "llmx_q8_0_rows16_16", "llmx_q8_0_tile16", "llmx_q8_0_rows8_1",
@@ -2498,6 +2579,7 @@ private:
         {quant::GGML_TYPE_F8_E4M3, "F8_E4M3", kMatmulF8, kRowsExactF8, kGatherF8, kRoutedExactF8, nullptr, kKernels, kF8Tile, Scaled::grid, 4},
     };
     static_assert(kQ8Twins.routed_stream != kKernels && kQ4KTwins.routed_stream != kKernels && kQ5KTwins.routed_stream != kKernels && kQ6KTwins.routed_stream != kKernels && kQ50Twins.routed_stream != kKernels && kQ40Twins.routed_stream != kKernels && kQ41Twins.routed_stream != kKernels && kQ51Twins.routed_stream != kKernels && kIQ4NLTwins.routed_stream != kKernels && kMXFP4Twins.routed_stream != kKernels, "every twin type has its 8-bit routed stream, since its 8-bit routed tiles leave it the groups of up to kStreamRows entries");
+    static_assert(kAttentionChunkWindow < kRows16x1 && kAttentionVecWindow < kRows16x1 && kAttentionVec256Window < kRows16x1 && kUnitRows < kRows16x1 && kSigmoidGateRows < kRows16x1 && kMatmulAtIds < kRows16x1 && kChainPick < kRows16x1, "the window builds and the unit_rows, sigmoid_gate_rows, matmul_at_ids and chain_pick kernels are in kernels/f32.gpu, which the constructor loads for the kernels below kRows16x1");
     static const TypeKernels* type_kernels(uint32_t type) {
         for (const TypeKernels& t : kTypes)
             if (t.type == type) return &t;
@@ -3979,6 +4061,7 @@ private:
     BufferPtr staged_;   // a product bound for host memory, formed here first
     BufferPtr partials_;   // the parts of a split tile call, grown as calls need
     BufferPtr scores_;   // the indexer's scores of 16 rows at most, grown as calls need
+    BufferPtr dot_rows_;   // matmul_at_ids's gathered head rows, grown as calls need
     BufferPtr argmax_parts_;   // argmax_rows' slice maxima and ids, grown as calls need
     BufferPtr select_state_;   // the wide selection's histograms and slice counts, zero between calls
     size_t small_unit_ = kFallbackUnit, large_unit_ = kFallbackUnit;   // hipMalloc's pages at and past kLargeFrom (probe_memory)

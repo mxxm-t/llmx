@@ -861,7 +861,11 @@ TOOL_REPLIES = {
                                       "is\", \"days\": 3}", "}\n</tool_", "call>"],
     "Qwen3.8": ["\n</think>\n\n<tool_ca", "ll>\n<function=get_w", "eather>\n<para", "meter=city>\nPa", "ris\n</parameter>\n<parameter=da",
                 "ys>\n3\n</param", "eter>\n</function>\n</tool", "_call>"],
+    "Inkling-2-Mini (unsloth GGUF)": ["<|message_model|><|content_thinking|>Ch", "eck.<|end_mes", "sage|><|message_model|>get_", "weather<|content_invoke_",
+                                      "tool_json|>{\"name\": \"get_weather\", \"ar", "gs\": {\"ci", "ty\": \"Par", "is\", \"days\": 3}", "}<|end_mes", "sage|>"],
 }
+# The last byte of the prompt each reply follows: the line feed ending the generation prompt, or the user message's own end under Inkling-2-Mini, which has none.
+PROMPT_ENDS = {"Inkling-2-Mini (unsloth GGUF)": ">"}
 WEATHER_ARGUMENTS = "{\"city\": \"Paris\", \"days\": 3}"
 # A reply of two calls under the Qwen3 template, the token that closes the first also opening the second.
 TWO_CALLS = ["<think>\n\n</think>\n\n<tool_call>\n{\"name\": \"get_", "weather\", \"arguments\": {\"city\": \"Par", "is\"}}\n</tool_",
@@ -907,13 +911,10 @@ def check_tool_calls(directory):
     byte = build_byte_vocab()
     ask = [{"role": "user", "content": "Weather in Paris?"}]
     rendered = 0
-    # Inkling-2-Mini calls tools through <|content_invoke_tool_json|>, a format the server does not read, so it refuses that template's conversations with tools.
-    unread, turned = {"Inkling-2-Mini (unsloth GGUF)"}, set()
-    assert unread <= set(templates), unread
     for name, pieces in TOOL_REPLIES.items():
         vocab = byte + ["".join(byte[b] for b in p.encode()) for p in pieces] + ["<|endoftext|>"]
         eos = len(vocab) - 1
-        f32.write_model(model, chain_tensors([ord("\n")] + list(range(256, eos)) + [eos], len(vocab), config), templates[name]["template"], eos,
+        f32.write_model(model, chain_tensors([ord(PROMPT_ENDS.get(name, "\n"))] + list(range(256, eos)) + [eos], len(vocab), config), templates[name]["template"], eos,
                         config=config, tokens=vocab)
         reply = "".join(pieces)
         srv = Server(model)
@@ -939,11 +940,33 @@ def check_tool_calls(directory):
             assert status == status_none == 200 and none["usage"]["prompt_tokens"] == plain["usage"]["prompt_tokens"] < first, (name, none, plain)
             assert none["choices"][0]["message"] == plain["choices"][0]["message"] and "tool_calls" not in none["choices"][0]["message"], (name, none)
             assert none["choices"][0]["finish_reason"] == "stop", none
+            if name == "Inkling-2-Mini (unsloth GGUF)":
+                literal = {"role": "assistant", "content": plain["choices"][0]["message"]["content"]}
+                tail = {"role": "user", "content": "Again?"}
+                def tokens(back):
+                    status, got = srv.post("/v1/tokenize", {"messages": ask + [back, tail]})
+                    assert status == 200, got
+                    return got["tokens"]
+                assert tokens(literal) == tokens(dict(literal, reasoning_content="")), "disabled tool text lost from assistant history"
+                assert tokens(literal) != tokens(dict(literal, content="")), "literal reply rendered as empty"
+                raw = {"role": "assistant", "content": native["text"]}
+                status, follow = srv.post("/v1/chat", dict(body, messages=ask + [raw, tail], max_tokens=1))
+                status_ref, explicit = srv.post("/v1/chat", dict(body, messages=ask + [choice["message"], tail], max_tokens=1))
+                assert status == status_ref == 200 and follow["prompt_tokens"] == explicit["prompt_tokens"], (follow, explicit)
             # The loop's second request reuses the first's history past its reply.
             srv.wait(lambda h: h["reread"]["since_start"]["jobs"] >= 1, "the reply of calls was not read again", 60)
+            # The client sends the reply back as it gave it, its reasoning in reasoning_content where there is some, so the kept conversation is reused (docs/SPECULATIVE.md, section 2, Idle re-prefill).
             back = {"role": "assistant", "content": None, "tool_calls": [call]}
-            status, again = srv.post("/v1/chat/completions", dict(body, messages=ask + [back, {"role": "tool", "tool_call_id": call["id"], "content": "21"}]))
+            if choice["message"].get("reasoning_content"):
+                back["reasoning_content"] = choice["message"]["reasoning_content"]
+            result = {"role": "tool", "tool_call_id": call["id"], "content": "21"}
+            status, again = srv.post("/v1/chat/completions", dict(body, messages=ask + [back, result]))
             assert status == 200 and again["timings"]["cache_n"] > first, (name, first, again["timings"], again["usage"])
+            if "reasoning_content" in back:
+                # Without the reasoning the turn renders otherwise from the reasoning on: it is read again and less of the cache holds, with no error.
+                bare = {k: v for k, v in back.items() if k != "reasoning_content"}
+                status, less = srv.post("/v1/chat/completions", dict(body, messages=ask + [bare, result]))
+                assert status == 200 and less["timings"]["cache_n"] < again["timings"]["cache_n"], (name, again["timings"], less["timings"])
             for refused, text in (({"tool_choice": "required"}, "tool_choice \"required\" is not supported"),
                                   ({"tool_choice": {"type": "function", "function": {"name": "get_weather"}}}, "tool_choice naming a function is not supported"),
                                   ({"tool_choice": "maybe"}, "tool_choice must be \"auto\" or \"none\""),
@@ -968,10 +991,6 @@ def check_tool_calls(directory):
                 if not case.get("tools") or any("tool_calls" in m for m in case["messages"]) or not case["generate"]:
                     continue
                 status, got = srv.post("/v1/tokenize", {"messages": case["messages"], "tools": case["tools"]})
-                if t["name"] in unread:
-                    assert status == 400 and "writes no tool-call format the server reads" in got["error"], (t["name"], case["name"], status, got)
-                    turned.add(t["name"])
-                    continue
                 if "expected" not in case:
                     assert status == 400, (t["name"], case["name"], got)
                     continue
@@ -980,7 +999,6 @@ def check_tool_calls(directory):
                 rendered += 1
         finally:
             srv.close()
-    assert turned == unread, turned
     # parallel_tool_calls false ends a reply of two calls at the first call's close: one call whole and streamed, the text on /v1/chat ending with the token that closes it.
     vocab = byte + ["".join(byte[b] for b in p.encode()) for p in TWO_CALLS] + ["<|endoftext|>"]
     eos = len(vocab) - 1

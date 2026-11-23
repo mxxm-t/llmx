@@ -127,7 +127,9 @@ void check_turns(const std::string& name, const chat::ChatFormat& format, const 
     const auto before = messages_of(field(fixture, "turn_before"));
     const auto after = messages_of(field(fixture, "turn_after"));
     check_render(name + " / first turn", [&] { return format.render(before, true); }, field(t, "first"), tally);
-    const auto& texts = field(fixture, "turn_texts").arr;
+    // A template whose replies are segments gives each turn as the reply its model writes.
+    const auto* own = t.get("turn_texts");
+    const auto& texts = (own ? *own : field(fixture, "turn_texts")).arr;
     const auto& turns = field(t, "turns").arr;
     if (texts.size() != turns.size()) throw std::runtime_error(name + ": the fixture's turns do not match its texts");
     for (size_t k = 0; k < texts.size(); ++k) {
@@ -135,6 +137,40 @@ void check_turns(const std::string& name, const chat::ChatFormat& format, const 
         messages.push_back(format.assistant(texts[k].str));
         messages.insert(messages.end(), after.begin(), after.end());
         check_render(name + " / turn \"" + texts[k].str + "\"", [&] { return format.render(messages, true); }, turns[k], tally);
+    }
+}
+
+// Under a template whose replies are segments, each reply its model writes, of reasoning, text and calls, read back by ChatFormat::assistant and continued, renders as the reference renders the turn it was cut from and what follows.
+// The replies are read whole and through the compatible route's reply_message, its reasoning dropped as a client drops it; a template without segments records none.
+void check_segment_replies(const std::string& name, const chat::ChatFormat& format, const jmini::Value& t, Tally& tally) {
+    ++tally.cases;
+    const auto* replies = t.get("replies");
+    if (!replies != !format.segments) return tally.fail(name + ": reads its replies " + (format.segments ? "as" : "not as") + " segments where the fixture records otherwise");
+    if (!replies) return;
+    for (const auto& c : replies->arr) {
+        const std::vector<chat::Message> before = client_messages(format, field(c, "before")), after = client_messages(format, field(c, "after"));
+        const std::string& reply = field(c, "reply").str;
+        std::vector<chat::Message> messages = before;
+        messages.push_back(format.assistant(reply));
+        messages.insert(messages.end(), after.begin(), after.end());
+        check_render(name + " / reply " + field(c, "name").str, [&] { return format.render(messages, true); }, c, tally);
+        ++tally.cases;
+        messages[before.size()] = chat::reply_message(format, false, format.tool_format, {}, false, reply, true);
+        check_render(name + " / compatible reply " + field(c, "name").str, [&] { return format.render(messages, true); }, c, tally);
+        if (field(c, "name").str == "call") {
+            ++tally.cases;
+            const chat::Message literal = chat::reply_message(format, false, chat::ToolFormat::none, {}, false, reply, true);
+            if (literal.content != reply || !literal.tool_calls.empty()) tally.fail(name + ": tools disabled must keep the literal call in history");
+        }
+        const chat::Message whole = format.assistant(reply), sent = chat::reply_message(format, false, format.tool_format, {}, false, reply, false);
+        const chat::Message kept = chat::reply_message(format, false, format.tool_format, {}, false, reply, true);
+        const std::string where = name + " / reply " + field(c, "name").str + ": the compatible route reads ";
+        if (sent.content != whole.content || sent.reasoning_content || sent.tool_calls.size() != whole.tool_calls.size())
+            tally.fail(where + "content \"" + sent.content + "\" and " + std::to_string(sent.tool_calls.size()) + " calls where the turn holds \"" + whole.content + "\" and " + std::to_string(whole.tool_calls.size()));
+        // Sent back, the reasoning stays in reasoning_content where the template reads that field.
+        const bool reads = format.program && format.program->reads("reasoning_content");
+        if (kept.content != whole.content || kept.tool_calls.size() != whole.tool_calls.size() || (reads ? kept.reasoning_content != whole.reasoning_content : bool(kept.reasoning_content)))
+            tally.fail(where + "reasoning \"" + kept.reasoning_content.value_or("(none)") + "\" with the reasoning sent back where the turn holds \"" + whole.reasoning_content.value_or("(none)") + "\"");
     }
 }
 
@@ -209,10 +245,11 @@ void check_flat_parts(Tally& tally) {
     } catch (const chat::TemplateError&) {}
 }
 
-// A reply split into its reasoning and content, inside a <think> the template opened (`opened`) or the reply opens: the whole text at once and cut at every byte and every pair of bytes, fed piece by piece, give the same parts.
-void check_reply_split(const std::string& what, bool opened, const std::string& text, const std::string& reasoning, const std::string& content, Tally& tally) {
-    auto split = [opened](const std::vector<std::string>& pieces) {
-        chat::ReplySplit splitter(opened);
+// A reply split into its reasoning and content, inside a <think> the template opened (`opened`) or the reply opens, or as `segments`: the whole text and every cut at a byte or a pair of bytes give the same parts.
+void check_reply_split(const std::string& what, bool opened, const std::string& text, const std::string& reasoning, const std::string& content, Tally& tally,
+                       const chat::Segments* segments = nullptr) {
+    auto split = [opened, segments](const std::vector<std::string>& pieces) {
+        chat::ReplySplit splitter(opened, segments);
         chat::ReplySplit::Parts all;
         for (const std::string& piece : pieces) {
             const chat::ReplySplit::Parts p = splitter.feed(piece);
@@ -374,6 +411,21 @@ void check_tool_splits(Tally& tally) {
                      { { "get_weather", "{\"city\": \"Paris\", \"days\": 3}" } }, tally, true);
     check_tool_split("text inside a call", ToolFormat::xml, typed, "<tool_call>\n<function=f>\njunk\n<parameter=a>\n1\n</parameter>\n</function>\n</tool_call>", "",
                      { { "f", "{\"a\": \"1\"}" } }, tally);
+
+    // Call segments, as ReplySplit passes them on: the name the model gives, the call tag, and the JSON object's name and "args".
+    const std::string open = "<|message_model|>", end = "<|end_message|>", tag = "<|content_invoke_tool_json|>";
+    const std::string seg = open + "get_weather" + tag + "{\"name\":\"get_weather\",\"args\":{\"city\":\"Paris\",\"days\":3}}" + end;
+    const std::string noop = open + "noop" + tag + "{\"name\":\"noop\",\"args\":{}}" + end;
+    check_tool_split("a call segment", ToolFormat::segment, typed, seg, "", { { "get_weather", "{\"city\":\"Paris\",\"days\":3}" } }, tally);
+    check_tool_split("text and two call segments", ToolFormat::segment, typed, "Let me check." + seg + noop, "Let me check.",
+                     { { "get_weather", "{\"city\":\"Paris\",\"days\":3}" }, { "noop", "{}" } }, tally);
+    check_tool_split("a call segment without a name before its tag", ToolFormat::segment, typed, open + tag + "{\"name\": \"f\", \"args\": {\"a\": [1, \"}\"]}}" + end, "",
+                     { { "f", "{\"a\": [1, \"}\"]}" } }, tally);
+    check_tool_split("a segment that is no call", ToolFormat::segment, typed, "a " + open + "x<|content_text|>y" + end, "a " + open + "x<|content_text|>y" + end, {}, tally);
+    check_tool_split("a call segment under another key", ToolFormat::segment, typed, open + "f" + tag + "{\"name\":\"f\",\"arguments\":{}}" + end,
+                     open + "f" + tag + "{\"name\":\"f\",\"arguments\":{}}" + end, {}, tally);
+    check_tool_split("a call segment cut short", ToolFormat::segment, typed, open + "f" + tag + "{\"name\":\"f\",\"args\":{\"a\":1", "", { { "f", "{\"a\":1" } }, tally);
+    check_tool_split("two call segments, one a reply", ToolFormat::segment, typed, seg + noop, "", { { "get_weather", "{\"city\":\"Paris\",\"days\":3}" } }, tally, true);
 }
 
 // A tokenizer of one token a byte and the Qwen templates' special tokens, <|im_end|> its end of text.
@@ -407,7 +459,7 @@ bpe::Tokenizer qwen_byte_tokenizer() {
 // Under a pinned template: chat_format reads the tool-call format Jinja's parse gives, a turn of calls read back as a reply and sent back renders the same bytes, and the next turn begins a tool result's ids.
 // The end tokens place each message's end where its render ends, trailing whitespace aside, wherever that render begins the prompt.
 void check_tool_template(const std::string& name, const chat::ChatFormat& format, const jmini::Value& t, const bpe::Tokenizer& tok, Tally& tally) {
-    static const char* const names[] = { "none", "json", "xml" };
+    static const char* const names[] = { "none", "json", "xml", "segment" };
     ++tally.cases;
     if (names[(int)format.tool_format] != field(t, "tool_format").str)
         tally.fail(name + ": reads the tool-call format " + names[(int)format.tool_format] + " where the fixture records " + field(t, "tool_format").str);
@@ -427,7 +479,8 @@ void check_tool_template(const std::string& name, const chat::ChatFormat& format
             const std::string where = name + " / a turn of calls" + (content.empty() ? "" : " after text");
             try {
                 const std::string prompt = format.render(ask, true), whole = format.render({ ask[0], turn }, false);
-                const size_t end = whole.rfind("<|im_end|>");
+                // The reply ends at the end token: Qwen's, or the one a segment template writes after a reply.
+                const size_t end = whole.rfind(format.segments ? "<|content_model_end_sampling|>" : "<|im_end|>");
                 if (whole.compare(0, prompt.size(), prompt) != 0 || end == std::string::npos || end < prompt.size()) {
                     tally.fail(where + ": the turn's render does not begin with the prompt");
                     continue;
@@ -684,6 +737,7 @@ int main(int argc, char** argv) {
                 check_server_cases(name, format, field(t, "server_cases"), tally);
                 check_tool_template(name, format, t, qwen_bytes, tally);
                 check_turns(name, format, fixture, t, tally);
+                check_segment_replies(name, format, t, tally);
             }
             if (const auto* list = fixture.get("features"))
                 for (const auto& f : list->arr) {
@@ -776,6 +830,29 @@ int main(int argc, char** argv) {
         check_reply_split("a reply without <think>", false, "\nHello </think> <think>!", "", "\nHello </think> <think>!", tally);
         check_reply_split("a partial <think> that is not one", false, "<thin", "", "<thin", tally);
         check_reply_split("<think> not at the start", false, "a<think>b</think>c", "", "a<think>b</think>c", tally);
+        // Segments: reasoning bodies are the reasoning and text bodies the content, a call segment stays whole for ToolCallSplit, and text outside a segment or in a head without a content tag is content as written.
+        const chat::Segments* seg = &chat::tagged_segments();
+        const std::string think = "<|message_model|><|content_thinking|>", say = "<|message_model|><|content_text|>", end = "<|end_message|>";
+        const std::string call = "<|message_model|>get_weather<|content_invoke_tool_json|>{\"name\":\"get_weather\",\"args\":{\"city\":\"Paris\"}}" + end;
+        check_reply_split("segments of reasoning and text", false, think + "Plan it.\n" + end + say + "Hello!\n" + end, "Plan it.\n", "Hello!\n", tally, seg);
+        check_reply_split("a text segment alone", false, say + " a <think>b</think> " + end, "", " a <think>b</think> ", tally, seg);
+        check_reply_split("two reasoning segments", false, think + "a" + end + think + "b" + end + say + "c" + end, "ab", "c", tally, seg);
+        check_reply_split("text and a call segment", false, think + "r" + end + say + "Let me check." + end + call, "r", "Let me check." + call, tally, seg);
+        check_reply_split("segments cut off while reasoning", true, think + "still <|end_mes", "still <|end_mes", "", tally, seg);
+        check_reply_split("a head without a content tag", false, "<|message_model|>junk" + end + "x", "", "<|message_model|>junk" + end + "x", tally, seg);
+        check_reply_split("text outside a segment", false, "plain <|message_mo", "", "plain <|message_mo", tally, seg);
+        {
+            // A segment template opens no reasoning in its prompt, and a reply being written settles only inside an open text segment.
+            const chat::ChatFormat f = chat::chat_format("{{ '<|message_model|><|content_thinking|>' }}", "", "");
+            const std::vector<std::pair<std::string, bool>> unsettled = { { "", true }, { think + "a", true }, { think + "a" + end, true }, { say + "a", false },
+                                                                         { say + "a" + end, true }, { call.substr(0, 30), true }, { think + "a" + end + say, false } };
+            ++tally.cases;
+            if (!f.segments || f.tool_format != chat::ToolFormat::none || f.opens_reasoning("<think>\n")) tally.fail("a template writing segments without their call tag");
+            for (const auto& [text, want] : unsettled) {
+                ++tally.cases;
+                if (f.reply_unsettled(false, text) != want) tally.fail("reply_unsettled of \"" + text + "\" under segments");
+            }
+        }
         // A prompt leaves the reply inside <think> when its last <think> is not closed.
         for (const auto& [prompt, open] : std::vector<std::pair<std::string, bool>>{
                  { "<|im_start|>assistant\n<think>\n", true }, { "<|im_start|>assistant\n<think>\n\n</think>\n\n", false },

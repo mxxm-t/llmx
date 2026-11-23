@@ -22551,7 +22551,7 @@
         }
       ],
       "split_turns": true,
-      "tool_format": "none",
+      "tool_format": "segment",
       "reference_keeps": "split",
       "first": {
         "expected": "<|message_system|><|content_text|><|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>a<|end_message|>"
@@ -22577,6 +22577,99 @@
         },
         {
           "expected": "<|message_system|><|content_text|><|end_message|><|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>a<|end_message|><|message_model|><|content_thinking|>qr<|end_message|><|message_model|><|content_text|>o<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|>b<|end_message|>"
+        }
+      ],
+      "turn_texts": [
+        "<|message_model|><|content_text|>Plain reply.<|end_message|>",
+        "<|message_model|><|content_thinking|>plan<|end_message|><|message_model|><|content_text|>reply<|end_message|>",
+        "<|message_model|><|content_thinking|>plan<|end_message|><|message_model|><|content_text|>reply<|end_message|>",
+        "<|message_model|><|content_thinking|>a<|end_message|><|message_model|><|content_text|>c<|end_message|>",
+        "<|message_model|><|content_thinking|>r<|end_message|><|message_model|><|content_text|>  reply<|end_message|>",
+        "<|message_model|><|content_thinking|>r<|end_message|><|message_model|><|content_text|>\treply<|end_message|>",
+        "<|message_model|><|content_thinking|>qr<|end_message|><|message_model|><|content_text|>o<|end_message|>"
+      ],
+      "replies": [
+        {
+          "name": "plain",
+          "reply": "<|message_model|><|content_text|>Plain reply.<|end_message|>",
+          "before": [
+            {
+              "role": "user",
+              "content": "Weather in Paris?"
+            }
+          ],
+          "after": [
+            {
+              "role": "user",
+              "content": "b"
+            }
+          ],
+          "expected": "<|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Weather in Paris?<|end_message|><|message_model|><|content_text|>Plain reply.<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|>b<|end_message|>"
+        },
+        {
+          "name": "reasoning",
+          "reply": "<|message_model|><|content_thinking|>The user wants a color kept.<|end_message|><|message_model|><|content_text|>Violet it is.<|end_message|>",
+          "before": [
+            {
+              "role": "user",
+              "content": "Weather in Paris?"
+            }
+          ],
+          "after": [
+            {
+              "role": "user",
+              "content": "What color?"
+            }
+          ],
+          "expected": "<|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Weather in Paris?<|end_message|><|message_model|><|content_thinking|>The user wants a color kept.<|end_message|><|message_model|><|content_text|>Violet it is.<|end_message|><|content_model_end_sampling|><|message_user|><|content_text|>What color?<|end_message|>"
+        },
+        {
+          "name": "call",
+          "reply": "<|message_model|>get_weather<|content_invoke_tool_json|>{\"name\":\"get_weather\",\"args\":{\"city\":\"Paris\",\"days\":3}}<|end_message|>",
+          "before": [
+            {
+              "role": "user",
+              "content": "Weather in Paris?"
+            }
+          ],
+          "after": [
+            {
+              "role": "tool",
+              "content": "21",
+              "tool_call_id": "call_1",
+              "name": "get_weather"
+            }
+          ],
+          "expected": "<|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Weather in Paris?<|end_message|><|message_model|>get_weather<|content_invoke_tool_json|>{\"name\":\"get_weather\",\"args\":{\"city\":\"Paris\",\"days\":3}}<|end_message|><|content_model_end_sampling|><|message_tool|>get_weather<|content_text|>21<|end_message|>"
+        },
+        {
+          "name": "reasoning-text-calls",
+          "reply": "<|message_model|><|content_thinking|>Two tools.<|end_message|><|message_model|><|content_text|>Let me check.<|end_message|><|message_model|>get_weather<|content_invoke_tool_json|>{\"name\":\"get_weather\",\"args\":{\"city\":\"Z\u00fcrich\"}}<|end_message|><|message_model|>noop<|content_invoke_tool_json|>{\"name\":\"noop\",\"args\":{}}<|end_message|>",
+          "before": [
+            {
+              "role": "user",
+              "content": "Weather in Paris?"
+            }
+          ],
+          "after": [
+            {
+              "role": "tool",
+              "content": "sunny",
+              "tool_call_id": "call_1",
+              "name": "get_weather"
+            },
+            {
+              "role": "tool",
+              "content": "ok",
+              "tool_call_id": "call_2",
+              "name": "noop"
+            },
+            {
+              "role": "user",
+              "content": "Thanks."
+            }
+          ],
+          "expected": "<|message_system|><|content_text|>Thinking effort level: 0.9<|end_message|><|message_user|><|content_text|>Weather in Paris?<|end_message|><|message_model|><|content_thinking|>Two tools.<|end_message|><|message_model|><|content_text|>Let me check.<|end_message|><|message_model|>get_weather<|content_invoke_tool_json|>{\"name\":\"get_weather\",\"args\":{\"city\":\"Z\u00fcrich\"}}<|end_message|><|message_model|>noop<|content_invoke_tool_json|>{\"name\":\"noop\",\"args\":{}}<|end_message|><|content_model_end_sampling|><|message_tool|>get_weather<|content_text|>sunny<|end_message|><|message_tool|>noop<|content_text|>ok<|end_message|><|message_user|><|content_text|>Thanks.<|end_message|>"
         }
       ]
     }

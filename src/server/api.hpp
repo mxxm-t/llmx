@@ -897,9 +897,8 @@ private:
         return f->asString();
     }
 
-    // A request's messages as chat records its own turns: a message's reasoning as the client passes it in `reasoning_content`, or else an assistant message as chat::ChatFormat::assistant keeps chat's own replies.
-    // An assistant message's tool calls come with it, and a message's `tool_call_id` and `name` as given.
-    std::vector<chat::Message> messages_of(const jmini::Value& body) const {
+    // Read assistant history in the route's wire format. Native chat returns raw segments, while compatible chat returns separate content, reasoning and calls.
+    std::vector<chat::Message> messages_of(const jmini::Value& body, Route route) const {
         const jmini::Value* msgs = body.get("messages");
         if (!msgs || !msgs->isArray() || msgs->asArray().empty()) throw BadRequest(400, "messages must be a non-empty array");
         std::vector<chat::Message> messages;
@@ -914,10 +913,10 @@ private:
             if (reasoning && reasoning->t != jmini::Value::T::Null && !reasoning->isString()) throw BadRequest(400, "reasoning_content must be a string");
             std::vector<chat::ContentPart> parts;
             if (reasoning && reasoning->isString()) messages.push_back({role, content_of(m, &parts), reasoning->asString()});
-            else if (role == "assistant") messages.push_back(format_.assistant(content_of(m, &parts)));
+            else if (role == "assistant") messages.push_back(format_.assistant(content_of(m, &parts), route == Route::chat));
             else messages.push_back({role, content_of(m, &parts), std::nullopt});
             messages.back().parts = std::move(parts);
-            messages.back().tool_calls = std::move(calls);
+            if (m.get("tool_calls")) messages.back().tool_calls = std::move(calls);
             messages.back().tool_call_id = text_field(m, "tool_call_id");
             messages.back().name = text_field(m, "name");
         }
@@ -1015,14 +1014,14 @@ private:
     // The render holds one pad an image, so the prompt is compared with its runs made one pad and the count taken back through them.
     size_t stable_of(const jmini::Value& body, Route route, const std::vector<uint32_t>& prompt) const {
         if (!model_.checkpoint_slots() || (route != Route::chat && route != Route::chat_completions)) return prompt.size();
-        return through_runs(prompt, chat::stable_prefix(format_, tok_, messages_of(body), one_pad(prompt), template_vars(body)));
+        return through_runs(prompt, chat::stable_prefix(format_, tok_, messages_of(body, route), one_pad(prompt), template_vars(body)));
     }
 
     // Where a chat request's last user message starts, for a model that keeps a state: the text two renders with different last user messages share, counted in the prompt's `ids` lying wholly within it.
     // It is 0 where the message before it is not a reply, a tool's result among them, or the template refuses the render.
     size_t message_start_of(const jmini::Value& body, Route route, const std::string& text, const std::vector<uint32_t>& ids) const {
         if (!model_.checkpoint_slots() || (route != Route::chat && route != Route::chat_completions)) return 0;
-        std::vector<chat::Message> messages = messages_of(body);
+        std::vector<chat::Message> messages = messages_of(body, route);
         size_t last = messages.size();
         while (last > 0 && messages[last - 1].role != "user") --last;
         if (last < 2 || messages[last - 2].role != "assistant") return 0;
@@ -1048,9 +1047,9 @@ private:
     // None while the reply's reasoning or a call is still being written, which a next turn may drop or would write otherwise; each image takes its run of `rows`, as the prompt does.
     std::vector<uint32_t> next_turn(const jmini::Value& body, Route route, const std::string& prompt, const std::string& text, bool writing,
                                     const std::vector<size_t>& rows) const {
-        const bool opened = chat::opens_reasoning(prompt);
-        if (writing && (opened || text.find("<think>") != std::string::npos) && text.find("</think>") == std::string::npos) return {};
-        std::vector<chat::Message> messages = messages_of(body);
+        const bool opened = format_.opens_reasoning(prompt);
+        if (writing && format_.reply_unsettled(opened, text)) return {};
+        std::vector<chat::Message> messages = messages_of(body, route);
         const Tools tools = tools_of(body);
         bool open = false;
         messages.push_back(reply_sent_back(format_, route == Route::chat_completions, opened, text,
@@ -1060,8 +1059,8 @@ private:
     }
 
     // A render the template itself fails, such as its raise_exception on a conversation it does not take, is the request's fault.
-    std::string render_messages(const jmini::Value& body) {
-        const std::vector<chat::Message> messages = messages_of(body);
+    std::string render_messages(const jmini::Value& body, Route route) {
+        const std::vector<chat::Message> messages = messages_of(body, route);
         const std::vector<chat::TemplateVar> vars = template_vars(body);
         try { return format_.render(messages, true, vars); }
         catch (const chat::TemplateError& e) { throw BadRequest(400, std::string("the chat template refused the messages: ") + e.what()); }
@@ -1069,7 +1068,7 @@ private:
 
     // The prompt text of a request on each route.
     std::string prompt_of(const jmini::Value& body, Route route) {
-        if (route == Route::chat || route == Route::chat_completions) return render_messages(body);
+        if (route == Route::chat || route == Route::chat_completions) return render_messages(body, route);
         const jmini::Value* p = body.get("prompt");
         if (route == Route::completions && p && p->isArray() && p->asArray().size() == 1) p = &p->asArray()[0];
         else if (route == Route::completions && p && p->isArray() && p->asArray().size() > 1) throw BadRequest(400, "prompt must be one string, not an array of several prompts");
@@ -1325,7 +1324,7 @@ private:
         const jmini::Value* text = body.get("text");
         if (chat && text) throw BadRequest(400, "give text or messages, not both");
         if (!chat && (!text || !text->isString())) throw BadRequest(400, "text must be a string");
-        std::vector<uint32_t> ids = encode(chat ? render_messages(body) : text->asString());
+        std::vector<uint32_t> ids = encode(chat ? render_messages(body, Route::chat_completions) : text->asString());
         // An image counts the rows its size gives, without being encoded.
         const std::vector<std::string> urls = image_urls(body);
         if (!urls.empty()) {
@@ -1431,7 +1430,7 @@ private:
         uncut.insert(uncut.end(), reply.begin(), reply.end());
         bool tail = false;
         if (route == Route::chat || route == Route::chat_completions) {
-            const std::vector<chat::Message> messages = messages_of(body);
+            const std::vector<chat::Message> messages = messages_of(body, route);
             const std::vector<chat::TemplateVar> vars = template_vars(body);
             MessageEnds ends = message_ends(messages, vars, ids);
             std::vector<char> starts;
@@ -1554,7 +1553,7 @@ private:
             p.stable = stable_of(body, route, history);
             p.start = message_start_of(body, route, prompt, history);
             p.given = images_given(body, prompt, images);
-            if (route == Route::chat || route == Route::chat_completions) p.spans = message_spans(messages_of(body), history);
+            if (route == Route::chat || route == Route::chat_completions) p.spans = message_spans(messages_of(body, route), history);
             return p;
         };
         const std::vector<size_t> image_rows = image_rows_of(body, images);
@@ -1572,15 +1571,15 @@ private:
         size_t part_start = 0;
         Later later;
         const std::string id = request_id(r->id());
-        // A chat reply gives its reasoning as reasoning_content, apart from its content, as clients show a reasoning model's: inside the <think> its template opened or it opened itself.
+        // A chat reply gives its reasoning as reasoning_content, apart from its content, as clients show a reasoning model's: inside the <think> its template opened or it opened itself, or in its reasoning segments.
         const bool split = route == Route::chat_completions;
-        chat::ReplySplit splitter(chat::opens_reasoning(prompt));
+        chat::ReplySplit splitter(format_.opens_reasoning(prompt), format_.segments);
         // With tools, its content's tool calls apart from its text, as calls in the compatible shape.
         const Tools tools = route == Route::chat || split ? tools_of(body) : Tools{};
         chat::ToolCallSplit caller(split && tools.on ? format_.tool_format : chat::ToolFormat::none, tools.typed, tools.single);
         // With one call a reply, on either chat route, the request is cancelled at the first call's close and what it draws after is left out.
         const bool single = tools.on && tools.single;
-        chat::ReplySplit watch_reasoning(chat::opens_reasoning(prompt));
+        chat::ReplySplit watch_reasoning(format_.opens_reasoning(prompt), format_.segments);
         chat::ToolCallSplit watch(single ? format_.tool_format : chat::ToolFormat::none, tools.typed, true);
         bool cut = false;
 

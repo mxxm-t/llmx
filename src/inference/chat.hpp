@@ -82,35 +82,102 @@ inline bool opens_reasoning(const std::string& prompt) {
     return open != std::string::npos && prompt.find("</think>", open) == std::string::npos;
 }
 
+// The length of the longest end of `s` that begins `tag`, shorter than `tag`: what a split holds back until the next piece shows whether a tag starts there.
+inline size_t partial_tag(const std::string& s, const std::string& tag) {
+    for (size_t k = std::min(s.size(), tag.size() - 1); k > 0; --k)
+        if (s.compare(s.size() - k, k, tag, 0, k) == 0) return k;
+    return 0;
+}
+
+// A reply written as tagged segments, each `open`, a name the model may give, a content tag and a body up to `close`: the tag `reasoning` for reasoning, `text` for text and `call` for a tool call (docs/src/inference-chat.md).
+struct Segments {
+    std::string open, close, reasoning, text, call;
+};
+// The segment grammar a template writes where it writes its open and reasoning tags (chat_format); Inkling-2's, whose model writes its whole reply this way after no generation prompt.
+inline const Segments& tagged_segments() {
+    static const Segments s{ "<|message_model|>", "<|end_message|>", "<|content_thinking|>", "<|content_text|>", "<|content_invoke_tool_json|>" };
+    return s;
+}
+
 // A reply split into reasoning and content as it arrives in pieces: the reasoning is the text inside <think> up to the first </think>, the content the rest, newlines around the reasoning dropped as assistant_turn drops them.
-// The <think> is open from the start when the template opened it (`opened`, see opens_reasoning) or when the reply begins with it; any other reply is all content, and one cut off inside <think> all reasoning.
+// The <think> is open from the start when the template opened it (`opened`, see opens_reasoning) or when the reply begins with it, any other reply all content; under `segments` it splits by segment instead (docs/src/inference-chat.md).
 class ReplySplit {
 public:
     struct Parts {
         std::string reasoning, content;
     };
-    explicit ReplySplit(bool opened) : state_(opened ? State::reasoning : State::start) {}
+    ReplySplit(bool opened, const Segments* segments)
+        : segments_(segments), state_(segments ? State::between : opened ? State::reasoning : State::start) {}
 
     Parts feed(const std::string& piece) {
         Parts out;
-        take(out, piece);
+        if (segments_) segment(out, piece, false);
+        else take(out, piece);
         return out;
     }
     Parts finish() {
         Parts out;
+        if (segments_) {
+            segment(out, std::string(), true);
+            return out;
+        }
         if (state_ == State::start) out.content += held_;
         if (state_ == State::reasoning) reason(out, held_, true);
         held_.clear();
         return out;
     }
-    // Whether the reply has reasoning: the template opened it, or the reply opened it itself.
-    bool reasoned() const { return state_ == State::reasoning || state_ == State::reply; }
+    // Whether the reply has reasoning: the template opened it, the reply opened it itself, or it wrote a reasoning segment.
+    bool reasoned() const { return segments_ ? segment_reasoned_ : state_ == State::reasoning || state_ == State::reply; }
 
 private:
-    enum class State { start, reasoning, reply, plain };
+    enum class State { start, reasoning, reply, plain, between, head, call };
+    const Segments* segments_;
     State state_;
     std::string held_;
-    bool reasoning_started_ = false, reply_started_ = false;
+    bool reasoning_started_ = false, reply_started_ = false, segment_reasoned_ = false;
+
+    // Segments: `between` outside one, `head` after its open tag until its content tag, then `reasoning`, `reply` or `call` up to its close.
+    void segment(Parts& out, const std::string& piece, bool last) {
+        const Segments& s = *segments_;
+        held_ += piece;
+        for (;;) {
+            if (state_ == State::between) {
+                const size_t at = held_.find(s.open);
+                const size_t cut = at != std::string::npos ? at : last ? held_.size() : held_.size() - partial_tag(held_, s.open);
+                out.content += held_.substr(0, cut);
+                held_.erase(0, at != std::string::npos ? at + s.open.size() : cut);
+                if (at == std::string::npos) return;
+                state_ = State::head;
+                continue;
+            }
+            if (state_ == State::head) {
+                size_t at = std::string::npos;
+                const std::string* tag = nullptr;
+                for (const std::string* t : { &s.reasoning, &s.text, &s.call })
+                    if (const size_t p = held_.find(*t); p < at) { at = p; tag = t; }
+                const size_t close = held_.find(s.close);
+                if (!tag || close < at) {
+                    if (!last && close == std::string::npos) return;
+                    // A head that ends without a content tag is text, as the model wrote it.
+                    out.content += s.open;
+                    state_ = State::between;
+                    continue;
+                }
+                if (tag == &s.call) out.content += s.open + held_.substr(0, at + tag->size());
+                segment_reasoned_ |= tag == &s.reasoning;
+                state_ = tag == &s.reasoning ? State::reasoning : tag == &s.text ? State::reply : State::call;
+                held_.erase(0, at + tag->size());
+                continue;
+            }
+            const size_t at = held_.find(s.close);
+            const size_t cut = at != std::string::npos ? at : last ? held_.size() : held_.size() - partial_tag(held_, s.close);
+            (state_ == State::reasoning ? out.reasoning : out.content) += held_.substr(0, cut);
+            if (state_ == State::call && at != std::string::npos) out.content += s.close;
+            held_.erase(0, at != std::string::npos ? at + s.close.size() : cut);
+            if (at == std::string::npos) return;
+            state_ = State::between;
+        }
+    }
 
     void take(Parts& out, const std::string& piece) {
         switch (state_) {
@@ -150,15 +217,14 @@ private:
                 reply(out, rest);
                 return;
             }
-            size_t keep = 0;
-            for (size_t k = std::min(held_.size(), close.size() - 1); k > 0 && !keep; --k)
-                if (held_.compare(held_.size() - k, k, close, 0, k) == 0) keep = k;
-            size_t cut = held_.size() - keep;
+            size_t cut = held_.size() - partial_tag(held_, close);
             while (cut > 0 && held_[cut - 1] == '\n') --cut;
             reason(out, held_.substr(0, cut), false);
             held_.erase(0, cut);
             return;
         }
+        default:  // the segment states, which segment() alone reaches
+            return;
         }
     }
     void reason(Parts& out, std::string s, bool last) {
@@ -178,8 +244,8 @@ private:
     }
 };
 
-// The tool-call format a chat template writes, read from its text: a JSON object in <tool_call>, a function and its parameters in <tool_call>, or none (docs/SERVER.md, Tool calls).
-enum class ToolFormat { none, json, xml };
+// The tool-call format a chat template writes, read from its text: a JSON object in <tool_call>, a function and its parameters in <tool_call>, a JSON object in a call segment (Segments), or none (docs/SERVER.md, Tool calls).
+enum class ToolFormat { none, json, xml, segment };
 
 // How a parameter's value in the function format is written: as a string; as JSON where it is JSON; as JSON where it is a JSON object or array, else as a string (docs/SERVER.md, Tool calls).
 enum class ToolValue { text, json, structured };
@@ -243,7 +309,7 @@ struct ToolCallDelta {
 };
 
 // A reply's content split into its text and its tool calls as it arrives in pieces, in the template's format, after ReplySplit (docs/SERVER.md, Tool calls).
-// A block is a call once its opening parses, its arguments the model's text in the JSON format and built from its parameters in the other; an opening that never parses stays content.
+// A block is a call once its opening parses, its arguments the model's text in the JSON formats (a call segment's under "args") and built from its parameters in the function format; an opening that never parses stays content.
 class ToolCallSplit {
 public:
     struct Parts {
@@ -251,7 +317,10 @@ public:
         std::vector<ToolCallDelta> calls;
     };
     // With `single`, one call a reply (parallel_tool_calls false): the reply ends at the first call's close, and nothing after it is read.
-    ToolCallSplit(ToolFormat format, ToolTypes typed, bool single) : format_(format), typed_(std::move(typed)), single_(single) {}
+    ToolCallSplit(ToolFormat format, ToolTypes typed, bool single)
+        : format_(format), typed_(std::move(typed)), single_(single),
+          open_tag_(format == ToolFormat::segment ? tagged_segments().open : "<tool_call>"),
+          close_tag_(format == ToolFormat::segment ? tagged_segments().close : "</tool_call>") {}
 
     Parts feed(const std::string& piece) {
         Parts out;
@@ -276,6 +345,7 @@ private:
     ToolFormat format_;
     ToolTypes typed_;
     bool single_;
+    const std::string open_tag_, close_tag_;
     State state_ = State::text;
     std::string buf_, space_, name_;
     size_t calls_ = 0, params_ = 0;
@@ -283,12 +353,6 @@ private:
 
     static bool space(char c) { return c == ' ' || c == '\n' || c == '\r' || c == '\t'; }
     static bool starts(const std::string& s, const std::string& with) { return s.compare(0, with.size(), with) == 0; }
-    // The length of the longest end of `s` that begins `tag`, shorter than `tag`.
-    static size_t partial(const std::string& s, const std::string& tag) {
-        for (size_t k = std::min(s.size(), tag.size() - 1); k > 0; --k)
-            if (s.compare(s.size() - k, k, tag, 0, k) == 0) return k;
-        return 0;
-    }
     static void trim_end(std::string& s) {
         while (!s.empty() && space(s.back())) s.pop_back();
     }
@@ -319,12 +383,12 @@ private:
     }
     // An opening that does not parse: the text it took, and the whitespace before it, go back to the content.
     void refuse(Parts& out) {
-        text(out, space_ + "<tool_call>");
+        text(out, space_ + open_tag_);
         space_.clear();
         state_ = State::text;
     }
-    // 1 where `s` opens a JSON call, with its name and the bytes the opening took, 0 where it may still, -1 where it cannot.
-    static int json_head(const std::string& s, std::string& name, size_t& used) {
+    // 1 where `s` opens a JSON call whose arguments are under `key`, with its name and the bytes the opening took, 0 where it may still, -1 where it cannot.
+    static int json_head(const std::string& s, const std::string& key, std::string& name, size_t& used) {
         size_t i = 0;
         const auto ws = [&] { while (i < s.size() && space(s[i])) ++i; return i < s.size(); };
         const auto literal = [&](const std::string& l) {
@@ -350,7 +414,7 @@ private:
             return -1;
         }
         i = j + 1;
-        if ((r = literal(",")) < 1 || (r = literal("\"arguments\"")) < 1 || (r = literal(":")) < 1) return r;
+        if ((r = literal(",")) < 1 || (r = literal(key)) < 1 || (r = literal(":")) < 1) return r;
         if (!ws()) return 0;
         used = i;
         return 1;
@@ -375,8 +439,8 @@ private:
     }
 
     void step(Parts& out, bool last) {
-        static const std::string open_tag = "<tool_call>", close_tag = "</tool_call>", fn = "<function=", param = "<parameter=",
-                                 param_end = "</parameter>", fn_end = "</function>";
+        const std::string &open_tag = open_tag_, &close_tag = close_tag_;
+        static const std::string fn = "<function=", param = "<parameter=", param_end = "</parameter>", fn_end = "</function>";
         for (;;) {
             if (state_ == State::done) {
                 buf_.clear();
@@ -394,7 +458,7 @@ private:
                     state_ = State::head;
                     continue;
                 }
-                size_t cut = last ? buf_.size() : buf_.size() - partial(buf_, open_tag);
+                size_t cut = last ? buf_.size() : buf_.size() - partial_tag(buf_, open_tag);
                 if (!last)
                     while (cut > 0 && space(buf_[cut - 1])) --cut;
                 text(out, buf_.substr(0, cut));
@@ -406,7 +470,16 @@ private:
                 size_t used = 0;
                 std::string name;
                 if (format_ == ToolFormat::json) {
-                    r = json_head(buf_, name, used);
+                    r = json_head(buf_, "\"arguments\"", name, used);
+                } else if (format_ == ToolFormat::segment) {
+                    // The name the model gives runs to the call tag, the first '<' after the open tag.
+                    const std::string& tag = tagged_segments().call;
+                    const size_t lt = buf_.find('<');
+                    const size_t n = lt == std::string::npos ? 0 : std::min(tag.size(), buf_.size() - lt);
+                    if (lt == std::string::npos) r = 0;
+                    else if (buf_.compare(lt, n, tag, 0, n) != 0) r = -1;
+                    else if (n < tag.size()) r = 0;
+                    else if ((r = json_head(buf_.substr(lt + n), "\"args\"", name, used)) == 1) used += lt + n;
                 } else {
                     size_t i = 0;
                     while (i < buf_.size() && space(buf_[i])) ++i;
@@ -426,7 +499,7 @@ private:
                 if (r == 0) return;
                 start(out, name);
                 buf_.erase(0, used);
-                state_ = format_ == ToolFormat::json ? State::json_args : State::xml_params;
+                state_ = format_ == ToolFormat::xml ? State::xml_params : State::json_args;
                 continue;
             }
             if (state_ == State::json_args) {
@@ -441,7 +514,7 @@ private:
                     end();
                     continue;
                 }
-                size_t cut = buf_.size() - partial(buf_, close_tag);
+                size_t cut = buf_.size() - partial_tag(buf_, close_tag);
                 while (cut > 0 && space(buf_[cut - 1])) --cut;
                 if (cut > 0 && buf_[cut - 1] == '}') {
                     --cut;
@@ -3359,18 +3432,50 @@ struct ChatFormat {
     std::string bos, eos;
     // Whether an assistant turn is kept split at </think>: the template reads `reasoning_content` and does not split a reply at </think> itself.
     bool split_turns = false;
-    // The tool-call format the template writes: the function format where its text holds `<function=`, the JSON one where it holds `<tool_call>` otherwise.
+    // The tool-call format the template writes: the function format where its text holds `<function=`, the JSON one where it holds `<tool_call>` otherwise, and the segment one where it writes segments and their call tag.
     ToolFormat tool_format = ToolFormat::none;
     // Whether the template reads a variable `reasoning_effort`, as some templates choose their reasoning's length by it.
     bool reasoning_effort = false;
     // Where the model declares it, how a message given as parts becomes one text (FlatParts).
     std::optional<FlatParts> flat;
+    // The segment grammar the replies are written in, where the template writes one; null for replies of text and <think>.
+    const Segments* segments = nullptr;
 
-    // An assistant turn as a conversation keeps it, the same for chat's own replies and the turns a client sends back.
-    // It is split by assistant_turn only where the template needs the reasoning apart, and whole elsewhere, as that template was written to take it.
-    Message assistant(const std::string& text) const {
+    // Raw segment replies carry reasoning, text and calls. A compatible client's segment content is already decoded and stays literal.
+    Message assistant(const std::string& text, bool raw_segments = true) const {
+        if (segments) {
+            if (!raw_segments) return Message{ "assistant", text, std::nullopt };
+            ReplySplit split(false, segments);
+            const ReplySplit::Parts a = split.feed(text), b = split.finish();
+            Message m{ "assistant", a.content + b.content, std::nullopt };
+            if (split.reasoned()) m.reasoning_content = a.reasoning + b.reasoning;
+            if (tool_format != ToolFormat::segment) return m;
+            ToolCallSplit calls(tool_format, {}, false);
+            const ToolCallSplit::Parts c = calls.feed(m.content), d = calls.finish();
+            std::vector<ToolCall> found;
+            gather_calls(found, c.calls);
+            gather_calls(found, d.calls);
+            for (const ToolCall& call : found) {
+                try { if (!jmini::parse(call.arguments.str).isObject()) return m; }
+                catch (const std::runtime_error&) { return m; }
+            }
+            m.content = c.content + d.content;
+            m.tool_calls = std::move(found);
+            return m;
+        }
         if (split_turns) return assistant_turn(text);
         return Message{ "assistant", text, std::nullopt };
+    }
+    // Whether a prompt leaves the reply inside open reasoning (opens_reasoning); never under segments, where the reply opens its own.
+    bool opens_reasoning(const std::string& prompt) const { return !segments && chat::opens_reasoning(prompt); }
+    // Whether a reply still being written may yet change how its turn renders before more of it settles, so a next turn is not predicted from it.
+    // Inside an open <think>; under segments, anywhere but an open text segment, since a closed one may be followed by any other.
+    bool reply_unsettled(bool opened, const std::string& text) const {
+        if (!segments) return (opened || text.find("<think>") != std::string::npos) && text.find("</think>") == std::string::npos;
+        const size_t at = text.rfind(segments->open);
+        if (at == std::string::npos) return true;
+        const size_t body = at + segments->open.size();
+        return text.compare(body, segments->text.size(), segments->text) != 0 || text.find(segments->close, body) != std::string::npos;
     }
 
     // Raises the refusal; chat and serve call it before they take a turn.
@@ -3400,6 +3505,11 @@ inline ChatFormat chat_format(const std::string& source, std::string bos, std::s
     catch (const Refused& e) { f.refusal = e.what(); }
     f.split_turns = f.program && f.program->reads("reasoning_content") && !f.program->splits_at("</think>");
     if (f.program) f.tool_format = f.program->writes("<function=") ? ToolFormat::xml : f.program->writes("<tool_call>") ? ToolFormat::json : ToolFormat::none;
+    const Segments& s = tagged_segments();
+    if (f.program && f.program->writes(s.open) && f.program->writes(s.reasoning)) {
+        f.segments = &s;
+        if (f.tool_format == ToolFormat::none && f.program->writes(s.call)) f.tool_format = ToolFormat::segment;
+    }
     f.reasoning_effort = f.program && f.program->reads_variable("reasoning_effort");
     f.bos = std::move(bos);
     f.eos = std::move(eos);
@@ -3458,12 +3568,12 @@ inline bool reasoning_sent_back(const std::vector<Message>& messages) {
 // `open`, where given, is set when the text ends inside a call, whose arguments are not yet whole.
 inline Message reply_message(const ChatFormat& format, bool opened, ToolFormat tools, const ToolTypes& typed, bool single, const std::string& text, bool reasoning,
                              bool* open = nullptr) {
-    ReplySplit split(opened);
+    ReplySplit split(opened, format.segments);
     const ReplySplit::Parts parts = split.feed(text), last = split.finish();
     // The reasoning goes back as a client sends it, in reasoning_content, which only a template that reads that field renders.
     const bool kept = reasoning && split.reasoned() && format.program && format.program->reads("reasoning_content");
     if (tools == ToolFormat::none) {
-        Message m = format.assistant(parts.content + last.content);
+        Message m = format.assistant(parts.content + last.content, false);
         if (kept) m.reasoning_content = parts.reasoning + last.reasoning;
         return m;
     }
@@ -3471,7 +3581,7 @@ inline Message reply_message(const ChatFormat& format, bool opened, ToolFormat t
     const ToolCallSplit::Parts a = calls.feed(parts.content + last.content);
     if (open) *open = calls.open();
     const ToolCallSplit::Parts b = calls.finish();
-    Message m = format.assistant(a.content + b.content);
+    Message m = format.assistant(a.content + b.content, false);
     if (kept) m.reasoning_content = parts.reasoning + last.reasoning;
     gather_calls(m.tool_calls, a.calls);
     gather_calls(m.tool_calls, b.calls);

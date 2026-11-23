@@ -2,20 +2,35 @@
 #include "backends/gpu/backend_core.hpp"
 
 #include <atomic>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <map>
+#include <memory>
 #include <set>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace backend {
 namespace {
 
+// A group sum's launch as the fake saw it: the kernel, its blocks, its stream and its packed arguments.
+struct GroupLaunch {
+    std::string name;
+    unsigned blocks = 0;
+    int* stream = nullptr;
+    std::vector<uint8_t> args;
+};
+
 // What the fake has handed out and not yet taken back, each kind counted, and calls a test makes fail.
 struct FakeState {
     std::atomic<long> memory{0}, host{0}, streams{0}, events{0}, modules{0}, launches{0};
     std::atomic<bool> refuse_malloc{false}, refuse_elapsed{false}, no_binary{false};
+    std::atomic<int*> dead{nullptr};   // a stream whose events report a device error, a member whose card is gone
+    bool recording = false;
+    std::vector<GroupLaunch> groups;   // the group sums launched while recording
 };
 FakeState fake;
 
@@ -28,7 +43,10 @@ struct FakeDevice {
     DeviceProfile profile;
 };
 
-struct FakeEvent { std::atomic<bool> recorded{false}; };
+struct FakeEvent {
+    std::atomic<bool> recorded{false};
+    std::atomic<int*> stream{nullptr};
+};
 
 struct FakeApi {
     using Error = int;
@@ -139,12 +157,13 @@ struct FakeApi {
         --fake.events;
         return kSuccess;
     }
-    static Error event_record(Event e, Stream) {
+    static Error event_record(Event e, Stream s) {
         e->recorded = true;
+        e->stream = s;
         return kSuccess;
     }
-    static Error event_query(Event) { return kSuccess; }
-    static Error event_sync(Event) { return kSuccess; }
+    static Error event_query(Event e) { return e->stream && e->stream == fake.dead ? kRefused : kSuccess; }
+    static Error event_sync(Event e) { return event_query(e); }
     static Error event_elapsed(float* ms, Event, Event) {
         *ms = 0.0f;
         return fake.refuse_elapsed ? kRefused : kSuccess;
@@ -173,8 +192,11 @@ struct FakeApi {
         *blocks = 4;
         return kSuccess;
     }
-    static Error launch(Function, unsigned, unsigned, unsigned, unsigned, unsigned, Stream, void*, size_t) {
+    static Error launch(Function f, unsigned gx, unsigned, unsigned, unsigned, unsigned, Stream s, void* args, size_t size) {
         ++fake.launches;
+        const std::string name = f;
+        if (fake.recording && (name == "llmx_group_sum" || name == "llmx_group_shares" || name == "llmx_group_chain"))
+            fake.groups.push_back({name, gx, s, std::vector<uint8_t>((uint8_t*)args, (uint8_t*)args + size)});
         return kSuccess;
     }
     static Error can_access_peer(int* can, int, int) {
@@ -188,6 +210,102 @@ struct FakeApi {
         return kSuccess;
     }
 };
+
+
+// A group sum's arguments as GpuCollective::launch packs them (kernels/f32.gpu, llmx_group_sum).
+struct SumArgs {
+    const GroupPeers* peers = nullptr;
+    unsigned long long n = 0, cap = 0, timeout = 0, tick = 0;
+    int members = 0, rank = 0, flags = 0;
+};
+SumArgs sum_args(const GroupLaunch& l) {
+    if (l.args.size() != 72) throw std::logic_error("a group sum's arguments of " + std::to_string(l.args.size()) + " bytes, not 72");
+    SumArgs a;
+    const uint8_t* b = l.args.data();
+    std::memcpy(&a.peers, b, 8);
+    std::memcpy(&a.n, b + 24, 8);
+    std::memcpy(&a.cap, b + 32, 8);
+    std::memcpy(&a.members, b + 40, 4);
+    std::memcpy(&a.rank, b + 44, 4);
+    std::memcpy(&a.flags, b + 48, 4);
+    std::memcpy(&a.timeout, b + 56, 8);
+    std::memcpy(&a.tick, b + 64, 8);
+    return a;
+}
+
+// The kernel's GroupSignal (kernels/group.h) as far as the port reads it.
+struct PortSignal {
+    unsigned epoch[32];
+    unsigned abort;
+    unsigned done[32][16];
+};
+static_assert(offsetof(PortSignal, done) == 132 && sizeof(PortSignal) <= kGroupSignalBytes, "kernels/group.h, GroupSignal");
+
+// The device's wall clock for the port, at the fake's rate times a speed-up.
+struct PortClock {
+    std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+    double per_ns = 1.0;
+    unsigned long long now() const { return (unsigned long long)(std::chrono::duration<double, std::nano>(std::chrono::steady_clock::now() - t0).count() * per_ns); }
+};
+
+// A CPU port of a member's block 0 at a meeting (kernels/f32.gpu group_meet, kernels/group.h group_stop and group_failed): it tells and waits for every peer, and where it gives up sets every abort word and its status and fault words.
+// `killed` is the test's watchdog, which ends a wait the kernel would never end and leaves the words as they were; returns the clock's ticks at the end.
+unsigned long long port_member(const GroupPeers* p, int members, int rank, unsigned long long timeout, unsigned long long tick, const PortClock& clock, const std::atomic<bool>& killed) {
+    PortSignal* self = (PortSignal*)p->signal[rank];
+    const unsigned epoch = 1;
+    const unsigned long long deadline = timeout ? clock.now() + timeout : ~0ull;
+    for (int j = 0; j < members; ++j)
+        if (j != rank) host_store(&((PortSignal*)p->signal[j])->done[0][rank], epoch);
+    bool failed = false;
+    for (int j = 0; j < members && !failed; ++j) {
+        if (j == rank) continue;
+        unsigned long long next = clock.now() + tick;
+        while (host_load(&self->done[0][j]) != epoch) {
+            if (killed) return clock.now();
+            if (host_load(&self->abort)) {
+                failed = true;
+                break;
+            }
+            const unsigned long long now = clock.now();
+            if (now < next) continue;
+            next = now + tick;
+            if (now > deadline || host_load(p->cancel)) {
+                failed = true;
+                break;
+            }
+        }
+    }
+    if (failed) {
+        for (int k = 0; k < members; ++k) host_store(&((PortSignal*)p->signal[k])->abort, 1u);
+        host_store(&p->status[rank], 1u);
+        host_store(p->fault, 1u);
+    }
+    return clock.now();
+}
+
+// The kernel a sum of this form launches.
+const char* form_kernel(GpuSumForm f) { return f == GpuSumForm::one_shot ? "llmx_group_sum" : f == GpuSumForm::shares ? "llmx_group_shares" : "llmx_group_chain"; }
+
+// Members 0 to W - 1 of fake backends, one a device index.
+struct FakeGroup {
+    std::vector<std::unique_ptr<GpuBackend<FakeApi>>> cards;
+    std::vector<GpuBackend<FakeApi>*> members;
+    explicit FakeGroup(size_t W) {
+        for (size_t m = 0; m < W; ++m) {
+            cards.push_back(std::make_unique<GpuBackend<FakeApi>>((int)m, false));
+            members.push_back(cards.back().get());
+        }
+    }
+};
+
+// The launches of one sum in place of n floats.
+std::vector<GroupLaunch> recorded_sum(GpuCollective<FakeApi>& c, size_t n) {
+    fake.groups.clear();
+    fake.recording = true;
+    c.sum_in_place(1, n);
+    fake.recording = false;
+    return fake.groups;
+}
 
 } // namespace
 } // namespace backend
@@ -255,6 +373,113 @@ int main() {
         const Backend::KernelTimes lost = b.kernel_times();
         fake.refuse_elapsed = false;
         require(lost.kernels.empty() && lost.dispatches == 0 && lost.unresolved == 1, "an op whose events give no time is counted as unresolved, not timed");
+    }
+    // Every member's launch of one sum: the form its size takes, the same blocks and arguments apart from the member's own, within the kernel's maxima, and a deadline on every sum.
+    {
+        const size_t rows = 32, width = 520;   // timed sizes 16640, 8320 and 4160, the rows halved down to kTimedFloor
+        const GroupTransport t = GroupTransport::peer_writes;
+        const std::map<size_t, GpuSumPick> forms{{4160, {t, GpuSumForm::shares}}, {8320, {t, GpuSumForm::chain}}, {16640, {t, GpuSumForm::wrap}}};
+        const std::vector<size_t> sizes{1, 3, 4, 5, 255, 1023, 1024, 1025, 1027, kTimedFloor - 1, kTimedFloor, kTimedFloor + 1, 4159, 4160, 4161, 4163, 8319, 8320, 8321, 12345, 16639, 16640};
+        std::string same, maxima, deadline, probe;
+        size_t sums = 0;
+        for (size_t W = 2; W <= kGroupMembers; ++W) {
+            FakeGroup g(W);
+            {
+                GpuCollective<FakeApi> c(g.members, rows, width, {t});
+                c.use(forms);
+                for (size_t n : sizes) {
+                    const std::vector<GroupLaunch> got = recorded_sum(c, n);
+                    ++sums;
+                    auto at = forms.upper_bound(n);
+                    const GpuSumForm f = at == forms.begin() ? GpuSumForm::one_shot : (--at)->second.form;
+                    const std::string where = "width " + std::to_string(W) + ", " + std::to_string(n) + " floats: ";
+                    if (got.size() != W) {
+                        if (same.empty()) same = where + std::to_string(got.size()) + " launches";
+                        continue;
+                    }
+                    const SumArgs a0 = sum_args(got[0]);
+                    for (size_t m = 0; m < W; ++m) {
+                        const SumArgs a = sum_args(got[m]);
+                        const bool wrap = (a.flags & 8) != 0;
+                        if (same.empty() && (got[m].name != form_kernel(f) || wrap != (f == GpuSumForm::wrap) || got[m].blocks != got[0].blocks || a.n != n || a.cap != a0.cap || a.members != (int)W ||
+                                             a.rank != (int)m || a.flags != a0.flags || !(a.flags & 2) || a.timeout != a0.timeout || a.tick != a0.tick))
+                            same = where + "member " + std::to_string(m) + " launched " + got[m].name + " on " + std::to_string(got[m].blocks) + " blocks, rank " + std::to_string(a.rank) + ", flags " + std::to_string(a.flags);
+                        // The one-shot and the shares take at most a block a multiprocessor, the fake device's 4.
+                        const size_t most = f == GpuSumForm::one_shot || f == GpuSumForm::shares ? 4 : 2 * kChainBlocks;
+                        const bool even = (f != GpuSumForm::chain && f != GpuSumForm::wrap) || got[m].blocks % 2 == 0;
+                        if (maxima.empty() && (got[m].blocks < 1 || got[m].blocks > most || !even)) maxima = where + std::to_string(got[m].blocks) + " blocks of " + got[m].name;
+                        if (deadline.empty() && (!a.tick || a.timeout < 1000 * a.tick))
+                            deadline = where + "member " + std::to_string(m) + "'s sum waits " + std::to_string(a.timeout) + " ticks at most, " + std::to_string(a.tick) + " a millisecond";
+                    }
+                }
+            }
+            {
+                GpuCollective<FakeApi> c(g.members, 1, 1027, {GroupTransport::peer_writes}, true);
+                for (const GroupLaunch& l : recorded_sum(c, 1027)) {
+                    const SumArgs a = sum_args(l);
+                    if (probe.empty() && a.timeout != kProbeTimeoutMs * a.tick) probe = "width " + std::to_string(W) + ": a probe sum waits " + std::to_string(a.timeout) + " ticks";
+                }
+            }
+        }
+        require(same.empty(), "every member's launch of " + std::to_string(sums) + " sums at widths 2 to 16, below, at and around each size where the form changes, takes that form with the same kernel, blocks, size, staging, flags and deadline, apart from its rank" +
+                                  (same.empty() ? "" : ": " + same));
+        require(maxima.empty(), "every sum's blocks are within the kernel's: a block a multiprocessor for the one-shot and the shares, an even number up to 32 for the chain" + (maxima.empty() ? "" : ": " + maxima));
+        require(deadline.empty(), "every serving sum gives up after at least a second of its device's clock, so a member whose peer's card is gone does not wait for ever" + (deadline.empty() ? "" : ": " + deadline));
+        require(probe.empty(), "a probe sum gives up after kProbeTimeoutMs" + (probe.empty() ? "" : ": " + probe));
+    }
+
+    // A member whose card is gone: the others' waits, ported to CPU threads, end at their deadline or where the host learns of its device error, each live member's status word set and none left spinning.
+    for (const bool host_error : {false, true}) {
+        const size_t W = 4, dead = 2;
+        FakeGroup g(W);
+        const std::string what = host_error ? "where the gone member's ticket reports a device error, " : "where nothing reports the gone member, ";
+        GpuCollective<FakeApi> c(g.members, 1, 1027, {GroupTransport::peer_writes});
+        const std::vector<GroupLaunch> launched = recorded_sum(c, 1027);
+        std::vector<SumArgs> args;
+        for (const GroupLaunch& l : launched) args.push_back(sum_args(l));
+        if (args.size() != W) {
+            require(false, what + "a sum launches on every member");
+            continue;
+        }
+        if (host_error) fake.dead = launched[dead].stream;
+        // At the host's error the clock runs at real time, so only the cancel word can end the waits before the watchdog; else a thousand times faster, so the deadline passes within it.
+        PortClock clock;
+        clock.per_ns = (host_error ? 1.0 : 1000.0) * 1e6 / 1e6;   // the fake's 1 GHz clock
+        std::atomic<bool> killed{false};
+        std::atomic<int> ended{0};
+        std::vector<unsigned long long> end(W, 0);
+        std::vector<std::thread> threads;
+        for (size_t r = 0; r < W; ++r)
+            if (r != dead)
+                threads.emplace_back([&, r] {
+                    end[r] = port_member(args[r].peers, (int)W, (int)r, args[r].timeout, args[r].tick, clock, killed);
+                    ++ended;
+                });
+        if (host_error) c.wait(0);
+        const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        while (ended < (int)W - 1 && std::chrono::steady_clock::now() < until) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        const bool alone = ended == (int)W - 1;
+        killed = true;
+        for (std::thread& t : threads) t.join();
+        bool status = true;
+        unsigned long long first = ~0ull;
+        for (size_t r = 0; r < W; ++r) {
+            if ((host_load(&args[0].peers->status[r]) != 0) != (r != dead)) status = false;
+            if (r != dead) first = std::min(first, end[r]);
+        }
+        c.wait(0);
+        require(alone, what + "every live member's wait ends by itself within 5 s, none left spinning");
+        require(status, what + "every live member's status word is set and the gone member's is not");
+        require(!c.fast(), what + "the collective takes the conservative path for its later sums");
+        if (!host_error) require(alone && first >= args[0].timeout, "no member gives up before its sum's deadline");
+        bool threw = false;
+        try {
+            g.members[0]->raise(0);
+        } catch (const std::exception&) {
+            threw = true;
+        }
+        require(threw, what + "a live member's backend throws at its next check");
+        fake.dead = nullptr;
     }
     require(fake.memory == 0 && fake.host == 0, "every device and host allocation is freed with the backend");
     require(fake.streams == 0 && fake.events == 0 && fake.modules == 0, "every stream, event and module is released with the backend");

@@ -907,6 +907,9 @@ def check_tool_calls(directory):
     byte = build_byte_vocab()
     ask = [{"role": "user", "content": "Weather in Paris?"}]
     rendered = 0
+    # Inkling-2-Mini calls tools through <|content_invoke_tool_json|>, a format the server does not read, so it refuses that template's conversations with tools.
+    unread, turned = {"Inkling-2-Mini (unsloth GGUF)"}, set()
+    assert unread <= set(templates), unread
     for name, pieces in TOOL_REPLIES.items():
         vocab = byte + ["".join(byte[b] for b in p.encode()) for p in pieces] + ["<|endoftext|>"]
         eos = len(vocab) - 1
@@ -965,6 +968,10 @@ def check_tool_calls(directory):
                 if not case.get("tools") or any("tool_calls" in m for m in case["messages"]) or not case["generate"]:
                     continue
                 status, got = srv.post("/v1/tokenize", {"messages": case["messages"], "tools": case["tools"]})
+                if t["name"] in unread:
+                    assert status == 400 and "writes no tool-call format the server reads" in got["error"], (t["name"], case["name"], status, got)
+                    turned.add(t["name"])
+                    continue
                 if "expected" not in case:
                     assert status == 400, (t["name"], case["name"], got)
                     continue
@@ -973,6 +980,7 @@ def check_tool_calls(directory):
                 rendered += 1
         finally:
             srv.close()
+    assert turned == unread, turned
     # parallel_tool_calls false ends a reply of two calls at the first call's close: one call whole and streamed, the text on /v1/chat ending with the token that closes it.
     vocab = byte + ["".join(byte[b] for b in p.encode()) for p in TWO_CALLS] + ["<|endoftext|>"]
     eos = len(vocab) - 1

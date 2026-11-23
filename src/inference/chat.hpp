@@ -735,6 +735,48 @@ inline std::string float_repr(double x) {
     return out + digits.substr(0, whole) + "." + digits.substr(whole);
 }
 
+// Python's float() of a text: ASCII whitespace around a sign and inf, infinity or nan in any case, or digits with single underscores between them, a fraction and an exponent.
+// False where Python raises ValueError; text beyond ASCII fails, since Python reads digits and spaces of every script.
+inline bool py_float(const std::string& text, double& out) {
+    ascii_only(text, "float");
+    const char* space = " \t\n\r\v\f";
+    const size_t begin = text.find_first_not_of(space);
+    if (begin == std::string::npos) return false;
+    const std::string s = text.substr(begin, text.find_last_not_of(space) + 1 - begin);
+    const bool negative = s[0] == '-';
+    size_t i = negative || s[0] == '+' ? 1 : 0;
+    const std::string word = ascii_case(s.substr(i), false, "float");
+    if (word == "inf" || word == "infinity" || word == "nan") {
+        out = word == "nan" ? std::numeric_limits<double>::quiet_NaN() : std::numeric_limits<double>::infinity();
+        if (negative) out = -out;
+        return true;
+    }
+    std::string plain(s, 0, i);
+    const auto digits = [&] {
+        size_t n = 0;
+        while (i < s.size() && std::isdigit(static_cast<unsigned char>(s[i]))) {
+            plain += s[i++];
+            ++n;
+            if (i + 1 < s.size() && s[i] == '_' && std::isdigit(static_cast<unsigned char>(s[i + 1]))) ++i;
+        }
+        return n;
+    };
+    size_t read = digits();
+    if (i < s.size() && s[i] == '.') {
+        plain += s[i++];
+        read += digits();
+    }
+    if (!read) return false;
+    if (i < s.size() && (s[i] == 'e' || s[i] == 'E')) {
+        plain += s[i++];
+        if (i < s.size() && (s[i] == '+' || s[i] == '-')) plain += s[i++];
+        if (!digits()) return false;
+    }
+    if (i != s.size()) return false;
+    out = std::strtod(plain.c_str(), nullptr);
+    return true;
+}
+
 // ---- values ----
 
 struct Value;
@@ -2058,7 +2100,7 @@ inline bool builtin_filter(const std::string& n) {
                        "urlencode", "urlize", "wordcount", "wordwrap", "xmlattr" });
 }
 inline bool supported_filter(const std::string& n) {
-    return one_of(n, { "count", "d", "default", "dictsort", "first", "items", "join", "last", "length", "list", "lower",
+    return one_of(n, { "count", "d", "default", "dictsort", "first", "float", "items", "join", "last", "length", "list", "lower",
                        "map", "reject", "rejectattr", "replace", "reverse", "safe", "select", "selectattr", "string", "title",
                        "tojson", "trim", "upper" });
 }
@@ -2069,6 +2111,7 @@ inline size_t test_argument(const std::string& filter) { return one_of(filter, {
 inline bool filter_keyword(const std::string& filter, const std::string& kw) {
     if (filter == "d" || filter == "default") return one_of(kw, { "default_value", "boolean" });
     if (filter == "dictsort") return one_of(kw, { "case_sensitive", "by", "reverse" });
+    if (filter == "float") return kw == "default";
     if (filter == "join") return kw == "d";
     if (filter == "map") return one_of(kw, { "attribute", "default" });
     if (filter == "replace") return one_of(kw, { "old", "new", "count" });
@@ -2143,7 +2186,7 @@ inline Value map_filter(const Value& v, const std::vector<Value>& args, size_t a
 // The positional arguments each supported filter takes after its value; map and the select filters hand theirs on.
 inline size_t filter_positionals(const std::string& filter) {
     if (filter == "d" || filter == "default") return 2;
-    if (filter == "trim" || filter == "join") return 1;
+    if (filter == "trim" || filter == "join" || filter == "float") return 1;
     if (filter == "replace" || filter == "dictsort") return 3;
     if (filter == "tojson") return 4;
     return 0;
@@ -2162,6 +2205,15 @@ inline Value apply_filter(const std::string& name, const Value& v, const std::ve
     }
     if (name == "length" || name == "count") return Value::integer(length(v));
     if (name == "string" || name == "safe") return Value::str(to_str(v));
+    if (name == "float") {
+        // Python's float() of the value, or the default where float() raises a TypeError or ValueError; an undefined value raises.
+        if (v.k == Value::UNDEF) undefined_error(v);
+        if (v.numeric()) return Value::number(v.as_float());
+        double x = 0;
+        if (v.k == Value::STR && py_float(v.s, x)) return Value::number(x);
+        const Value* fallback = a.get(0, "default");
+        return fallback ? *fallback : Value::number(0.0);
+    }
     if (name == "trim") {
         const Value* chars = a.get(0, "chars");
         if (chars && chars->k != Value::NONE && chars->k != Value::STR) type_error("strip arg must be None or str");

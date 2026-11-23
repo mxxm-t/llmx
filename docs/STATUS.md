@@ -93,6 +93,15 @@ Images are pushed by digest alone and tagged only by the run that publishes them
 - **Checks.** cpu-resume on pve1 passed 6 of 6 runs with the fix (job 20261123-045010-FLAKE1-1399); with decode priced 250 ms on the prefilling victim alone the case fails every run with "a victim still prefilling: 0 taken back and 0 rows recomputed" (20261123-044935-FLAKE1-17831). Docs and dead-code pass on a git-archive copy.
 - **Landing.** Tests only (AGENTS.md, Merge gates): the group on CPU, docs and dead-code, the hosted run; it lands by fast-forward.
 
+## Chat template float filter
+
+- Goal: the chat renderer takes Jinja's `float` filter, so the template of unsloth/Inkling-2-Mini-GGUF renders instead of being refused at its reasoning effort.
+- Done: `float` in `jj::apply_filter` as Python's `float()` reads numbers, booleans and ASCII text (underscores, `inf`, `nan`), with the default by position or keyword; text beyond ASCII fails the render. The fixture pins the Inkling-2-Mini template, which renders as transformers 5.17.0 renders it over all 34 conversations, and a float feature template; `chat-template` holds a prompt with no end token to renders that end on a token. Rendered prompts of the other pinned templates are unchanged (their fixture entries are byte-identical).
+- Left: the reply side of the Inkling-2 format, recorded in `docs/INKLING2.md` on feat/inkling2.
+- Gotchas: Inkling-2's template has no generation prompt and ends only a reply with the end token, so the server places its message ends by rendering (`MessageEnds`).
+  Its tool calls are written after `<|content_invoke_tool_json|>`, a format the server does not read, so the server refuses its conversations with tools, and the `server` component expects that refusal for the fixture's tool cases under this template.
+  The first full CPU suite on this branch failed only there, at `/v1/tokenize` with tools, since main's component had no template it refused.
+
 ## Request capacity freshness in Monitor
 
 - The production dashboard showed CURRENT STATE after its inference server stopped. Request capacity now marks the retained counts as LAST SAMPLE and distinguishes pausing the view from paused scheduler work.

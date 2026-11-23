@@ -21,7 +21,7 @@
   REVIVE2 ported the test to main's collective (2026-11-23): a collective over peer writes, picks of one-shot, shares, chain and wrap by size, and `GroupSignal::done` for the port's meeting words.
   Focused checks (pve1, CPU build): `gpu-core` fails on the test commit with main's source in the ten deadline and gone-member checks and passes on the fix; `dead-code` and `docs` pass at the fix.
 - **Test:** `gpu-core` (docs/TESTS.md) holds every serving sum's deadline and a CPU port of the kernel's meeting with a member that never comes.
-- **Left:** the landing stack's card-free CUDA CTest, since the change is in `src/backends/gpu`, and the device check COORD runs on a group of free cards: `backend-rocm` and `backend-cuda` (their sums' bits and the late-peer test) and one 2x2 drafts-on serve cell for no give-up and the same output hashes.
+- **Left:** it lands with the landing stack land-20261129, whose gates are recorded there (Landing stack land-20261129, below); `backend-cuda` on a card did not run, as the rig has no CUDA card.
   After a give-up the collective takes the conservative path, whose live members wait on the gone card's events with no bound, so a later sum on a group with a dead card still hangs its live streams (no spin); refusing later sums on a collective whose sum ran out is the follow-up this branch does not make.
   README unchanged (no user-facing change).
 
@@ -30,7 +30,7 @@
 - **Goal:** Run a decode row of qwen35's full attention, q and k norm and rope, the cache write, attention and the gate, in one GPU launch where it took four, for Qwen3.6-27B decode at a tensor width of 4.
 - **Done:** `Backend::gated_attention_layer` makes the four calls by default; the GPU core's override runs a decode row of one causal view, heads 256 wide, one rope stream and each gate beside its q head in `llmx_attention_gated256` and its merge past one split, and anything else on the four calls. qwen35's full attention calls it. `backend-rocm attention` holds the layer's output, product and cache to the four calls bit for bit at lengths 1 to 16384 on f16 and f32 caches in both twin classes, with the launch witness, and several rows, two views and a gate apart from q to the four calls.
 - **Measured:** Qwen3.6-27B Q8_0, `--dtype int8`, ROCm gfx906, four MI50s as one tensor group, one sequence, 256 generated tokens, 96 interleaved runs (24 ABBA/BAAB blocks, host load about 61): the candidate 5dd3ef301 against a layout control b0eea3f84 (the same files, the fused path never taken) saves 0.55 ms a token, noise band 0.28 (label permutation), nulls A-A -0.09 and L-L -0.27, one output md5 (/opt/claude-work/fuse13/out/c5/sum.txt). That is about 3% of a 16 to 19 ms token; the windows give the difference, not tok/s.
-- **Left:** qwen4exp's dense layers make the same four calls and could call it, with their own byte identity on Flash-Next; `llmx_attention_gated256` and its merge copy the bodies of `attention_vec<256>` and its merge and could be builds of those templates, as the sparse ones are, after a timing round (Fable). The landing gates run in the landing stack.
+- **Left:** qwen4exp's dense layers make the same four calls and could call it, with their own byte identity on Flash-Next; `llmx_attention_gated256` and its merge copy the bodies of `attention_vec<256>` and its merge and could be builds of those templates, as the sparse ones are, after a timing round (Fable). It lands with the landing stack land-20261129, whose gates are recorded there (Landing stack land-20261129, below).
 - **Gotchas:** A backend that fuses the layer may leave the formed q and k unwritten, unlike `norm_rope_kv`, so nothing after the layer may read them. Vulkan keeps the default.
 
 ## QSA identity rows in one launch (2026-11-21, FNGATE3 then FNGATE4, branch perf/qsa-identity-rows, revived 2026-11-23 by REVIVE1 on main bfb7f517)
@@ -49,7 +49,7 @@
   The device-time cut is about 2% of a pass; tok/s is neutral within noise, since the untraced prompt is not host-recording bound and the slice count varied from 4 to 14 between runs.
 - **Correctness:** greedy 64-token text identical to main on 1248- and 5391-token prompts at the layer-4 split and at `--tensor-width 2`; the `kv-selection` check passes on rocm:0 (734151 checks, 916908 with the edge check).
 - **Forced-path check:** `kv-selection` gains `identity_rows`: views of 1, 2, 3, 17, 19 and 20 rows at visible = whole - 1, whole and whole + 1, one- and two-view calls, with exact `llmx_kv_index_all` and `llmx_kv_index_scores` launch counts and the ids of the select path. It passes on the candidate (916908 checks, rocm:0, gfx906 build) and fails on main sources with the same test: `views of 1 rows seeing 2050 to 2050 tokens, 2051 the most a row takes whole: llmx_kv_index_all ran 0 times, not 1` (/opt/claude-work/revive2/qsa.log).
-- **Left:** landing gates by scope (kernel code): byte identity on CPU and a device, the device suite, one timing round against main (the claim is launches and device time, tok/s is neutral), the hosted run; Vulkan's select_kv is not checked for the same loop and is recorded as left work.
+- **Left:** it lands with the landing stack land-20261129, whose gates are recorded there (Landing stack land-20261129, below); Vulkan's select_kv is not checked for the same loop and is recorded as left work.
 - **Gotchas:** the identity arm must keep `pool_view` before it; later above-budget rows read the pooled history.
 
 ## A chat reply read again with the reasoning its client sends back
@@ -150,7 +150,7 @@ Images are pushed by digest alone and tagged only by the run that publishes them
 
 - Goal: chat and the server read the replies of a template with no generation prompt whose model writes segments, `<|message_model|>`, a name, a content tag and a body up to `<|end_message|>`, as the Inkling-2-Mini template writes them: reasoning, text and tool calls (`docs/INKLING2.md` on feat/inkling2, section 7, Chat format).
 - Done: `chat::Segments` and `chat::tagged_segments`, read by `chat_format` where the template writes the open and reasoning tags (`ChatFormat::segments`). `ReplySplit` takes the segments: reasoning bodies are `reasoning_content`, text bodies content, call segments pass whole to `ToolCallSplit`. A fourth `ToolFormat`, `segment`, reads a call segment's JSON object, its name and `args`. `ChatFormat::assistant` splits a segment reply into reasoning, text and calls for chat's and the server's next turn. `ChatFormat::opens_reasoning` and `ChatFormat::reply_unsettled` hold the two `<think>` rules the server had, false and segment-aware under segments. The fixture records the Inkling turns as the replies its model writes, cut from transformers' own renders, plus four replies of reasoning, text and calls with the render of what follows; `tool_format` is `segment`. The server component's refusal entry for the template is replaced by its tool-call round trip. A segment reply goes back by the rule of the reply read again with the reasoning its client sends back: `chat::reply_message` keeps the reasoning in `reasoning_content` where the client sends it back and drops it otherwise, so the round trip sends the reasoning and reuses the kept conversation, and a turn sent back without it is read again and reuses less, with no error.
-- Left: run the MI50 server component on the corrected candidate before landing. Windows chat-template and server tool checks pass. With tools disabled the literal history now contributes 132 tokens on the byte fixture, and a follow-up echo reuses 384 of 460 tokens (128 before). Native raw history also retains its calls. Reasoning effort reaches the template as a string (`Api::add_effort`) or through `chat_template_kwargs`; `chat` passes none, so its effort is the template's 0.9.
+- Left: it lands with the landing stack land-20261129, whose gates are recorded there (Landing stack land-20261129, below), where the MI50 server component passed on vulkan:0 and rocm:0. Windows chat-template and server tool checks pass. With tools disabled the literal history now contributes 132 tokens on the byte fixture, and a follow-up echo reuses 384 of 460 tokens (128 before). Native raw history also retains its calls. Reasoning effort reaches the template as a string (`Api::add_effort`) or through `chat_template_kwargs`; `chat` passes none, so its effort is the template's 0.9.
 - Gotchas: the stop is the file's end token alone (200006, `is_eos`); the model writes no second stop. Several reasoning or text segments are joined into one, as the template renders one each, so an interleaved reply renders back otherwise than written and `chat` retracts to the render.
   A call whose arguments are not a JSON object stays text in `ChatFormat::assistant`, as the template refuses a call it cannot render. Branch feat/chat-inkling is stacked on fix/chat-filter-float (gitea PR 568), whose template fixture and filter it needs; it does not need the model of feat/inkling2.
 
@@ -1158,6 +1158,56 @@ This test-only correction lands by fast-forward with the companion workflow.
 - **Checks:** The independent Chrome regression failed in 59.797 seconds before the fix and passed in 54.855 seconds after it. The combined browser fixture over public main `2ea30d410` passed in 66.845 seconds, including both themes at 1440, 390 and 320 pixels and 200 percent CSS zoom. Desktop preference, transient Settings access, mobile drawer state and toggle geometry passed. JavaScript syntax, whitespace and independent integration review passed. Dead-code passed with 17 expected findings and 20 planted faults in 34.8 seconds; docs passed with zero findings and 29 planted faults in 31.8 seconds and runs once more after this record.
 - **Landing:** Fast-forward from `2ea30d410` after final documentation validation and a fresh main check. This is static presentation only, with no server, runtime, API or numerical changes. The existing docs CLI remains applicable because native source and build inputs are unchanged. Full Markdown review checks references to details, temporary labels and layout; the companion README and TESTS own the updated behavior. Receipts are in `scratch/reading-landing/`, with independent matched screenshots in the main workspace's `scratch/chat-reading-layout/`.
 - **Gotchas:** Composer Settings and the narrow drawer are transient. Only explicit docked Details actions save the preference. Long titles can still truncate. Chrome emulation does not establish physical phone or Safari coverage. Settings semantics and history search remain separate audit work.
+## Landing stack land-20261129 (2026-11-23, LAND113 to LAND117, on landing-109's head e9daf3b6, lands by fast-forward)
+
+**What lands.** Eight commits on e9daf3b6, by fast-forward, in order: feat/chat-inkling 52b0573b, fix/group-sum-deadline e4604e7f (the failing test) and e5a1d9fc, products/a3-gated-attention 32a81a23, perf/qsa-identity-rows e22f5b09 (the failing test) and b00d7d39, docs/device-tuning 7f6dcc9c and this record.
+Each branch's own block or commit gives its change and measurements; this record gives the gates of the stack.
+
+**Fixes during landing.** products/a3-gated-attention's GPU override checks its KV view with `holds(layer, ...)`, as main's per-layer KV storage requires, and its CHANGELOG.md line is cut to the one-line form.
+docs/device-tuning takes two lines of docs/DEVICE-TUNING.md from XDEV's review of its routed-expert gap, folded into its one commit.
+
+**Carried forward.** The gates ran at 18bb1a79, whose builds report `0.2.1+g18bb1a793028`; 18bb1a79..7f6dcc9c changes only those two lines of docs/DEVICE-TUNING.md, which no build or check other than docs and dead-code reads, and docs and dead-code were rerun at 7f6dcc9c and at this record's commit.
+
+**Flakes seen and rerun.** The Vulkan CTest failed twice on faults of the gate script, not of the stack: the first run started before the Vulkan build had finished (11 tests not run), the second ran in a container without the source tree that `backend-vulkan` reads its shaders from; the third, with both fixed, passes.
+The four-card part waited at a 40 GiB host-memory gate for 2.5 hours on a host with 16 GiB free and was resumed after its first identity set with a 12 GiB gate and 16 GiB containers, the direct-load peak being about 1.3 GiB.
+The serve cell first failed in both arms at the flag check, as its script lacked `--no-auth`, which main's serve requires; with it both arms pass.
+No Vulkan or Windows device code changed (products/a3-gated-attention's Vulkan path is the default's same four calls), so the Radeon VII check does not run.
+
+| Check | Result |
+|---|---|
+| CTest, CPU build of 18bb1a79 on pve1 (llmx 0.2.1+unknown numerics ddb16ddcbc91ccce, from a git-archive copy) | 91/91 |
+| Suite, CPU build, all components | 50 pass, 0 fail, 0 skip |
+| Identity against e9daf3b6 on the CPU, Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M, `cpu:auto` and `cpu:f32` | 32 of 32 output files equal |
+| CTest, CUDA build, card-free (`cuda-sass`, `gpu-core`, `gpu-port`, `cuda-driver`) | builds; 4/4 |
+| Builds: ROCm gfx906 of the stack (sha256 ca6dbfa3c487) and of e9daf3b6 (960ec611f338), Vulkan (a9cf9c0889a1) | build |
+| Identity against e9daf3b6 on one MI50 (renderD131), Qwen3-0.6B Q8_0 f16/int8/f32 and Qwen3.5-0.8B Q4_K_M auto/int8/f32 | 48 of 48 output files equal |
+| Suite on one MI50, `--device rocm:0` (renderD130) | 49 pass, 1 skip (minimax: the device refuses `sigmoid_routing` at load) |
+| CTest `-R vulkan` and the suite's `server` component on `vulkan:0` (renderD128) | 21/21; server passes |
+| Identity against e9daf3b6, Qwen3.6-27B Q8_0 on four MI50s at `--tensor-width 4`, int8 and f16 (renderD132-135) | 8 of 8 output files equal (logits, per-token, generation, lookup) |
+| Identity against e9daf3b6, Qwen3.8-Flash-Next UD-Q4_K_XL int8, layer split over four MI50s | 3 of 3 output files equal (logits, per-token, generation) |
+| CTest, ROCm build, four MI50s | 96/96 (renderD132-135) |
+| Serve cell: Flash-Next int8, MTP v2 drafter, draft-max 3, four MI50s as two groups of two, each arm | pass on renderD128-131: 256 events in each arm, no give-up, the same final text (47254779395e); 62.1 tok/s main, 74.7 stack |
+| docs, dead-code | pass on git-archive copies of 7f6dcc9c and of this record's commit, with the stack's CPU build as `--exe` |
+| Hosted | the workflow run of this commit on GitHub |
+
+Timing, first round (out/t27 on the rig, rule in out/t27/rule.txt written before the runs): Qwen3.6-27B Q8_0, `--dtype int8`, ROCm gfx906, four MI50s at `--tensor-width 4` (renderD132-135), `bench --p 512 --n 128 --r 3`, one sequence, the stack's build against e9daf3b6's in the order s m m s m s s m; a pair's delta is s/m - 1 and the rule passes at a median of at least -2%.
+The script's verdict read the spread for the rate; the same runs reparsed (out/t27/verdict2.txt) give pp512 +0.01% and tg128 -3.72%, a miss under a host load of 34 to 40 (one sample 102).
+Decode was bimodal in both arms, about 60 tok/s with a spread up to 8.6 or about 72 with a spread near 1: s1, s4 and m5 were slow, and the fast runs agree (stack 71.60 and 72.23, main 71.20 and 72.54). Fable read the miss as host contention, not the stack: 234's deadline adds one clock read a sum launch and 579 removes host calls.
+
+| Run | s1 | m2 | m3 | s4 | m5 | s6 | s7 | m8 |
+|---|---|---|---|---|---|---|---|---|
+| pp512 tok/s | 825.09 | 824.61 | 822.93 | 819.81 | 816.11 | 824.16 | 824.60 | 824.88 |
+| tg128 tok/s | 60.66 | 71.20 | 72.54 | 60.43 | 60.81 | 71.60 | 72.23 | 67.28 |
+
+Timing, second round (out/t27r2, rule in out/t27r2/rule.txt written before the runs, designed by Fable): the same command, arms s (stack), m (e9daf3b6) and c (a byte copy of m), ten triplets in rotated orders, the upper quartile of each arm's ten runs; the round counts only if c/m is within 2%.
+c/m came to -3.01% on tg128, so the round is uninformative by its rule; beside it s/m is -0.31% on tg128 and -0.06% on pp512, the paired median of s/m on tg128 +5.24%, and slow runs (tg128 under 66 or spread over 2.5) number 5 for s, 6 for m and 5 for c.
+
+| Arm, upper quartile of 10 runs | pp512 tok/s | tg128 tok/s | slow runs |
+|---|---|---|---|
+| m, e9daf3b6 (960ec611f338) | 828.75 | 71.97 | 6 |
+| c, copy of m | 828.29 | 69.81 | 5 |
+| s, stack (ca6dbfa3c487) | 828.28 | 71.75 | 5 |
+
 ## Landing stack land-20261128 (2026-11-23, LAND109 to LAND115, on landing-105's head ecc0955a, lands by fast-forward)
 
 **What lands.** Six commits on ecc0955a, by fast-forward, in order: fix/cuda-sm90-held-push b257d8cb, cuda/decode-cols-k1 c783129c, ci/hub-overview 246ed8ef, docs/release-auto-publish 0ec10d08, docs/changelog-bullets bc9e6af3 and this record.

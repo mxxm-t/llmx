@@ -668,6 +668,10 @@ public:
         fn.vkGetPhysicalDeviceQueueFamilyProperties(d.physical, &families, qf.data());
         const std::vector<uint32_t> candidates = queue_candidates(qf);
         if (candidates.empty()) throw VulkanUnavailable("vulkan: " + d.caps.device + " has no compute queue");
+        // A transfer-only family copies on its own engines, so a sum's copies beside the work take none of its compute units.
+        int transfer = -1;
+        for (uint32_t i = 0; i < families && transfer < 0; ++i)
+            if ((qf[i].queueFlags & (VK_QUEUE_TRANSFER_BIT | VK_QUEUE_COMPUTE_BIT | VK_QUEUE_GRAPHICS_BIT)) == VK_QUEUE_TRANSFER_BIT && qf[i].queueCount) transfer = (int)i;
 
         VkPhysicalDeviceVulkan12Features f12{};
         f12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
@@ -818,23 +822,29 @@ public:
         d.stamp_mask = bits >= 64 ? ~uint64_t(0) : (uint64_t(1) << bits) - 1;
         d.matched_barriers = plan.first.matched;
         d.queue_report = plan.second;
-        const float priority = 1.0f;
-        VkDeviceQueueCreateInfo qi{};
-        qi.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        qi.queueFamilyIndex = d.queue_family;
-        qi.queueCount = 1;
-        qi.pQueuePriorities = &priority;
-        VkDeviceQueueCreateInfo queues[2] = {qi, qi};
+        // Queues: the chosen family's (two where it has them and no transfer-only family exists, the second being the copy queue), the receive family's, and the transfer-only family's copy queue.
+        const float priority[2] = {1.0f, 1.0f};
+        VkDeviceQueueCreateInfo qi[3] = {};
+        qi[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        qi[0].queueFamilyIndex = d.queue_family;
+        qi[0].queueCount = transfer < 0 && qf[d.queue_family].queueCount > 1 ? 2 : 1;
+        qi[0].pQueuePriorities = priority;
+        qi[1] = qi[2] = qi[0];
+        qi[1].queueCount = qi[2].queueCount = 1;
         di.queueCreateInfoCount = 1;
+        d.families[0] = d.queue_family;
+        d.family_count = 1;
         for (uint32_t c : candidates)
             if (d.exchange && c != d.queue_family && d.receive_family == UINT32_MAX) {
                 d.receive_family = c;
-                d.families[0] = d.queue_family;
-                d.families[1] = c;
-                queues[1].queueFamilyIndex = c;
-                di.queueCreateInfoCount = 2;
+                d.families[d.family_count++] = c;
+                qi[di.queueCreateInfoCount++].queueFamilyIndex = c;
             }
-        di.pQueueCreateInfos = queues;
+        if (transfer >= 0) {
+            qi[di.queueCreateInfoCount++].queueFamilyIndex = (uint32_t)transfer;
+            if (d.receive_family != UINT32_MAX) d.families[d.family_count++] = (uint32_t)transfer;
+        }
+        di.pQueueCreateInfos = qi;
         check(fn.vkCreateDevice(d.physical, &di, nullptr, &d.device), "vkCreateDevice");
 #define LLMX_VK_LOAD_DEVICE(name) \
         fn.name = (PFN_##name)fn.vkGetDeviceProcAddr(d.device, #name); \
@@ -868,6 +878,9 @@ public:
             throw std::runtime_error("vulkan: the device has no vkCmdPushDescriptorSetKHR");
         fn.vkGetDeviceQueue(d.device, d.queue_family, 0, &d.queue);
         if (d.receive_family != UINT32_MAX && d.exchange) fn.vkGetDeviceQueue(d.device, d.receive_family, 0, &d.receive_queue);
+        d.copy_family = transfer < 0 ? d.queue_family : (uint32_t)transfer;
+        if (transfer >= 0) fn.vkGetDeviceQueue(d.device, d.copy_family, 0, &d.copy_queue);
+        else if (qi[0].queueCount > 1) fn.vkGetDeviceQueue(d.device, d.queue_family, 1, &d.copy_queue);
 
         VkCommandPoolCreateInfo pi{};
         pi.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -897,6 +910,14 @@ public:
             check(fn.vkCreateQueryPool(d.device, &qp, nullptr, &busy_pool_), "vkCreateQueryPool");
         }
         probe_memory();
+        if (d.copy_queue) {
+            pi.queueFamilyIndex = d.copy_family;
+            check(fn.vkCreateCommandPool(d.device, &pi, nullptr, &copy_pool_), "vkCreateCommandPool");
+            ci.commandPool = copy_pool_;
+            ci.commandBufferCount = kCopyRing;
+            check(fn.vkAllocateCommandBuffers(d.device, &ci, copy_ring_), "vkAllocateCommandBuffers");
+            check(fn.vkCreateSemaphore(d.device, &si, nullptr, &copy_timeline_), "vkCreateSemaphore");
+        }
     }
 
     ~VulkanBackend() override {
@@ -914,6 +935,8 @@ public:
         if (busy_pool_) d.fn.vkDestroyQueryPool(d.device, busy_pool_, nullptr);
         staging_.reset();
         if (timeline_) d.fn.vkDestroySemaphore(d.device, timeline_, nullptr);
+        if (copy_timeline_) d.fn.vkDestroySemaphore(d.device, copy_timeline_, nullptr);
+        if (copy_pool_) d.fn.vkDestroyCommandPool(d.device, copy_pool_, nullptr);
         hold_.word.reset();
         if (hold_.timeline) d.fn.vkDestroySemaphore(d.device, hold_.timeline, nullptr);
         if (hold_.pool) d.fn.vkDestroyCommandPool(d.device, hold_.pool, nullptr);
@@ -1187,6 +1210,7 @@ public:
         std::vector<VkSemaphore> signal, waits;
         std::vector<uint64_t> wait_values;   // a value a wait
         uint64_t peer_value = 0;             // what every signal after the device's own timeline takes
+        bool beside = false;                 // on the copy queue (copy_prepare)
         std::atomic<uint32_t>* release = nullptr;   // on a submitter, the hold this submission lets go, released just before its call
         uint32_t release_seq = 0;
 
@@ -1212,7 +1236,7 @@ public:
             si.waitSemaphoreCount = (uint32_t)waits.size();
             si.pWaitSemaphores = waits.data();
             si.pWaitDstStageMask = stages.data();
-            return d.fn.vkQueueSubmit(d.queue, 1, &si, VK_NULL_HANDLE);
+            return d.fn.vkQueueSubmit(beside ? d.copy_queue : d.queue, 1, &si, VK_NULL_HANDLE);
         }
     };
 
@@ -1258,6 +1282,133 @@ public:
         ring_index_ = (ring_index_ + 1) % kRing;
         return s.ticket;
     }
+    // A tensor group's sum copies on the copy queue, beside the work recorded after them (VulkanCollective::send): `bytes` from src into dst, then dst's range released to its importer.
+    // Each copy_prepare ends a command buffer of them, run once this backend's submission `after` has; the copy queue's ring slot is taken again once its copies have run.
+    bool copies_beside() const { return copy_pool_ != VK_NULL_HANDLE; }
+    void copy_beside(Buffer& dst_b, size_t dst_off, const Buffer& src_b, size_t src_off, size_t bytes) {
+        VulkanBuffer& dst = as_vulkan(dst_b);
+        const VulkanBuffer& src = as_vulkan(src_b);
+        span(dst, dst_off, bytes);
+        span(src, src_off, bytes);
+        if (!bytes) return;
+        VkBufferMemoryBarrier release = external_ownership_barrier(dst_b, dst_off, bytes, false);
+        if (dev_->receive_family == UINT32_MAX) release.srcQueueFamilyIndex = dev_->copy_family;
+        if (!copy_open_) {
+            copies_done(copy_ring_value_[copy_index_]);
+            VkCommandBuffer cmd = copy_ring_[copy_index_];
+            check(dev_->fn.vkResetCommandBuffer(cmd, 0), "vkResetCommandBuffer");
+            VkCommandBufferBeginInfo bi{};
+            bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+            check(dev_->fn.vkBeginCommandBuffer(cmd, &bi), "vkBeginCommandBuffer");
+            copy_open_ = true;
+        }
+        VkCommandBuffer cmd = copy_ring_[copy_index_];
+        if (dev_->copy_family != dev_->queue_family && dev_->receive_family == UINT32_MAX && std::none_of(handed_.begin(), handed_.end(), [&](const VkBufferMemoryBarrier& h) { return h.buffer == src.handle() && h.offset == src_off && h.size == bytes; })) {
+            // Another family's queue reads the source only once this queue has released the range to it, and gives it back with the copies (wait_copies).
+            VkBufferMemoryBarrier hand{};
+            hand.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+            hand.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+            hand.srcQueueFamilyIndex = dev_->queue_family;
+            hand.dstQueueFamilyIndex = dev_->copy_family;
+            hand.buffer = src.handle();
+            hand.offset = src_off;
+            hand.size = bytes;
+            dev_->fn.vkCmdPipelineBarrier(open(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 1, &hand, 0, nullptr);
+            hand.srcAccessMask = 0;
+            hand.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            dev_->fn.vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 1, &hand, 0, nullptr);
+            handed_.push_back(hand);
+        }
+        const VkBufferCopy region{src_off, dst_off, bytes};
+        dev_->fn.vkCmdCopyBuffer(cmd, src.handle(), dst.handle(), 1, &region);
+        dev_->fn.vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 1, &release, 0, nullptr);
+    }
+    // The copies recorded since the last, as a submission on the copy queue that waits for ticket `after` and signals the timeline `signal` at `peer_value` beside the copy timeline.
+    Submission copy_prepare(Ticket after, VkSemaphore signal, uint64_t peer_value) {
+        if (!copy_open_) throw std::logic_error("vulkan: a copy submission without copies");
+        Submission s;
+        s.beside = true;
+        s.cmd = copy_ring_[copy_index_];
+        s.ticket = copy_value_ + 1;
+        for (VkBufferMemoryBarrier back : handed_) {
+            std::swap(back.srcQueueFamilyIndex, back.dstQueueFamilyIndex);
+            back.srcAccessMask = 0;
+            back.dstAccessMask = 0;
+            dev_->fn.vkCmdPipelineBarrier(s.cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 1, &back, 0, nullptr);
+            given_back_.push_back({s.ticket, back});
+        }
+        handed_.clear();
+        check(dev_->fn.vkEndCommandBuffer(s.cmd), "vkEndCommandBuffer");
+        copy_open_ = false;
+        copy_value_ = s.ticket;
+        s.signal = {copy_timeline_, signal};
+        s.peer_value = peer_value;
+        s.waits = {timeline_};
+        s.wait_values = {after};
+        copy_ring_value_[copy_index_] = s.ticket;
+        copy_index_ = (copy_index_ + 1) % kCopyRing;
+        return s;
+    }
+    // Copies recorded and never prepared, after a failed sum, given up with the ranges handed over for them; the members have drained, so no queue still reads either.
+    void copies_abandon() noexcept {
+        if (copy_open_) (void)dev_->fn.vkResetCommandBuffer(copy_ring_[copy_index_], 0);
+        copy_open_ = false;
+        handed_.clear();
+        given_back_.clear();
+    }
+    // On the submitter's thread: a copy submission's call made, or failed, when the copy timeline is moved past it so nothing waits on it forever.
+    void copy_made(const Submission& s, bool queued) noexcept {
+        if (!queued) {
+            // A host signal must stay below every pending one, so the copies before it run first.
+            const uint64_t before = s.ticket - 1;
+            VkSemaphoreWaitInfo wi{};
+            wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+            wi.semaphoreCount = 1;
+            wi.pSemaphores = &copy_timeline_;
+            wi.pValues = &before;
+            (void)dev_->fn.vkWaitSemaphores(dev_->device, &wi, UINT64_MAX);
+            VkSemaphoreSignalInfo si{};
+            si.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO;
+            si.semaphore = copy_timeline_;
+            si.value = s.ticket;
+            (void)dev_->fn.vkSignalSemaphore(dev_->device, &si);
+        }
+        // Settles run on the queue thread and on the recording thread after a failure, so the value only rises.
+        for (uint64_t c = copy_made_.load(std::memory_order_relaxed); c < s.ticket && !copy_made_.compare_exchange_weak(c, s.ticket, std::memory_order_release, std::memory_order_relaxed);) {}
+    }
+    // The next submission waits until the copies up to `value` (a copy submission's ticket) have run, so what they read may be written again; later copies run on beside it.
+    void wait_copies(uint64_t value) {
+        if (!value) return;
+        waits_.push_back(copy_timeline_);
+        wait_values_.push_back(value);
+        std::vector<VkBufferMemoryBarrier> back;
+        for (auto it = given_back_.begin(); it != given_back_.end();)
+            if (it->first <= value) {
+                back.push_back(it->second);
+                back.back().dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+                it = given_back_.erase(it);
+            } else {
+                ++it;
+            }
+        if (!back.empty())
+            dev_->fn.vkCmdPipelineBarrier(open(), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, u32(back.size()), back.data(), 0, nullptr);
+    }
+    // The host waits until the copies up to `value` have run; a copy the submitter has yet to call is waited for there first.
+    void copies_done(uint64_t value) noexcept {
+        if (!value) return;
+        if (submitter_ && value > copy_made_.load(std::memory_order_acquire)) submitter_->until([&] { return copy_made_.load(std::memory_order_acquire) >= value; });
+        VkSemaphoreWaitInfo wi{};
+        wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+        wi.semaphoreCount = 1;
+        wi.pSemaphores = &copy_timeline_;
+        wi.pValues = &value;
+        if (dev_->fn.vkWaitSemaphores(dev_->device, &wi, UINT64_MAX) != VK_SUCCESS) {
+            std::fprintf(stderr, "vulkan: waiting on %s's copies failed; the device is lost\n", dev_->caps.device.c_str());
+            std::abort();
+        }
+    }
+
     const std::shared_ptr<Device>& device() const { return dev_; }
     std::unique_ptr<Collective> join(const std::vector<Backend*>& members, size_t rows, size_t width) override;
     std::string pci_root() const override { return dev_->pci_root; }
@@ -1410,14 +1561,18 @@ public:
         }
         const Ticket last = tickets_.last();
         wait(last);
-        if (good_ticket_.load(std::memory_order_acquire) >= last) return;
-        VkSemaphoreSignalInfo si{};
-        si.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO;
-        si.semaphore = timeline_;
-        si.value = last;
-        if (dev_->fn.vkSignalSemaphore(dev_->device, &si) != VK_SUCCESS) return;
-        good_ticket_.store(last, std::memory_order_release);
-        tickets_.retired(last);
+        // Copies waiting on a ticket given up run once the timeline is moved past it, and the collective's semaphores they signal outlive them.
+        if (good_ticket_.load(std::memory_order_acquire) < last) {
+            VkSemaphoreSignalInfo si{};
+            si.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO;
+            si.semaphore = timeline_;
+            si.value = last;
+            if (dev_->fn.vkSignalSemaphore(dev_->device, &si) == VK_SUCCESS) {
+                good_ticket_.store(last, std::memory_order_release);
+                tickets_.retired(last);
+            }
+        }
+        copies_done(copy_value_);
     }
     // On the submitter's thread: the call carrying `t` has been made, or given up (not `queued`), so no wait for it waits on its timeline value.
     void made(Ticket t, bool queued) noexcept {
@@ -1607,6 +1762,7 @@ public:
             }
         }
         wait(tickets_.last());
+        copies_done(copy_value_);
         // Every slot has retired, so the buffers kept for their work go now rather than when each slot is reopened, as a model given up after a failed build needs (build_fitted).
         if (!open_) for (auto& p : pending_) p.clear();
     }
@@ -2651,6 +2807,18 @@ private:
     bool owed_ = false;   // matched barriers: a barrier is owed before the next command
     VkPipelineStageFlags since_ = 0, before_ = 0, covered_ = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT;
     VkSemaphore timeline_ = VK_NULL_HANDLE;
+    // Four copy submissions a layer, so a ring this deep lets the recording thread run 64 layers ahead of the copies before it waits for one.
+    static constexpr uint32_t kCopyRing = 256;
+    std::vector<VkBufferMemoryBarrier> handed_;                         // sources released to another copy family for the open copies
+    std::vector<std::pair<uint64_t, VkBufferMemoryBarrier>> given_back_;  // those its submitted copies give back, by copy ticket
+    VkCommandPool copy_pool_ = VK_NULL_HANDLE;    // the copy queue's, where the device has one (copy_beside)
+    VkCommandBuffer copy_ring_[kCopyRing] = {};
+    uint64_t copy_ring_value_[kCopyRing] = {};    // per slot, the copy timeline value its last copies signal
+    uint32_t copy_index_ = 0;
+    bool copy_open_ = false;
+    VkSemaphore copy_timeline_ = VK_NULL_HANDLE;
+    uint64_t copy_value_ = 0;                     // the last value a copy submission was prepared with
+    std::atomic<uint64_t> copy_made_{0};          // the last whose queue call was made or given up
     std::shared_ptr<VulkanSubmitter> submitter_;   // a tensor group's queue thread, which makes this backend's queue calls once set
     size_t routes_ = 0;                            // live collectives that routed this backend through submitter_; recording thread only
     std::atomic<Ticket> made_ticket_{0};          // on a submitter, the last ticket whose queue call was made or given up

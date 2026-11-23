@@ -311,6 +311,17 @@ struct Pass {
     size_t lookup_rows = 0;                            // the rows each lookup scratch holds
 };
 
+// One of the two parts a group's stage cuts a pass into (Model::cut_row): its rows from `base`, the runs of the entries they hold at those entries' extents, and per member its slots, the entries' views, lookup ids and token histories.
+struct PassPart {
+    size_t base = 0, rows = 0;
+    std::vector<backend::RowRun> runs;
+    std::vector<std::vector<size_t>> offsets;
+    std::vector<std::vector<backend::KVView>> views;
+    std::vector<std::vector<backend::StateView>> states;
+    std::vector<PreparedLookup> lookup;
+    std::vector<uint32_t> previous;
+};
+
 // Where a context's passes run, as plain data Model fills: an activation arena per device, host-visible handoff buffers on each device a crossing leaves, the logits rows on the output device, and the tickets of the submissions.
 // A forward grows it to the largest pass seen, while Model::reserve_passes sizes it once for passes in flight, each slot with its own handoff buffers and logits rows, and replaces nothing after that.
 struct ExecContext {
@@ -1581,6 +1592,7 @@ private:
     };
     std::unique_ptr<StageTrace> trace_;
     std::atomic<size_t> paces_{0}, idle_paces_{0}, queued_{0}, most_queued_{0};   // pacing()
+    std::atomic<bool> cut_said_{false};   // whether a cut pass has said so on stderr (cut_record), once a model
     std::unique_ptr<std::atomic<double>[]> reply_host_ms_;   // per stage, reply_host_ms
     int ubatch_ = kDefaultUbatch;
     ModelOptions options_;
@@ -1912,6 +1924,12 @@ private:
     void group_record(ExecContext& ctx, Pass& p, size_t s, size_t layers);
     template <class Weights>
     void group_sum(ExecContext& ctx, size_t g, const std::vector<backend::Slice>& x, size_t rows, backend::RowRuns runs, uint8_t kind, const Weights& w, size_t set = 0);
+    // The fewest rows of a prompt pass a tensor group cuts in two parts (cut_row), measured on a 2x2 group (docs/STATUS.md, perf/ts-copy-queue).
+    static constexpr size_t kCutRows = 128;
+    size_t cut_row(const Pass& p, const backend::Collective& sum) const;
+    void cut_parts(ExecContext& ctx, const Pass& p, size_t g, size_t cut, PassPart* parts) const;
+    Step narrow(Step s, PassPart& q, size_t m, int l) const;
+    void cut_record(ExecContext& ctx, Pass& p, size_t s, size_t cut);
     template <class Weights>
     void group_sum(ExecContext& ctx, const Pass& p, size_t g, const std::vector<backend::Slice>& x, size_t rows, backend::RowRuns runs, uint8_t kind, const Weights& w) {
         group_sum(ctx, g, x, rows, runs, kind, w, p.scratch);

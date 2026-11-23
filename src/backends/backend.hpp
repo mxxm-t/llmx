@@ -506,6 +506,17 @@ public:
     virtual void sum_into(const std::vector<Slice>& residual, size_t rows, size_t width) = 0;
     // Each member's partial rows, `rows` rows of `width` floats, replaced by ((p0 + p1) + ...) + p(W-1), the sum sum_into adds, for any width the reserved rows hold.
     virtual void sum_in_place(size_t rows, size_t width) = 0;
+    // The same sum from row `base` in two calls, so a cut pass records one part's work between the other's send and finish: in place, or added to residual[m] where `residual` is given.
+    // `lane` (0 or 1) is the part's, its sums alternate send and finish and the lanes' rows do not overlap; a collective that never copies beside its work (copies_beside) is never cut and may refuse both.
+    virtual void send(size_t, size_t, size_t, size_t) { throw std::logic_error("backend: a sum in two calls on a collective whose passes are not cut"); }
+    virtual void finish(size_t, size_t, size_t, size_t, const std::vector<Slice>*) { throw std::logic_error("backend: a sum in two calls on a collective whose passes are not cut"); }
+    // Every lane sent and not finished forgotten, its sum ordered before the members' later work, after a failure between a send and its finish.
+    virtual void drop() noexcept {}
+    // Whether a lane's sum of `floats` floats copies beside the members' work, so a pass cut in two parts overlaps one part's sum with the other part's work; not where the members compute as they are called.
+    virtual bool copies_beside(size_t floats) const {
+        (void)floats;
+        return false;
+    }
     // Every member done with what the last sum submitted on it (`back` 0), or the sum before it (1); nothing to wait for where the members compute as they are called.
     virtual void wait(size_t back) noexcept { (void)back; }
 };

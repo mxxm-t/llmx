@@ -110,7 +110,7 @@ delegated to a `backend::Backend`.
   logits rows; the tickets; and a `Pass` per pass in flight, the entries,
   rows, positions, head rows, cache views and per-device state views its
   stages read as they are recorded, the handoff buffer its crossings use, its first logits row and
-  its ticket; and the run lists a part rebuilds (`Step::scratch`) and a
+  its ticket; a `PassPart` for each part of a pass a group's stage cuts in two, its rows, runs, slot offsets, each member's views and states over the part's entries, lookup ids and token history; and the run lists a part rebuilds (`Step::scratch`) and a
   streamed layer's groups, reserved at a run per row so no part grows them.
   Allocated by the first forward that needs it and grown to the
   largest pass seen, or sized once by `reserve_passes` (below), after which

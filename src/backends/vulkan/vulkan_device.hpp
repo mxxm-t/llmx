@@ -261,9 +261,11 @@ struct Device {
     VkPhysicalDevice physical = VK_NULL_HANDLE;
     VkDevice device = VK_NULL_HANDLE;
     VkQueue queue = VK_NULL_HANDLE;
+    VkQueue copy_queue = VK_NULL_HANDLE;   // for a tensor group's sum copies beside the work (VulkanBackend::copy_beside): a transfer-only family's queue, else a second queue of the family, else none
     uint32_t queue_family = 0;
     bool matched_barriers = false; // the queue plan's barrier form (QueuePlan)
     std::string queue_report;      // the probe's cells and choice, or why it fell back, for --verbose
+    uint32_t copy_family = 0;              // copy_queue's family
     VkPhysicalDeviceProperties props{};
     VkPhysicalDeviceMemoryProperties memory{};
     DeviceCaps caps{};            // what this device says of itself
@@ -320,14 +322,15 @@ struct Device {
     // The queue of the other compute family among queue_candidates, where a tensor group's persistent receivers run beside the senders; null with one candidate, which turns the tagged route off.
     uint32_t receive_family = UINT32_MAX;
     VkQueue receive_queue = VK_NULL_HANDLE;
-    uint32_t families[2] = {};   // the queue family and the receive family, which every buffer is shared by where both exist (share)
+    uint32_t families[3] = {};   // the queue family, the receive family and a transfer-only copy family, which every buffer is shared by where a receive family exists (share)
+    uint32_t family_count = 1;
 
-    // Buffers of a device with a receive queue are concurrent over both families, since the receivers there use a member's rows, control words and tagged rows that its stream uses too.
+    // Buffers of a device with a receive queue are concurrent over every family a queue of the device is in, since the receivers there use a member's rows, control words and tagged rows that its stream uses too.
     void share(VkBufferCreateInfo& bi) const {
         bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         if (receive_family == UINT32_MAX) return;
         bi.sharingMode = VK_SHARING_MODE_CONCURRENT;
-        bi.queueFamilyIndexCount = 2;
+        bi.queueFamilyIndexCount = family_count;
         bi.pQueueFamilyIndices = families;
     }
 

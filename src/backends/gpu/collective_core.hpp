@@ -53,6 +53,10 @@ constexpr GpuSumForm kTimedForms[] = {GpuSumForm::one_shot, GpuSumForm::chain, G
 // Copies send a share in at most kCopyChunks chunks, by default one a kCopyChunkFloats, 4 MB a copy, so a chunk's issue and count cost little beside its transfer (docs/src/backends-gpu.md, the collective).
 constexpr size_t kCopyChunks = 16, kCopyChunkFloats = 1048576;
 constexpr size_t kCopyWords = 8;   // a member's words for copies, a cache line: rows sent, totals sent, abort (kernels/f32.gpu, llmx_group_copies)
+// The most blocks a lane's sum beside a member's work takes, since more slow the part computing beside it more than they speed the sum, and the fewest rows of a lane worth sending beside (docs/TENSOR-SPLIT.md, section 4.3).
+constexpr size_t kBesideBlocks = 4, kBesideRows = 128;
+// The form a lane's sum beside takes: the picks by size are timed uncapped, and a lane runs capped at kBesideBlocks (docs/TENSOR-SPLIT.md, section 4.3).
+constexpr GpuSumForm kLaneForm = GpuSumForm::shares;
 
 #if defined(__linux__)
 // The CPUs of the NUMA node a PCI device sits on, empty where the system does not say.
@@ -154,6 +158,14 @@ public:
                 Api::check(Api::wall_clock_khz(&khz, b.dev_.index), "wall_clock_khz");
                 timeout_[m] = (unsigned long long)khz * (probe ? kProbeTimeoutMs : kSumTimeoutMs);
                 tick_[m] = (unsigned long long)khz;
+                if (fast_ && W > 1) {
+                    beside_.resize(W, nullptr);
+                    computed_.resize(W, nullptr);
+                    for (auto& e : summed_) e.resize(W, nullptr);
+                    Api::check(Api::stream_create(&beside_[m]), "stream_create");
+                    Api::check(Api::event_create(&computed_[m], false), "event_create");
+                    for (auto& e : summed_) Api::check(Api::event_create(&e[m], false), "event_create");
+                }
             }
             // The one-shot takes at most a block a multiprocessor of the devices its members share, so every members blocks stay resident while they wait for their peers; the timing lowers it where fewer win.
             for (size_t m = 0; m < W; ++m) {
@@ -200,6 +212,7 @@ public:
     void sum_into(const std::vector<Slice>& residual, size_t rows, size_t width) override {
         if (residual.size() != members_.size() || rows > rows_ || width != width_)
             throw std::logic_error("backend: a sum of other members, rows or width than its collective was made for");
+        one_call();
         summed(residual, size_mul(rows, width), false);
     }
 
@@ -207,10 +220,57 @@ public:
     void sum_in_place(size_t rows, size_t width) override {
         const size_t n = size_mul(rows, width);
         if (n > size_mul(rows_, width_)) throw std::logic_error("backend: a sum past the rows its collective was made for");
+        one_call();
         std::vector<Slice> own;
         for (size_t m = 0; m < members_.size(); ++m) own.push_back(partial(m));
         const bool mixes = std::all_of(members_.begin(), members_.end(), [](const GpuBackend<Api>* b) { return b->entry_mixes_; });
         summed(own, n, true, rows == 1 && width % GpuBackend<Api>::kEntryGroup == 0 && mixes);
+    }
+
+    // A lane's sum crosses on a second stream of each member, behind an event of the member's work before it, in a kernel form with at most kBesideBlocks blocks; its finish holds each member's stream for it.
+    // A part is worth cutting from kBesideRows rows at two or three members and half that from four, below which the parts lose to the whole pass (docs/TENSOR-SPLIT.md, section 4.3).
+    bool copies_beside(size_t floats) const override {
+        const size_t least = members_.size() >= 4 ? kBesideRows / 2 : kBesideRows;
+        return fast_ && !beside_.empty() && floats >= size_mul(least, width_) && kernel_form(lane_pick(floats).form);
+    }
+
+    // The lane's rows summed in place, beside the members' streams where its pick is a kernel form on the fast path, else on them at once; the kernel reads float4 units from `base`.
+    void send(size_t lane, size_t base, size_t rows, size_t width) override {
+        const size_t W = members_.size(), n = size_mul(rows, width), from = size_mul(base, width);
+        if (lane > 1 || size_add(base, rows) > rows_ || width != width_ || lane_sent_[lane] || from % 4) throw std::logic_error("backend: a sum of a lane, rows or width its collective was not made for");
+        std::vector<Slice> own;
+        for (size_t m = 0; m < W; ++m) own.push_back({partial_[m].get(), from});
+        const bool beside = fast_ && !beside_.empty() && kernel_form(lane_pick(n).form);
+        // A lane summed on the members' streams follows the other lane's sum beside, which may still read the staging it writes.
+        if (!beside && lane_sent_[lane ^ 1] && lane_beside_[lane ^ 1])
+            for (size_t m = 0; m < W; ++m) members_[m]->hold_wait_event(summed_[lane ^ 1][m]);
+        lane_sent_[lane] = true;
+        lane_beside_[lane] = beside;
+        summed(own, n, true, false, from, beside ? (int)lane : -1);
+    }
+
+    // Each member's stream waits for the lane's sum on its device, then adds the summed rows to residual[m] where given, one add of the sum as sum_into makes it.
+    void finish(size_t lane, size_t base, size_t rows, size_t width, const std::vector<Slice>* residual) override {
+        const size_t W = members_.size(), n = size_mul(rows, width), from = size_mul(base, width);
+        if (lane > 1 || !lane_sent_[lane] || (residual && residual->size() != W)) throw std::logic_error("backend: a sum finished that was not sent, or of other members");
+        lane_sent_[lane] = false;
+        for (size_t m = 0; m < W; ++m) {
+            GpuBackend<Api>& b = *members_[m];
+            if (lane_beside_[lane]) {
+                b.hold_wait_event(summed_[lane][m]);
+                b.forget_twins();
+            }
+            if (residual) b.add((*residual)[m], CSlice{partial_[m].get(), from}, n);
+        }
+        before_ = last_;
+        for (size_t m = 0; m < W; ++m) last_[m] = members_[m]->tickets_.last() + 1;
+    }
+
+    // A lane's sum still beside may read the staging the sums after it write, so the members' streams wait for it.
+    void drop() noexcept override {
+        for (size_t k = 0; k < 2; ++k)
+            for (size_t m = 0; m < members_.size() && lane_sent_[k] && lane_beside_[k]; ++m) try { members_[m]->hold_wait_event(summed_[k][m]); } catch (const std::exception&) {}
+        lane_sent_[0] = lane_sent_[1] = false;
     }
 
     // Whether the sums still take the fast path; a test's witness.
@@ -529,13 +589,14 @@ private:
     }
 
     // fold: a generated row's sum in place whose take each member holds as its pending join, which the mix after its inject may take into one launch (GpuBackend::entry).
-    void summed(const std::vector<Slice>& residual, size_t n, bool replace, bool fold = false) {
+    // from: the float of the partial rows the sum starts at; lane: a lane's sum beside the members' streams (send), -1 for one on them.
+    void summed(const std::vector<Slice>& residual, size_t n, bool replace, bool fold = false, size_t from = 0, int lane = -1) {
         const size_t W = members_.size();
         for (size_t m = 0; m < W; ++m) span(*residual[m].buffer, residual[m].offset * sizeof(float), size_mul(n, sizeof(float)));
         settle();
         // Every member's earlier failure throws before any member launches, so none waits for a peer that never comes.
         for (GpuBackend<Api>* b : members_) b->raise_failed();
-        const GpuSumPick p = fast_ ? form_of(n) : GpuSumPick{sets_[0].transport, GpuSumForm::pulls};
+        const GpuSumPick p = !fast_ ? GpuSumPick{sets_[0].transport, GpuSumForm::pulls} : lane >= 0 ? lane_pick(n) : form_of(n);
         // A one-shot's rows over peer writes that a member's held row launch still holds go out from that launch, which leaves the member's sum its take (GpuBackend::push_rows).
         std::vector<char> sent(W, 0);
         if (n && p.form == GpuSumForm::one_shot && tiles_.size() == W && !areas(p.transport).host() && !(fold && replace && W == 2)) {
@@ -548,20 +609,23 @@ private:
         // Every member's held work goes to its stream before the sum and the sum's launches go together, so no member's sum waits on a peer whose launch the host still holds, and the pulls' events follow what they cover.
         for (GpuBackend<Api>* b : members_) b->flush();
         // A sum whose launch throws is still the last sum, so a wait for it covers the members' kernels that did launch.
+        // A lane's sum beside is the last sum only at its finish, which holds the members' streams for it.
         const auto issued = [&] {
+            if (lane >= 0) return;
             before_ = last_;
             for (size_t m = 0; m < W; ++m) last_[m] = members_[m]->tickets_.last() + 1;
         };
         try {
             std::vector<typename GpuBackend<Api>::TakeDesc> takes;
             if (n) {
-                if (p.form == GpuSumForm::copies) copied(residual, n, replace, areas(p.transport), p);
-                else if (p.form != GpuSumForm::pulls) pushed(residual, n, replace, areas(p.transport), p, fold && replace && members_.size() == 2 ? &takes : nullptr, sent);
-                else pulled(residual, n, replace, fast_ ? areas(p.transport) : sets_[0]);
+                if (p.form == GpuSumForm::copies) copied(residual, n, replace, areas(p.transport), p, from);
+                else if (p.form != GpuSumForm::pulls) pushed(residual, n, replace, areas(p.transport), p, fold && replace && members_.size() == 2 ? &takes : nullptr, sent, from, lane);
+                else pulled(residual, n, replace, fast_ ? areas(p.transport) : sets_[0], from);
             }
             for (GpuBackend<Api>* b : members_) b->flush();
             for (size_t m = 0; m < takes.size(); ++m) members_[m]->pend_take(takes[m]);
         } catch (...) {
+            drop();
             cancel();
             issued();
             throw;
@@ -582,6 +646,12 @@ private:
         return (--it)->second;
     }
 
+    // A lane's pick: kLaneForm in the transport n's pick takes where that pick is a kernel form, else n's pick; a forced pick stays.
+    GpuSumPick lane_pick(size_t n) const {
+        const GpuSumPick p = form_of(n);
+        return force_ || !kernel_form(p.form) ? p : GpuSumPick{p.transport, kLaneForm};
+    }
+
     // The blocks each member's kernel of a sum of n floats by `pick` takes: the form's own count by n, at most the pick's cap where it has one.
     size_t launched_blocks(GpuSumPick pick, size_t n) const {
         const size_t units = (n + 3) / 4, W = members_.size();
@@ -595,17 +665,18 @@ private:
     }
 
     // The blocks of every member's launch follow from n and the form alone, so every member's block b meets its peers' block b.
-    // takes, where given, gets the one-shot's take and the member launches its push alone; sent, its rows already pushed by their product, launches the take alone.
-    void launch(size_t m, const Slice& out, size_t n, bool replace, bool fast, GpuSumPick pick, const Areas& s, unsigned half, std::vector<typename GpuBackend<Api>::TakeDesc>* takes = nullptr, bool sent = false) {
+    // takes, where given, gets the one-shot's take and the member launches its push alone; sent, its rows already pushed by their product, launches the take alone; beside is the stream to launch on, its blocks capped at kBesideBlocks.
+    void launch(size_t m, const Slice& out, size_t n, bool replace, bool fast, GpuSumPick pick, const Areas& s, unsigned half, std::vector<typename GpuBackend<Api>::TakeDesc>* takes = nullptr, bool sent = false,
+                size_t from = 0, typename Api::Stream beside = nullptr) {
         GpuBackend<Api>& b = *members_[m];
-        const float* own = GpuBackend<Api>::f32(CSlice(partial(m)));
+        const float* own = GpuBackend<Api>::f32(CSlice(partial(m))) + from;
         float* o = GpuBackend<Api>::f32(out);
         unsigned long long nn = n, cap = cap_, timeout = timeout_[m], tick = tick_[m];
         const size_t W = members_.size();
         if (!fast) pick = {pick.transport, GpuSumForm::one_shot};
         const GpuSumForm form = pick.form;
         const bool chained = form == GpuSumForm::chain || form == GpuSumForm::wrap;
-        const size_t blocks = launched_blocks(pick, n) * (chained ? 2 : 1);
+        const size_t own_blocks = launched_blocks(pick, n), blocks = (beside ? std::min(own_blocks, chained ? kBesideBlocks / 2 : kBesideBlocks) : own_blocks) * (chained ? 2 : 1);
         int members = (int)W, rank = (int)m, flags = (replace ? 1 : 0) | (fast ? 2 : 0) | (int)half << 2 | (form == GpuSumForm::wrap ? 8 : 0);
         const Args args(fast || !s.host() ? s.table[m] : s.pull_table[m], own, o, nn, cap, members, rank, flags, timeout, tick);
         if (takes && form == GpuSumForm::one_shot) {
@@ -613,18 +684,30 @@ private:
             takes->push_back({s.table[m], own, o, nn, cap, (unsigned long long)half * W * cap_, timeout, tick, members, rank, flags, (unsigned)blocks, &status_[m]});
             return;
         }
-        b.group_launch(form, (unsigned)blocks, args, sent && fast && form == GpuSumForm::one_shot);
+        b.group_launch(form, (unsigned)blocks, args, sent && fast && form == GpuSumForm::one_shot, beside);
     }
 
     // Every fast sum takes the half its transport's next one-shot takes, which every peer finished reading at that transport's one-shot before the last (docs/src/backends-gpu.md, the collective).
-    void pushed(const std::vector<Slice>& residual, size_t n, bool replace, Areas& s, GpuSumPick pick, std::vector<typename GpuBackend<Api>::TakeDesc>* takes, const std::vector<char>& sent) {
-        for (size_t m = 0; m < members_.size(); ++m) launch(m, residual[m], n, replace, true, pick, s, s.half, pick.form == GpuSumForm::one_shot ? takes : nullptr, sent[m]);
+    // A lane's sum beside waits for its member's work recorded before it, which summed flushed, and records the lane's event behind it.
+    void pushed(const std::vector<Slice>& residual, size_t n, bool replace, Areas& s, GpuSumPick pick, std::vector<typename GpuBackend<Api>::TakeDesc>* takes, const std::vector<char>& sent, size_t from = 0, int lane = -1) {
+        for (size_t m = 0; m < members_.size(); ++m) {
+            if (lane < 0) {
+                launch(m, residual[m], n, replace, true, pick, s, s.half, pick.form == GpuSumForm::one_shot ? takes : nullptr, sent[m], from);
+                continue;
+            }
+            GpuBackend<Api>& b = *members_[m];
+            Api::check(Api::set_device(b.dev_.index), "set_device");
+            Api::check(Api::event_record(computed_[m], b.stream_), "event_record");
+            Api::check(Api::stream_wait_event(beside_[m], computed_[m]), "stream_wait_event");
+            launch(m, residual[m], n, replace, true, pick, s, s.half, nullptr, false, from, beside_[m]);
+            Api::check(Api::event_record(summed_[(size_t)lane][m], beside_[m]), "event_record");
+        }
         if (pick.form == GpuSumForm::one_shot || pick.form == GpuSumForm::shares) s.half ^= 1u;
     }
 
     // Copies (docs/src/backends-gpu.md, the collective): each member's copy stream sends chunk j of every other share of its rows into the owners' host slots and counts it, its first kernel adds its share as the rows land.
     // The stream then sends its total chunk by chunk and its second kernel takes the other totals as they land; no kernel waits for its own copy stream, so a stream that shares the kernel's hardware queue cannot hang it.
-    void copied(const std::vector<Slice>& residual, size_t n, bool replace, Areas& s, GpuSumPick pick) {
+    void copied(const std::vector<Slice>& residual, size_t n, bool replace, Areas& s, GpuSumPick pick, size_t from = 0) {
         if (!copies_ || s.copy.empty()) throw std::logic_error(Api::prefix + "a copies sum on a collective that does not stage them");
         const size_t W = members_.size(), units = (n + 3) / 4, share = (units + W - 1) / W, J = launched_blocks(pick, n), per = (share + J - 1) / J, slot = copy_slot();
         const unsigned h = s.copy_half;
@@ -633,7 +716,7 @@ private:
         copy_base_ += J;
         const auto lo = [&](size_t k) { return std::min(share * k, units); };
         const unsigned blocks = (unsigned)std::min(one_shot_blocks_, std::max<size_t>(1, (share + kThreads - 1) / kThreads));
-        const auto own = [&](size_t m) { return GpuBackend<Api>::f32(CSlice(partial(m))); };
+        const auto own = [&](size_t m) { return GpuBackend<Api>::f32(CSlice(partial(m))) + from; };
         const auto total = [&](size_t m) { return GpuBackend<Api>::f32(Slice{s.pull.at(m).get(), 0}); };
         const auto launch_copies = [&](size_t m, bool takes) {
             GpuBackend<Api>& b = *members_[m];
@@ -683,20 +766,20 @@ private:
 
     // Each member copies its rows into every peer's pull half on its own stream and records that they landed, and each sums from that half once every peer's rows have.
     // A copy into a half follows the copying member's last sum, which waited for the receiver's copies of that sum, which follow the receiver's sum before, the last to read the half.
-    void pulled(const std::vector<Slice>& residual, size_t n, bool replace, Areas& s) {
+    void pulled(const std::vector<Slice>& residual, size_t n, bool replace, Areas& s, size_t from = 0) {
         const size_t W = members_.size(), bytes = n * sizeof(float);
         const unsigned h = s.pull_half;
         s.pull_half ^= 1u;
         for (size_t m = 0; m < W; ++m) {
             GpuBackend<Api>& b = *members_[m];
             for (size_t k = 0; k < W; ++k)
-                if (k != m) b.launch_check(Api::copy_async(pull_stage(s, k) + (h * W + m) * cap_, GpuBackend<Api>::f32(CSlice(partial(m))), bytes, Api::kAnyCopy, b.stream_), "copy_async");
+                if (k != m) b.launch_check(Api::copy_async(pull_stage(s, k) + (h * W + m) * cap_, GpuBackend<Api>::f32(CSlice(partial(m))) + from, bytes, Api::kAnyCopy, b.stream_), "copy_async");
             Api::check(Api::event_record(ready_[m], b.stream_), "event_record");
         }
         for (size_t m = 0; m < W; ++m) {
             for (size_t k = 0; k < W; ++k)
                 if (k != m) Api::check(Api::stream_wait_event(members_[m]->stream_, ready_[k]), "stream_wait_event");
-            launch(m, residual[m], n, replace, false, GpuSumPick{s.transport, GpuSumForm::one_shot}, s, h);
+            launch(m, residual[m], n, replace, false, GpuSumPick{s.transport, GpuSumForm::one_shot}, s, h, nullptr, false, from);
         }
     }
 
@@ -718,6 +801,13 @@ private:
         fast_ = false;
         std::fprintf(stderr, "%sa tensor group's sum was cancelled since a member's launch or device failed; the group's later sums take the conservative path\n", Api::prefix.c_str());
     }
+
+    // A lane's sum shares the staging and signals with every other sum, so none is made in one call between its send and finish.
+    void one_call() const {
+        if (lane_sent_[0] || lane_sent_[1]) throw std::logic_error("backend: a sum made in one call while a lane's sum is sent and not finished");
+    }
+    // The forms a member's kernel sends alone, which a lane's sum may take beside its member's stream; copies and pulls keep their copies on the member's streams.
+    static bool kernel_form(GpuSumForm f) { return f == GpuSumForm::one_shot || f == GpuSumForm::chain || f == GpuSumForm::wrap || f == GpuSumForm::shares; }
 
     // A member's staging slots, past its signal block, and the slots pulls copy into: under host writes device memory of their own, else the same.
     static float* stage(const Areas& s, size_t m) { return (float*)((uint8_t*)s.at[m] + kGroupSignalBytes); }
@@ -763,6 +853,14 @@ private:
                 (void)Api::event_destroy(sent_[m]);
                 copy_stream_[m] = nullptr;
             }
+        for (size_t m = 0; m < beside_.size(); ++m) {
+            (void)Api::set_device(members_[m]->dev_.index);
+            if (beside_[m]) (void)Api::stream_sync(beside_[m]), (void)Api::stream_destroy(beside_[m]);
+            if (computed_[m]) (void)Api::event_destroy(computed_[m]);
+            for (auto& e : summed_)
+                if (e[m]) (void)Api::event_destroy(e[m]);
+        }
+        beside_.clear();
         for (Areas& s : sets_) free_areas(s);
         sets_.clear();
         for (size_t m = 0; m < members_.size(); ++m) {
@@ -796,6 +894,9 @@ private:
     uint64_t* words_ = nullptr;   // coherent host memory, kCopyWords a member for copies, and its device address
     uint64_t* words_at_ = nullptr;
     uint64_t copy_base_ = 0;   // the count every member's copies words reached at the last copies sum
+    std::vector<typename Api::Stream> beside_;   // per member on the fast path of two or more, the stream lanes' sums cross on (send)
+    std::vector<typename Api::Event> computed_, summed_[2];   // per member, its work before a lane's sum, and per lane the sum's end on beside_
+    bool lane_sent_[2] = {false, false}, lane_beside_[2] = {false, false};   // per lane, whether its sum is sent and not finished, and whether it went beside
 };
 
 // Every directed pair of `ids` reaches the other's memory, its access enabled here where it was not, else why not; `enabled`, where given, gets each pair this call enabled.

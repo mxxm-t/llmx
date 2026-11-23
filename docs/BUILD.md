@@ -276,6 +276,13 @@ The container runs as the user `llmx` with the ids the build arguments give (100
 The image carries no ROCm SDK or runtime, so it does not build the ROCm backend.
 The released binaries and the images that run them are built by `docker/release/` instead ([RELEASE](RELEASE.md)).
 
+A tensor group of MI50s under Mesa's RADV copies its sums on a transfer-only queue family only when the driver offers one, which RADV does under its `RADV_PERFTEST=transfer_queue` switch (docs/VULKAN.md, The copy queue and `RADV_PERFTEST`).
+Give it to the container with `-e`, beside the other `docker run` arguments, for a server or a bench:
+
+```sh
+docker run --rm -it --device /dev/dri -e RADV_PERFTEST=transfer_queue   --group-add "$(getent group render | cut -d: -f3)"   -v "$PWD:/llmx" -w /llmx llmx-dev   ./build/llmx serve <model.gguf> --device vulkan:0,vulkan:1,vulkan:2,vulkan:3 --tensor-width 2
+```
+
 ## macOS
 
 Only Intel Macs are supported, since the build needs AVX2, FMA and F16C; Apple Silicon is not supported.

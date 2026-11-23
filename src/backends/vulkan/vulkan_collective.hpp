@@ -17,11 +17,14 @@
 namespace backend {
 namespace {
 
-// Partial, scratch and per-peer inbox rows for both parities; two-shot sums also reserve each peer's gather share.
+// Per peer, an inbox for each of two parities of each of two lanes (Collective::send); lane 0's also take every sum made in one call.
+constexpr size_t kInboxes = 4;
+
+// Partial, scratch and per-peer inbox rows for both parities of both lanes; two-shot sums also reserve each peer's gather share.
 // Imports consume no memory on the importing device.
 inline size_t VulkanBackend::collective_bytes_per_row(size_t members, size_t width) const {
     if (!dev_->exchange || !members) return 0;
-    const size_t rows = size_add(size_add(2, size_mul(2, members - 1)), two_shot_crossover(members) != SIZE_MAX ? 2 : 0);
+    const size_t rows = size_add(size_add(2, size_mul(kInboxes, members - 1)), two_shot_crossover(members) != SIZE_MAX ? 2 : 0);
     return size_mul(rows, size_mul(width, sizeof(float)));
 }
 
@@ -128,7 +131,7 @@ public:
                 partial_.push_back(m->alloc(bytes, Memory::device));
                 scratch_.push_back(m->alloc(bytes, Memory::device));
             }
-            for (int p = 0; p < 2; ++p) {
+            for (size_t p = 0; p < kInboxes; ++p) {
                 inbox_[p].assign(W, std::vector<std::shared_ptr<VulkanBuffer>>(W));
                 imported_[p].assign(W, std::vector<BufferPtr>(W));
                 for (size_t t = 0; t < W; ++t)
@@ -153,6 +156,9 @@ public:
                         }
                 }
             make_semaphores();
+            beside_ = W > 1 && std::all_of(members.begin(), members.end(), [](VulkanBackend* m) { return m->copies_beside(); });
+            copied_[0].assign(W, 0);
+            copied_[1].assign(W, 0);
             if (W > 1) {
                 // One queue thread for the group, kept by its members, so every call to their queues is made there in the order recorded; a member of a live group brings its own.
                 for (VulkanBackend* m : members)
@@ -176,6 +182,9 @@ public:
     ~VulkanCollective() override { dismantle(); }
 
     Slice partial(size_t member) override { return {partial_.at(member).get(), 0}; }
+
+    // A lane sends its whole part to every peer, so it copies beside only where a sum of its size made in one call would take one shot.
+    bool copies_beside(size_t floats) const override { return beside_ && floats < VulkanBackend::two_shot_crossover(members_.size()); }
 
     // An open batch of tagged sums is closed first; an abort its receivers report turns the route off and is thrown by the next sum, since a wait cannot throw.
     // The close does not give out a queue-thread failure, which the next hand-over then throws.
@@ -207,6 +216,59 @@ public:
         std::vector<Slice> own;
         for (size_t m = 0; m < members_.size(); ++m) own.push_back(partial(m));
         summed(own, n, true);
+    }
+
+    void send(size_t lane, size_t base, size_t rows, size_t width) override {
+        const size_t W = members_.size(), at = size_mul(size_mul(base, width), sizeof(float)), bytes = size_mul(size_mul(rows, width), sizeof(float));
+        if (lane > 1 || size_add(base, rows) > rows_ || width > width_ || sent_[lane] >= 0) throw std::logic_error("backend: a sum of a lane, rows or width its collective was not made for");
+        if (signal_.empty()) throw std::runtime_error("vulkan: a tensor group's semaphores could not be made again after a failed sum");
+        const int p = int(2 * lane) + lane_parity_[lane];
+        lane_parity_[lane] ^= 1;
+        try {
+            for (size_t m = 0; m < W; ++m)
+                for (size_t t = 0; t < W; ++t)
+                    if (t != m && beside_) {
+                        members_[m]->copy_beside(*imported_[p][t][m], at, *partial_[m], at, bytes);
+                    } else if (t != m) {
+                        members_[m]->copy(*imported_[p][t][m], at, *partial_[m], at, bytes);
+                        members_[m]->external_ownership(*imported_[p][t][m], at, bytes, false);
+                    }
+            sent_count_[lane] = exchange(lane, beside_);
+        } catch (...) {
+            failed();
+            throw;
+        }
+        sent_[lane] = p;
+    }
+
+    void finish(size_t lane, size_t base, size_t rows, size_t width, const std::vector<Slice>* residual) override {
+        const size_t W = members_.size(), n = size_mul(rows, width), at = size_mul(base, width);
+        if (lane > 1 || sent_[lane] < 0 || (residual && residual->size() != W)) throw std::logic_error("backend: a sum finished that was not sent, or of other members");
+        const int p = sent_[lane];
+        sent_[lane] = -1;
+        try {
+            if (beside_) {
+                wait_peers(sent_count_[lane]);
+                for (size_t m = 0; m < W; ++m) members_[m]->wait_copies(copied_[lane][m]);
+            }
+            for (size_t m = 0; m < W; ++m) {
+                VulkanBackend& b = *members_[m];
+                acquire_inboxes(m, p, at * sizeof(float), n * sizeof(float));
+                CSlice sources[kMaxTensorWidth];
+                for (size_t k = 0; k < W; ++k) sources[k] = CSlice{k == m ? partial_[m].get() : inbox_[p][m][k].get(), at};
+                b.sum_rows(residual ? (*residual)[m] : Slice{partial_[m].get(), at}, sources, W, n, nullptr, !residual);
+            }
+            before_ = last_;
+            last_ = taken_;
+        } catch (...) {
+            failed();
+            throw;
+        }
+    }
+
+    // A lane sent and not finished leaves the collective as a failed sum does.
+    void drop() noexcept override {
+        if (sent_[0] >= 0 || sent_[1] >= 0) failed();
     }
 
 private:
@@ -306,7 +368,7 @@ public:
             try {
                 for (size_t t = 0; t < g.members_.size(); ++t) g.record_receivers(t, values[c] % kReceivers);
             } catch (...) {
-                for (VulkanCollective* o : open) o->drop();
+                for (VulkanCollective* o : open) o->drop_batch();
                 throw;
             }
         }
@@ -322,7 +384,7 @@ public:
                 work[i] = backs[i]->prepare({});
             } catch (...) {
                 for (size_t j = 0; j < i; ++j) backs[j]->made(work[j].ticket, false);
-                for (VulkanCollective* o : open) o->drop();
+                for (VulkanCollective* o : open) o->drop_batch();
                 throw;
             }
             tickets[i] = backs[i]->queued(work[i], VK_SUCCESS);
@@ -353,7 +415,7 @@ public:
 
 private:
     // An open batch whose receivers could not be recorded is dropped and the route goes off: its senders and gates abort at the cap.
-    void drop() noexcept {
+    void drop_batch() noexcept {
         runs_.clear();
         ++gen_;
         tagged_limit_ = 0;
@@ -475,10 +537,15 @@ private:
             before_ = last_;
             last_ = taken_;
         } catch (...) {
-            release();
-            try { make_semaphores(); } catch (const std::exception&) { release(); }
+            failed();
             throw;
         }
+    }
+    void failed() noexcept {
+        release();
+        for (VulkanBackend* m : members_) m->copies_abandon();
+        sent_[0] = sent_[1] = -1;
+        try { make_semaphores(); } catch (const std::exception&) { release(); }
     }
 
     // Adjacent inbox acquires share one command; all spans are checked before recording it.
@@ -496,10 +563,11 @@ private:
     void sum(const std::vector<Slice>& residual, size_t n, bool replace) {
         const size_t W = members_.size();
         const size_t bytes = n * sizeof(float);
-        // The parity is the collective's, flipped once a sum whichever pass makes it, so passes may interleave their sums here.
-        // A sum's adds are submitted by the next exchange, and two parities are enough only because of that.
-        const int p = parity_;
-        parity_ ^= 1;
+        // The parity is lane 0's, flipped once a sum whichever pass makes it, and two parities are enough because a sum's adds are submitted by the next exchange.
+        // A lane's peers wait for a count it signals from the copy queue, so no main-queue signal may overtake it before the lane's finish.
+        if (sent_[0] >= 0 || sent_[1] >= 0) throw std::logic_error("vulkan: a sum made in one call while a lane's sum is sent and not finished");
+        const int p = lane_parity_[0];
+        lane_parity_[0] ^= 1;
         if (n >= VulkanBackend::two_shot_crossover(W)) return two_shots(residual, n, p, replace);
         for (size_t m = 0; m < W; ++m)
             for (size_t t = 0; t < W; ++t)
@@ -507,7 +575,7 @@ private:
                     members_[m]->copy(*imported_[p][t][m], 0, *partial_[m], 0, bytes);
                     members_[m]->external_ownership(*imported_[p][t][m], 0, bytes, false);
                 }
-        exchange();
+        exchange(0, false);
         for (size_t m = 0; m < W; ++m) {
             VulkanBackend& b = *members_[m];
             acquire_inboxes(m, p, 0, bytes);
@@ -529,7 +597,7 @@ private:
                     members_[m]->copy(*imported_[p][t][m], lo(t) * f, *partial_[m], lo(t) * f, len(t) * f);
                     members_[m]->external_ownership(*imported_[p][t][m], lo(t) * f, len(t) * f, false);
                 }
-        exchange();
+        exchange(0, false);
         for (size_t k = 0; k < W; ++k) {
             if (!len(k)) continue;
             VulkanBackend& b = *members_[k];
@@ -545,7 +613,7 @@ private:
                     b.external_ownership(*gathered_[p][t][k], 0, len(k) * f, false);
                 }
         }
-        exchange();
+        exchange(0, false);
         for (size_t m = 0; m < W; ++m)
             for (size_t k = 0; k < W; ++k)
                 if (k != m && len(k)) {
@@ -555,40 +623,63 @@ private:
                 }
     }
 
-    // Every member's submission ended and its ticket taken on the recording thread, its queue call handed to the group's queue thread.
-    // Each submission signals its member's timeline at this exchange's count and the peers' next submissions wait at that count, so the queue thread makes only queue calls.
-    void exchange() {
+    // Every member's submission ended and its ticket taken on the recording thread, its queue call handed to the group's queue thread; the exchange's count, which every member's timeline reaches once its part of the exchange has run.
+    // Each submission signals its member's timeline at the count and the peers' next submissions wait at it; with `beside` its copy queue's copies signal instead, waited at the lane's finish.
+    uint64_t exchange(size_t lane, bool beside) {
         const size_t W = members_.size();
         std::vector<VulkanBackend::Submission> work(W);
         if (!submitter_) {
             // One member: its own queue call, nothing to exchange.
             work[0] = members_[0]->prepare({});
             taken_[0] = members_[0]->queued(work[0], work[0].queue(*members_[0]->device()));
-            return;
+            return 0;
         }
         // The group's open tagged batches go first, so no sender reaches its queue before its receivers.
         if (!submitter_->open_batches.empty()) close_open(*submitter_, nullptr, true);
         const uint64_t count = ++count_;
-        for (size_t m = 0; m < W; ++m) {
-            std::vector<VkSemaphore> signals;
-            if (signal_[m]) signals.push_back(signal_[m]);
-            work[m] = members_[m]->prepare(signals, count);
-            taken_[m] = members_[m]->queued(work[m], VK_SUCCESS);
+        std::vector<VulkanBackend::Submission> copies(beside ? W : 0);
+        try {
+            for (size_t m = 0; m < W; ++m) {
+                std::vector<VkSemaphore> signals;
+                if (!beside && signal_[m]) signals.push_back(signal_[m]);
+                work[m] = members_[m]->prepare(signals, beside ? 0 : count);
+                taken_[m] = members_[m]->queued(work[m], VK_SUCCESS);
+                if (beside) {
+                    copies[m] = members_[m]->copy_prepare(taken_[m], signal_[m], count);
+                    copied_[lane][m] = copies[m].ticket;
+                }
+            }
+        } catch (...) {
+            // A ticket prepared and never handed to the queue thread is given up, so no wait for it hangs.
+            for (size_t m = 0; m < W; ++m) {
+                if (work[m].ticket) members_[m]->made(work[m].ticket, false);
+                if (beside && copies[m].ticket) members_[m]->copy_made(copies[m], false);
+            }
+            throw;
         }
+        if (!beside) wait_peers(count);
+        const auto called = std::make_shared<bool>(false);
+        submitter_->run({[this, called, work, copies] { queue_calls(submitter_->helpers(members_.size()), members_, work, *called, copies); },
+                         [this, called, work, copies] {
+                             if (*called) return;
+                             for (size_t m = 0; m < work.size(); ++m) members_[m]->made(work[m].ticket, false);
+                             for (size_t m = 0; m < copies.size(); ++m) members_[m]->copy_made(copies[m], false);
+                         }});
+        return count;
+    }
+
+    // Each member's next submission waits for its peers' timelines to reach `count`.
+    void wait_peers(uint64_t count) {
+        if (!submitter_) return;
+        const size_t W = members_.size();
         for (size_t m = 0; m < W; ++m)
             for (size_t t = 0; t < W; ++t)
                 if (t != m) members_[t]->wait_on(wait_[t][m], count);
-        const auto called = std::make_shared<bool>(false);
-        submitter_->run({[this, called, work] { queue_calls(submitter_->helpers(members_.size()), members_, work, *called); },
-                         [this, called, work] {
-                             if (*called) return;
-                             for (size_t m = 0; m < work.size(); ++m) members_[m]->made(work[m].ticket, false);
-                         }});
     }
 
     // On the queue thread: the backends' queue calls, concurrently from three on, each settling its own ticket, all joined before return or throw.
-    // `called` is set once nothing can throw before every ticket is settled, so the job's settle leaves them alone.
-    static void queue_calls(core::JobThreads& threads, const std::vector<VulkanBackend*>& backs, const std::vector<VulkanBackend::Submission>& work, bool& called) {
+    // `called` is set once nothing can throw before every ticket is settled, so the job's settle leaves them alone; a member's copies, where given, are queued once its work was and settled with it.
+    static void queue_calls(core::JobThreads& threads, const std::vector<VulkanBackend*>& backs, const std::vector<VulkanBackend::Submission>& work, bool& called, const std::vector<VulkanBackend::Submission>& copies = {}) {
         const size_t W = backs.size();
         std::vector<VkResult> result(W, VK_ERROR_OUT_OF_HOST_MEMORY);
         const std::function<void(size_t)> call = [&](size_t m) {
@@ -600,6 +691,15 @@ private:
                 result[m] = VK_ERROR_OUT_OF_HOST_MEMORY;
             }
             backs[m]->made(work[m].ticket, result[m] == VK_SUCCESS);
+            if (copies.empty()) return;
+            if (result[m] == VK_SUCCESS) {
+                try {
+                    result[m] = copies[m].queue(*backs[m]->device());
+                } catch (...) {
+                    result[m] = VK_ERROR_OUT_OF_HOST_MEMORY;
+                }
+            }
+            backs[m]->copy_made(copies[m], result[m] == VK_SUCCESS);
         };
         called = true;
         if (W < 3) {
@@ -660,9 +760,13 @@ private:
     // On the recording thread given a failed queue call: each member's given-up tickets settled (`give_up`) and the semaphores made again.
     // The group's open batches are dropped first, so a member's flush in give_up prepares no member whose waits are not yet cleared.
     void recover() noexcept {
-        for (VulkanCollective* o : submitter_->open_batches) o->drop();
+        for (VulkanCollective* o : submitter_->open_batches) o->drop_batch();
         submitter_->open_batches.clear();
-        for (VulkanBackend* m : members_) m->give_up();
+        for (VulkanBackend* m : members_) {
+            m->give_up();
+            m->copies_abandon();
+        }
+        sent_[0] = sent_[1] = -1;
         destroy_semaphores();
         try { make_semaphores(); } catch (const std::exception&) { destroy_semaphores(); }
     }
@@ -719,20 +823,24 @@ private:
 
     std::vector<VulkanBackend*> members_;
     size_t rows_, width_;
-    int parity_ = 0;
+    int lane_parity_[2] = {0, 0};
+    int sent_[2] = {-1, -1};                  // per lane, the inbox parity its sent sum's copies went to, -1 once finished
+    uint64_t sent_count_[2] = {0, 0};         // per lane, the exchange count of its sent sum, which the peers wait for at its finish
+    std::vector<uint64_t> copied_[2];         // per lane and member, the copy submission of its last sent sum, which its finish waits for alone
     uint64_t count_ = 0;   // exchanges made since the semaphores were; every member's timeline reaches it once its submission of that exchange finishes
     std::vector<Ticket> taken_, last_, before_;   // per member, its submission of the last exchange, of the last sum and of the sum before it
     std::vector<VkBufferMemoryBarrier> acquires_;   // recording-thread scratch, sized once for every peer
     static inline VkResult (*queue_probe_)(const VulkanBackend&, bool receivers) = nullptr;   // tests only: called before each queue call, a failure it returns standing in for the call's
     static inline std::atomic<size_t> host_signals_{0};   // receivers given up by a host signal, which tests count
     std::vector<BufferPtr> partial_, scratch_;
-    std::vector<std::vector<std::shared_ptr<VulkanBuffer>>> inbox_[2];   // [parity][owner][sender]: the owner's inbox for that sender's partial rows
-    std::vector<std::vector<BufferPtr>> imported_[2];                    // [parity][owner][sender]: that inbox on the sender, its only importer
+    std::vector<std::vector<std::shared_ptr<VulkanBuffer>>> inbox_[kInboxes];   // [parity][owner][sender]: the owner's inbox for that sender's partial rows
+    std::vector<std::vector<BufferPtr>> imported_[kInboxes];                    // [parity][owner][sender]: that inbox on the sender, its only importer
     size_t share_align_ = 1;   // the members' largest storage-buffer offset alignment, in floats
     std::vector<std::vector<std::shared_ptr<VulkanBuffer>>> gather_[2];  // [parity][owner][sender]: the owner's gather rows for that sender's share, where a sum may take two shots
     std::vector<std::vector<BufferPtr>> gathered_[2];                    // [parity][owner][sender]: those gather rows on the sender, their only importer
     std::vector<VkSemaphore> signal_;                  // one timeline per source, imported by every peer
     std::vector<std::vector<VkSemaphore>> wait_;        // [member][peer]: that peer's timeline as member imported it
+    bool beside_ = false;                               // every member has a copy queue, so a lane's copies run beside the next part's work
     std::shared_ptr<VulkanSubmitter> submitter_;        // the group's queue thread, from two members on
     size_t routed_ = 0;                                 // members routed through submitter_, given back on close
 

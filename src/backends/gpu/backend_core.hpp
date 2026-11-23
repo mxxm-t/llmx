@@ -3961,12 +3961,14 @@ private:
             throw std::runtime_error(Api::prefix + "a tensor group's sum on " + ordinal() + " gave up waiting for its peers; the group's later sums take the conservative path");
     }
     // A group sum's kernel, launched without raise_failed: the collective checks every member before it launches any, so no member waits for a peer whose launch threw.
-    // A one-shot whose rows the held build already pushed (push_rows) launches its take alone.
-    void group_launch(GpuSumForm form, unsigned blocks, const Args& args, bool pushed = false) {
+    // A one-shot whose rows the held build already pushed (push_rows) launches its take alone; a stream `beside` the member's takes the launch at once rather than held with the member's operations.
+    void group_launch(GpuSumForm form, unsigned blocks, const Args& args, bool pushed = false, typename Api::Stream beside = nullptr) {
         forget_twins();
         const Kernel k = pushed ? kGroupTake : form == GpuSumForm::chain || form == GpuSumForm::wrap ? kGroupChain : form == GpuSumForm::shares ? kGroupShares : form == GpuSumForm::copies ? kGroupCopies : kGroupSum;
-        issue(kernels_[k], blocks, 1, 1, kThreads, args, kKernelNames[k]);
         ++launched_[k];
+        if (!beside) return issue(kernels_[k], blocks, 1, 1, kThreads, args, kKernelNames[k]);
+        Args a = args;
+        launch_check(Api::launch(kernels_[k], blocks, 1, 1, kThreads, 0, beside, a.bytes, a.size), kKernelNames[k]);
     }
     // A one-shot's push alone, whose take the collective then hands the member as its pending join (pend_take).
     void group_push(unsigned blocks, const Args& args) {
@@ -4020,7 +4022,7 @@ private:
 
     // A stream operation held until the next flush, which issues them in order: a kernel with its packed arguments, a copy, a zero fill, or a wait for or write of a 64-bit word, `bytes` its value (docs/src/backends-gpu.md, records).
     struct Held {
-        enum Kind : uint8_t { kernel, copy, fill, wait_word, write_word } kind;
+        enum Kind : uint8_t { kernel, copy, fill, wait_word, write_word, wait_event } kind;
         typename Api::Function f;
         unsigned gx, gy, gz, threads;
         const char* name;
@@ -4055,6 +4057,8 @@ private:
     // The stream waits until *word is at least `value`, or writes `value` there once the work before it is done.
     void hold_wait(uint64_t* word, uint64_t value) { hold({Held::wait_word, nullptr, 0, 0, 0, 0, "wait_word", 0, 0, word, nullptr, value, Api::kAnyCopy}); }
     void hold_write(uint64_t* word, uint64_t value) { hold({Held::write_word, nullptr, 0, 0, 0, 0, "write_word", 0, 0, word, nullptr, value, Api::kAnyCopy}); }
+    // The stream waits for the work before the event's last record when this is flushed, on another stream of this device.
+    void hold_wait_event(typename Api::Event event) { hold({Held::wait_event, nullptr, 0, 0, 0, 0, "stream_wait_event", 0, 0, (void*)event, nullptr, 0, Api::kAnyCopy}); }
     // Issues the held operations in order; one HIP refuses throws naming it, and those after it are dropped with it.
     void flush() {
         materialize();
@@ -4072,7 +4076,7 @@ private:
             for (const Held& op : ops) {
                 // A submission's busy time starts at its first operation after its waits on other devices (busy_ms).
                 if (!started_ && op.kind == Held::wait_word) waited_ = true;
-                if (!started_ && op.kind != Held::wait_word) {
+                if (!started_ && op.kind != Held::wait_word && op.kind != Held::wait_event) {
                     start();
                     started_ = true;
                 }
@@ -4086,6 +4090,8 @@ private:
                     launch_check(Api::wait_word(stream_, op.dst, op.bytes), op.name);
                 } else if (op.kind == Held::write_word) {
                     launch_check(Api::write_word(stream_, op.dst, op.bytes), op.name);
+                } else if (op.kind == Held::wait_event) {
+                    launch_check(Api::stream_wait_event(stream_, (typename Api::Event)op.dst), op.name);
                 } else {
                     launch_check(Api::zero_async(op.dst, op.bytes, stream_), op.name);
                 }

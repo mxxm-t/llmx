@@ -22,6 +22,7 @@
 #include <utility>
 #include <thread>
 #include <vector>
+#include "cut_passes.hpp"
 #include "model/runtime.hpp"
 #include "model/place.hpp"
 #include "model/arch/registry.hpp"
@@ -2874,7 +2875,27 @@ void tensor_groups(size_t W, uint64_t heads, uint64_t kv_heads, uint64_t ff, uin
             a.forward(xa, ea, 2);
             b.forward(xb, eb, 2);
             for (size_t r = 0; r < 2; ++r) require(!std::memcmp(xa.logits(r), xb.logits(r), V * sizeof(float)), "a two-sequence pass differs between one and two stages of a group");
-            checked += 6;
+            // A pass the group cuts in two parts gives the whole pass's bits, the sums added to each member's residual (tests/cut_passes.hpp).
+            const auto longer = tiny_qwen_shaped(3, 512, tied, heads, kv_heads, ff, vocab);
+            std::vector<std::shared_ptr<BesideCpu>> beside;
+            std::vector<backend::BackendPtr> members;
+            for (size_t m = 0; m < W; ++m) {
+                beside.push_back(std::make_shared<BesideCpu>());
+                members.push_back(beside.back());
+            }
+            infer::Placement place;
+            place.width = W;
+            infer::Model cutting(infer::gguf_weights(longer), members, place);
+            check_cut_passes(cutting, beside[0]->below);
+            require(*beside[0]->sends > 0, "a group whose sums copy beside its work cut no pass");
+            // A pass is cut only where its larger part's sum copies beside: the 256-row pass's 128 rows of 8 floats cut just below the bound, and no pass at it.
+            for (const size_t below : {size_t(128 * 8), size_t(128 * 8 + 1)}) {
+                *beside[0]->below = below;
+                *beside[0]->sends = 0;
+                check_cut_passes(cutting, beside[0]->below);
+                require((*beside[0]->sends > 0) == (below > 128 * 8), below > 128 * 8 ? "a pass whose larger part's sum copies beside was not cut" : "a pass whose larger part's sum does not copy beside was cut");
+            }
+            checked += 9;
         }
 
         // A history recomputed by class, as a paused request's resume does: a 40-token prompt in slices of 16 and 150 greedy tokens as entries of extent 1 of up to 64 rows.

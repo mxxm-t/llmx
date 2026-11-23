@@ -22,6 +22,7 @@
 #include "model/arch/qwen4exp.hpp"
 #include "model/runtime.hpp"
 #include "model/weight_rows.hpp"
+#include "cut_passes.hpp"
 #include "tiny_qwen.hpp"
 
 namespace {
@@ -1440,6 +1441,29 @@ int main(int argc, char** argv) {
                 if (field(item, "decode_token").isNumber()) ++decode_count;
             }
             if (decode_count != 2) throw std::runtime_error("expected two tensor-width follow-up decode cases");
+            {
+                // Room for a pass the group cuts in two: the fixture's 32-token context lengthened, which rope and the caches take at any length.
+                gguf::GGUFModel longer = gguf::read_gguf(gguf_path);
+                gguf::map_payload(longer);
+                for (auto& [key, value] : longer.kv)
+                    if (key == "qwen4exp.context_length") value.u = 1024;
+                PaddedSharedWeights wide = pad_shared_expert_for_tensor_group(views(longer), longer);
+                // On the CPU its collectives are said to copy beside the work, so the CPU's group cuts as a device's does; a device group cuts where its members have a copy queue.
+                std::vector<backend::BackendPtr> group = tensor_group_backends(device);
+                std::shared_ptr<size_t> sends, below;
+                if (device == "cpu") {
+                    auto first = std::make_shared<BesideCpu>(), second = std::make_shared<BesideCpu>();
+                    first->set_threads(1);
+                    second->set_threads(1);
+                    sends = first->sends;
+                    below = first->below;
+                    group = {first, second};
+                }
+                infer::Model cutting(wide.weights, group, tensor_placement(), model_options(2, 2));
+                check_cut_passes(cutting, below);
+                if (sends && !*sends) throw std::runtime_error("a group whose sums copy beside its work cut no pass");
+                std::cout << "qwen4exp tensor width 2: a pass cut in two parts gives the whole pass's bits\n";
+            }
             std::cout << "qwen4exp tensor width 2: " << cases.size()
                       << " HF cases passed with shared-expert width padded from 7 to 8\n";
             return 0;

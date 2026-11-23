@@ -68,6 +68,7 @@ Queue families: one compute-only family with transfer (two queues), one
 graphics family, one transfer-only. The backend takes one queue, from the
 family its queue plan chooses (Queue plan, below). Everything, including copies, goes through that queue, so
 the single implicit stream of the interface is literally one `VkQueue`.
+The one exception is a tensor group's sums, whose copies may run on a copy queue beside it (The copy queue and `RADV_PERFTEST`, below).
 
 The Linux MI50 was validated after the workstation, through RADV. Nothing
 above is Windows-specific; the driver differs and the numbers are re-read
@@ -116,6 +117,17 @@ The workstation has the LunarG SDK 1.4.357 at `C:\VulkanSDK`, installed for this
   no files to find at run time and no runtime compiler. `build.bat` stays
   CPU-only.
 - **A device may be coarser than the backend's own layout.** A matrix input bound at an offset off `minStorageBufferOffsetAlignment` (16 bytes on an RTX 3060, 4 on RADV) is read from an aligned copy (`bindable`), and on a device without guaranteed 32-bit denormal preservation (`shaderDenormPreserveFloat32` false on that RTX 3060) the matrix modules may flush a subnormal F32 result to zero, which the range checks accept only where the exact result is below the smallest normal float.
+
+### The copy queue and `RADV_PERFTEST`
+
+A tensor group cuts a prompt pass of 128 rows or more in two parts, so one part's sums copy into the peers' inboxes while the other part computes (docs/TENSOR-SPLIT.md, section 4.3).
+The copies run on a second queue of each member, taken at device creation: a transfer-only family's queue where the device offers one, whose copy engines take no compute units, else a second queue of the compute family, whose copies are shader blits that share the compute units with the work beside them.
+A group cuts only where every member has such a queue and the larger part's sum would take one shot in one call (`Collective::copies_beside`), since a lane sends its whole part to every peer; a device with one queue in all records each pass whole.
+
+Mesa's RADV driver offers a transfer-only family on the MI50 only under `RADV_PERFTEST=transfer_queue`, RADV's documented switch (`RADV_PERFTEST`, Mesa's environment variables) for features not yet on by default; without it the MI50 shows a compute family of four queues and no transfer family, and llmx takes the second compute queue.
+It is a driver variable, not an llmx setting: llmx reads no environment, uses the transfer family whenever the driver offers one and falls back to the compute queue otherwise, and the bits of every reply are the same either way.
+On Qwen3.8-Flash-Next UD-Q4_K_XL over a 2x2 group of MI50s (int8, ubatch 1024, Mesa 25.0.7), pp2048 went from 1175 tok/s with every pass whole to 1298 with the variable (+10.5%) and to 1198 without it (+1.9%) ([STATUS](STATUS.md)).
+To set it for a server in the container, pass it to `docker run` (docs/BUILD.md, Docker, with nothing installed on the host).
 
 ### Activation range repair
 

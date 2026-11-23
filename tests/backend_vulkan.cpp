@@ -4625,6 +4625,53 @@ size_t check_collective(const backend::BackendPtr& first) {
     };
     in_place(members, *sum, width, {1, 7, 64});
     in_place(members, *sum, width / 4, {1, 64, 256});
+    // A pass cut in two parts (Collective::send): lane 0 sent, lane 1 written and sent while lane 0's copies may run, then lane 0 finished in place and lane 1 into residuals.
+    for (size_t round = 0; round < 5; ++round) {
+        const size_t W = members.size(), a = 40, b = 24, n = (a + b) * width;
+        std::vector<std::vector<float>> partial(W, std::vector<float>(n));
+        std::vector<float> start(b * width);
+        for (size_t i = 0; i < n; ++i)
+            for (size_t m = 0; m < W; ++m) {
+                seed = seed * 1664525u + 1013904223u;
+                partial[m][i] = float(int(seed >> 16) % 2001 - 1000) / 97.0f;
+            }
+        for (size_t i = 0; i < start.size(); ++i) start[i] = float(int(i * 2654435761u % 4001) - 2000) / 13.0f;
+        std::vector<backend::BufferPtr> x;
+        std::vector<backend::Slice> xs;
+        for (size_t m = 0; m < W; ++m) {
+            x.push_back(members[m]->alloc((b * width + offset) * sizeof(float)));
+            members[m]->write(*x.back(), offset * sizeof(float), start.data(), start.size() * sizeof(float));
+            xs.push_back({x.back().get(), offset});
+            const backend::Slice p = sum->partial(m);
+            members[m]->write(*p.buffer, p.offset * sizeof(float), partial[m].data(), a * width * sizeof(float));
+        }
+        sum->send(0, 0, a, width);
+        for (size_t m = 0; m < W; ++m) {
+            const backend::Slice p = sum->partial(m);
+            members[m]->write(*p.buffer, (p.offset + a * width) * sizeof(float), partial[m].data() + a * width, b * width * sizeof(float));
+        }
+        sum->send(1, a, b, width);
+        sum->finish(0, 0, a, width, nullptr);
+        sum->finish(1, a, b, width, &xs);
+        for (size_t m = 0; m < W; ++m) {
+            members[m]->submit();
+            std::vector<float> got(a * width), added(b * width);
+            const backend::Slice p = sum->partial(m);
+            members[m]->read(*p.buffer, p.offset * sizeof(float), got.data(), got.size() * sizeof(float));
+            members[m]->read(*x[m], offset * sizeof(float), added.data(), added.size() * sizeof(float));
+            for (size_t i = 0; i < n; ++i) {
+                float all = partial[0][i];
+                for (size_t k = 1; k < W; ++k) all += partial[k][i];
+                const float want = i < a * width ? all : start[i - a * width] + all;
+                const float have = i < a * width ? got[i] : added[i - a * width];
+                require(std::memcmp(&have, &want, sizeof(float)) == 0, "a pass cut in two parts does not sum each lane's rows in member order");
+            }
+        }
+        ++checks;
+    }
+    // Two members' lane sums copy beside at every size, where their devices have copy queues: a two-shot sum moves the same bytes there.
+    require(sum->copies_beside(size_t(1) << 40) == sum->copies_beside(1), "two members' lane sums copy beside at one size and not another");
+    ++checks;
     // Two passes' sums interleaved on the one collective, as a pass apart's are between a prompt's pieces: each must end with the bits it ends with alone.
     // The second run clears the partial rows before each sum and writes half of them, as a routed part does.
     for (const bool cleared : {false, true}) {
@@ -4725,7 +4772,10 @@ size_t check_collective(const backend::BackendPtr& first) {
         std::unique_ptr<backend::Collective> of_three = first->join(three, 96, wide);
         sums(three, *of_three, wide, {1, 79, 80, 96, 80, 79, 1});
         in_place(three, *of_three, wide, {1, 79, 80, 96});
-        std::cout << "backend-vulkan: a collective of three devices, sums below and from the two-shot size on\n";
+        // A lane broadcasts its part to every peer, so three members' lane sums copy beside only below the two-shot size.
+        require(of_three->copies_beside(327679) == of_three->copies_beside(1) && !of_three->copies_beside(327680), "three members' lane sums copy beside from the two-shot size on");
+        checks += 2;
+        std::cout << "backend-vulkan: a collective of three devices, sums below and from the two-shot size on, lane sums beside only below it\n";
     } else {
         std::cout << "backend-vulkan: no third device, so no sum in two shots\n";
     }

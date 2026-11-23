@@ -928,6 +928,12 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s, size_t laye
         }
         p.open = true;
     }
+    // A stage recorded whole may be cut in two parts; one recorded a few layers a call keeps main's order.
+    const size_t cut = layers || p.layer != st.first ? 0 : cut_row(p, sum);
+    if (cut) {
+        cut_record(ctx, p, s, cut);
+        p.layer = st.end;
+    }
     const int end = layers ? std::min(st.end, p.layer + (int)std::min<size_t>(layers, INT_MAX)) : st.end;
     for (int l = p.layer; l < end; l++) {
         finish_lookup(ctx, p, g, W, l);
@@ -972,6 +978,170 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s, size_t laye
         }
     }
     stage_submit(ctx, p, s, g);
+}
+
+// Where a group's stage cuts a pass of kCutRows rows or more whose parts' sums both copy beside its work, a row at or below the middle, or 0 where it records the pass whole (docs/TENSOR-SPLIT.md, section 4.3).
+// The row is an entry's end or 64-row grid step of the entry it falls in, so each entry keeps its recurrent layers' chunks and its extent, and so its row class; it falls on a whole unit of four floats at any width.
+inline size_t Model::cut_row(const Pass& p, const backend::Collective& sum) const {
+    constexpr size_t kGrid = 64;
+    static_assert(kCutRows >= 2 * kGrid, "each part of a cut pass holds a whole chunk of the grid");
+    if (width_ < 2 || p.rows < kCutRows || p.image_rows || p.long_runs || !p.group_pos.empty()) return 0;
+    for (const BatchEntry& e : p.entries)
+        if (e.seq->mark_.held()) return 0;
+    const size_t middle = p.rows / 2;
+    size_t cut = 0, start = 0;
+    for (const backend::RowRun& r : p.runs) {
+        for (size_t row = start + kGrid; row <= std::min(r.end, middle); row += kGrid)
+            if (row % 4 == 0) cut = row;
+        if (r.end <= middle && r.end % 4 == 0) cut = r.end;
+        start = r.end;
+    }
+    if (cut < kGrid || p.rows - cut < kGrid) return 0;
+    return sum.copies_beside((p.rows - cut) * sum_width(plan_)) && sum.copies_beside(cut * sum_width(plan_)) ? cut : 0;
+}
+
+// The two parts of a pass cut at row `cut` on group g, each the entries its rows hold: the entry the cut falls in continues in the second part from the history, state slot and last ids the first writes.
+inline void Model::cut_parts(ExecContext& ctx, const Pass& p, size_t g, size_t cut, PassPart* parts) const {
+    for (size_t h = 0; h < 2; ++h) {
+        PassPart& q = parts[h];
+        q.base = h ? cut : 0;
+        q.rows = h ? p.rows - cut : cut;
+        const size_t end = q.base + q.rows;
+        q.runs.clear();
+        q.offsets.assign(width_, {});
+        q.views.assign(width_, {});
+        q.states.assign(width_, {});
+        q.lookup.assign(width_, {});
+        q.previous.clear();
+        const bool tokens = token_width_ && p.previous_tokens.size() >= p.entries.size() * token_width_;
+        size_t start = 0;
+        for (size_t e = 0; e < p.runs.size(); start = p.runs[e++].end) {
+            const backend::RowRun& r = p.runs[e];
+            if (r.end <= q.base || start >= end) continue;
+            const size_t before = q.base > start ? q.base - start : 0;   // the entry's rows in the first part, where the cut falls in it
+            q.runs.push_back({std::min(r.end, end) - q.base, r.extent});
+            const size_t rows = std::min(r.end, end) - std::max(start, q.base);
+            for (size_t m = 0; m < width_; ++m) {
+                const Device& d = *devices_[g + m];
+                if (d.storage_index >= 0) {
+                    backend::KVView v = p.views[(size_t)d.storage_index * width_ + d.member][e];
+                    v.length += before;
+                    v.nq = rows;
+                    q.views[m].push_back(v);
+                }
+                if (d.states) {
+                    backend::StateView v = p.states[g + m][e];
+                    if (before) {
+                        v.src = v.dst;
+                        v.length += before;
+                    }
+                    v.nq = rows;
+                    q.states[m].push_back(v);
+                }
+            }
+            if (!tokens) continue;
+            std::vector<uint32_t> prior(p.previous_tokens.begin() + (std::ptrdiff_t)(e * token_width_), p.previous_tokens.begin() + (std::ptrdiff_t)((e + 1) * token_width_));
+            prior.insert(prior.end(), p.ids.begin() + (std::ptrdiff_t)start, p.ids.begin() + (std::ptrdiff_t)(start + before));
+            q.previous.insert(q.previous.end(), prior.end() - (std::ptrdiff_t)token_width_, prior.end());
+        }
+        for (size_t m = 0; m < width_; ++m) {
+            q.offsets[m] = scratch(ctx, p, g + m).offset;
+            for (size_t i = 0; i < q.offsets[m].size(); ++i) q.offsets[m][i] += q.base * plan_.slots[i] * sizeof(float);
+        }
+    }
+}
+
+// Step `s` over every row of a cut pass narrowed to part q on member m: its residual, slots, rows, positions, scratch indices, cache views, lookup ids and tokens those of the part's rows.
+inline Step Model::narrow(Step s, PassPart& q, size_t m, int l) const {
+    s.offsets = q.offsets[m].data();
+    s.x.offset += q.base * plan_.residual;
+    s.rows = q.rows;
+    s.runs = backend::RowRuns{q.runs.data(), q.runs.size()};
+    if (s.views) s.views = q.views[m].data();
+    if (s.states) s.states = q.states[m].data();
+    if (s.views || s.states) s.n_views = q.runs.size();
+    if (s.pos) s.pos += q.base;
+    s.indices += q.base * plan_.index_width;
+    s.indices_size -= q.base * plan_.index_width;
+    if (s.lookup) {
+        q.lookup[m] = *s.lookup;
+        q.lookup[m].ids += q.base * plan_.layers[(size_t)l].lookup->rows;
+        s.lookup = &q.lookup[m];
+    }
+    if (s.tokens) s.tokens += q.base;
+    if (s.previous_tokens) s.previous_tokens = q.previous.data();
+    return s;
+}
+
+// A group's layers over a pass cut in two parts, recorded part by part: each part's sum is sent after its part and finished before its next, so one part's sum crosses while the other's part runs.
+// The second part's part of a layer is recorded after the first's, so it reads the cache and state the first wrote.
+inline void Model::cut_record(ExecContext& ctx, Pass& p, size_t s, size_t cut) {
+    const Stage& st = stages_[s];
+    const size_t g = st.device, W = width_, wide = sum_width(plan_);
+    backend::Collective& sum = *ctx.collectives[g];
+    const backend::RowRuns all{p.runs.data(), p.runs.size()};
+    PassPart parts[2];
+    cut_parts(ctx, p, g, cut, parts);
+    if (!cut_said_.exchange(true)) std::fprintf(stderr, "inference: a tensor group cuts a pass of %zu rows in two parts of %zu and %zu rows, each part's sums copied beside the other's work\n", p.rows, cut, p.rows - cut);
+    int sent[2] = {-1, -1};   // per part, the layer whose sum it sent and has not finished
+    const auto finish = [&](size_t h) {
+        if (sent[h] < 0) return;
+        const int l = sent[h];
+        sent[h] = -1;
+        PassPart& q = parts[h];
+        const auto from = std::chrono::steady_clock::now();
+        if (!plan_.partial) {
+            std::vector<backend::Slice> x(W);
+            for (size_t m = 0; m < W; ++m) {
+                x[m] = slot(ctx, p, g + m, 0);
+                x[m].offset += q.base * plan_.residual;
+            }
+            sum.finish(h, q.base, q.rows, wide, &x);
+        } else {
+            sum.finish(h, q.base, q.rows, wide, nullptr);
+            for (size_t m = 0; m < W; ++m) {
+                Step step = narrow(part(ctx, p, g + m, home_row(m, (size_t)l), plan_.layers[(size_t)l].kind, 0, p.rows, all), q, m, l);
+                step.width = W;
+                step.partial = sum.partial(m);
+                step.partial.offset += q.base * wide;
+                arch_->join(step);
+            }
+        }
+        p.sum_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - from).count();
+    };
+    try {
+        for (int l = st.first; l < st.end; l++) {
+            finish_lookup(ctx, p, g, W, l);
+            const LayerPlan& layer = plan_.layers[(size_t)l];
+            for (int phase = 0; phase < 2; ++phase)
+                for (size_t h = 0; h < 2; ++h) {
+                    finish(h);
+                    PassPart& q = parts[h];
+                    for (size_t m = 0; m < W; ++m) {
+                        Step step = narrow(phase ? part(ctx, p, g + m, home_row(m, (size_t)l), layer.kind, 0, p.rows, all, l) : mixer_part(ctx, p, g + m, l), q, m, l);
+                        step.width = W;
+                        step.partial = sum.partial(m);
+                        step.partial.offset += q.base * wide;
+                        if (!phase) {
+                            arch_->mixer(step);
+                            continue;
+                        }
+                        step.zero = ctx.zeros[g + m].get();
+                        arch_->ffn(step);
+                    }
+                    const auto from = std::chrono::steady_clock::now();
+                    sum.send(h, q.base, q.rows, wide);
+                    p.sum_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - from).count();
+                    sent[h] = l;
+                }
+        }
+    } catch (...) {
+        // A lane left sent would refuse every later sum of the group.
+        sum.drop();
+        throw;
+    }
+    finish(0);
+    finish(1);
 }
 
 // Group g's sum after a part: added to each member's residual x[m], or summed in place and joined into x[m] by each member (Architecture::join) where ModelPlan::partial says so.

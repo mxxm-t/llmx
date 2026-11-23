@@ -2323,6 +2323,8 @@ void handoffs() {
     std::cout << "backend-rocm: a handoff from device 0 reaches " << d.size() - 1 << " readers behind device-side waits, " << d.size() << " ROCm backends alive\n";
 }
 
+void lane_sums(const std::vector<Backend*>& group, Collective& c, size_t width, size_t a, size_t b, uint32_t& seed);
+
 // The fast collective against the conservative one on the same cards, over partials of the armed bits, their quiet twin, NaN payloads, infinities, zeros and a denormal, every bit but a NaN's payload (docs/TESTS.md, backend-rocm).
 // The forms follow one another by size, at tails and an unaligned residual, two sums in flight, and 1800 sums arm each parity half again hundreds of times.
 void sentinel_sums() {
@@ -2334,10 +2336,17 @@ void sentinel_sums() {
     // The fast arm's picks switch transport at each size, so a join that keeps both follows them with sums in flight across a switch.
     const std::map<size_t, GpuSumPick> forms = {{64, {GroupTransport::host_writes, GpuSumForm::shares}}, {256, {GroupTransport::peer_writes, GpuSumForm::chain}},
                                                 {512, {GroupTransport::host_writes, GpuSumForm::chain}}, {1024, {GroupTransport::peer_writes, GpuSumForm::one_shot}},
-                                                {1027, {GroupTransport::host_writes, GpuSumForm::pulls}}, {1028, {GroupTransport::host_writes, GpuSumForm::one_shot}}};
+                                                {1027, {GroupTransport::host_writes, GpuSumForm::pulls}}, {1028, {GroupTransport::host_writes, GpuSumForm::one_shot}},
+                                                {2048, {GroupTransport::host_writes, GpuSumForm::pulls}}, {2052, {GroupTransport::host_writes, GpuSumForm::one_shot}}};
     for (size_t W = 2; W <= d.size(); ++W) {
         const std::vector<Backend*> group = raw(d, W);
         std::unique_ptr<Collective> fast = rocm_collective(group, cap, 1, forms);
+        // Lanes whose picks differ in transport and form, the pulls of one on the members' streams while the other's sum may cross beside, each sum their lane's rows in member order; pulls never copy beside.
+        // A lane starts on a float4 unit, so the pulls lane that comes first takes 2048 floats and the lane after it starts aligned.
+        uint32_t lane_seed = 9001 + (uint32_t)W;
+        for (const auto& [a, b] : {std::pair<size_t, size_t>{1024, 1027}, {2048, 1024}, {256, 512}, {64, 1028}}) lane_sums(group, *fast, 1, a, b, lane_seed);
+        const size_t least = W >= 4 ? 64 : 128;
+        require(fast->copies_beside(least) && !fast->copies_beside(least - 1) && !fast->copies_beside(1027) && fast->copies_beside(1028), "a ROCm group's lane sums copy beside where their pick is a kernel form");
         std::vector<BackendPtr> e = rocm_devices(W), h = rocm_devices(W);
         const auto can = f.hipDeviceCanAccessPeer;
         f.hipDeviceCanAccessPeer = no_peer;
@@ -2849,6 +2858,225 @@ void held_push() {
 }
 
 // The collective over 2 up to kMaxTensorWidth devices where they open, fast and conservative, a sum that gives up and the epochs' wrap (docs/TESTS.md, backend-rocm).
+// A pass cut in two parts (Collective::send): lanes sent while the other crosses, finished in place and into residuals, sent step after step as Model::cut_record sends them, and dropped; each sum bit for bit the member-order sum.
+void lane_sums(const std::vector<Backend*>& group, Collective& c, size_t width, size_t a, size_t b, uint32_t& seed) {
+    const size_t W = group.size(), n = (a + b) * width;
+    for (size_t round = 0; round < 5; ++round) {
+        std::vector<std::vector<float>> partial(W, std::vector<float>(n));
+        std::vector<float> start(b * width);
+        for (size_t i = 0; i < n; ++i)
+            for (size_t m = 0; m < W; ++m) {
+                seed = seed * 1664525u + 1013904223u;
+                partial[m][i] = float(int(seed >> 16) % 2001 - 1000) / 97.0f;
+            }
+        for (size_t i = 0; i < start.size(); ++i) start[i] = float(int(i * 2654435761u % 4001) - 2000) / 13.0f;
+        std::vector<BufferPtr> x;
+        std::vector<Slice> xs;
+        for (size_t m = 0; m < W; ++m) {
+            x.push_back(group[m]->alloc(b * width * sizeof(float)));
+            group[m]->write(*x.back(), 0, start.data(), start.size() * sizeof(float));
+            xs.push_back({x.back().get(), 0});
+            const Slice p = c.partial(m);
+            group[m]->write(*p.buffer, p.offset * sizeof(float), partial[m].data(), a * width * sizeof(float));
+        }
+        c.send(0, 0, a, width);
+        for (size_t m = 0; m < W; ++m) {
+            const Slice p = c.partial(m);
+            group[m]->write(*p.buffer, (p.offset + a * width) * sizeof(float), partial[m].data() + a * width, b * width * sizeof(float));
+        }
+        c.send(1, a, b, width);
+        bool refused = false;
+        try { c.sum_in_place(1, width); } catch (const std::logic_error&) { refused = true; }
+        require(refused, "a ROCm sum made in one call while a lane's sum is sent");
+        c.finish(0, 0, a, width, nullptr);
+        c.finish(1, a, b, width, &xs);
+        for (size_t m = 0; m < W; ++m) {
+            group[m]->submit();
+            std::vector<float> got(a * width), added(b * width);
+            const Slice p = c.partial(m);
+            group[m]->read(*p.buffer, p.offset * sizeof(float), got.data(), got.size() * sizeof(float));
+            group[m]->read(*x[m], 0, added.data(), added.size() * sizeof(float));
+            for (size_t i = 0; i < n; ++i) {
+                float all = partial[0][i];
+                for (size_t k = 1; k < W; ++k) all += partial[k][i];
+                const float want = i < a * width ? all : start[i - a * width] + all;
+                const float have = i < a * width ? got[i] : added[i - a * width];
+                require(std::memcmp(&have, &want, sizeof(float)) == 0, "a ROCm pass cut in two parts does not sum each lane's rows in member order");
+            }
+        }
+    }
+    // Steady state as Model::cut_record runs it: each lane finished into its residual, written again and sent while the other lane's sum may cross, so each lane's parity halves are reused step after step.
+    constexpr size_t kSteps = 8;
+    const size_t base[2] = {0, a}, rows[2] = {a, b};
+    std::vector<std::vector<std::vector<float>>> step(kSteps, std::vector<std::vector<float>>(W));
+    std::vector<std::vector<BufferPtr>> res(kSteps);
+    std::vector<float> start(std::max(a, b) * width);
+    for (size_t i = 0; i < start.size(); ++i) start[i] = float(int(i * 40503u % 3001) - 1500) / 7.0f;
+    const auto sent = [&](size_t s) {
+        const size_t h = s % 2;
+        for (size_t m = 0; m < W; ++m) {
+            step[s][m].resize(rows[h] * width);
+            for (float& v : step[s][m]) {
+                seed = seed * 1664525u + 1013904223u;
+                v = float(int(seed >> 16) % 2001 - 1000) / 89.0f;
+            }
+            const Slice p = c.partial(m);
+            group[m]->write(*p.buffer, (p.offset + base[h] * width) * sizeof(float), step[s][m].data(), step[s][m].size() * sizeof(float));
+            res[s].push_back(group[m]->alloc(rows[h] * width * sizeof(float)));
+            group[m]->write(*res[s].back(), 0, start.data(), rows[h] * width * sizeof(float));
+        }
+        c.send(h, base[h], rows[h], width);
+    };
+    const auto finished = [&](size_t s) {
+        std::vector<Slice> xs;
+        for (size_t m = 0; m < W; ++m) xs.push_back({res[s][m].get(), 0});
+        c.finish(s % 2, base[s % 2], rows[s % 2], width, &xs);
+    };
+    sent(0);
+    sent(1);
+    for (size_t s = 2; s < kSteps; ++s) {
+        finished(s - 2);
+        sent(s);
+    }
+    finished(kSteps - 2);
+    finished(kSteps - 1);
+    for (size_t m = 0; m < W; ++m) {
+        group[m]->submit();
+        for (size_t s = 0; s < kSteps; ++s) {
+            std::vector<float> got(step[s][m].size());
+            group[m]->read(*res[s][m], 0, got.data(), got.size() * sizeof(float));
+            for (size_t i = 0; i < got.size(); ++i) {
+                float all = step[s][0][i];
+                for (size_t k = 1; k < W; ++k) all += step[s][k][i];
+                const float want = start[i] + all;
+                require(std::memcmp(&got[i], &want, sizeof(float)) == 0, "a ROCm lane sent again while the other lane's sum crosses does not sum its rows in member order");
+            }
+        }
+    }
+    bool refused = false;
+    try { c.finish(0, 0, a, width, nullptr); } catch (const std::logic_error&) { refused = true; }
+    require(refused, "a ROCm lane's sum finished that was not sent");
+    // A failure between a send and its finish drops the lane, after which a sum in one call is taken again and the dropped lane cannot be finished.
+    sent(0);
+    c.drop();
+    refused = false;
+    try { c.finish(0, 0, a, width, nullptr); } catch (const std::logic_error&) { refused = true; }
+    require(refused, "a ROCm lane's sum finished after it was dropped");
+    std::vector<std::vector<float>> whole(W, std::vector<float>(a * width));
+    for (size_t m = 0; m < W; ++m) {
+        for (size_t i = 0; i < whole[m].size(); ++i) whole[m][i] = float(int((i + 31 * m) * 2246822519u % 2001) - 1000) / 61.0f;
+        const Slice p = c.partial(m);
+        group[m]->write(*p.buffer, p.offset * sizeof(float), whole[m].data(), whole[m].size() * sizeof(float));
+    }
+    c.sum_in_place(a, width);
+    for (size_t m = 0; m < W; ++m) {
+        group[m]->submit();
+        std::vector<float> got(a * width);
+        const Slice p = c.partial(m);
+        group[m]->read(*p.buffer, p.offset * sizeof(float), got.data(), got.size() * sizeof(float));
+        for (size_t i = 0; i < got.size(); ++i) {
+            float all = whole[0][i];
+            for (size_t k = 1; k < W; ++k) all += whole[k][i];
+            require(std::memcmp(&got[i], &all, sizeof(float)) == 0, "a ROCm sum in one call after a dropped lane is not the member-order sum");
+        }
+    }
+}
+
+// `rates beside` prints eight layers of a prompt pass on tensor groups at Qwen3.6-27B's width, two pairs at once where four devices open, each phase summed whole or cut in two parts (docs/TENSOR-SPLIT.md, section 4.3).
+// `lanes`, where given, is the form every lane's sum of the cut arm is forced to, on a collective of its own beside the joined one the whole arm sums on.
+void beside_rates(const GpuSumForm* lanes) {
+    std::vector<BackendPtr> d = rocm_devices(4);
+    constexpr size_t width = 5120, layers = 8, most = 4096;
+    struct Group {
+        std::vector<Backend*> members;
+        std::unique_ptr<Collective> c, lanes;
+        std::vector<std::array<BufferPtr, 4>> w;
+        std::vector<BufferPtr> x, h, res;
+    };
+    for (size_t W : {size_t(2), size_t(4)}) {
+        if (d.size() < W) break;
+        std::vector<Group> groups(W == 2 && d.size() >= 4 ? 2 : 1);
+        const size_t shapes[4][2] = {{width, 10240 / W}, {6144 / W, width}, {width, 2 * 17408 / W}, {17408 / W, width}};
+        const std::vector<float> v = row_classes::values(most * width, 903);
+        for (size_t gi = 0; gi < groups.size(); ++gi) {
+            Group& G = groups[gi];
+            for (size_t m = 0; m < W; ++m) G.members.push_back(d[gi * W + m].get());
+            G.c = G.members[0]->join(G.members, most, width);
+            if (lanes) G.lanes = rocm_collective(G.members, most, width, *lanes);
+            for (size_t m = 0; m < W; ++m) {
+                Backend& b = *G.members[m];
+                std::array<BufferPtr, 4> ws;
+                for (size_t k = 0; k < 4; ++k) {
+                    const std::vector<uint8_t> q = typed_matrix(quant::GGML_TYPE_Q8_0, shapes[k][0], shapes[k][1], uint32_t(11 + k + m));
+                    ws[k] = b.adopt(q.data(), q.size());
+                }
+                G.w.push_back(std::move(ws));
+                G.x.push_back(b.adopt(v.data(), v.size() * sizeof(float)));
+                G.h.push_back(b.alloc(most * 2 * 17408 / W * sizeof(float)));
+                G.res.push_back(b.alloc(most * width * sizeof(float)));
+            }
+        }
+        // One phase of member m over rows [base, base + R) of a pass of T rows: the mixer's or the FFN's two products, the second writing the member's partial rows.
+        const auto phase = [&](Group& G, Collective& c, size_t m, int ph, size_t base, size_t R, size_t T) {
+            Backend& b = *G.members[m];
+            const RowRun rr{R, T};
+            const Slice p = c.partial(m);
+            const size_t k = ph ? 2 : 0;
+            b.matmul({quant::GGML_TYPE_Q8_0, {G.w[m][k].get(), 0}}, {G.x[m].get(), base * width}, {G.h[m].get(), 0}, shapes[k][0], shapes[k][1], R, {&rr, 1}, Dtype::int8);
+            b.matmul({quant::GGML_TYPE_Q8_0, {G.w[m][k + 1].get(), 0}}, {G.h[m].get(), 0}, {p.buffer, p.offset + base * width}, shapes[k + 1][0], shapes[k + 1][1], R, {&rr, 1}, Dtype::int8);
+        };
+        const auto residual = [&](Group& G, size_t base) {
+            std::vector<Slice> r;
+            for (const BufferPtr& b : G.res) r.push_back({b.get(), base * width});
+            return r;
+        };
+        // arm 0 computes alone, 1 sums each phase whole, 2 cuts each phase at T / 2; the ms a layer, the median of five passes after one.
+        const auto pass_ms = [&](int arm, size_t T) {
+            const size_t R = T / 2;
+            std::vector<double> t;
+            for (int rep = 0; rep < 6; ++rep) {
+                const auto t0 = std::chrono::steady_clock::now();
+                for (Group& G : groups) {
+                    Collective& C = arm == 2 && G.lanes ? *G.lanes : *G.c;
+                    bool sent[2] = {false, false};
+                    for (size_t l = 0; l < layers; ++l)
+                        for (int ph = 0; ph < 2; ++ph) {
+                            if (arm < 2) {
+                                for (size_t m = 0; m < W; ++m) phase(G, C, m, ph, 0, T, T);
+                                if (arm == 1) C.sum_into(residual(G, 0), T, width);
+                                continue;
+                            }
+                            for (size_t hh = 0; hh < 2; ++hh) {
+                                const std::vector<Slice> r = residual(G, hh * R);
+                                if (sent[hh]) C.finish(hh, hh * R, R, width, &r);
+                                for (size_t m = 0; m < W; ++m) phase(G, C, m, ph, hh * R, R, T);
+                                C.send(hh, hh * R, R, width);
+                                sent[hh] = true;
+                            }
+                        }
+                    for (size_t hh = 0; hh < 2 && arm == 2; ++hh) {
+                        const std::vector<Slice> r = residual(G, hh * R);
+                        C.finish(hh, hh * R, R, width, &r);
+                    }
+                }
+                for (Group& G : groups)
+                    for (Backend* b : G.members) b->sync();
+                if (rep) t.push_back(1e3 * std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count() / layers);
+            }
+            std::sort(t.begin(), t.end());
+            return std::pair<double, double>{t[2], t[4] - t[0]};
+        };
+        for (size_t T : {128, 192, 256, 320, 384, 512, 768, 1024, 2048, 4096}) {
+            const auto [c, cs] = pass_ms(0, T);
+            const auto [whole, ws] = pass_ms(1, T);
+            const auto [cut, cts] = pass_ms(2, T);
+            std::printf("backend-rocm: beside %zux%zu cap %zu lanes %s rows %zu (parts of %zu): compute %.3f ms, whole %.3f ms (spread %.3f), cut %.3f ms (spread %.3f), cut against whole %+.1f%%, sums %.3f whole %.3f cut a layer\n",
+                        groups.size(), W, kBesideBlocks, lanes ? sum_form_name(*lanes) : "timed", T, T / 2, c, whole, ws, cut, cts, 100.0 * (whole - cut) / whole, whole - c, cut - c);
+            std::fflush(stdout);
+        }
+    }
+}
+
 void collective() {
     HipFn& f = hip();
     real_launch = f.hipModuleLaunchKernel;
@@ -2871,6 +3099,9 @@ void collective() {
         seed += 100;
         sums_in_flight(group, *c, 97, seed);
         seed += 100;
+        lane_sums(group, *c, 97, 40, 24, seed);
+        const size_t least = W >= 4 ? 64 : 128;
+        require(c->copies_beside(least * 97) && !c->copies_beside(least * 97 - 1), "a ROCm group's lane sums copy beside from 128 rows of its width at two or three members and 64 from four");
         // A collective for fewer rows of the same group takes the cached path and its own signals.
         std::unique_ptr<Collective> small = d[0]->join(group, 2, 97);
         group_sums::check(group, *small, 97, {1, 2}, seed, print);
@@ -2881,6 +3112,7 @@ void collective() {
             std::unique_ptr<Collective> forced = rocm_collective(group, cap, 1, form);
             group_sums::check(group, *forced, 1, {1, 4 * W + 1, 4 * 4096 + 1, cap}, seed, print);
             seed += 100;
+            lane_sums(group, *forced, 1, 4 * 4096 + 4, 4 * 4096 + 1, seed);
         }
         // The member order timed for the group is an order of its members, asked again the same, and the group in that order sums in its member order.
         const std::vector<size_t> order = d[0]->member_order(group, W, 64, 97);
@@ -2936,6 +3168,8 @@ void collective() {
         seed += 100;
         sums_in_flight(raw(e, e.size()), *pulls, 97, seed);
         seed += 100;
+        lane_sums(raw(e, e.size()), *pulls, 97, 40, 24, seed);
+        require(!pulls->copies_beside(size_t(1) << 40), "a ROCm group that pulls sends lane sums beside");
         std::cout << "backend-rocm: a collective of " << e.size() << " devices without peer access sums by host writes, and forced to pulls, the same bytes\n";
     }
     {
@@ -3589,7 +3823,7 @@ int main(int argc, char** argv) {
             return failures ? 1 : 0;
         }
         // `rates` prints the twin types' product times at Flash-Next's shapes, the exact products' times, attention's times and the routed products' times and break-evens, and checks nothing.
-        // `rates attention`, `rates argmax`, `rates routed`, `rates tile`, `rates exact` or `rates decode` prints one part, and `rates delta`, which the whole run leaves out, the fused linear-attention step against the base's calls.
+        // `rates attention`, `rates argmax`, `rates routed`, `rates tile`, `rates exact` or `rates decode` prints one part; `rates delta` (the fused linear-attention step) and `rates beside` (beside_rates) run only when named.
         if (argc > 1 && std::string(argv[1]) == "vsnccl") {
             vsnccl(argc > 2 && std::string(argv[2]) == "10", argc > 3 ? (size_t)std::atoi(argv[3]) : 2, argc > 4 ? (size_t)std::atoi(argv[4]) : 5120);
             return 0;
@@ -3604,6 +3838,16 @@ int main(int argc, char** argv) {
             if (part.empty() || part == "exact") exact_rates(*g);
             if (part.empty() || part == "decode") decode_rates(*g);
             if (part == "delta") delta_rates(*g);
+            // `rates beside FORM` forces every lane's sum to FORM (one-shot, chain, shares or wrap).
+            if (part == "beside") {
+                const std::string name = argc > 3 ? argv[3] : "";
+                GpuSumForm form = GpuSumForm::one_shot;
+                bool found = name.empty();
+                for (GpuSumForm f : {GpuSumForm::one_shot, GpuSumForm::chain, GpuSumForm::shares, GpuSumForm::wrap})
+                    if (name == sum_form_name(f)) form = f, found = true;
+                require(found, "rates beside: no lane form " + name);
+                beside_rates(name.empty() ? nullptr : &form);
+            }
             return 0;
         }
         // `handoffs` runs only the device-side crossings over every visible device, and the busy times across them.

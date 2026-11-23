@@ -3560,12 +3560,32 @@ private:
             for (const BufferPtr& b : partials_) x.push_back((float*)b->host_ptr());
             sum(x, n, true);
         }
+        // The members compute as they are called, so send has nothing to start and finish sums.
+        void send(size_t lane, size_t base, size_t rows, size_t width) override {
+            if (lane > 1 || size_add(base, rows) > rows_ || width > width_) throw std::logic_error("backend: a sum of a lane, rows or width its collective was not made for");
+        }
+        void finish(size_t lane, size_t base, size_t rows, size_t width, const std::vector<Slice>* residual) override {
+            send(lane, base, rows, width);
+            const size_t n = size_mul(rows, width), first = size_mul(base, width);
+            std::vector<float*> x;
+            if (residual) {
+                if (residual->size() != partials_.size()) throw std::logic_error("backend: a sum of other members than its collective was made for");
+                for (const Slice& r : *residual) {
+                    if (!r.buffer) throw std::runtime_error("backend: operand without storage");
+                    span(*r.buffer, size_mul(r.offset, sizeof(float)), size_mul(n, sizeof(float)));
+                    x.push_back(at(r));
+                }
+            } else {
+                for (const BufferPtr& b : partials_) x.push_back((float*)b->host_ptr() + first);
+            }
+            sum(x, n, !residual, first);
+        }
 
     private:
-        // Each float of `x` gains, or with `replace` becomes, the partials' sum in member order; the sum is read before any member's float is written.
-        void sum(const std::vector<float*>& x, size_t n, bool replace) {
+        // Each float of `x` gains, or with `replace` becomes, the partials' sum in member order from float `from` of the partials; the sum is read before any member's float is written.
+        void sum(const std::vector<float*>& x, size_t n, bool replace, size_t from = 0) {
             std::vector<const float*> p;
-            for (const BufferPtr& b : partials_) p.push_back((const float*)b->host_ptr());
+            for (const BufferPtr& b : partials_) p.push_back((const float*)b->host_ptr() + from);
             lead_.chunk(n, [&](size_t begin, size_t end) {
                 size_t i = begin;
                 for (; i + 8 <= end; i += 8) {

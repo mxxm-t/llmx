@@ -79,6 +79,39 @@ static size_t check_collective() {
                     count += k * W;
                 }
             }
+            // A pass cut in two parts (Collective::send): lane 0's rows from 0 summed in place, lane 1's from row 17 added to residuals, sent and finished interleaved.
+            {
+                const size_t cut = 17, n = reserved * width;
+                std::vector<float> all(n), start(n - cut * width, 0.5f);
+                for (size_t m = 0; m < W; ++m) {
+                    float* p = (float*)sum->partial(m).buffer->host_ptr();
+                    for (size_t i = 0; i < n; ++i) p[i] = float(int((i * 7919u + m * 31u) % 3001) - 1500) * 1e-2f;
+                }
+                for (size_t i = 0; i < n; ++i) {
+                    float s = ((const float*)sum->partial(0).buffer->host_ptr())[i];
+                    for (size_t m = 1; m < W; ++m) s += ((const float*)sum->partial(m).buffer->host_ptr())[i];
+                    all[i] = s;
+                }
+                std::vector<std::vector<float>> x(W, start);
+                std::vector<backend::BufferPtr> xb;
+                std::vector<backend::Slice> xs;
+                for (size_t m = 0; m < W; ++m) {
+                    xb.push_back(cpus[m]->adopt(x[m].data(), x[m].size() * sizeof(float)));
+                    xs.push_back({xb.back().get(), 0});
+                }
+                sum->send(0, 0, cut, width);
+                sum->send(1, cut, reserved - cut, width);
+                sum->finish(0, 0, cut, width, nullptr);
+                sum->finish(1, cut, reserved - cut, width, &xs);
+                for (size_t m = 0; m < W; ++m) {
+                    require(std::memcmp(all.data(), sum->partial(m).buffer->host_ptr(), cut * width * sizeof(float)) == 0, "a lane's rows summed in place are not the sum in member order");
+                    for (size_t i = cut * width; i < n; ++i) {
+                        const float want = 0.5f + all[i];
+                        require(std::memcmp(&want, &x[m][i - cut * width], sizeof(float)) == 0, "a lane's rows added to a residual are not the sum in member order");
+                    }
+                }
+                count += n * W;
+            }
             auto refused = [&](const std::function<void()>& f) {
                 try { f(); } catch (const std::exception&) { return true; }
                 return false;
@@ -90,6 +123,8 @@ static size_t check_collective() {
             require(refused([&] { sum->sum_into(xs, reserved + 1, width); }), "a sum past the reserved rows was taken");
             require(refused([&] { sum->sum_into(xs, 1, width + 1); }), "a sum of another width was taken");
             require(refused([&] { sum->sum_in_place(reserved, width + 1); }), "a sum in place past the reserved rows was taken");
+            require(refused([&] { sum->send(2, 0, 1, width); }), "a sum of a third lane was taken");
+            require(refused([&] { sum->send(0, reserved, 1, width); }), "a lane's sum past the reserved rows was taken");
             require(refused([&] { std::vector<backend::Slice> past(W, backend::Slice{sb.get(), 1}); sum->sum_into(past, reserved, width); }), "a sum past a residual's storage was taken");
             std::vector<backend::Backend*> reversed(members.rbegin(), members.rend());
             require(refused([&] { cpus[0]->join(reversed, 1, 1); }), "a collective joined by a member not first was made");

@@ -21,22 +21,24 @@
 namespace {
 
 // Each request alone on a fresh model, after the `setup` requests, which leave the donors a case needs; then the setup again and every request at once on another fresh model.
-// Each reply must equal its reply alone, and the run together must pause.
+// Each reply must equal its reply alone, and the run together must pause; a `decode_ms` prices decode rows at it and prompt rows at 2 ms, as a loaded host can measure them.
 server::Scheduler::Stats alone_then_together(const Make& make, const bpe::Tokenizer& tok, size_t pool, int ubatch, size_t max_seqs,
-                                             const std::vector<Req>& setup, const std::vector<Req>& reqs, const std::string& what) {
+                                             const std::vector<Req>& setup, const std::vector<Req>& reqs, const std::string& what, double decode_ms = 0) {
+    std::function<double(size_t, const server::PassWork&)> price;
+    if (decode_ms > 0) price = [decode_ms](size_t, const server::PassWork& w) { return (w.decode_rows ? decode_ms : 0.0) + (w.chunks.empty() ? 0.0 : 2.0); };
     std::vector<std::vector<Req>> waves;
     for (const Req& s : setup) waves.push_back({s});
     std::vector<Reply> alone;
     for (const Req& r : reqs) {
         auto model = make(pool, ubatch);
         waves.push_back({r});
-        alone.push_back(serve(*model, tok, max_seqs, waves).back());
+        alone.push_back(serve(*model, tok, max_seqs, waves, nullptr, 0, 0, nullptr, 0, false, {}, price).back());
         waves.pop_back();
     }
     auto model = make(pool, ubatch);
     waves.push_back(reqs);
     server::Scheduler::Stats stats;
-    const std::vector<Reply> together = serve(*model, tok, max_seqs, waves, &stats);
+    const std::vector<Reply> together = serve(*model, tok, max_seqs, waves, &stats, 0, 0, nullptr, 0, false, {}, price);
     require(stats.pauses >= 1, what + ": nothing paused");
     for (size_t i = 0; i < reqs.size(); ++i)
         same(alone[i], together[setup.size() + i], what + ", request " + std::to_string(i));
@@ -55,7 +57,7 @@ void three_uncapped(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab,
 // A prompt read one token a pass is still prefilling when the request beside it has to grow and the pool is short, so it is paused part-way through its prompt, its donor then going to the one that grew.
 void prefilling_victim(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const std::vector<Req> reqs = {{prompt_of(1, 4, vocab)}, {prompt_of(2, 384, vocab)}};
-    const auto s = alone_then_together(make, tok, 1024, 1, 3, {}, reqs, "a victim still prefilling");
+    const auto s = alone_then_together(make, tok, 1024, 1, 3, {}, reqs, "a victim still prefilling", 250.0);
     require(s.taken_back == 0 && s.recomputed >= 2 * kBlock, "a victim still prefilling: " + std::to_string(s.taken_back) + " taken back and " +
             std::to_string(s.recomputed) + " rows recomputed, against 0 and at least the two blocks of its prompt it had read");
 }

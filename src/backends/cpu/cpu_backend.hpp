@@ -232,9 +232,13 @@ public:
 
     void embed(Slice dst_s, WeightView weight, size_t nin,
                size_t nrows, const uint32_t* ids, size_t count) override {
+        embed_rows(at(dst_s), weight, nin, nrows, ids, count);
+    }
+
+    // Rows `ids` of a table into host floats, a zero row for an id of nrows or more.
+    void embed_rows(float* dst, WeightView weight, size_t nin, size_t nrows, const uint32_t* ids, size_t count) {
         const float* scales = weight.type == quant::GGML_TYPE_F8_E4M3 ? fp8_scales(weight, nin, nrows) : weight_scales(weight);
         const uint32_t type = weight.type;
-        float* dst = at(dst_s);
         const uint8_t* rows = (const uint8_t*)bytes_at(weight.data);
         const quant::QuantType* qt = type == quant::GGML_TYPE_F32
                                    ? nullptr : quant::Registry::instance().get(type);
@@ -988,6 +992,7 @@ public:
             const KVView& view = views[vi];
             if (!view.nq || view.nq > (size_t)std::numeric_limits<int>::max())
                 throw std::runtime_error("backend: invalid attention dimensions");
+            if (view.window && !view.causal) throw std::runtime_error("backend: a window on a non-causal view");
             const int nbatch = (int)view.nq;
             const float* Q = Q_all + row0 * q_stride;
             float* out = out_all + row0 * q_stride;
@@ -1003,32 +1008,33 @@ public:
                 float* scores = attention_scores_.data() + (size_t)h * sequence;
                 for (int b = 0; b < nbatch; ++b) {
                     const size_t end = view.causal ? view.length + (size_t)b + 1 : sequence;
+                    const size_t begin = view.window && end > view.window ? end - view.window : 0;
                     const float* q = Q + (size_t)b * q_stride + (size_t)h * hd;
                     float max_score = -std::numeric_limits<float>::infinity();
-                    for (size_t t0 = 0; t0 < end; t0 += bt) {
+                    for (size_t t0 = begin - begin % bt; t0 < end; t0 += bt) {
                         const size_t n = std::min(bt, end - t0);
                         if (s.k_type() == KVType::f16) {
                             const uint16_t* kb = s.kh(layer, view.blocks[t0 / bt]) + kvh * bt * hd;
-                            for (size_t j = 0; j < n; ++j) {
+                            for (size_t j = t0 < begin ? begin - t0 : 0; j < n; ++j) {
                                 scores[t0 + j] = dot_f32_f16(q, kb + j * hd, hd) * scale;
                                 max_score = std::max(max_score, scores[t0 + j]);
                             }
                             continue;
                         }
                         const float* kb = s.k(layer, view.blocks[t0 / bt]) + kvh * bt * hd;
-                        for (size_t j = 0; j < n; ++j) {
+                        for (size_t j = t0 < begin ? begin - t0 : 0; j < n; ++j) {
                             scores[t0 + j] = dot_f32(q, kb + j * hd, hd) * scale;
                             max_score = std::max(max_score, scores[t0 + j]);
                         }
                     }
                     float sum = 0.0f;
-                    for (size_t t = 0; t < end; ++t) {
+                    for (size_t t = begin; t < end; ++t) {
                         scores[t] = std::exp(scores[t] - max_score);
                         sum += scores[t];
                     }
                     float* dst = out + (size_t)b * q_stride + (size_t)h * hd;
                     // Normalize once; each lane then keeps sequence order while its partial sum stays in a register across KV rows.
-                    for (size_t t = 0; t < end; ++t) scores[t] /= sum;
+                    for (size_t t = begin; t < end; ++t) scores[t] /= sum;
                     const auto vblock = [&](size_t t0) {
                         return s.v(layer, view.blocks[t0 / bt]) + kvh * bt * hd;
                     };
@@ -1040,10 +1046,10 @@ public:
                         size_t d = 0;
                         for (; d + 8 <= hd; d += 8) {
                             __m256 acc = _mm256_setzero_ps();
-                            for (size_t t0 = 0; t0 < end; t0 += bt) {
+                            for (size_t t0 = begin - begin % bt; t0 < end; t0 += bt) {
                                 const uint16_t* vb = vblock16(t0) + d;
                                 const size_t n = std::min(bt, end - t0);
-                                for (size_t j = 0; j < n; ++j)
+                                for (size_t j = t0 < begin ? begin - t0 : 0; j < n; ++j)
                                     acc = _mm256_add_ps(acc, _mm256_mul_ps(_mm256_set1_ps(scores[t0 + j]),
                                                                            _mm256_cvtph_ps(_mm_loadu_si128((const __m128i*)(vb + j * hd)))));
                             }
@@ -1051,10 +1057,10 @@ public:
                         }
                         for (; d < hd; ++d) {
                             float acc = 0.0f;
-                            for (size_t t0 = 0; t0 < end; t0 += bt) {
+                            for (size_t t0 = begin - begin % bt; t0 < end; t0 += bt) {
                                 const uint16_t* vb = vblock16(t0) + d;
                                 const size_t n = std::min(bt, end - t0);
-                                for (size_t j = 0; j < n; ++j) acc = std::fma(scores[t0 + j], f16_to_f32(vb[j * hd]), acc);
+                                for (size_t j = t0 < begin ? begin - t0 : 0; j < n; ++j) acc = std::fma(scores[t0 + j], f16_to_f32(vb[j * hd]), acc);
                             }
                             dst[d] = acc;
                         }
@@ -1064,10 +1070,10 @@ public:
                     for (; d + 32 <= hd; d += 32) {
                         __m256 a0 = _mm256_setzero_ps(), a1 = _mm256_setzero_ps();
                         __m256 a2 = _mm256_setzero_ps(), a3 = _mm256_setzero_ps();
-                        for (size_t t0 = 0; t0 < end; t0 += bt) {
+                        for (size_t t0 = begin - begin % bt; t0 < end; t0 += bt) {
                             const float* vb = vblock(t0) + d;
                             const size_t n = std::min(bt, end - t0);
-                            for (size_t j = 0; j < n; ++j) {
+                            for (size_t j = t0 < begin ? begin - t0 : 0; j < n; ++j) {
                                 const float* v = vb + j * hd;
                                 const __m256 sw = _mm256_set1_ps(scores[t0 + j]);
                                 a0 = _mm256_add_ps(a0, _mm256_mul_ps(sw, _mm256_loadu_ps(v)));
@@ -1081,10 +1087,10 @@ public:
                     }
                     for (; d + 8 <= hd; d += 8) {
                         __m256 acc = _mm256_setzero_ps();
-                        for (size_t t0 = 0; t0 < end; t0 += bt) {
+                        for (size_t t0 = begin - begin % bt; t0 < end; t0 += bt) {
                             const float* vb = vblock(t0) + d;
                             const size_t n = std::min(bt, end - t0);
-                            for (size_t j = 0; j < n; ++j)
+                            for (size_t j = t0 < begin ? begin - t0 : 0; j < n; ++j)
                                 acc = _mm256_add_ps(acc, _mm256_mul_ps(_mm256_set1_ps(scores[t0 + j]),
                                                                        _mm256_loadu_ps(vb + j * hd)));
                         }
@@ -1092,10 +1098,10 @@ public:
                     }
                     for (; d < hd; ++d) {
                         float acc = 0.0f;
-                        for (size_t t0 = 0; t0 < end; t0 += bt) {
+                        for (size_t t0 = begin - begin % bt; t0 < end; t0 += bt) {
                             const float* vb = vblock(t0) + d;
                             const size_t n = std::min(bt, end - t0);
-                            for (size_t j = 0; j < n; ++j) acc = std::fma(scores[t0 + j], vb[j * hd], acc);
+                            for (size_t j = t0 < begin ? begin - t0 : 0; j < n; ++j) acc = std::fma(scores[t0 + j], vb[j * hd], acc);
                         }
                         dst[d] = acc;
                     }
@@ -2116,6 +2122,104 @@ public:
                 }
                 for (size_t d = 0; d < dim; ++d) o[d] /= denominator;
             });
+        }
+    }
+
+    void unit_rows(Slice dst_s, Slice norms_s, CSlice src_s, size_t rows, size_t n, float gain, float eps, RowScale mode) override {
+        if (!n) throw std::runtime_error("backend: unit rows of no width");
+        if (!rows) return;
+        validate_float_slice(dst_s, size_mul(rows, n));
+        validate_float_slice(src_s, size_mul(rows, n));
+        if (norms_s.buffer) validate_float_slice(norms_s, rows);
+        float* dst = at(dst_s);
+        const float* src = at(src_s);
+        float* norms = norms_s.buffer ? at(norms_s) : nullptr;
+        spread(rows, [&](size_t r) {
+            const float* x = src + r * n;
+            float* y = dst + r * n;
+            float scale = gain;
+            if (mode != RowScale::none) {
+                double sum = 0.0;
+                for (size_t i = 0; i < n; ++i) sum += double(x[i]) * double(x[i]);
+                const float norm = std::sqrt(std::max(float(mode == RowScale::rms ? sum / double(n) : sum), std::numeric_limits<float>::min()));
+                if (norms) norms[r] = norm;
+                scale = gain / (norm + eps);
+            }
+            for (size_t i = 0; i < n; ++i) y[i] = x[i] * scale;
+        });
+    }
+
+    void sigmoid_gate_rows(Slice msg_s, CSlice q_s, CSlice s_s, CSlice v_s, CSlice bias_s, CSlice scale_s, size_t rows, size_t width, const uint32_t* q_rows,
+                       const uint32_t* from) override {
+        if (!width) throw std::runtime_error("backend: code messages of no width");
+        if (!rows) return;
+        if (!q_rows || !from) throw std::runtime_error("backend: code messages without their rows");
+        validate_float_slice(msg_s, size_mul(rows, width));
+        validate_float_slice(bias_s, width);
+        float* msg = at(msg_s);
+        const float *q = at(q_s), *sv = at(s_s), *v = at(v_s), *bias = at(bias_s), *scale = at(scale_s);
+        for (size_t r = 0; r < rows; ++r) {
+            float* y = msg + r * width;
+            if (from[r] == UINT32_MAX) {
+                std::fill(y, y + width, 0.0f);
+                continue;
+            }
+            span(*q_s.buffer, (q_s.offset + size_mul(q_rows[r], width)) * sizeof(float), width * sizeof(float));
+            span(*scale_s.buffer, (scale_s.offset + q_rows[r]) * sizeof(float), sizeof(float));
+            span(*s_s.buffer, (s_s.offset + size_mul(from[r], width)) * sizeof(float), width * sizeof(float));
+            span(*v_s.buffer, (v_s.offset + size_mul(from[r], width)) * sizeof(float), width * sizeof(float));
+            const float *qr = q + size_t(q_rows[r]) * width, *sr = sv + size_t(from[r]) * width, *vr = v + size_t(from[r]) * width, g = scale[q_rows[r]];
+            for (size_t i = 0; i < width; ++i) y[i] = vr[i] / (1.0f + std::exp(-(qr[i] + sr[i] + bias[i]))) * g;
+        }
+    }
+
+    void matmul_at_ids(Slice out_s, CSlice x_s, CSlice w_s, WeightView head, size_t width, size_t nrows, CSlice ids_s, size_t groups, size_t k, size_t per) override {
+        if (!width || !k || !per || per > k) throw std::runtime_error("backend: invalid grouped row dot dimensions");
+        if (!groups) return;
+        validate_float_slice(out_s, size_mul(size_mul(groups, k), k));
+        validate_float_slice(x_s, size_mul(size_mul(groups, per), width));
+        validate_float_slice(w_s, width);
+        validate_float_slice(ids_s, size_mul(groups, k));
+        float* out = at(out_s);
+        const float *x = at(x_s), *w = at(w_s), *ids = at(ids_s);
+        std::vector<float> rows(size_mul(size_mul(groups, k), width));
+        std::vector<uint32_t> picked(groups * k);
+        for (size_t i = 0; i < groups * k; ++i) picked[i] = u32_at(ids, i);
+        embed_rows(rows.data(), head, width, nrows, picked.data(), groups * k);
+        spread(groups, [&](size_t g) {
+            for (size_t j = 0; j < per; ++j)
+                for (size_t c = 0; c < k; ++c) {
+                    const float* xr = x + (g * per + j) * width;
+                    const float* hr = rows.data() + (g * k + c) * width;
+                    double sum = 0.0;
+                    for (size_t e = 0; e < width; ++e) sum += double(xr[e]) * double(w[e]) * double(hr[e]);
+                    out[(g * k + j) * k + c] = picked[g * k + c] < nrows ? float(sum) : -std::numeric_limits<float>::infinity();
+                }
+        });
+    }
+
+    void chain_pick(Slice next_s, CSlice score_s, CSlice cand_s, size_t seqs, size_t steps, size_t k) override {
+        if (!k) throw std::runtime_error("backend: a chain over no candidates");
+        if (!seqs || !steps) return;
+        validate_float_slice(next_s, size_mul(steps, seqs));
+        validate_float_slice(score_s, size_mul(size_mul(steps, seqs), size_mul(k, k)));
+        validate_float_slice(cand_s, size_mul(size_mul(steps, seqs), k));
+        float* next = at(next_s);
+        const float *score = at(score_s), *cand = at(cand_s);
+        // Only the rows the walk reads are refused over a NaN; a step's other rows may never have been scored.
+        const auto best = [&](const float* row) {
+            refuse_nan(row, k, "a chain pick");
+            size_t j = 0;
+            for (size_t c = 1; c < k; ++c)
+                if (row[c] > row[j]) j = c;
+            return j;
+        };
+        for (size_t i = 0; i < seqs; ++i) {
+            size_t j = best(score + i * k * k);
+            for (size_t t = 0; t < steps; ++t) {
+                put_u32(next, t * seqs + i, u32_at(cand, (t * seqs + i) * k + j));
+                if (t + 1 < steps) j = best(score + ((t + 1) * seqs + i) * k * k + j * k);
+            }
         }
     }
 

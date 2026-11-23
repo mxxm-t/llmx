@@ -779,7 +779,7 @@ inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vec
     if (!drafter_file.empty()) {
         gguf::GGUFModel side = gguf::read_gguf(drafter_file);
         loaded->drafter = spec::pair(loaded->file, path, side, drafter_file);
-        if (*loaded->drafter == spec::DrafterKind::mtp) {
+        if (*loaded->drafter != spec::DrafterKind::model) {
             spec::join_blocks(loaded->file, std::move(side));
             placing.drafter = true;
         }

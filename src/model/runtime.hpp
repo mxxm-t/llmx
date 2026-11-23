@@ -102,6 +102,8 @@ struct ModelOptions {
     std::function<std::optional<size_t>()> host_memory;
     // Called after every routed step with its picks (RouteHook), which a pass then waits to read back; a tool's, never a run's, and refused for tensor groups.
     RouteHook routes;
+    // Called before every layer's mixer with the residual entering it (StreamHook), which a pass then waits to read back; a tool's, never a run's, and on a tensor group the first member's.
+    StreamHook streams;
 };
 
 // The most rows an argmax pass keeps on the output device (Model::argmax_buffers): a verify's, which a mark bounds, or a step's one, and none where passes take no argmax (ModelOptions::argmax_passes).
@@ -405,11 +407,14 @@ inline size_t kv_tokens(const ModelPlan& plan, const ModelOptions& options) {
     return options.kv_tokens ? options.kv_tokens : plan.context_length;
 }
 
-// The bytes one layer keeps per position: K and V at the requested types, with any auxiliary row kept in F32.
-inline size_t kv_bytes_per_position(const ModelPlan& plan, const ModelOptions& options, size_t auxiliary = 0) {
-    return backend::size_add(backend::size_mul(backend::size_mul(plan.kv_heads, plan.head_dim),
+// The bytes one layer of `shape` keeps per position: K and V at the requested types, with any auxiliary row kept in F32.
+inline size_t kv_bytes_per_position(backend::KVShape shape, const ModelOptions& options, size_t auxiliary = 0) {
+    return backend::size_add(backend::size_mul(backend::size_mul(shape.heads, shape.dim),
                              backend::kv_elem_bytes(options.kv_k) + backend::kv_elem_bytes(options.kv_v)),
                              backend::size_mul(auxiliary, sizeof(float)));
+}
+inline size_t kv_bytes_per_position(const ModelPlan& plan, const ModelOptions& options, size_t auxiliary = 0) {
+    return kv_bytes_per_position(backend::KVShape{plan.kv_heads, plan.head_dim}, options, auxiliary);
 }
 
 // A plan's cache type settled once for the fit and the model: one declaring a native format (LayerPlan::native) takes it unless a flag gives f32, refusing f16 and two types; one declaring none refuses native.
@@ -523,7 +528,8 @@ public:
             token_width_ = layer.token_history;
             token_padding_ = layer.token_padding;
         }
-        if (plan_.drafter) kv_aux_ = backend::size_add(kv_aux_, backend::size_mul(plan_.drafter->kv_aux_floats(), sizeof(float)));
+        if (plan_.drafter)
+            kv_aux_ = backend::size_add(kv_aux_, backend::size_mul(backend::size_mul(plan_.drafter->kv_aux_floats(), sizeof(float)), plan_.draft_kv_layers));
         for (size_t i = 0; i < plan_.carried.size(); ++i)
             if (!plan_.carried[i].slot || plan_.carried[i].slot >= plan_.slots.size() || (i && plan_.carried[i].slot <= plan_.carried[i - 1].slot) ||
                 plan_.carried[i].from < 0 || plan_.carried[i].from > (int)plan_.layers.size())
@@ -725,8 +731,11 @@ public:
                     if (!devices_[d]->mixer_layers) throw std::runtime_error("inference: an embedded drafter's stage runs on a device that holds no layers");
             }
             if (keeps_kv(*plan_.drafter)) {
-                drafter_kv_ = (size_t)devices_[(size_t)place_.output_device]->kv_layers++;
-                ++kv_layers_;
+                if (!plan_.draft_kv_layers) throw std::logic_error("inference: a KV drafter keeps no KV layer");
+                Device& head = *devices_[(size_t)place_.output_device];
+                drafter_kv_ = (size_t)head.kv_layers;
+                head.kv_layers += (int)plan_.draft_kv_layers;
+                kv_drafter_ = backend::size_mul(plan_.draft_kv_layers, kv_bytes_per_position(draft_kv_shape(plan_), options_));
             }
             drafter_state_.assign(devices_.size(), SIZE_MAX);
             for (size_t d : draft_devices_) {
@@ -828,11 +837,19 @@ public:
                         pools[(size_t)d.kv_local[l]] = {plan_.layers[l].kv_pool, plan_.layers[l].kv_pool_width};
                     }
                 if (plan_.drafter && keeps_kv(*plan_.drafter) && (size_t)(&dp - devices_.data()) / width_ == (size_t)place_.output_device / width_) {
-                    auxiliary[drafter_kv_] = plan_.drafter->kv_aux;
-                    pools[drafter_kv_] = {plan_.drafter->kv_pool, plan_.drafter->kv_pool_width};
+                    for (size_t k = drafter_kv_; k < drafter_kv_ + plan_.draft_kv_layers; ++k) {
+                        auxiliary[k] = plan_.drafter->kv_aux;
+                        pools[k] = {plan_.drafter->kv_pool, plan_.drafter->kv_pool_width};
+                    }
+                }
+                // A drafter whose KV layers have a shape of their own gives each layer of the head's storage its shape (shard::check_plan keeps it to one device).
+                std::vector<backend::KVShape> shapes;
+                if (plan_.draft_kv.heads && plan_.drafter && keeps_kv(*plan_.drafter) && (size_t)(&dp - devices_.data()) == (size_t)place_.output_device) {
+                    shapes.assign((size_t)d.kv_layers, backend::KVShape{plan_.kv_heads, plan_.head_dim});
+                    std::fill(shapes.begin() + (std::ptrdiff_t)drafter_kv_, shapes.begin() + (std::ptrdiff_t)(drafter_kv_ + plan_.draft_kv_layers), plan_.draft_kv);
                 }
                 d.storage = d.b->kv_alloc((size_t)d.kv_layers, shard::kv_heads(plan_, width_), plan_.head_dim,
-                                          budget, stored_kv(options_.kv_k), stored_kv(options_.kv_v), auxiliary, pools);
+                                          budget, stored_kv(options_.kv_k), stored_kv(options_.kv_v), auxiliary, pools, shapes);
                 if (options_.kv_backed) d.storage->back_all();
                 if (d.member) {
                     d.storage_index = devices_[(size_t)(&dp - devices_.data()) - d.member]->storage_index;
@@ -1195,9 +1212,10 @@ public:
         std::vector<DraftAsk> asks;
         std::vector<size_t> order;             // the asks that draft, longest chain first
         size_t steps = 0, block = 1;           // the drafter's calls, each giving up to `block` drafts a sequence
+        size_t call_rows = 1;                  // and running that many rows a sequence (draft_call_rows)
         std::vector<uint32_t> last, carried;   // each row's last pick and the slot of the row its history carries
         std::vector<size_t> rows;              // each step's rows
-        std::vector<uint32_t> pos;             // step m's positions from m * R * block, a sequence's block of rows together
+        std::vector<uint32_t> pos;             // step m's positions from m * R * call_rows, a sequence's rows together
         std::vector<backend::KVView> views;    // step m's views on member g from (m * W + g) * R, a KV drafter's
         std::vector<backend::StateView> states; // the same, a state drafter's
         std::vector<KVSequence*> kv;
@@ -1213,8 +1231,8 @@ public:
     void reserve_drafting();
     // The model's own context's arena for a prompt pass of up to `rows` rows, made as the model is built (build_fitted), so its first pass makes no arena.
     void reserve_prompt(size_t rows);
-    // The draft rows a chain of k drafts takes, k rounded up to whole calls of the drafter's block (ModelPlan::draft_block).
-    size_t draft_span(size_t k) const { return draft_calls(plan_, k) * std::max<size_t>(plan_.draft_block, 1); }
+    // The draft rows a chain of k drafts takes, k rounded up to whole calls of the drafter's block, each with its anchor rows (draft_call_rows).
+    size_t draft_span(size_t k) const { return draft_calls(plan_, k) * draft_call_rows(plan_); }
     void draft(Sequence& s, uint32_t last, size_t k, std::vector<uint32_t>& out) {
         DraftAsk a{&s, last, k, &out};
         draft(&a, 1);
@@ -1401,7 +1419,7 @@ public:
         return n;
     }
     size_t kv_used_bytes() const {
-        return seq_.length() * (kv_layers_ * kv_bytes_per_position(plan_, options_) + kv_aux_);
+        return seq_.length() * (kv_layers_ * kv_bytes_per_position(plan_, options_) + kv_drafter_ + kv_aux_);
     }
 
     // Whether some layer keeps a recurrent state, which exists only at the end of what it has read: such a model forks and retracts only at a checkpoint, and a failed pass returns its entries to theirs.
@@ -1522,6 +1540,7 @@ private:
     std::vector<std::unique_ptr<Device>> devices_;
     std::vector<Device*> storages_;              // the devices whose mixer layers keep KV
     size_t kv_layers_ = 0;                       // the model's layers that keep KV
+    size_t kv_drafter_ = 0;                      // K and V bytes per position over the drafter's KV layers, in their shape (draft_kv_shape)
     std::vector<bool> appends_;                  // each layer: whether it fills its device's replica of its source (Step::appends)
     size_t kv_aux_ = 0;                          // auxiliary bytes per position over those layers
     size_t state_layers_ = 0;                    // and those that keep a state slot
@@ -1577,7 +1596,7 @@ private:
     std::vector<std::vector<Weight>> stream_;
     std::vector<std::vector<backend::BufferPtr>> windows_;   // per device, a buffer per window role in role order, sized to the largest streamed layer's
     std::vector<Weight> drafter_;                // an embedded drafter's roles by role id, each on its device (drafter_device)
-    size_t drafter_kv_ = 0;                      // its KV layer in the head's device's storage
+    size_t drafter_kv_ = 0;                      // its first KV layer in the head's device's storage (ModelPlan::draft_kv_layers)
     std::vector<size_t> drafter_state_;          // per group's first device, its state layer in that device's storage, SIZE_MAX where it holds none
     std::vector<size_t> draft_devices_;          // the devices its stages run on in stage order, each once, the head's where they run with it
     bool draft_apart_ = false;                   // some stage runs on a device other than the head's
@@ -1920,6 +1939,7 @@ private:
         return s;
     }
     Step mixer_part(ExecContext& ctx, const Pass& p, size_t dev, int l) const;
+    void stream_rows(const Step& s) const;
     void positions(const Sequence& s, size_t first, size_t n, bool streams, uint32_t* out) const;
     std::vector<Sequence::Media> carried(const Sequence& s, size_t length) const;
     void drop_media(Sequence& s, size_t length, const Defer* defer = nullptr) noexcept;

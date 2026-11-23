@@ -835,7 +835,7 @@ bool drafts_flag(int argc, char** argv, int& i, const std::string& a, std::strin
 }
 
 void Drafts::attach(const infer::LoadedModel& loaded, const ExecOptions& exec, bool progress, bool server) {
-    if (loaded.drafter == infer::spec::DrafterKind::mtp) embedded = true;
+    if (loaded.drafter == infer::spec::DrafterKind::mtp || loaded.drafter == infer::spec::DrafterKind::joined) embedded = true;
     if (embedded) {
         proposer = std::make_unique<infer::spec::Embedded>(*loaded.model, lookup_first);
         return;

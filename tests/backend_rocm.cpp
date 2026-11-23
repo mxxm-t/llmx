@@ -323,11 +323,11 @@ void refusals(Backend& g) {
     require(throws([&] { g.matmul({quant::GGML_TYPE_I8, {w.get(), 0}}, {x.get(), 0}, {y.get(), 0}, 256, 4, 1); }), "an I8 matmul is refused");
     require(throws([&] { g.matmul({quant::GGML_TYPE_Q4_K, {w.get(), 0}}, {x.get(), 0}, {y.get(), 0}, 128, 4, 1); }), "a Q4_K row ending inside a block is refused");
     require(throws([&] { g.matmul({quant::GGML_TYPE_Q8_0, {w.get(), 0}}, {x.get(), 0}, {y.get(), 0}, 48, 4, 1); }), "a Q8_0 row ending inside a block is refused");
-    // The ops ROCm implements are its `implements`, which the kernel checks below reach one by one: every op but the two it lacks.
+    // The ops ROCm implements are its `implements`, which the kernel checks below reach one by one: every op but the three it lacks.
     // The loop ends at Op's last enumerator (backend.hpp), so an Op appended there moves this end with it.
-    for (int i = 0; i <= int(Op::sparse_attention_blocks); ++i) {
+    for (int i = 0; i <= int(Op::attention_window); ++i) {
         const Op op = Op(i);
-        const bool lacked = op == Op::mixed_experts || op == Op::sigmoid_routing;
+        const bool lacked = op == Op::mixed_experts || op == Op::sigmoid_routing || op == Op::attention_window;
         require(g.implements(op) != lacked, std::string("the backend reports ") + backend::op_name(op) + (lacked ? ", which it lacks" : " as it lacks it"));
     }
 }

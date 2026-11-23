@@ -586,6 +586,71 @@ void layer_shapes() {
     }
 }
 
+// A window (KVView::window) over histories either side of a block edge: row b at position p attends positions above p - window, against a double reference, and a window at or above the row's whole extent gives the bits of none.
+// A window on a non-causal view is refused.
+void attention_window() {
+    backend::CpuBackend cpu;
+    cpu.set_threads(2);
+    const size_t bt = cpu.kv_layout().block_tokens;
+    const int n_head = 4, n_head_kv = 2, head_dim = 40;
+    std::mt19937 rng(11);
+    std::uniform_real_distribution<float> uni(-1.0f, 1.0f);
+    for (size_t n_past : {size_t(3), bt - 1, bt + 1, 2 * bt + 3}) {
+        const int nbatch = 5;
+        const size_t sequence = n_past + (size_t)nbatch;
+        std::vector<float> K(sequence * n_head_kv * head_dim), V(K.size()), Q((size_t)nbatch * n_head * head_dim);
+        for (auto* v : {&K, &V, &Q})
+            for (auto& x : *v) x = uni(rng);
+        auto st = cpu.kv_alloc(1, n_head_kv, head_dim, 8 * bt);
+        infer::BlockPool pool;
+        pool.configure(st->max_blocks());
+        infer::KVSequence seq(&pool, bt);
+        seq.prepare(sequence);
+        backend::KVView all = seq.view(st.get());
+        const auto Kb = cpu.adopt(K.data(), K.size() * sizeof(float)), Vb = cpu.adopt(V.data(), V.size() * sizeof(float)), Qb = cpu.adopt(Q.data(), Q.size() * sizeof(float));
+        cpu.kv_write(0, &all, 1, {Kb.get(), 0}, {Vb.get(), 0});
+        backend::KVView view = all;
+        view.length = n_past;
+        view.nq = (size_t)nbatch;
+        const auto run = [&](size_t window) {
+            view.window = window;
+            std::vector<float> out(Q.size(), 0.0f);
+            const auto ob = cpu.adopt(out.data(), out.size() * sizeof(float));
+            cpu.attention({Qb.get(), 0}, 0, &view, 1, {ob.get(), 0}, n_head, n_head_kv, head_dim);
+            return out;
+        };
+        const std::vector<float> whole = run(0);
+        require(run(sequence) == whole && run(sequence + 7) == whole, "a window past the history changed the result");
+        for (size_t window : {size_t(1), size_t(2), bt - 1, bt, bt + 2}) {
+            const std::vector<float> got = run(window);
+            const double scale = 1.0 / std::sqrt((double)head_dim);
+            for (int b = 0; b < nbatch; ++b)
+                for (int h = 0; h < n_head; ++h) {
+                    const int kvh = h / (n_head / n_head_kv);
+                    const size_t end = n_past + (size_t)b + 1, begin = end > window ? end - window : 0;
+                    std::vector<double> sc(end, 0.0);
+                    double mx = -1e300, sum = 0.0;
+                    for (size_t t = begin; t < end; ++t) {
+                        double s = 0;
+                        for (int d = 0; d < head_dim; ++d) s += (double)Q[((size_t)b * n_head + h) * head_dim + d] * K[(t * n_head_kv + kvh) * head_dim + d];
+                        mx = std::max(mx, sc[t] = s * scale);
+                    }
+                    for (size_t t = begin; t < end; ++t) sum += (sc[t] = std::exp(sc[t] - mx));
+                    for (int d = 0; d < head_dim; ++d) {
+                        double acc = 0;
+                        for (size_t t = begin; t < end; ++t) acc += sc[t] / sum * V[(t * n_head_kv + kvh) * head_dim + d];
+                        require(std::fabs(got[((size_t)b * n_head + h) * head_dim + d] - acc) <= 1e-5 * (1.0 + std::fabs(acc)), "windowed attention differs from the reference");
+                    }
+                }
+        }
+        view.window = 2;
+        view.causal = false;
+        std::vector<float> out(Q.size(), 0.0f);
+        const auto ob = cpu.adopt(out.data(), out.size() * sizeof(float));
+        rejects([&] { cpu.attention({Qb.get(), 0}, 0, &view, 1, {ob.get(), 0}, n_head, n_head_kv, head_dim); }, "a window on a non-causal view accepted");
+    }
+}
+
 // Two sequences in one pass: their rows concatenated in view order through one kv_write and one attention call must equal the same two written and attended separately, bit for bit.
 // Histories straddle a block edge and differ in length so a row offset or a length taken from the wrong view shows.
 void batched_views() {
@@ -1277,6 +1342,7 @@ int main() {
         growth_hooks();
         attention_over_blocks();
         layer_shapes();
+        attention_window();
         model_transaction();
         release_syncs();
         batched_views();
@@ -1290,7 +1356,7 @@ int main() {
         host_pool_pressure();
         replay_by_class();
         std::cout << "KV cache: pool, sequence, ownership, on-demand storage, growth steps and peak, growth hooks, "
-                     "reset, paged attention, layers of their own shape, failed-step transactions, retire-before-release and replay by class pass\n";
+                     "reset, paged attention, layers of their own shape, windowed attention, failed-step transactions, retire-before-release and replay by class pass\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';

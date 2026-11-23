@@ -790,7 +790,9 @@ inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s, size_t lay
     for (int l = p.layer; l < end; l++) {
         if (st.device != cur) { cross(ctx, p, cur, st.device, 0, p.rows, l); cur = st.device; }
         finish_lookup(ctx, p, cur, 1, l);
-        arch_->mixer(mixer_part(ctx, p, cur, l));
+        const Step step = mixer_part(ctx, p, cur, l);
+        stream_rows(step);
+        arch_->mixer(step);
         if (plan_.layers[(size_t)l].cache == Cache::state) save(ctx, p, cur, l);
         if (p.long_runs && stream_device_[(size_t)l] == (int)cur) {
             ffn_split(ctx, p, cur, l);
@@ -933,6 +935,7 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s, size_t laye
             Step step = mixer_part(ctx, p, g + m, l);
             step.width = W;
             step.partial = sum.partial(m);
+            if (m == 0) stream_rows(step);
             arch_->mixer(step);
             if (plan_.layers[(size_t)l].cache == Cache::state) save(ctx, p, g + m, l);
         }
@@ -1433,6 +1436,14 @@ inline Step Model::part(ExecContext& ctx, size_t dev, const Weight* w, uint8_t k
     step.native = plan_.native;
     if (options_.routes) step.routes = &options_.routes;
     return step;
+}
+
+// The residual entering a layer's mixer, read back for ModelOptions::streams where a caller gave it.
+inline void Model::stream_rows(const Step& s) const {
+    if (!options_.streams) return;
+    std::vector<float> x(backend::size_mul(s.rows, plan_.residual));
+    s.b.read(*s.x.buffer, s.x.offset * sizeof(float), x.data(), x.size() * sizeof(float));
+    options_.streams(s.layer, s.rows, plan_.residual, x.data());
 }
 
 // Layer l's mixer over every row of the pass, with the cache views of its device's storage when the layer keeps KV, and the rows' positions.

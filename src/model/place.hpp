@@ -179,7 +179,8 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
         // A drafter with stages keeps its KV or state on each device that holds a stage, every one the whole layer's shape; without stages, on the head's device.
         size_t& held_cache = dl.stages.empty() ? fp.drafter_cache : fp.drafter_stage_cache;
         fp.drafter_cache = 0;
-        if (keeps_kv(dl)) held_cache = backend::size_mul(kv_tokens(plan, options), kv_bytes_per_position(kept, options, dl.kv_aux_floats()));
+        if (keeps_kv(dl))
+            held_cache = backend::size_mul(backend::size_mul(kv_tokens(plan, options), kv_bytes_per_position(plan.draft_kv.heads ? plan.draft_kv : backend::KVShape{kept.kv_heads, kept.head_dim}, options, dl.kv_aux_floats())), plan.draft_kv_layers);
         if (keeps_slot(dl))
             held_cache = backend::size_add(held_cache, backend::size_mul(backend::size_mul(slots, backend::size_add(kept.state.slot_floats(), dl.state_tail)), sizeof(float)));
         if (carries_row(plan))
@@ -195,7 +196,7 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
     }
     {
         const bool states = std::any_of(plan.layers.begin(), plan.layers.end(), [](const LayerPlan& l) { return l.cache == Cache::state; });
-        fp.context_rows = std::max(states && options.mark_slots ? options.mark_rows : 0, plan.drafter && options.mark_slots ? options.mark_slots * std::max<size_t>(plan.draft_block, 1) : 0);
+        fp.context_rows = std::max(states && options.mark_slots ? options.mark_rows : 0, plan.drafter && options.mark_slots ? options.mark_slots * draft_call_rows(plan) : 0);
     }
     // Runtime gives every state layer on one device the largest saved and rerun row of that device. Before placement, charge the model-wide maxima for each state layer.
     size_t saved_max = 0, rerun_max = 0;

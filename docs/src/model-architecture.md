@@ -54,7 +54,7 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   for one, its roles all `Part::draft`, which run on the head's device, and
   `draft_x`, the arena slot of a draft step's residual rows, which a tensor group sums into, and
   `draft_h`, the arena slot its context rows leave the target's
-  final-normed rows in, 0 for a drafter whose context rows read no row of the target before each row, `draft_block`, the most drafts one of its calls gives, 0 for one, and `draft_window`, the positions before a history's end whose context rows a draft reads, 0 for all of them).
+  final-normed rows in, 0 for a drafter whose context rows read no row of the target before each row, `draft_block`, the most drafts one of its calls gives, 0 for one, `draft_anchor`, the rows a call runs a sequence before its block's, which draft nothing (1 for a DFlash drafter, whose first row holds the last pick; `draft_call_rows` gives a call's rows), `draft_window`, the positions before a history's end whose context rows a draft reads, 0 for all of them, and `draft_kv_layers`, the consecutive KV layers a KV drafter keeps, 1 by default, `Step::kv_layer` naming the first, with `draft_kv` their K and V heads and width where they differ from the target's, none by default, `draft_kv_shape` giving the shape either way).
   `carries_row(plan)` holds where the drafter carries each sequence's last normed row from one pass to the next (`draft_h` nonzero), which decides the runtime's carried row, zero row, saved rows and the fit's count of them; `draft_calls(plan, k)` gives the calls that make k drafts.
   The drafter's cache is KV, or a state slot where its `LayerPlan` keeps entries.
   - A `RoleKind` says how a role's tensor is checked and whether the fit
@@ -85,6 +85,7 @@ never sees devices, placements, stages or caches beyond what a call hands it.
     for each pass role, a role of another part and kind needing a field of
     its own first; each is the architecture's error (`std::logic_error`).
 - `RouteHook`: what a routed step hands a caller that follows its picks (tools/route_probe.cpp): the model's layer, the step's rows, each row's k expert ids and its router scores, read back from the device after the step.
+- `StreamHook`: what a pass hands a caller that checks the stream a drafter taps (tools/route_probe.cpp): the model's layer, the pass's rows, the residual's floats a row and the residual entering the layer, read back from the device before the layer's mixer runs.
 - `Step`: one call of a part: the backend of the device it runs on and that
   device's arena with each slot's offset (`slot(i)`), the residual at the
   call's first row (`x`), the rows and their runs, the row of weights by
@@ -111,7 +112,7 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   draft step's token ids, the rows before them where it carries a row (gathered by `prev_rows`
   where they are rows of the carried rows), the drafted ids, its output
   rows after the drafter's final norm and its logits, `ids` drafts a sequence (`draft_block`, 1 for none), draft j of sequence i at position `pos[i * ids + j]` in row j * `stride` + i, the output rows being the next call's `prev`.
-  The cache views of both are the drafter's KV layer's or state layer's.
+  The cache views of both are the drafter's KV layers' (`kv_layer` the first of `draft_kv_layers`) or state layer's; a drafter that reads a window sets `ModelPlan::draft_window`, which the chain sets as `KVView::window` on the views it attends through, and declares `Op::attention_window`.
   An external table lookup adds `lookup`, a borrowed `PreparedLookup`: packed
   unique rows in `data`, their count in `rows`, and ordered request IDs remapped
   into that table in `ids`. The runtime prepares it before recording the graph;

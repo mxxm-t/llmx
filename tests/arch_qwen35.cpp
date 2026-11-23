@@ -2104,6 +2104,234 @@ void drafts() {
     }
 }
 
+// The tiny MTP drafter keeping `layers` KV layers (ModelPlan::draft_kv_layers), its context rows written into each and its drafts reading the last, attending through a window of `window` positions where it is not 0 (KVView::window).
+struct LayeredDrafter final : infer::Architecture {
+    LayeredDrafter(std::shared_ptr<const infer::Architecture> base, size_t layers, size_t window) : base(std::move(base)), layers(layers), window(window) {}
+    infer::ModelPlan plan(const infer::TensorIndex& t) const override { return base->plan(t); }
+    void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<infer::TensorView>& sources) const override { base->fill_tables(tables, sources); }
+    const infer::rope::Policy& rope_policy() const override { return base->rope_policy(); }
+    void embed(const infer::Step& s, const uint32_t* ids) const override { base->embed(s, ids); }
+    void mixer(const infer::Step& s) const override { base->mixer(s); }
+    void recur(const infer::Step& s) const override { base->recur(s); }
+    void ffn(const infer::Step& s) const override { base->ffn(s); }
+    void head(const infer::HeadStep& s) const override { base->head(s); }
+    void plan_drafter(const infer::TensorIndex& t, infer::ModelPlan& p) const override {
+        base->plan_drafter(t, p);
+        p.draft_kv_layers = layers;
+        p.draft_window = window;
+        if (window) p.drafter->ops.push_back({infer::Part::draft, backend::Op::attention_window});
+    }
+    void draft_rows(const infer::DraftRowsStep& s) const override {
+        for (size_t l = 0; l < layers; ++l) {
+            infer::DraftRowsStep own = s;
+            own.kv_layer = s.kv_layer + l;
+            base->draft_rows(own);
+        }
+    }
+    void draft(const infer::DraftStep& s) const override {
+        infer::DraftStep own = s;
+        own.kv_layer = s.kv_layer + layers - 1;
+        base->draft(own);
+    }
+    std::shared_ptr<const infer::Architecture> base;
+    size_t layers, window;
+};
+
+struct NoWindow : backend::CpuBackend {
+    bool implements(backend::Op op) const override { return op != backend::Op::attention_window; }
+};
+
+// A drafter of several KV layers and a window (docs/SPECULATIVE.md, section 11), as docs/TESTS.md lists under arch-qwen35.
+void drafter_layers() {
+    const gguf::GGUFModel file = tiny_mtp();
+    infer::ModelOptions options;
+    options.state_slots = 3;
+    options.checkpoint_slots = 2;
+    options.mark_slots = 1;
+    options.mark_rows = 5;
+    const auto weights = [&](size_t layers, size_t window) {
+        infer::ModelWeights w = infer::gguf_weights(file);
+        w.arch = std::make_shared<const LayeredDrafter>(w.arch, layers, window);
+        return w;
+    };
+    std::vector<size_t> cache;
+    for (size_t n : {1, 2, 3}) {
+        const infer::ModelWeights w = weights(n, 0);
+        cache.push_back(infer::footprint(w, infer::plan_model(w, true), options).drafter_cache);
+    }
+    require(cache[1] > cache[0] && cache[2] - cache[1] == cache[1] - cache[0], "the fit does not count each drafter KV layer");
+    std::vector<uint32_t> prompt(140);
+    for (size_t i = 0; i < prompt.size(); ++i) prompt[i] = (uint32_t)((i * 11 + 5) % VOCAB);
+    const std::vector<uint32_t> steps = {9, 14}, verify = {11, 22, 5, 6, 17};
+    const uint32_t last = 7;
+    const size_t depth = 4;
+    infer::ExecContext ctx;
+    const auto feed = [&](infer::Model& m, infer::Sequence& s, const uint32_t* ids, size_t n, size_t extent, bool keep = false) {
+        infer::BatchEntry e{&s, ids, n, false};
+        e.extent = extent;
+        e.keep = keep;
+        m.forward(ctx, &e, 1);
+    };
+    // The drafts of a history fed whole, after a mark's verify retracted to two kept rows, and of a fork at a checkpoint at 128 fed the rest.
+    const auto scenarios = [&](const infer::ModelWeights& w) {
+        const infer::ModelPlan plan = infer::plan_model(w, true);
+        infer::Model model(w, plan, {backend::make_cpu_backend()}, infer::Placement{}, options);
+        std::vector<Drafted> got;
+        infer::Sequence s = model.make_sequence();
+        feed(model, s, prompt.data(), 128, prompt.size(), true);
+        feed(model, s, prompt.data() + 128, prompt.size() - 128, prompt.size());
+        for (uint32_t t : steps) feed(model, s, &t, 1, 1);
+        got.push_back(drafted(model, s, last, depth));
+        require(model.mark(s), "a mark was refused");
+        infer::BatchEntry e{&s, verify.data(), verify.size(), true};
+        e.every_logits = true;
+        e.extent = 1;
+        model.forward(ctx, &e, 1);
+        require(model.retract(s, prompt.size() + 4) == prompt.size() + 4, "a retract inside the verify missed its length");
+        got.push_back(drafted(model, s, last, depth));
+        infer::Sequence f = model.fork(s, 128);
+        feed(model, f, prompt.data() + 128, prompt.size() - 128, prompt.size());
+        for (uint32_t t : steps) feed(model, f, &t, 1, 1);
+        got.push_back(drafted(model, f, last, depth));
+        require(got[2] == got[0], "a fork at a checkpoint drafts otherwise");
+        return got;
+    };
+    const std::vector<Drafted> one = scenarios(weights(1, 0));
+    require(scenarios(weights(3, 0)) == one, "three drafter KV layers draft otherwise than one");
+    require(scenarios(weights(3, 1000)) == one, "a window past the history changed the drafts");
+    const std::vector<Drafted> narrow = scenarios(weights(3, 20));
+    require(narrow[0].logits != one[0].logits, "a window of 20 left the drafts as they were");
+    {
+        const infer::ModelWeights w = weights(3, 20);
+        const infer::ModelPlan plan = infer::plan_model(w, true);
+        refuses("a backend without attention_window", "the embedded drafter needs attention_window, which the backend of its device does not implement",
+                [&] { infer::Model refused(w, plan, {std::make_shared<NoWindow>()}, infer::Placement{}, options); });
+    }
+}
+
+// The tiny model with a DSpine drafter joined as dflash::normalize_beside leaves it: 2 layers of 2 query heads and 1 KV head 4 wide, a block of 4 rows, 3 candidates a row and a window of 3.
+gguf::GGUFModel tiny_dspine() {
+    return tiny([](gguf::GGUFModel& m) {
+        set(m, "context_length", 512);
+        for (const auto& kv : std::vector<std::pair<std::string, uint64_t>>{{"block_count", 2}, {"block_size", 4}, {"selector_top_k", 3}, {"attention.head_count", 2},
+                                                                            {"attention.head_count_kv", 1}, {"attention.key_length", 4}, {"feed_forward_length", 6},
+                                                                            {"attention.sliding_window", 3}, {"mask_token_id", 1}})
+            set(m, "dflash." + kv.first, kv.second);
+        booleans(m, "dflash.attention.sliding_window_pattern", {true, true});
+        meta(m, "dflash.attention.causal")->vtype = gguf::V_BOOL;
+        meta(m, "dflash.attention.causal")->b = true;
+        for (const auto& list : std::vector<std::pair<std::string, std::vector<uint64_t>>>{{"dflash.target_layers", {1, 2}}, {"dflash.rope.dimension_sections", {2, 0, 0, 0}}}) {
+            gguf::MetaValue* v = meta(m, list.first);
+            v->vtype = gguf::V_ARRAY;
+            v->u = gguf::V_UINT32;
+            v->arr.clear();
+            for (uint64_t x : list.second) {
+                gguf::MetaValue e;
+                e.vtype = gguf::V_UINT32;
+                e.u = x;
+                v->arr.push_back(e);
+            }
+        }
+        constexpr uint64_t DH = 2, DKV = 1, DD = 4, DF = 6, CODES = 5, ROUTES = 3;
+        add_tensor(m, "dflash.fc.weight", {2 * E, E});
+        add_tensor(m, "dflash.enc.output_norm.weight", {E}, 0.1f, 1.0f);
+        add_tensor(m, "dflash.output_norm.weight", {E}, 0.1f, 1.0f);
+        add_tensor(m, "dflash.dspine_codebook.weight", {CODES, VOCAB});
+        add_tensor(m, "dflash.dspine_gate.weight", {CODES, ROUTES});
+        add_tensor(m, "dflash.dspine_pred_gate.weight", {CODES, ROUTES});
+        add_tensor(m, "dflash.dspine_prev.weight", {CODES, ROUTES});
+        add_tensor(m, "dflash.dspine_gate.bias", {ROUTES}, 0.1f);
+        for (int l = 0; l < 2; ++l) {
+            const std::string pre = "dflash.blk." + std::to_string(l) + ".";
+            add_tensor(m, pre + "attn_norm.weight", {E}, 0.1f, 1.0f);
+            add_tensor(m, pre + "attn_q.weight", {E, DH * DD});
+            add_tensor(m, pre + "attn_k.weight", {E, DKV * DD});
+            add_tensor(m, pre + "attn_v.weight", {E, DKV * DD});
+            add_tensor(m, pre + "attn_q_norm.weight", {DD}, 0.1f, 1.0f);
+            add_tensor(m, pre + "attn_k_norm.weight", {DD}, 0.1f, 1.0f);
+            add_tensor(m, pre + "attn_output.weight", {DH * DD, E});
+            add_tensor(m, pre + "ffn_norm.weight", {E}, 0.1f, 1.0f);
+            add_tensor(m, pre + "ffn_gate.weight", {E, DF});
+            add_tensor(m, pre + "ffn_up.weight", {E, DF});
+            add_tensor(m, pre + "ffn_down.weight", {DF, E});
+            add_tensor(m, pre + "dspine_read.weight", {E, CODES});
+            add_tensor(m, pre + "dspine_write.weight", {ROUTES, E});
+        }
+    });
+}
+
+struct NoChainPick : backend::CpuBackend {
+    bool implements(backend::Op op) const override { return op != backend::Op::chain_pick; }
+};
+
+// Drafts equal within the F32 rounding of another pass shape: the same ids, logits within 1e-4.
+bool close(const Drafted& a, const Drafted& b) {
+    if (a.ids != b.ids || a.logits.size() != b.logits.size()) return false;
+    for (size_t i = 0; i < a.logits.size(); ++i)
+        if (!(std::fabs(a.logits[i] - b.logits[i]) <= 1e-4f)) return false;
+    return true;
+}
+
+// A DSpine block over the context rows a history keeps (docs/SPECULATIVE.md, section 11), as docs/TESTS.md lists under arch-qwen35.
+void dspine_block() {
+    const gguf::GGUFModel file = tiny_dspine();
+    infer::ModelOptions options;
+    options.state_slots = 8;
+    options.checkpoint_slots = 2;
+    options.mark_slots = 1;
+    options.mark_rows = 5;
+    options.kv_tokens = 8 * 128; // two histories, a fork and a fresh history live at once, each of up to two CPU blocks
+    options.kv_k = options.kv_v = backend::kv_type_of("f32");
+    const infer::ModelWeights w = infer::gguf_weights(file);
+    const infer::ModelPlan plan = infer::plan_model(w, true);
+    require(plan.draft_block == 3 && plan.draft_anchor == 1 && plan.draft_window == 3, "a DSpine block of 4 rows plans otherwise than 3 drafts after an anchor in a window of 3");
+    infer::Model model(w, plan, {backend::make_cpu_backend()}, infer::Placement{}, options);
+    std::vector<uint32_t> prompt(140);
+    for (size_t i = 0; i < prompt.size(); ++i) prompt[i] = (uint32_t)((i * 7 + 3) % VOCAB);
+    const size_t N = 136;
+    const uint32_t last = 9;
+    infer::ExecContext ctx;
+    const auto feed = [&](infer::Sequence& s, size_t from, size_t n, size_t extent, bool context = true, bool keep = false) {
+        infer::BatchEntry e{&s, prompt.data() + from, n, false};
+        e.extent = extent;
+        e.context = context;
+        e.keep = keep;
+        model.forward(ctx, &e, 1);
+    };
+    const auto fresh = [&](size_t n) {
+        infer::Sequence s = model.make_sequence();
+        feed(s, 0, n, n);
+        return drafted(model, s, prompt[n], 3);
+    };
+    infer::Sequence s = model.make_sequence();
+    feed(s, 0, N, N);
+    const Drafted whole = drafted(model, s, last, 3);
+    require(whole.ids.size() == 3 && whole.logits.size() == 3 * VOCAB, "a DSpine block of 4 rows gave other than 3 drafts");
+    require(drafted(model, s, last, 3) == whole, "a second draft of the same history drafts otherwise");
+    require(drafted(model, s, last, 2).ids == std::vector<uint32_t>(whole.ids.begin(), whole.ids.begin() + 2), "a shorter ask drafts other ids than the block's first");
+    // A prompt whose first slice reaches no draft's window leaves its context rows out and drafts as the prompt fed whole.
+    infer::Sequence sliced = model.make_sequence();
+    feed(sliced, 0, 120, N, false);
+    feed(sliced, 120, 8, N, true, true);
+    feed(sliced, 128, N - 128, N);
+    require(close(drafted(model, sliced, last, 3), whole), "a prompt in slices drafts otherwise than whole");
+    // A verify retracted below the block's rows leaves stale rows at the next block's positions, which the block writes before it reads them.
+    require(model.mark(s), "a mark was refused");
+    infer::BatchEntry e{&s, prompt.data() + N, 4, true};
+    e.every_logits = true;
+    e.extent = 1;
+    model.forward(ctx, &e, 1);
+    require(model.retract(s, N + 1) == N + 1, "a retract inside the verify missed its length");
+    require(close(drafted(model, s, prompt[N + 1], 3), fresh(N + 1)), "a draft after a retract drafts otherwise than the history fed whole");
+    // A fork at the checkpoint below the window of the history's end, fed on, drafts as the history fed whole, and the history it shares blocks with drafts as before.
+    infer::Sequence f = model.fork(sliced, 128);
+    feed(f, 128, 4, 132);
+    require(close(drafted(model, f, prompt[132], 3), fresh(132)), "a fork at a checkpoint drafts otherwise than the history fed whole");
+    require(close(drafted(model, sliced, last, 3), whole), "a fork's draft changed the drafts of the history it shares blocks with");
+    refuses("a backend without chain_pick", "the embedded drafter needs chain_pick, which the backend of its device does not implement",
+            [&] { infer::Model refused(w, plan, {std::make_shared<NoChainPick>()}, infer::Placement{}, options); });
+}
+
 // A prompt in slices of 1, 3 and 16, and its decode, give the bytes of the prompt in one pass; two sequences in one pass give each one's bytes alone.
 void slices(const gguf::GGUFModel& m, backend::Dtype dtype = backend::Dtype::f32) {
     const infer::ModelWeights w = infer::gguf_weights(m);
@@ -2564,6 +2792,8 @@ int main(int argc, char** argv) {
             failed_admission_takes_no_slot();
             marks();
             drafts();
+            drafter_layers();
+            dspine_block();
             slices(tiny());
             split_with_a_stage_of_states(tiny());
             split_continued(tiny([](gguf::GGUFModel& g) { set(g, "context_length", 512); }));

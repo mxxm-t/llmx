@@ -36,8 +36,8 @@ struct ArchEntry {
 inline const ArchEntry kArchitectures[] = {
     {"qwen3", qwen3::open_dense, backend::Dtype::bf16, nullptr, qwen3::hf_table},
     {"qwen3moe", qwen3::open_routed, backend::Dtype::bf16},
-    {"qwen35", qwen35::open_dense, backend::Dtype::bf16, nullptr, qwen35::hf_table},
-    {"qwen35moe", qwen35::open_routed, backend::Dtype::bf16},
+    {"qwen35", qwen35::open_dense, backend::Dtype::bf16, dflash::normalize_beside, qwen35::hf_table},
+    {"qwen35moe", qwen35::open_routed, backend::Dtype::bf16, dflash::normalize_beside},
     {"qwen4exp", qwen4exp::open, backend::Dtype::bf16, qwen4exp::normalize_drafter},
     {"deepseek41", deepseek4::open_v41, backend::Dtype::bf16, deepseek4::normalize_drafter},
     {"minimax-m3", minimax_m3::open, backend::Dtype::bf16},

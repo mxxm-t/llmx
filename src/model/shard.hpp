@@ -114,6 +114,8 @@ inline void check_plan(const ModelPlan& plan, const std::vector<TensorView>& vie
                                          " floats layer " + std::to_string(l) + " saves a row for a mark");
     }
     if (plan.drafter) each(plan.drafter->roles);
+    if (plan.drafter && plan.draft_kv.heads)
+        throw std::runtime_error("inference: a tensor width of " + std::to_string(width) + " needs the drafter's tensor group parts, and this drafter's KV layers have a shape of their own (docs/SPECULATIVE.md, section 11)");
 }
 
 // A member's copy of a role's tensor, described without listing a run a row (docs/src/model-shard.md): the row axis's parts or the column axis's spans of a row.

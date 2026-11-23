@@ -6,6 +6,8 @@
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <set>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -22,9 +24,10 @@ static size_t count(const char* value, const char* name) {
 }
 
 static int probe(int argc, const char* const* argv) {
-    if (argc < 6 || argc > 7) {
-        std::fprintf(stderr, "usage: llmx-route-probe MODEL IDS OUTPUT_PREFIX LAST UBATCH [DEVICES]\n"
-                             "  writes OUTPUT_PREFIX.txt, the logits rows of the last LAST positions, and OUTPUT_PREFIX.routes, every routed step's picks and router scores\n");
+    if (argc < 6 || argc > 8) {
+        std::fprintf(stderr, "usage: llmx-route-probe MODEL IDS OUTPUT_PREFIX LAST UBATCH [DEVICES [STREAM_LAYERS]]\n"
+                             "  writes OUTPUT_PREFIX.txt, the logits rows of the last LAST positions, and OUTPUT_PREFIX.routes, every routed step's picks and router scores\n"
+                             "  with STREAM_LAYERS, layers separated by commas, OUTPUT_PREFIX.streams, the residual entering each of those layers\n");
         return 2;
     }
     try {
@@ -52,6 +55,21 @@ static int probe(int argc, const char* const* argv) {
         infer::ModelOptions options;
         options.kv_k = options.kv_v = backend::KVType::f32;
         options.kv_k_given = options.kv_v_given = true;
+        // Each record: the layer, rows and floats a row as int32 and uint32s, then rows of residual floats, little-endian; a layer's records come in position order.
+        std::set<int> stream_layers;
+        std::ofstream streams;
+        if (argc > 7) {
+            std::stringstream list(argv[7]);
+            for (std::string item; std::getline(list, item, ',');) stream_layers.insert(item == "0" ? 0 : (int)count(item.c_str(), "STREAM_LAYERS"));
+            streams.open(std::filesystem::u8path(prefix + ".streams"), std::ios::binary);
+            streams.exceptions(std::ios::badbit | std::ios::failbit);
+            options.streams = [&](int layer, size_t rows, size_t width, const float* x) {
+                if (!stream_layers.count(layer)) return;
+                const int32_t head[3] = {layer, (int32_t)rows, (int32_t)width};
+                streams.write(reinterpret_cast<const char*>(head), sizeof(head));
+                streams.write(reinterpret_cast<const char*>(x), (std::streamsize)(rows * width * sizeof(float)));
+            };
+        }
         options.routes = [&](int layer, size_t rows, size_t k, const uint32_t* picked, size_t n_expert, const float* scores) {
             const int32_t head[4] = {layer, (int32_t)rows, (int32_t)k, (int32_t)n_expert};
             routes.write(reinterpret_cast<const char*>(head), sizeof(head));
@@ -76,6 +94,7 @@ static int probe(int argc, const char* const* argv) {
         });
         const bool written = std::fclose(text) == 0;
         routes.close();
+        if (streams.is_open()) streams.close();
         if (!written) throw std::runtime_error("cannot write " + prefix + ".txt");
         return 0;
     } catch (const std::exception& e) {

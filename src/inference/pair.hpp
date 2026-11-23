@@ -15,8 +15,9 @@
 namespace infer {
 namespace spec {
 
-// What a drafter file is for its target: its MTP blocks, as converters write them after the target's layers, or a model of its own drafting by its own forward pass.
-enum class DrafterKind { mtp, model };
+// What a drafter file is for its target: its MTP blocks, a sidecar kept under `dflash.*` names, or a model drafting by its own forward pass.
+// The first two are joined to the target and draft as its embedded drafter (docs/src/inference-pair.md).
+enum class DrafterKind { mtp, joined, model };
 
 namespace detail {
 
@@ -67,6 +68,10 @@ inline DrafterKind pair(const gguf::GGUFModel& target, const std::string& target
     const int layers = blocks - nextn;
     const std::string kind = detail::architecture(drafter);
 
+    // A sidecar the hook kept under its namespace drafts beside whatever drafter the file carries, which then stays unplanned.
+    bool namespaced = kind == entry.name && !drafter.tensors.empty();
+    for (const auto& t : drafter.tensors) namespaced = namespaced && !t.name.compare(0, 7, "dflash.");
+    if (namespaced) return DrafterKind::joined;
     bool blocks_only = !drafter.tensors.empty();
     for (const auto& t : drafter.tensors) {
         const auto b = gguf::block_of(t.name);
@@ -108,7 +113,7 @@ inline DrafterKind pair(const gguf::GGUFModel& target, const std::string& target
     return DrafterKind::model;
 }
 
-// The MTP blocks of `drafter`, which pair with `target` (pair), joined to it as if its file carried them: the drafter's metadata under the architecture's prefix taken over the target's, and its tensors appended as a file after the target's.
+// The MTP blocks or namespaced sidecar of `drafter`, which pair with `target`, joined to it as if its file carried them (docs/src/inference-pair.md).
 inline void join_blocks(gguf::GGUFModel& target, gguf::GGUFModel&& drafter) {
     const std::string prefix = std::string(architecture_of(target).name) + ".";
     for (const auto& kv : drafter.kv) {

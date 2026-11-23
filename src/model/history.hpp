@@ -1392,11 +1392,11 @@ inline void Model::draft_buffers(size_t seqs, size_t steps) {
 // The fit counts both (Footprint::context_rows, Footprint::drafter_cache).
 inline void Model::reserve_drafting() {
     if (!options_.mark_slots) return;
-    const size_t rows = std::max(state_layers_ ? options_.mark_rows : 0, plan_.drafter ? options_.mark_slots * std::max<size_t>(plan_.draft_block, 1) : 0);
+    const size_t rows = std::max(state_layers_ ? options_.mark_rows : 0, plan_.drafter ? options_.mark_slots * draft_call_rows(plan_) : 0);
     if (!rows) return;
     std::lock_guard<std::mutex> context(context_m_);
     ensure(ctx_, rows, 0, handoffs(1));
-    if (plan_.drafter && options_.mark_rows > 1) draft_buffers(options_.mark_slots, draft_span(options_.mark_rows - 1));
+    if (plan_.drafter && options_.mark_rows > 1) draft_buffers(options_.mark_slots, draft_calls(plan_, options_.mark_rows - 1) * std::max<size_t>(plan_.draft_block, 1));
 }
 
 // The chain's part on the thread that owns the histories: each history settled, the KV rows its drafts take, every step's rows, positions and views, and its sequences in flight; null where no ask drafts.
@@ -1421,14 +1421,17 @@ inline std::unique_ptr<Model::Chain> Model::draft_begin(const DraftAsk* asks, si
     }
     if (c->order.empty()) return nullptr;
     c->block = std::max<size_t>(plan_.draft_block, 1);
+    c->call_rows = draft_call_rows(plan_);
     c->steps = draft_calls(plan_, c->steps);
+    // An anchor row reads the context rows of the positions before it, which only the history has, so a later call would have none.
+    if (plan_.draft_anchor && c->steps > 1) throw std::logic_error("inference: a drafter with anchor rows drafts one call a chain");
     std::stable_sort(c->order.begin(), c->order.end(), [&](size_t a, size_t b) { return asks[a].k > asks[b].k; });
-    const size_t R = c->order.size(), o = (size_t)place_.output_device, W = width_, steps = c->steps, B = c->block;
+    const size_t R = c->order.size(), o = (size_t)place_.output_device, W = width_, steps = c->steps, B = c->block, A = c->call_rows;
     const bool kv = keeps_kv(*plan_.drafter);
     Device& d = *devices_[o];
     {
         std::lock_guard<std::mutex> context(context_m_);
-        ensure(ctx_, R * B, 0, handoffs(1));
+        ensure(ctx_, R * A, 0, handoffs(1));
         draft_buffers(R, steps * B);
     }
     c->last.resize(R);
@@ -1445,7 +1448,7 @@ inline std::unique_ptr<Model::Chain> Model::draft_begin(const DraftAsk* asks, si
     try {
         for (; kv && c->prepared < R; ++c->prepared) c->kv[c->prepared]->prepare(draft_span(asks[c->order[c->prepared]].k));
         c->rows.resize(steps);
-        c->pos.assign(backend::size_mul(backend::size_mul(steps, R), B), 0);
+        c->pos.assign(backend::size_mul(backend::size_mul(steps, R), A), 0);
         const size_t K = draft_devices_.size();
         if (kv) c->views.resize(backend::size_mul(backend::size_mul(steps, W), R));
         else c->states.resize(backend::size_mul(backend::size_mul(backend::size_mul(K, steps), W), R));
@@ -1458,8 +1461,9 @@ inline std::unique_ptr<Model::Chain> Model::draft_begin(const DraftAsk* asks, si
                     backend::KVView& v = c->views[(m * W + g) * R + p];
                     v = c->kv[p]->view(devices_[o + g]->storage.get());
                     v.length = length[p] + m * B;
-                    v.nq = B;
-                    v.extent = B;
+                    v.nq = A;
+                    v.extent = A;
+                    v.window = plan_.draft_window;
                 }
                 // A state drafter's step reads the slot the history's last stage left and writes its rows past the history into the live slot, which a verify writes again.
                 for (size_t k = 0; k < K && !kv; ++k)
@@ -1467,7 +1471,7 @@ inline std::unique_ptr<Model::Chain> Model::draft_begin(const DraftAsk* asks, si
                         c->states[((k * steps + m) * W + g) * R + p] =
                             backend::StateView{devices_[draft_devices_[k] + g]->states.get(), c->carried[p], s.state_.slot(), length[p] + m * B, B};
                 // A drafted token is text, at its index less what the history's images saved.
-                positions(s, length[p] + m * B, B, false, &c->pos[(m * R + p) * B]);
+                positions(s, length[p] + m * B, A, false, &c->pos[(m * R + p) * A]);
             }
         }
     } catch (...) {
@@ -1513,7 +1517,7 @@ inline void Model::draft_record(Chain& c) {
                 step.views = &c.views[(m * W + g) * R];
                 step.kv_layer = drafter_kv_;
             }
-            step.pos = &c.pos[m * R * B];
+            step.pos = &c.pos[m * R * c.call_rows];
             step.ids = B;
             step.stride = R;
             step.phase = phase;

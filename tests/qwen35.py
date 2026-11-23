@@ -3,6 +3,7 @@ import math
 import os
 import re
 import struct
+import subprocess
 import tempfile
 
 import common
@@ -585,6 +586,56 @@ def check_drafter(model, plain, require):
     return worst
 
 
+def read_streams(path):
+    """llmx-route-probe's streams file as [(layer, rows, width, values)], in the order written."""
+    with open(path, "rb") as f:
+        data = f.read()
+    records, at = [], 0
+    while at < len(data):
+        layer, rows, width = struct.unpack_from("<3i", data, at)
+        at += 12
+        records.append((layer, rows, width, list(struct.unpack_from("<%df" % (rows * width), data, at))))
+        at += 4 * rows * width
+    return records
+
+
+def check_streams(directory, spec, model, require):
+    """llmx-route-probe's streams (ModelOptions::streams) on the CPU: each pass writes the asked layers in order with its rows, layer 0's rows are the embedding rows of the ids bit for bit, the deeper layers' rows of passes of 3 rows are those of one pass of the whole prompt within the F32 bound, and the probe's rows are the ones `logits` prints."""
+    import minimax
+    tool = minimax.probe_path()
+    if not os.path.exists(tool):
+        assert not require, "qwen35: llmx-route-probe is not beside the executable, and --require-tools asks for it"
+        print("qwen35: SKIP the streams check - llmx-route-probe is not beside the executable")
+        return
+    sequence = [7, 101, 33, 250, 3, 64, 199]
+    ids = os.path.join(directory, "streams.ids")
+    with open(ids, "w") as f:
+        f.write(" ".join(str(i) for i in sequence))
+    width = CONFIG["embedding_length"]
+    embed = next(values for name, _, values in raw_weights(spec) if name == "model.embed_tokens.weight")
+    passes = {}
+    for ubatch in (3, len(sequence)):
+        prefix = os.path.join(directory, "streams-%d" % ubatch)
+        p = subprocess.run([tool, model, ids, prefix, str(len(sequence)), str(ubatch), "cpu", "0,1,3"], capture_output=True, encoding="utf-8", errors="replace", timeout=300)
+        assert p.returncode == 0, "qwen35: llmx-route-probe gave exit %d: %s" % (p.returncode, p.stderr[-400:])
+        records = read_streams(prefix + ".streams")
+        rows = [min(ubatch, len(sequence) - start) for start in range(0, len(sequence), ubatch)]
+        assert [r[:3] for r in records] == [(layer, n, width) for n in rows for layer in (0, 1, 3)], \
+            "qwen35: streams at ubatch %d were written as %s" % (ubatch, [r[:3] for r in records])
+        passes[ubatch] = {layer: [v for r in records if r[0] == layer for v in r[3]] for layer in (0, 1, 3)}
+        assert passes[ubatch][0] == [embed[i * width + c] for i in sequence for c in range(width)], "qwen35: layer 0's stream at ubatch %d is not the embedding rows" % ubatch
+        empty = os.path.join(directory, "empty.txt")
+        open(empty, "w").close()
+        q = common.run_process(["logits", model, "--file", empty, "--then-ids", ids, "--last", str(len(sequence)), "--top", str(VOCAB), "--device", "cpu",
+                                "--dtype", "f32", "--load-mode", "mapped", "--ubatch", str(ubatch), "--cache-type-k", "f32", "--cache-type-v", "f32"], text=True)
+        assert q.returncode == 0, "qwen35: logits gave exit %d" % q.returncode
+        with open(prefix + ".txt", encoding="utf-8") as f:
+            assert f.read() == q.stdout, "qwen35: llmx-route-probe's rows at ubatch %d are not those logits prints" % ubatch
+    worst = max(abs(a - b) for layer in (1, 3) for a, b in zip(passes[3][layer], passes[len(sequence)][layer]))
+    assert worst < common.F32_HF_LOGIT_BOUND, "qwen35: streams of passes of 3 rows differ from one pass's by %.3g" % worst
+    print("qwen35: llmx-route-probe's streams of layers 0, 1 and 3 in pass and layer order, layer 0 the embedding rows, passes of 3 rows within %.3g of one pass, its rows those logits prints  [ok]" % worst)
+
+
 def run(require=False):
     if common.f32_cache_skip("qwen35") or common.tensor_width_skip("qwen35"):
         return common.SKIPPED
@@ -600,6 +651,8 @@ def run(require=False):
         check_serve(directory)
         check_kept_drafts(directory)
         check_wide_drafter(directory, require)
+        if os.environ.get("LLMX_DEVICE", "cpu") == "cpu":
+            check_streams(directory, FIXTURES[1], models["hv3"], require)
         # The bench holds a state slot for each sequence it decodes at once.
         rc, out = cli(["bench", "--model", models["hv3"], "--p", "4", "--n", "2", "--r", "1", "--seqs", "3"])
         reports = re.findall(r"^bench: (.+?)\s+\S+ \+- \S+ tok/s  \((\d+) runs\)$", out, re.M)

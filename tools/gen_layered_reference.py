@@ -3,6 +3,7 @@
     python tools/gen_layered_reference.py goldens --repo Qwen/Qwen3.5-9B --revision SHA --gguf FILE.gguf --output-dir DIR [--gguf-repo REPO --gguf-revision SHA] [--file-exact]
     python tools/gen_layered_reference.py equality --output FILE [--repo REPO --revision SHA --layers N | --fp8-fixture] [--attention-chunk N]
     python tools/gen_layered_reference.py depth --repo REPO --revision SHA --inputs DIR --output-dir DIR [--attention-chunk 512]
+    python tools/gen_layered_reference.py taps --repo REPO --revision SHA --gguf FILE.gguf --inputs DIR --layers 2,17,32,47,62 --output-dir DIR
 
 From the 9B up, a qwen35 model's float32 forward does not fit host memory whole.
 This runs the calls of transformers' Qwen3_5TextModel.forward in its order: the embedding, the model's own rotary embedding and masks, each decoder layer, the final norm and the head.
@@ -833,6 +834,61 @@ def depth(args):
     return 0
 
 
+def taps(args):
+    """The streams entering llmx blocks `--layers` (HF's output of the decoder layer before each) at every position of each input row, on the GGUF's own weights, with the last position's top logits: the reference a drafter's taps are checked against (docs/SPECULATIVE.md, section 11)."""
+    import numpy
+    directory = snapshot(args.repo, args.revision)
+    torch, transformers = runtime(args.threads, directory)
+    rows = {}
+    for name in sorted(os.listdir(args.inputs)):
+        if name.endswith(".ids"):
+            ids = read_ids(os.path.join(args.inputs, name))
+            if not ids:
+                raise SystemExit("%s is empty" % name)
+            rows[name[:-len(".ids")]] = ids
+    if not rows:
+        raise SystemExit("%s holds no .ids files" % args.inputs)
+    if len({tuple(ids) for ids in rows.values()}) != len(rows):
+        raise SystemExit("%s holds two rows of the same ids" % args.inputs)
+    layered = Layered(torch, directory, gguf=args.gguf, attention_chunk=args.attention_chunk)
+    text = layered.model.model
+    if layered.moe or layered.qwen3 or args.layers[-1] > len(text.layers):
+        raise SystemExit("taps runs a qwen35 model's layered forward, whose blocks end at %d" % len(text.layers))
+    # The layered forward runs each layer over the rows in order, so a layer's n-th call is the n-th row's.
+    seen = {n: [] for n in args.layers}
+    hooks = [text.layers[n - 1].register_forward_hook(lambda module, inputs, output, n=n: seen[n].append(output[0].float().numpy().copy()))
+             for n in args.layers]
+    start = time.time()
+    try:
+        layered.run([torch.tensor([ids]) for ids in rows.values()], keep=1)
+    finally:
+        for hook in hooks:
+            hook.remove()
+    seconds = time.time() - start
+    os.makedirs(args.output_dir, exist_ok=True)
+    report = {"_comment": "Written by tools/gen_layered_reference.py taps. Do not hand-edit.", "reference_repo": args.repo, "reference_revision": args.revision,
+              "gguf_file": os.path.basename(args.gguf), "gguf_sha256": file_sha256(args.gguf), "types": dict(sorted(layered.file.types.items())),
+              "layers": args.layers, "plane": "the stream entering llmx block N, HF's output of model.layers.(N-1), float32",
+              "attention": "eager" if args.attention_chunk is None else "eager in chunks of %d queries" % args.attention_chunk,
+              "threads": args.threads, "torch_version": torch.__version__, "transformers_version": transformers.__version__,
+              "producer_sha256": file_sha256(os.path.abspath(__file__)), "rows": []}
+    for i, (name, ids) in enumerate(rows.items()):
+        planes = numpy.stack([seen[n][i] for n in args.layers], axis=1)
+        if planes.shape != (len(ids), len(args.layers), layered.model.config.hidden_size) or not numpy.isfinite(planes).all():
+            raise SystemExit("%s: taps of shape %s, or not all finite" % (name, planes.shape))
+        npy = os.path.join(args.output_dir, name + ".npy")
+        numpy.save(npy, planes)
+        logits = layered.logits[tuple(ids)][0, -1].float()
+        top = logits.topk(args.top)
+        report["rows"].append({"name": name, "tokens": len(ids), "ids_sha256": file_sha256(os.path.join(args.inputs, name + ".ids")),
+                               "taps_sha256": file_sha256(npy), "top_ids": top.indices.tolist(), "top_logits": top.values.tolist()})
+        print("%s: %d tokens, last top-1 %d" % (name, len(ids), int(top.indices[0])), flush=True)
+    report["seconds"], report["peak_rss_gib"] = seconds, peak_gib()
+    print("layered forward %.1f s, peak RSS %.2f GiB" % (seconds, peak_gib()), flush=True)
+    generator._write(os.path.join(args.output_dir, "report.json"), report)
+    return 0
+
+
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="The layered HF reference of a qwen3, qwen3moe or qwen35 model, run offline on the CPU in float32.")
     kinds = parser.add_subparsers(dest="kind", required=True)
@@ -861,7 +917,26 @@ def parse_args(argv=None):
     deep.add_argument("--attention-chunk", type=int, default=512, help="queries an attention chunk takes (default: 512)")
     deep.add_argument("--top", type=int, default=8, help="top logits each position's .json keeps (default: 8)")
     deep.add_argument("--threads", type=int, default=6, help="CPU threads (default: 6)")
+    tap = kinds.add_parser("taps", help="write the streams entering given blocks at every position of input rows, on a GGUF's own weights")
+    tap.add_argument("--repo", required=True, help="HF repository whose config the model takes")
+    tap.add_argument("--revision", required=True, help="full 40-character commit SHA of that repository")
+    tap.add_argument("--gguf", required=True, help="the GGUF whose weights the model runs")
+    tap.add_argument("--inputs", required=True, help="directory of NAME.ids files, token ids separated by spaces")
+    tap.add_argument("--layers", required=True, help="llmx blocks whose entering streams are written, ascending, comma separated (a drafter's target_layers)")
+    tap.add_argument("--output-dir", required=True, help="directory for each row's NAME.npy, [tokens, layers, hidden] float32, and report.json")
+    tap.add_argument("--attention-chunk", type=int, help="queries an attention chunk takes (default: whole)")
+    tap.add_argument("--top", type=int, default=8, help="top logits of each row's last position kept (default: 8)")
+    tap.add_argument("--threads", type=int, default=6, help="CPU threads (default: 6)")
     args = parser.parse_args(argv)
+    if args.kind == "taps":
+        try:
+            args.layers = [int(x) for x in args.layers.split(",")]
+        except ValueError:
+            parser.error("--layers must be whole numbers separated by commas")
+        if args.layers[0] < 1 or any(a >= b for a, b in zip(args.layers, args.layers[1:])):
+            parser.error("--layers must be ascending distinct blocks from 1")
+        if not os.path.isfile(args.gguf):
+            parser.error("--gguf %s is not a file" % args.gguf)
     if args.threads < 1:
         parser.error("--threads must be positive")
     if os.path.isdir(args.repo):
@@ -893,6 +968,8 @@ def main(argv=None):
     if args.kind == "goldens":
         goldens(args)
         return 0
+    if args.kind == "taps":
+        return taps(args)
     return depth(args) if args.kind == "depth" else equality(args)
 
 

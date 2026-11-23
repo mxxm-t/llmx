@@ -1064,7 +1064,7 @@ public:
     }
 
     // Every op but mixed routed products, since grouped expert projections must share one storage type, and the model formats where the device cannot keep subnormals, which their kernel needs.
-    bool implements(Op op) const override { return op != Op::mixed_experts && op != Op::sigmoid_routing && ((op != Op::model_format_qdq && op != Op::model_format_pack) || dev_->preserve_float32); }
+    bool implements(Op op) const override { return op != Op::mixed_experts && op != Op::sigmoid_routing && op != Op::attention_window && op != Op::unit_rows && op != Op::sigmoid_gate_rows && op != Op::matmul_at_ids && op != Op::chain_pick && ((op != Op::model_format_qdq && op != Op::model_format_pack) || dev_->preserve_float32); }
 
     // Host worker counts mean nothing to a device.
     void set_threads(int) override {}

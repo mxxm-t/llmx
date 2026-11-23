@@ -9,6 +9,7 @@
 
 #include "format/file_reader.hpp"
 #include "format/gguf.hpp"
+#include "model/arch/dflash.hpp"
 
 // DeepSeek-V4.1's DSpark drafter (docs/DEEPSEEK4.md, section 4.7): a `dflash` sidecar paired into the target's blocks, its plan, its context rows from the taps and its block of drafts.
 // model.hpp includes it after the class, whose members it defines.
@@ -208,8 +209,7 @@ inline void DeepSeek41::draft(const DraftStep& s) const {
 // A DSpark sidecar, `general.architecture` dflash, rewritten into the target's blocks after tokenizer equality (docs/DEEPSEEK4.md, section 4.7); any other drafter file is left as it is.
 // Its stages follow the target's layers, its globals take `nextn` names in its first and last stage, its keys are the target's with the clamps extended and its own under `nextn`, and its experts must not be the target's (F14, F21).
 inline void normalize_drafter(const gguf::GGUFModel& target, gguf::GGUFModel& side) {
-    const auto* arch = side.find("general.architecture");
-    if (!arch || arch->vtype != gguf::V_STRING || arch->s != "dflash") return;
+    if (!dflash::sidecar(side)) return;
     const auto refuse = [](const std::string& text) { return std::runtime_error("inference: DSpark sidecar " + text); };
     const std::string p = "deepseek41.", q = "dflash.";
     const int layers = metadata::integer(target, p + "block_count");
@@ -218,15 +218,9 @@ inline void normalize_drafter(const gguf::GGUFModel& target, gguf::GGUFModel& si
     // Every key it shares with the target the target's, but the counts and clamps its stages have of their own.
     const std::set<std::string> own{"block_count", "expert_count", "expert_used_count", "swiglu_clamp_exp", "swiglu_clamp_shexp", "attention.compress_ratios",
                                     "block_size", "target_layers"};
-    for (const auto& item : side.kv) {
-        if (item.first.compare(0, q.size(), q) || own.count(item.first.substr(q.size()))) continue;
-        const auto* t = target.find(p + item.first.substr(q.size()));
-        if (!t || !gguf::detail::equal_value(*t, item.second)) throw refuse("metadata " + item.first + " differs from the target's");
-    }
+    const gguf::MetaValue noise = dflash::check_sidecar(target, side, p, own, "DSpark");
     for (int r : metadata::counts(side, q + "attention.compress_ratios"))
         if (r) throw refuse("stage reads compressed entries");
-    const auto* noise = side.find("tokenizer.ggml.mask_token_id");
-    if (!noise) throw refuse("names no tokenizer.ggml.mask_token_id for its noise rows");
 
     std::vector<std::pair<std::string, gguf::MetaValue>> kv;
     for (const auto& item : side.kv)
@@ -263,7 +257,7 @@ inline void normalize_drafter(const gguf::GGUFModel& target, gguf::GGUFModel& si
     copy(p + "nextn.expert_used_count", q + "expert_used_count");
     copy(p + "nextn.block_size", q + "block_size");
     copy(p + "nextn.target_layers", q + "target_layers");
-    value(p + "nextn.noise_token_id") = *noise;
+    value(p + "nextn.noise_token_id") = noise;
 
     // Its stages after the target's layers, and its globals in the first and last stage.
     const std::string first = "blk." + std::to_string(layers) + ".nextn.", last = "blk." + std::to_string(layers + stages - 1) + ".nextn.";

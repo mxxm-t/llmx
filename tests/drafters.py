@@ -146,11 +146,31 @@ def check_refusals(directory, embedded, split, side):
         out.write(f.read(os.path.getsize(side) // 2))
     rc, out = cli(["generate", split, "abc", "-n", "1", "--drafter", cut])
     assert rc != 0 and "GGUF" in out, "a drafter file cut short was not refused: " + out
-    # A DFlash drafter of the target's tokenizer is refused by its architecture, which llmx does not run (docs/SPECULATIVE.md, step 7).
-    md = {k: v for k, v in spec_decode.GGUF(split).metadata.items() if k.startswith("tokenizer.")}
+    check_dflash(d, split, embedded)
+
+
+def check_dflash(d, split, embedded):
+    """A DFlash sidecar of the target's tokenizer (docs/SPECULATIVE.md, section 11): refused without a mask token, at another width or with taps past the layers, and paired, beside the file's MTP block too, up to the drafter's plan."""
+    target = spec_decode.GGUF(split)
+    md = {k: v for k, v in target.metadata.items() if k.startswith("tokenizer.")}
     md["general.architecture"] = (8, "dflash")
-    spec_decode.write_gguf(d("dflash.gguf"), md, [])
-    refused(split, d("dflash.gguf"), "its architecture 'dflash' is not one llmx runs", "a DFlash drafter")
+    spec_decode.write_gguf(d("dflash-empty.gguf"), md, [])
+    refused(split, d("dflash-empty.gguf"), "names no tokenizer.ggml.mask_token_id", "a DFlash sidecar without a mask token")
+    width = target.value("qwen35.embedding_length")
+    md["tokenizer.ggml.mask_token_id"] = (4, 1)
+    md.update({"dflash.block_count": (4, 1), "dflash.embedding_length": (4, width), "dflash.block_size": (4, 4), "dflash.selector_top_k": (4, 2),
+               "dflash.attention.head_count": (4, 2), "dflash.attention.head_count_kv": (4, 1), "dflash.attention.key_length": (4, 8),
+               "dflash.attention.value_length": (4, 8), "dflash.feed_forward_length": (4, 16), "dflash.attention.sliding_window": (4, 64),
+               "dflash.attention.sliding_window_pattern": (9, (7, [True])), "dflash.attention.causal": (7, True),
+               "dflash.rope.dimension_sections": (9, (5, [4, 0, 0, 0])), "dflash.target_layers": (9, (5, [1, 2]))})
+    norm = [("output_norm.weight", [width], 0, b"\0" * 4 * width)]
+    spec_decode.write_gguf(d("dflash.gguf"), md, norm)
+    spec_decode.write_gguf(d("dflash-width.gguf"), dict(md, **{"dflash.embedding_length": (4, width + 1)}), norm)
+    refused(split, d("dflash-width.gguf"), "metadata dflash.embedding_length differs from the target's", "a DFlash sidecar of another width")
+    spec_decode.write_gguf(d("dflash-taps.gguf"), dict(md, **{"dflash.target_layers": (9, (5, [1, 9]))}), norm)
+    refused(split, d("dflash-taps.gguf"), "target_layers must be ascending distinct layers of the model", "a DFlash sidecar reading past the layers")
+    for model in (split, embedded):
+        refused(model, d("dflash.gguf"), "missing tensor dflash.dspine_codebook.weight", "a DFlash sidecar without its code bridge")
 
 
 def wide(directory, name):

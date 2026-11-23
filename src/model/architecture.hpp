@@ -196,6 +196,8 @@ struct ModelPlan {
     size_t draft_h = 0, draft_x = 0;
     // The most drafts one chain of the drafter gives, as the drafter defines it (spec::Proposer::block), 0 for none beyond the pass's mark rows.
     size_t draft_block = 0;
+    // The rows a call runs before its block's, each sequence's, which draft nothing: 1 where the first row holds the last pick and the rest draft (a DFlash drafter's).
+    size_t draft_anchor = 0;
     // On a tensor group or with stages apart from the head, the sublayer sums of a draft call before its picks, each a call of its own (DraftStep), the same number a stage (LayerPlan::stages).
     size_t draft_sums = 2;
     // With stages apart from the head (Placement::draft_device): the slots past the residual a draft call's rows carry between devices, as `carried` names the pass's.
@@ -204,9 +206,21 @@ struct ModelPlan {
     size_t draft_ids = 0, draft_rows_x = 0;
     // The positions before a history's end that a draft reads the drafter's context rows of, 0 where it reads them all; a prompt's slices before those leave them out (BatchEntry::context).
     size_t draft_window = 0;
+    // The KV layers the drafter keeps on the head's device, consecutive, Step::kv_layer naming the first, where its cache is KV.
+    size_t draft_kv_layers = 1;
+    // Their K and V heads and width where they differ from the target's, else none (draft_kv_shape).
+    backend::KVShape draft_kv{};
     // Whether the layers' declared native widths are in effect (LayerPlan::native, settle_cache).
     bool native = false;
 };
+
+// The shape of the drafter's KV layers: its own where the plan gives one, else the target's.
+inline backend::KVShape draft_kv_shape(const ModelPlan& plan) {
+    return plan.draft_kv.heads ? plan.draft_kv : backend::KVShape{plan.kv_heads, plan.head_dim};
+}
+
+// The rows one call of an embedded drafter runs a sequence: its block's and the anchor rows before them.
+inline size_t draft_call_rows(const ModelPlan& plan) { return std::max<size_t>(plan.draft_block, 1) + plan.draft_anchor; }
 
 // Whether an embedded drafter carries the target's last normed row of each sequence from one pass to the next, which its next context row reads (ModelPlan::draft_h).
 inline bool carries_row(const ModelPlan& plan) { return plan.drafter && plan.draft_h; }
@@ -284,6 +298,10 @@ struct PreparedLookup {
 // A routed step's picks as a pass made them, for a reference that follows them where it cannot order the experts itself (tools/route_probe.cpp).
 // It gets the model's layer, the step's rows, each row's k expert ids and its n_expert router scores, read back from the device after the step.
 using RouteHook = std::function<void(int layer, size_t rows, size_t k, const uint32_t* ids, size_t n_expert, const float* scores)>;
+
+// The residual entering a layer as a pass holds it, for a reference that checks the stream a drafter taps (tools/route_probe.cpp).
+// It gets the model's layer, the pass's rows and the residual's floats a row, read back from the device before the layer's mixer runs.
+using StreamHook = std::function<void(int layer, size_t rows, size_t width, const float* x)>;
 
 // One call of an architecture's part: the backend of the device it runs on and that device's arena, the residual at the call's first row, the rows and their runs, the weights to read by role id, and the layer's kind and cache views.
 // It also holds the rows' positions, the position tables on that device, a run list the part may rebuild without allocating, which holds a run for every entry of the pass, and a state layer's views.

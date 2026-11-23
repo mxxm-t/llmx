@@ -203,6 +203,8 @@ struct MoeStep {
 };
 
 enum class NormGate : uint8_t { silu, sigmoid };
+// What unit_rows divides a row by: its root mean square, its length, or nothing.
+enum class RowScale : uint8_t { rms, l2, none };
 
 // A linear-attention layer's step up to its output product (Backend::delta_step): the products, the conv into `conv`, the delta rule into `out`, then out's norm by `norm` gated by `norm_gate`.
 struct DeltaStep {
@@ -264,7 +266,7 @@ struct AuxiliaryPool {
     size_t tokens = 0, width = 0;
 };
 
-// A layer's K and V heads and their width, where one layer differs from the storage's others (a drafter's own layers beside its target's).
+// A layer's K and V heads and their width, where one layer differs from the storage's others.
 struct KVShape {
     size_t heads = 0, dim = 0;
 };
@@ -292,6 +294,8 @@ struct KVView {
     size_t extent = 0;
     // A non-causal view's rows attend every position of the view, length + nq, as a vision encoder's rows see their whole image (docs/VISION.md, section 3).
     bool causal = true;
+    // A causal view's row at position p attends only positions above p - window, 0 for all, a sliding window (Op::attention_window, docs/SPECULATIVE.md, section 11).
+    size_t window = 0;
 };
 
 
@@ -433,7 +437,8 @@ enum class Op : uint8_t { causal_conv_silu, gated_delta_rule, gated_rms_norm, no
                           group_rms_norm, silu_scaled, mix_streams, inject_streams, signed_sqrt_gate, dilated_conv_silu_add, select_kv, sparse_attention,
                           layer_norm, gelu, add_bias, mix_rows, rope_streams, attention_full, hc_coeffs, hc_collapse_norm, hc_expand,
                           sparse_attention_sink, topk_rows, candidate_blocks, compress_pool, indexer_scores, model_format_qdq, model_format_pack, pool_write,
-                          sqrt_softplus_routing, silu_mul_clamp, rope_forms, sigmoid_routing, glu_quick_gelu, raw_index_scores, sparse_attention_blocks };
+                          sqrt_softplus_routing, silu_mul_clamp, rope_forms, sigmoid_routing, glu_quick_gelu, raw_index_scores, sparse_attention_blocks, attention_window,
+                          unit_rows, sigmoid_gate_rows, matmul_at_ids, chain_pick };
 inline const char* op_name(Op op) {
     switch (op) {
         case Op::causal_conv_silu: return "causal_conv_silu";
@@ -477,6 +482,11 @@ inline const char* op_name(Op op) {
         case Op::glu_quick_gelu: return "glu_quick_gelu";
         case Op::raw_index_scores: return "raw_index_scores";
         case Op::sparse_attention_blocks: return "sparse_attention_blocks";
+        case Op::attention_window: return "attention_window";
+        case Op::unit_rows: return "unit_rows";
+        case Op::sigmoid_gate_rows: return "sigmoid_gate_rows";
+        case Op::matmul_at_ids: return "matmul_at_ids";
+        case Op::chain_pick: return "chain_pick";
     }
     return "an unknown op";
 }
@@ -1164,6 +1174,29 @@ public:
     // Scores here and in candidate_blocks are numbers or -inf: the CPU refuses a NaN, and a device kernel, which cannot see one, leaves its picks over a NaN unspecified.
     virtual void topk_rows(Slice /*ids*/, CSlice /*scores*/, CSlice /*lens*/, size_t /*rows*/, size_t /*n*/, size_t /*k*/, uint32_t /*offset*/) {
         lacks(Op::topk_rows);
+    }
+
+    // dst row r = gain * src row r / (sqrt(max(s, FLT_MIN)) + eps), s the mean or sum of its squares by `mode`, or gain * src row r under RowScale::none; `norms` gets each row's sqrt where it has a buffer.
+    virtual void unit_rows(Slice /*dst*/, Slice /*norms*/, CSlice /*src*/, size_t /*rows*/, size_t /*n*/, float /*gain*/, float /*eps*/, RowScale /*mode*/) {
+        lacks(Op::unit_rows);
+    }
+
+    // A sigmoid gate over gathered rows: msg row r = sigmoid(q[q_rows[r]] + s[from[r]] + bias) * v[from[r]] * scale[q_rows[r]], `width` wide, or zeros where from[r] is UINT32_MAX.
+    virtual void sigmoid_gate_rows(Slice /*msg*/, CSlice /*q*/, CSlice /*s*/, CSlice /*v*/, CSlice /*bias*/, CSlice /*scale*/, size_t /*rows*/, size_t /*width*/,
+                               const uint32_t* /*q_rows*/, const uint32_t* /*from*/) {
+        lacks(Op::sigmoid_gate_rows);
+    }
+
+    // out[g*k*k + j*k + c] = the sum over `width` of x row g*per+j times the per-column weight w times head row ids[g*k+c], for j below per <= k and c below k; an id of nrows or more scores -inf.
+    // Rows j from per to k of each group are left unwritten.
+    virtual void matmul_at_ids(Slice /*out*/, CSlice /*x*/, CSlice /*w*/, WeightView /*head*/, size_t /*width*/, size_t /*nrows*/, CSlice /*ids*/, size_t /*groups*/,
+                                size_t /*k*/, size_t /*per*/) {
+        lacks(Op::matmul_at_ids);
+    }
+
+    // A walk over k candidates a step: for each of `seqs` chains, j = the best of score[i][0], then next[t*seqs+i] = cand[(t*seqs+i)*k + j] and j = the best of score[(t+1)*seqs+i][j], a tie to the lower index.
+    virtual void chain_pick(Slice /*next*/, CSlice /*score*/, CSlice /*cand*/, size_t /*seqs*/, size_t /*steps*/, size_t /*k*/) {
+        lacks(Op::chain_pick);
     }
 
     // The k best blocks of block_size positions of each row, each scored by its best position, the block of the row's newest position pinned first.

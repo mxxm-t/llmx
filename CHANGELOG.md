@@ -15,6 +15,8 @@ Each entry is one short line that links the doc explaining it; reasons, flags an
 
 ### Changed
 
+- Several sequences of BF16, F16 and F32 weights decode faster on CUDA, and 2 to 4 on MI50s ([GPU backends](docs/src/backends-gpu.md)).
+- The Docker Hub page is set from the tree at each release, and its quick start serves with a key file ([releases](docs/RELEASE.md)).
 - Qwen3.6-27B decodes faster with ROCm on four MI50s as one tensor group at `--dtype int8` ([tensor split](docs/TENSOR-SPLIT.md)).
 
 ### Fixed

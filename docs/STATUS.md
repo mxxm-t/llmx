@@ -9,6 +9,7 @@
   Tried and not taken: `__launch_bounds__(kThreads, 5)` still spilled 4 bytes at 48 registers, and `__maxnreg__(56)` did not spill but drops the 256-thread bound.
 - **Gates:** the CUDA build with `cuda-sass`, `gpu-core`, `gpu-port` and `cuda-driver`, the failing run on main being the failing test; `rocm-isa` and the gfx906 code objects of the pushing builds against main's; `docs` and `dead-code`. The Windows Vulkan build does not compile `kernels/int16.gpu`.
 - **Left:** no card has timed the pushing builds on CUDA, where the four-block cap may cost occupancy.
+- **Landing:** with the landing stack land-20261128, whose gates are recorded there (Landing stack land-20261128, below).
 
 ## A chat reply read again with the reasoning its client sends back
 
@@ -630,8 +631,7 @@ A saved tool result opens the latest file in the editor or resumes unsaved chang
   The one cell below C is the F16 copy's pp512 beside its decode, 10373.7 / 10289.0 (-0.8%) at 16 and 10360.3 / 10294.4 (-0.6%) at 32 sequences, against a per-run deviation of 98 to 328 tok/s, so inside the noise; D is lower in both runs of both cells, and a real effect under 1% is not excluded by two runs an arm.
   Greedy ids of C and D the same at the prompt and at 2048 tokens, f16 and f32; `llmx-backend-cuda-test` of D 0 failures; mb2 again: F16 27b_qkv at 5 to 9 rows 0.62 to 0.78 (the 1.20 cell did not reproduce), F32 27b_out at 128 and 512 rows 1.027 and 1.026 (the one loss, 2.6%, a 27B F32 matrix), F32 0.6B o at 28 to 48 rows 0.79 to 0.80.
   Serving `llmx serve --max-seqs 16`, C / D, output tok/s: one stream 316.6 / 319.4, 4 streams 318.9 / 448.0 (+40.5%), 16 streams 438.0 / 510.7 (+16.6%); TTFT p50 at 512 prompt tokens 172.1 / 148.2 ms, at 2048 754.1 / 657.7 ms; the greedy reply is the same in both. The cap stays `SIZE_MAX`: no cell at 32 sequences or at pp512 and pp2048 lost to C beyond noise (checked by Fable).
-- **Left:**
-  1. The hosted run.
+- **Left:** nothing for this change; it lands with the landing stack land-20261128, whose gates are recorded there (Landing stack land-20261128, below).
 - **Gotchas:** the 8-row build costs eight rows whatever it is given (one row 2218 us against 2700 for eight), hence the remainder rule. The scatter adds keep + received where exact_sum adds lower + upper; IEEE addition commutes, so the bits are the same. On wave 64 the row block costs about the same from 2 to 8 rows, so it beats the column builds as soon as they need the 8-row build; ideas for a faster wave-64 build are in ideas.md (2026-11-23 cuda-decode-cols). PR 544 (cuda/bf16-decode-cols) is superseded by this branch; it sat on the unlanded TF32 prompt tile.
 ## Held norm parts of 256 threads (2026-11-22, CUTS24/CUTS32/CUTS35, branch products/norm-part on 901bd99a)
 
@@ -1110,6 +1110,52 @@ This test-only correction lands by fast-forward with the companion workflow.
 - **Checks:** The independent Chrome regression failed in 59.797 seconds before the fix and passed in 54.855 seconds after it. The combined browser fixture over public main `2ea30d410` passed in 66.845 seconds, including both themes at 1440, 390 and 320 pixels and 200 percent CSS zoom. Desktop preference, transient Settings access, mobile drawer state and toggle geometry passed. JavaScript syntax, whitespace and independent integration review passed. Dead-code passed with 17 expected findings and 20 planted faults in 34.8 seconds; docs passed with zero findings and 29 planted faults in 31.8 seconds and runs once more after this record.
 - **Landing:** Fast-forward from `2ea30d410` after final documentation validation and a fresh main check. This is static presentation only, with no server, runtime, API or numerical changes. The existing docs CLI remains applicable because native source and build inputs are unchanged. Full Markdown review checks references to details, temporary labels and layout; the companion README and TESTS own the updated behavior. Receipts are in `scratch/reading-landing/`, with independent matched screenshots in the main workspace's `scratch/chat-reading-layout/`.
 - **Gotchas:** Composer Settings and the narrow drawer are transient. Only explicit docked Details actions save the preference. Long titles can still truncate. Chrome emulation does not establish physical phone or Safari coverage. Settings semantics and history search remain separate audit work.
+## Landing stack land-20261128 (2026-11-23, LAND109 to LAND115, on landing-105's head ecc0955a, lands by fast-forward)
+
+**What lands.** Six commits on ecc0955a, by fast-forward, in order: fix/cuda-sm90-held-push b257d8cb, cuda/decode-cols-k1 c783129c, ci/hub-overview 246ed8ef, docs/release-auto-publish 0ec10d08, docs/changelog-bullets bc9e6af3 and this record.
+Each branch's own block or commit gives its change and measurements; this record gives the gates of the stack.
+
+**Fixes during landing.** ci/hub-overview folds in three fixes: the script replaces its placeholder literally, since jq 1.7 refuses the escaped pattern with exit 3; `tests/hub_overview.sh` runs the script against a local stand-in for Docker Hub in the Ubuntu CI job; and the overview's quick start serves with a mounted key file.
+docs/release-auto-publish's step 6 no longer names a release script that lives outside the tree.
+
+**Carried forward.** The stack was first gated at 012e758e on 167e05f3 and then replayed on ecc0955a, whose delta from 167e05f3 touches only the CI workflow, CHANGELOG.md, docs/CI.md, docs/STATUS.md and tools/dspine_reference.py; no source a build reads changed, so the identity results carry forward and the builds, CTest and the suites were rerun.
+
+**Flakes seen and rerun.** CTest's `backend-rocm-scratch` failed once in the ROCm CTest run, right after `backend-rocm`: the one-row control, whose scratch is made for one row, grew 0 bytes where it grows 48234496, while the fitted model held its bound (8388608 grown, 62947328 kept).
+Rerun three times each on another MI50 (renderD135), alternating the stack's build and ecc0955a's, all six runs pass with the same figures in both; the control reads device-wide free memory from a polling thread, which the loaded host can starve or a late release can offset, and the delta adds no allocation.
+The suite's `server` component failed once on `check_idle` after the cancelled stream, whose wait reads an idle server while the request is still queued.
+Rerun three times on the stack's build, it failed once on a bare 30-second read timeout in the real-model checks and passed twice (614 and 664 s); ecc0955a's build, run from its own tree on the same card under the same load of about 48, failed the same timeout, so it is a timing failure the stack inherits, not one it adds.
+No Vulkan or Windows device code changed, so the Radeon VII check does not run.
+
+| Check | Result |
+|---|---|
+| CTest, CPU build of bc9e6af3 (llmx 0.2.1+gbc9e6af3952c numerics fc8ba191e74a71c8, sha256 4ad1479eaec5) | 91/91 |
+| CTest, ROCm gfx906 build of bc9e6af3 (sha256 766ff60bacf3), one MI50 (renderD136) | 95/96, `backend-rocm-scratch` failing its control once; 6 of 6 reruns pass on renderD135, 3 on this build and 3 on ecc0955a's |
+| CTest, CUDA build of bc9e6af3, card-free (`cuda-sass`, `gpu-core`, `gpu-port`, `cuda-driver`) | builds; 4/4 |
+| Suite on one MI50, `--device rocm:0`, one `--only` per component | the 45 components from dead-code to shards pass, each run alone (renderD132); server-load, chat, threads and baseline pass; server as above, ecc0955a's build failing it the same way once |
+| Identity against 167e05f3, Qwen3-0.6B, at 012e758e | 16 of 16 output files equal on the CPU and 40 of 40 on rocm:0 |
+| docs, dead-code | pass on a git-archive copy of bc9e6af3 and of this record's commit, with the stack's CPU build as `--exe` |
+| Hosted | the workflow run of this commit on GitHub |
+
+Timing, first round (out/t564 on the rig, rule in out/t564/rule.txt written before the runs): Qwen3-0.6B BF16 safetensors on one MI50, `rocm:0 --dtype f16`, `bench --p 512 --n 128`, the stack at 012e758e against 167e05f3, median of four runs an arm, in tok/s.
+Decode at 2 and 4 sequences, the cells cuda/decode-cols-k1 changes on the MI50, rose 53.23% and 33.21%; the cells it leaves on main's kernels missed the rule's 3% in four places, with base runs at one sequence spanning 95 to 234 tok/s under a host load of 40 to 66.
+
+| Cell | base 167e05f3 | stack | Delta |
+|---|---|---|---|
+| seqs 1 pp512 / tg128 | 2099.1 / 153.7 | 2103.2 / 162.6 | +0.19% / +5.79% |
+| seqs 2 pp512 / tg128 | 2043.6 / 135.7 | 2081.0 / 208.0 | +1.83% / +53.23% |
+| seqs 4 pp512 / tg128 | 2088.9 / 269.6 | 1977.3 / 359.1 | -5.34% / +33.21% |
+| seqs 8 pp512 / tg128 | 2103.8 / 505.2 | 1954.1 / 475.1 | -7.11% / -5.96% |
+| seqs 16 pp512 / tg128 | 2049.7 / 649.1 | 2084.5 / 597.5 | +1.70% / -7.96% |
+
+Timing, second round (out2/t2, rule in out2/t2/rule.txt written before the runs, designed by Fable): the same model and command at 8 and 16 sequences, the stack's build bc9e6af3 (S) against ecc0955a's build (sha256 01737935a66b) run as two arms B1 and B2, six rounds in rotated orders on renderD133; a round's ratio is S over the mean of B1 and B2, the band is the gap between B1's and B2's medians, and a cell passes when the median ratio is at least 0.97 less the band.
+Every cell passes; the host's load was 39 to 56.
+
+| Cell | B1 | B2 | S | Median ratio | Band | Rule |
+|---|---|---|---|---|---|---|
+| seqs 8 pp512 | 2089.4 | 2100.5 | 2081.8 | 0.9971 | 0.53% | pass |
+| seqs 8 tg128 | 591.8 | 554.7 | 551.9 | 1.0028 | 6.69% | pass |
+| seqs 16 pp512 | 2048.6 | 1988.7 | 2093.5 | 1.0261 | 3.01% | pass |
+| seqs 16 tg128 | 697.0 | 772.3 | 712.4 | 0.9234 | 9.75% | pass |
 ## Landing stack land-20261127 (2026-11-23, LAND105 to LAND108, on main bfb7f517e, lands by fast-forward)
 
 **What lands.** Twenty-one commits on main bfb7f517e, by fast-forward, in order: feat/kv-layer-shapes, feat/dspine (test, then the change), feat/dspine-device, feat/dspine-vulkan, ds246-dspark-fit (test, then the change), fix/shared-tensor-fit (failing test, then the fix), feat/vulkan-collective-route-teardown, feat/vulkan-collective-teardown-faults and feat/vulkan-collective-submit-hazards (the last two each failing test, then the fix), fix/test-cold-start-price and fix/test-resume-price (each failing test, then the fix), fix/chat-filter-float (fixture, then the change) and this record.

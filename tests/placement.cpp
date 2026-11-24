@@ -722,6 +722,15 @@ void drafter_stages_fit() {
     auto whole = infer::split_layers(three, {device("a", room(2, true, false)), device("b", room(5, false, true) + MiB / 16)}, 1);
     require(counts(whole) == std::vector<int>{2, 2} && whole.draft_device == std::vector<int>{1, 1, 1} && apart(whole) == 0, "a drafter that fits beside the head is not placed there whole");
     require(whole.describe({device("a", 0), device("b", 0)}).find("layers 2-3 and drafter stages 0,1,2") != std::string::npos, "describe does not name the head's drafter stages");
+    // The weights figure is the fit's estimate of the device memory they take, each tensor as the device allocates it, and the line names it so.
+    infer::LayerSplit charged;
+    charged.stages.resize(1);
+    charged.stages[0].count = 2;
+    charged.stages[0].runs = {{0, 2}};
+    charged.stages[0].weights = 3 * (size_t(1) << 29);
+    const std::string line = charged.describe({device("a", 0)});
+    require(line.find("a: layers 0-1, weight memory 1.50 GiB estimated, ") != std::string::npos && line.find("per member") == std::string::npos,
+            ("describe does not name its weights figure an estimate of device memory: " + line).c_str());
     // The head holds one stage beside its two layers: the other two go to the first device, whose table the drafter's embedding reads.
     auto spread = infer::split_layers(three, {device("a", room(4, true, false)), device("b", room(3, false, true))}, 1);
     require(counts(spread) == std::vector<int>{2, 2} && spread.draft_device == std::vector<int>{0, 0, 1}, "stages that do not fit beside the head are not spread in device order");
@@ -2924,6 +2933,9 @@ void tensor_groups(size_t W, uint64_t heads, uint64_t kv_heads, uint64_t ff, uin
         infer::PlacedModel one_stage = grouped(weights, W, {}, 3), two_stages = grouped(weights, 2 * W, {1, 2}, 3), whole = grouped(weights, W, {}, 13);
         infer::Model& a = *one_stage.model;
         infer::Model& b = *two_stages.model;
+        // A group's line gives what each member holds.
+        require(one_stage.plan.find(", per member: weight memory ") != std::string::npos && two_stages.plan.find(", per member: weight memory ") != std::string::npos,
+                ("a group's placement line does not say its figures are each member's: " + one_stage.plan).c_str());
         auto cpu = std::make_shared<backend::CpuBackend>();
         cpu->set_threads(1);
         infer::Model single(infer::gguf_weights(weights), cpu);

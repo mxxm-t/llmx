@@ -228,6 +228,10 @@ def check_usage_errors():
     usage_error(["serve", model, "--draft-max", "64"], "serve", "--draft-max: '64' is not a whole number from 1 to 63")
     for command in (["generate", model, "a"], ["chat", model]):
         usage_error(command + ["--draft-max", "1024"], command[0], "--draft-max: '1024' is not a whole number from 1 to 1023")
+    # --draft-max sizes a drafter's drafts, so a line that names no drafter, or only off, is refused rather than ignored.
+    for command in (["generate", model, "a"], ["chat", model], ["serve", model, "--no-auth"], ["bench", "--model", model]):
+        for drafter in ([], ["--drafter", "off"]):
+            usage_error(command + drafter + ["--draft-max", "4"], command[0], "--draft-max is the most drafts a drafter makes; give --drafter")
     # A flag is honoured or refused: entries are adopted only under keep, so the proved policy without it is refused by name.
     usage_error(["serve", model, "--disk-cache-adopt", "proved"], "serve", "--disk-cache-adopt proved adopts")
     # --drafter is a list of sources tried in order, and every rule of the list is decided by its words, so each refusal comes while the line is read, on every command that takes the flag.
@@ -314,11 +318,11 @@ def check_help():
              "quantize": ["quantize", "missing.json", "missing.bin", "out.gguf"]}
     # bench's --size and --iters are the synthetic bench's, which runs in full on a short line giving the other of the two once; --profile times one Vulkan device, and --moe-stream-from and --expert-cache take the experts on the CPU.
     synthetic = ["bench", "--p", "1", "--n", "1"]
-    # The image flags are taken together and with --chat, but serve's, which take an encoder alone and size its images with it.
+    # The image flags are taken together and with --chat, but serve's, which take an encoder alone and size its images with it; --draft-max is taken with a drafter.
     serve_company = {"--mmproj": [], "--image-max-tokens": ["--mmproj", "missing.gguf"]}
     company = {"--profile": ["--device", "vulkan:0"], "--moe-stream-from": ["--cpu-moe"], "--expert-cache": ["--cpu-moe"], "--image": ["--chat", "--mmproj", "missing.gguf"],
                "--mmproj": ["--chat", "--image", "missing.png"], "--image-max-tokens": ["--chat", "--mmproj", "missing.gguf", "--image", "missing.png"],
-               "--yarn-original-ctx": ["--yarn", "4"]}
+               "--yarn-original-ctx": ["--yarn", "4"], "--draft-max": ["--drafter", "embedded"]}
     # Values a placeholder's would not give: --size is a multiple of 32, a perplexity window holds two tokens at least, --drafter names a drafter and --yarn scales by more than 1.
     values = {"--size": "32", "--ctx-size": "2", "-c": "2", "--drafter": "off", "--yarn": "4"}
 

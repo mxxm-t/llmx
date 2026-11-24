@@ -954,6 +954,10 @@ void type_stream_checks() {
             const size_t on_device = streaming ? (down_only ? 2u : 1u) : 0u;
             require(device->routed_calls == on_device && host->routed_calls == 2u - on_device,
                     "stream eligibility did not keep only unsupported layers on the host");
+            // The load names the layer kept at home and what its device lacks.
+            const std::string note = model.stream_note(), lacked = mixed ? "mixed_experts" : "type Q4_0 (2)";
+            require(on_device == 2u || !streaming ? note.empty() : note == "streamed experts: the device lacks " + lacked + ", so these layers run their experts on the host: 0\n",
+                    "the note of layers kept on the host: " + note);
             for (uint32_t id : {3u, 4u}) {
                 const auto row = step_row(model, id);
                 logits.insert(logits.end(), row.begin(), row.end());
@@ -1007,6 +1011,8 @@ void type_stream_checks() {
         infer::Model model(weights, {mixer, experts}, home);
         std::vector<float> logits = model.prefill({0, 1, 2});
         require(mixer->routed_calls == 0 && experts->routed_calls == 2, "a stream destination without routed products ran a routed layer");
+        require(model.stream_note() == "streamed experts: the device lacks routed_experts, so these layers run their experts on the host: 0, 1\n",
+                "the note of layers kept on the host: " + model.stream_note());
         for (uint32_t id : {3u, 4u}) {
             const auto row = step_row(model, id);
             logits.insert(logits.end(), row.begin(), row.end());

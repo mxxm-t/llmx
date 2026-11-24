@@ -611,6 +611,12 @@ std::vector<std::string> exec_specs(const ExecOptions& exec) {
 // The logits rows a command's prompt passes keep when it scores every row of them, as `logits` and `perplexity` do: a pass's prompt tokens.
 size_t prompt_logit_rows(const ExecOptions& exec) { return (size_t)infer::pass_ubatch(exec.ubatch, (size_t)exec.expert_cache); }
 
+// A positive --threads or --threads-batch where no backend has CPU workers changes nothing, which is said once rather than left silent (docs/USAGE.md, Device selection).
+void note_unused_threads(int threads, int threads_batch, int available) {
+    if ((threads > 0 || threads_batch > 0) && available == 0)
+        std::cerr << "note: --threads and --threads-batch set the CPU's workers, and this placement runs nothing on the CPU, so they change nothing\n";
+}
+
 // Open a model file as the flags ask, through infer::load_model: devices made first so a bad flag fails before the file is read, the model placed for its ubatch plus `decode_rows` generated tokens a pass and `logit_rows` logits rows.
 // The other parameters (threads, profiled, history_tokens, slots, timed, checkpoints, drafter, drafter_file, shared, argmax_passes, history) are described in docs/src/cli-main.md, open_model.
 std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const ExecOptions& exec, bool progress, int threads, size_t logit_rows, size_t decode_rows = 0,
@@ -688,6 +694,7 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
     if (loaded->replaced_template) std::cerr << "chat template: " << exec.chat_template_file << " replaces the template the model carries\n";
     if (show_plan) std::cerr << loaded->plan << load_timing(loaded->times);
     if (threads > 0) loaded->model->set_threads(threads);
+    if (shared.empty()) note_unused_threads(threads, exec.threads_batch, loaded->model->threads_available());
     return loaded;
 }
 
@@ -1119,6 +1126,7 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
     // The hot paths are one backend's; with several devices listed, the first one's.
     auto b = backend::make_backend(backend::device_specs(device).front());
     if (threads > 0) b->set_threads(threads);
+    note_unused_threads(threads, 0, b->threads_available());
     std::cout << "bench: threads " << b->threads_available() << "\n";
 
     // Square matmul: mat is [nin, nout] = [size, size], x the input of length nin and out the result of length nout, nout rows of nin/32 blocks.

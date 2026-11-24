@@ -427,7 +427,7 @@ text architectures need runs on a ROCm device but `mixed_experts`, which a
 routed layer whose gate and up differ in type needs and Vulkan lacks too; the
 image encoder's ops run on both, so `--mmproj` takes either. On a device `--threads` and `--threads-batch` do
 nothing and `--verbose` reports 0 threads, unless experts run on the CPU
-beside it (below); `--ubatch` keeps its meaning.
+beside it (below), and a positive count given there is noted once on stderr; `--ubatch` keeps its meaning.
 
 ## Several devices (`--device A,B,...`, `--layer-shares`)
 

@@ -135,6 +135,19 @@
 **Left.** Lands in COORD's stack; the stack's head runs the CPU suite, CTest, Qwen3-0.6B byte identity against main and the hosted run.
 
 **Gotchas.** No drafter source means no drafting on every path, an MTP file included (`load_model` plans its blocks only for `--drafter embedded`), so the refusal changes no run that drafted.
+## CPU thread counts on a placement without the CPU (2026-11-24, CONFFIX6, branch fix/threads-without-cpu on main d8bd8735e)
+
+**Goal.** A positive `--threads` or `--threads-batch` on a placement that runs nothing on the CPU says once on stderr that it changes nothing, where it was silently ignored on every architecture and both GPU backends (ARCHAUDIT4, FLAGAUDIT1 row 13).
+
+**Done.**
+- Test commit 34b785b85: `cli` checks the note from `generate` and the synthetic bench on the configured device, and its absence on the CPU, with experts on the CPU beside a device and with automatic counts.
+- Fix: `note_unused_threads` in src/cli/main.cpp, from `open_model` after load (`threads_available()` is 0) and from the synthetic bench; docs/USAGE.md, docs/src/cli-main.md and docs/TESTS.md.
+- A note, not a refusal: XDEV (devlog 20:51) and Fable agreed, since USAGE.md documents the counts as inert on a device, the production serve line and the device suite pass `--threads`, and only the built placement knows whether it has CPU workers (`--cpu-moe` adds a CPU backend only at width 1). This is the recorded exception to "takes effect or refuses".
+- Fail then pass (rig, Vulkan build, `--device vulkan:0` on renderD129): `cli` at the test commit fails, as generate with `--threads 2` on vulkan:0 printed no note, and passes at the fix; `cli` on the CPU at the fix passes, with the counts not reached on a placement without the CPU (conffix1/arms6/res/tj-run.txt, dj.txt).
+
+**Left.** Lands in COORD's stack; the stack's head runs CTest, the CPU suite, the suite on a device, Qwen3-0.6B byte identity against main and the hosted run.
+
+**Gotchas.** The note is reached only by a device run: hosted CI checks only that the CPU stays silent.
 
 ## The fit charges the vision encoder (2026-11-24, FITMM1, branch fix/mmproj-fit on main 83ac07728)
 

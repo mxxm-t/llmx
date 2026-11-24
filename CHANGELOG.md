@@ -40,6 +40,7 @@ Each entry is one short line that links the doc explaining it; reasons, flags an
 - Image encoders on the CPU and Vulkan sum attention by blocks, so a 1080p image meets its HF bound ([precision](docs/PRECISION.md#attention-value-sums)).
 - `--verbose`'s kv line counts every card of a tensor group and names recurrent state bytes ([usage](docs/USAGE.md)).
 - `--draft-max` without `--drafter` is refused instead of ignored ([speculative decoding](docs/SPECULATIVE.md)).
+- `--threads` and `--threads-batch` on a placement with nothing on the CPU now say they change nothing ([usage](docs/USAGE.md)).
 - Chat templates that use Jinja's `float` filter, such as Inkling-2-Mini's, render ([chat templates](docs/src/inference-chat.md)).
 - MiniMax-M3.1's attention runs on Vulkan with `--cpu-moe` instead of failing ([MiniMax](docs/MINIMAX.md)).
 - DeepSeek-V4.1-Flash with its DSpark drafter fits the ten-card layer split ([speculative decoding](docs/SPECULATIVE.md)).

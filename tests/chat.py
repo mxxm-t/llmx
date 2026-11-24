@@ -128,8 +128,9 @@ def run():
             assert common.cli_stdout(p.stdout) == BANNER + expected
             if not verbose:
                 requested = os.environ.get("LLMX_DTYPE", "auto").encode("ascii")
-                # A ROCm group states its collective's path once, before the dtype line (docs/src/backends-gpu.md).
-                assert re.fullmatch(rb"(?:rocm: tensor group of devices [^\r\n]+\r?\n)*dtype: " + requested + rb" -> (?:f16|bf16|f32|int8) \(model declares bf16\); [^\r\n]+\r?\n", p.stderr), p.stderr
+                # A ROCm group states its collective's path once, before the dtype line (docs/src/backends-gpu.md), and a placement without the CPU notes the unused --threads after it.
+                assert re.fullmatch(rb"(?:rocm: tensor group of devices [^\r\n]+\r?\n)*dtype: " + requested + rb" -> (?:f16|bf16|f32|int8) \(model declares bf16\); [^\r\n]+\r?\n"
+                                    rb"(?:note: --threads and --threads-batch set the CPU's workers, and this placement runs nothing on the CPU, so they change nothing\r?\n)?", p.stderr), p.stderr
                 continue
             percents = [int(x) for x in re.findall(rb"Loading tensor data: (\d+)%", p.stderr)]
             assert percents[0] == 0 and percents[-1] == 100

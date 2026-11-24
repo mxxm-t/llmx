@@ -1961,6 +1961,56 @@ void kv_auto_fitted() {
     checked += 3;
 }
 
+// A media encoder opened beside the model (PlacementRequest::encoder, docs/VISION.md, section 3) is charged on the embedding's device before the KV is sized.
+// A budget past the device, explicit or automatic, is cut to what a device smaller by the encoder's weights, buffers and priced scratch holds, and the device makes that scratch with the model's.
+void encoder_charged() {
+    const auto weights = fixture();
+    // A copying device that keeps nothing free beside its fit, so the fit's terms alone tell the two devices apart, and that prices a pass at 64 bytes a row.
+    struct Priced : SizedDevice {
+        mutable std::mutex m;
+        size_t reserved_rows = 0;
+        size_t memory_kept(size_t) const override { return 0; }
+        size_t scratch_bytes(const backend::PassWidths& w) const override { return w.rows * 64; }
+        void reserve_scratch(const backend::PassWidths& w) override {
+            std::lock_guard<std::mutex> lock(m);
+            reserved_rows = std::max(reserved_rows, w.rows);
+        }
+    };
+    infer::EncoderMemory encoder;
+    encoder.weights.push_back(infer::Matrix{quant::GGML_TYPE_F32, 256, 1024, size_t(1) << 20, true});
+    encoder.weights.push_back(infer::Matrix{quant::GGML_TYPE_F32, 256, 1, 1024, false});
+    encoder.buffers = {size_t(1) << 20, size_t(512) << 10};
+    backend::PassWidths products, attention;
+    products.rows = 4096;
+    attention.rows = 1024;
+    encoder.widths = {products, attention};
+    const size_t charged = (size_t(1) << 20) + 1024 + (size_t(1) << 20) + (size_t(512) << 10) + 4096 * 64 + 1024 * 64, room = size_t(8) << 20;
+    const auto place = [&](size_t bytes, const infer::EncoderMemory& e, bool automatic, size_t* reserved = nullptr) {
+        auto device = std::make_shared<Priced>();
+        device->room = bytes;
+        device->copying = true;
+        device->set_threads(1);
+        infer::PlacementRequest request;
+        request.names = {"device"};
+        request.kv_auto = automatic;
+        request.encoder = e;
+        infer::ModelOptions options;
+        if (!automatic) options.kv_tokens = size_t(1) << 20;
+        const size_t tokens = infer::place_model(infer::gguf_weights(weights), {device}, request, options).model->kv_tokens_total();
+        if (reserved) *reserved = device->reserved_rows;
+        return tokens;
+    };
+    for (const bool automatic : {false, true}) {
+        size_t reserved = 0;
+        const size_t without = place(room, {}, automatic), with = place(room, encoder, automatic, &reserved), smaller = place(room - charged, {}, automatic);
+        require(with < without && with == smaller,
+                ("an encoder beside the model was not charged before the " + std::string(automatic ? "automatic" : "explicit") + " KV budget: " + std::to_string(with) +
+                 " tokens with it, " + std::to_string(without) + " without and " + std::to_string(smaller) + " on a device smaller by its bytes").c_str());
+        require(reserved == 4096, "the embedding's device did not make the encoder's scratch with the model's");
+    }
+    checked += 2;
+}
+
 void kv_auto_overstated() {
     // A device whose reading overstates its room by `drop` until the bytes it holds reach its real ceiling, then states that ceiling, as a driver whose budget hides other processes' memory does (docs/src/backends-vulkan.md, memory_available).
     // With `fails` an allocation past the ceiling throws; without, it succeeds and the device is left below its kernels' reserve.
@@ -3518,7 +3568,7 @@ int main() {
     try {
         // A fit short of its devices' free memory waits five seconds for it to settle (model/place.hpp, settle), so the cases that make such fits run on threads of their own beside the rest.
         std::vector<std::future<void>> waiting;
-        for (void (*settling)() : {kv_fitted, kv_refused, kv_auto_fitted, kv_auto_overstated, fit_cut_first_pass, experts_beside_split, replies_arena_fitted, lookup_storage_planned, layer_split_fits, rounded_buffers_fit})
+        for (void (*settling)() : {kv_fitted, kv_refused, kv_auto_fitted, kv_auto_overstated, encoder_charged, fit_cut_first_pass, experts_beside_split, replies_arena_fitted, lookup_storage_planned, layer_split_fits, rounded_buffers_fit})
             waiting.push_back(std::async(std::launch::async, settling));
         tensor_widths();
         pass_values_once_a_stage();

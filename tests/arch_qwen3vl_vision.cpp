@@ -5,6 +5,8 @@
 #include <functional>
 #include <limits>
 #include <iostream>
+#include <optional>
+#include <utility>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -304,12 +306,62 @@ void plan_and_encode() {
     refused([&] { o->encoder->encode(img); }, "do not fill its grid", "patches short of the grid");
 }
 
+// What the fit charges for the encoder (VisionEncoder::memory) against the images under its bound and what the runner allocates (docs/TESTS.md).
+void memory_charged() {
+    struct Counting : backend::CpuBackend {
+        size_t device = 0;
+        backend::BufferPtr alloc(size_t bytes, backend::Memory where) override {
+            if (where == backend::Memory::device) device += bytes;
+            return backend::CpuBackend::alloc(bytes, where);
+        }
+        backend::BufferPtr adopt(const void* src, size_t bytes) override {
+            device += bytes;
+            return backend::CpuBackend::adopt(src, bytes);
+        }
+    };
+    Counting cpu;
+    cpu.set_threads(2);
+    auto o = open(tiny(), cpu);
+    const infer::VisionArchitecture& a = o->encoder->architecture();
+    const infer::EncoderPlan& plan = o->encoder->plan();
+    // At the default bound, one below min_pixels that smart_resize raises past, and one token, the bound holds the largest and the thinnest images.
+    for (const std::optional<uint64_t> tokens : {std::optional<uint64_t>(), std::optional<uint64_t>(64), std::optional<uint64_t>(1)}) {
+        const image::Params p = a.preprocess(tokens);
+        const infer::EncodeBound bound = a.bound(p);
+        require(bound.patches >= a.max_tokens(p) * 4 && bound.arena_patches >= bound.patches && bound.attention_rows >= 1, "a bound short of its token bound");
+        for (const auto& [h, w] : std::vector<std::pair<uint32_t, uint32_t>>{{1, 1}, {1, 200}, {200, 1}, {5000, 25}, {3000, 4000}, {65535, 400}, {8191, 8191}}) {
+            const auto [rh, rw] = image::fit_size(h, w, p);
+            require(size_t(rh / P) * (rw / P) <= bound.patches, "an image of " + std::to_string(h) + " by " + std::to_string(w) + " past its bound's patches");
+        }
+    }
+    const image::Params p = a.preprocess(uint64_t(64));
+    const infer::EncodeBound bound = a.bound(p);
+    const infer::EncoderMemory m = infer::VisionEncoder::memory(a, o->weights.tensors, p, cpu.kv_layout().block_tokens);
+    size_t adopted = 0;
+    for (const infer::Matrix& w : m.weights) adopted += w.bytes;
+    for (size_t t = 0; t < plan.tables.size(); ++t) adopted += m.buffers[t];
+    require(m.buffers.size() == plan.tables.size() + 3 && cpu.device == adopted, "the encoder's weights and tables, as adopted, against its charge");
+    o->encoder->hold(p);
+    require(cpu.device - adopted == m.buffers[plan.tables.size()], "the arena made at the bound, against its charge");
+    const size_t held = cpu.device;
+    image::Prepared img;
+    img.grid_h = 16;
+    img.grid_w = 16;
+    img.patches.resize(256 * 3 * P * P, 0.5f);
+    (void)o->encoder->encode(img);
+    require(cpu.device - held <= m.buffers[plan.tables.size() + 1] + m.buffers[plan.tables.size() + 2], "an encode within the bound took more than its K and V");
+    require(m.widths.size() == 2 && m.widths[0].rows == bound.patches && m.widths[0].product_in == 3 * P * P && m.widths[1].rows == bound.attention_rows &&
+                m.widths[1].heads == H && m.widths[1].head_dim == D / H && m.widths[1].dense_attention,
+            "the encoder's passes priced as its products over every patch and its attention a piece at a time");
+}
+
 }  // namespace
 
 int main() {
     try {
         refusals();
         plan_and_encode();
+        memory_charged();
     } catch (const std::exception& e) {
         std::cerr << "arch-qwen3vl-vision: FAIL: " << e.what() << "\n";
         return 1;

@@ -40,6 +40,19 @@
 - **Done:** the test times the alone replies and gives each request of the group four times that time, at least the 600 seconds it had (Fable: a resume may recompute up to about 1.5 times its reply, so 4 rather than 3); a request that fails in its thread now fails the check with its error and the bound instead of a missing result.
 - **Gates:** both arms side by side in 4-CPU containers at host load 40 to 53 on main d8bd8735e's CPU binary (conffix1/out/u2-*.txt): main's test times out beside the others and fails after 1566 s (`KeyError('def fib(n):')`), this branch's passes after 1683 s; docs and dead-code pass. A tests-only change: no runtime gate applies.
 - **Left:** none.
+## Qwen3.6-35B-A3B f16 on one Vulkan device against HF (2026-11-25, CONFFIX6 to CONFFIX8, record)
+An audit (ARCHAUDIT4) saw this model's f16 top-1 probabilities on one Vulkan device move 0.026 from its f32 run, against 0.0005 on ROCm, and asked whether the Vulkan expert products leave the HF bound.
+They do not: `tests/baseline_layered.py` on Qwen3.6-35B-A3B Q4_K_M with its file-exact HF goldens, main d8bd8735e, default f16, passes every check on vulkan:0, on vulkan:0,vulkan:1 at tensor width 2 and on rocm:0 (MI50s).
+
+| Arm | Top-5 overlap (6 prompts) | Continuous NLL delta | Worst window NLL delta | Bound | Headroom |
+|---|---|---|---|---|---|
+| vulkan:0 | 5 of 5 each | 0.00086 | 0.00159 | 0.02 | 12.6x |
+| vulkan:0,1 width 2 | 5 of 5 each | 0.00015 | 0.00124 | 0.02 | 16x |
+| rocm:0 | 5 of 5 each | 0.00082 | 0.00174 | 0.02 | 11.5x |
+
+The NLL deltas are absolute differences of mean NLL from HF over 243 tokens, batched and `--per-token`, the worst of either.
+The 0.026 is a difference between llmx's own f16 and f32 runs, not an error against HF, and the Vulkan arm is no further from HF than ROCm, so no kernel changes.
+Reports: rig `/opt/claude-work/conffix1/arms7a/r-{vd1,vtw2,rd1}/report.json`.
 
 ## CUDA BF16 prompt tile (2026-11-21, CUDA105, branch cuda/bf16-prompt-tile on main c494eea6f)
 

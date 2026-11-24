@@ -3,7 +3,7 @@
 Each fixture of tests/fixture_minimax.py is written from the committed golden's seed, its file held to the reference's SHA-256.
 `llmx logits` reads the golden's sequence through --then-ids, and every position's logits must be HF's within 2e-5 and each target's NLL within 1e-5: whole at lengths either side of the first sparse drop, token by token (--per-token), at ubatch 1, 3 and 16 and at one and three threads.
 Greedy `generate` after the golden's prompt gives HF's ids, and no selection or greedy pick of the golden sits within 2e-5 of a tie.
-On a configured device whose backend lacks one of the model's ops the file is refused at load by the op's name, and the component reports SKIP.
+On a configured device whose backend lacks one of the experts' ops the file is refused at load by the op's name, and the component runs every check again with --cpu-moe, the attention on the device and the experts on the CPU, reporting SKIP only where that is refused too.
 On the CPU, llmx-route-probe found beside the executable prints the rows `logits` prints at its settings byte for byte, and each routed layer's picks at every position are the top k of the router scores it wrote.
 """
 import hashlib
@@ -60,8 +60,8 @@ def held(name, got, golden):
     return logit_error, nll_error
 
 
-def gate(name, path, directory, golden, floor):
-    """The whole lengths either side of the first sparse drop, then the whole sequence token by token and over passes and threads."""
+def gate(name, path, directory, golden, floor, extra=()):
+    """The whole lengths either side of the first sparse drop, then the whole sequence token by token and over passes and threads, each run with `extra` flags."""
     sequence, vocab, first = golden["sequence"], golden["config"]["vocab_size"], golden["first_sparse_position"]
     closest = min([m["minimum"] for m in golden["margins"].values()] + [golden["greedy_margin"]])
     assert closest >= floor, "minimax: %s: a selection or greedy pick sits %.3g from a tie" % (name, closest)
@@ -73,20 +73,20 @@ def gate(name, path, directory, golden, floor):
              ("ubatch 16", sequence, ["--ubatch", "16"]), ("threads 1", sequence, ["--threads", "1"]), ("threads 3", sequence, ["--threads", "3"])]
     worst, whole = [0.0, 0.0], None
     for label, ids, flags in runs:
-        got = rows(path, directory, ids, vocab, flags)
+        got = rows(path, directory, ids, vocab, flags + list(extra))
         if len(ids) == len(sequence) and not flags:
             whole = got
         worst = [max(a, b) for a, b in zip(worst, held("%s %s" % (name, label), got, golden))]
     mean = sum(nll(whole[t], sequence[t + 1]) for t in range(len(sequence) - 1)) / (len(sequence) - 1)
     assert abs(mean - golden["mean_nll"]) <= NLL_BOUND, "minimax: %s mean NLL %.9f against HF's %.9f" % (name, mean, golden["mean_nll"])
-    p = common.run_process(["generate", path, golden["prompt"], "-n", str(len(golden["greedy"])), "--temp", "0", "--ignore-eos", "--verbose"] + F32)
+    p = common.run_process(["generate", path, golden["prompt"], "-n", str(len(golden["greedy"])), "--temp", "0", "--ignore-eos", "--verbose"] + F32 + list(extra))
     assert p.returncode == 0, "minimax: generate failed: %s" % p.stderr.decode("utf-8", "replace")
     line = re.search(rb"^ids:(.*)$", common.cli_stdout(p.stdout), re.M)
     ids = [int(i) for i in line[1].replace(b",", b" ").split()]
     assert ids == golden["greedy"], "minimax: %s greedy ids %s, HF's %s" % (name, ids, golden["greedy"])
-    print("minimax: %s: %d runs from 1 to %d tokens, first sparse at %d (dense rows %.3g away), every logit within %.3g of HF's (bound %g), each target's NLL within %.3g (bound %g), "
+    print("minimax: %s%s: %d runs from 1 to %d tokens, first sparse at %d (dense rows %.3g away), every logit within %.3g of HF's (bound %g), each target's NLL within %.3g (bound %g), "
           "mean NLL %.9f against %.9f, %d greedy ids HF's, no selection or pick nearer a tie than %.3g"
-          % (name, len(runs), len(sequence), first, golden["dense_max_abs_diff"], worst[0], LOGIT_BOUND, worst[1], NLL_BOUND, mean, golden["mean_nll"], len(ids), closest))
+          % (name, " " + " ".join(extra) if extra else "", len(runs), len(sequence), first, golden["dense_max_abs_diff"], worst[0], LOGIT_BOUND, worst[1], NLL_BOUND, mean, golden["mean_nll"], len(ids), closest))
 
 
 def probe_path():
@@ -139,12 +139,17 @@ def run(require=False):
             path = str(fixture_minimax.write_minimax(os.path.join(directory, name + ".gguf"), golden["config"], state))
             with open(path, "rb") as f:
                 assert hashlib.sha256(f.read()).hexdigest() == golden["file_sha256"], "minimax: the %s file is not the reference's" % name
+            extra = []
             if any(d != "cpu" for d in os.environ.get("LLMX_DEVICE", "cpu").split(",")):
                 p = common.run_process(["logits", path, "a"] + F32, text=True)
                 if p.returncode == 1 and DEVICE in p.stderr:
-                    print("minimax: SKIP - the device refuses the model at load (%s), so nothing was compared" % p.stderr.strip().splitlines()[-1])
-                    return common.SKIPPED
-            gate(name, path, directory, golden, document["margin_floor"])
+                    # A device that lacks the experts' routing still runs the attention with the experts on the CPU, held to HF's bounds the same way.
+                    extra = ["--cpu-moe"]
+                    p = common.run_process(["logits", path, "a"] + F32 + extra, text=True)
+                    if p.returncode == 1 and DEVICE in p.stderr:
+                        print("minimax: SKIP - the device refuses the model at load, its experts on the CPU too (%s), so nothing was compared" % p.stderr.strip().splitlines()[-1])
+                        return common.SKIPPED
+            gate(name, path, directory, golden, document["margin_floor"], extra)
             if os.environ.get("LLMX_DEVICE", "cpu") != "cpu":
                 continue
             tool = probe_path()

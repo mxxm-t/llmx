@@ -648,11 +648,14 @@ public:
         }
         // Home weights must run on their assigned device before anything is adopted; a stream destination that lacks a weight type leaves the whole layer at home.
         stream_device_.assign(n_layer, -1);
+        // The layers eligible to stream that stay at home, by what their device lacks, for the note a load prints (stream_note).
+        std::vector<std::pair<std::string, std::string>> home;
         for (size_t l = 0; l < n_layer; ++l) {
             const LayerPlan& layer = plan_.layers[l];
             const size_t a = device_index(place_.mixer_device[l]), f = device_index(place_.ffn_device[l]);
             // Experts read in place on the host beside a mixer on a device that copies its weights.
             bool streamed = layer.routed && (place_.stream_from || !place_.expert_slots.empty()) && a != f && !backends[a]->reads_in_place() && backends[f]->reads_in_place();
+            std::string lacks;
             for (const Role& role : layer.roles) {
                 if (role.tensor && weights.tensors[*role.tensor].row_source) {
                     const TensorView& t = weights.tensors[*role.tensor];
@@ -664,7 +667,10 @@ public:
                 }
                 require_type(role, device_of(role.part, l), "layer " + std::to_string(l) + "'s " +
                              (role.part == Part::mixer ? "mixer" : "feed-forward part"), layer.lookup && layer.lookup->role == role.id);
-                if (role.stream != Stream::none && !accepts(role, a)) streamed = false;
+                if (streamed && role.stream != Stream::none && !accepts(role, a)) {
+                    streamed = false;
+                    lacks = std::string("type ") + type_name(weights.tensors[*role.tensor].type);
+                }
             }
             // Every op a part issues beyond the common set runs on its device; a stream destination without one of the feed-forward part's leaves the layer at home, as a type does.
             for (const OpUse& u : layer.ops) {
@@ -673,10 +679,20 @@ public:
                     continue;
                 }
                 if (!backends[f]->implements(u.op)) refuse_op(l, u);
-                if (!backends[a]->implements(u.op)) streamed = false;
+                if (streamed && !backends[a]->implements(u.op)) {
+                    streamed = false;
+                    lacks = backend::op_name(u.op);
+                }
             }
             if (streamed) stream_device_[l] = (int)a;
+            else if (!lacks.empty()) {
+                const auto at = std::find_if(home.begin(), home.end(), [&](const auto& h) { return h.first == lacks; });
+                if (at == home.end()) home.push_back({lacks, std::to_string(l)});
+                else at->second += ", " + std::to_string(l);
+            }
         }
+        for (const auto& h : home)
+            stream_note_ += "streamed experts: the device lacks " + h.first + ", so these layers run their experts on the host: " + h.second + "\n";
         // Metadata-only file access admits known storage layouts; model construction still refuses an unreadable unused tensor.
         for (size_t i = 0; i < weights.tensors.size(); ++i) {
             const TensorView& t = weights.tensors[i];
@@ -1326,6 +1342,8 @@ public:
     void add_media(Sequence& s, MediaRun run);
     // The same for the CLI's own sequence.
     void add_media(MediaRun run) { add_media(seq_, std::move(run)); }
+    // The lines a load prints where layers eligible to stream their experts stay on the host, naming what the device lacks; empty otherwise.
+    const std::string& stream_note() const { return stream_note_; }
     // Whether the model takes image rows: its architecture places them (ModelPlan::image_streams, ModelPlan::text_position_images).
     bool takes_images() const { return !plan_.image_streams.empty() || plan_.text_position_images; }
     bool text_position_images() const { return plan_.image_streams.empty() && plan_.text_position_images; }
@@ -1651,6 +1669,7 @@ private:
     std::vector<std::vector<uint8_t>> packed_;
     // A routed layer run beside its mixer for a long prompt (Placement::stream_from): the device it runs on, or -1, and home_'s row with its copy roles adopted on that device and its window roles in that device's windows.
     std::vector<int> stream_device_;
+    std::string stream_note_;
     std::vector<std::vector<Weight>> stream_;
     std::vector<std::vector<backend::BufferPtr>> windows_;   // per device, a buffer per window role in role order, sized to the largest streamed layer's
     // A streamed layer's device expert cache (Placement::expert_slots): its row with slot stacks for the window roles, the buffers it holds and the backend's view; an empty row where it has none.

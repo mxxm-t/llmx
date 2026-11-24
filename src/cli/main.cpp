@@ -684,7 +684,7 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
         watch(step);
     };
     auto loaded = infer::load_model(path, std::move(backends), request, options, report, exec.load_mode, drafter_file, history);
-    std::cerr << loaded->dtype.describe() << loaded->model->rope_policy().describe();
+    std::cerr << loaded->dtype.describe() << loaded->model->rope_policy().describe() << loaded->model->stream_note();
     if (loaded->replaced_template) std::cerr << "chat template: " << exec.chat_template_file << " replaces the template the model carries\n";
     if (show_plan) std::cerr << loaded->plan << load_timing(loaded->times);
     if (threads > 0) loaded->model->set_threads(threads);

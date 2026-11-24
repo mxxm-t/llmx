@@ -91,6 +91,19 @@
 - **Done:** failing test first (`vulkan-quantization` `check_f16_tile_time`, F16 at most 1.5 times BF16 at 4096 by 12288 over 300 rows); the tile widens F16 pairs through `f16_pair_to_f32`, the same exact values. On one MI50 under RADV (renderD134, best of 3 calls twice, main 5615d875d's shaders against the fix): 4096x12288 BF16 inputs 300/512/1201 rows 104.2/173.5/390.0 ms to 7.4/11.3/24.3; f32 inputs 32 rows 8.90 to 1.72 ms; 12288x4096 BF16 inputs 1201 rows 57.4 to 23.4 ms; 1024x4096 BF16 inputs 1201 rows 9.15 to 2.66 ms; f32 inputs at 128 rows and more within -4.2 to +1.7 percent (the wide tile, unchanged). `vulkan-quantization` passes on the fix (wide tile equal to the float tile bit for bit).
 - **Landing:** with the landing stack land-20261130, whose gates are recorded there (Landing stack land-20261130, below).
 - **Gotchas:** the timing check is a ratio on one device in one process, an exception to exact checks recorded here because the bug is a cost, not a value; stdout of a benchmark is buffered, so the last printed cell is not the cell that hung.
+## Streamed-expert layers kept on the host say why (2026-11-24, CONFFIX1 to CONFFIX3, branch fix/moe-stream-kept-home on main d8bd8735e)
+
+**Goal.** A load that keeps layers eligible for `--moe-stream-from` or `--expert-cache` on the host, because the device lacks a feed-forward op or a weight type, says so instead of keeping them there silently (architecture audit, item 3).
+
+**Done.**
+- Test commit: `model-validation` checks `Model::stream_note` for a missing weight type, `mixed_experts` and `routed_experts`.
+- Fix: `Model::stream_note`, one stderr line a reason naming the layers, printed by the load helper beside the dtype and rope lines (src/cli/main.cpp); docs/USAGE.md, docs/src/model-runtime.md and docs/TESTS.md.
+- Fail then pass (rig, CPU build per commit): the test commit fails to build `llmx-model-validation-test` on main's code, which has no `Model::stream_note`; the fix passes `model-validation`.
+
+**Left.** Lands in COORD's stack after PR 607 and FLAGFIX1's branch, at most two commits, gitea PR 612; the stack's head runs the CPU suite, CTest, Qwen3-0.6B byte identity against main, byte identity on the CPU and a device for the models it reaches, the suite on a device, one timing round against main and the hosted run; it touches src/cli/main.cpp, which FLAGFIX1 also edits (devlog).
+
+**Gotchas.** No refusal: `model-validation` expects a load with every layer home to load. The type reads as the constructor's other messages give it, `Q4_0 (2)`.
+
 ## Attention value sums by block (2026-11-24, VKSUM1 and VKSUM2, branch fix/attention-value-sum on main e9daf3b6d)
 
 - **Goal:** attention's normaliser and value sums are no longer one F32 chain over all keys on the CPU and in the Vulkan flash kernel, so the Inkling-2 image encoder at 1080p (1296 patches) meets its bound (9.37e-6) on both, as ROCm does (4.59e-6).

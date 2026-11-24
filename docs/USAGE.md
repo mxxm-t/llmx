@@ -516,7 +516,7 @@ a prompt's rows with each expert's weights unpacked once for all of them,
 which is usually fast enough. `--moe-stream-from N` (default 0, never) runs such a layer on the device
 instead for a prompt of at least `N` tokens, its experts copied there
 once per pass of up to `--ubatch` tokens, 512 by default. A layer whose streamed weights include a
-type the device cannot execute stays on the CPU; eligible layers still stream.
+type or an op the device cannot execute stays on the CPU, and the load says so on stderr, as `streamed experts: the device lacks X, so these layers run their experts on the host: L, ...`; eligible layers still stream, and `--expert-cache` keeps such a layer home the same way.
 A weight type unsupported by its assigned home backend is refused at load,
 before weight adoption or model buffer allocation. A tensor no model role uses
 is also refused if none of the selected backends supports its type.

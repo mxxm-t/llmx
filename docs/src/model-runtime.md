@@ -274,7 +274,9 @@ delegated to a `backend::Backend`.
     reads in place, its distinct mixer device copies weights, and that
     destination supports every copied or windowed role. If a streamed type
     is unsupported, the whole layer stays on its host; other eligible layers
-    can still stream. `resolve_tensors` reuses this decision.
+    can still stream. `resolve_tensors` reuses this decision. A layer kept
+    home this way is named in `stream_note`, one line a reason (the type or
+    op its destination lacks), which the CLI prints after the load.
     In the same pass over the layers, every op a layer's plan names
     (`LayerPlan::ops`) must be one the backend of its part's device
     implements (`Backend::implements`), or the model is refused with a text

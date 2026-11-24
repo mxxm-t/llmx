@@ -13,6 +13,7 @@
 #include "backends/backend.hpp"
 #include "image/image.hpp"
 #include "model/architecture.hpp"
+#include "model/layer_split.hpp"
 #include "model/weights.hpp"
 
 // A vision encoder: the contract a module of a vision model family implements, and the runner that opens its weights on a backend and encodes one image a call (docs/VISION.md, sections 3 and 9).
@@ -72,6 +73,11 @@ struct EncodeStep {
     backend::Slice slot(size_t i) const { return {arena, offsets[i] / sizeof(float)}; }
 };
 
+// The most any image under one preprocessing asks of the runner: its patches, the patch rows its arena holds (EncodeInputs::arena_patches) and the query rows of one attention piece.
+struct EncodeBound {
+    size_t patches = 0, arena_patches = 0, attention_rows = 0;
+};
+
 // A vision model family's module: its preprocessing, the tokens and positions an image takes, its template's token texts, the plan of its file's tensors, its tables and its math as backend ops.
 class VisionArchitecture {
 public:
@@ -82,6 +88,8 @@ public:
     virtual uint64_t max_tokens(const image::Params& p) const = 0;
     virtual uint64_t min_tokens(const image::Params& p) const = 0;
     virtual size_t tokens(uint32_t grid_h, uint32_t grid_w) const = 0;
+    // What the largest image under `p` asks of the runner, which the fit charges (VisionEncoder::memory).
+    virtual EncodeBound bound(const image::Params& p) const = 0;
     virtual VisionPositions positions() const = 0;
     virtual ImageTokenTexts token_texts() const = 0;
     virtual EncoderPlan plan(const TensorIndex& tensors) const = 0;
@@ -130,6 +138,39 @@ public:
     const VisionArchitecture& architecture() const { return *arch_; }
     const EncoderPlan& plan() const { return plan_; }
     backend::Backend& backend() const { return b_; }
+
+    // What the runner keeps on its device for images under `p`, which the fit charges beside the embedding (EncoderMemory): each weight as adopted, its tables, its arena and its K and V at the bound in whole blocks of `block`.
+    // Its passes run their products over every patch and their attention one piece at a time, so it prices those as two widths.
+    static EncoderMemory memory(const VisionArchitecture& arch, const std::vector<TensorView>& views, const image::Params& p, size_t block) {
+        const TensorIndex index(views);
+        const EncoderPlan plan = arch.plan(index);
+        const EncodeBound bound = arch.bound(p);
+        EncoderMemory m;
+        backend::PassWidths products, attention;
+        for (const Role& role : plan.roles) {
+            const TensorView& t = index.view(index.at(role.name));
+            const bool product = role.kind == RoleKind::matrix;
+            m.weights.push_back(Matrix{t.type, size_t(role.in), size_t(role.out), t.bytes, product});
+            if (product) {
+                products.product_in = std::max(products.product_in, size_t(role.in));
+                products.product_out = std::max(products.product_out, size_t(role.out));
+            }
+        }
+        for (size_t floats : plan.tables) m.buffers.push_back(backend::size_mul(floats, sizeof(float)));
+        m.buffers.push_back(arena_bytes(plan, bound.arena_patches));
+        const size_t kv = backend::size_mul(backend::size_mul(backend::blocks_for(bound.arena_patches, block), block), backend::size_mul(plan.heads * plan.head_dim, sizeof(float)));
+        m.buffers.insert(m.buffers.end(), {kv, kv});
+        products.rows = bound.patches;
+        attention.rows = bound.attention_rows;
+        attention.heads = plan.heads;
+        attention.head_dim = plan.head_dim;
+        attention.dense_attention = true;
+        attention.context = bound.patches;
+        m.widths = {products, attention};
+        return m;
+    }
+    // Makes the arena and the K and V of the largest image under `p` at once, as the fit charged them, so no encode grows them beside the buffers they replace.
+    void hold(const image::Params& p) { reserve(arch_->bound(p).arena_patches); }
 
     // One image's rows, tokens(grid) rows of out_width floats: its pieces in order; one image at a time, so its rows are its own whatever else is encoded.
     std::vector<float> encode(const image::Prepared& image) {
@@ -202,16 +243,19 @@ private:
         if (!pieces_ || next_ != pieces_) throw std::logic_error("inference: an encoder's rows read before its last piece");
         return backend::size_mul(arch_->tokens(grid_h_, grid_w_), plan_.out_width);
     }
+    // An arena of `patches` rows: its slots one after another.
+    static size_t arena_bytes(const EncoderPlan& plan, size_t patches) {
+        size_t bytes = 0;
+        for (size_t floats : plan.slots) bytes = backend::size_add(bytes, backend::size_mul(backend::size_mul(floats, patches), sizeof(float)));
+        return bytes;
+    }
     // Grows the arena and the K and V to `patches` rows; the encoder's K and V are scratch of one encode, F32 always (docs/VISION.md, section 3).
     void reserve(size_t patches) {
         if (patches <= capacity_) return;
         offsets_.assign(plan_.slots.size(), 0);
-        size_t bytes = 0;
-        for (size_t i = 0; i < plan_.slots.size(); ++i) {
-            offsets_[i] = bytes;
-            bytes = backend::size_add(bytes, backend::size_mul(backend::size_mul(plan_.slots[i], patches), sizeof(float)));
-        }
-        arena_ = b_.alloc(bytes);
+        for (size_t i = 1; i < plan_.slots.size(); ++i)
+            offsets_[i] = backend::size_add(offsets_[i - 1], backend::size_mul(backend::size_mul(plan_.slots[i - 1], patches), sizeof(float)));
+        arena_ = b_.alloc(arena_bytes(plan_, patches));
         kv_ = b_.kv_alloc(1, plan_.heads, plan_.head_dim, patches, backend::KVType::f32, backend::KVType::f32);
         capacity_ = patches;
     }

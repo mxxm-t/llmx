@@ -618,7 +618,8 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
                                                bool timed = false, int checkpoints = 0, size_t mark_rows = 0, bool drafter = false,
                                                const std::string& drafter_file = {}, const std::vector<backend::BackendPtr>& shared = {},
                                                std::optional<size_t> host_budget = std::nullopt, const infer::LoadReport& watch = {}, bool argmax_passes = false,
-                                               const std::function<size_t(const infer::LoadedModel&)>& history = {}) {
+                                               const std::function<size_t(const infer::LoadedModel&)>& history = {}, const std::string& mmproj = {},
+                                               std::optional<uint64_t> image_max_tokens = std::nullopt) {
     const auto specs = exec_specs(exec);
     if (watch) watch({"devices"});
     auto backends = shared.empty() ? backend::make_backends(specs, profiled != nullptr || timed) : shared;
@@ -647,6 +648,8 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
     // A server's passes carry a verify's draft rows where it drafts; a drafting server's mark holds a verify, its last pick and `--draft-max` drafts.
     if (slots) request.draft_rows = server::Scheduler::draft_rows(decode_rows, mark_rows ? mark_rows - 1 : 0);
     request.kv_auto = slots > 0 && exec.kv_tokens <= 0;
+    // The vision encoder opened once the model is placed, charged beside its embedding before the KV takes the room.
+    if (!mmproj.empty()) request.encoder = infer::vision_memory(mmproj, backends, image_max_tokens);
     if (history_tokens) {
         request.histories = decode_rows;
         request.history_tokens = history_tokens;
@@ -873,7 +876,7 @@ int cmd_generate(const std::string& model_path, const std::string& prompt, bool 
             return text_ids.size() + (size_t)gp.max_tokens;
         };
     const auto loaded = open_model(model_path, exec, progress, exec.threads, drafts.logit_rows(), 0, exec.verbose, nullptr, 0, 0, false, 0, drafts.mark_rows(), drafts.embedded, drafts.file, {},
-                                   std::nullopt, {}, true, history);
+                                   std::nullopt, {}, true, history, image_bytes.empty() ? std::string() : images.mmproj, images.max_tokens);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
     drafts.attach(*loaded, exec, progress);
@@ -943,7 +946,8 @@ void matrix_record(infer::LoadedModel& loaded) {
 int cmd_logits(const std::string& model_path, const std::string& text, bool as_chat,
                int topn, const ExecOptions& exec, const std::string& then_ids = "", size_t last = 0, bool per_token = false, const Images& images = {}) {
     const std::vector<std::string> image_bytes = images.read("logits");
-    const auto loaded = open_model(model_path, exec, false, exec.threads, prompt_logit_rows(exec));
+    const auto loaded = open_model(model_path, exec, false, exec.threads, prompt_logit_rows(exec), 0, false, nullptr, 0, 0, false, 0, 0, false, {}, {}, std::nullopt, {},
+                                   false, {}, image_bytes.empty() ? std::string() : images.mmproj, images.max_tokens);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
 
@@ -1507,7 +1511,8 @@ void serve_loaded(const std::string& model_path, const server::Config& cfg, cons
     // The scheduler keeps logits rows for its passes in flight by its own rule, a row a request and its drafts, not one for every row of a pass.
     const size_t logit_rows = server::logit_rows(slots, server::Scheduler::logits_a_pass(cfg.max_seqs, drafts.mark_rows() ? drafts.mark_rows() - 1 : 0)).size;
     const auto loaded = open_model(model_path, exec, true, exec.threads, logit_rows, cfg.max_seqs, false, nullptr, 0, slots, cfg.timing, cfg.state_checkpoints,
-                                   drafts.mark_rows(), drafts.embedded, drafts.file, {}, cfg.host_cache_bytes, [&](const infer::LoadStep& step) { startup.step(step); });
+                                   drafts.mark_rows(), drafts.embedded, drafts.file, {}, cfg.host_cache_bytes, [&](const infer::LoadStep& step) { startup.step(step); }, false, {},
+                                   images.mmproj, images.max_tokens);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
     drafts.attach(*loaded, exec, true, true);

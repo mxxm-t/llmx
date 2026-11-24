@@ -8,6 +8,7 @@ What the file does not carry is fixed as the official code has it: the block's d
 
 `preprocess` gives `image::Params` under `Fit::padded`: patch and merge, `min_pixels`, the block's rows at most and the fill, so `image::prepare` sizes an image by image_processor.py's `plan_image_grid`, pads it as `ImageOps.pad` with Pillow's taps and cuts BF16-rounded patches in row order.
 `tokens` is a block's rows, h * (w + 1) + 2 for a grid of h by w tokens of 3 by 3 patches (`image::padded_rows`); `positions` is `VisionPositions::text`, so the block's rows sit at text positions, every one holding the id of the deepseek_image marker (`token_texts`).
+`bound` gives the most an image asks of the runner, which the fit charges: a block of `max_rows` rows holds at most `max_rows - 3` tokens of 3 by 3 patches, each term of `inputs`' `arena_patches` at that many tokens, and the most query rows an attention piece takes.
 
 The plan's roles are the patch embedding and its bias, each block's nine (`ln1`, `attn_qkv` and its bias, `attn_out` and its bias, `ln2`, `ffn_gate`, `ffn_up`, `ffn_down`), `v.post_ln`, the aligner's `mm.1` and `mm.2` with their biases and the three marker rows `v.token_embd.img_start`, `v.token_embd.img_end` and `v.image_newline`.
 `mm.1` keeps the converter's layout, torch's unfold order d * 9 + k, and is regrouped at load (`EncoderPlan::regrouped`) into the 9 patch rows one after another.

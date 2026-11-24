@@ -29,6 +29,13 @@ struct LookupMemory {
     size_t rows_per_token = 0, row_bytes = 0, io_bytes = 0;
 };
 
+// A media encoder opened beside a model on the device that holds its embedding (docs/VISION.md, section 3): its weights, its buffers at its bound and the widths of its passes, each priced as the device prices a pass.
+struct EncoderMemory {
+    std::vector<Matrix> weights;
+    std::vector<size_t> buffers;
+    std::vector<backend::PassWidths> widths;
+};
+
 // What a model asks of the memory of the devices it runs on, part by part; an architecture computes it from its file and options.
 struct Footprint {
     std::vector<std::vector<Matrix>> layers;   // each layer's weights, a tensor several layers take counted by the first
@@ -64,6 +71,7 @@ struct Footprint {
     size_t context_rows = 0;                   // the model's own context beside a server's passes, which a mark's rerun and a drafter's chain take (Model::reserve_drafting)
     size_t host_scratch_per_row = 0;           // host lookup indices for each used stage's execution arena
     backend::PassWidths widths;                // the widest shapes a device's passes run, a member's heads on a tensor group; rows and logits are the fit's (pass_widths)
+    EncoderMemory encoder;                     // the caller's encoder, charged with the embedding before the KV is sized (PlacementRequest::encoder)
 };
 
 // The handoff buffers each device the residual leaves keeps for `slots` passes in flight: on a pipelined split one per slot, two at least, so a prompt's chunk goes out through one while the one before waits in the other; otherwise one.
@@ -308,8 +316,11 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
             for (const Matrix& m : fp.drafter) drafter += resident(d, m);
             if (!S) drafter += drafted_embedding(d, first, last);
         }
-        if (first && last && fp.tied) return resident(d, fp.output) + resident(d, fp.output_norm) + head_aux + drafter;
-        return (first ? resident(d, fp.embedding) : 0) + (last ? resident(d, fp.output) + resident(d, fp.output_norm) + head_aux : 0) + drafter;
+        size_t encoder = 0;
+        if (first)
+            for (const Matrix& m : fp.encoder.weights) encoder = backend::size_add(encoder, resident(d, m));
+        if (first && last && fp.tied) return resident(d, fp.output) + resident(d, fp.output_norm) + head_aux + drafter + encoder;
+        return (first ? resident(d, fp.embedding) : 0) + (last ? resident(d, fp.output) + resident(d, fp.output_norm) + head_aux : 0) + drafter + encoder;
     };
 
     // What the host holds for a set of devices running layers, and the device that carries it: the set's first host device, or none.
@@ -338,13 +349,18 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     auto host_fits = [&](const Host& h) { return h.carrier != SIZE_MAX || !host_room || h.need <= *host_room; };
 
     // Besides weights and caches: a pass's activations, the scratch at the pass's widths, what the device keeps free and, where weights are copied, its tables; the carrier also holds the host's needs, its budget being the host's.
-    auto overhead = [&](size_t d, const Host& h, bool last) {
+    // With the embedding, the encoder's buffers and the scratch of its passes, which a device priced per pass holds beside its own (reserve_scratch).
+    auto overhead = [&](size_t d, const Host& h, bool first, bool last) {
         size_t copies = 0;
         if (!devices[d].host) {
             if (fp.table_buffers.empty()) copies = taken(d, fp.tables);
             for (size_t t : fp.table_buffers) copies = backend::size_add(copies, taken(d, t));
         }
-        const size_t priced = devices[d].priced ? devices[d].priced(pass_widths(fp, rows, logit_rows.value_or(rows), last)) : 0;
+        size_t priced = devices[d].priced ? devices[d].priced(pass_widths(fp, rows, logit_rows.value_or(rows), last)) : 0;
+        if (first) {
+            for (size_t b : fp.encoder.buffers) copies = backend::size_add(copies, taken(d, b));
+            for (const backend::PassWidths& w : fp.encoder.widths) priced = backend::size_add(priced, devices[d].priced ? devices[d].priced(w) : 0);
+        }
         return backend::size_add(arena_bytes(fp, rows, reply_rows, devices[d].allocated), arenas(d, devices[d].collective_per_row)) + copies + devices[d].scratch + priced +
                (d == h.carrier ? h.need : 0);
     };
@@ -358,7 +374,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     // What device d holds running layers [i, i + k), given whether it is the first and the last device that runs layers.
     auto need = [&](size_t d, size_t i, size_t k, bool first, bool last, const Host& h) {
         return backend::size_add(backend::size_add(backend::size_add(prefix[d][i + k] - prefix[d][i], lookup_prefix[d][i + k] - lookup_prefix[d][i]), cached[d][i + k] - cached[d][i] + replicas(i, k) + (last ? fp.drafter_cache : 0)),
-                                 backend::size_add(backend::size_add(end_weights(d, first, last), last ? head_rows(d) : 0), overhead(d, h, last)));
+                                 backend::size_add(backend::size_add(end_weights(d, first, last), last ? head_rows(d) : 0), overhead(d, h, first, last)));
     };
     auto fits = [&](size_t d, size_t bytes) { return !devices[d].bytes || bytes <= *devices[d].bytes; };
 
@@ -517,7 +533,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
         for (size_t e = 0; e < d; ++e) before += (size_t)drafts[e];
         st.weights = end_weights(d, d == used.front(), d == used.back()) + stage_weights(d, before, (size_t)drafts[d], d == used.front(), d == used.back());
         st.cache = (d == used.back() ? fp.drafter_cache : 0) + (drafts[d] ? fp.drafter_stage_cache : 0);
-        st.other = overhead(d, h, d == used.back());
+        st.other = overhead(d, h, d == used.front(), d == used.back());
         for (const auto& [f, n] : runs) {
             const size_t a = (size_t)f, b = (size_t)(f + n);
             st.weights += prefix[d][b] - prefix[d][a];

@@ -109,6 +109,17 @@ public:
     // A block of one token's row, the smallest any grid gives.
     uint64_t min_tokens(const image::Params&) const override { return kSmallestBlock; }
     size_t tokens(uint32_t grid_h, uint32_t grid_w) const override { return size_t(image::padded_rows(uint64_t(grid_h) * c_.patch, uint64_t(grid_w) * c_.patch, uint32_t(c_.patch), uint32_t(c_.merge))); }
+    // A block of R rows holds an h by w grid of tokens with h * (w + 1) + 2 = R at most, so at most R - 3 tokens of merge^2 patches; each term of inputs' arena grows with them.
+    EncodeBound bound(const image::Params& p) const override {
+        const size_t R = size_t(p.max_rows), T = R - 3, K = c_.merge * c_.merge, O = c_.out;
+        const auto rows = [](size_t floats, size_t per) { return (floats + per - 1) / per; };
+        EncodeBound b;
+        b.patches = K * T;
+        b.arena_patches = std::max({b.patches, rows(K * T * c_.width, 2 * c_.mlp), rows((T + 3) * O, 2 * c_.mlp), rows(T * O, 3 * c_.width), rows(R * O, (O + 1) / 2)});
+        const size_t crossing = size_t(std::sqrt(double(kPieceProducts) / double(2 * c_.width)));
+        b.attention_rows = std::max(attention_rows(std::min(b.patches, crossing)), attention_rows(std::min(b.patches, crossing + 1)));
+        return b;
+    }
     VisionPositions positions() const override { return VisionPositions::text; }
     ImageTokenTexts token_texts() const override { return {"", "<\xef\xbd\x9c" "deepseek_image\xef\xbd\x9c>", ""}; }
 

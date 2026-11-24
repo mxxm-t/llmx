@@ -120,6 +120,17 @@ public:
         return std::max<uint64_t>(1, std::min(p.min_pixels, p.max_pixels / 4) / (side * side));
     }
     size_t tokens(uint32_t grid_h, uint32_t grid_w) const override { return size_t(grid_h) * grid_w / (c_.merge * c_.merge); }
+    // smart_resize keeps an image within max_pixels, except where it raises one to min_pixels with its sides ceiled, or floors one past the aspect bound to a side of one factor.
+    EncodeBound bound(const image::Params& p) const override {
+        const double f = double(p.patch) * p.merge, lo = double(p.min_pixels), hi = double(p.max_pixels);
+        const double raised = (std::sqrt(lo * kMaxAspect) + f) * (std::sqrt(lo / kMaxAspect) + f), floored = std::sqrt(hi * kMaxAspect) * f;
+        EncodeBound b;
+        b.patches = size_t(std::ceil(std::max({hi, raised, floored}) / (double(p.patch) * p.patch)));
+        b.arena_patches = b.patches;
+        const size_t crossing = size_t(std::sqrt(double(kPieceProducts) / double(2 * c_.width)));
+        b.attention_rows = std::max(attention_rows(std::min(b.patches, crossing)), attention_rows(std::min(b.patches, crossing + 1)));
+        return b;
+    }
     VisionPositions positions() const override { return VisionPositions::grid; }
     ImageTokenTexts token_texts() const override { return {"<|vision_start|>", "<|image_pad|>", "<|vision_end|>"}; }
 

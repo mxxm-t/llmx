@@ -45,11 +45,23 @@ inline std::unique_ptr<Vision> open_vision(const std::string& path, Model& model
     if ((v->weights.arch->positions() == VisionPositions::text) != model.text_position_images())
         throw std::runtime_error("inference: the vision encoder places its rows in a way the model does not");
     v->params = v->weights.arch->preprocess(max_tokens);
+    // A device makes the encoder's buffers at their bound now, as the fit charged them (vision_memory); the host's grow with the images.
+    if (!model.embedding_backend().memory_is_host()) v->encoder->hold(v->params);
     const std::string pad = v->weights.arch->token_texts().pad;
     const auto it = tok.token_to_id.find(pad);
     if (it == tok.token_to_id.end()) throw std::runtime_error("inference: the model's vocabulary has no " + pad + " to mark an image with");
     v->pad = it->second;
     return v;
+}
+
+// What the encoder of `path` keeps beside a model placed over `backends`, its images bounded by `max_tokens` as open_vision bounds them, read from the file's header before the model is placed (PlacementRequest::encoder).
+inline EncoderMemory vision_memory(const std::string& path, const std::vector<backend::BackendPtr>& backends, std::optional<uint64_t> max_tokens = {}) {
+    size_t block = 1;
+    for (const auto& b : backends)
+        if (b) block = std::max(block, b->kv_layout().block_tokens);
+    const gguf::GGUFModel file = gguf::read_gguf(path);
+    const VisionWeights weights = vision_weights(file);
+    return VisionEncoder::memory(*weights.arch, weights.tensors, weights.arch->preprocess(max_tokens), block);
 }
 
 // An image prepared for its encoder: its patch grid, the rows it takes, its resized pixels, its digest where a tier asked for one, and what each stage took, in milliseconds.

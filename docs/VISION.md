@@ -75,6 +75,8 @@ The backend gains, each with a CPU implementation and a test against a reference
 
 The encoder has no sequences and no caches, so it has a contract of its own, `model/encoder.hpp`, sized for the known vision models (section 9), with its module at `model/arch/qwen3vl_vision.hpp` chosen in the registry by `clip` and `clip.projector_type`.
 It runs on the device that holds the embedding, counted in that device's fit, one image a call, so an image's rows never depend on another image.
+With `--mmproj` the fit charges that device, before it sizes the KV, with the encoder's weights, its tables, its arena and its F32 K and V for the largest image `--image-max-tokens` allows, and the scratch of its passes: products over every patch and attention a piece at a time (`VisionEncoder::memory`, `PlacementRequest::encoder`).
+A device makes the arena and the K and V at that bound as the encoder opens, so no encode grows them; a lower `--image-max-tokens` leaves more room for the KV.
 
 ## 4. A prompt of token ids and encoder rows
 

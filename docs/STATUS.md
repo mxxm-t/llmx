@@ -65,6 +65,14 @@
 - **Focused results (MI50 RADV, CPU in the same container):** `dominant_key` ratio to its bound, heads 64/72: CPU 3.88/12.3 before at 1296/4096 keys, 0.32-0.38 after; Vulkan 1.50/4.77 before, 0.053/0.062 (hd 64) and 0.031/0.045 (hd 72) after. ROCm's backend vision check passes unchanged. The 1080p Inkling-2 image against its HF float64 rows (bound 9.37e-6), on the image branch's 61636d85a with and without this change: CPU 1.48e-5 -> 4.03e-6, Vulkan 1.32e-5 -> 7.6e-6.
 - **Landing:** with the landing stack land-20261130, whose gates are recorded there (Landing stack land-20261130, below), which records the CPU HF errors again, the CPU 16k raw and chat checks against HF and the vision towers' errors on the devices; byte identity against main differs by design on the CPU past 128 keys and on Vulkan vision towers only.
 - **Gotchas:** a fixture with v = +1 everywhere cancels and hides the CPU error; the dominant key's own block still drops its other keys. The Vulkan text attention kernels and the ROCm and CUDA chunk chains are unchanged (ideas.md).
+## The fit charges the vision encoder (2026-11-24, FITMM1, branch fix/mmproj-fit on main 83ac07728)
+
+- **Goal:** `--mmproj` runs on a card the KV would otherwise fill, without `--kv-tokens`, as docs/VISION.md, section 3, says the fit charges the encoder.
+- **Cause:** the fit sized the KV to the card's free memory before `open_vision`, with no encoder term in `PlacementRequest`, so the encoder's first buffer ran the card out of memory. Found by INKVIS8 on Inkling-2-Mini Q8_0 on one MI50.
+- **Done:** `PlacementRequest::encoder` (`EncoderMemory`: weights, buffers, pass widths) is charged on the embedding's device in every footprint the fit reads (`fit_footprint`), its widths' scratch made with the model's (`reserve_scratch`) and its weights and buffers kept free by `build_fitted`'s check of a built model.
+  `VisionEncoder::memory` gives it from an mmproj's header at the module's `bound` (`EncodeBound`, both modules), `vision_memory` reads it for the CLI's `generate`, `logits` and `serve`, and `open_vision` makes the encoder's arena and K and V at the bound on a device (`VisionEncoder::hold`), so no encode grows them.
+- **Tests:** `placement` (`encoder_charged`) and `arch-qwen3vl-vision` (`memory_charged`), described in docs/TESTS.md.
+- **Left:** the landing gates.
 
 ## CUDA sm_90 spill of the pushing held Q8_0 build (2026-11-23, SASS1, branch fix/cuda-sm90-held-push on main bfb7f517e)
 

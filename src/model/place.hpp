@@ -423,7 +423,16 @@ struct PlacementRequest {
     LookupStorage lookup_storage = LookupStorage::automatic;
     // The host budget the lookup tables' hot rows share with a server's evicted prefixes (host_shares): a server's --host-cache-bytes, none to take it from the host memory available.
     std::optional<size_t> host_budget;
+    // A media encoder the caller opens beside the model once it is placed (--mmproj): charged on the embedding's device before the KV budget is fitted, its scratch made with the model's.
+    EncoderMemory encoder;
 };
+
+// The model's footprint as the fit of `request` reads it, with the request's encoder beside the embedding.
+inline Footprint fit_footprint(const ModelWeights& weights, const ModelPlan& plan, const ModelOptions& options, const PlacementRequest& request) {
+    Footprint fp = footprint(weights, plan, options, request.width);
+    fp.encoder = request.encoder;
+    return fp;
+}
 
 // The KV tokens the request's histories take, each in whole blocks of `block` up to the model's `context`; none without histories.
 inline size_t history_need(const PlacementRequest& request, size_t context, size_t block) {
@@ -758,7 +767,7 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
         o.checkpoint_slots = kept;
         const auto holds = [&](const ModelWeights& source) {
             try {
-                Footprint fp = footprint(source, *fitting, o, request.width);
+                Footprint fp = fit_footprint(source, *fitting, o, request);
                 fp.host_state = backend::size_add(fp.host_state, host_bytes);
                 reserve_slot(fp, weights, plan, request);
                 split_layers(fp, group_budgets(budgets, request.width, sum_width(plan)), rows, request.shares, host_room,
@@ -1085,7 +1094,7 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
             ModelWeights choice = *bounded;
             for (size_t i = 0; i < candidates.size(); ++i)
                 choice.tensors[candidates[i].tensor].row_source = placed.lookups[i] == LookupStorage::device ? nullptr : candidates[i].file;
-            Footprint fp = footprint(choice, held, options, request.width);
+            Footprint fp = fit_footprint(choice, held, options, request);
             fp.host_state = backend::size_add(fp.host_state, host_experts);
             return fp;
         };
@@ -1154,7 +1163,7 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
         if (request.cpu_moe && !experts_host)
             throw std::runtime_error(experts_flag + ": not with the CPU as a device of a split; list the devices without the CPU, or the CPU alone");
         const size_t rows = fitted_rows(request);
-        Footprint fp = footprint(weights, experts_host ? device_held_plan(plan, request) : plan, options, request.width);
+        Footprint fp = fit_footprint(weights, experts_host ? device_held_plan(plan, request) : plan, options, request);
         if (experts_host) reserve_slot(fp, weights, plan, request);
         // A device expert cache's rings take host memory beside the split; its slots take what the split leaves each device (cached_slots).
         const size_t rings = experts_host ? expert_rings(weights, plan, request, backends.size()) : 0;
@@ -1254,6 +1263,8 @@ inline std::vector<size_t> reserve_scratch(const ModelWeights& weights, const Pl
         const backend::BackendPtr& b = planned.backends[d];
         if (!used[d] || !b) continue;
         b->reserve_scratch(pass_widths(fp, rows, request.logit_rows ? request.logit_rows : rows, d >= head && d < head + width));
+        if (d >= size_t(pl.embed_device) && d < size_t(pl.embed_device) + width)
+            for (const backend::PassWidths& w : request.encoder.widths) b->reserve_scratch(w);
         arenas[d] = arena_bytes(fp, rows, reply_rows(request), [&b](size_t n) { return b->allocation_bytes(n); });
     }
     return arenas;
@@ -1305,10 +1316,17 @@ inline PlacedModel build_fitted(const ModelWeights& weights, PlannedModel planne
         try {
             PlacedModel placed = construct_model(weights, planned, pass_ubatch(request.ubatch, request.expert_cache), adopt);
             const std::vector<size_t> arenas = reserve_scratch(weights, planned, request);
+            const size_t embed = size_t(planned.placement.embed_device), width = std::max<size_t>(1, planned.placement.width);
             for (size_t d = 0; again && d < backends.size(); ++d) {
                 if (!device(backends[d]) || !per_block[d]) continue;
                 const std::optional<size_t> free = backends[d]->memory_available();
-                const size_t need = backend::size_add(backends[d]->memory_kept(free.value_or(0)), arenas[d]);
+                size_t need = backend::size_add(backends[d]->memory_kept(free.value_or(0)), arenas[d]);
+                // The embedding's device keeps room for the encoder's weights and buffers, which the caller makes once the model is placed.
+                if (d >= embed && d < embed + width) {
+                    const backend::Backend& b = *backends[d];
+                    for (const Matrix& m : request.encoder.weights) need = backend::size_add(need, b.resident_bytes(m.type, m.nin, m.rows, m.bytes, m.product));
+                    for (size_t n : request.encoder.buffers) need = backend::size_add(need, b.allocation_bytes(n));
+                }
                 if (free && *free < need) short_by[d] = need - *free;
             }
             if (std::all_of(short_by.begin(), short_by.end(), [](size_t n) { return n == 0; })) {

@@ -1,7 +1,7 @@
 # `src/model/arch/dflash.hpp` - DFlash drafters beside a model
 
 DFlash drafters (docs/SPECULATIVE.md, section 11) in namespace `infer::dflash`: a `dflash` sidecar file that drafts a block of tokens from a few target layers' rows, its checks against the target and its configuration.
-DeepSeek-V4.1's DSpark rewrites its sidecar into its own blocks ([deepseek4](model-arch-deepseek4.md)); qwen35 keeps a DSpine sidecar under a `dflash.` namespace, and its drafter is being built (docs/STATUS.md, DSpine drafters for qwen35).
+DeepSeek-V4.1's DSpark rewrites its sidecar into its own blocks ([deepseek4](model-arch-deepseek4.md)); qwen35 keeps a DSpine sidecar under a `dflash.` namespace and builds its drafter itself ([qwen35](model-arch-qwen35.md), docs/STATUS.md, DSpine drafters for qwen35).
 
 - `sidecar(side)`: whether a file's `general.architecture` is `dflash`.
 - `check_sidecar(target, side, p, own, name)`: the checks every sidecar passes, each `dflash.` key not in `own` equal to the target's key under `p`, and a `tokenizer.ggml.mask_token_id`, which it returns; DSpark's normalization calls it.

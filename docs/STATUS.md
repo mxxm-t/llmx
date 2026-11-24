@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Docs set to the architecture audits (2026-11-24, DOCFIX1, branch docs/arch-audit-fixes on main d8bd8735e)
+
+- **Goal:** the docs ARCHAUDIT1 and ARCHAUDIT2 found false or incomplete say what the code does: the precision table, DSpark over a tensor group, DFlash/DSpine drafters, MiniMax on the CPU and on devices, the MiniMax tensor-width refusal and the qwen4exp column of the role table.
+- **Done:** PRECISION.md (DeepSeek-V4.1's F32 hyper-connection mix and compressor products, its FP8 and FP4 cache rows under `f32`, the F32 auxiliary plane of MiniMax and Qwen3.8-Flash-Next); the deepseek4 source page (a group runs DSpark); USAGE.md (DSpine sidecars run, a group refuses them, MiniMax refused over a group); SPECULATIVE.md section 11 (landed on one device, owners named as they are, ops by name, groups not built); the dflash source page; MINIMAX.md (what runs where); TENSOR-SPLIT.md (qwen4exp column).
+- **Left:** code the audits found wrong, not changed here: a DFlash sidecar's rope never sees `--yarn` (qwen35.hpp:334 at d8bd8735e) against USAGE.md's "a draft model beside it included".
+- **Gotchas:** MINIMAX.md describes main as of d8bd8735e; an expert-offload flag that places the routed layers' feed-forward on the CPU changes which devices load the model.
+
 ## CUDA BF16 prompt tile (2026-11-21, CUDA105, branch cuda/bf16-prompt-tile on main c494eea6f)
 
 **Goal.** BF16 files' prompts on CUDA run on tensor cores in the F16 class, toward vLLM on the same RTX 3090: Qwen3-0.6B pp512/pp2048 TTFT 172/754 ms against 38/72, c16 439 against 2515 tok/s (CUDA104, docs/CUDA.md, BF16 prompt tile).

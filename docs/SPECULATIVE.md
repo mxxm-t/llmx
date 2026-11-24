@@ -456,22 +456,22 @@ Development runs may take one prompt (`--prompts easy`); final and gate results 
 **The rule.** A drafter must not lower prefill: the drafting arm's prefill tok/s stays level with drafts off, beyond the spread of repeated arms, on all three prompts.
 A prefill change must not lower drafting decode: a change to the prompt path is measured with the drafter on as well, and its decode tok/s on the three prompts stays level with main's.
 
-## 11. DFlash drafters beside a qwen35 model: DSpine (planned)
+## 11. DFlash drafters beside a qwen35 model: DSpine
 
 A DFlash drafter is a small dense model that drafts a block of tokens in one call from the hidden states of a few target layers; DSpine (Zhang et al., arXiv 2609.36173) adds causal attention inside the block, a code bridge after every layer and a serial refinement of the last bridge write.
-The first file is Qwen3.8-27B-DSpine-b16 (`dflash` architecture, 5 layers, block 16, window 8192), drafting for Qwen3.8-27B (`qwen35`, which also carries an MTP block); the official code is the reference (github.com/Tencent/DSpine, `dspine_mlx/model.py`, `bridge.py`, `propose.py`).
-This section is the plan reviewed with Fable on 2026-11-22; it becomes a description of what landed when the work lands.
+The first file is Qwen3.8-27B-DSpine-b16 (`dflash` architecture, 5 layers, block 16, window 8192), drafting for Qwen3.8-27B (`qwen35`, which also carries an MTP block); the official code is the reference (github.com/Tencent/DSpine, its dspine_mlx model, bridge and propose modules).
+The drafter runs beside a qwen35-family model on one device or the CPU, as the plan reviewed with Fable on 2026-11-22 laid it out, except that a tensor group refuses it ("On a tensor group", below, is the plan for that); the state is in docs/STATUS.md, DSpine drafters for qwen35.
 
 **The math, as the reference computes it.**
 - Context rows: the residual entering target layers 2, 17, 32, 47 and 62 (`dflash.target_layers`, the outputs of HF layers 1, 16, 31, 46 and 61) side by side, through `fc` (5 x 5120 to 5120) and `enc.output_norm`; each drafter layer keeps K = k_norm(W_k c) roped at the row's position and V = W_v c.
 - A draft call: the block is the last token then `tokenizer.ggml.mask_token_id` at the next B - 1 positions, embedded with the target's `token_embd`; each of the 5 qwen3 layers attends to the context rows of the last 8192 positions before each query and to the block causally.
-- The code bridge after layer l: `raw` the layer's output, `rms` its root mean square, codes `sqrt(C) * l2norm(read_l(raw / rms))` with row 0 replaced by `sqrt(C) * codebook[anchor]`, then `[q|s|v] = codes . [gate; pred_gate; prev]`, `msg_t = sigmoid(q_t + s_{t-1} + b) * v_{t-1}` and `out_t = raw_t + rms_t * write_l(msg_t)` for t >= 1; the next layer's input norm, or the final norm, follows.
+- The code bridge after layer l: `raw` the layer's output, `rms` its root mean square, codes, the unit-length `read_l(raw / rms)` times sqrt(C), with row 0 replaced by the anchor's codebook row times sqrt(C), then `[q|s|v] = codes . [gate; pred_gate; prev]`, `msg_t = sigmoid(q_t + s_{t-1} + b) * v_{t-1}` and `out_t = raw_t + rms_t * write_l(msg_t)` for t >= 1; the next layer's input norm, or the final norm, follows.
 - Drafts: the target's output head over rows 1 to B - 1 and their top 16 ids; then for row t and each predecessor candidate j (the anchor for row 1, row t - 1's candidates after it) the last write again with the exact code of j.
   Greedy scores are `head_k . (norm_w * (raw_t + rms_t * write_5(msg_tj)))`, the final norm being a positive scale per j that leaves the argmax alone, and the chain starts from predecessor 0 and takes each row's best candidate given the one before.
 - Causal attention in the block means a block of B rows gives the same first rows as a longer one, so a call of fewer drafts is a prefix.
 
-**Where it lives.** One shared module, `src/model/arch/dflash.hpp`, a graph piece beside `blocks.hpp`, owns the sidecar's configuration, roles, context rows, block call and bridge; `qwen35` attaches it in its three drafter overrides (`plan_drafter`, `draft_rows`, `draft`), dispatching on whether the paired drafter is the file's MTP block or a DFlash sidecar.
-DSpark's stages are DeepSeek trunk blocks and stay in `deepseek4`; the generic head of its sidecar check (the `dflash.` keys equal to the target's but its own, the mask token required) moves into `dflash.hpp` and DSpark calls it.
+**Where it lives.** `src/model/arch/dflash.hpp`, beside `blocks.hpp`, owns the sidecar's checks and configuration (`check_sidecar`, `normalize_beside`, `read_config`); the roles, the context rows and the block call with its bridge are `qwen35`'s (`plan_dflash`, `dflash_rows`, `dflash_block`), which its three drafter overrides (`plan_drafter`, `draft_rows`, `draft`) dispatch to when the paired drafter is a DFlash sidecar and not the file's MTP block.
+DSpark's stages are DeepSeek trunk blocks and stay in `deepseek4`; the generic head of its sidecar check (the `dflash.` keys equal to the target's but its own, the mask token required) is `dflash::check_sidecar`, which DSpark calls.
 
 **Pairing.** qwen35's registry entry gains a `normalize_drafter` that rewrites a `dflash` sidecar's tensors under a `dflash.` namespace and its keys under `qwen35.dflash.`, and `pair` returns the joined kind for it before the test for MTP blocks.
 One embedded drafter of each kind: an MTP file beside a file that carries MTP stays refused, a DFlash file beside a joined one is refused, and a DFlash file beside the file's MTP block takes the plan's one drafter, the MTP block's roles left unplanned; without `--drafter PATH` the file's MTP drafts as before.
@@ -480,13 +480,13 @@ One embedded drafter of each kind: an MTP file beside a file that carries MTP st
 The drafter's K and V take 8 heads of 128, as wide a position as the target's 4 of 256, so a tensor group member's share fits the plan's KV shape; the runtime gains a drafter plan of several KV layers (`ModelPlan::draft_kv_layers`) and a window on `KVView` (`KVView::window`, each row's own bound, since the reference masks per query and the block's rows share one view), read by the CPU backend behind `Op::attention_window`.
 The rows a verify feeds past the kept ones are written again by the next pass's context rows, as the MTP block's are, and a draft call's block rows sit past the history's length and are never kept.
 
-**On a tensor group.** Each member writes its own taps (the residual is whole on every member), keeps `fc` whole and its share of K and V heads, so the context rows need no sum.
-A draft call's five layers are sharded as the target's dense layers are, ten sums; the bridge's small matrices are whole on every member; the head stays sharded by vocabulary rows, with a part and pick of the top 16 across members and the candidate dot products summed.
+**On a tensor group** (not built: `dflash_rows` and `dflash_block` refuse a width above 1, and `check_plan` a drafter whose KV layers have a shape of their own). Each member would write its own taps (the residual is whole on every member), keep `fc` whole and its share of K and V heads, so the context rows need no sum.
+A draft call's five layers would be sharded as the target's dense layers are, ten sums; the bridge's small matrices whole on every member; the head sharded by vocabulary rows, with a part and pick of the top 16 across members and the candidate dot products summed.
 Untried: the whole 2 GB drafter on one member (`Placement::draft_device`), one or two crossings instead of twelve sums.
 
-**New ops.** A top-k part and pick shaped like `argmax_part`/`argmax_pick`, returning scores with ids, and the dot of each row with listed rows of a weight (`scores[r][k] = x[r] . W[id[r][k]]`) with a part form for a group; the predecessor codes are `embed_ids` on the codebook and the rest are existing matmuls and `sigmoid_mul`.
+**Ops.** The block's ops are `topk_rows`, `matmul_at_ids` (the dot of each row with listed rows of a weight, `scores[r][k] = x[r] . W[id[r][k]]`), `unit_rows`, `sigmoid_gate_rows` and `chain_pick`, each named by what it computes and none with a part form for a group yet; the predecessor codes are `embed_ids` on the codebook and the rest are existing matmuls.
 The official precomputed tables (`TG`, `TSV`, products of the head and codebook with the bridge matrices) are not used: they are a second, derived precision path of about 1.5 GB.
-The chain walk is on the host, over the 15 x 16 x 16 scores that come back with the ids the host reads anyway.
+The chain walk over the 15 x 16 x 16 scores is `chain_pick`.
 
 **Gates.** Greedy output identical to drafting off on CPU, one device and the tensor group of four MI50s at int8, then the drafting set (section 10) against plain, lookup and the embedded MTP on Qwen3.8-27B Q8_0.
 Correctness of the drafter is held by a numpy port of the reference code over the original BF16 weights, fed the same tap rows, giving the top 16 and the drafts per row; the tap index is checked against HF hidden states.

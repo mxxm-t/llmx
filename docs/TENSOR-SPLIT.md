@@ -213,22 +213,22 @@ A declaration is an axis, a unit and an order:
 
 A tiled member's share is several spans; on the column axis each span starts and ends on a whole quant block, checked span by span and not only over the member's total.
 
-| role | qwen3 / qwen3moe | qwen35 full attention | qwen35 linear attention |
-|---|---|---|---|
-| attention / mixer norm, q and k norms | replicated | replicated | replicated; `ssm_norm` is one V head wide and serves every head |
-| q, k, v | rows by unit: q heads, KV heads | rows by unit: a q head with its gate, KV heads | `attn_qkv`: q and k rows by K head, v rows tiled |
-| gate z, alpha, beta, `ssm_a`, `ssm_dt` | | | rows tiled by V head |
-| conv taps | | | the channels of the member's q, k and v rows |
-| attention output, `ssm_out` | columns by head | columns by head | columns tiled by V head |
-| feed-forward norm | replicated | replicated | replicated |
-| gate, up | rows | rows | rows |
-| down | columns | columns | columns |
-| router | replicated | replicated | replicated |
-| routed experts' gate and up, the shared expert's | rows of each expert | rows of each expert; the shared expert's rows | as full attention |
-| routed experts' down, the shared expert's | columns | columns | as full attention |
-| embedding | replicated, or rows (vocabulary) where the module declares it | replicated | replicated |
-| head | rows (vocabulary) | rows | rows |
-| output norm | replicated | replicated | replicated |
+| role | qwen3 / qwen3moe | qwen35 full attention | qwen35 linear attention | qwen4exp (QSA and linear layers) |
+|---|---|---|---|---|
+| attention / mixer norm, q and k norms | replicated | replicated | replicated; `ssm_norm` is one V head wide and serves every head | q and k norms replicated; the mixer's own norm is its hyper-connection mix's, replicated with the mix, the indexer's projections and norms (the QSA selection) and PLE |
+| q, k, v | rows by unit: q heads, KV heads | rows by unit: a q head with its gate, KV heads | `attn_qkv`: q and k rows by K head, v rows tiled | QSA layers as qwen35 full attention; linear layers as qwen35 linear attention |
+| gate z, alpha, beta, `ssm_a`, `ssm_dt` | | | rows tiled by V head | linear layers as qwen35 |
+| conv taps | | | the channels of the member's q, k and v rows | linear layers as qwen35 |
+| attention output, `ssm_out` | columns by head | columns by head | columns tiled by V head | QSA layers columns by head; linear layers as qwen35 |
+| feed-forward norm | replicated | replicated | replicated | the feed-forward hyper-connection mix's own norm, replicated with the mix |
+| gate, up | rows | rows | rows | every feed-forward is routed (next two rows) |
+| down | columns | columns | columns | every feed-forward is routed (next two rows) |
+| router | replicated | replicated | replicated | replicated, with the shared expert's gate |
+| routed experts' gate and up, the shared expert's | rows of each expert | rows of each expert; the shared expert's rows | as full attention | rows of each expert; the shared expert's rows |
+| routed experts' down, the shared expert's | columns | columns | as full attention | columns |
+| embedding | replicated, or rows (vocabulary) where the module declares it | replicated | replicated | replicated |
+| head | rows (vocabulary) | rows | rows | rows (vocabulary), after the output hyper-connection mix, which is replicated |
+| output norm | replicated | replicated | replicated | none; the output hyper-connection mix's norm, replicated |
 
 - **Attention, KV and state:** each member runs attention and the recurrence over its own heads, keeps the KV of its KV heads and the recurrent state's common-prefix V heads, and needs no exchange inside the mixer. If a state layer has an optional per-layer F32 tail, each member also holds that complete tail under the shared slot ids. A declared token-history tail is one model-global host U32 array indexed by those slot IDs; every member receives the same current and preceding IDs for its layer step.
   Where the width exceeds the KV heads and divides into them evenly, each KV head is replicated on width / Hkv members as vLLM does, its K and V products computed on each; the fit counts the replicated cache.

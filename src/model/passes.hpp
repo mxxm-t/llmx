@@ -1229,7 +1229,7 @@ inline void Model::draft_context(ExecContext& ctx, Pass& p, size_t s) {
     const auto call = [&](size_t d, size_t m, int phase) {
         Device& dev = *devices_[d + m];
         DraftRowsStep step{part(ctx, p, d + m, drafter_row(m), plan_.drafter->kind, 0, p.rows, all), p.ids.data(), carries ? ctx.carry.data() : nullptr};
-        step.width = width_;
+        step.width = draft_members();
         step.n_views = n;
         step.phase = phase;
         if (keeps_kv(*plan_.drafter)) {
@@ -1253,28 +1253,28 @@ inline void Model::draft_context(ExecContext& ctx, Pass& p, size_t s) {
     };
     if (draft_apart_) {
         const int all_layers = (int)plan_.layers.size();
-        for (size_t m = 0; m < width_; ++m) call(o, m, 0);
+        for (size_t m = 0; m < draft_members(); ++m) call(o, m, 0);
         send(ctx, p, o, handoff_buffer(p, stages_.size() - 1, o), 0, p.rows, all_layers, &draft_rows_slots_);
         backend::Ticket sent = 0;
-        for (size_t m = 0; m < width_; ++m) {
+        for (size_t m = 0; m < draft_members(); ++m) {
             const backend::Ticket t = devices_[o + m]->b->submit();
             if (!m) sent = t;
         }
         p.draft_tickets.assign(devices_.size(), 0);
         for (size_t d : draft_devices_) {
             const Recording held(*this, d, d == o ? 0 : width_);
-            for (size_t m = 0; d != o && m < width_; ++m) receive(ctx, p, o, handoff_buffer(p, stages_.size() - 1, o), sent, d + m, 0, p.rows, all_layers, &draft_rows_slots_);
+            for (size_t m = 0; d != o && m < draft_members(); ++m) receive(ctx, p, o, handoff_buffer(p, stages_.size() - 1, o), sent, d + m, 0, p.rows, all_layers, &draft_rows_slots_);
             for (size_t st = 0; st < draft_route_size(); ++st)
                 if (draft_stage_device(st) == d)
-                    for (size_t m = 0; m < width_; ++m) call(d, m, int(1 + st));
-            for (size_t m = 0; d != o && m < width_; ++m) {
+                    for (size_t m = 0; m < draft_members(); ++m) call(d, m, int(1 + st));
+            for (size_t m = 0; d != o && m < draft_members(); ++m) {
                 p.draft_tickets[d + m] = devices_[d + m]->b->submit();
                 ctx.tickets[d + m] = std::max(ctx.tickets[d + m], p.draft_tickets[d + m]);
             }
         }
         return;
     }
-    for (size_t m = 0; m < width_; ++m) {
+    for (size_t m = 0; m < draft_members(); ++m) {
         Device& d = *devices_[o + m];
         for (size_t e = 0; carries && e < n; ++e) {
             const Sequence& q = *p.entries[e].seq;
@@ -1466,7 +1466,7 @@ inline void Model::ensure(ExecContext& ctx, size_t rows, size_t want, size_t buf
             devices_[m]->b->wait(ctx.tickets[m]);
         }
         // A drafter's chain sums 3 floats a member a row in the same partials (Model::draft_record), more than a tiny model's row holds.
-        const size_t sw = sum_width(plan_), cands = plan_.drafter ? 3 * width_ : 0;
+        const size_t sw = sum_width(plan_), cands = plan_.drafter && !drafts_whole(plan_) ? 3 * width_ : 0;
         ctx.collectives[g] = devices_[g]->b->join(members, cands > sw ? (rows * cands + sw - 1) / sw : rows, sw);
         if (!ctx.collectives[g]) throw std::runtime_error("inference: the backends of a tensor group have no cross-device sum");
         // An allocation is zero-filled, and nothing writes this row.

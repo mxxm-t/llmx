@@ -480,9 +480,9 @@ One embedded drafter of each kind: an MTP file beside a file that carries MTP st
 The drafter's K and V take 8 heads of 128, as wide a position as the target's 4 of 256, so a tensor group member's share fits the plan's KV shape; the runtime gains a drafter plan of several KV layers (`ModelPlan::draft_kv_layers`) and a window on `KVView` (`KVView::window`, each row's own bound, since the reference masks per query and the block's rows share one view), read by the CPU backend behind `Op::attention_window`.
 The rows a verify feeds past the kept ones are written again by the next pass's context rows, as the MTP block's are, and a draft call's block rows sit past the history's length and are never kept.
 
-**On a tensor group** (not built: `dflash_rows` and `dflash_block` refuse a width above 1, and `check_plan` a drafter whose KV layers have a shape of their own). Each member would write its own taps (the residual is whole on every member), keep `fc` whole and its share of K and V heads, so the context rows need no sum.
-A draft call's five layers would be sharded as the target's dense layers are, ten sums; the bridge's small matrices whole on every member; the head sharded by vocabulary rows, with a part and pick of the top 16 across members and the candidate dot products summed.
-Untried: the whole 2 GB drafter on one member (`Placement::draft_device`), one or two crossings instead of twelve sums.
+**On a tensor group.** The drafter runs whole on the group's first member at a draft width of 1 (`Model::draft_members`, `drafts_whole` in `src/model/architecture.hpp`): its weights, its head and its KV layers are held there alone, and a draft call takes no sum.
+Its taps need no crossing, since the group's sums leave the residual whole on every member; the first member holds a whole copy of the head beside its share of the target's.
+Not chosen first: the five layers sharded as the target's dense layers are, ten sums a call, with the head's vocabulary rows split and the top candidates picked across members.
 
 **Ops.** The block's ops are `topk_rows`, `matmul_at_ids` (the dot of each row with listed rows of a weight, `scores[r][k] = x[r] . W[id[r][k]]`), `unit_rows`, `sigmoid_gate_rows` and `chain_pick`, each named by what it computes and none with a part form for a group yet; the predecessor codes are `embed_ids` on the codebook and the rest are existing matmuls.
 The official precomputed tables (`TG`, `TSV`, products of the head and codebook with the bridge matrices) are not used: they are a second, derived precision path of about 1.5 GB.

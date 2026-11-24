@@ -1374,7 +1374,7 @@ inline void Model::draft(DraftAsk* asks, size_t n) {
 
 // The drafter's room for chains of `seqs` sequences of `steps` steps: the ids of every step, and each member's logits of its vocabulary rows of every step, on the device until draft_logits reads them.
 inline void Model::draft_buffers(size_t seqs, size_t steps) {
-    const size_t o = (size_t)place_.output_device, W = width_;
+    const size_t o = (size_t)place_.output_device, W = draft_members();
     if (draft_id_rows_ >= seqs * (steps + 1) && draft_rows_ >= seqs * steps) return;
     const size_t id_rows = std::max(draft_id_rows_, seqs * (steps + 1)), rows = std::max(draft_rows_, seqs * steps);
     std::vector<backend::BufferPtr> ids(W), logits(W);
@@ -1426,7 +1426,7 @@ inline std::unique_ptr<Model::Chain> Model::draft_begin(const DraftAsk* asks, si
     // An anchor row reads the context rows of the positions before it, which only the history has, so a later call would have none.
     if (plan_.draft_anchor && c->steps > 1) throw std::logic_error("inference: a drafter with anchor rows drafts one call a chain");
     std::stable_sort(c->order.begin(), c->order.end(), [&](size_t a, size_t b) { return asks[a].k > asks[b].k; });
-    const size_t R = c->order.size(), o = (size_t)place_.output_device, W = width_, steps = c->steps, B = c->block, A = c->call_rows;
+    const size_t R = c->order.size(), o = (size_t)place_.output_device, W = draft_members(), steps = c->steps, B = c->block, A = c->call_rows;
     const bool kv = keeps_kv(*plan_.drafter);
     Device& d = *devices_[o];
     {
@@ -1491,7 +1491,7 @@ inline std::unique_ptr<Model::Chain> Model::draft_begin(const DraftAsk* asks, si
 // The chain on the head stage's thread in a server: a step a draft on the head's devices, or with stages apart its parts on each stage's devices, submitted, the head's waited for and the drafted ids read back.
 // Step m takes the sequences whose chains are longer than m, longest first, each reading the token drafted before it.
 inline void Model::draft_record(Chain& c) {
-    const size_t R = c.order.size(), o = (size_t)place_.output_device, W = width_, V = plan_.vocab, steps = c.steps, B = c.block;
+    const size_t R = c.order.size(), o = (size_t)place_.output_device, W = draft_members(), V = plan_.vocab, steps = c.steps, B = c.block;
     const bool carries = carries_row(plan_);
     // A server records the chain beside a deferred rerun's parts on other stages, which share the context.
     std::lock_guard<std::mutex> context(context_m_);
@@ -1650,7 +1650,7 @@ inline void Model::draft_record(Chain& c) {
 // The chain's end on the thread that owns the histories: the drafted rows given back, the sequences out of flight and, once recorded, each history's drafts.
 // A chain ends at the first id outside the vocabulary or, on a tensor group, one its members disagree on.
 inline void Model::draft_end(Chain& c) {
-    const size_t R = c.order.size(), W = width_, V = plan_.vocab, per = R * (c.steps * c.block + 1);
+    const size_t R = c.order.size(), W = draft_members(), V = plan_.vocab, per = R * (c.steps * c.block + 1);
     for (size_t p = 0; p < c.prepared; ++p) c.kv[p]->abort();
     c.prepared = 0;
     for (size_t p = 0; p < R; ++p) --c.asks[c.order[p]].seq->flights_;

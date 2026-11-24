@@ -219,6 +219,14 @@ inline backend::KVShape draft_kv_shape(const ModelPlan& plan) {
     return plan.draft_kv.heads ? plan.draft_kv : backend::KVShape{plan.kv_heads, plan.head_dim};
 }
 
+// Whether the plan's drafter runs whole on a tensor group's first member: it has one and none of its roles splits over the group (docs/SPECULATIVE.md, section 11).
+inline bool drafts_whole(const ModelPlan& plan) {
+    if (!plan.drafter) return false;
+    for (const Role& role : plan.drafter->roles)
+        if (role.shard.axis != Axis::none) return false;
+    return true;
+}
+
 // The rows one call of an embedded drafter runs a sequence: its block's and the anchor rows before them.
 inline size_t draft_call_rows(const ModelPlan& plan) { return std::max<size_t>(plan.draft_block, 1) + plan.draft_anchor; }
 

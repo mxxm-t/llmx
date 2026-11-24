@@ -644,7 +644,7 @@ private:
         const dflash::Config& d = *cfg_.dflash;
         const Weight* w = s.w;
         const size_t E = (size_t)cfg_.n_embd, T = d.taps.size(), D = (size_t)d.head_dim, Hkv = (size_t)d.kv_heads, rows = s.rows;
-        if (s.width > 1) throw std::runtime_error("inference: a DFlash drafter does not run on a tensor group yet (docs/STATUS.md, DSpine drafters for qwen35)");
+        if (s.width > 1) throw std::logic_error("inference: a DFlash drafter runs whole on a tensor group's first member (Model::draft_members)");
         if (!s.indices || s.indices_size < backend::size_mul(rows, T)) throw std::runtime_error("inference: the DFlash context rows' index scratch is too small");
         for (size_t r = 0; r < rows; ++r)
             for (size_t t = 0; t < T; ++t) s.indices[r * T + t] = uint32_t(t * rows + r);
@@ -672,7 +672,7 @@ private:
         const Weight &embd = w[token_embd], &head = w[output], &codebook = w[dflash_codebook];
         const size_t C = codebook.nin, G = w[dflash_gate].nout, V = head.nout;
         const float eps = cfg_.rms_eps, gain = std::sqrt(float(C));
-        if (s.width > 1) throw std::runtime_error("inference: a DFlash drafter does not run on a tensor group yet (docs/STATUS.md, DSpine drafters for qwen35)");
+        if (s.width > 1) throw std::logic_error("inference: a DFlash drafter runs whole on a tensor group's first member (Model::draft_members)");
         if (s.stride != R || s.ids != B || s.phase >= 0) throw std::logic_error("inference: a DFlash draft is one call over its sequences' blocks");
         if (!s.indices || s.indices_size < 2 * std::max(n, R * K)) throw std::runtime_error("inference: the DFlash draft's index scratch is too small");
         const size_t base = tap_slot();

@@ -193,7 +193,7 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
         size_t& held_cache = dl.stages.empty() ? fp.drafter_cache : fp.drafter_stage_cache;
         fp.drafter_cache = 0;
         if (keeps_kv(dl))
-            held_cache = backend::size_mul(backend::size_mul(kv_tokens(plan, options), kv_bytes_per_position(plan.draft_kv.heads ? plan.draft_kv : backend::KVShape{kept.kv_heads, kept.head_dim}, options, dl.kv_aux_floats())), plan.draft_kv_layers);
+            held_cache = backend::size_mul(backend::size_mul(kv_tokens(plan, options), kv_bytes_per_position(plan.draft_kv.heads || drafts_whole(plan) ? draft_kv_shape(plan) : backend::KVShape{kept.kv_heads, kept.head_dim}, options, dl.kv_aux_floats())), plan.draft_kv_layers);
         if (keeps_slot(dl))
             held_cache = backend::size_add(held_cache, backend::size_mul(backend::size_mul(slots, backend::size_add(kept.state.slot_floats(), dl.state_tail)), sizeof(float)));
         if (carries_row(plan))
@@ -202,7 +202,7 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
         if (options.mark_slots && options.mark_rows > 1) {
             const size_t drafts = backend::size_mul(draft_calls(plan, options.mark_rows - 1), std::max<size_t>(plan.draft_block, 1));
             const size_t ids = backend::size_mul(backend::size_mul(options.mark_slots, drafts + 1), sizeof(uint32_t));
-            const size_t vocab = width > 1 ? fp.output.rows : plan.vocab;
+            const size_t vocab = width > 1 && !drafts_whole(plan) ? fp.output.rows : plan.vocab;
             const size_t logits = backend::size_mul(backend::size_mul(options.mark_slots, drafts), backend::size_mul(vocab, sizeof(float)));
             fp.drafter_cache = backend::size_add(fp.drafter_cache, backend::size_add(ids, logits));
         }

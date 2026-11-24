@@ -421,6 +421,13 @@ Images are pushed by digest alone and tagged only by the run that publishes them
 - **Left:** nothing for this change; the model side is feat/dspine's, in the same stack. It lands with the landing stack land-20261127, whose gates are recorded there (Landing stack land-20261127, below).
 - **Gotchas:** the ROCm host TU was syntax-checked with hipcc's headers; the CUDA TU shares the same template but was not compiled here (no cuda.h on the rig).
 
+## DSpine drafter on a tensor group (2026-11-24, DSPINE16, branch perf/dspine-group on main d8bd8735e)
+
+- **Goal:** `--drafter` with the Qwen3.8-27B DSpine-b16 sidecar runs at `--tensor-width 4` on four MI50s, where main refuses it, toward the owner's 150 drafted tok/s.
+- **Done:** failing test 5f0746169 (tensor-split: the DSpine sidecar beside the split qwen35 fixture at widths 2 and 4 must give one device's pick, drafts and draft logits). A drafter that splits no role runs whole on the group's first member (`drafts_whole`, `Model::draft_members`): no member copies, no draft sums, its KV layers whole there, the fit charging its whole head and KV. tensor-split passes on CPU widths 2 and 4 (draft logits 1.4e-6 from one device). Qwen3.8-27B Q8_0 + DSpine-b16 Q8_0, int8, tw4, four MI50s (dspine16/t2): ids equal to drafting off; DSpine k15 85.26/76.22 tok/s, k7 101.39/94.41, MTP 127.18/82.34, plain 54.43/37.37 under host load 35-50. The drafters and qwen35 components (CPU) and backend-rocm dspine pass on this tree (dspine17/g1).
+- **Left:** byte identity, CTest and HF at the landing head; whether members past the first should hold no drafter KV (today they keep layers of the target's share, unused); a default draft length below 15 (k7 beat k15 at both layouts).
+- **Gotchas:** measured on main d8bd8735e (dspine15/m1, int8): DSpine layer split 27-44 tok/s, MTP tw4 106; the 16-row verify pass is ~87% of a DSpine block at layer split (dspine16 m1-table.md).
+
 ## DSpine drafters for qwen35 (2026-11-22, DSPINE1, branch feat/dspine)
 
 - **Goal:** `--drafter FILE` runs a DSpine (DFlash-family) sidecar beside a qwen35 model, as docs/SPECULATIVE.md section 11 plans, with greedy output identical to drafting off and acceptance and decode speed measured against plain, lookup and the embedded MTP on Qwen3.8-27B Q8_0 over four MI50s (tensor width 4, int8).

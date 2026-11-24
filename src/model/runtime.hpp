@@ -882,11 +882,12 @@ public:
                         pools[k] = {plan_.drafter->kv_pool, plan_.drafter->kv_pool_width};
                     }
                 }
-                // A drafter whose KV layers have a shape of their own gives each layer of the head's storage its shape (shard::check_plan keeps it to one device).
+                // A drafter whose KV layers have a shape of their own, or one that runs whole on a group's first member, gives each layer of the head's storage its shape.
                 std::vector<backend::KVShape> shapes;
-                if (plan_.draft_kv.heads && plan_.drafter && keeps_kv(*plan_.drafter) && (size_t)(&dp - devices_.data()) == (size_t)place_.output_device) {
-                    shapes.assign((size_t)d.kv_layers, backend::KVShape{plan_.kv_heads, plan_.head_dim});
-                    std::fill(shapes.begin() + (std::ptrdiff_t)drafter_kv_, shapes.begin() + (std::ptrdiff_t)(drafter_kv_ + plan_.draft_kv_layers), plan_.draft_kv);
+                if ((plan_.draft_kv.heads || (width_ > 1 && drafts_whole(plan_))) && plan_.drafter && keeps_kv(*plan_.drafter) &&
+                    (size_t)(&dp - devices_.data()) == (size_t)place_.output_device) {
+                    shapes.assign((size_t)d.kv_layers, backend::KVShape{shard::kv_heads(plan_, width_), plan_.head_dim});
+                    std::fill(shapes.begin() + (std::ptrdiff_t)drafter_kv_, shapes.begin() + (std::ptrdiff_t)(drafter_kv_ + plan_.draft_kv_layers), draft_kv_shape(plan_));
                 }
                 d.storage = d.b->kv_alloc((size_t)d.kv_layers, shard::kv_heads(plan_, width_), plan_.head_dim,
                                           budget, stored_kv(options_.kv_k), stored_kv(options_.kv_v), auxiliary, pools, shapes);
@@ -1327,7 +1328,7 @@ public:
         const size_t row = i * draft_width_ + draft_order_[r];
         if (draft_read_ == row) return draft_row_.data();
         draft_row_.resize(plan_.vocab);
-        for (size_t m = 0, at = 0; m < width_; ++m) {
+        for (size_t m = 0, at = 0; m < draft_members(); ++m) {
             const size_t n = draft_head_rows(m);
             devices_[(size_t)place_.output_device + m]->b->read(*draft_logits_[m], row * n * sizeof(float), draft_row_.data() + at, n * sizeof(float));
             at += n;
@@ -1717,6 +1718,8 @@ private:
     // The weights member m of the group a part runs on reads: the pass's, and layer l's.
     const Weight* pass_row(size_t m) const { return m ? member_pass_[m - 1].data() : pass_.data(); }
     const Weight* home_row(size_t m, size_t l) const { return m ? member_home_[m - 1][l].data() : home_[l].data(); }
+    // The members a draft runs over: the group's, or the first alone for a drafter that runs whole there.
+    size_t draft_members() const { return drafts_whole(plan_) ? 1 : width_; }
     const Weight* drafter_row(size_t m) const { return m ? member_drafter_[m - 1].data() : drafter_.data(); }
     // The vocabulary rows member m computes of the drafter's head, the drafter's matrix of the vocabulary's rows (blocks::draft_head).
     size_t draft_head_rows(size_t m) const {
@@ -1921,10 +1924,10 @@ private:
         // Each other member of a tensor group gets its own rows, in the same order.
         member_pass_.assign(width_ - 1, std::vector<Weight>(plan_.role_ids));
         member_home_.assign(width_ - 1, std::vector<std::vector<Weight>>(n_layer, std::vector<Weight>(plan_.role_ids)));
-        member_drafter_.assign(plan_.drafter ? width_ - 1 : 0, std::vector<Weight>(plan_.role_ids));
+        member_drafter_.assign(plan_.drafter ? draft_members() - 1 : 0, std::vector<Weight>(plan_.role_ids));
         for (size_t m = 1; m < width_; ++m) {
             for (const Role& role : plan_.pass) member_pass_[m - 1][role.id] = resolve(role, device_of(role.part, 0), m);
-            for (size_t k = 0; plan_.drafter && k < plan_.drafter->roles.size(); ++k)
+            for (size_t k = 0; plan_.drafter && m < draft_members() && k < plan_.drafter->roles.size(); ++k)
                 member_drafter_[m - 1][plan_.drafter->roles[k].id] = resolve(plan_.drafter->roles[k], drafter_device(plan_.drafter->roles[k]), m);
             for (size_t l = 0; l < n_layer; ++l)
                 for (const Role& role : plan_.layers[l].roles) member_home_[m - 1][l][role.id] = resolve(role, device_of(role.part, l), m);

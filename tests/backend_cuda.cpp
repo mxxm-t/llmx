@@ -621,8 +621,9 @@ void groups() {
             for (const GroupTransport t : {GroupTransport::peer_writes, GroupTransport::host_writes, GroupTransport::pulls}) {
                 if (t == GroupTransport::peer_writes && !peer) continue;
                 const std::string name = t == GroupTransport::peer_writes ? "peer writes" : t == GroupTransport::host_writes ? "host writes" : "pulls";
-                for (const GpuSumForm form : {GpuSumForm::one_shot, GpuSumForm::chain, GpuSumForm::wrap, GpuSumForm::shares, GpuSumForm::copies, GpuSumForm::pulls}) {
+                for (const GpuSumForm form : {GpuSumForm::one_shot, GpuSumForm::chain, GpuSumForm::wrap, GpuSumForm::shares, GpuSumForm::draws, GpuSumForm::copies, GpuSumForm::pulls}) {
                     if (t == GroupTransport::pulls ? form != GpuSumForm::one_shot : (form == GpuSumForm::pulls || form == GpuSumForm::copies) && t != GroupTransport::host_writes) continue;
+                    if (form == GpuSumForm::draws && t != GroupTransport::peer_writes) continue;
                     const size_t cap = 17 * 4 * 4096 + 5;
                     std::unique_ptr<Collective> forced = cuda_collective(group, cap, 1, form, t);
                     oracle_sums(group, *forced, 1, {1, 4 * W + 1, 4 * 4096 + 1, cap}, seed, name + " in form " + std::to_string((int)form) + ", " + at);

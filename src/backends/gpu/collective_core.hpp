@@ -47,9 +47,10 @@ constexpr size_t kTimedFloor = 4096, kTimedSums = 3, kTimedRounds = 3;   // the 
 constexpr double kTimedSpanMs = 0.5;   // a short timing's rounds each span about this long, so a few microseconds of host jitter do not pick the form after a first
 constexpr size_t kDuelRounds = 5;      // interleaved timings of the wrap and the best other pick before the wrap is kept
 constexpr double kWrapMargin = 0.9;    // the wrap's median must be under this fraction of the other pick's
+constexpr size_t kDrawBlocks = 8, kDrawUnits = 64;   // the fewest blocks a draws sum takes, and the float4 units of a share a block aims for above them
 constexpr double kCapSpan = 8;   // how many times the best pick's time a kernel form may take at its own blocks and still have its cap timed, since fewer blocks summed up to 4.1x faster on a slow link
 // The forms a join times for each staged transport, in the order stderr lists their times; copies and pulls only where the rows go through host memory, and last.
-constexpr GpuSumForm kTimedForms[] = {GpuSumForm::one_shot, GpuSumForm::chain, GpuSumForm::wrap, GpuSumForm::shares, GpuSumForm::copies, GpuSumForm::pulls};
+constexpr GpuSumForm kTimedForms[] = {GpuSumForm::one_shot, GpuSumForm::chain, GpuSumForm::wrap, GpuSumForm::shares, GpuSumForm::draws, GpuSumForm::copies, GpuSumForm::pulls};
 // Copies send a share in at most kCopyChunks chunks, by default one a kCopyChunkFloats, 4 MB a copy, so a chunk's issue and count cost little beside its transfer (docs/src/backends-gpu.md, the collective).
 constexpr size_t kCopyChunks = 16, kCopyChunkFloats = 1048576;
 constexpr size_t kCopyWords = 8;   // a member's words for copies, a cache line: rows sent, totals sent, abort (kernels/f32.gpu, llmx_group_copies)
@@ -275,12 +276,13 @@ public:
 
     // Whether the sums still take the fast path; a test's witness.
     bool fast() const { return fast_; }
-    // Every transport and form this collective can time: each staged transport's kernel forms, the wrap from three members, where it differs from the chain, and copies and pulls where the rows go through host memory.
+    // Every transport and form this collective can time: each staged transport's kernel forms, the wrap from three members, where it differs from the chain, draws under peer writes, and copies and pulls through host memory.
     std::vector<GpuSumPick> picks() const {
         std::vector<GpuSumPick> all;
         for (const Areas& s : sets_)
             for (GpuSumForm f : kTimedForms)
-                if (s.fast() && (f != GpuSumForm::wrap || members_.size() > 2) && ((f != GpuSumForm::pulls && f != GpuSumForm::copies) || (s.host() && (f != GpuSumForm::copies || copies_))))
+                if (s.fast() && (f != GpuSumForm::wrap || members_.size() > 2) && (f != GpuSumForm::draws || s.transport == GroupTransport::peer_writes) &&
+                    ((f != GpuSumForm::pulls && f != GpuSumForm::copies) || (s.host() && (f != GpuSumForm::copies || copies_))))
                     all.push_back({s.transport, f});
         return all;
     }
@@ -291,7 +293,7 @@ public:
             if (s.host())
                 for (size_t m = 0; m < members_.size(); ++m) {
                     if (!s.area[m]) continue;
-                    bytes = size_add(bytes, s.placed[m] ? s.placed[m] : page_round(area_bytes()));
+                    bytes = size_add(bytes, s.placed[m] ? s.placed[m] : page_round(area_bytes(s.transport)));
                     if (m < s.copy.size()) bytes = size_add(bytes, s.copy_placed[m] ? s.copy_placed[m] : copy_bytes());
                 }
         return bytes;
@@ -489,8 +491,8 @@ private:
         bool fast() const { return transport != GroupTransport::pulls; }
     };
 
-    // A member's area: its signal block, then two parity halves of a slot per member.
-    size_t area_bytes() const { return size_add(kGroupSignalBytes, size_mul(size_mul(2 * members_.size(), cap_), sizeof(float))); }
+    // A member's area: its signal block, then two parity halves of a slot per member, and under peer writes the slot its draws copy into.
+    size_t area_bytes(GroupTransport t) const { return size_add(kGroupSignalBytes, size_mul(size_mul(2 * members_.size() + (t == GroupTransport::peer_writes), cap_), sizeof(float))); }
 
     // A member's copies area: two parity halves of a share slot per member and of its totals.
     size_t copy_slot() const { return (cap_ / 4 + members_.size() - 1) / members_.size() * 4; }
@@ -527,7 +529,7 @@ private:
         s.area.assign(W, nullptr);
         s.at.assign(W, nullptr);
         s.placed.assign(W, 0);
-        const size_t bytes = page_round(area_bytes());
+        const size_t bytes = page_round(area_bytes(t));
         if (s.host() && copies_ && !words_) {
             Api::check(Api::host_malloc((void**)&words_, W * kCopyWords * sizeof(uint64_t), true), "host_malloc");
             std::memset(words_, 0, W * kCopyWords * sizeof(uint64_t));
@@ -661,6 +663,11 @@ private:
         size_t blocks = std::min<size_t>(one_shot_blocks_, (units + kThreads - 1) / kThreads);
         if (pick.form == GpuSumForm::chain || pick.form == GpuSumForm::wrap) blocks = std::min<size_t>(kChainBlocks, (units + kChainUnits - 1) / kChainUnits);
         else if (pick.form == GpuSumForm::shares) blocks = std::min<size_t>(one_shot_blocks_, ((units + W - 1) / W + kThreads - 1) / kThreads);
+        // Draws take a block a run of 16 units of a share and at least kDrawBlocks, since the timing only lowers a cap and fewer blocks drew a 5120-float sum slower on four MI50s.
+        else if (pick.form == GpuSumForm::draws) {
+            const size_t share = (units + W - 1) / W;
+            blocks = std::min({one_shot_blocks_, kGroupBlocks, (share + 15) / 16, std::max<size_t>(kDrawBlocks, (share + kDrawUnits - 1) / kDrawUnits)});
+        }
         return pick.blocks ? std::min<size_t>(blocks, pick.blocks) : blocks;
     }
 
@@ -677,7 +684,7 @@ private:
         const GpuSumForm form = pick.form;
         const bool chained = form == GpuSumForm::chain || form == GpuSumForm::wrap;
         const size_t own_blocks = launched_blocks(pick, n), blocks = (beside ? std::min(own_blocks, chained ? kBesideBlocks / 2 : kBesideBlocks) : own_blocks) * (chained ? 2 : 1);
-        int members = (int)W, rank = (int)m, flags = (replace ? 1 : 0) | (fast ? 2 : 0) | (int)half << 2 | (form == GpuSumForm::wrap ? 8 : 0);
+        int members = (int)W, rank = (int)m, flags = (replace ? 1 : 0) | (fast ? 2 : 0) | (int)half << 2 | (form == GpuSumForm::wrap ? 8 : 0) | (form == GpuSumForm::draws ? 16 : 0);
         const Args args(fast || !s.host() ? s.table[m] : s.pull_table[m], own, o, nn, cap, members, rank, flags, timeout, tick);
         if (takes && form == GpuSumForm::one_shot) {
             b.group_push((unsigned)blocks, args);
@@ -1051,7 +1058,7 @@ void GpuBackend<Api>::timed_group(const std::vector<GpuBackend<Api>*>& group, co
     if (times.empty()) return;
     std::string forms;
     for (GpuSumForm f : kTimedForms)
-        if (f != GpuSumForm::pulls && f != GpuSumForm::copies) forms += std::string(sum_form_name(f)) + ", ";
+        if (f != GpuSumForm::pulls && f != GpuSumForm::copies) forms += std::string(sum_form_name(f)) + (f == GpuSumForm::draws ? " under peer writes, " : ", ");
     std::fprintf(stderr, "%stensor group of devices %s timed its sums in place, ms by transport %sand %spulls under host writes: %s\n", Api::prefix.c_str(), device_list(ids).c_str(),
                  forms.c_str(), path.copies ? "copies and " : "", times.c_str());
 }

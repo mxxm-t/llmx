@@ -2185,8 +2185,8 @@ void sum_calls(Collective& c, size_t W, bool fast) {
             fast ? "a fast group sum made other launches or copies than one launch a member" : "a conservative group sum made other launches or copies than a launch a member and a copy a peer");
 }
 
-// Two sequences of three sums, alone and then interleaved with and without waits between them, each ending with its bits alone (docs/TESTS.md).
-void sums_in_flight(const std::vector<Backend*>& group, Collective& c, size_t width, uint32_t seed) {
+// Two sequences of three sums of rows_a and rows_b rows, alone and then interleaved with and without waits between them, each ending with its bits alone (docs/TESTS.md).
+void sums_in_flight(const std::vector<Backend*>& group, Collective& c, size_t width, uint32_t seed, size_t rows_a = 7, size_t rows_b = 64) {
     const size_t W = group.size(), kSums = 3;
     struct Seq {
         size_t rows = 0;
@@ -2232,11 +2232,11 @@ void sums_in_flight(const std::vector<Backend*>& group, Collective& c, size_t wi
         group[m]->submit();
         return read(*group[m], *q.x[m], q.start.size());
     };
-    Seq a = make(7), b = make(64);
+    Seq a = make(rows_a), b = make(rows_b);
     for (Seq* q : {&a, &b}) {
         reset(*q);
         for (size_t s = 0; s < kSums; ++s) step(*q, s);
-        for (size_t m = 0; m < W; ++m) require(same(got(*q, m), q->want), "a sequence of group sums alone is not the oracle's");
+        for (size_t m = 0; m < W; ++m) require(same(got(*q, m), q->want), "a sequence of group sums of " + std::to_string(q->rows * width) + " floats alone at width " + std::to_string(W) + " is not the oracle's");
     }
     for (const bool waits : {false, true}) {
         reset(a);
@@ -2248,7 +2248,8 @@ void sums_in_flight(const std::vector<Backend*>& group, Collective& c, size_t wi
             if (waits) c.wait(0);
         }
         for (size_t m = 0; m < W; ++m)
-            require(same(got(a, m), a.want) && same(got(b, m), b.want), "two sequences of group sums in flight on one collective differ from each alone");
+            require(same(got(a, m), a.want) && same(got(b, m), b.want),
+                    "two sequences of group sums of " + std::to_string(a.rows * width) + " and " + std::to_string(b.rows * width) + " floats in flight at width " + std::to_string(W) + " differ from each alone");
     }
 }
 
@@ -2459,10 +2460,12 @@ void sentinel_sums() {
     static const uint32_t bits[] = {0x7f800001u, 0x7fc00001u, 0xff800001u, 0xffc00001u, 0x7fc00000u, 0x7f812345u, 0x7fd12345u, 0x7f800000u, 0xff800000u, 0x80000000u, 0x0u, 0x00000001u};
     const size_t cap = 8 * 1031, sizes[] = {1, 3, 5, 63, 64, 97, 255, 256, 1023, 1024, 1027, cap};
     // The fast arm's picks switch transport at each size, so a join that keeps both follows them with sums in flight across a switch.
-    const std::map<size_t, GpuSumPick> forms = {{64, {GroupTransport::host_writes, GpuSumForm::shares}}, {256, {GroupTransport::peer_writes, GpuSumForm::chain}},
-                                                {512, {GroupTransport::host_writes, GpuSumForm::chain}}, {1024, {GroupTransport::peer_writes, GpuSumForm::one_shot}},
-                                                {1027, {GroupTransport::host_writes, GpuSumForm::pulls}}, {1028, {GroupTransport::host_writes, GpuSumForm::one_shot}},
-                                                {2048, {GroupTransport::host_writes, GpuSumForm::pulls}}, {2052, {GroupTransport::host_writes, GpuSumForm::one_shot}}};
+    // Draws take 97 and the largest size, so chain and one-shot sums by peer writes follow and precede draws sums on the same staging.
+    const std::map<size_t, GpuSumPick> forms = {{64, {GroupTransport::host_writes, GpuSumForm::shares}}, {97, {GroupTransport::peer_writes, GpuSumForm::draws}},
+                                                {256, {GroupTransport::peer_writes, GpuSumForm::chain}}, {512, {GroupTransport::host_writes, GpuSumForm::chain}},
+                                                {1024, {GroupTransport::peer_writes, GpuSumForm::one_shot}}, {1027, {GroupTransport::host_writes, GpuSumForm::pulls}},
+                                                {1028, {GroupTransport::host_writes, GpuSumForm::one_shot}}, {2048, {GroupTransport::host_writes, GpuSumForm::pulls}},
+                                                {2052, {GroupTransport::host_writes, GpuSumForm::one_shot}}, {4096, {GroupTransport::peer_writes, GpuSumForm::draws}}};
     for (size_t W = 2; W <= d.size(); ++W) {
         const std::vector<Backend*> group = raw(d, W);
         std::unique_ptr<Collective> fast = rocm_collective(group, cap, 1, forms);
@@ -3362,14 +3365,31 @@ void collective() {
         std::unique_ptr<Collective> small = d[0]->join(group, 2, 97);
         group_sums::check(group, *small, 97, {1, 2}, seed, print);
         seed += 100;
-        // Each form forced across the devices, about a chain's chunk and at 17 chunks, peer access on from the join above.
-        for (const GpuSumForm form : {GpuSumForm::one_shot, GpuSumForm::chain, GpuSumForm::wrap, GpuSumForm::shares}) {
+        // Each form forced across the devices, about a chain's chunk and at 17 chunks, peer access on from the join above; draws also about its runs of 16 units a share and where the c6 timing saw it take over.
+        for (const GpuSumForm form : {GpuSumForm::one_shot, GpuSumForm::chain, GpuSumForm::wrap, GpuSumForm::shares, GpuSumForm::draws}) {
             const size_t cap = 17 * 4 * 4096 + 5;
             std::unique_ptr<Collective> forced = rocm_collective(group, cap, 1, form);
-            group_sums::check(group, *forced, 1, {1, 4 * W + 1, 4 * 4096 + 1, cap}, seed, print);
+            std::vector<size_t> sizes = {1, 4 * W + 1, 4 * 4096 + 1, cap};
+            if (form == GpuSumForm::draws) sizes.insert(sizes.end(), {64 * W - 1, 64 * W, 64 * W + 1, 64 * 16 * W + 3, 20480, 65536, 65537});
+            group_sums::check(group, *forced, 1, sizes, seed, print);
             seed += 100;
             lane_sums(group, *forced, 1, 4 * 4096 + 4, 4 * 4096 + 1, seed);
+            seed += 100;
+            // Sums back to back with no host wait between them, which reread the same peer slots in consecutive kernels; draws read them remotely, so a stale read shows here.
+            for (int r = 0; r < 4; ++r) sums_in_flight(group, *forced, 1, seed + r * 16);
+            seed += 100;
+            // The draws also at 25, 128, 512, 1025 and 2062 units, whose blocks reread lines a cache still holds; far larger sums evict them, so only these catch a stale read.
+            const size_t draw_rows[][2] = {{100, 512}, {2048, 4100}, {8248, 100}};
+            if (form == GpuSumForm::draws)
+                for (const auto& r : draw_rows) {
+                    sums_in_flight(group, *forced, 1, seed, r[0], r[1]);
+                    seed += 16;
+                }
         }
+        // The join times draws beside the other forms on the cards (stderr names each size's pick), and every pick it keeps sums exactly at the timed sizes.
+        std::unique_ptr<Collective> timed = d[0]->join(group, 640, 1024);
+        group_sums::check(group, *timed, 1024, {1, 4, 5, 20, 40, 80, 160, 320, 640}, seed, print);
+        seed += 100;
         // The member order timed for the group is an order of its members, asked again the same, and the group in that order sums in its member order.
         const std::vector<size_t> order = d[0]->member_order(group, W, 64, 97);
         std::vector<size_t> sorted = order;
@@ -3766,7 +3786,7 @@ void sum_forms() {
     HipFn& f = hip();
     real_launch = f.hipModuleLaunchKernel;
     real_copy = f.hipMemcpyAsync;
-    const GpuSumForm forms[] = {GpuSumForm::one_shot, GpuSumForm::chain, GpuSumForm::wrap, GpuSumForm::shares};
+    const GpuSumForm forms[] = {GpuSumForm::one_shot, GpuSumForm::chain, GpuSumForm::wrap, GpuSumForm::shares, GpuSumForm::draws};
     const size_t chunk = 4 * 4096;   // a chain's largest chunk in floats (kernels/group.h, kChainUnits)
     auto print = [](bool ok, const std::string& what) { require(ok, what); };
     uint32_t seed = 1601;

@@ -4,12 +4,12 @@
 namespace backend {
 
 // The forms of a tensor group's fast sum (docs/src/backends-gpu.md, the collective), each adding every element in member order, so each gives the one-shot's bits.
-// shares gives each member a share of the units to add and send back to every peer, copies does so through host memory by copy engines, and pulls is the copies behind events.
-enum class GpuSumForm { one_shot, chain, pulls, shares, copies, wrap };
+// shares gives each member a share of the units to add and send back to every peer, draws has each owner read its share from its peers instead, copies does so through host memory by copy engines, and pulls is the copies behind events.
+enum class GpuSumForm { one_shot, chain, pulls, shares, copies, wrap, draws };
 
 // A form's name as stderr and the tests print it.
 inline const char* sum_form_name(GpuSumForm f) {
-    static const char* const names[] = {"one-shot", "chain", "pulls", "shares", "copies", "wrap"};
+    static const char* const names[] = {"one-shot", "chain", "pulls", "shares", "copies", "wrap", "draws"};
     return names[(int)f];
 }
 

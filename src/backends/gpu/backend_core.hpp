@@ -458,14 +458,14 @@ public:
     std::vector<size_t> member_order(const std::vector<Backend*>& devices, size_t width, size_t rows, size_t summed) override;
     bool times_groups() const override { return true; }
     std::unique_ptr<Handoff> handoff(const std::vector<Backend*>& readers) override;
-    // A member's partial rows beside two parity halves of a device slot a member for each transport its timed groups picked (GpuCollective<Api>): the staging under peer writes and pulls, the slots pulls copy into under host writes.
+    // A member's partial rows beside two parity halves of a device slot a member for each transport its timed groups picked (GpuCollective<Api>), the staging or the slots pulls copy into, and a draw slot under peer writes.
     // Before any group of this device is timed, peer writes' alone.
     size_t collective_bytes_per_row(size_t members, size_t width) const override {
         if (!members) return 0;
         const unsigned by = summed_by_ ? summed_by_ : transport_bit(GroupTransport::peer_writes);
         size_t slots = 1;
         for (const GroupTransport t : {GroupTransport::peer_writes, GroupTransport::host_writes, GroupTransport::pulls})
-            if (by & transport_bit(t)) slots += 2 * members;
+            if (by & transport_bit(t)) slots += 2 * members + (t == GroupTransport::peer_writes);
         return size_mul(slots, size_mul(width, sizeof(float)));
     }
     bool supports_type(uint32_t type) const override { return type_kernels(type) != nullptr; }
@@ -4292,7 +4292,7 @@ private:
     // A one-shot whose rows the held build already pushed (push_rows) launches its take alone; a stream `beside` the member's takes the launch at once rather than held with the member's operations.
     void group_launch(GpuSumForm form, unsigned blocks, const Args& args, bool pushed = false, typename Api::Stream beside = nullptr) {
         forget_twins();
-        const Kernel k = pushed ? kGroupTake : form == GpuSumForm::chain || form == GpuSumForm::wrap ? kGroupChain : form == GpuSumForm::shares ? kGroupShares : form == GpuSumForm::copies ? kGroupCopies : kGroupSum;
+        const Kernel k = pushed ? kGroupTake : form == GpuSumForm::chain || form == GpuSumForm::wrap ? kGroupChain : form == GpuSumForm::shares || form == GpuSumForm::draws ? kGroupShares : form == GpuSumForm::copies ? kGroupCopies : kGroupSum;
         ++launched_[k];
         if (!beside) return issue(kernels_[k], blocks, 1, 1, kThreads, args, kKernelNames[k]);
         Args a = args;

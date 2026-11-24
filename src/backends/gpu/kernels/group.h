@@ -17,13 +17,13 @@ __device__ inline unsigned long long group_chain_units(unsigned long long units,
 struct GroupSignal {
     unsigned epoch[kGroupBlocks];   // the last sum's epoch in a chain, per block, first in the area
     unsigned abort;                 // set by a member whose wait ran out, read by every member's waits
-    unsigned done[kGroupBlocks][kGroupMembers];   // [block][sender]: the epoch a sender's block reached
+    unsigned done[3][kGroupBlocks][kGroupMembers];   // [meeting][block][sender]: the epoch a sender's block reached, at a chain's meeting or a draws sum's first or second
     unsigned ahead[kChainBlocks], back[kChainBlocks];     // the chunks a chain's predecessor and successor passed this member so far, per chain block
     unsigned passed[2][kChainBlocks];                     // this member's own count of the same, ahead then back, which every member keeps equal
 };
 static_assert(sizeof(GroupSignal) <= 8192, "the host's kGroupSignalBytes");
 struct GroupPeers {
-    float* stage[kGroupMembers];      // each member's staging slots, cap floats a member
+    float* stage[kGroupMembers];      // each member's staging slots, cap floats a member, two parity halves of them and under peer writes its draw slot
     unsigned* signal[kGroupMembers];  // each member's GroupSignal
     unsigned* status;                 // host memory, a word a member, set where its sum failed
     unsigned* fault;                  // host memory, this member's backend's fault word

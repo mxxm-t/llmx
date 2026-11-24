@@ -796,3 +796,40 @@ def settle_findings(found, checks, listed, say=print):
     for k in gone:
         say("  listed but no longer found, so its line in tests/data/known_findings.txt goes: %s | %s | %s" % k)
     return not new and not recount and not gone
+
+
+def arch_fixtures(directory):
+    """One small GGUF for each architecture of src/model/arch/registry.hpp, written into `directory` by the suite's own generators, as {name: (path, architecture, tags)}.
+    The tags say what a fixture holds: routed (expert layers), recurrent (layers that keep a state), lookup (lookup tables), mtp (an embedded drafter) and native (a native cache format)."""
+    import f32
+    import fixture_deepseek4
+    import fixture_minimax
+    import moe
+    import qwen35
+    import tensor_split as ts
+
+    def subdirectory(name):
+        path = os.path.join(directory, name)
+        os.makedirs(path, exist_ok=True)
+        return path
+
+    data = os.path.join(ROOT, "tests", "data")
+    out = {"qwen3": (f32.write_model(os.path.join(directory, "qwen3.gguf"), f32.tensors(False, config=ts.CONFIG, vocab=ts.VOCAB),
+                                     config=dict(ts.CONFIG, context_length=128), tokens=ts.TOKENS), "qwen3", set()),
+           "qwen3moe": (f32.write_model(os.path.join(directory, "qwen3moe.gguf"), moe.tensors(ts.MOE_SEED, ts.MOE_CONFIG, ts.VOCAB),
+                                        config=dict(ts.MOE_CONFIG, context_length=128), arch="qwen3moe", tokens=ts.TOKENS), "qwen3moe", {"routed"})}
+    for name, spec, tags in (("qwen35", ts.QWEN35, {"recurrent"}), ("qwen35moe", ts.QWEN35MOE, {"recurrent", "routed"})):
+        out[name] = (qwen35.write_fixture(subdirectory(name), dict(spec, config=dict(spec["config"], context_length=128)), tokens=ts.TOKENS), name, tags)
+    mtp = next(f for f in qwen35.FIXTURES if f["name"] == "hv3-mtp")
+    out["qwen35 mtp"] = (qwen35.write_fixture(subdirectory("mtp"), dict(mtp, config=dict(mtp.get("config", {}), context_length=128))), "qwen35", {"recurrent", "mtp"})
+    with open(os.path.join(data, "minimax_m3_reference.json"), encoding="utf-8") as f:
+        small = json.load(f)["fixtures"]["small"]
+    out["minimax-m3"] = (str(fixture_minimax.write_minimax(os.path.join(directory, "minimax.gguf"), small["config"], fixture_minimax.make_state(small["config"], small["seed"]))),
+                         "minimax-m3", {"routed"})
+    with open(os.path.join(data, "deepseek41_reference.json"), encoding="utf-8") as f:
+        args, state, engram = fixture_deepseek4.fixture_from_document(json.load(f))
+    out["deepseek41"] = (str(fixture_deepseek4.write_deepseek41(os.path.join(directory, "deepseek41.gguf"), dict(args, max_seq_len=1024), state, engram, "fork")),
+                         "deepseek41", {"routed", "recurrent", "lookup", "native"})
+    # The Flash-Next fixture is the checked-in text model of the image component, which tools/vision_reference.py writes with tests/image.py's write_qwen4exp_fixture.
+    out["qwen4exp"] = (os.path.join(data, "vision", "tiny-qwen4exp-image.gguf"), "qwen4exp", {"routed", "recurrent", "lookup"})
+    return out

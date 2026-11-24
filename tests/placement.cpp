@@ -1151,17 +1151,18 @@ void layer_split_fits() {
         require(refusal(weights, {std::make_shared<HostMemoryDevice>()}, dense) == expected,
                 "experts on the CPU accepted on a model without routed layers beside a device, or refused by another flag's name");
     }
-    // A CPU runs the experts where they are, so experts on the CPU beside it are that one CPU: nothing crosses, and the logits are those of the model placed without the flag.
-    auto cpu_counted = std::make_shared<CountingCpu>(), cpu_plain = std::make_shared<CountingCpu>();
-    cpu_counted->set_threads(1);
+    // The CPU alone runs the experts where they are, so the flags would move none and are refused by the name given.
+    auto cpu_plain = std::make_shared<CountingCpu>();
     cpu_plain->set_threads(1);
     infer::PlacementRequest experts_on_cpu;
     experts_on_cpu.names = {"cpu"};
-    experts_on_cpu.cpu_moe = -1;
-    const infer::PlacedModel experts_here = infer::place_model(infer::gguf_weights(moe), {cpu_counted}, experts_on_cpu, options);
+    for (const int cpu_moe : {1, -1}) {
+        experts_on_cpu.cpu_moe = cpu_moe;
+        require(refusal(moe, {std::make_shared<backend::CpuBackend>()}, experts_on_cpu) ==
+                    std::string(cpu_moe < 0 ? "--cpu-moe" : "--n-cpu-moe") + ": the experts already run on the CPU, the only device; list a Vulkan, ROCm or CUDA device",
+                "experts on the CPU accepted with the CPU alone, or refused by another flag's name");
+    }
     const std::vector<float> routed = infer::Model(infer::gguf_weights(moe), cpu_plain).prefill(prompt);
-    exact(routed, experts_here.model->prefill(prompt), "experts on the CPU beside a CPU differ from the model without them");
-    require(cpu_counted->copies == 0 && cpu_counted->writes == 0, "experts on the CPU beside a CPU crossed to another backend");
     // Reading weights in place does not make a backend the CPU: experts on the CPU beside such a device run on a CPU placed beside it, the residual crossing each way, with the same logits.
     auto host_device = std::make_shared<HostMemoryDevice>();
     host_device->set_threads(1);

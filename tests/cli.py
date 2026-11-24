@@ -348,6 +348,9 @@ def check_help():
     company = {"--profile": ["--device", "vulkan:0"], "--moe-stream-from": ["--cpu-moe"], "--expert-cache": ["--cpu-moe"], "--image": ["--chat", "--mmproj", "missing.gguf"],
                "--mmproj": ["--chat", "--image", "missing.png"], "--image-max-tokens": ["--chat", "--mmproj", "missing.gguf", "--image", "missing.png"],
                "--yarn-original-ctx": ["--yarn", "4"], "--draft-max": ["--drafter", "embedded"]}
+    # The disk cache's other flags set the tier --disk-cache-bytes sizes, which they are refused without.
+    serve_company.update({flag: ["--disk-cache-bytes", "4gb"] for flag in ("--disk-cache-dir", "--disk-cache-floor", "--disk-cache-keep", "--disk-cache-max-age", "--disk-cache-adopt")})
+    serve_company["--draft-max"] = ["--drafter", "lookup"]
     # Values a placeholder's would not give: --size is a multiple of 32, a perplexity window holds two tokens at least, --drafter names a drafter and --yarn scales by more than 1.
     values = {"--size": "32", "--ctx-size": "2", "-c": "2", "--drafter": "off", "--yarn": "4"}
 

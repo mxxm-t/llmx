@@ -715,6 +715,11 @@ void placement_checks() {
     auto device = std::make_shared<LoadingBackend>();
     device->set_threads(1);
     rejects("experts on the CPU of a model without routed layers", [&] { infer::place_model(weights, {device}, request, options); });
+    // The CPU alone runs every expert already, and a model without lookup tables has none to store.
+    request = {}; request.cpu_moe = -1;
+    rejects("experts on the CPU with the CPU alone", [&] { infer::place_model(routed, {cpu()}, request, options); });
+    request = {}; request.lookup_storage = infer::LookupStorage::file;
+    rejects("a lookup storage on a model without lookup tables", [&] { infer::place_model(weights, {cpu()}, request, options); });
     // A device expert cache needs experts on the CPU and no streaming beside it, one device that has one, and room for an expert a layer.
     request = {}; request.expert_cache = size_t(1) << 30;
     rejects("an expert cache without experts on the CPU", [&] { infer::place_model(routed, {device}, request, options); });

@@ -377,9 +377,11 @@ place_model without a device: placement: no device
 a stream point without experts on the CPU: --moe-stream-from: only experts on the CPU are streamed; give --n-cpu-moe or --cpu-moe
 histories over a null backend: inference: missing backend
 a fitted budget with experts on the CPU over a null backend: inference: missing backend
-experts on the CPU with the CPU among two devices: --n-cpu-moe: not with the CPU as a device of a split; list the devices without the CPU, or the CPU alone
-experts on the CPU with layer shares over the CPU: --cpu-moe: not with the CPU as a device of a split; list the devices without the CPU, or the CPU alone
+experts on the CPU with the CPU among two devices: --n-cpu-moe: not with the CPU as a device of a split; list the devices without the CPU
+experts on the CPU with layer shares over the CPU: --cpu-moe: not with the CPU as a device of a split; list the devices without the CPU
 experts on the CPU of a model without routed layers: --n-cpu-moe: the model has no expert layers
+experts on the CPU with the CPU alone: --cpu-moe: the experts already run on the CPU, the only device; list a Vulkan, ROCm or CUDA device
+a lookup storage on a model without lookup tables: --lookup-storage file: the model has no lookup tables
 an expert cache without experts on the CPU: --expert-cache: only experts on the CPU are cached; give --n-cpu-moe or --cpu-moe
 an expert cache beside streamed experts: --expert-cache: not with --moe-stream-from; the cache already runs a prompt's experts on the device
 an expert cache on the CPU: --expert-cache: not with the CPU as a device; the cache holds experts on a Vulkan, ROCm or CUDA device

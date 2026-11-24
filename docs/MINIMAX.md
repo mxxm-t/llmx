@@ -78,6 +78,7 @@ The checkpoint stores dense matrices as MXFP8 with E8M0 block scales and the exp
 MXFP8 values and power-of-two scales are BF16 values, and the converter keeps NVFP4 as stored, so the file holds the checkpoint's weights exactly: an HF reference built from the GGUF's weights is file-exact.
 
 The tokenizer is byte-level BPE with pretokenizer `minimax-m2` and an NFC normalizer (`tokenizer.ggml.normalizer.nfc`); BOS 200019, EOS 200020.
+llmx reads it as the file names it ([tokenizer-tokenizer.md](src/tokenizer-tokenizer.md)), held to HF's ids by the suite's `tokenizer` component, so the published files load unedited.
 
 ## What a layer keeps
 

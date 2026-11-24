@@ -226,7 +226,7 @@ matters: **each layer depends only on the layers below it** -
 | `hub/`       | CLI acquisition path: Hub metadata, curl HTTPS and verified multi-stream cache |
 | `quant/`     | storage metadata and checked row sizes in types.hpp, decoder registry, F16/BF16 widening and the Q, K, IQ, MXFP4 and TQ family decoders |
 | `format/`    | GGUF v3 reader/writer (headers, then mapping, then reading in), file spans, a file read at offsets, output files published whole, raw F32 tensors to and from GGUF |
-| `tokenizer/` | byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer |
+| `tokenizer/` | byte-level BPE, Qwen2/Qwen3/Qwen3.5, joyai-llm and minimax-m2 pretokenizers |
 | `image/`     | image files decoded, oriented and resized for a vision encoder, beside the tokenizer; depends on core alone |
 | `model/`     | runtime (sequences and their histories, passes, stages, the arena, placement), one module per architecture under `arch/` chosen by the registry (qwen3 and qwen3moe, qwen35 and qwen35moe, qwen4exp) with their shared graph pieces, KV cache and recurrent state slots, layer split over devices, tensor shards |
 | `backends/`  | Backend interface with cpu/ (AVX2), vulkan/ and optional Linux rocm/ implementations; one CPU worker pool; `device_profile.hpp`, the device numbers a GPU backend shapes its kernels by |

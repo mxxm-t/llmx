@@ -726,6 +726,15 @@ The first shard's header names `tokenizer.ggml.pre` `joyai-llm` and holds that f
 Every added token has type 3 (1278 of them) or 4 (5) there and every other token type 1, so llmx matches all of them before pretokenization, as `tokenizers` matches its added tokens; the golden takes these types from the header, not from a naming rule.
 `tokenizers` 0.23.2's regex engine reads Unicode 16.0, which the golden's version probes pin: letters of 15.0, 15.1 and 16.0 join a letter run and code points 16.0 leaves unassigned do not; its `\s` is White_Space, so U+001C to U+001F, U+180E, U+200B and U+FEFF are not spaces.
 
+#### The minimax tokenizer reference
+
+`tokenizer-minimax` writes `tests/data/baseline_tokenizer_minimax.json` through the same generator as `tokenizer-deepseek41`, from the `tokenizer.json` of `MiniMaxAI/MiniMax-M3.1-Flash` (SHA-256 `bb1f1626cf01448f1e3b6036d0a061ffc66c91d9046aada14ea23a5441b5ad6e`), and the token types of the first shard's header of `unsloth/MiniMax-M3.1-Flash-GGUF` UD-Q8_K_XL at revision `b17b7f5459c0b8f127ea12ee774409b282521d6a`.
+The copy read, on the test machine `/zpool1/models/MiniMax-M3.1-Flash/hf`, records no revision, so the golden pins it by digest alone (`tokenizer_revision` null); `--checkpoint` names that directory and `--weights-gguf` `/zpool1/models/MiniMax-M3.1-Flash-UD-Q8_K_XL-00001-of-00007.gguf`.
+It ran offline in the minimax tiny reference's venv (The minimax-m3 tiny reference, above) with `tokenizers` 0.23.3, in the `python:3.12.13-slim` image.
+The `tokenizer.json` holds an NFC normalizer, one `Split` with `Removed` behaviour and `invert` and a `ByteLevel` pretokenizer without its regex, and BPE without byte fallback over 200000 tokens, with 61 added tokens, none stripped, normalized or single-word.
+The header names `tokenizer.ggml.pre` `minimax-m2` and holds those 200061 tokens and the merges content for content, then 3 padding tokens of type 5 (200061 to 200063) that `tokenizer.json` lacks, which the generator allows past its tokens only as type 5; the added tokens have types 3 (54) and 4 (7).
+As for deepseek41 it keeps the merges that form a substring of a text, here of the text and of its NFC form, and the fixed texts' pieces, which HF gives for the normalized text.
+
 #### The Unicode class table
 
 `src/core/unicode_class.hpp` and `src/core/unicode_nfc_table.inc` are written by `python tools/gen_unicode_table.py --ucd DIR` from four files of the Unicode 16.0.0 character database, the first two fetched on 2026-11-04 with the coordinator's leave and the NFC pair on 2026-11-15, and refused by the generator unless each has its SHA-256:
@@ -738,9 +747,9 @@ Every added token has type 3 (1278 of them) or 4 (5) there and every other token
 | `DerivedNormalizationProps.txt` | `https://www.unicode.org/Public/16.0.0/ucd/DerivedNormalizationProps.txt` | `4d4c03892dea9146d674b686e495df2d55a28d071ac474041d73518f887abddc` | 1372269 |
 
 The files are not committed; on the test machine the first two are kept in `/opt/claude-work/llmx-dsdev5-20261104/ucd16` and all four in `/opt/claude-work/vllm1/ucd16`.
-The header they give has SHA-256 `34d53bf75316d3d440881b39a410236be5f61804e600d13e506c8c77fef8e6b8` and 1586 runs, and the NFC tables `7e7be3e2626523394f3b694066f342eac22cf387e5ff9e3f1e2d18b568bdb851`, with 393 combining-class runs, 2081 decompositions, 961 compositions and 119 quick-check runs.
+The header they give has SHA-256 `1beb875f4b8216f6959d8a81a0c8ba75eee313d9ff67d2b89ac5627be408c1bc` and 2797 runs, and the NFC tables `7e7be3e2626523394f3b694066f342eac22cf387e5ff9e3f1e2d18b568bdb851`, with 393 combining-class runs, 2081 decompositions, 961 compositions and 119 quick-check runs.
 Canonical normalization of an assigned code point never changes between versions (the Unicode normalization stability policy), so `tests/tokenizer.py` holds NFC to `unicodedata` over the code points the running Python assigns.
-Unicode 16.0 is the version the reference's regex engine reads (The deepseek41 tokenizer reference, above), while Python 3.12's `unicodedata` is at 15.0.0 and 3.13's at 15.1.0; between those and 16.0 no assigned code point changes its category group, so `tests/tokenizer.py` holds the table to `unicodedata` with no exception listed.
+Unicode 16.0 is the version the reference's regex engine reads (The deepseek41 tokenizer reference, above), while Python 3.12's `unicodedata` is at 15.0.0 and 3.13's at 15.1.0; between those and 16.0 no assigned code point changes its category group, and none changes its case, so `tests/tokenizer.py` holds the table to `unicodedata` with no exception listed.
 
 #### The image decoding references
 

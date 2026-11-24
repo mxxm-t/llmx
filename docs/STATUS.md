@@ -72,7 +72,7 @@
 - **Done:** `PlacementRequest::encoder` (`EncoderMemory`: weights, buffers, pass widths) is charged on the embedding's device in every footprint the fit reads (`fit_footprint`), its widths' scratch made with the model's (`reserve_scratch`) and its weights and buffers kept free by `build_fitted`'s check of a built model.
   `VisionEncoder::memory` gives it from an mmproj's header at the module's `bound` (`EncodeBound`, both modules), `vision_memory` reads it for the CLI's `generate`, `logits` and `serve`, and `open_vision` makes the encoder's arena and K and V at the bound on a device (`VisionEncoder::hold`), so no encode grows them.
 - **Tests:** `placement` (`encoder_charged`) and `arch-qwen3vl-vision` (`memory_charged`), described in docs/TESTS.md.
-- **Left:** the landing gates.
+- **Landing:** with the landing stack land-20261131, whose gates are recorded there (Landing stack land-20261131, below).
 
 ## CUDA sm_90 spill of the pushing held Q8_0 build (2026-11-23, SASS1, branch fix/cuda-sm90-held-push on main bfb7f517e)
 
@@ -295,7 +295,7 @@ Images are pushed by digest alone and tagged only by the run that publishes them
 
   The layout band is +2.5 to +5.0% on pp512 and +18.5 to +40.3% on tg128 (C against P), with a per-run spread of 5 to 25% inside a cell. V against P and V against M lie inside the band in every cell: the worst medians are -4.1% pp512 at tw4 (rr) and -4.8% tg128 at tw2 against M (rc), where P against M is -25% tg128 in the same set. tw1, with no tagged sum, was -0.2% pp512 against P in the first round. The host load average was 29 to 49 on 16 cores for both sets (other streams' builds and jobs) and hostwait reads kernel threads only, so both sets are flagged contended; every round is reported. tw2 and tw4 decode moves by 2x between rounds for every arm, so it shows no gain; the verdict is no slowdown.
 - **Gates (VKSUM51, clean clones, V 6b63febc143f):** docs and dead-code PASS; CTest Vulkan 112 of 112; suite --device vulkan:0 48 PASS, 2 SKIP; vulkan-sum x3 PASS; tensor-split tw2 and tw4 PASS; identity against P and against M 112 of 112 SAME.
-- **Left:** the Radeon VII check (COORD).
+- **Landing:** with the landing stack land-20261131, whose gates are recorded there (Landing stack land-20261131, below); the tagged route stays off (`tagged_crossover` 0), so no README or CHANGELOG change.
 - **Gotchas:** the tagged route stays off by default (tagged_crossover 0). A sum right after a copy into its rows takes the full barrier, since a copy's data need not be in L2.
 ## Request capacity freshness in Monitor
 
@@ -827,6 +827,7 @@ A saved tool result opens the latest file in the editor or resumes unsaved chang
   Gates at 6caffda6a against main 3e4d6d422 (ROCm gfx906 builds, MI50): ISA diff shows only the 9- and 10-column builds gone, backend-rocm passes, Qwen3-0.6B ids int8 and f16 SAME in 24 of 24 cells, proof counts at seqs 9, 10 and 11 show half8_11 only. Qwen3-14B Q8_0 int8 tg64 (one card): 9 seqs 186.4 -> 205.5 tok/s, 10 seqs 149.0 -> 218.0, 11 to 16 seqs within noise. Qwen3.6-27B Q8_0 int8, tensor width 4 over four MI50 (p16, n128, ABBA, 2 rounds on two quads): 9 seqs 241.2 -> 278.8 tok/s (+15.6%), 10 seqs 211.1 -> 297.3 (+40.8%), 11 seqs 309.4 -> 306.3 (-1.0%, noise, same build), 1 seq 68.7 -> 70.4 (same build); the 9-column build routed to 11 stays 5 points behind the barriered build in the microbenchmark, recorded open.
   CUDA compiles the same builds, so its 9- and 10-column calls take the 11-column build too, untimed on a CUDA card.
 - **Left:** nothing on this branch; the planes branch (keff/planes, PR #556) retimes its 9- and 10-column plane builds against this routing when it rebases (rw31, keff50/out).
+- **Landing:** with the landing stack land-20261131, whose gates are recorded there (Landing stack land-20261131, below).
 - **Gotchas:** the 12-column build under the same barriers measured 0.92 of main; it is a separate change that needs a perturbed-build control (AGENTS.md, Principles).
 
 ## Held norm parts of 256 threads (2026-11-22, CUTS24/CUTS32/CUTS35, branch products/norm-part on 901bd99a)
@@ -1306,6 +1307,51 @@ This test-only correction lands by fast-forward with the companion workflow.
 - **Checks:** The independent Chrome regression failed in 59.797 seconds before the fix and passed in 54.855 seconds after it. The combined browser fixture over public main `2ea30d410` passed in 66.845 seconds, including both themes at 1440, 390 and 320 pixels and 200 percent CSS zoom. Desktop preference, transient Settings access, mobile drawer state and toggle geometry passed. JavaScript syntax, whitespace and independent integration review passed. Dead-code passed with 17 expected findings and 20 planted faults in 34.8 seconds; docs passed with zero findings and 29 planted faults in 31.8 seconds and runs once more after this record.
 - **Landing:** Fast-forward from `2ea30d410` after final documentation validation and a fresh main check. This is static presentation only, with no server, runtime, API or numerical changes. The existing docs CLI remains applicable because native source and build inputs are unchanged. Full Markdown review checks references to details, temporary labels and layout; the companion README and TESTS own the updated behavior. Receipts are in `scratch/reading-landing/`, with independent matched screenshots in the main workspace's `scratch/chat-reading-layout/`.
 - **Gotchas:** Composer Settings and the narrow drawer are transient. Only explicit docked Details actions save the preference. Long titles can still truncate. Chrome emulation does not establish physical phone or Safari coverage. Settings semantics and history search remain separate audit work.
+## Landing stack land-20261131 (2026-11-24, LAND122 and LAND123, on main e25f862ff, lands by fast-forward)
+
+**What lands.** Seven commits on e25f862ff, by fast-forward, in order: moe/expert-ring-fit 5d840e8b (the tests) and d9df6051, keff49/wide-barriers f9eff556, fix/mmproj-fit c87eddae (the failing test) and 097e0f9c, feat/vulkan-tagged-writeback 593b2186 and this record.
+Each branch's own block or commit gives its change and measurements; this record gives the gates of the stack.
+The members were rebased onto e25f862ff by cherry-pick: docs/model-passes.md and the drain in `vulkan_backend.cpp` beside `copies_done` kept both sides, the kernel table of `backend_core.hpp` and docs/src/backends-gpu.md kept both sides' names, and `place.hpp` charges `fit_footprint` over `device_held_plan`; no other code conflicted.
+The Inkling GPU branch was left out: it carries feat/inkling2, which is not in this stack, and conflicts in 24 files.
+
+**Checks rerun or rescored.** The suite on `rocm:0` ran in a container that could not read the worktree's git directory, so `dead-code` and `docs` failed on `git ls-files` alone; rerun on the host at 593b2186, both pass, and the other components gave 48 pass and 1 skip.
+Two timing verdicts missed a run's rates because a `bench:` line on stdout landed in the middle of a stderr line (27B run m11, Vulkan runs s6 and c14); each was rescored from a copy of its run files with those lines split, the raw files kept; the parsers now find the line anywhere on a line and give the same verdicts from the raw files.
+The first two Vulkan timing rounds on Qwen3.6-35B-A3B were invalid by their own rule, control 2.30% and 5.28% under a host load of 40 to 54; the third counts.
+The Radeon VII's first identity run differed from main on Qwen3.5-0.8B Q4_K_M logits, f16 and int8, by about 5e-4, while the generated text matched; rerun with both exes copied to fresh paths in the order main, stack, main, stack, all four agree at each dtype and the stack's files equal its first run, so the difference was main's exe at its original path, as in land-20261130.
+
+| Check | Result |
+|---|---|
+| CTest, CPU build of 593b2186 on pve1 (llmx 0.2.1+unknown numerics 23abf1f9d22dce1a, from a git-archive copy) | 91/91 |
+| Suite, CPU build, all components | 51 pass |
+| Identity against e25f862ff on the CPU, Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M, `cpu:auto` and `cpu:f32` | 32 of 32 output files equal |
+| Builds: ROCm gfx906 of the stack (sha256 df099124f0fd) and of e25f862ff (e04b519e1f69), Vulkan (0db3e05b4fa1; main 6d6e0fbf8929) | build |
+| CTest, CUDA build, card-free (`cuda-sass`, `gpu-core`, `gpu-port`, `cuda-driver`) | builds; 4/4 |
+| Identity against e25f862ff on one MI50 (renderD133), Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M at each dtype | 48 of 48 output files equal |
+| Suite on one MI50, `--device rocm:0` (renderD132) | 48 pass, 1 skip (minimax: the device refuses `sigmoid_routing` at load); dead-code and docs as above |
+| Identity on Vulkan against e25f862ff (renderD136), CTest `-R vulkan`, suite `server`, `vision` and `image` on `vulkan:0` | 32 of 32 equal; 21/21; pass; pass in both arms (file-exact mmproj-BF16 not on disk) |
+| Identity on Vulkan at `--tensor-width 2` against e25f862ff (renderD128 and renderD129, one root complex) | 19 of 19 output files equal |
+| Identity against e25f862ff, Qwen3.6-27B Q8_0 on four MI50s at `--tensor-width 4`, int8 and f16 (renderD128-131) | 8 of 8 output files equal |
+| Identity against e25f862ff, Qwen3.8-Flash-Next UD-Q4_K_XL int8, layer split over four MI50s | 3 of 3 output files equal |
+| CTest, ROCm build, four MI50s | 96/96 |
+| Serve cell: Flash-Next int8, MTP v2 drafter, four MI50s as two groups of two | pass: 256 events in each arm, the same final text (47254779395e); 68.21 tok/s stack, 69.25 main |
+| Identity against e25f862ff, Qwen3.6-35B-A3B Q4_K_M on one MI50 (renderD134): ROCm auto and int8, Vulkan auto, each also with `--cpu-moe` | 10 of 10 output files equal |
+| Expert ring smoke, Qwen3.6-35B-A3B Q4_K_M `--cpu-moe --expert-cache 3gb`, 64 tokens | runs on ROCm (6.10 tok/s) and Vulkan (7.06 tok/s), hit rate 67.7% |
+| Radeon VII (Windows, Vulkan): builds, CTest, suite on `vulkan:0`, identity Qwen3-0.6B and Qwen3.5-0.8B | builds; CTest pass; suite 50 pass, 1 skip (minimax); identity equal on the rerun |
+| docs, dead-code | pass on the host at 593b2186 and on a git-archive copy of this record's commit |
+| dead-code `--linked` (Vulkan, -O0, every target) | pass at 593b2186 (16 findings, all listed) |
+| Hosted | the workflow run of this commit on GitHub |
+
+Timing (rule written before the runs): `bench --p 512 --n 128 --r 3`, arms s (stack), m (e25f862ff) and c (a byte copy of m), the upper quartile of each arm's runs; a round counts if c/m tg128 is within 2%, and passes if s/m is at least -2% on pp512 and tg128 and s has at most two slow runs more than m or c.
+All three pass.
+Qwen3.6-27B Q8_0 `--dtype int8`, ROCm, four MI50s at `--tensor-width 4` (renderD128-131), 30 runs under a host load of about 35 to 39: control +0.41%, s/m +1.49% tg128 and -0.22% pp512, slow runs s 0, m 3, c 4.
+Qwen3.6-35B-A3B Q4_K_M `--dtype auto`, one MI50 a run: ROCm, 18 runs under a host load of about 55, control -0.92%, s/m -0.93% tg128 and -0.18% pp512, slow runs s 4, m 5, c 3; Vulkan, third round, 18 runs under a load of 19 to 31, control +0.21%, s/m -0.07% tg128 and +0.06% pp512, no slow runs.
+
+| Arm, upper quartile, tok/s | 27B tw4 pp512 | 27B tw4 tg128 | 35B ROCm pp512 | 35B ROCm tg128 | 35B Vulkan pp512 | 35B Vulkan tg128 |
+|---|---|---|---|---|---|---|
+| m, e25f862ff | 1223.92 | 73.43 | 1446.54 | 96.38 | 1331.58 | 121.68 |
+| c, copy of m | 1223.73 | 73.73 | 1444.93 | 95.50 | 1331.97 | 121.94 |
+| s, stack | 1221.28 | 74.53 | 1443.96 | 95.49 | 1332.43 | 121.60 |
+
 ## Landing stack land-20261130 (2026-11-24, LAND118 to LAND120, on main 83ac07728, lands by fast-forward)
 
 **What lands.** Fifteen commits on 83ac07728, by fast-forward, in order: perf/rocm-cut-overlap-2 f6ff54c4, perf/ds4-short-skip 7e2e5f19, plan1/slice-fit 6a61b2a7 (the failing test) and 72282e66, tests/vulkan-ownership-ignored a8c5edaf, cuda/bf16-prompt-tile 3ff2e0fa, cuda/bf16-mma 4602699e, fix/vulkan-gelu-erf 57577702 (the failing test) and f2486d21, fix/vulkan-f16-tile 306458cf (the failing test) and 7c90f47c, fix/attention-value-sum 039d00cb (the failing test) and 6964b7f1, docs/drop-v4flash 9d75a30f and this record.
@@ -4731,6 +4777,7 @@ A tensor-width-2 sum in place of one row whose width is a multiple of 1280 pushe
 - **Left:** the 16-stream server cell at `--kv-tokens 20480`, maya's context (moeoff40/t on the MI50 machine); the all-hit decode floor with `fused_step` off; the `--moe-stream-from` window's fit, which fills a device the same way and leaves its window no room (MOEOFF38), on a path main has.
   `bench --p 2048` under the cache is refused by name on Qwen3.8-Flash-Next UD-Q4_K_XL over two MI50s at `--n-cpu-moe 16 --expert-cache 6gb`: the fit gives 1920 KV tokens beside the 2048-row cached ubatch arena (MOEOFF50); the refusal now names `--ubatch 512` and a larger `--n-cpu-moe`, which run it today; a fit that shrinks the cached ubatch before it refuses is a policy change of its own (about seven sites read `pass_ubatch` from the request) and, with the KV cut to the device, would leave the cache about one slot a layer (Fable, 2026-11-20; ideas.md).
   A cached layer split is not pipelined (`Model::pipelined_` asks each layer's feed-forward device to be its stage's, and a cached layer's is the CPU's in the placement), so prompt passes over two devices run their stages in turn (Fable's review); CUDA has not run the cache on a device.
+- **Landing:** with the landing stack land-20261131, whose gates are recorded there (Landing stack land-20261131, below), which reruns the timing round at the stack head.
 - **Gotchas:** a pull reads host memory at the link's rate, about 14 to 15 GB/s on an MI50; on ZFS a buffered read comes from the ARC (16 GiB on the MI50 machine), which no cgroup is charged for.
 
 ## Device expert cache, `--expert-cache` (2026-11-14 to 2026-11-15, MOEOFF13 to MOEOFF24, branch moe/expert-cache-land; F2DEV's review of 2026-11-14 21:50; lands inside moe/expert-ring's commit, its window and fill replaced by the ring above)

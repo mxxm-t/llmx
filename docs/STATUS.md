@@ -4754,6 +4754,21 @@ Gotchas: a kernel without `__launch_bounds__` is compiled for 1024 lanes and cap
 - The block-score slot is an index head's over the context's blocks a row (32768 floats at 1M positions), as deepseek41's index slot is a context's groups.
 - F2DEV's 4e note 1 (a shape at groups 2 over 4 KV heads) is not taken: MiniMax has as many index heads as KV heads, so only the ends of that mapping run.
 - The file's index keys are F32 per position (0.5 KiB a layer); a 16-bit form is a contract change of its own, measured first.
+
+## MiniMax-M3.1 on devices (2026-11-24, MMXDEV1, branch arch/minimax-device on main d8bd8735e; lands by fast-forward as two commits, the failing check and then the change)
+
+**Goal.** MiniMax-M3.1-Flash placed whole on ROCm (the GPU core, so CUDA too) and Vulkan, each op held to the CPU, the real file on nine MI50s (renderD137 out of service) against the CPU on the 512-token windows, then speed against the reference (llama.cpp pull request 31192 at 6b95a9908) on the same cards.
+
+**Done.**
+- Main already runs `glu_quick_gelu`, `raw_index_scores` and `sparse_attention_blocks` on the GPU core and Vulkan (block "MiniMax-M3.1", 7b to 7e); `sigmoid_routing` is the one mode both lack.
+
+**Left.**
+- `sigmoid_routing` on the GPU core and Vulkan as the score form of the existing biased router (`llmx_route_sqrt_softplus`, `shaders/route_sqrt_softplus.comp`), renamed by what they compute, held by `check_routing` over both scores.
+- The real file placed whole on one MI50 and on nine against the CPU's logits on the 512-token windows; then the same on Vulkan after CONFFIX3's fix of a routed call of five projections.
+- Speed cells against the reference on the same cards.
+
+**Gotchas.**
+- Under sigmoid a score of +inf is finite (1), so only a NaN row picks no expert, unlike sqrt_softplus where +inf does too.
 ## Vulkan Q1_0 one-column rows: four rows a cluster and mask decode (2026-11-16, VKDEV9, branch perf/vulkan-q1-rows on perf/vulkan-row-sizes 2510f5789; VKDEV5's step 3 proposal with F2DEV's review of 2026-11-15 05:21, items 8 to 12; lands by fast-forward after steps 1 and 2)
 
 **Goal.** Q1_0 decode on Vulkan above the reference's on the same file and card (Boole-1.7B Q1_0, one MI50), with every row's bits unchanged.

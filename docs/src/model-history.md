@@ -10,6 +10,7 @@ The blocks, slots and holds these operations move are `model/kv_cache.hpp`'s ([K
   `positions(sequence, first, n, streams, out)` is the one owner of a row's position, as HF's `get_rope_index` places Qwen's images: a text row at its index less what the images below it saved, an image's row at (p, p + row, p + column) of its merged grid, p the position its first row would have had as text, and the text after it at p plus the larger side of the grid; a history without images keeps its indices.
   Under a plan that places images at text positions (`ModelPlan::text_position_images`), every row, an image's included, is at its index.
   `fork`, `save_host` and `save_host_blocks` and `fork` with a state carry the images below their length as places, grids and digests without rows (`carried`, `HostHistory::media`), which `restore_host` gives the restored sequence; a disk restore carries none, and the owner gives every image again, as the server does (docs/VISION.md, section 5).
+  `group_positions(sequence, first, n, c, out)` appends the three positions of each group of `c` rows that rows [first, first + n) complete, at the group's first row, which a pass gives its pooled layers and its drafter's context rows and a chain each step's drafter call (`Step::group_pos`) wherever a history holds an image.
   A drafted token's position follows the images below it, and `image_rows` gives a sequence's image rows, which the lookup drafter does not draft from.
 
 - `reset(sequence)`: the history returned

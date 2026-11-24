@@ -1271,6 +1271,8 @@ public:
         std::vector<uint32_t> last, carried;   // each row's last pick and the slot of the row its history carries
         std::vector<size_t> rows;              // each step's rows
         std::vector<uint32_t> pos;             // step m's positions from m * R * call_rows, a sequence's rows together
+        std::vector<uint32_t> group_pos;       // where a history holds an image, the positions of the pooled groups step m's rows complete, from group_at[m]
+        std::vector<size_t> group_at;
         std::vector<backend::KVView> views;    // step m's views on member g from (m * W + g) * R, a KV drafter's
         std::vector<backend::StateView> states; // the same, a state drafter's
         std::vector<KVSequence*> kv;
@@ -2067,6 +2069,7 @@ private:
     Step mixer_part(ExecContext& ctx, const Pass& p, size_t dev, int l) const;
     void stream_rows(const Step& s) const;
     void positions(const Sequence& s, size_t first, size_t n, bool streams, uint32_t* out) const;
+    void group_positions(const Sequence& s, size_t first, size_t n, size_t c, std::vector<uint32_t>& out) const;
     std::vector<Sequence::Media> carried(const Sequence& s, size_t length) const;
     void drop_media(Sequence& s, size_t length, const Defer* defer = nullptr) noexcept;
     void release_media(Sequence& s);

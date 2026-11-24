@@ -72,6 +72,19 @@
 - **Test:** the vision ops check (`tests/vision_checks.hpp`) holds the erf form within 16 float units of the CPU and 1e-9 absolute over a dense sweep of the negative tail. On one MI50, the test commit 1f022b9ed fails `backend-rocm vision` and CTest `backend-vulkan` on it (x = -3.369: -0.0012697100 on ROCm and -0.0012698105 on Vulkan against the CPU's -0.0012696750), and the fix 9db9b8af8 passes both.
 - **Claim:** the op's accuracy only. On the Inkling-2 vision tower the model-level change is reordering noise (better on the photo, worse at 1080p), so no model accuracy gain is claimed.
 - **Landing:** with the landing stack land-20261130, whose gates are recorded there (Landing stack land-20261130, below). No README or CHANGELOG change.
+## Flash-Next MTP drafts after an image (2026-11-24, CONFFIX1 to CONFFIX5, branch fix/qwen4exp-mtp-image-rope on main d8bd8735e)
+
+**Goal.** The qwen4exp MTP block reads an image's positions as the trunk does: its context rows' keys turn at the image's position streams (architecture audit, item 2), and a compressed block's pooled groups, of the context rows and of the chain, at their first rows' positions (Fable, CONFFIX2).
+
+**Done.**
+- Test commit: `qwen4exp-mtp` `image_rows_rope` at ratios 0 and 2: every rope call of an image pass carries the streams, the two drafts after the image are the scalar oracle's within 2e-5, and pooling at plain indices the history's groups, or the drafts', must each move the oracle by more than 1e-3 over histories of 7 and 8 rows, so the check needs the pass's and the chain's groups.
+- Fix: `attention_cache` passes the streams; `Model::group_positions` beside `positions` (history.hpp) gives the pass's pooled layers, the drafter's context rows (`draft_context`) and each chain step (`Chain::group_pos`) their groups' positions where a history holds an image; docs/src/model-history.md and docs/TESTS.md.
+- Fail-then-pass (rig CPU builds, `llmx-qwen4exp-mtp-test`, arms conffix1/arms2, CONFFIX5): main d8bd8735e with the test FAILS at ratio 0 (max_abs 0.0029 against the oracle); the stream fix alone FAILS at ratio 2 (0.011); the full fix PASSES; the fix without the chain step's group positions (history.hpp) FAILS at ratio 2 (0.023) and without the pass's (passes.hpp) FAILS (0.035), each the gap a search of 1080 cases predicted from the oracle alone, so each half is needed.
+
+**Left.** Lands in COORD's stack after PR 607 and FLAGFIX1's branch, at most two commits, gitea PR 611; the stack's head runs the CPU suite, CTest, Qwen3-0.6B byte identity against main, byte identity on the CPU and a device for the models it reaches, the suite on a device, one timing round against main and the hosted run; the CPU, Vulkan and ROCm pool calls already honour `GroupPositions`, so no backend changes.
+
+**Gotchas.** A text-only history sets no group positions, so it runs as before; a pass with an image keeps tensor cuts off, as the trunk's pooled layers already did.
+
 ## F16 weights in the Vulkan float tile (2026-11-24, VKSUM1, branch fix/vulkan-f16-tile on main e9daf3b6d)
 
 - **Goal:** F16 weights through the Vulkan float tile cost about what BF16 weights do, and no submission of them passes the amdgpu job timeout. Found by VKSUM1 isolating the device lost INKVIS6 saw in its tile microbenchmark: one submission of 30 calls of 4096 by 12288, F16 weights, BF16 inputs, 1201 rows (390-439 ms a call on main) alone gives "ring gfx timeout, but soft recovered".

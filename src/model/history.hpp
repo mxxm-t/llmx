@@ -1452,9 +1452,14 @@ inline std::unique_ptr<Model::Chain> Model::draft_begin(const DraftAsk* asks, si
         const size_t K = draft_devices_.size();
         if (kv) c->views.resize(backend::size_mul(backend::size_mul(steps, W), R));
         else c->states.resize(backend::size_mul(backend::size_mul(backend::size_mul(K, steps), W), R));
+        // A pooled drafter's groups turn at their first rows' positions where a history holds an image, as a pass's do (Step::group_pos).
+        const size_t pool = kv ? plan_.drafter->kv_pool : 0;
+        if (pool && !plan_.image_streams.empty() && std::any_of(c->order.begin(), c->order.end(), [&](size_t i) { return !asks[i].seq->media_.empty(); }))
+            c->group_at.resize(steps);
         for (size_t m = 0, rows = R; m < steps; ++m) {
             while (asks[c->order[rows - 1]].k <= m * B) --rows;
             c->rows[m] = rows;
+            if (!c->group_at.empty()) c->group_at[m] = c->group_pos.size();
             for (size_t p = 0; p < rows; ++p) {
                 const Sequence& s = *asks[c->order[p]].seq;
                 for (size_t g = 0; g < W && kv; ++g) {
@@ -1472,6 +1477,7 @@ inline std::unique_ptr<Model::Chain> Model::draft_begin(const DraftAsk* asks, si
                             backend::StateView{devices_[draft_devices_[k] + g]->states.get(), c->carried[p], s.state_.slot(), length[p] + m * B, B};
                 // A drafted token is text, at its index less what the history's images saved.
                 positions(s, length[p] + m * B, A, false, &c->pos[(m * R + p) * A]);
+                if (!c->group_at.empty()) group_positions(s, length[p] + m * B, A, pool, c->group_pos);
             }
         }
     } catch (...) {
@@ -1518,6 +1524,7 @@ inline void Model::draft_record(Chain& c) {
                 step.kv_layer = drafter_kv_;
             }
             step.pos = &c.pos[m * R * c.call_rows];
+            if (!c.group_at.empty()) step.group_pos = backend::GroupPositions{c.group_pos.data() + c.group_at[m], {3, plan_.image_streams.data()}};
             step.ids = B;
             step.stride = R;
             step.phase = phase;
@@ -1726,6 +1733,14 @@ inline void Model::positions(const Sequence& s, size_t first, size_t n, bool str
         } else {
             for (size_t j = 0; j < k; ++j) o[j] = (uint32_t)(i - saved);
         }
+    }
+}
+
+// The three positions of each group of `c` rows that rows [first, first + n) complete, at the group's first row, appended to `out` (backend::GroupPositions).
+inline void Model::group_positions(const Sequence& s, size_t first, size_t n, size_t c, std::vector<uint32_t>& out) const {
+    for (size_t g = first / c; g < (first + n) / c; ++g) {
+        out.resize(out.size() + 3);
+        positions(s, g * c, 1, true, out.data() + out.size() - 3);
     }
 }
 

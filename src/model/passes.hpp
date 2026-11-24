@@ -349,9 +349,12 @@ inline void Model::begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, s
     for (size_t e = 0; e < n_entries; ++e) images = images || !entries[e].seq->media_.empty();
     const bool image_streams = image_rows && !plan_.image_streams.empty();
     if (images && !plan_.image_streams.empty()) {
-        for (const LayerPlan& l : plan_.layers)
+        const auto pool = [&](const LayerPlan& l) {
             if (l.kv_pool && std::none_of(p.group_pos.begin(), p.group_pos.end(), [&](const auto& g) { return g.first == l.kv_pool; }))
                 p.group_pos.push_back({l.kv_pool, {}});
+        };
+        for (const LayerPlan& l : plan_.layers) pool(l);
+        if (plan_.drafter && keeps_kv(*plan_.drafter)) pool(*plan_.drafter);
     }
     p.pos.resize(image_streams ? backend::size_mul(rows, 3) : rows);
     p.pick.resize(want);
@@ -373,11 +376,7 @@ inline void Model::begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, s
         for (size_t b = 0; b < en.n; ++b) p.ids[r + b] = en.ids[b];
         positions(*en.seq, len, en.n, image_streams, p.pos.data() + r * (image_streams ? 3 : 1));
         // A pooled layer's groups these rows complete turn at their first rows' positions, which may lie in the history below the pass.
-        for (auto& [c, gp] : p.group_pos)
-            for (size_t g = len / c; g < (len + en.n) / c; ++g) {
-                gp.resize(gp.size() + 3);
-                positions(*en.seq, g * c, 1, true, gp.data() + gp.size() - 3);
-            }
+        for (auto& [c, gp] : p.group_pos) group_positions(*en.seq, len, en.n, c, gp);
         const size_t extent = en.extent ? en.extent : en.n;
         p.runs[e] = backend::RowRun{r + en.n, extent};
         // The head reads one row per entry as a generated token's, or every row of a scored text as its prompt's.
@@ -1240,6 +1239,8 @@ inline void Model::draft_context(ExecContext& ctx, Pass& p, size_t s) {
         }
         step.pos = p.pos.data();
         if (p.image_rows && !plan_.image_streams.empty()) step.streams = backend::RopeStreams{3, plan_.image_streams.data()};
+        for (const auto& [c, gp] : p.group_pos)
+            if (c == plan_.drafter->kv_pool) step.group_pos = backend::GroupPositions{gp.data(), {3, plan_.image_streams.data()}};
         arch_->draft_rows(step);
     };
     if (draft_apart_) {

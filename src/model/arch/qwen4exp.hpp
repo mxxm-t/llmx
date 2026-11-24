@@ -963,7 +963,7 @@ private:
                          s.slot(mixed), E, s.rows, s.runs, s.dtype);
         const backend::CSlice cos{s.tables[0].get(), 0}, sin{s.tables[1].get(), 0};
         s.b.norm_rope_partial(s.slot(conv), s.slot(conv), s.rows, HK * D, D, HK, D, size_t(cfg_.rope_dim),
-                              w[attn_k_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, backend::RopeForm{});
+                              w[attn_k_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, backend::RopeForm{}, s.streams);
         backend::CSlice auxiliary;
         if (s.kind == mtp_qsa_kind) {
             s.b.matmul(w[index_k].operand(), s.slot(mixed), s.slot(index_key), E, size_t(cfg_.indexer_head_dim), s.rows, s.runs, s.dtype);

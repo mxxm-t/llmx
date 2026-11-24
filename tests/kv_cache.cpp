@@ -587,7 +587,7 @@ void layer_shapes() {
 }
 
 // A window (KVView::window) over histories either side of a block edge: row b at position p attends positions above p - window, against a double reference, and a window at or above the row's whole extent gives the bits of none.
-// A window on a non-causal view is refused.
+// A non-causal row's window runs from its own position through the view's last row, as a DFlash2 drafter's block reads.
 void attention_window() {
     backend::CpuBackend cpu;
     cpu.set_threads(2);
@@ -609,45 +609,43 @@ void attention_window() {
         backend::KVView all = seq.view(st.get());
         const auto Kb = cpu.adopt(K.data(), K.size() * sizeof(float)), Vb = cpu.adopt(V.data(), V.size() * sizeof(float)), Qb = cpu.adopt(Q.data(), Q.size() * sizeof(float));
         cpu.kv_write(0, &all, 1, {Kb.get(), 0}, {Vb.get(), 0});
-        backend::KVView view = all;
-        view.length = n_past;
-        view.nq = (size_t)nbatch;
-        const auto run = [&](size_t window) {
-            view.window = window;
-            std::vector<float> out(Q.size(), 0.0f);
-            const auto ob = cpu.adopt(out.data(), out.size() * sizeof(float));
-            cpu.attention({Qb.get(), 0}, 0, &view, 1, {ob.get(), 0}, n_head, n_head_kv, head_dim);
-            return out;
-        };
-        const std::vector<float> whole = run(0);
-        require(run(sequence) == whole && run(sequence + 7) == whole, "a window past the history changed the result");
-        for (size_t window : {size_t(1), size_t(2), bt - 1, bt, bt + 2}) {
-            const std::vector<float> got = run(window);
-            const double scale = 1.0 / std::sqrt((double)head_dim);
-            for (int b = 0; b < nbatch; ++b)
-                for (int h = 0; h < n_head; ++h) {
-                    const int kvh = h / (n_head / n_head_kv);
-                    const size_t end = n_past + (size_t)b + 1, begin = end > window ? end - window : 0;
-                    std::vector<double> sc(end, 0.0);
-                    double mx = -1e300, sum = 0.0;
-                    for (size_t t = begin; t < end; ++t) {
-                        double s = 0;
-                        for (int d = 0; d < head_dim; ++d) s += (double)Q[((size_t)b * n_head + h) * head_dim + d] * K[(t * n_head_kv + kvh) * head_dim + d];
-                        mx = std::max(mx, sc[t] = s * scale);
+        for (const bool causal : {true, false}) {
+            backend::KVView view = all;
+            view.length = n_past;
+            view.nq = (size_t)nbatch;
+            view.causal = causal;
+            const auto run = [&](size_t window) {
+                view.window = window;
+                std::vector<float> out(Q.size(), 0.0f);
+                const auto ob = cpu.adopt(out.data(), out.size() * sizeof(float));
+                cpu.attention({Qb.get(), 0}, 0, &view, 1, {ob.get(), 0}, n_head, n_head_kv, head_dim);
+                return out;
+            };
+            const std::vector<float> whole = run(0);
+            require(run(sequence) == whole && run(sequence + 7) == whole, "a window past the history changed the result");
+            for (size_t window : {size_t(1), size_t(2), bt - 1, bt, bt + 2}) {
+                const std::vector<float> got = run(window);
+                const double scale = 1.0 / std::sqrt((double)head_dim);
+                for (int b = 0; b < nbatch; ++b)
+                    for (int h = 0; h < n_head; ++h) {
+                        const int kvh = h / (n_head / n_head_kv);
+                        const size_t own = n_past + (size_t)b + 1, end = causal ? own : sequence, begin = own > window ? own - window : 0;
+                        std::vector<double> sc(end, 0.0);
+                        double mx = -1e300, sum = 0.0;
+                        for (size_t t = begin; t < end; ++t) {
+                            double s = 0;
+                            for (int d = 0; d < head_dim; ++d) s += (double)Q[((size_t)b * n_head + h) * head_dim + d] * K[(t * n_head_kv + kvh) * head_dim + d];
+                            mx = std::max(mx, sc[t] = s * scale);
+                        }
+                        for (size_t t = begin; t < end; ++t) sum += (sc[t] = std::exp(sc[t] - mx));
+                        for (int d = 0; d < head_dim; ++d) {
+                            double acc = 0;
+                            for (size_t t = begin; t < end; ++t) acc += sc[t] / sum * V[(t * n_head_kv + kvh) * head_dim + d];
+                            require(std::fabs(got[((size_t)b * n_head + h) * head_dim + d] - acc) <= 1e-5 * (1.0 + std::fabs(acc)), "windowed attention differs from the reference");
+                        }
                     }
-                    for (size_t t = begin; t < end; ++t) sum += (sc[t] = std::exp(sc[t] - mx));
-                    for (int d = 0; d < head_dim; ++d) {
-                        double acc = 0;
-                        for (size_t t = begin; t < end; ++t) acc += sc[t] / sum * V[(t * n_head_kv + kvh) * head_dim + d];
-                        require(std::fabs(got[((size_t)b * n_head + h) * head_dim + d] - acc) <= 1e-5 * (1.0 + std::fabs(acc)), "windowed attention differs from the reference");
-                    }
-                }
+            }
         }
-        view.window = 2;
-        view.causal = false;
-        std::vector<float> out(Q.size(), 0.0f);
-        const auto ob = cpu.adopt(out.data(), out.size() * sizeof(float));
-        rejects([&] { cpu.attention({Qb.get(), 0}, 0, &view, 1, {ob.get(), 0}, n_head, n_head_kv, head_dim); }, "a window on a non-causal view accepted");
     }
 }
 

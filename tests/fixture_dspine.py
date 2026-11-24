@@ -1,7 +1,7 @@
-"""The tiny DSpine sidecar beside the tiny qwen35 target and its golden (docs/SPECULATIVE.md, section 11; docs/TESTS.md).
+"""The tiny DSpine and DFlash2 sidecars beside the tiny qwen35 target and their goldens (docs/SPECULATIVE.md, section 11; docs/TESTS.md).
 
 The sidecar's K and V heads differ from the target's, so its KV layers take a shape of their own (ModelPlan::draft_kv).
-`python tests/fixture_dspine.py --exe LLMX OUT.json` writes the golden: the target's taps from llmx-route-probe, then tools/dspine_reference.py over them, for seeds until every case has no near-tie.
+`python tests/fixture_dspine.py --exe LLMX [--variant dflash2] OUT.json` writes the golden: the target's taps from llmx-route-probe, then tools/dspine_reference.py over them, for seeds until every case has no near-tie.
 """
 import argparse
 import hashlib
@@ -20,6 +20,9 @@ SIDECAR = {"block_count": 2, "block_size": 4, "selector_top_k": 3, "attention.he
            "attention.value_length": 8, "feed_forward_length": 16, "attention.sliding_window": 3, "rope.freq_base": 10000.0,
            "attention.layer_norm_rms_epsilon": 1e-6, "target_layers": [1, 2]}
 CODES, ROUTES, MASK = 6, 5, 1
+# DFlash2's own keys: two taps, a coefficient a channel (the target's width of 37 is prime), a selector of rank 5.
+DFLASH2 = {"conv_kernel_size": 2, "conv_group_size": 1, "selector_rank": 5}
+VARIANTS = ("dspine", "dflash2")
 TARGET = "hv3"
 # Prompts of N context rows, N + block_size within the target's context of 16.
 PROMPTS = ["abc", "the cat s", "hello world"]
@@ -31,7 +34,7 @@ def target_spec():
     return next(f for f in qwen35.FIXTURES if f["name"] == TARGET)
 
 
-def tensors(seed, width, vocab):
+def tensors(seed, width, vocab, variant="dspine"):
     """The sidecar's tensors as (name, shape, values) in GGUF order, the fastest dimension first."""
     import numpy as np
     rng = np.random.default_rng(seed)
@@ -47,12 +50,23 @@ def tensors(seed, width, vocab):
     matrix("fc.weight", T * E, E)
     norm("enc.output_norm.weight", E)
     norm("output_norm.weight", E)
-    out.append(("dspine_codebook.weight", [CODES, vocab], (rng.standard_normal((vocab, CODES)) / np.sqrt(CODES)).astype(np.float32)))
-    for name in ("dspine_gate.weight", "dspine_pred_gate.weight", "dspine_prev.weight"):
-        matrix(name, CODES, ROUTES)
-    out.append(("dspine_gate.bias", [ROUTES], (0.1 * rng.standard_normal(ROUTES)).astype(np.float32)))
+    dflash2 = variant == "dflash2"
+    S, CK = DFLASH2["selector_rank"], DFLASH2["conv_kernel_size"]
+    if dflash2:
+        matrix("selector_hidden.weight", E, S)
+        for name in ("selector_predecessor.weight", "selector_successor.weight"):
+            out.append((name, [S, vocab], rng.standard_normal((vocab, S)).astype(np.float32)))
+    else:
+        out.append(("dspine_codebook.weight", [CODES, vocab], (rng.standard_normal((vocab, CODES)) / np.sqrt(CODES)).astype(np.float32)))
+        for name in ("dspine_gate.weight", "dspine_pred_gate.weight", "dspine_prev.weight"):
+            matrix(name, CODES, ROUTES)
+        out.append(("dspine_gate.bias", [ROUTES], (0.1 * rng.standard_normal(ROUTES)).astype(np.float32)))
     for l in range(SIDECAR["block_count"]):
         p = "blk.%d." % l
+        if dflash2:
+            for side in ("attn", "ffn"):
+                out.append((p + side + "_conv_base", [E, CK, 2], (0.5 + 0.3 * rng.standard_normal((2, CK, E))).astype(np.float32)))
+                matrix(p + side + "_conv_proj.weight", E, 2 * CK * E // DFLASH2["conv_group_size"])
         norm(p + "attn_norm.weight", E)
         matrix(p + "attn_q.weight", E, H * D)
         matrix(p + "attn_k.weight", E, KV * D)
@@ -64,20 +78,21 @@ def tensors(seed, width, vocab):
         matrix(p + "ffn_gate.weight", E, F)
         matrix(p + "ffn_up.weight", E, F)
         matrix(p + "ffn_down.weight", F, E)
-        matrix(p + "dspine_read.weight", E, CODES)
-        matrix(p + "dspine_write.weight", ROUTES, E)
+        if not dflash2:
+            matrix(p + "dspine_read.weight", E, CODES)
+            matrix(p + "dspine_write.weight", ROUTES, E)
     return out
 
 
-def write_sidecar(path, target, seed):
-    """The sidecar of `seed` beside the target file `target`, with the target's tokenizer; returns its SHA-256."""
+def write_sidecar(path, target, seed, variant="dspine"):
+    """The sidecar of `variant` and `seed` beside the target file `target`, with the target's tokenizer; returns its SHA-256."""
     t = spec_decode.GGUF(target)
     md = {k: v for k, v in t.metadata.items() if k.startswith("tokenizer.")}
     md["general.architecture"] = (8, "dflash")
     md["tokenizer.ggml.mask_token_id"] = (4, MASK)
     width = t.value("qwen35.embedding_length")
     md["dflash.embedding_length"] = (4, width)
-    for key, value in SIDECAR.items():
+    for key, value in list(SIDECAR.items()) + (list(DFLASH2.items()) if variant == "dflash2" else []):
         if key == "target_layers":
             md["dflash." + key] = (9, (5, value))
         elif isinstance(value, float):
@@ -85,11 +100,11 @@ def write_sidecar(path, target, seed):
         else:
             md["dflash." + key] = (4, value)
     md["dflash.attention.sliding_window_pattern"] = (9, (7, [True] * SIDECAR["block_count"]))
-    md["dflash.attention.causal"] = (7, True)
+    md["dflash.attention.causal"] = (7, variant != "dflash2")
     md["dflash.rope.dimension_sections"] = (9, (5, [SIDECAR["attention.key_length"] // 2, 0, 0, 0]))
     vocab = next(x.shape[1] for x in t.tensors if x.name == "token_embd.weight")
     assert vocab == len(t.value("tokenizer.ggml.tokens")[1]), "fixture_dspine: the target's embedding rows are not its token list"
-    spec_decode.write_gguf(path, md, [(name, shape, 0, values.tobytes()) for name, shape, values in tensors(seed, width, vocab)])
+    spec_decode.write_gguf(path, md, [(name, shape, 0, values.tobytes()) for name, shape, values in tensors(seed, width, vocab, variant)])
     with open(path, "rb") as f:
         return hashlib.sha256(f.read()).hexdigest()
 
@@ -121,7 +136,7 @@ def near_tie(case):
     return bool((top[..., 0] - top[..., 1] < GAP).any())
 
 
-def generate(exe, out):
+def generate(exe, out, variant="dspine"):
     import numpy as np
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tools"))
     import dspine_reference
@@ -148,7 +163,7 @@ def generate(exe, out):
             anchors.append(common.parse_logits(p.stdout)[0][0])
         sidecar = os.path.join(directory, "dspine.gguf")
         for seed in range(1, 200):
-            digest = write_sidecar(sidecar, target, seed)
+            digest = write_sidecar(sidecar, target, seed, variant)
             side, tgt = dspine_reference.Gguf(sidecar), dspine_reference.Gguf(target)
             cases = []
             for prompt, ids, tap, anchor in zip(PROMPTS, encoded, tapped, anchors):
@@ -160,7 +175,7 @@ def generate(exe, out):
                 break
         else:
             raise SystemExit("no seed below 200 gives cases without a near-tie")
-    doc = {"target": TARGET, "seed": seed, "sha256": digest, "gap": GAP, "cases": [
+    doc = {"target": TARGET, "variant": variant, "seed": seed, "sha256": digest, "gap": GAP, "cases": [
         {"prompt": c["prompt"], "ids": c["ids"], "anchor": c["anchor"], "drafts": [int(x) for x in c["drafts"]], "cand": c["cand"].tolist(),
          "logits": np.round(c["logits"].astype(np.float64), 7).tolist(), "ctx_k": np.round(c["ctx_k"].astype(np.float64), 7).tolist(),
          "ctx_v": np.round(c["ctx_v"].astype(np.float64), 7).tolist()} for c in cases]}
@@ -172,6 +187,7 @@ def generate(exe, out):
 if __name__ == "__main__":
     a = argparse.ArgumentParser()
     a.add_argument("--exe", required=True)
+    a.add_argument("--variant", choices=VARIANTS, default="dspine")
     a.add_argument("out")
     args = a.parse_args()
-    generate(args.exe, args.out)
+    generate(args.exe, args.out, args.variant)

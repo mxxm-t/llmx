@@ -23,24 +23,26 @@ using twin_checks::read;
 using WindowBuilds = std::array<std::string, 3>;
 inline const WindowBuilds kGpuWindowBuilds{"llmx_attention_chunk_window", "llmx_attention_vec_window", "llmx_attention_vec256_window"};
 
-// A drafter block's 16 rows after `hist` positions under windows below, at and past the history, heads 64 (the chunk kernel), 128 and 256 wide (the per-row kernels).
+// A drafter block's 16 rows after `hist` positions under windows below, at and past the history, a DFlash2 drafter's 2048 past 2100 positions among them, heads 64 (the chunk kernel), 128 and 256 wide (the per-row kernels).
+// Also the block's rows each seeing the whole block, as a DFlash2 drafter's do, against the CPU.
 inline void window(Backend& g, Backend& c, const Launches& take, const Require& require, const WindowBuilds& builds = kGpuWindowBuilds) {
     const int n_head = 4, n_head_kv = 2;
     const size_t rows = 16;
+    for (const bool causal : {true, false})
     for (const int dim : {64, 128, 256})
-        for (const size_t hist : {size_t(0), size_t(40), size_t(300)})
-            for (const size_t win : {size_t(7), size_t(64), size_t(1000)}) {
+        for (const size_t hist : {size_t(0), size_t(40), size_t(300), size_t(2100)})
+            for (const size_t win : {size_t(7), size_t(64), size_t(1000), size_t(2048)}) {
                 const size_t qw = size_t(n_head) * dim, kvw = size_t(n_head_kv) * dim, end = hist + rows;
                 const std::vector<float> keys = row_classes::values(end * kvw, 71), vals = row_classes::values(end * kvw, 72);
                 const std::vector<float> q = row_classes::values(rows * qw, 73, 4.0f);
-                const std::string what = "windowed attention, heads " + std::to_string(dim) + " wide, history " + std::to_string(hist) + ", window " + std::to_string(win);
+                const std::string what = std::string(causal ? "" : "non-causal ") + "windowed attention, heads " + std::to_string(dim) + " wide, history " + std::to_string(hist) + ", window " + std::to_string(win);
                 std::vector<std::vector<float>> out(2);
                 Backend* bs[2] = {&g, &c};
                 for (int k = 0; k < 2; ++k) {
                     Backend& b = *bs[k];
                     auto kb = b.adopt(keys.data(), keys.size() * 4), vb = b.adopt(vals.data(), vals.size() * 4);
                     auto qb = b.adopt(q.data(), q.size() * 4), ob = b.alloc(rows * qw * 4), o1 = b.alloc(qw * 4), o2 = b.alloc(qw * 4);
-                    auto st = b.kv_alloc(1, n_head_kv, dim, 2048, KVType::f16, KVType::f16);
+                    auto st = b.kv_alloc(1, n_head_kv, dim, 8192, KVType::f16, KVType::f16);
                     infer::BlockPool pool;
                     pool.configure(st->max_blocks());
                     infer::KVSequence s(&pool, b.kv_layout().block_tokens), span(&pool, b.kv_layout().block_tokens);
@@ -52,10 +54,13 @@ inline void window(Backend& g, Backend& c, const Launches& take, const Require& 
                     v.nq = rows;
                     v.extent = rows;
                     v.window = win;
+                    v.causal = causal;
                     if (k == 0) take(b);
                     b.attention({qb.get(), 0}, 0, &v, 1, {ob.get(), 0}, n_head, n_head_kv, dim);
                     out[k] = read(b, *ob, rows * qw);
-                    if (k == 0) {
+                    // A non-causal view may take its window build where no row starts past 0 too, as Vulkan's do, having no full build over f16 sides.
+                    if (k == 0 && !causal) require(end <= win || take(b).count(builds[dim == 64 ? 0 : dim == 128 ? 1 : 2]), what + " runs its window build where a row starts past 0");
+                    if (k == 0 && causal) {
                         const auto ran = take(b);
                         const std::string& body = builds[dim == 64 ? 0 : dim == 128 ? 1 : 2];
                         require(ran.count(body) == (end > win), what + (end > win ? " runs its window build" : " runs no window build, since no row starts past 0"));
@@ -164,7 +169,7 @@ inline void ops(Backend& g, Backend& c, const Require& require, Bounds bound) {
                      ib = b.adopt(ids.data(), ids.size() * 4), ob = b.alloc(groups * k * k * 4);
                 const std::vector<float> zero(groups * k * k, 0.0f);
                 b.write(*ob, 0, zero.data(), zero.size() * 4);
-                b.matmul_at_ids({ob.get(), 0}, {xb.get(), 0}, {wb.get(), 0}, {quant::GGML_TYPE_F32, {hb.get(), 0}}, width, nrows, {ib.get(), 0}, groups, k, per);
+                b.matmul_at_ids({ob.get(), 0}, {xb.get(), 0}, {wb.get(), 0}, 0, {quant::GGML_TYPE_F32, {hb.get(), 0}}, width, nrows, {ib.get(), 0}, groups, k, per, {}, 0);
                 out[kk] = read(b, *ob, groups * k * k);
             }
             require(max_ulps(out[0], out[1]) <= bound.matmul_at_ids,
@@ -186,5 +191,55 @@ inline void ops(Backend& g, Backend& c, const Require& require, Bounds bound) {
         }
         require(std::memcmp(out[0].data(), out[1].data(), steps * seqs * 4) == 0, "chain_pick against the CPU, bit for bit");
     }
+}
+
+// DFlash2's ops against the CPU at the 27B's shapes and a narrow one: tap_weighted_rows of two taps, a coefficient per 16 channels, both sides and accumulating, within `taps_ulps`,
+// and matmul_at_ids with a weight row a group and each candidate's own score added, within `dot_ulps`.
+inline void dflash2_ops(Backend& g, Backend& c, const Require& require, uint32_t taps_ulps, uint32_t dot_ulps) {
+    Backend* bs[2] = {&g, &c};
+    for (const size_t width : {size_t(5120), size_t(96)})
+        for (const bool accumulate : {false, true}) {
+            const size_t block = 8, rows = 3 * block, taps = 2, group = 16, G = width / group, stride = 2 * taps * G;
+            const std::vector<float> src = row_classes::values(rows * width, 91), base = row_classes::values(2 * taps * width, 92), coeff = row_classes::values(rows * stride, 93),
+                                     init = row_classes::values(rows * width, 94);
+            std::vector<uint32_t> idx(rows * taps);
+            for (size_t r = 0; r < rows; ++r)
+                for (size_t t = 0; t < taps; ++t) idx[r * taps + t] = r % block >= t ? uint32_t(r - t) : UINT32_MAX;
+            for (const size_t side : {size_t(0), size_t(1)}) {
+                std::vector<std::vector<float>> out(2);
+                for (int kk = 0; kk < 2; ++kk) {
+                    Backend& b = *bs[kk];
+                    auto sb = b.adopt(src.data(), src.size() * 4), bb = b.adopt(base.data(), base.size() * 4), cb = b.adopt(coeff.data(), coeff.size() * 4),
+                         ob = b.alloc(rows * width * 4);
+                    b.write(*ob, 0, init.data(), init.size() * 4);
+                    b.tap_weighted_rows({ob.get(), 0}, {sb.get(), 0}, width, idx.data(), rows, taps, {bb.get(), side * taps * width}, {cb.get(), side * taps * G}, stride, group,
+                                        accumulate);
+                    out[kk] = read(b, *ob, rows * width);
+                }
+                require(max_ulps(out[0], out[1]) <= taps_ulps, "tap_weighted_rows " + std::to_string(width) + " wide, side " + std::to_string(side) +
+                                                                  (accumulate ? ", accumulating" : "") + ", against the CPU within its bound");
+            }
+        }
+    for (const size_t width : {size_t(256), size_t(96)})
+        for (const size_t per : {size_t(1), size_t(16)}) {
+            const size_t groups = 3, k = 16, nrows = 300;
+            const std::vector<float> x = row_classes::values(groups * per * width, 95), w = row_classes::values(groups * width, 96), head = row_classes::values(nrows * width, 97),
+                                     add = row_classes::values(groups * nrows, 98);
+            std::vector<uint32_t> ids(groups * k);
+            for (size_t i = 0; i < ids.size(); ++i) ids[i] = i == 5 ? uint32_t(nrows) : uint32_t((i * 41) % nrows);
+            std::vector<std::vector<float>> out(2);
+            for (int kk = 0; kk < 2; ++kk) {
+                Backend& b = *bs[kk];
+                auto xb = b.adopt(x.data(), x.size() * 4), wb = b.adopt(w.data(), w.size() * 4), hb = b.adopt(head.data(), head.size() * 4),
+                     ib = b.adopt(ids.data(), ids.size() * 4), ab = b.adopt(add.data(), add.size() * 4), ob = b.alloc(groups * k * k * 4);
+                const std::vector<float> zero(groups * k * k, 0.0f);
+                b.write(*ob, 0, zero.data(), zero.size() * 4);
+                b.matmul_at_ids({ob.get(), 0}, {xb.get(), 0}, {wb.get(), 0}, width, {quant::GGML_TYPE_F32, {hb.get(), 0}}, width, nrows, {ib.get(), 0}, groups, k, per,
+                                {ab.get(), 0}, nrows);
+                out[kk] = read(b, *ob, groups * k * k);
+            }
+            require(max_ulps(out[0], out[1]) <= dot_ulps,
+                    "matmul_at_ids " + std::to_string(width) + " wide with a weight row a group and an addend, " + std::to_string(per) + " rows a group, against the CPU within its bound");
+        }
 }
 }  // namespace dspine_checks

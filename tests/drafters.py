@@ -236,29 +236,28 @@ def check_drafting_set(directory):
                 setattr(drafting_set, k, v)
 
 
-def check_dspine(directory, tool):
-    """The tiny DSpine sidecar (tests/fixture_dspine.py) beside the tiny qwen35 target, its K and V heads not the target's: each golden case's pick, its block's drafts and each draft row's logits through llmx-decode-probe, against tools/dspine_reference.py's (tests/data/qwen35_dspine.json), the ids exactly, since the golden has no near-tie, and the logits within the F32 bound."""
+def check_dspine(directory, tool, variant="dspine"):
+    """The tiny DSpine or DFlash2 sidecar (tests/fixture_dspine.py) beside the tiny qwen35 target, its K and V heads not the target's: each golden case's pick, its block's drafts and each draft row's logits through llmx-decode-probe, against tools/dspine_reference.py's (tests/data/qwen35_dspine.json, qwen35_dflash2.json), the ids exactly, since the golden has no near-tie, and the logits within the F32 bound."""
     import fixture_dspine
-    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "qwen35_dspine.json"), encoding="utf-8") as f:
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "qwen35_%s.json" % variant), encoding="utf-8") as f:
         doc = json.load(f)
     target = qwen35.write_fixture(directory, fixture_dspine.target_spec())
-    sidecar = os.path.join(directory, "dspine.gguf")
-    assert fixture_dspine.write_sidecar(sidecar, target, doc["seed"]) == doc["sha256"], "drafters: the DSpine sidecar is not the golden's"
+    sidecar = os.path.join(directory, "%s.gguf" % variant)
+    assert fixture_dspine.write_sidecar(sidecar, target, doc["seed"], variant) == doc["sha256"], "drafters: the %s sidecar is not the golden's" % variant
     worst = 0.0
     # Each case whole, then cut to half its drafts, which runs a block of fewer rows and must give the whole block's first drafts (docs/SPECULATIVE.md, section 11).
     for case, drafts in [(c, n) for c in doc["cases"] for n in (len(c["drafts"]), len(c["drafts"]) // 2)]:
         case = dict(case, drafts=case["drafts"][:drafts], logits=case["logits"][:drafts])
         p = decode_probe.probe(tool, target, directory, {"prompt": case["prompt"], "ids": [], "tokens": [0, 1], "draft": drafts, "cache": "f32", "drafter_file": sidecar})
-        assert p.returncode == 0, "drafters: llmx-decode-probe with the DSpine sidecar failed: " + p.stdout[-2000:] + p.stderr[-2000:]
+        assert p.returncode == 0, "drafters: llmx-decode-probe with the %s sidecar failed: " % variant + p.stdout[-2000:] + p.stderr[-2000:]
         pick = re.search(r"^draft pick (\d+), (\d+) drafts$", p.stdout, re.M)
         rows = re.findall(r"^draft (\d+) (\d+):((?: \S+)+)$", p.stdout, re.M)
-        assert pick and int(pick.group(1)) == case["anchor"] and [int(r[1]) for r in rows] == case["drafts"], \
-            "drafters: %r gave pick and drafts %s %s, the reference %d %s" % (case["prompt"], pick and pick.group(1), [r[1] for r in rows], case["anchor"], case["drafts"])
+        assert pick and int(pick.group(1)) == case["anchor"] and [int(r[1]) for r in rows] == case["drafts"],             "drafters: %s %r gave pick and drafts %s %s, the reference %d %s" % (variant, case["prompt"], pick and pick.group(1), [r[1] for r in rows], case["anchor"], case["drafts"])
         for (_, _, values), want in zip(rows, case["logits"]):
             got = [float(v) for v in values.split()]
-            assert len(got) == len(want), "drafters: a DSpine draft row of %d logits, the reference's %d" % (len(got), len(want))
+            assert len(got) == len(want), "drafters: a %s draft row of %d logits, the reference's %d" % (variant, len(got), len(want))
             worst = max(worst, max(abs(a - b) for a, b in zip(got, want)))
-    assert worst < common.F32_HF_LOGIT_BOUND, "drafters: DSpine draft logits %.8f from the reference" % worst
+    assert worst < common.F32_HF_LOGIT_BOUND, "drafters: %s draft logits %.8f from the reference" % (variant, worst)
     return worst
 
 
@@ -280,9 +279,9 @@ def run(require=False):
         check_refusals(directory, embedded, split, side)
         check_draft_models(directory)
         check_drafting_set(directory)
-        dspine = check_dspine(directory, tool)
+        dspine = max(check_dspine(directory, tool, variant) for variant in ("dspine", "dflash2"))
     print("drafters: the MTP block split beside its model drafts as embedded and embedded back, bit for bit, and gives generate, chat, bench and serve "
-          "their output without drafts; qwen35 and qwen3 draft models give generate's and chat's; every pairing check, a DFlash drafter and a file cut short refused by name; the drafting set's driver reads generate's lines; the DSpine sidecar's drafts the reference's, logits within %.8f  [ok]" % dspine)
+          "their output without drafts; qwen35 and qwen3 draft models give generate's and chat's; every pairing check, a DFlash drafter and a file cut short refused by name; the drafting set's driver reads generate's lines; the DSpine and DFlash2 sidecars' drafts the reference's, logits within %.8f  [ok]" % dspine)
     return True
 
 

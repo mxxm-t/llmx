@@ -1,4 +1,4 @@
-"""A DSpine drafter's block in F32 numpy, ported from the official dspine_mlx code (model.py, bridge.py, propose.py RefinementTail.greedy), reading a dflash sidecar GGUF.
+"""A DSpine or DFlash2 drafter's block in F32 numpy, reading a dflash sidecar GGUF: DSpine ported from the official dspine_mlx code (model.py, bridge.py, propose.py RefinementTail.greedy), DFlash2 from its graph as docs/SPECULATIVE.md section 11 describes it.
 
 Usage: python3 dspine_reference.py SIDECAR.gguf TARGET.gguf IN.npz OUT.npz
 IN.npz holds taps [N, T, E] f32 (the residual entering each of the sidecar's target_layers at positions 0..N-1) and anchor (the token at position N).
@@ -101,9 +101,91 @@ def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
 
+def attend(q, keys, vals, mask, H, KV, D):
+    out = np.empty((q.shape[0], H, D), np.float32)
+    for h in range(H):
+        s = (q[:, h] @ keys[:, h // (H // KV)].T) / np.sqrt(D)
+        s = np.where(mask, s, -np.inf)
+        s = np.exp(s - s.max(-1, keepdims=True))
+        out[:, h] = (s / s.sum(-1, keepdims=True)) @ vals[:, h // (H // KV)]
+    return out
+
+
+def tap_conv(x, dyn, base, side, taps, group):
+    """DFlash2's convolution of side `side` over the block's rows x [B, E]: row r sums, for each tap t <= r, (base's tap t + row r's coefficient of tap t for its channel's group) times row r - t."""
+    B, E = x.shape
+    G = E // group
+    y = np.zeros_like(x)
+    for t in range(taps):
+        w = base[side * taps + t][None, :] + np.repeat(dyn[:, (side * taps + t) * G : (side * taps + t + 1) * G], group, 1)
+        y[t:] += w[t:] * x[: B - t]
+    return y
+
+
+def dflash2_block(side, tgt, taps, anchor):
+    """A DFlash2 drafter's block: non-causal attention over the window, the convolution of side 0 into each attention and feed-forward and of side 1 out of it, then the selector's scores over each draft's top K candidates and their walk."""
+    m = lambda k: side.kv["dflash." + k]
+    L, B, W, K = m("block_count"), m("block_size"), m("attention.sliding_window"), m("selector_top_k")
+    H, KV, D, THETA = m("attention.head_count"), m("attention.head_count_kv"), m("attention.key_length"), float(m("rope.freq_base"))
+    CK, CG = m("conv_kernel_size"), m("conv_group_size")
+    EPS, MASK = float(m("attention.layer_norm_rms_epsilon")), side.kv["tokenizer.ggml.mask_token_id"]
+    w = lambda name: side.rows(name)
+    v = lambda name: side.vector(name)
+    N, T, E = taps.shape
+    ids = np.array([anchor] + [MASK] * (B - 1))
+    bpos, kpos_ctx = np.arange(N, N + B), np.arange(N)
+    ctx = rmsnorm(taps.reshape(N, -1).astype(np.float32) @ w("fc.weight").T, v("enc.output_norm.weight"), EPS)
+    x = np.concatenate([tgt.rows("token_embd.weight", int(i), int(i) + 1) for i in ids])
+    ctx_k, ctx_v = [], []
+    kpos = np.concatenate([kpos_ctx, bpos])
+    mask = kpos[None, :] > bpos[:, None] - W
+    for l in range(L):
+        p = "blk.%d." % l
+        xn = rmsnorm(x, v(p + "attn_norm.weight"), EPS)
+        dyn, base = xn @ w(p + "attn_conv_proj.weight").T, w(p + "attn_conv_base")
+        xn = tap_conv(xn, dyn, base, 0, CK, CG)
+        q = rmsnorm((xn @ w(p + "attn_q.weight").T).reshape(B, H, D), v(p + "attn_q_norm.weight"), EPS)
+        kb = rmsnorm((xn @ w(p + "attn_k.weight").T).reshape(B, KV, D), v(p + "attn_k_norm.weight"), EPS)
+        vb = (xn @ w(p + "attn_v.weight").T).reshape(B, KV, D)
+        kc = rmsnorm((ctx @ w(p + "attn_k.weight").T).reshape(N, KV, D), v(p + "attn_k_norm.weight"), EPS)
+        vc = (ctx @ w(p + "attn_v.weight").T).reshape(N, KV, D)
+        q, kb, kc = rope(q, bpos, THETA), rope(kb, bpos, THETA), rope(kc, kpos_ctx, THETA)
+        ctx_k.append(kc)
+        ctx_v.append(vc)
+        out = attend(q, np.concatenate([kc, kb]), np.concatenate([vc, vb]), mask, H, KV, D)
+        x = x + tap_conv(out.reshape(B, -1) @ w(p + "attn_output.weight").T, dyn, base, 1, CK, CG)
+        f = rmsnorm(x, v(p + "ffn_norm.weight"), EPS)
+        dyn, base = f @ w(p + "ffn_conv_proj.weight").T, w(p + "ffn_conv_base")
+        f = tap_conv(f, dyn, base, 0, CK, CG)
+        g = f @ w(p + "ffn_gate.weight").T
+        x = x + tap_conv((g * sigmoid(g) * (f @ w(p + "ffn_up.weight").T)) @ w(p + "ffn_down.weight").T, dyn, base, 1, CK, CG)
+    final = rmsnorm(x, v("output_norm.weight"), EPS)
+    rows = final[1:]
+    head_name = "output.weight" if "output.weight" in tgt.t else "token_embd.weight"
+    V = tgt.t[head_name][0][1]
+    logits = np.concatenate([rows @ tgt.rows(head_name, lo, min(lo + 16384, V)).T for lo in range(0, V, 16384)], 1)
+    cand = np.sort(np.argsort(-logits, axis=1, kind="stable")[:, :K], axis=1)
+    unary = np.take_along_axis(logits, cand, 1)
+    gate = rows @ w("selector_hidden.weight").T
+    n = B - 1
+    succ = np.stack([np.concatenate([side.rows("selector_successor.weight", int(c), int(c) + 1) for c in cand[t]]) for t in range(n)])
+    pid = np.concatenate([np.full((1, K), anchor), cand[:-1]])
+    prev = np.stack([np.concatenate([side.rows("selector_predecessor.weight", int(c), int(c) + 1) for c in pid[t]]) for t in range(n)])
+    score = np.einsum("tir,tjr->tij", prev * gate[:, None, :], succ) + unary[:, None, :]
+    idx = score.argmax(-1)
+    drafts, j = [], idx[0, 0]
+    for t in range(n):
+        drafts.append(int(cand[t, j]))
+        if t + 1 < n:
+            j = idx[t + 1, j]
+    return dict(ctx_k=np.stack(ctx_k), ctx_v=np.stack(ctx_v), cand=cand, score=score, drafts=np.array(drafts), logits_top=unary, final=final)
+
+
 def block(side, tgt, taps, anchor):
     """The drafter's block after context rows `taps` [N, T, E] and the token `anchor` at position N, as a dict of the arrays OUT.npz holds."""
     load_numpy()
+    if "selector_hidden.weight" in side.t:
+        return dflash2_block(side, tgt, taps, anchor)
     m = lambda k: side.kv["dflash." + k]
     L, B, W, K = m("block_count"), m("block_size"), m("attention.sliding_window"), m("selector_top_k")
     H, KV, D, THETA = m("attention.head_count"), m("attention.head_count_kv"), m("attention.key_length"), float(m("rope.freq_base"))
@@ -138,12 +220,7 @@ def block(side, tgt, taps, anchor):
         keys, vals = np.concatenate([kc, kb]), np.concatenate([vc, vb])
         kpos = np.concatenate([kpos_ctx, bpos])
         mask = (kpos[None, :] <= bpos[:, None]) & (kpos[None, :] > bpos[:, None] - W)
-        out = np.empty((B, H, D), np.float32)
-        for h in range(H):
-            s = (q[:, h] @ keys[:, h // (H // KV)].T) / np.sqrt(D)
-            s = np.where(mask, s, -np.inf)
-            s = np.exp(s - s.max(-1, keepdims=True))
-            out[:, h] = (s / s.sum(-1, keepdims=True)) @ vals[:, h // (H // KV)]
+        out = attend(q, keys, vals, mask, H, KV, D)
         hcur = residual + out.reshape(B, -1) @ w(p + "attn_output.weight").T
         mm = rmsnorm(hcur, v(p + "ffn_norm.weight"), EPS)
         g = mm @ w(p + "ffn_gate.weight").T

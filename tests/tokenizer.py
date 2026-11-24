@@ -9,11 +9,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import run as cli, tokenize_failures
 
 # Tokenizer round-trip gate: builds a minimal GGUF with a tiny GPT-2-style BPE vocab and merges, written directly since going through the CLI's quantize path is overkill, then exercises encode/decode incl. unicode and specials.
-# It also requires a file naming another tokenizer or pretokenizer to be refused, and holds the qwen35 and joyai-llm pretokenizers to HF's ids and the Unicode class table and NFC to unicodedata (docs/TESTS.md, Suite components).
+# It also requires a file naming another tokenizer or pretokenizer to be refused, and holds the qwen35, joyai-llm and minimax-m2 pretokenizers to HF's ids and the Unicode class table and NFC to unicodedata (docs/TESTS.md, Suite components).
 
 ALIGN = 32
 QWEN35_GOLDEN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "baseline_tokenizer_qwen35.json")
-DEEPSEEK41_GOLDEN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "baseline_tokenizer_deepseek41.json")
+# The goldens of tokenizers GGUF files name, each with the pretokenizer its files name (tools/gen_baseline.py, FILE_TOKENIZERS).
+FILE_GOLDENS = {family: (os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "baseline_tokenizer_%s.json" % family), pre)
+                for family, pre in (("deepseek41", "joyai-llm"), ("minimax", "minimax-m2"))}
 UNICODE_CLASS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src", "core", "unicode_class.hpp")
 # The code points the White_Space property holds, which has not changed since Unicode 6.3.
 WHITE_SPACE = set(range(0x9, 0xE)) | {0x20, 0x85, 0xA0, 0x1680} | set(range(0x2000, 0x200B)) | {0x2028, 0x2029, 0x202F, 0x205F, 0x3000}
@@ -108,7 +110,7 @@ def check_qwen35(d):
 
 
 def check_unicode_class():
-    """The table's classes against the running Python's unicodedata: each code point that version assigns must have the bits of its general category's group, but for the listed moves, and White_Space must be the property's code points.
+    """The table's classes against the running Python's unicodedata: each code point that version assigns must have the bits of its general category's group and, for a cased letter, its case, but for the listed moves, and White_Space must be the property's code points.
     Code points only 16.0 assigns are left out, since unicodedata cannot name them."""
     import re
     import unicodedata
@@ -117,6 +119,7 @@ def check_unicode_class():
     with io.open(UNICODE_CLASS, encoding="ascii") as f:
         runs = [(int(a, 16), int(b, 16), int(c)) for a, b, c in re.findall(r"\{0x([0-9a-f]+), 0x([0-9a-f]+), (\d+)\}", f.read())]
     groups = {"L": 1, "M": 2, "N": 4, "P": 8, "S": 16}
+    cases = {"Lu": 64, "Lt": 64, "Ll": 128}
     bits = {}
     for first, last, value in runs:
         assert first <= last and value and (not bits or first > max(bits)), "unicode_class.hpp: run %x-%x out of order" % (first, last)
@@ -130,8 +133,8 @@ def check_unicode_class():
         category = unicodedata.category(chr(cp))
         if category == "Cn":
             continue
-        want = moved.get(cp, groups.get(category[0], 0))
-        if bits.get(cp, 0) & 31 != want:
+        want = moved.get(cp, groups.get(category[0], 0) | cases.get(category, 0))
+        if bits.get(cp, 0) & ~32 != want:
             wrong.append("U+%04X %s" % (cp, category))
     assert not wrong, "unicode_class.hpp: %d code points differ from Unicode %s, first %s" % (len(wrong), version, wrong[:5])
     return version, len(runs)
@@ -192,17 +195,18 @@ def check_nfc(d, tokens):
     return len(items)
 
 
-def check_deepseek41(d):
-    """The deepseek41 golden's texts through a file naming the joyai-llm pretokenizer, holding the part of the pinned vocabulary those texts reach and the GGUF file's token types: each must give HF's ids."""
-    with io.open(DEEPSEEK41_GOLDEN, encoding="utf-8") as f:
+def check_file_tokenizer(d, family):
+    """A family's golden texts through a file naming its pretokenizer, holding the part of the pinned vocabulary those texts reach and the GGUF file's token types: each must give HF's ids."""
+    golden, pre = FILE_GOLDENS[family]
+    with io.open(golden, encoding="utf-8") as f:
         doc = json.load(f)
     ids = sorted(int(i) for i in doc["tokens"])
-    path = build_tokenizer_gguf(os.path.join(d, "deepseek41.gguf"), [doc["tokens"][str(i)] for i in ids], doc["merges"],
+    path = build_tokenizer_gguf(os.path.join(d, family + ".gguf"), [doc["tokens"][str(i)] for i in ids], doc["merges"],
                                 [(p, doc["token_types"][str(i)]) for p, i in enumerate(ids) if str(i) in doc["token_types"]],
-                                [("tokenizer.ggml.model", "gpt2"), ("tokenizer.ggml.pre", "joyai-llm")])
+                                [("tokenizer.ggml.model", "gpt2"), ("tokenizer.ggml.pre", pre)])
     failures = tokenize_failures(path, doc["cases"], ids)
     pieces = {case["text"].encode("unicode_escape").decode("ascii"): case.get("pieces") for case in doc["cases"]}
-    assert not failures, "deepseek41: %d/%d texts differ from HF:" % (len(failures), len(doc["cases"])) + \
+    assert not failures, "%s: %d/%d texts differ from HF:" % (family, len(failures), len(doc["cases"])) + \
         "".join("\n  %s: want %s, got %s, HF pieces %s" % (f + (pieces[f[0]],)) for f in failures)
     return len(doc["cases"])
 
@@ -255,7 +259,7 @@ def run():
         rc, out7 = cli(["tokenize", named, "hello"])
         assert rc == 0 and out7 == out, "named gpt2/qwen2 tokenizer: %r, unnamed %r" % (out7, out)
         # The refusal names the key and every implemented value.
-        for key, value, implemented in [("tokenizer.ggml.pre", "gpt-2", ("qwen2", "qwen35", "joyai-llm")), ("tokenizer.ggml.pre", "qwen3", ("qwen2", "qwen35", "joyai-llm")),
+        for key, value, implemented in [("tokenizer.ggml.pre", "gpt-2", ("qwen2", "qwen35", "joyai-llm", "minimax-m2")), ("tokenizer.ggml.pre", "qwen3", ("qwen2", "qwen35", "joyai-llm", "minimax-m2")),
                                         ("tokenizer.ggml.model", "llama", ("gpt2",))]:
             other = os.path.join(d, "other.gguf")
             build_tokenizer_gguf(other, tokens, merges, specials, [(key, value)])
@@ -266,10 +270,11 @@ def run():
         n, controls = check_qwen35(d)
         nfc = check_nfc(d, tokens)
         version, runs = check_unicode_class()
-        n41 = check_deepseek41(d)
+        n41 = check_file_tokenizer(d, "deepseek41")
+        nmm = check_file_tokenizer(d, "minimax")
         print("tokenizer: encode->decode round-trip 'hello' -> %s, unicode and special token, other tokenizers refused, "
               "qwen35 %d/%d texts match HF and its %d file-only control tokens are one id each, "
-              "the Unicode class table's %d runs match Unicode %s, NFC of %d texts matches it, deepseek41 %d/%d texts match HF  [ok]" % (out2.strip(), n, n, controls, runs, version, nfc, n41, n41))
+              "the Unicode class table's %d runs match Unicode %s, NFC of %d texts matches it, deepseek41 %d/%d and minimax %d/%d texts match HF  [ok]" % (out2.strip(), n, n, controls, runs, version, nfc, n41, n41, nmm, nmm))
         return True
     finally:
         import shutil

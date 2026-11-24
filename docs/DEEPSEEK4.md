@@ -1,6 +1,7 @@
-# DeepSeek-V4.1-Flash-1017 and DeepSeek-V4 support (planned, 2026-10-27)
+# DeepSeek-V4.1-Flash-1017 support (planned, 2026-10-27)
 
-This page is the plan for running DeepSeek's V4-class models in llmx: DeepSeek-V4.1-Flash-1017 first (GGUF architecture `deepseek41`), then DeepSeek-V4-Flash (`deepseek4`) as a variant of the same module.
+This page is the plan for running DeepSeek-V4.1-Flash-1017 in llmx (GGUF architecture `deepseek41`).
+DeepSeek-V4-Flash (the April and 0731 releases) was dropped from the plan on 2026-11-24 because V4.1 supersedes it; the V4 notes below are history.
 It replaces the plan of 2026-09-26, which the owner decided on that day and which was kept outside the tree; its decisions still hold and are carried in section 1.3, and only what 1017 and llmx's growth since then change is new here.
 The owner decided its questions on 2026-10-27 (section 9); building starts only when the coordinator assigns a developer to its first building step.
 Written by DSDEV, read at main dd4163407; revised by DSDEV2 on 2026-11-04 at main 840b96ec7 for the owner's requirements of that day (section 0), and the coordinator assigned DSDEV2 to build it; F2DEV's review of that revision (20:16) folded in by DSDEV3 the same day (section 10).
@@ -22,7 +23,6 @@ F2DEV's review of the revision (20:16) then changed 1.3, 2.2, 4.1, 4.2's Engram 
 
 - `llmx generate`, `chat`, `logits`, `perplexity` and `serve` run DeepSeek-V4.1-Flash-1017 from its GGUF files, text only, on the CPU, on Vulkan devices and on ROCm devices (revision of 2026-11-04), on one device where it fits and as a layer split where it does not, with the Engram tables read from the file through a bounded hot-row store in host memory.
 - DSpark drafting through the one speculative system, with output identical to drafting off.
-- The same for DeepSeek-V4-Flash (the 0731 release and the April one), if the owner says yes to question 1.
 - Any hardware: the fit decides the placement from the devices' and the host's memory; the 10-MI50 machine is the test bed, not the target.
 - Image input on the `-vl` files and their `deepseek41v` mmproj came after this plan, on the image-input design ([VISION](VISION.md), section 11).
 - Out of scope here: V4-Pro, and parsing DSML tool calls (they are rendered and returned as text).
@@ -102,9 +102,9 @@ Upstream's converter (llama.cpp #31086, merged 2026-10-25) writes a different la
 - in UD-Q8_K_XL every FP8 linear is BF16 and the router F32: 473.46 GiB in all, 284.6 GiB without the table, 508.4 GB on disk, value-exact by construction as V4's UD file was (BF16 holds an FP8 value times a power-of-two scale while the scale stays in range), not yet checked against the checkpoint;
 - llmx has no MXFP8 decoder.
 
-### 2.4 DeepSeek-V4
+### 2.4 DeepSeek-V4 (dropped on 2026-11-24)
 
-- [DeepSeek-V4-Flash](https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash) (April, 60d8d707) and [DeepSeek-V4-Flash-0731](https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash-0731) (7872f01b) have the same trunk configuration and kernels; 0731 adds the DSpark drafter (`dspark_*` keys, three MTP layers) and a few type and call-signature edits in `model.py`. One module variant serves both.
+- [DeepSeek-V4-Flash](https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash) (April, 60d8d707) and [DeepSeek-V4-Flash-0731](https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash-0731) (7872f01b) have the same trunk configuration and kernels; 0731 adds the DSpark drafter (`dspark_*` keys, three MTP layers) and a few type and call-signature edits in `model.py`. The plan's V4 variant is dropped.
 - transformers has `deepseek_v4` (since 5.8.0) and no `deepseek_v41` at 5.21.
 
 ### 2.5 What llmx has now that the 2026-09-26 plan waited for
@@ -162,7 +162,8 @@ Pitfalls since the earlier plan's F1 to F18: F19 a BF16 matrix past 512 MiB writ
 
 ## 3. Does V4.1-1017 support cover DeepSeek-V4?
 
-No: a V4 file is refused until V4 is built, but V4 is a variant of the same module, not a second one.
+No, and it will not: V4-Flash was dropped on 2026-11-24, so a V4 file stays refused.
+The table below is what the plan's V4 variant would have differed in.
 
 **What differs** (DeepSeek's two `model.py` files, as the earlier plan read them):
 
@@ -183,10 +184,9 @@ No: a V4 file is refused until V4 is built, but V4 is a variant of the same modu
 
 **Shared:** the tokenizer and pretokenizer, YaRN, the 512-wide single-vector attention with a sink, the grouped output projection, the mHC coefficient and mix ops (with an order flag), sqrt-softplus routing with bias, the clamp, the FP4-E8M0 index keys, top-k, the compressor's pooling, the sidecar drafter, and every runtime addition of section 4.3.
 
-**One module, two registry entries,** as qwen3/qwen3moe and qwen35/qwen35moe are: `deepseek41` and `deepseek4` reach `src/model/arch/deepseek4/` with a variant the registry entry names, read once into the configuration; nothing is inferred from which tensors a file holds.
+**One registry entry:** `deepseek41` reaches `src/model/arch/deepseek4/` (the directory keeps its name); nothing is inferred from which tensors a file holds.
 
-**What V4 costs on top of V4.1** (estimates): the ratio-4 overlapping compressor with `ape` and its carried half-groups, the ratio-128 compressor, the Hadamard, hash routing with its I32 table, the two-pass mHC and `hc_head`, the query norm and the FP8 entry format: about a quarter to a third of V4.1's model work, CPU and Vulkan, with no runtime additions of its own.
-Its gates are cheaper than V4.1's: V4 fits six MI50s beside production (V4.1 needs all ten), it has an independent HF implementation for the layered reference, and its lossless UD-Q8_K_XL file is on the backup share.
+**What V4 would have cost on top of V4.1** (estimate, not built): a quarter to a third of V4.1's model work, no runtime additions; dropped on 2026-11-24.
 
 ## 4. Design
 
@@ -195,7 +195,7 @@ Its gates are cheaper than V4.1's: V4 fits six MI50s beside production (V4.1 nee
 | Concern | Owner |
 |---|---|
 | keys, refusals, tensor roles, layer kinds, the variant, both `deepseek41` layouts, the math | the module `src/model/arch/deepseek4/`, a directory since it passed about 1,000 lines |
-| which file runs it | `src/model/arch/registry.hpp`: `deepseek41` and `deepseek4`, declared dtype BF16, `dflash` drafters paired through `normalize_drafter` |
+| which file runs it | `src/model/arch/registry.hpp`: `deepseek41`, declared dtype BF16, `dflash` drafters paired through `normalize_drafter` |
 | the YaRN tables | the shared rope owner, `src/model/rope.hpp` (`rope::resolve`, `rope::fill`), in model.py's double arithmetic without an attention factor (`rope::Arithmetic::f64_once`, `rope::Attention::none`) |
 | the model's FP8 and FP4 encoders and scale rules | one C++ owner under `src/quant/` and its GLSL twin (XDEV's area) |
 | the MXFP8 decoder (upstream layout) | `src/quant/`, beside MXFP4 (XDEV's area) |
@@ -368,7 +368,7 @@ The ROCm backend implements the same `Backend` ops; the module, the runtime and 
 
 ## 5. Correctness gates
 
-1. **Tiny models** (the gate revision of 2026-09-26): `tools/` builds tiny `deepseek41`, `deepseek4` and `dflash` models through DeepSeek's `ModelArgs` and `Transformer` at the pinned code (for V4.1 the local checkpoint's, read-only and pinned by the SHA-256s of the provenance, compared with the Hub's at 1017's 1bae0e10 only where that is reachable without a download; for V4 0731's 7872f01b, its source settled when step 15 starts), its kernels replaced by F32 CPU code, its top-k by llmx's total order, the model formats' QDQ on and the activation QDQ off, the real tokenizer, with every layer kind, selection and candidate blocks engaged within 256 tokens, and writes them in the fork's layout and in upstream's.
+1. **Tiny models** (the gate revision of 2026-09-26): `tools/` builds tiny `deepseek41` and `dflash` models through DeepSeek's `ModelArgs` and `Transformer` at the pinned code (for V4.1 the local checkpoint's, read-only and pinned by the SHA-256s of the provenance, compared with the Hub's at 1017's 1bae0e10 only where that is reachable without a download; for V4 0731's 7872f01b, its source settled when step 15 starts), its kernels replaced by F32 CPU code, its top-k by llmx's total order, the model formats' QDQ on and the activation QDQ off, the real tokenizer, with every layer kind, selection and candidate blocks engaged within 256 tokens, and writes them in the fork's layout and in upstream's.
    They hold 2e-5 per logit and 1e-5 NLL across ubatches, threads, decode after prefill, scoring, `--then-ids`, cuts at every offset around group edges, and splits; decisions within a measured margin of a tie run in forced mode (the port takes llmx's selections). Hosted CI runs them.
    For V4 the port is cross-checked against transformers' `deepseek_v4` on the same weights, and a fork at a multiple of 128 must continue bit-identically, the carried ratio-4 halves included.
 2. **Ops:** every new op against its math reference; QDQ exhaustively against decoders written from the format description; Sinkhorn against float64; top-k at widths 1 to 2^18 with ties, NaN and -inf fillers and any tiling.
@@ -425,12 +425,12 @@ Revised 2026-11-04: steps 4a, 4b and 9 are new, and every later step is renumber
 | 12 | The exact prefill skip | logits, states and forks bit-identical on and off; speed recorded |
 | 13 | DSpark, its drafter ops on ROCm from RDEV's Flash-Next step 6; as built (2026-11-10): the `dflash` sidecar paired by `normalize_drafter`, the stages planned as window-only blocks with their own experts and clamps, the taps written through `mix_rows` (a new ROCm kernel, `llmx_mix_rows`; the CPU and Vulkan had the op), block drafts a call through `ModelPlan::draft_block`, `Proposer::block` and `spec::draft_length`'s block bound, and the drafter's cache a state slot (`src/model/arch/deepseek4/dspark.hpp`) | section 5.6's drafting cases; acceptance recorded; as built: the tiny sidecar's drafts and draft logits against `tools/deepseek4_reference.py --dspark`'s golden, two CPU stages bit for bit with one, and drafting identity in `generate` and `serve` (docs/TESTS.md) |
 | 14 | Tensor groups for these models, through Vulkan's and ROCm's collectives | section 5.5 on groups; cells recorded |
-| 15 | V4 (question 1) | section 5 for V4, on six MI50s |
+| 15 | V4 (question 1), dropped on 2026-11-24 | none |
 | 16 | The upstream layout and MXFP8 (question 2) | the tiny models in that layout; the layered reference on its file |
 
 ## 8. Not chosen
 
-- **Two modules for V4 and V4.1:** they share every runtime addition and most ops; a variant keyed by the registry entry is how llmx runs qwen3/qwen3moe.
+- **Two modules for V4 and V4.1:** they would share every runtime addition and most ops; V4 itself is dropped (2026-11-24).
 - **The window as paged history** released past 128 tokens: forks at older positions would still need state, and the ring reuses qwen35's checkpoint machinery.
 - **Bounded replay, dense attention over V4.1's entries, an Engram-off switch, a running-softmax compressor, an f16 cache, emulated FP8 activations:** none is the model, or none is exact.
 - **Engram tables resident on the devices on the test machine:** every MI50 is full of weights; a split by rows only on a measured gain elsewhere.
@@ -442,7 +442,7 @@ Decided by the owner on 2026-10-27, after F2DEV's and XDEV's clearance, every qu
 
 | | Question | Recommendation | Decided |
 |---|---|---|---|
-| 1 | Support DeepSeek-V4 as well, as a variant of the same module after V4.1's CPU step (about a quarter to a third more model work, no runtime work of its own)? | yes: it fits six MI50s beside production and has an independent HF reference | yes, V4 too, after V4.1's CPU step |
+| 1 | Support DeepSeek-V4 as well, as a variant of the same module after V4.1's CPU step (about a quarter to a third more model work, no runtime work of its own)? | yes: it fits six MI50s beside production and has an independent HF reference | yes, V4 too, after V4.1's CPU step; reversed on 2026-11-24, V4-Flash is dropped |
 | 2 | Read both `deepseek41` layouts: the fork's (the file on the host) first, upstream's (Unsloth's published files, whose UD-Q8_K_XL is lossless by construction) after an MXFP8 decoder from XDEV? | yes | yes, both layouts, the local one first, upstream's MXFP8 after XDEV adds the decoder |
 | 3 | May llmx read the other project's 1017 GGUF and its NVMe copy of the table shards, read-only, once that project says its conversion and publishing are done, rather than download a copy of 404 GB? | yes | yes, read-only once that project says it is finished, no download |
 | 4 | Keep V4.1's real-model gate file-exact on that file, with no download of the lossless 508 GB file now (610 GB free less the 300 GiB reserve)? | yes; revisit when the pool has room | yes, checked against the local file's own weights, the 508 GB download skipped |
@@ -450,7 +450,7 @@ Decided by the owner on 2026-10-27, after F2DEV's and XDEV's clearance, every qu
 | 6 | For the 16k rule, the depth contract of 2026-10-19 with the reference in F32 against the reference at the engine's precision as its calibration pair (a gate revision)? | yes | yes, the 2026-10-19 depth rules calibrated as proposed (a gate change) |
 | 7 | Leave 1017's new FP8 of the attention output unemulated, as every activation FP8 is? | yes | yes, not emulated |
 | 8 | The fork at its newest commit on the same 1017 file as the speed reference, upstream llama.cpp reported beside it? | yes | yes |
-| 9 | Copy V4-0731's UD-Q8_K_XL (162 GB) back from the backup share when step 14 starts? | yes | yes, when the V4 step starts |
+| 9 | Copy V4-0731's UD-Q8_K_XL (162 GB) back from the backup share when step 14 starts? | yes | yes, when the V4 step starts; void since V4 is dropped on 2026-11-24 |
 
 The step numbers in this table are those of 2026-10-27; in the revised table of section 7 they are steps 0, 10, 11 and 13 (question 5) and step 15 (question 9).
 

@@ -361,6 +361,10 @@ def leave_mid_stream(port, body, after_bytes):
     s.close()
 
 
+# The refusal of a device whose backend lacks an op a model needs.
+DEVICE_REFUSAL = "which the backend of its device does not implement"
+
+
 def device_lacks_kernel(rc, out):
     """True for a selected device's unsupported type, unless the runner requires that type, in which case the component fails."""
     if rc == 0 or not os.environ.get("LLMX_DEVICE"):

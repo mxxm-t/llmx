@@ -127,7 +127,8 @@ ROWS = [
     ("logits-top", "logits", ["--top", "2"], works(r"."), "logits-base", False),
     ("logits-last", "logits", ["--top", "2", "--last", "2"], works(r"."), "logits-top", True),
     ("logits-then", "logits", ["--top", "5", "--then-ids", "{ids}"], works(r"."), "logits-base", True),
-    ("logits-per-token", "logits", ["--top", "5", "--per-token"], works(r"."), "logits-base", True),
+    ("logits-verbose", "logits", ["--top", "5", "--verbose"], works(r"^threads: prefill"), "logits-base", True),
+    ("logits-per-token", "logits", ["--top", "5", "--verbose", "--per-token"], works(r"^threads: decode"), "logits-verbose", True),
     ("logits-chat", "logits", ["--top", "5", "--chat"], works(r"."), "logits-base", True),
     ("logits-template", "logits", ["--top", "5", "--chat", "--chat-template-file", "{template}"], works(r"."), "logits-chat", True),
     ("logits-file", "logits", ["--file", "{prompt}", "--top", "5"], equal("logits-base"), "logits-base", True),
@@ -197,7 +198,7 @@ ROWS = [
 ]
 
 # Health paths that change from run to run whatever the flags; they are left out of a comparison.
-VOLATILE = re.compile(r"uptime|started|elapsed|_ms\b|_s\b|seconds|bytes_per_s|bytes_done|\.free|available|since_start|live\.|digest|adopt\.state|\.pass\b|in_flight|recent\[|disk\.now\.(ready|writing|entries|bytes|segments|states)|\.ms\b")
+VOLATILE = re.compile(r"uptime|started|elapsed|_ms\b|_s\b|seconds|bytes_per_s|bytes_done|\.free|available|since_start|\.prices\.|live\.|digest|adopt\.state|\.pass\b|in_flight|recent\[|disk\.now\.(ready|writing|entries|bytes|segments|states)|\.ms\b")
 
 
 def flags_of(text):
@@ -383,8 +384,8 @@ def judge(outcome, rc, out, runs, base):
 
 
 def run():
-    if common.tensor_width() > 1 or any(os.environ.get(v) for v in ("LLMX_LAYER_SHARES", "LLMX_CACHE_TYPE", "LLMX_DTYPE", "LLMX_LOAD_MODE")) or device() != "cpu":
-        print("flags: skipped, each flag is compared against a base run on the CPU without the suite's configured flags")
+    if common.tensor_width() > 1 or any(os.environ.get(v) for v in ("LLMX_LAYER_SHARES", "LLMX_CACHE_TYPE", "LLMX_DTYPE", "LLMX_LOAD_MODE")):
+        print("flags: skipped, each flag is compared against a base run without the suite's configured flags")
         return common.SKIPPED
     problems = completeness()
     cpu = device() == "cpu"
@@ -414,6 +415,9 @@ def run():
                     rc, out, line = run_cli(command, model, args, files)
                 runs[name] = (rc, out)
                 if outcome is None:
+                    if rc != 0 and not cpu and common.DEVICE_REFUSAL in out:
+                        print("flags: %s skipped, %s refuses its base run: %s" % (fixture, device(), out.splitlines()[-1:]))
+                        break
                     if rc != 0:
                         problems.append("%s %s: the base run failed: %s\n  %s" % (fixture, name, out.splitlines()[-1:], line))
                     continue

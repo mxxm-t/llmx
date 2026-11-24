@@ -38,7 +38,7 @@ WIDE_VOCAB = 2 * 4096 + VOCAB
 UBATCHES = (1, 2, 3, 5, 16)
 # llmx's refusals of a qwen35 file: of the architecture, where it does not run it, and at load on a device whose backend lacks the linear attention's ops.
 # Either skips this component, and the real-model checks, rather than failing or passing them.
-REFUSALS = ("unsupported metadata general.architecture", "which the backend of its device does not implement")
+REFUSALS = ("unsupported metadata general.architecture", common.DEVICE_REFUSAL)
 
 
 def refusal(rc, out):

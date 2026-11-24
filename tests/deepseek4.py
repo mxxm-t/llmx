@@ -29,7 +29,7 @@ VISION = os.path.join(common.ROOT, "tests", "data", "deepseek41_vision_reference
 # The refusal of the image marker typed as text (chat::ChatFormat::refuse_image_text).
 MARKER = "which only an image part gives"
 UPSTREAM = "inference: unsupported metadata deepseek41.ple.layers"
-DEVICE = "which the backend of its device does not implement"
+DEVICE = common.DEVICE_REFUSAL
 F32 = ["--cache-type-k", "f32", "--cache-type-v", "f32"]
 NATIVE = ["--cache-type-k", "native", "--cache-type-v", "native"]
 LOGIT_BOUND = 2e-5

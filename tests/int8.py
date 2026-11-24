@@ -57,7 +57,7 @@ def golden():
 
 
 # A device whose backend lacks an op a fixture's layers issue refuses the model as it loads (docs/src/backends-backend.md, implements); that fixture is reported as refused rather than measured.
-REFUSAL = "which the backend of its device does not implement"
+REFUSAL = common.DEVICE_REFUSAL
 
 
 class Refused(Exception):

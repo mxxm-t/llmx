@@ -19,7 +19,7 @@ import common
 import fixture_minimax
 
 GOLDEN = os.path.join(common.ROOT, "tests", "data", "minimax_m3_reference.json")
-DEVICE = "which the backend of its device does not implement"
+DEVICE = common.DEVICE_REFUSAL
 F32 = ["--cache-type-k", "f32", "--cache-type-v", "f32"]
 LOGIT_BOUND = 2e-5
 NLL_BOUND = 1e-5

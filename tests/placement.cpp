@@ -2939,6 +2939,22 @@ void tensor_groups(size_t W, uint64_t heads, uint64_t kv_heads, uint64_t ff, uin
         exact(first, b.prefill(kPrompt), "two stages of a group differ from one stage on a prompt");
         exact(first, whole.model->prefill(kPrompt), "a prompt in slices of the ubatch differs from the prompt in one pass on a group");
         require(close(first, single.prefill(kPrompt)), "a group's prompt is not one device's within the F32 bound");
+        // A group's KV bytes count every member's share, a head replicated on each member that holds it, as its used bytes count the whole history (the kv line of --verbose).
+        // One device placed through place_model is the reference, since a bare Model backs its KV blocks otherwise.
+        auto lone_cpu = std::make_shared<backend::CpuBackend>();
+        lone_cpu->set_threads(1);
+        std::vector<backend::BackendPtr> lone{lone_cpu};
+        infer::PlacementRequest alone;
+        alone.names.assign(1, "cpu");
+        alone.ubatch = 3;
+        infer::PlacedModel placed = infer::place_model(infer::gguf_weights(weights), std::move(lone), alone, infer::ModelOptions{});
+        placed.model->prefill(kPrompt);
+        const infer::Model& one = *placed.model;
+        const size_t held = W * (kv_heads >= W ? kv_heads / W : 1);
+        require(a.kv_allocated_bytes() * kv_heads == one.kv_allocated_bytes() * held && a.kv_peak_bytes() * kv_heads == one.kv_peak_bytes() * held &&
+                    a.kv_used_bytes() == one.kv_used_bytes(),
+                ("a group's KV bytes are not its members' heads of one device's for the same history: allocated " + std::to_string(a.kv_allocated_bytes()) + " against " +
+                    std::to_string(one.kv_allocated_bytes()) + ", " + std::to_string(held) + " of " + std::to_string(kv_heads) + " heads held").c_str());
         for (int t : {7, 9, 3}) {
             const std::vector<float> x = step_row(a, t);
             exact(x, step_row(b, t), "a decode step differs between one and two stages of a group");

@@ -163,7 +163,7 @@ void held_values() {
     const std::pair<std::string, gguf::MetaValue> held[] = {
         {"expert_gating_func", u32(1)}, {"expert_weights_norm", flag(false)}, {"expert_shared_count", u32(2)},
         {"expert_shared_feed_forward_length", u32(2 * FE)}, {"attention.indexer.head_count", u32(1)},
-        {"attention.indexer.local_blocks", u32(2)}, {"attention.value_length", u32(2 * D)}};
+        {"attention.indexer.local_blocks", u32(2)}, {"attention.value_length", u32(2 * D)}, {"attention.indexer.block_size", u32(3)}};
     for (const auto& kv : held)
         refuses(kv.first, unsupported + kv.first, [&] { config_of(tiny([&](gguf::GGUFModel& m) { put(m, P + kv.first, kv.second); })); });
     refuses("a layout", "inference: unsupported metadata " + P + "tensor_data_layout", [] {

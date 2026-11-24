@@ -292,6 +292,7 @@ The list is most likely first, a tie going to the lower id.
 `--last N` prints each of the last `N` positions instead, one line of its position followed by its top-N `id value` pairs, from the batched passes a prompt takes; `tools/long_context_check.py` reads a device's reply this way.
 That tool takes `--dtype auto|f16|bf16|f32` to select the same request for prompt sizing, both fresh generations and both backends' scoring passes.
 `--per-token` reads every token one at a time through decode steps, the path a generated token takes, instead of the batched passes a prompt takes, as `perplexity --per-token` does; on a device the two paths run different kernels, so a reply's `--then-ids` read this way gives the logits its decode steps gave.
+`--verbose` prints on stderr what each device of a split was given, then the phase the text is read in and its worker count, `threads: prefill N`, or `threads: decode N` with `--per-token`.
 `--top` and `--last` are at least 1.
 
 Shared execution options for `logits` are `--threads`, `--ubatch`, `--kv-tokens`, `--device`, `--layer-shares`, `--tensor-width`, `--n-cpu-moe`, `--cpu-moe`, `--moe-stream-from`, `--expert-cache`, `--cache-type-k`, `--cache-type-v`, `--load-mode`, `--lookup-storage`, `--dtype`, `--yarn` and `--yarn-original-ctx`; their meanings and defaults are in the shared execution sections above.
@@ -498,7 +499,7 @@ the device's memory keeps its experts in host memory:
 layers on the CPU, `--cpu-moe` that of every routed layer. Attention, dense
 feed-forward blocks, the embedding table and the output head stay on the
 `--device`, and the residual stream crosses to the CPU and back once per
-offloaded layer. `--threads` then sets the CPU's workers. With
+offloaded layer. `--threads` then sets the CPU's workers. With `--verbose` the placement's lines end with `experts: the feed-forward blocks of N routed layers on the CPU`, and with `--moe-stream-from` the least prompt length streamed to the device. With
 `--device cpu` alone, where the experts already run, `--cpu-moe` and a nonzero `--n-cpu-moe` are refused, naming the flag (`--n-cpu-moe 0` asks for none and is taken), and a model without routed
 layers refuses them on every device, the CPU included, naming the flag
 given.

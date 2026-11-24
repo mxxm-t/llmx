@@ -957,14 +957,21 @@ void matrix_record(infer::LoadedModel& loaded) {
 }
 
 // `then_ids` appends exact generated IDs without re-tokenizing their text, and `last` reports the final positions, through the batched passes a prompt takes or with `per_token` one at a time through step.
+// The --verbose line of a command that reads its text in batched passes or, with --per-token, through decode steps.
+void show_pass_threads(const ExecOptions& exec, bool per_token, const infer::Model& model) {
+    if (exec.verbose) std::cerr << "threads: " << (per_token ? "decode " : "prefill ") << model.threads_available() << "\n";
+}
+
 // These logits support the external correctness gate in docs/ROADMAP.md #8.
 int cmd_logits(const std::string& model_path, const std::string& text, bool as_chat,
                int topn, const ExecOptions& exec, const std::string& then_ids = "", size_t last = 0, bool per_token = false, const Images& images = {}) {
     const std::vector<std::string> image_bytes = images.read("logits");
-    const auto loaded = open_model(model_path, exec, false, exec.threads, prompt_logit_rows(exec), 0, false, nullptr, 0, 0, false, 0, 0, false, {}, {}, std::nullopt, {},
+    const auto loaded = open_model(model_path, exec, false, exec.threads, prompt_logit_rows(exec), 0, exec.verbose, nullptr, 0, 0, false, 0, 0, false, {}, {}, std::nullopt, {},
                                    false, {}, image_bytes.empty() ? std::string() : images.mmproj, images.max_tokens);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
+
+    show_pass_threads(exec, per_token, model);
 
     infer::ImagePrompt turn;
     loaded->chat.refuse_image_text(text);
@@ -1013,8 +1020,7 @@ int cmd_perplexity(const std::string& model_path, const std::string& text,
     const auto loaded = open_model(model_path, exec, false, threads, prompt_logit_rows(exec), 0, exec.verbose);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
-    if (exec.verbose)
-        std::cerr << "threads: " << (per_token ? "decode " : "prefill ") << model.threads_available() << "\n";
+    show_pass_threads(exec, per_token, model);
 
     loaded->chat.refuse_image_text(text);
     std::vector<uint32_t> ids = tok.encode(text);
@@ -1896,7 +1902,8 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --top N                 Number of logits to print (default: " << kLogitsTop << ")\n"
             << "  --then-ids PATH         Append these token IDs, comma or whitespace separated\n"
             << "  --last N                Print each of the last N positions, one per line\n"
-            << "  --per-token             Read every token through decode steps. Default uses batched passes\n";
+            << "  --per-token             Read every token through decode steps. Default uses batched passes\n"
+            << "  --verbose               Show the reading phase's worker count and a split's plan\n";
         if (!ppl) image_options();
         model_options(ppl);
         page << "\nExample: llmx " << command << " model.gguf "
@@ -2139,6 +2146,7 @@ int main(int argc, char** argv) {
                 else if (f == "--then-ids") then_ids = nonempty_value(argc, argv, i, a, "a path");
                 else if (f == "--last") last = (size_t)count_arg(argc, argv, i, a, 1);
                 else if (f == "--per-token") per_token = true;
+                else if (f == "--verbose") exec.verbose = true;
                 else if (f == "--chat") as_chat = true;
                 else if (f == "--chat-template-file") exec.chat_template_file = nonempty_value(argc, argv, i, a, "a path");
                 else if (images_flag(argc, argv, i, a, f, images)) {}

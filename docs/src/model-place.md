@@ -33,6 +33,7 @@ backends its caller made. It reads the plan
   A direct load is held twice on purpose: this fit sizes the hot rows and the KV beside the copy, and the loader refuses the copy itself where it passes what the host can take (`docs/src/inference-load.md`), so neither is a duplicate of the other.
   The plan it places is settled to the options' cache type first (`settle_cache` in `model/runtime.hpp`), and the fit settles the drafter-free plan it reads the same way, so the fit, the split and the model count one set of cache widths.
 - `PlacementRequest::encoder` and `fit_footprint(weights, plan, options, request)`: a media encoder the caller opens beside the model (`EncoderMemory`, [layer split](model-layer_split.md)), copied into every footprint the fit reads, so the embedding's device is charged for it before the KV is sized; `reserve_scratch` makes its widths' scratch on that device, and `build_fitted` keeps room there for its weights and buffers when it checks a built model's devices.
+- `host_experts_line(place)`: the line the plan ends with where experts stay on the host (`--n-cpu-moe`, `--cpu-moe`), giving how many routed layers and, with `--moe-stream-from`, `Placement::stream_tokens`, the least prompt length streamed to the device.
 - `PlacementRequest`, `PlacedModel`: how a caller wants a model placed
   (the activation dtype, the rope request `rope` that `--yarn` gives ([rope](model-rope.md)), the backends' names, layer shares, experts on the CPU and their stream
   point, the ubatch, the decode rows, pass slots and logits rows a split is

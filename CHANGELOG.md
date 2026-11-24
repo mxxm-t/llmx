@@ -32,6 +32,7 @@ Each entry is one short line that links the doc explaining it; reasons, flags an
 
 - `--yarn` now reaches a DFlash or DSpine drafter's rope, as it reaches the target ([usage](docs/USAGE.md)).
 - `--lookup-storage` without lookup tables and `--cpu-moe` or `--n-cpu-moe` with the CPU alone are refused, not ignored ([usage](docs/USAGE.md)).
+- `logits --verbose` and the `experts:` placement line show `--per-token`, `--cpu-moe` and `--moe-stream-from` at work ([usage](docs/USAGE.md#llmx-logits)).
 - `serve` refuses disk cache flags without `--disk-cache-bytes` and `--state-checkpoints` without recurrent layers ([usage](docs/USAGE.md#llmx-serve)).
 - `serve` reports its cache types, threads and load mode at start and in `/v1/health` ([usage](docs/USAGE.md#llmx-serve)).
 - `--mmproj` no longer runs a card out of memory: the fit leaves room for the vision encoder before the KV ([vision](docs/VISION.md)).

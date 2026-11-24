@@ -74,6 +74,8 @@ struct Placement {
     // A routed layer with its feed-forward block on a host and its mixer on a device runs a prompt of at least this many tokens on the device, its experts copied there for each pass.
     // It counts a prompt's whole length (BatchEntry::extent), so a prompt takes one path however it is sliced (row_class); zero keeps every run on the host, and 1 streams what 2 does, since an extent of 1 never streams.
     size_t stream_from = 0;
+    // The least prompt length a streamed pass takes, two at the least.
+    size_t stream_tokens() const { return std::max<size_t>(stream_from, 2); }
     // By layer, the experts such a layer keeps in slots on its mixer's device, which its steps read them through (backend::ExpertSlots); empty, or zero for a layer, keeps its experts on the host.
     std::vector<size_t> expert_slots;
     // A tensor split (docs/TENSOR-SPLIT.md): each device named above is the first member of a group of `width` consecutive backends that run its roles together, each member its shard of every split role; 1 is one device a name.
@@ -1558,7 +1560,7 @@ private:
             if (place_.mixer_device[l] != place_.ffn_device[l]) t.mixed_roles = true;
             if (stream_device_[l] >= 0) {
                 layer.stream_members = group_members(stream_device_[l]);
-                layer.stream_min_prompt_tokens = std::max<size_t>(place_.stream_from, 2);
+                layer.stream_min_prompt_tokens = place_.stream_tokens();
             }
             if (plan_.layers[l].lookup) {
                 const Weight& weight = home_[l][plan_.layers[l].lookup->role];
@@ -2163,7 +2165,7 @@ private:
     }
 
     // Whether rows of this extent take a streamed layer on the device (Placement::stream_from): a prompt long enough, two tokens at the least, never a generated token.
-    bool streams(size_t extent) const { return place_.stream_from && extent >= std::max<size_t>(place_.stream_from, 2); }
+    bool streams(size_t extent) const { return place_.stream_from && extent >= place_.stream_tokens(); }
     bool streams(const Pass& p, size_t e) const { return streams(p.runs[e].extent); }
 
     // A block returns to the pool only once the backend has retired every submission that touched it (docs/KV-CACHE.md).

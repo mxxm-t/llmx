@@ -574,6 +574,14 @@ inline bool host_reads_in_place(const std::vector<backend::BackendPtr>& backends
 // Whether the request puts routed layer l's feed-forward block on the CPU beside its devices: the first `cpu_moe` routed layers, or every one, whichever device runs their mixers.
 inline bool ffn_on_host(const PlacementRequest& request, const std::vector<LayerPlan>& layers, size_t l);
 
+// The plan's line for experts kept on the host (--n-cpu-moe, --cpu-moe), backend 0: how many layers' feed-forward blocks, and the prompt length from which a pass streams them to the device.
+inline std::string host_experts_line(const Placement& place) {
+    const size_t n = (size_t)std::count(place.ffn_device.begin(), place.ffn_device.end(), 0);
+    std::string s = "experts: the feed-forward blocks of " + std::to_string(n) + " routed layers on the CPU";
+    if (place.stream_from) s += ", streamed to the device for a prompt of at least " + std::to_string(place.stream_tokens()) + " tokens";
+    return s + "\n";
+}
+
 // The most slots each layer of experts on the CPU keeps on its device under --expert-cache, the SIZE's cap: its bytes spread evenly over those layers by their largest expert, at most every expert.
 // `expert`, where given, takes the largest expert's bytes.
 inline size_t expert_slots(const ModelWeights& weights, const ModelPlan& plan, const PlacementRequest& request, size_t* expert_out = nullptr) {
@@ -1231,6 +1239,7 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
         }
         placed.placement = std::move(place);
     }
+    if (experts_host) placed.plan += host_experts_line(placed.placement);
     placed.backends = std::move(all);
     placed.options = options;
     placed.dtype = std::move(dtype);

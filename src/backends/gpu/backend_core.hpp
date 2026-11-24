@@ -419,7 +419,7 @@ public:
                op == Op::candidate_blocks || op == Op::compress_pool || op == Op::indexer_scores || op == Op::model_format_qdq || op == Op::model_format_pack || op == Op::pool_write ||
                op == Op::sqrt_softplus_routing || op == Op::silu_mul_clamp || op == Op::rope_forms || op == Op::mix_rows || op == Op::layer_norm || op == Op::gelu || op == Op::add_bias || op == Op::rope_streams ||
                op == Op::attention_full || op == Op::glu_quick_gelu || op == Op::raw_index_scores || op == Op::sparse_attention_blocks || op == Op::attention_window ||
-               op == Op::unit_rows || op == Op::sigmoid_gate_rows || op == Op::matmul_at_ids || op == Op::chain_pick;
+               op == Op::unit_rows || op == Op::sigmoid_gate_rows || op == Op::matmul_at_ids || op == Op::chain_pick || op == Op::tap_weighted_rows;
     }
     // A generated token is a class; a prompt's extent is classed by the tiles it reaches, product, routed and attention (docs/src/backends-gpu.md, batch invariance).
     size_t row_class(size_t extent) const override {
@@ -1591,21 +1591,48 @@ public:
         launch(kSigmoidGateRows, (unsigned)((width + kThreads - 1) / kThreads), (unsigned)rows, args);
     }
     // The head rows gathered by the embedding's kernel into scratch, then a block a (candidate, group) sums each of the group's rows against its candidate.
-    void matmul_at_ids(Slice out, CSlice x, CSlice w, WeightView head, size_t width, size_t nrows, CSlice ids, size_t groups, size_t k, size_t per) override {
-        if (!width || !k || !per || per > k || k > UINT32_MAX || nrows > UINT32_MAX) throw std::runtime_error(Api::prefix + "invalid grouped row dot dimensions");
+    void matmul_at_ids(Slice out, CSlice x, CSlice w, size_t w_stride, WeightView head, size_t width, size_t nrows, CSlice ids, size_t groups, size_t k, size_t per,
+                       CSlice add, size_t add_stride) override {
+        if (!width || !k || !per || per > k || k > UINT32_MAX || nrows > UINT32_MAX || (w_stride && w_stride < width))
+            throw std::runtime_error(Api::prefix + "invalid grouped row dot dimensions");
         if (!groups) return;
         const size_t picks = size_mul(groups, k);
         floats(out, size_mul(picks, k));
         floats(x, size_mul(size_mul(groups, per), width));
-        floats(w, width);
+        floats(w, size_add(size_mul(groups - 1, w_stride), width));
         floats(ids, picks);
+        if (add.buffer) floats(add, size_add(size_mul(groups - 1, add_stride), nrows));
         const size_t need = size_mul(size_mul(picks, width), sizeof(float));
         if (!dot_rows_ || dot_rows_->size() < need) dot_rows_ = alloc(need, Memory::device);
         embed_ids(Slice{dot_rows_.get(), 0}, head, width, nrows, ids, picks);
         unsigned long long wd = width;
         unsigned nr = (unsigned)nrows, kk = (unsigned)k, pp = (unsigned)per;
-        const Args args(f32(out), f32(x), f32(w), (const float*)as_gpu<Api>(*dot_rows_).data(), (const unsigned*)f32(ids), wd, nr, kk, pp);
+        unsigned long long ws = w_stride, as = add_stride;
+        const Args args(f32(out), f32(x), f32(w), (const float*)as_gpu<Api>(*dot_rows_).data(), (const unsigned*)f32(ids), wd, nr, kk, pp, ws,
+                        add.buffer ? f32(add) : (const float*)nullptr, as);
         launch(kMatmulAtIds, kk, (unsigned)groups, args);
+    }
+    void tap_weighted_rows(Slice dst, CSlice src, size_t width, const uint32_t* idx, size_t rows, size_t taps, CSlice base, CSlice coeff, size_t coeff_stride, size_t group,
+                           bool accumulate) override {
+        if (!width || !taps || !group || width % group || width > UINT32_MAX || taps > UINT32_MAX || coeff_stride < size_mul(taps, width / group))
+            throw std::runtime_error(Api::prefix + "invalid tap weighted rows dimensions");
+        if (!rows) return;
+        if (!idx) throw std::runtime_error(Api::prefix + "tap weighted rows without their taps' rows");
+        if (rows > UINT32_MAX) throw std::runtime_error(Api::prefix + "tap weighted rows of more rows than a grid holds");
+        size_t sn = 0;
+        for (size_t i = 0; i < size_mul(rows, taps); ++i)
+            if (idx[i] != UINT32_MAX) sn = std::max(sn, size_t(idx[i]) + 1);
+        const size_t dn = size_mul(rows, width);
+        floats(dst, dn);
+        floats(base, size_mul(taps, width));
+        floats(coeff, size_add(size_mul(rows - 1, coeff_stride), size_mul(taps, width / group)));
+        if (sn) floats(src, size_mul(sn, width));
+        if (sn && overlaps(dst, dn, src, size_mul(sn, width))) throw std::runtime_error(Api::prefix + "tap weighted rows into their own source");
+        unsigned wd = (unsigned)width, tp = (unsigned)taps, gp = (unsigned)group;
+        unsigned long long cs = coeff_stride;
+        int acc = accumulate ? 1 : 0;
+        const Args args(f32(dst), sn ? f32(src) : (const float*)nullptr, f32(base), f32(coeff), (const unsigned*)arg(idx, size_mul(rows, taps) * sizeof(uint32_t)), wd, tp, cs, gp, acc);
+        launch(kTapWeightedRows, (unsigned)((width + kThreads - 1) / kThreads), (unsigned)rows, args);
     }
     void chain_pick(Slice next, CSlice score, CSlice cand, size_t seqs, size_t steps, size_t k) override {
         if (!k || k > UINT32_MAX) throw std::runtime_error(Api::prefix + "a chain over no candidates");
@@ -2041,16 +2068,15 @@ public:
             const int32_t first = (int32_t)table.size();
             table.insert(table.end(), view.blocks, view.blocks + used);
             const size_t extent = view.extent ? view.extent : view.nq;
-            if (view.window && !view.causal) throw std::runtime_error(Api::prefix + "a window on a non-causal view");
             const bool tiled = view.causal && !view.window && extent >= tile_rows && (head_dim == 128 || head_dim == 256) && view.nq;
             if (tiled) {
                 wide.insert(wide.end(), {row0, (int32_t)view.nq, (int32_t)view.length, first, tiles});
                 tiles += (int32_t)((view.nq + 31) / 32);
             }
             narrow = narrow || (!tiled && view.nq);
-            // A windowed row's end is its span, the positions from its start through its own (CpuBackend::attention).
+            // A windowed row's end is its span, the positions from its start, set by its own, through its own or a non-causal view's last (CpuBackend::attention).
             for (size_t b = 0; b < view.nq; ++b) {
-                const size_t end = view.causal ? view.length + b + 1 : view.length + view.nq, begin = view.window && end > view.window ? end - view.window : 0;
+                const size_t own = view.length + b + 1, end = view.causal ? own : view.length + view.nq, begin = view.window && own > view.window ? own - view.window : 0;
                 firsts.push_back(first);
                 ends.push_back(tiled ? 0 : (int32_t)(end - begin));
                 starts.push_back((int32_t)begin);
@@ -2525,7 +2551,7 @@ private:
                   kRowsExactF32, kRowsExactQ8, kRowsExactQ4K, kRowsExactQ5K, kRowsExactQ6K, kRowsExactQ50, kRowsExactQ40, kRowsExactQ41, kRowsExactQ51, kRowsExactBF16, kRowsExactF16, kRowsExactIQ4NL, kRowsExactMXFP4, kRowsExactNVFP4, kRowsExactQ2K, kRowsExactQ3K, kRowsExactIQ4XS, kRowsExactIQ2XXS, kRowsExactIQ2XS, kRowsExactIQ2S, kRowsExactIQ3XXS, kRowsExactIQ3S, kRowsExactIQ1S, kRowsExactIQ1M, kRowsExactTQ10, kRowsExactTQ20, kRowsExactQ10, kRowsExactQ20, kRowsExactF8, kSparseVecG4, kSparseVec256G4, kColsF32x4, kColsF32x8, kColsBF16x4, kColsBF16x8, kColsF16x4, kColsF16x8, kMoeStepRoute,
                   kHcCoeffsCollapse, kHcExpand, kModelFormatQdq, kTopkRows, kCompressPool, kIndexerScores, kIndexerScoresTile, kIndexerScoresInt, kRawIndexScores, kPoolWrite, kSparseScoresFew16, kSparseValuesFew16, kSparseScoresFew8, kSparseValuesFew8, kSparseScoresFew4, kSparseValuesFew4, kSparseScoresFew2, kSparseValuesFew2, kSparseScoresFew32, kSparseValuesFew16x2, kSparseScoresTile, kSparseValuesTile, kSparseScoresTile32, kSparseValuesTile32, kRouteSqrtSoftplus, kRouteStepF32, kRouteStepBF16,
 
-                  kNormRopeForm, kDeltaStep, kMixRows, kLayerNormRows, kGelu, kAddBias, kAttentionChunkWindow, kAttentionVecWindow, kAttentionVec256Window, kUnitRows, kSigmoidGateRows, kMatmulAtIds, kChainPick, kExpertMark, kExpertWave, kExpertPull, kExpertRound,
+                  kNormRopeForm, kDeltaStep, kMixRows, kLayerNormRows, kGelu, kAddBias, kAttentionChunkWindow, kAttentionVecWindow, kAttentionVec256Window, kUnitRows, kSigmoidGateRows, kMatmulAtIds, kChainPick, kTapWeightedRows, kExpertMark, kExpertWave, kExpertPull, kExpertRound,
                   kRows16x1, kRows16x2, kRows16x2r4, kRows16x4, kRows16x4r4, kRows16x8, kRows16x8r4, kRows16x16, kTile16,
                   kRows8x1, kRows8x2, kRows8x2r4, kRows8x4, kRows8x4r4, kRows8x8, kRows8x8r4, kRows8x16, kTile8, kTileReduce,
                   kHalf8x1, kHalf8x1p, kHalf8x1r2, kHalf8x1s1, kHalf8x1r2s1, kHalf8x1r2s4, kHalf8x1h2, kHalf8x1h3, kHalf8x1h4, kHalf8x1h5, kHalf8x1h2p, kHalf8x1h3p, kHalf8x1h4p, kHalf8x1h5p, kHalf8x2, kHalf8x2r4, kHalf8x4, kHalf8x4r4, kHalf8x8, kHalf8x8r4, kHalf8x16, kHalf8x16r4, kHalf8x11, kHalf8x12, kHalf8x13, kHalf8x14, kHalf8x15, kTile16Tall, kTile8Tall, kRouted16, kRouted8, kRoutedHalf8, kRoutedHalf8s1, kGrouped16x2, kGrouped16x4, kGrouped16x8, kGrouped8x2, kGrouped8x4, kGrouped8x8, kGroupedHalf8x2, kGroupedHalf8x4, kGroupedHalf8x8, kRoutedTile16, kRoutedTile8, kRoutedNarrow16, kRoutedNarrow8, kRoutedStream8, kRoutedThinMXFP416,
@@ -2562,7 +2588,7 @@ private:
                                                            "llmx_twin16", "llmx_twin8", "llmx_silu_mul_twin16_major", "llmx_silu_mul_twin8_major",
                                                            "llmx_rms_norm_16_twin16_major", "llmx_rms_norm_16_twin8_major", "llmx_rms_norm_32_twin16_major",
                                                            "llmx_rms_norm_32_twin8_major", "llmx_attention_vec_major", "llmx_attention_vec_merge_major",
-                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_group_chain", "llmx_group_shares", "llmx_group_copies", "llmx_group_arm", "llmx_group_add_check", "llmx_group_push", "llmx_group_take", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_kv_index_all", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_attention_gated256", "llmx_attention_gated_merge256", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_argmax_part", "llmx_argmax_pick", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q4_0", "llmx_routed_q4_1", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_f16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_routed_nvfp4", "llmx_routed_q2_k", "llmx_routed_q3_k", "llmx_routed_iq4_xs", "llmx_routed_iq2_xxs", "llmx_routed_iq2_xs", "llmx_routed_iq2_s", "llmx_routed_iq3_xxs", "llmx_routed_iq3_s", "llmx_routed_iq1_s", "llmx_routed_iq1_m", "llmx_routed_tq1_0", "llmx_routed_tq2_0", "llmx_routed_q1_0", "llmx_routed_q2_0", "llmx_routed_f8_e4m3", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q4_0", "llmx_matmul_rows_q4_1", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_f16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_matmul_rows_nvfp4", "llmx_matmul_rows_q2_k", "llmx_matmul_rows_q3_k", "llmx_matmul_rows_iq4_xs", "llmx_matmul_rows_iq2_xxs", "llmx_matmul_rows_iq2_xs", "llmx_matmul_rows_iq2_s", "llmx_matmul_rows_iq3_xxs", "llmx_matmul_rows_iq3_s", "llmx_matmul_rows_iq1_s", "llmx_matmul_rows_iq1_m", "llmx_matmul_rows_tq1_0", "llmx_matmul_rows_tq2_0", "llmx_matmul_rows_q1_0", "llmx_matmul_rows_q2_0", "llmx_matmul_rows_f8_e4m3", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols4_f32", "llmx_matmul_cols8_f32", "llmx_matmul_cols4_bf16", "llmx_matmul_cols8_bf16", "llmx_matmul_cols4_f16", "llmx_matmul_cols8_f16", "llmx_moe_step_route", "llmx_hc_coeffs_collapse", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_indexer_scores_tile", "llmx_indexer_scores_int", "llmx_raw_index_scores", "llmx_pool_write", "llmx_sparse_scores_few16", "llmx_sparse_values_few16", "llmx_sparse_scores_few8", "llmx_sparse_values_few8", "llmx_sparse_scores_few4", "llmx_sparse_values_few4", "llmx_sparse_scores_few2", "llmx_sparse_values_few2", "llmx_sparse_scores_few32", "llmx_sparse_values_few16x2", "llmx_sparse_scores_tile", "llmx_sparse_values_tile", "llmx_sparse_scores_tile32", "llmx_sparse_values_tile32", "llmx_route_sqrt_softplus", "llmx_route_step_f32", "llmx_route_step_bf16", "llmx_norm_rope_form", "llmx_delta_step", "llmx_mix_rows", "llmx_layer_norm_rows", "llmx_gelu", "llmx_add_bias", "llmx_attention_chunk_window", "llmx_attention_vec_window", "llmx_attention_vec256_window", "llmx_unit_rows", "llmx_sigmoid_gate_rows", "llmx_matmul_at_ids", "llmx_chain_pick", "llmx_expert_mark", "llmx_expert_wave", "llmx_expert_pull", "llmx_expert_round", "llmx_q8_0_rows16_1",
+                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_group_chain", "llmx_group_shares", "llmx_group_copies", "llmx_group_arm", "llmx_group_add_check", "llmx_group_push", "llmx_group_take", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_kv_index_all", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_attention_gated256", "llmx_attention_gated_merge256", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_argmax_part", "llmx_argmax_pick", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q4_0", "llmx_routed_q4_1", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_f16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_routed_nvfp4", "llmx_routed_q2_k", "llmx_routed_q3_k", "llmx_routed_iq4_xs", "llmx_routed_iq2_xxs", "llmx_routed_iq2_xs", "llmx_routed_iq2_s", "llmx_routed_iq3_xxs", "llmx_routed_iq3_s", "llmx_routed_iq1_s", "llmx_routed_iq1_m", "llmx_routed_tq1_0", "llmx_routed_tq2_0", "llmx_routed_q1_0", "llmx_routed_q2_0", "llmx_routed_f8_e4m3", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q4_0", "llmx_matmul_rows_q4_1", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_f16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_matmul_rows_nvfp4", "llmx_matmul_rows_q2_k", "llmx_matmul_rows_q3_k", "llmx_matmul_rows_iq4_xs", "llmx_matmul_rows_iq2_xxs", "llmx_matmul_rows_iq2_xs", "llmx_matmul_rows_iq2_s", "llmx_matmul_rows_iq3_xxs", "llmx_matmul_rows_iq3_s", "llmx_matmul_rows_iq1_s", "llmx_matmul_rows_iq1_m", "llmx_matmul_rows_tq1_0", "llmx_matmul_rows_tq2_0", "llmx_matmul_rows_q1_0", "llmx_matmul_rows_q2_0", "llmx_matmul_rows_f8_e4m3", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols4_f32", "llmx_matmul_cols8_f32", "llmx_matmul_cols4_bf16", "llmx_matmul_cols8_bf16", "llmx_matmul_cols4_f16", "llmx_matmul_cols8_f16", "llmx_moe_step_route", "llmx_hc_coeffs_collapse", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_indexer_scores_tile", "llmx_indexer_scores_int", "llmx_raw_index_scores", "llmx_pool_write", "llmx_sparse_scores_few16", "llmx_sparse_values_few16", "llmx_sparse_scores_few8", "llmx_sparse_values_few8", "llmx_sparse_scores_few4", "llmx_sparse_values_few4", "llmx_sparse_scores_few2", "llmx_sparse_values_few2", "llmx_sparse_scores_few32", "llmx_sparse_values_few16x2", "llmx_sparse_scores_tile", "llmx_sparse_values_tile", "llmx_sparse_scores_tile32", "llmx_sparse_values_tile32", "llmx_route_sqrt_softplus", "llmx_route_step_f32", "llmx_route_step_bf16", "llmx_norm_rope_form", "llmx_delta_step", "llmx_mix_rows", "llmx_layer_norm_rows", "llmx_gelu", "llmx_add_bias", "llmx_attention_chunk_window", "llmx_attention_vec_window", "llmx_attention_vec256_window", "llmx_unit_rows", "llmx_sigmoid_gate_rows", "llmx_matmul_at_ids", "llmx_chain_pick", "llmx_tap_weighted_rows", "llmx_expert_mark", "llmx_expert_wave", "llmx_expert_pull", "llmx_expert_round", "llmx_q8_0_rows16_1",
 
                                                            "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_2_r4", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_4_r4",
                                                            "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_8_r4", "llmx_q8_0_rows16_16", "llmx_q8_0_tile16", "llmx_q8_0_rows8_1",

@@ -54,14 +54,16 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   for one, its roles all `Part::draft`, which run on the head's device, and
   `draft_x`, the arena slot of a draft step's residual rows, which a tensor group sums into, and
   `draft_h`, the arena slot its context rows leave the target's
-  final-normed rows in, 0 for a drafter whose context rows read no row of the target before each row, `draft_block`, the most drafts one of its calls gives, 0 for one, `draft_anchor`, the rows a call runs a sequence before its block's, which draft nothing (1 for a DFlash drafter, whose first row holds the last pick; `draft_call_rows` gives a call's rows), `draft_window`, the positions before a history's end whose context rows a draft reads, 0 for all of them, and `draft_kv_layers`, the consecutive KV layers a KV drafter keeps, 1 by default, `Step::kv_layer` naming the first, with `draft_kv` their K and V heads and width where they differ from the target's, none by default, `draft_kv_shape` giving the shape either way; `drafts_whole` true for a drafter that splits no role, which runs whole on a tensor group's first member).
+  final-normed rows in, 0 for a drafter whose context rows read no row of the target before each row, `draft_block`, the most drafts one of its calls gives, 0 for one, `draft_anchor`, the rows a call runs a sequence before its block's, which draft nothing (1 for a DFlash drafter, whose first row holds the last pick; `draft_call_rows` gives a call's rows), `draft_window`, the positions before a history's end whose context rows a draft reads, 0 for all of them, `draft_causal`, whether a draft call's rows attend causally, true by default and false for a DFlash2 drafter, whose rows each see the whole block, and `draft_kv_layers`, the consecutive KV layers a KV drafter keeps, 1 by default, `Step::kv_layer` naming the first, with `draft_kv` their K and V heads and width where they differ from the target's, none by default, `draft_kv_shape` giving the shape either way; `drafts_whole` true for a drafter that splits no role, which runs whole on a tensor group's first member).
   `carries_row(plan)` holds where the drafter carries each sequence's last normed row from one pass to the next (`draft_h` nonzero), which decides the runtime's carried row, zero row, saved rows and the fit's count of them; `draft_calls(plan, k)` gives the calls that make k drafts.
   The drafter's cache is KV, or a state slot where its `LayerPlan` keeps entries.
   - A `RoleKind` says how a role's tensor is checked and whether the fit
     counts it as a product: `norm` is F32 `[in]`, `matrix` is `[in, out]`
     read by a product, `gather` is checked as a matrix and gathered by the
     embedding, `experts` is exactly `[in, out, experts]`, and `table` is
-    an F32 `[in, out]` an op reads whole, such as a convolution's taps,
+    an F32 `[in, out]` an op reads whole, such as a convolution's taps, or
+    one a role with `sides` set holds as exactly `[in, out / sides, sides]`,
+    as a DFlash2 base's `[width, taps, 2]` does,
     which the fit does not count as a product, and `source` is an
     `[in, out]` of any type read on the host only to fill a table, never
     placed on a device nor counted in a device's bytes, its second axis
@@ -112,7 +114,7 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   draft step's token ids, the rows before them where it carries a row (gathered by `prev_rows`
   where they are rows of the carried rows), the drafted ids, its output
   rows after the drafter's final norm and its logits, `ids` drafts a sequence (`draft_block`, 1 for none), draft j of sequence i at position `pos[i * ids + j]` in row j * `stride` + i, the output rows being the next call's `prev`, and with `lookup` whether part 0 reads the embedding table itself, only reads it on the table's device, or takes the rows that crossed from there.
-  The cache views of both are the drafter's KV layers' (`kv_layer` the first of `draft_kv_layers`) or state layer's; a drafter that reads a window sets `ModelPlan::draft_window`, which the chain sets as `KVView::window` on the views it attends through, and declares `Op::attention_window`.
+  The cache views of both are the drafter's KV layers' (`kv_layer` the first of `draft_kv_layers`) or state layer's; a drafter that reads a window sets `ModelPlan::draft_window`, which the chain sets as `KVView::window` on the views it attends through, as it sets `draft_causal` as `KVView::causal`, and declares `Op::attention_window`.
   An external table lookup adds `lookup`, a borrowed `PreparedLookup`: packed
   unique rows in `data`, their count in `rows`, and ordered request IDs remapped
   into that table in `ids`. The runtime prepares it before recording the graph;

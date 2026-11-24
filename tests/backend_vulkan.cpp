@@ -3881,7 +3881,7 @@ size_t check_refusals(backend::Backend& vk) {
     require(!vk.implements(backend::Op::mixed_experts), "Vulkan advertises unsupported mixed routed projections");
     require(!vk.implements(backend::Op::sigmoid_routing), "Vulkan advertises sigmoid routing, which it does not run");
     // An op the backend does not list, as a new op is until it is, is refused.
-    require(!vk.implements(backend::Op(uint8_t(backend::Op::chain_pick) + 1)), "Vulkan advertises an op it does not list");
+    require(!vk.implements(backend::Op(uint8_t(backend::Op::tap_weighted_rows) + 1)), "Vulkan advertises an op it does not list");
     // DeepSeek-V4.1's ops and modes, which ds4::check_ops holds to the CPU.
     for (backend::Op op : {backend::Op::sqrt_softplus_routing, backend::Op::silu_mul_clamp, backend::Op::rope_forms, backend::Op::hc_coeffs, backend::Op::pool_write})
         require(vk.implements(op), (std::string("Vulkan lacks ") + backend::op_name(op)).c_str());

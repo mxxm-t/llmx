@@ -1004,7 +1004,6 @@ public:
             const KVView& view = views[vi];
             if (!view.nq || view.nq > (size_t)std::numeric_limits<int>::max())
                 throw std::runtime_error("backend: invalid attention dimensions");
-            if (view.window && !view.causal) throw std::runtime_error("backend: a window on a non-causal view");
             const int nbatch = (int)view.nq;
             const float* Q = Q_all + row0 * q_stride;
             float* out = out_all + row0 * q_stride;
@@ -1019,8 +1018,8 @@ public:
                 const size_t kvh = (size_t)(h / ratio);
                 float* scores = attention_scores_.data() + (size_t)h * sequence;
                 for (int b = 0; b < nbatch; ++b) {
-                    const size_t end = view.causal ? view.length + (size_t)b + 1 : sequence;
-                    const size_t begin = view.window && end > view.window ? end - view.window : 0;
+                    const size_t own = view.length + (size_t)b + 1, end = view.causal ? own : sequence;
+                    const size_t begin = view.window && own > view.window ? own - view.window : 0;
                     const float* q = Q + (size_t)b * q_stride + (size_t)h * hd;
                     float max_score = -std::numeric_limits<float>::infinity();
                     for (size_t t0 = begin - begin % bt; t0 < end; t0 += bt) {
@@ -2208,28 +2207,64 @@ public:
         }
     }
 
-    void matmul_at_ids(Slice out_s, CSlice x_s, CSlice w_s, WeightView head, size_t width, size_t nrows, CSlice ids_s, size_t groups, size_t k, size_t per) override {
-        if (!width || !k || !per || per > k) throw std::runtime_error("backend: invalid grouped row dot dimensions");
+    void matmul_at_ids(Slice out_s, CSlice x_s, CSlice w_s, size_t w_stride, WeightView head, size_t width, size_t nrows, CSlice ids_s, size_t groups, size_t k,
+                       size_t per, CSlice add_s, size_t add_stride) override {
+        if (!width || !k || !per || per > k || (w_stride && w_stride < width)) throw std::runtime_error("backend: invalid grouped row dot dimensions");
         if (!groups) return;
         validate_float_slice(out_s, size_mul(size_mul(groups, k), k));
         validate_float_slice(x_s, size_mul(size_mul(groups, per), width));
-        validate_float_slice(w_s, width);
+        validate_float_slice(w_s, size_mul(groups - 1, w_stride) + width);
         validate_float_slice(ids_s, size_mul(groups, k));
+        if (add_s.buffer) validate_float_slice(add_s, size_mul(groups - 1, add_stride) + nrows);
         float* out = at(out_s);
-        const float *x = at(x_s), *w = at(w_s), *ids = at(ids_s);
+        const float *x = at(x_s), *w0 = at(w_s), *ids = at(ids_s), *add = add_s.buffer ? at(add_s) : nullptr;
         std::vector<float> rows(size_mul(size_mul(groups, k), width));
         std::vector<uint32_t> picked(groups * k);
         for (size_t i = 0; i < groups * k; ++i) picked[i] = u32_at(ids, i);
         embed_rows(rows.data(), head, width, nrows, picked.data(), groups * k);
         spread(groups, [&](size_t g) {
+            const float* w = w0 + g * w_stride;
             for (size_t j = 0; j < per; ++j)
                 for (size_t c = 0; c < k; ++c) {
                     const float* xr = x + (g * per + j) * width;
                     const float* hr = rows.data() + (g * k + c) * width;
+                    const uint32_t id = picked[g * k + c];
                     double sum = 0.0;
                     for (size_t e = 0; e < width; ++e) sum += double(xr[e]) * double(w[e]) * double(hr[e]);
-                    out[(g * k + j) * k + c] = picked[g * k + c] < nrows ? float(sum) : -std::numeric_limits<float>::infinity();
+                    if (add && id < nrows) sum += double(add[g * add_stride + id]);
+                    out[(g * k + j) * k + c] = id < nrows ? float(sum) : -std::numeric_limits<float>::infinity();
                 }
+        });
+    }
+
+    void tap_weighted_rows(Slice dst_s, CSlice src_s, size_t width, const uint32_t* idx, size_t rows, size_t taps, CSlice base_s, CSlice coeff_s, size_t coeff_stride,
+                           size_t group, bool accumulate) override {
+        if (!width || !taps || !group || width % group || coeff_stride < taps * (width / group)) throw std::runtime_error("backend: invalid tap weighted rows dimensions");
+        if (!rows) return;
+        if (!idx) throw std::runtime_error("backend: tap weighted rows without their taps' rows");
+        validate_float_slice(dst_s, size_mul(rows, width));
+        validate_float_slice(base_s, size_mul(taps, width));
+        validate_float_slice(coeff_s, size_mul(rows - 1, coeff_stride) + taps * (width / group));
+        size_t src_rows = 0;
+        for (size_t i = 0; i < rows * taps; ++i)
+            if (idx[i] != UINT32_MAX) src_rows = std::max(src_rows, size_t(idx[i]) + 1);
+        if (src_rows) validate_float_slice(src_s, size_mul(src_rows, width));
+        if (src_rows && dst_s.buffer == src_s.buffer && dst_s.offset < src_s.offset + src_rows * width && src_s.offset < dst_s.offset + rows * width)
+            throw std::runtime_error("backend: tap weighted rows into their own source");
+        float* dst = at(dst_s);
+        const float *src = src_rows ? at(src_s) : nullptr, *base = at(base_s), *coeff = at(coeff_s);
+        const size_t G = width / group;
+        // The taps sum in order before the row adds into dst, as the convolution's own output then a residual add would.
+        spread(rows, [&](size_t r) {
+            float* y = dst + r * width;
+            const uint32_t* from = idx + r * taps;
+            const float* a = coeff + r * coeff_stride;
+            for (size_t c = 0; c < width; ++c) {
+                float sum = 0.0f;
+                for (size_t t = 0; t < taps; ++t)
+                    if (from[t] != UINT32_MAX) sum += (base[t * width + c] + a[t * G + c / group]) * src[size_t(from[t]) * width + c];
+                y[c] = accumulate ? y[c] + sum : sum;
+            }
         });
     }
 

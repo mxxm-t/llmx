@@ -27,7 +27,7 @@ enum class RoleKind : uint8_t {
     matrix,   // [in, out], trailing axes of one, read by a matrix product
     gather,   // checked as a matrix, its rows gathered by the embedding
     experts,  // exactly [in, out, experts], a routed stack
-    table,    // F32, [in, out], trailing axes of one, read whole by an op rather than by a matrix product
+    table,    // F32, [in, out], trailing axes of one, or [in, out / sides, sides] (Role::sides), read whole by an op rather than by a matrix product
     source,   // [in, out] of any type, trailing axes of one, read on the host only to fill a table (Architecture::fill_tables), never placed on a device
 };
 
@@ -66,12 +66,15 @@ struct Role {
     std::optional<size_t> tensor = std::nullopt;   // the view it reads, its name's or else its alias's, absent when the file has neither
     bool aliased = false;                          // that view is its alias's
     Shard shard{};
+    uint64_t sides = 0;   // a table stored [in, out / sides, sides], as a kernel's two sides are; 0 for [in, out]
 };
 
-// Whether a tensor of `shape` and `type` fits `role` by its kind: a stack's exact three axes, or `in` first, F32 for a norm or a table, `out` second for the rest, or a run of rows inside `tensor_rows`, and every further axis one.
+// Whether a tensor of `shape` and `type` fits `role` by its kind: a stack's or a sided table's exact three axes, or `in` first, F32 for a norm or a table, `out` second for the rest, or rows inside `tensor_rows`, and every further axis one.
 // A norm and a source of one column are vectors, whose second axis may be absent.
 inline bool role_fits(const Role& role, const std::vector<uint64_t>& shape, uint32_t type) {
     if (role.kind == RoleKind::experts) return shape.size() == 3 && shape[0] == role.in && shape[1] == role.out && shape[2] == role.experts;
+    if (role.kind == RoleKind::table && role.sides)
+        return shape.size() == 3 && shape[0] == role.in && shape[2] == role.sides && shape[1] * role.sides == role.out && type == quant::GGML_TYPE_F32;
     const bool norm = role.kind == RoleKind::norm || (role.kind == RoleKind::source && role.out == 1);
     bool valid = !shape.empty() && shape[0] == role.in;
     if (norm) {
@@ -206,6 +209,8 @@ struct ModelPlan {
     size_t draft_ids = 0, draft_rows_x = 0;
     // The positions before a history's end that a draft reads the drafter's context rows of, 0 where it reads them all; a prompt's slices before those leave them out (BatchEntry::context).
     size_t draft_window = 0;
+    // Whether a draft call's rows attend causally; a non-causal drafter's rows each see the whole block (KVView::causal).
+    bool draft_causal = true;
     // The KV layers the drafter keeps on the head's device, consecutive, Step::kv_layer naming the first, where its cache is KV.
     size_t draft_kv_layers = 1;
     // Their K and V heads and width where they differ from the target's, else none (draft_kv_shape).

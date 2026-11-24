@@ -1250,6 +1250,9 @@ const uint32_t kSpvRowsDotGroup[] = {
 const uint32_t kSpvChainPick[] = {
 #include "vulkan/chain_pick.inc"
 };
+const uint32_t kSpvTapWeightedRows[] = {
+#include "vulkan/tap_weighted_rows.inc"
+};
 // A tensor group's flagged sum through the peers' inboxes, sender and receiver (docs/TENSOR-SPLIT.md); their spins read the device clock.
 const uint32_t kSpvFlagPush[] = {
 #include "vulkan/flag_push.inc"
@@ -1620,8 +1623,9 @@ const uint32_t kSpvFlagRecv[] = {
     X(K_ATTENTION_VEC_D256_KV16_WINDOW, "attention_vec_d256_kv16_window", kSpvAttentionVecD256KV16Window, sizeof(kSpvAttentionVecD256KV16Window), 7, nullptr) \
     X(K_UNIT_ROWS, "unit_rows", kSpvUnitRows, sizeof(kSpvUnitRows), 3, nullptr) \
     X(K_CODE_MESSAGES, "sigmoid_gate_rows", kSpvCodeMessages, sizeof(kSpvCodeMessages), 7, nullptr) \
-    X(K_ROWS_DOT_GROUP, "matmul_at_ids", kSpvRowsDotGroup, sizeof(kSpvRowsDotGroup), 5, nullptr) \
+    X(K_ROWS_DOT_GROUP, "matmul_at_ids", kSpvRowsDotGroup, sizeof(kSpvRowsDotGroup), 6, nullptr) \
     X(K_CHAIN_PICK, "chain_pick", kSpvChainPick, sizeof(kSpvChainPick), 3, nullptr) \
+    X(K_TAP_WEIGHTED_ROWS, "tap_weighted_rows", kSpvTapWeightedRows, sizeof(kSpvTapWeightedRows), 5, nullptr) \
     X(K_HOLD, "hold", kSpvHold, sizeof(kSpvHold), 1, nullptr) \
     X(K_FLAG_PUSH, "flag_push", kSpvFlagPush, sizeof(kSpvFlagPush), 3, kFlagPushCounts) \
     X(K_FLAG_RECV, "flag_recv", kSpvFlagRecv, sizeof(kSpvFlagRecv), 6, kFlagRecvCounts)

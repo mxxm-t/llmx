@@ -977,19 +977,37 @@ extern "C" __global__ void llmx_sigmoid_gate_rows(float* msg, const float* q, co
     const unsigned long long qa = (unsigned long long)q_rows[r] * width + i, fa = (unsigned long long)from[r] * width + i;
     y[i] = v[fa] / (1.0f + expf(-(q[qa] + s[fa] + bias[i]))) * scale[q_rows[r]];
 }
-// A block a (candidate c, group g) over the head rows gathered into `rows`: out[g*k*k + j*k + c] = the double sum of x row g*per+j times w times head row g*k+c, -inf for an id of nrows or more.
-extern "C" __global__ void llmx_matmul_at_ids(float* out, const float* x, const float* w, const float* rows, const unsigned* ids, unsigned long long width, unsigned nrows,
-                                               unsigned k, unsigned per) {
+// Backend::matmul_at_ids, a block a (candidate c, group g) over the head rows gathered into `rows`, each sum in double; an id of nrows or more scores -inf.
+extern "C" __global__ void llmx_matmul_at_ids(float* out, const float* x, const float* w0, const float* rows, const unsigned* ids, unsigned long long width, unsigned nrows,
+                                               unsigned k, unsigned per, unsigned long long w_stride, const float* add, unsigned long long add_stride) {
     const unsigned c = blockIdx.x, g = blockIdx.y;
     const float* h = rows + ((unsigned long long)g * k + c) * width;
-    const bool valid = ids[g * k + c] < nrows;
+    const float* w = w0 + g * w_stride;
+    const unsigned id = ids[g * k + c];
+    const bool valid = id < nrows;
     for (unsigned j = 0; j < per; ++j) {
         const float* xr = x + ((unsigned long long)g * per + j) * width;
         double sum = 0.0;
         for (unsigned long long e = threadIdx.x; e < width; e += kThreads) sum += __dmul_rn((double)xr[e] * (double)w[e], (double)h[e]);
         sum = block_sum_double(sum);
+        if (add && valid) sum += (double)add[g * add_stride + id];
         if (threadIdx.x == 0) out[((unsigned long long)g * k + j) * k + c] = valid ? (float)sum : -INFINITY;
     }
+}
+// A block a (column run, row r): dst row r (+)= the sum over taps t of (base[t*width + c] + coeff[r*coeff_stride + t*(width/group) + c/group]) * src row idx[r*taps + t], ~0u adding nothing.
+extern "C" __global__ void llmx_tap_weighted_rows(float* dst, const float* src, const float* base, const float* coeff, const unsigned* idx, unsigned width, unsigned taps,
+                                                  unsigned long long coeff_stride, unsigned group, int accumulate) {
+    const unsigned r = blockIdx.y, c = blockIdx.x * kThreads + threadIdx.x;
+    if (c >= width) return;
+    const float* a = coeff + r * coeff_stride;
+    const unsigned G = width / group;
+    float sum = 0.0f;
+    for (unsigned t = 0; t < taps; ++t) {
+        const unsigned from = idx[r * taps + t];
+        if (from != ~0u) sum += (base[(unsigned long long)t * width + c] + a[t * G + c / group]) * src[(unsigned long long)from * width + c];
+    }
+    float* y = dst + (unsigned long long)r * width + c;
+    *y = accumulate ? *y + sum : sum;
 }
 // A thread a chain: the walk of Backend::chain_pick, ties to the lower index.
 extern "C" __global__ void llmx_chain_pick(unsigned* next, const float* score, const unsigned* cand, unsigned seqs, unsigned steps, unsigned k) {

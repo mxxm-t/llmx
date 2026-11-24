@@ -15,6 +15,8 @@ layout(push_constant) uniform P {
     // A windowed row attends only positions above its own minus `window` (KVView::window), in the place attention.comp's non-causal build keeps its first workgroup.
     uint window;
     uint xrows;
+    // A non-causal view's rows read through the block's last row (`open` set), still from their own position minus `window`.
+    uint open;
 #else
     // Unread here: the place attention.comp's non-causal build keeps its first workgroup.
     uint wg0;
@@ -127,7 +129,8 @@ void main() {
     uint start = 0u, end = p.selected_stride << p.id_shift;
     uint sb = slot_base(view_row0(v) + b, kvh);
 #elif defined(LLMX_WINDOW)
-    uint whole = view_hist(v) + b + 1u, begin = whole > p.window ? whole - p.window : 0u;
+    uint own = view_hist(v) + b + 1u, begin = own > p.window ? own - p.window : 0u;
+    uint whole = p.open != 0u ? view_hist(v) + view_nq(v) : own;
     uint len = whole - begin, chunk = p.chunk;
     while ((len + chunk - 1u) / chunk > p.max_parts) chunk *= 2u;
     uint start = min(split * chunk, len);

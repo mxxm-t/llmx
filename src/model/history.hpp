@@ -1422,8 +1422,8 @@ inline std::unique_ptr<Model::Chain> Model::draft_begin(const DraftAsk* asks, si
     if (c->order.empty()) return nullptr;
     c->block = std::max<size_t>(plan_.draft_block, 1);
     c->call_rows = draft_call_rows(plan_);
-    // A drafter with anchor rows attends causally inside its block (dflash::Config refuses other attention), so a block cut to the longest chain gives that chain's drafts.
-    if (plan_.draft_anchor && c->steps < c->block) {
+    // A drafter with anchor rows that attends causally inside its block gives a chain's drafts from a block cut to the longest chain; a non-causal one (DFlash2) runs its whole block.
+    if (plan_.draft_anchor && plan_.draft_causal && c->steps < c->block) {
         c->block = c->steps;
         c->call_rows = c->block + plan_.draft_anchor;
     }
@@ -1474,6 +1474,7 @@ inline std::unique_ptr<Model::Chain> Model::draft_begin(const DraftAsk* asks, si
                     v.nq = A;
                     v.extent = A;
                     v.window = plan_.draft_window;
+                    v.causal = plan_.draft_causal;
                 }
                 // A state drafter's step reads the slot the history's last stage left and writes its rows past the history into the live slot, which a verify writes again.
                 for (size_t k = 0; k < K && !kv; ++k)

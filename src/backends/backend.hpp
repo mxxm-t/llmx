@@ -330,7 +330,7 @@ struct KVView {
     size_t extent = 0;
     // A non-causal view's rows attend every position of the view, length + nq, as a vision encoder's rows see their whole image (docs/VISION.md, section 3).
     bool causal = true;
-    // A causal view's row at position p attends only positions above p - window, 0 for all, a sliding window (Op::attention_window, docs/SPECULATIVE.md, section 11).
+    // A row at position p attends only positions above p - window, 0 for all, a sliding window (Op::attention_window, docs/SPECULATIVE.md, section 11); a non-causal row still sees the view's later rows.
     size_t window = 0;
 };
 
@@ -474,7 +474,7 @@ enum class Op : uint8_t { causal_conv_silu, gated_delta_rule, gated_rms_norm, no
                           layer_norm, gelu, add_bias, mix_rows, rope_streams, attention_full, hc_coeffs, hc_collapse_norm, hc_expand,
                           sparse_attention_sink, topk_rows, candidate_blocks, compress_pool, indexer_scores, model_format_qdq, model_format_pack, pool_write,
                           sqrt_softplus_routing, silu_mul_clamp, rope_forms, sigmoid_routing, glu_quick_gelu, raw_index_scores, sparse_attention_blocks, attention_window,
-                          unit_rows, sigmoid_gate_rows, matmul_at_ids, chain_pick };
+                          unit_rows, sigmoid_gate_rows, matmul_at_ids, chain_pick, tap_weighted_rows };
 inline const char* op_name(Op op) {
     switch (op) {
         case Op::causal_conv_silu: return "causal_conv_silu";
@@ -523,6 +523,7 @@ inline const char* op_name(Op op) {
         case Op::sigmoid_gate_rows: return "sigmoid_gate_rows";
         case Op::matmul_at_ids: return "matmul_at_ids";
         case Op::chain_pick: return "chain_pick";
+        case Op::tap_weighted_rows: return "tap_weighted_rows";
     }
     return "an unknown op";
 }
@@ -1271,16 +1272,23 @@ public:
         lacks(Op::sigmoid_gate_rows);
     }
 
-    // out[g*k*k + j*k + c] = the sum over `width` of x row g*per+j times the per-column weight w times head row ids[g*k+c], for j below per <= k and c below k; an id of nrows or more scores -inf.
-    // Rows j from per to k of each group are left unwritten.
-    virtual void matmul_at_ids(Slice /*out*/, CSlice /*x*/, CSlice /*w*/, WeightView /*head*/, size_t /*width*/, size_t /*nrows*/, CSlice /*ids*/, size_t /*groups*/,
-                                size_t /*k*/, size_t /*per*/) {
+    // out[g*k*k + j*k + c] = the sum over `width` of x row g*per+j times the per-column weight row w + g*w_stride times head row ids[g*k+c], plus add[g*add_stride + ids[g*k+c]] where `add` has a buffer, for j below per <= k and c below k.
+    // An id of nrows or more scores -inf, and rows j from per to k of each group are left unwritten.
+    virtual void matmul_at_ids(Slice /*out*/, CSlice /*x*/, CSlice /*w*/, size_t /*w_stride*/, WeightView /*head*/, size_t /*width*/, size_t /*nrows*/, CSlice /*ids*/,
+                                size_t /*groups*/, size_t /*k*/, size_t /*per*/, CSlice /*add*/, size_t /*add_stride*/) {
         lacks(Op::matmul_at_ids);
     }
 
     // A walk over k candidates a step: for each of `seqs` chains, j = the best of score[i][0], then next[t*seqs+i] = cand[(t*seqs+i)*k + j] and j = the best of score[(t+1)*seqs+i][j], a tie to the lower index.
     virtual void chain_pick(Slice /*next*/, CSlice /*score*/, CSlice /*cand*/, size_t /*seqs*/, size_t /*steps*/, size_t /*k*/) {
         lacks(Op::chain_pick);
+    }
+
+    // dst row r (+)= the sum over t below `taps` of (base[t*width + c] + coeff[r*coeff_stride + t*(width/group) + c/group]) * src row idx[r*taps + t], channel c of `width`, an idx of UINT32_MAX adding nothing.
+    // A convolution whose kernel each row shifts by coefficients shared within groups of `group` channels; dst must not overlap src.
+    virtual void tap_weighted_rows(Slice /*dst*/, CSlice /*src*/, size_t /*width*/, const uint32_t* /*idx*/, size_t /*rows*/, size_t /*taps*/, CSlice /*base*/,
+                                   CSlice /*coeff*/, size_t /*coeff_stride*/, size_t /*group*/, bool /*accumulate*/) {
+        lacks(Op::tap_weighted_rows);
     }
 
     // The k best blocks of block_size positions of each row, each scored by its best position, the block of the row's newest position pinned first.

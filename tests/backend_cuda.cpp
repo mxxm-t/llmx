@@ -1040,7 +1040,7 @@ int main(int argc, char** argv) {
     if (!only_types) moe(d, *g, *cpu);
     if (!only_types) deepseek4(*g);
     if (!only_types) guarded("attention tiles", [&] { attention_tiles::check(*g, cuda_take_launches, require); attention_tiles::check_long(*g, cuda_take_launches, require); dspine_checks::window(*g, *cpu, cuda_take_launches, require); });
-    if (!only_types) guarded("dspine ops", [&] { dspine_checks::ops(*g, *cpu, require, {1, 4, 1}); });
+    if (!only_types) guarded("dspine ops", [&] { dspine_checks::ops(*g, *cpu, require, {1, 4, 1}); dspine_checks::dflash2_ops(*g, *cpu, require, 0, 1); });
     if (!only_types) vision_ops(*g);
     if (!only_types) groups();
     return failures ? 1 : 0;

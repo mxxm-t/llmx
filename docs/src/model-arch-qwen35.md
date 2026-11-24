@@ -122,7 +122,7 @@ conversation's prefix through state checkpoints ([server](server.md)).
     `eh_proj`, and its full-attention layer and feed-forward block under
     the decoder layers' names, all `Part::draft`, with the drafter's ops
     and four more arena slots, the first `draft_h`.
-    A joined DFlash sidecar (`Config::dflash`, [dflash](model-arch-dflash.md)) drafts in place of the MTP block (`plan_dflash`): `fc` and `enc.output_norm` over the taps, each drafter layer's roles from `dflash_layers` on (`dflash_role`), the code bridge, its final norm and the target's embedding and head, `draft_kv_layers` KV layers and `draft_window` its window. Where its K and V heads or width differ from the target's, `draft_kv` gives its layers their own shape in the head's KV storage, and the tables gain the drafter's own rope over its whole head as tables 2 and 3. Each tapped layer's kind carries `writes_tap`, so its mixer first copies the residual entering it into its plane of the taps' slot, which crosses with the residual from the first tap on.
+    A joined DFlash sidecar (`Config::dflash`, [dflash](model-arch-dflash.md)) drafts in place of the MTP block (`plan_dflash`): `fc` and `enc.output_norm` over the taps, each drafter layer's roles from `dflash_layers` on (`dflash_role`), the code bridge, its final norm and the target's embedding and head, `draft_kv_layers` KV layers, `draft_window` its window and `draft_causal` its attention. A DFlash2 sidecar (`selector_rank` set) takes each layer's convolution projections and bases (`attn_conv_proj`, `attn_conv_base`, `ffn_conv_proj`, `ffn_conv_base`, the bases tables of `[width, taps, sides]`) in place of the bridge's read and write, and the selector's `selector_hidden`, `selector_predecessor` and `selector_successor` in place of the codebook and gates, with `tap_weighted_rows` in place of `unit_rows` and `sigmoid_gate_rows`. Where its K and V heads or width differ from the target's, `draft_kv` gives its layers their own shape in the head's KV storage, and the tables gain the drafter's own rope over its whole head as tables 2 and 3. Each tapped layer's kind carries `writes_tap`, so its mixer first copies the residual entering it into its plane of the taps' slot, which crosses with the residual from the first tap on.
   - `draft_rows`: the block's KV rows for every row of a pass: the final
     norm over every row into `draft_h`, the row before each (an entry's
     carried row for its first, the normed row before it for the rest),
@@ -156,6 +156,7 @@ The arena holds, per row of a pass, the widest use either layer kind makes of ea
 On qwen35moe slots 10 to 13 hold the router scores, the expert ids, the expert weights and the shared expert's gate.
 With a DFlash drafter three slots follow: the taps, one plane of the pass's rows each, the taps of each row side by side, and `fc`'s normed output.
 The block's follow them: its codes (the block's rows and the anchors' after them), the bridge's gate, pred_gate and prev rows, its messages, each row's root mean square, the last layer's rows before its bridge, and the tail's refined rows, scores and candidates; the tail's are `ceil(top_k / block_size)` times as wide, so a step's `R * top_k` rows fit the room of the call's `R * block_size`.
+A DFlash2 block's follow the same three instead: the convolution's coefficients and output, the selector's gates, predecessor rows, scores and candidates, and the candidates' lengths.
 
 ## A DFlash drafter's context rows
 
@@ -168,6 +169,14 @@ Each layer writes the K and V of all the block's rows before any row attends, th
 After each layer's feed-forward block the code bridge takes the row's root mean square (`unit_rows`, the reference's `sqrt(max(mean, FLT_MIN))` with eps outside), `dspine_read` and its unit code times sqrt(C); each anchor row's code is the codebook row of its pick times sqrt(C) instead, kept after the block's rows; and row r gets `sigmoid_gate_rows`' sigmoid(gate(code r) + pred_gate(code r-1) + bias) * prev(code r-1) times its root mean square, an anchor row none, through `dspine_write` into its residual.
 The target's head over the final-normed rows past the anchor gives each draft's logits, which are what `draft_logits` returns, not the draft's own scores, and `topk_rows` their `top_k` candidates by ascending id.
 The tail runs the last layer's bridge once more for draft t's row under each candidate code of the step before (the last pick for the first), `matmul_at_ids` scores each refined row against its candidates' head rows times `output_norm`, and `chain_pick` walks from the first row's best through each step's row of the candidate taken.
+
+## A DFlash2 block
+
+`dflash2_block` follows `tools/dspine_reference.py` (`dflash2_block`) on the CPU, taken in place of `dflash_block` where the sidecar has a `selector_rank`, over the same blocks of the last pick then mask rows.
+Its views are non-causal (`ModelPlan::draft_causal` false), so each row attends, through the window counted from its own position, the context rows and every row of its block.
+Around each layer's attention and feed-forward a convolution within the block: `attn_conv_proj` or `ffn_conv_proj` over the normed row gives its coefficients, and `tap_weighted_rows` with side 0 of the base feeds q, k and v or the gate and up products, and with side 1 adds the attention or feed-forward output into the residual, row r's tap t reading row r - t of its block and none before its first.
+The target's head over the final-normed rows past the anchor gives each draft's logits and `topk_rows` their `top_k` candidates, and `selector_hidden` over the same rows each draft's gate.
+Step t takes `selector_predecessor`'s rows of draft t - 1's candidates (the last pick for the first) through `embed_ids`, `matmul_at_ids` scores each under the draft's gate against its candidates' `selector_successor` rows plus each candidate's own logit, and `chain_pick` walks the scores.
 
 ## The MTP layer's cache rows
 

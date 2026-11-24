@@ -457,6 +457,27 @@ Images are pushed by digest alone and tagged only by the run that publishes them
 - **Landing:** with the landing stack land-20261127, whose gates are recorded there (Landing stack land-20261127, below).
 - **Gotchas:** the drafter ropes all 128 dims of a head (sections 64,0,0,0) where the target ropes 64 of 256, so it needs rope tables of its own; a block of 16 drafts needs marks of at least 17 rows for qwen35's recurrent layers; the reference orders candidates by id, which only decides ties; the window counts back from each query, block rows included.
 
+## DFlash2 drafters for qwen35 (2026-11-24, DFLASH2A, branch feat/spec-dflash2)
+
+- **Goal:** `--drafter FILE` runs a DFlash2 sidecar beside a qwen35 model through the shared DFlash owner (`src/model/arch/dflash.hpp`, qwen35's `plan_dflash` and `dflash2_block`), with greedy output identical to drafting off and acceptance and decode speed measured against plain, MTP and DSpine-b16 on Qwen3.8-27B Q8_0 over four MI50s (docs/SPECULATIVE.md, plan table step 7).
+  DFlash2 differs from DSpine by non-causal block attention over a window, a dynamic two-tap convolution around each attention and feed-forward, and a candidate selector of rank 256 over the head's top 16 in place of the code bridge.
+- **Done:** design reviewed by Fable and XDEV (dflash2a/design.md): `KVView::window` also bounds non-causal views from each row's own position (CPU, GPU core), `tap_weighted_rows` runs the convolution (CPU, GPU core, Vulkan), `matmul_at_ids` takes a weight row per group and adds each candidate's own score (CPU, GPU core, Vulkan), and `chain_pick` walks the selector's scores unchanged; the conv bases are table roles with `Role::sides` 2, held to exactly `[width, taps, 2]`.
+  `tools/dspine_reference.py` ports DFlash2's block to numpy and `tests/fixture_dspine.py --variant dflash2` writes the tiny sidecar and its golden (`tests/data/qwen35_dflash2.json`, seed 3); the drafters component fails on main d8bd8735 with the conv_kernel_size refusal and passes here, drafts equal and logits within 9.9e-7 of the reference (CPU build, rig).
+  `llmx-backend-rocm-test dspine` passes on one MI50 (renderD136): the windowed attention's new non-causal arm, `tap_weighted_rows` bit for bit and `matmul_at_ids` with group weights and the addend within 1 ulp of the CPU.
+  Vulkan's window builds take non-causal views over a window (push constant `open`, a row read from its own position minus the window through the block's last row, any side type), and `dspine_checks::window` always runs its non-causal arm; the docs/src pages, TESTS.md, SPECULATIVE.md and CHANGELOG.md describe the feature.
+  `llmx-backend-vulkan-test --dspine` and `llmx-backend-rocm-test dspine` pass on one MI50 on the tree with the 2048-window past 2100 case, and `llmx-kv-cache-test` passes with `attention_window` over causal and non-causal views.
+  27B Q8_0 on four MI50s, layer split, prompt of one code request, 128 tokens, host load 47-65 (medians of 2-3 interleaved runs, tok/s, greedy ids equal to off in every run):
+  | arm | int8 | auto | drafts kept per block |
+  |---|---|---|---|
+  | off | 20.89 | 14.20 | - |
+  | DFlash2 --draft-max 7 | 51.50 | 32.46 | 3.70 |
+  | MTP | 45.02 | 34.09 | 2.63 |
+  | DSpine-b16 | 39.78 | 22.40 | 5.05 |
+  The runs vary by up to 40 percent under that load, so the order of the arms is not settled (dflash2a/m2).
+  27B Q8_0 on the CPU (pve1, d8bd8735 with this tree, default dtype, 12 threads), 20-token prompt, 64 greedy tokens: DFlash2 --draft-max 7 prints the same ids and text as drafting off, keeping 10, 8, 8, 8, 7, 5 and 5 of 12 drafts at positions 1 to 7 (4.25 a block); pve1 timings are not compared.
+- **Left:** the Radeon VII check and the landing gates.
+- **Gotchas:** the reference's walk can stop below a probability floor, which llmx's chain does not have, so parity holds for greedy drafting with no floor.
+
 ## Tensors shared by several layers in the fit and the shards
 
 - **Goal:** the contract step of Inkling-2-Mini (its design on feat/inkling2, gitea PR 551, section 7 step 2): a tensor several layers take is counted once by the fit and held once by each tensor-group member, and no split point falls between layers that take one tensor. No other model has such a tensor, so their placements and bytes do not change.

@@ -1,0 +1,30 @@
+#version 450
+// Backend::tap_weighted_rows, a workgroup a (run of 256 channels, row r): dst row r (+)= the sum over taps t of (base[t*width + c] + coeff[r*coeff_stride + t*(width/group) + c/group]) * src row idx[r*taps + t], ~0u adding nothing.
+// The CPU's float steps in its order, each rounded on its own.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint width; uint taps; uint coeff_stride; uint group; uint accumulate; uint rows; } p;
+layout(set = 0, binding = 0) buffer D { float dst[]; };
+layout(set = 0, binding = 1) readonly buffer S { float src[]; };
+layout(set = 0, binding = 2) readonly buffer B { float base[]; };
+layout(set = 0, binding = 3) readonly buffer C { float coeff[]; };
+layout(set = 0, binding = 4) readonly buffer I { uint idx[]; };
+void main() {
+    uint r = gl_WorkGroupID.y, c = gl_WorkGroupID.x * 256u + gl_LocalInvocationID.x;
+    if (c >= p.width) return;
+    uint a = r * p.coeff_stride, groups = p.width / p.group;
+    precise float sum = 0.0;
+    for (uint t = 0u; t < p.taps; ++t) {
+        uint from = idx[r * p.taps + t];
+        if (from == 0xffffffffu) continue;
+        precise float wt = base[t * p.width + c] + coeff[a + t * groups + c / p.group];
+        precise float term = wt * src[from * p.width + c];
+        sum += term;
+    }
+    uint y = r * p.width + c;
+    if (p.accumulate != 0u) {
+        precise float acc = dst[y] + sum;
+        dst[y] = acc;
+    } else {
+        dst[y] = sum;
+    }
+}

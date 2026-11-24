@@ -33,15 +33,18 @@ inline const gguf::MetaValue& check_sidecar(const gguf::GGUFModel& target, const
 }
 
 // A sidecar's configuration as a joined file holds it under `p` (normalize_beside): its layers, block, attention window and candidates a row, the taps it reads, its heads, rope and feed-forward width, and the mask token.
+// A DFlash2 sidecar also gives non-causal attention, its convolution's taps and channels a coefficient, and its selector's rank; a DSpine sidecar leaves them 0.
 struct Config {
     int layers = 0, block = 0, window = 0, top_k = 0;
+    bool causal = true;
+    int conv_taps = 0, conv_group = 0, selector_rank = 0;
     std::vector<int> taps;
     int heads = 0, kv_heads = 0, head_dim = 0, ff = 0;
     float rope_theta = 0.0f, rms_eps = 0.0f;
     uint32_t mask = 0;
 };
 
-// The joined configuration, refused where it asks for what the drafter does not run: attention other than causal over a window on every layer, or a rope over part of a head.
+// The joined configuration, refused where it asks for what the drafter does not run: attention not over a window on every layer, non-causal attention without DFlash2's convolution and selector, or a rope over part of a head.
 inline Config read_config(const gguf::GGUFModel& m, const std::string& p) {
     using metadata::integer;
     const std::string q = p + "dflash.";
@@ -63,7 +66,13 @@ inline Config read_config(const gguf::GGUFModel& m, const std::string& p) {
     if (c.heads % c.kv_heads || c.head_dim % 2) throw refuse("attention.head_count_kv");
     if (c.block < 2) throw refuse("block_size");
     if (c.top_k < 1 || c.top_k > 256) throw refuse("selector_top_k");
-    if (!metadata::boolean(m, q + "attention.causal", false)) throw refuse("attention.causal");
+    c.causal = metadata::boolean(m, q + "attention.causal", false);
+    c.conv_taps = int(metadata::count(m, q + "conv_kernel_size", 0));
+    c.conv_group = int(metadata::count(m, q + "conv_group_size", 0));
+    c.selector_rank = int(metadata::count(m, q + "selector_rank", 0));
+    const bool dflash2 = c.conv_taps || c.conv_group || c.selector_rank;
+    if (dflash2 && (c.conv_taps < 1 || c.conv_group < 1 || c.selector_rank < 1)) throw refuse("conv_kernel_size");
+    if (c.causal == dflash2) throw refuse("attention.causal");
     const std::vector<bool> windowed = metadata::booleans(m, q + "attention.sliding_window_pattern");
     if (windowed.size() != size_t(c.layers)) throw refuse("attention.sliding_window_pattern");
     for (bool w : windowed)
@@ -84,7 +93,8 @@ inline void normalize_beside(const gguf::GGUFModel& target, gguf::GGUFModel& sid
     if (target.find(p + q + "block_count")) throw refuse("beside a model that carries a DFlash drafter already");
     const std::set<std::string> own{"block_count", "feed_forward_length", "attention.head_count", "attention.head_count_kv", "attention.key_length",
                                     "attention.value_length", "rope.freq_base", "rope.dimension_sections", "block_size", "target_layers",
-                                    "attention.sliding_window", "attention.sliding_window_pattern", "attention.causal", "selector_top_k"};
+                                    "attention.sliding_window", "attention.sliding_window_pattern", "attention.causal", "selector_top_k",
+                                    "conv_kernel_size", "conv_group_size", "selector_rank"};
     const gguf::MetaValue mask = check_sidecar(target, side, p, own, "DFlash");
     const int layers = metadata::integer(target, p + "block_count") - metadata::count(target, p + "nextn_predict_layers", 0);
     const std::vector<int> taps = metadata::counts(side, q + "target_layers");

@@ -3912,7 +3912,7 @@ int main(int argc, char** argv) {
         // `dspine` runs only a DSpine drafter's ops, windowed attention and the four of its block.
         if (argc > 1 && std::string(argv[1]) == "dspine") {
             dspine_checks::window(*g, *c, rocm_take_launches, require);
-            dspine_checks::ops(*g, *c, require, {1, 4, 1});
+            dspine_checks::ops(*g, *c, require, {1, 4, 1}); dspine_checks::dflash2_ops(*g, *c, require, 0, 1);
             std::cout << (failures ? "backend-rocm dspine: FAIL\n" : "backend-rocm dspine: PASS\n");
             return failures ? 1 : 0;
         }
@@ -4011,7 +4011,7 @@ int main(int argc, char** argv) {
         attention_tiles::check(*g, rocm_take_launches, require);
         attention_tiles::check_long(*g, rocm_take_launches, require);
         dspine_checks::window(*g, *c, rocm_take_launches, require);
-        dspine_checks::ops(*g, *c, require, {1, 4, 1});
+        dspine_checks::ops(*g, *c, require, {1, 4, 1}); dspine_checks::dflash2_ops(*g, *c, require, 0, 1);
         vec_bits(*g);
         ds4::sparse_grouped(*g, rocm_caps, rocm_take_launches, require);
         pass_args(*g);

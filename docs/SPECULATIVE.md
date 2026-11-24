@@ -491,3 +491,10 @@ The chain walk over the 15 x 16 x 16 scores is `chain_pick`.
 
 **Gates.** Greedy output identical to drafting off on CPU, one device and the tensor group of four MI50s at int8, then the drafting set (section 10) against plain, lookup and the embedded MTP on Qwen3.8-27B Q8_0.
 Correctness of the drafter is held by a numpy port of the reference code over the original BF16 weights, fed the same tap rows, giving the top 16 and the drafts per row; the tap index is checked against HF hidden states.
+
+**DFlash2 (plan table step 7).** Qwen3.8-27B-DFlash2 (`dflash`, 5 layers, block 8, window 2048, taps 6, 20, 34, 48 and 62) runs through the same owner with three differences, chosen by its `dflash.selector_rank`.
+- Attention inside the block is non-causal: each block row sees every block row and the context positions above its own minus the window, the window still counted from the row's own position (`KVView::window` on a non-causal view).
+- A dynamic two-tap convolution within the block around each attention and feed-forward: `dyn = conv_proj(x_norm)` gives a coefficient per 16 channels, tap and side, and side s maps row r to the sum over taps t <= r of `(base[s][t] + dyn[r][s][t]) * in[r - t]`; side 0 feeds q, k and v (or the feed-forward), side 1 the attention output (or the feed-forward output) before the residual add (`Backend::tap_weighted_rows`).
+- No code bridge: a selector of rank 256 scores, for each draft row, its head's top 16 after each of the previous row's (the anchor for the first) as `(prev[i] * gate) . next[j] + logit[j]`, `gate = selector_hidden . h` of the final-normed row, which `matmul_at_ids` computes with a weight row a group and the candidate's logit added, and `chain_pick` walks.
+The reference's walk can also stop below a probability floor; llmx drafts the whole block.
+The block's ops and the non-causal window run on the CPU, the GPU core (ROCm and CUDA) and Vulkan, whose window builds read a non-causal row through the block's last row.

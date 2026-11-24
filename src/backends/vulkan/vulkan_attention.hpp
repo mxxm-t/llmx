@@ -134,20 +134,25 @@ inline void VulkanBackend::attention(CSlice Q, size_t layer, const KVView* views
     std::vector<Placed> placed = place_views(views, n_views);
     if (placed.empty()) return;
     const OpSteps steps(*this);
-    // A call's views are causal or not alike; non-causal ones, a vision encoder's, take the per-row kernel's full build over f32 caches.
+    // A call's views are causal or not alike; non-causal ones without a window, a vision encoder's, take the per-row kernel's full build over f32 caches.
+    // Non-causal views over a window, a DFlash2 drafter's, take the window builds read through the block's last row, whatever their sides.
     const bool full = !placed.front().view->causal;
+    bool windowed = false;
     for (const Placed& pv : placed) {
         if (!pv.view->nq) throw std::runtime_error("vulkan: invalid attention dimensions");
         if (pv.view->causal == full) throw std::runtime_error("vulkan: causal and non-causal views in one attention call");
-        if (pv.view->window && full) throw std::runtime_error("vulkan: a window on a non-causal view");
+        windowed = windowed || pv.view->window;
     }
+    // A non-causal call is windowed in every view or none, so a view's build does not follow the batch beside it.
+    for (const Placed& pv : placed)
+        if (full && !pv.view->window == windowed) throw std::runtime_error("vulkan: windowed and unwindowed non-causal views in one attention call");
     const size_t qstride = (size_t)n_head * head_dim;
     const float scale = 1.0f / std::sqrt((float)head_dim);
     const size_t rows = placed.back().row0 + placed.back().view->nq;
     if (floats_from(Q) < rows * qstride || floats_from(out) < rows * qstride)
         throw std::runtime_error("vulkan: attention rows outside their allocation");
     // Non-causal views of heads 64 or 72 wide, a vision encoder's, take the flash kernel: a tile of 64 query rows shares each staged tile of keys (shaders/attention_flash.comp).
-    if (full && (head_dim == 64 || head_dim == 72)) {
+    if (full && !windowed && (head_dim == 64 || head_dim == 72)) {
         ViewTable t = view_table(layer, placed, false);
         VulkanKVStorage& s = *t.storage;
         check_storage(s, layer, n_head_kv, head_dim);
@@ -190,7 +195,6 @@ inline void VulkanBackend::attention(CSlice Q, size_t layer, const KVView* views
     if (!narrow.empty()) {
         const VulkanKVStorage& s = storage_of(narrow.front().view->storage);
         check_storage(s, layer, n_head_kv, head_dim);
-        if (full && (s.k_type() != KVType::f32 || s.v_type() != KVType::f32)) throw std::runtime_error("vulkan: non-causal attention over a cache that is not f32");
         // The output's 16-bit twin, written by whichever kernel writes the output, when the whole batch is this call and a head is whole blocks.
         const bool quant = wide.empty() && head_dim % 32 == 0;
         const size_t slot = quant ? take_twin(rows * qstride) : 0, n = rows * qstride;
@@ -199,14 +203,16 @@ inline void VulkanBackend::attention(CSlice Q, size_t layer, const KVView* views
         // The choice follows the view alone, so a row takes the same grouping beside any batch; a non-causal view takes one head a workgroup, attention_full having no grouped form.
         const size_t group = (size_t)(n_head / n_head_kv);
         const uint32_t hg = full ? 1u : group % 4 == 0 ? 4u : group % 3 == 0 ? 3u : group % 2 == 0 ? 2u : 1u;
-        // A view whose window starts a row past position 0 takes the window builds, one head a workgroup, a dispatch for each window; its other views run the builds they ran before.
+        // A view whose window starts a row past position 0, and every non-causal view over a window, takes the window builds, one head a workgroup, a dispatch for each window; its other views run the builds they ran before.
         std::vector<Placed> sets[2];
         std::map<size_t, std::vector<Placed>> windows;
         for (const Placed& pv : narrow) {
             const size_t end = size_add(pv.view->length, pv.view->nq);
-            if (pv.view->window && end > pv.view->window) windows[pv.view->window].push_back(pv);
+            if (pv.view->window && (end > pv.view->window || full)) windows[pv.view->window].push_back(pv);
             else sets[hg > 1 && end >= dev_->profile.attention_group_from ? 1 : 0].push_back(pv);
         }
+        if (full && !sets[0].empty() && (s.k_type() != KVType::f32 || s.v_type() != KVType::f32))
+            throw std::runtime_error("vulkan: non-causal attention over a cache that is not f32");
         for (int grouped = 0; grouped < 2; ++grouped)
             if (!sets[grouped].empty()) narrow_attention(Q, layer, sets[grouped], out, n_head, n_head_kv, head_dim, grouped ? hg : 1u, xq, quant, rows);
         for (const auto& [window, set] : windows) narrow_attention(Q, layer, set, out, n_head, n_head_kv, head_dim, 1u, xq, quant, rows, window);
@@ -220,12 +226,15 @@ inline void VulkanBackend::narrow_attention(CSlice Q, size_t layer, const std::v
                                             VkDescriptorBufferInfo xq, bool quant, size_t rows, size_t window) {
     ViewTable t = view_table(layer, views, false);
     VulkanKVStorage& s = *t.storage;
-    const bool full = !views.front().view->causal;
+    // A non-causal call over a window runs the window builds, its rows read through the block's last row (`open`).
+    const bool open = !views.front().view->causal && window, full = !views.front().view->causal && !window;
     const size_t qstride = (size_t)n_head * head_dim, n = rows * qstride;
-    // A windowed row's splits cover its span alone.
+    // A windowed row's splits cover its span alone, which an open row's block rows past it lengthen.
     size_t longest = 0;
-    for (const Placed& pv : views)
-        longest = std::max(longest, window ? std::min(window, size_add(pv.view->length, pv.view->nq)) : size_add(pv.view->length, pv.view->nq));
+    for (const Placed& pv : views) {
+        const size_t end = size_add(pv.view->length, pv.view->nq);
+        longest = std::max(longest, window ? std::min(open ? window + pv.view->nq - 1 : window, end) : end);
+    }
     const size_t pairs = t.rows * (size_t)n_head;
     const DeviceProfile& prof = dev_->profile;
     const size_t chunk = prof.attention_split_chunk;
@@ -235,9 +244,10 @@ inline void VulkanBackend::narrow_attention(CSlice Q, size_t layer, const std::v
     if (scratch_floats && (!scratch_ || scratch_->size() < scratch_floats * sizeof(float)))
         grow(scratch_, scratch_floats * sizeof(float));
     // The full build's `wg0` and every causal build's `xrows`, past the sparse builds' constants, which these builds do not have.
-    struct { uint32_t rows, n_head, n_head_kv, dim, bt; float scale; uint32_t nsplit, chunk, quant, max_parts, hg, wg0, xrows; }
+    // The window builds' `open` follows, past what the other builds declare, which the fixed push range allows.
+    struct { uint32_t rows, n_head, n_head_kv, dim, bt; float scale; uint32_t nsplit, chunk, quant, max_parts, hg, wg0, xrows, open; }
         pc{u32(t.rows), (uint32_t)n_head, (uint32_t)n_head_kv, (uint32_t)head_dim, u32(kVkBlockTokens),
-           1.0f / std::sqrt((float)head_dim), u32(nsplit), u32(chunk), quant ? 1u : 0u, u32(split_max), hg, 0u, u32(rows)};
+           1.0f / std::sqrt((float)head_dim), u32(nsplit), u32(chunk), quant ? 1u : 0u, u32(split_max), hg, 0u, u32(rows), open ? 1u : 0u};
     const VkDescriptorBufferInfo scratch = scratch_
         ? VkDescriptorBufferInfo{scratch_->handle(), 0, VK_WHOLE_SIZE} : bind(out);
     // Heads 128 wide take the kernel whose 16 lanes read a token's row in one load each, several tokens a subgroup, and heads 256 wide its build of 32 lanes a token (shaders/attention_vec.comp).

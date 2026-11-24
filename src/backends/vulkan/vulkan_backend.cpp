@@ -1150,7 +1150,7 @@ public:
             case Op::rope_streams: case Op::attention_full: case Op::hc_coeffs: case Op::hc_collapse_norm: case Op::hc_expand: case Op::sparse_attention_sink:
             case Op::topk_rows: case Op::candidate_blocks: case Op::compress_pool: case Op::indexer_scores: case Op::pool_write: case Op::sqrt_softplus_routing:
             case Op::silu_mul_clamp: case Op::rope_forms: case Op::glu_quick_gelu: case Op::raw_index_scores: case Op::sparse_attention_blocks: case Op::attention_window:
-            case Op::chain_pick: return true;
+            case Op::chain_pick: case Op::tap_weighted_rows: return true;
             default: return false;
         }
     }
@@ -2144,18 +2144,38 @@ public:
                  u32((width + 255) / 256), u32(rows));
     }
     // The head rows gathered by the embedding's kernel into dot_rows_, then a workgroup a (candidate, group) sums each of the group's rows against its candidate.
-    void matmul_at_ids(Slice out, CSlice x, CSlice w, WeightView head, size_t width, size_t nrows, CSlice ids, size_t groups, size_t k, size_t per) override {
-        if (!width || !k || !per || per > k || nrows >= UINT32_MAX) throw std::runtime_error("vulkan: invalid grouped row dot dimensions");
+    void matmul_at_ids(Slice out, CSlice x, CSlice w, size_t w_stride, WeightView head, size_t width, size_t nrows, CSlice ids, size_t groups, size_t k, size_t per,
+                       CSlice add, size_t add_stride) override {
+        if (!width || !k || !per || per > k || nrows >= UINT32_MAX || (w_stride && w_stride < width)) throw std::runtime_error("vulkan: invalid grouped row dot dimensions");
         if (!groups) return;
         if (!dev_->float64) lacks(Op::matmul_at_ids);
         const size_t picks = size_mul(groups, k);
-        if (floats_from(out) < size_mul(picks, k) || floats_from(x) < size_mul(size_mul(groups, per), width) || floats_from(w) < width || floats_from(ids) < picks)
+        if (floats_from(out) < size_mul(picks, k) || floats_from(x) < size_mul(size_mul(groups, per), width) || floats_from(w) < size_add(size_mul(groups - 1, w_stride), width) ||
+            floats_from(ids) < picks || (add.buffer && floats_from(add) < size_add(size_mul(groups - 1, add_stride), nrows)))
             throw std::runtime_error("vulkan: grouped row dot operand outside its allocation");
         const size_t need = size_mul(size_mul(picks, width), sizeof(float));
         if (!dot_rows_ || dot_rows_->size() < need) grow(dot_rows_, need);
         embed_ids(Slice{dot_rows_.get(), 0}, head, width, nrows, ids, picks);
-        const uint32_t pc[4] = {u32(width), u32(nrows), u32(k), u32(per)};
-        dispatch(K_ROWS_DOT_GROUP, {bind(out), bind(x), bind(w), bind(CSlice{dot_rows_.get(), 0}), bind(ids)}, pc, sizeof(pc), u32(k), u32(groups));
+        const uint32_t pc[7] = {u32(width), u32(nrows), u32(k), u32(per), u32(w_stride), u32(add_stride), add.buffer ? 1u : 0u};
+        dispatch(K_ROWS_DOT_GROUP, {bind(out), bind(x), bind(w), bind(CSlice{dot_rows_.get(), 0}), bind(ids), add.buffer ? bind(add) : bind(w)}, pc, sizeof(pc), u32(k),
+                 u32(groups));
+    }
+    void tap_weighted_rows(Slice dst, CSlice src, size_t width, const uint32_t* idx, size_t rows, size_t taps, CSlice base, CSlice coeff, size_t coeff_stride, size_t group,
+                           bool accumulate) override {
+        if (!width || !taps || !group || width % group || coeff_stride < size_mul(taps, width / group)) throw std::runtime_error("vulkan: invalid tap weighted rows dimensions");
+        if (!rows) return;
+        if (!idx) throw std::runtime_error("vulkan: tap weighted rows without their taps' rows");
+        size_t sn = 0;
+        for (size_t i = 0; i < size_mul(rows, taps); ++i)
+            if (idx[i] != UINT32_MAX) sn = std::max(sn, size_t(idx[i]) + 1);
+        const size_t dn = size_mul(rows, width);
+        if (floats_from(dst) < dn || floats_from(base) < size_mul(taps, width) || floats_from(coeff) < size_add(size_mul(rows - 1, coeff_stride), size_mul(taps, width / group)) ||
+            (sn && floats_from(src) < size_mul(sn, width)))
+            throw std::runtime_error("vulkan: tap weighted rows operand outside its allocation");
+        if (sn && overlaps(CSlice(dst), dn, src, size_mul(sn, width))) throw std::runtime_error("vulkan: tap weighted rows into their own source");
+        const uint32_t pc[6] = {u32(width), u32(taps), u32(coeff_stride), u32(group), accumulate ? 1u : 0u, u32(rows)};
+        dispatch(K_TAP_WEIGHTED_ROWS, {bind(dst), sn ? bind(src) : bind(base), bind(base), bind(coeff), args(idx, size_mul(rows, taps) * sizeof(uint32_t))}, pc, sizeof(pc),
+                 u32((width + 255) / 256), u32(rows));
     }
     void chain_pick(Slice next, CSlice score, CSlice cand, size_t seqs, size_t steps, size_t k) override {
         if (!k) throw std::runtime_error("vulkan: a chain over no candidates");

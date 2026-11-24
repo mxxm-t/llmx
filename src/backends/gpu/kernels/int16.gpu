@@ -2955,9 +2955,7 @@ LLMX_HALF(llmx_q8_0_half8_4, 4, 2, 4)
 LLMX_HALF(llmx_q8_0_half8_4_r4, 4, 4, 4)
 LLMX_HALF(llmx_q8_0_half8_8, 8, 2, 4)
 LLMX_HALF(llmx_q8_0_half8_8_r4, 8, 4, 4)
-// Builds over 8 columns compute every column they hold, so the host takes the narrowest that holds the call; at two rows a wave they stay within two waves a SIMD (docs/STATUS.md).
-LLMX_HALF(llmx_q8_0_half8_9, 9, 2, 4)
-LLMX_HALF(llmx_q8_0_half8_10, 10, 2, 4)
+// Builds over 8 columns compute every column they hold, so the host takes the narrowest that holds the call, 9 and 10 columns taking the 11-column build; at two rows a wave they stay within two waves a SIMD (docs/STATUS.md).
 LLMX_HALF(llmx_q8_0_half8_11, 11, 2, 4)
 LLMX_HALF(llmx_q8_0_half8_12, 12, 2, 4)
 LLMX_HALF(llmx_q8_0_half8_13, 13, 2, 4)

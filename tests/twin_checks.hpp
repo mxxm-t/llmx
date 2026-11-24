@@ -1344,7 +1344,8 @@ struct Bits {
                 for (const auto& [k, v] : launches(g))
                     if (k.rfind("llmx_q8_0", 0) == 0) ran += k;
                 const std::vector<float> y = read(g, *yb, n * cols);
-                const size_t build = cols <= 2 ? 2 : cols <= 4 ? 4 : cols <= 8 ? 8 : cols;
+                // 9 and 10 columns take the 11-column build (docs/STATUS.md, ROCm wide decode columns).
+                const size_t build = cols <= 2 ? 2 : cols <= 4 ? 4 : cols <= 8 ? 8 : std::max<size_t>(cols, 11);
                 const bool four = build == 2 || build == 4 || build == 8 || build == 16;
                 const std::string want = "llmx_q8_0_half8_" + std::to_string(build) + (four && n >= edge ? "_r4" : "");
                 const std::string what = "a Q8_0 int8 decode call of " + std::to_string(cols) + " columns, " + std::to_string(n) + " outputs";

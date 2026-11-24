@@ -111,6 +111,19 @@
 - **Focused results (MI50 RADV, CPU in the same container):** `dominant_key` ratio to its bound, heads 64/72: CPU 3.88/12.3 before at 1296/4096 keys, 0.32-0.38 after; Vulkan 1.50/4.77 before, 0.053/0.062 (hd 64) and 0.031/0.045 (hd 72) after. ROCm's backend vision check passes unchanged. The 1080p Inkling-2 image against its HF float64 rows (bound 9.37e-6), on the image branch's 61636d85a with and without this change: CPU 1.48e-5 -> 4.03e-6, Vulkan 1.32e-5 -> 7.6e-6.
 - **Landing:** with the landing stack land-20261130, whose gates are recorded there (Landing stack land-20261130, below), which records the CPU HF errors again, the CPU 16k raw and chat checks against HF and the vision towers' errors on the devices; byte identity against main differs by design on the CPU past 128 keys and on Vulkan vision towers only.
 - **Gotchas:** a fixture with v = +1 everywhere cancels and hides the CPU error; the dominant key's own block still drops its other keys. The Vulkan text attention kernels and the ROCm and CUDA chunk chains are unchanged (ideas.md).
+## MiniMax-M3 indexer block size (2026-11-24, CONFFIX1 to CONFFIX3, branch fix/minimax-index-block on main d8bd8735e)
+
+**Goal.** MiniMax-M3 refuses an `attention.indexer.block_size` that is not a power of two at load, since the devices split a position into its block by shift and mask (architecture audit, item 4).
+
+**Done.**
+- Test commit be8086ed5: `arch-minimax-m3` checks that a block size of 3 is refused by name (0 is already refused by the integer read, with its own text).
+- Fix: `read_config` refuses a size that is not a power of two; docs/MINIMAX.md, docs/src/model-arch-minimax_m3.md and docs/TESTS.md.
+- Fail-then-pass (rig CPU builds, test target only): main d8bd8735e with the test FAILS `attention.indexer.block_size: not refused`; the fix 31c5d0115 PASSES `arch-minimax-m3`.
+
+**Left.** Lands in COORD's stack after PR 607 and FLAGFIX1's branch, at most two commits, gitea PR 613; the stack's head runs the CPU suite, CTest, Qwen3-0.6B byte identity against main, byte identity on the CPU and a device for the models it reaches, the suite on a device, one timing round against main and the hosted run.
+
+**Gotchas.** The refusal names the key, as the module's other limits do.
+
 ## The fit charges the vision encoder (2026-11-24, FITMM1, branch fix/mmproj-fit on main 83ac07728)
 
 - **Goal:** `--mmproj` runs on a card the KV would otherwise fill, without `--kv-tokens`, as docs/VISION.md, section 3, says the fit charges the encoder.

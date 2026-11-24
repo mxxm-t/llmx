@@ -35,6 +35,7 @@ Each entry is one short line that links the doc explaining it; reasons, flags an
 - A tensor group no longer hangs when one of its cards fails; its sums give up after 30 seconds ([tensor split](docs/TENSOR-SPLIT.md)).
 - A load that keeps `--moe-stream-from` or `--expert-cache` layers on the host says why in one line ([usage](docs/USAGE.md)).
 - Vulkan prompts over F16 weights run up to 16 times faster and no longer lose the device on long calls ([Vulkan](docs/VULKAN.md#kernel-notes)).
+- MiniMax-M3 files whose indexer block size is not a power of two are refused at load, not mid-pass ([MiniMax](docs/MINIMAX.md)).
 - Image encoders on the CPU and Vulkan sum attention by blocks, so a 1080p image meets its HF bound ([precision](docs/PRECISION.md#attention-value-sums)).
 - Chat templates that use Jinja's `float` filter, such as Inkling-2-Mini's, render ([chat templates](docs/src/inference-chat.md)).
 - DeepSeek-V4.1-Flash with its DSpark drafter fits the ten-card layer split ([speculative decoding](docs/SPECULATIVE.md)).

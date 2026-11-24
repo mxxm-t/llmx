@@ -29,7 +29,7 @@ Every GGUF key is prefixed by `minimax-m3.`.
 | R | rotary width (NeoX halves) | 64 | `rope.dimension_count` |
 | theta | RoPE base | 1e7 | `rope.freq_base` |
 | Hi, Di | index heads (one per KV head) and index width | 4, 128 | `attention.indexer.head_count`, `attention.indexer.key_length` |
-| B | positions per block | 128 | `attention.indexer.block_size` |
+| B | positions per block, a power of two (llmx's limit: the devices split a position by shift and mask) | 128 | `attention.indexer.block_size` |
 | K | blocks a query keeps, its own included | 16 | `attention.indexer.top_k` |
 | Kl | local blocks pinned | 1 | `attention.indexer.local_blocks` |
 | F | dense FFN width | 12288 | `feed_forward_length` |

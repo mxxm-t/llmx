@@ -97,6 +97,8 @@ inline Config read_config(const gguf::GGUFModel& m, const std::string& p, const 
     c.index_dim = integer(m, p + "attention.indexer.key_length");
     c.index_top_k = integer(m, p + "attention.indexer.top_k");
     c.index_block = integer(m, p + "attention.indexer.block_size");
+    // The devices split a position into its block by shift and mask, so a block is a power of two on every backend (docs/MINIMAX.md).
+    unsupported(c.index_block & (c.index_block - 1), "attention.indexer.block_size");
     unsupported(integer(m, p + "attention.indexer.local_blocks") != 1, "attention.indexer.local_blocks");
     check_config(c);
     c.rope_policy = rope::resolve(m, p, {rope::Base::reciprocal_power, c.rope_theta, size_t(c.rope_dim), size_t(c.context_length)}, request);

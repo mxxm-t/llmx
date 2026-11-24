@@ -439,6 +439,8 @@ def check_pure_embedded(model):
         run = common.run_process(base + ["--drafter", form], cache="f32")
         assert run.returncode == 0, "generate --drafter %s failed: %s" % (form, run.stderr.decode("utf-8", "replace"))
         out[form] = common.cli_stdout(run.stdout)
+    state = re.search(rb"^kv: allocated \d+ bytes, peak \d+ bytes, used \d+ bytes, recurrent state (\d+) bytes f32$", out["off"], re.M)
+    assert state and int(state[1]) > 0, "the kv line names no recurrent state bytes: %r" % out["off"]
     assert re.search(rb"^own drafts kept: \d+/\d+", out["lookup,embedded"], re.M), "lookup,embedded took no draft from the reply's own history: %r" % out["lookup,embedded"]
     assert not re.search(rb"^own drafts kept:", out["embedded"], re.M), "embedded alone took drafts from the reply's own history: %r" % out["embedded"]
     assert re.search(rb"^drafts kept: \d+/\d+", out["embedded"], re.M), "embedded alone fed no draft of its own: %r" % out["embedded"]

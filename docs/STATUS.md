@@ -157,6 +157,19 @@
 - **Left:** no card has timed the pushing builds on CUDA, where the four-block cap may cost occupancy.
 - **Landing:** with the landing stack land-20261128, whose gates are recorded there (Landing stack land-20261128, below).
 
+## kv line over tensor groups and recurrent state (2026-11-24, CONFFIX1 to CONFFIX3, branch fix/kv-bytes-groups on main d8bd8735e)
+
+**Goal.** The `kv:` line of `--verbose` counts every member of a tensor group in its allocated and peak bytes, as its used bytes count the whole history, and names a model's recurrent state bytes (architecture audit, item 6).
+
+**Done.**
+- Test commit: `placement` `tensor_groups` holds a group's allocated and peak bytes to its members' heads of one device placed through `place_model`, a replicated head once a member, and its used bytes to that device's; `arch-qwen35` `state_rules` and `tests/qwen35.py` check the state bytes.
+- Fix: `kv_allocated_bytes` and `kv_peak_bytes` sum every device with a storage, `Model::state_bytes`, and the kv line appends `, recurrent state N bytes f32` (src/cli/main.cpp); docs/USAGE.md and docs/TESTS.md.
+- Fail-then-pass (rig CPU builds, `placement` target): main d8bd8735e with the test FAILS `allocated 12288 against 12288, 2 of 1 heads held` (the first member only); the fix PASSES `placement`; `arch-qwen35` and `tests/qwen35.py` passed on the fix (CONFFIX3).
+
+**Left.** Lands in COORD's stack after PR 607 and FLAGFIX1's branch, at most two commits, gitea PR 615; the stack's head runs the CPU suite, CTest, Qwen3-0.6B byte identity against main, byte identity on the CPU and a device for the models it reaches, the suite on a device, one timing round against main and the hosted run; it touches src/cli/main.cpp, which FLAGFIX1 also edits (devlog).
+
+**Gotchas.** Where a group is wider than the KV heads, each member keeps a replicated head, so the allocated bytes exceed one device's; CONFFIX2's first test expected one device's and failed on both arms. A bare `infer::Model` on one CPU backs half the KV bytes of one placed through `place_model` for the same history (6144 against 12288 at the fixture's shape), so the reference is placed (CONFFIX4).
+
 ## A GPU group sum stops waiting for a card that is gone (2026-11-19, SUMSAFE1, revived 2026-11-23 by REVIVE1 and REVIVE2 as fix/group-sum-deadline on main bfb7f517; lands by fast-forward as two commits, the failing test and then the fix)
 
 - **Goal:** one card's hardware fault never takes the host: at 01:05 on 2026-11-19 an uncorrectable ATHUB error on one MI50 left its tensor group's live members spinning in their sums for ever, since a serving sum carried no deadline (`timeout_` 0 outside the probe), and the whole host was lost.

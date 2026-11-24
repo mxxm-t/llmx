@@ -1481,16 +1481,26 @@ public:
     size_t retract(size_t length) { return retract(seq_, length); }
     bool keep() { return keep(seq_); }
 
-    // Allocated is what the backends back; used is the committed history.
+    // Allocated is what the backends back, every member of a tensor group its share; used is the committed history.
     // The gap is the paging cost in memory (docs/KV-CACHE.md).
     size_t kv_allocated_bytes() const {
         size_t n = 0;
-        for (Device* d : storages_) n += d->storage->allocated_bytes();
+        for (const auto& d : devices_)
+            if (d->storage) n += d->storage->allocated_bytes();
         return n;
     }
     size_t kv_peak_bytes() const {
         size_t n = 0;
-        for (Device* d : storages_) n += d->storage->peak_bytes();
+        for (const auto& d : devices_)
+            if (d->storage) n += d->storage->peak_bytes();
+        return n;
+    }
+    // The recurrent state every device holds, all its slots, in F32 (backend::StateStorage).
+    size_t state_bytes() const {
+        size_t n = 0;
+        for (const auto& d : devices_)
+            if (d->states)
+                for (size_t l = 0; l < d->states->layers(); ++l) n += d->states->slots() * d->states->slot_bytes(l);
         return n;
     }
     size_t kv_used_bytes() const {

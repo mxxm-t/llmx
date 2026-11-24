@@ -905,8 +905,9 @@ int cmd_generate(const std::string& model_path, const std::string& prompt, bool 
     printf("tg: %zu tok, %.0f ms, %.2f tok/s\n", gen.size(), tg_ms,
            (double)gen.size() / (tg_ms / 1e3));
     if (exec.verbose) {
-        printf("kv: allocated %zu bytes, peak %zu bytes, used %zu bytes\n",
-               model.kv_allocated_bytes(), model.kv_peak_bytes(), model.kv_used_bytes());
+        printf("kv: allocated %zu bytes, peak %zu bytes, used %zu bytes", model.kv_allocated_bytes(), model.kv_peak_bytes(), model.kv_used_bytes());
+        if (model.keeps_state()) printf(", recurrent state %zu bytes f32", model.state_bytes());
+        printf("\n");
         const infer::Model::LookupReads reads = model.lookup_reads();
         if (reads.kept + reads.restarted + reads.late) printf("lookup reads: kept %zu, restarted %zu, late %zu\n", reads.kept, reads.restarted, reads.late);
         // The generated ids, which `logits --then-ids` reads back as the tokens they were, where their text could tokenize otherwise (tools/long_context_check.py).

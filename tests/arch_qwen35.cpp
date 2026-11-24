@@ -293,6 +293,9 @@ void state_rules() {
             [&] { infer::Model model(w, std::make_shared<Lacking>()); });
     infer::Model model(w);
     require(model.keeps_state(), "a qwen35 model keeps a state");
+    // Two state layers, each slot the V heads' matrices and three conv rows, all F32 (the state bytes of the kv line of --verbose).
+    const size_t slots = model.state_slots() + model.checkpoint_slots() + model.mark_slots();
+    require(model.state_bytes() == 2 * slots * (HV * DK * DV + 3 * C) * sizeof(float), "the state bytes are not two layers' F32 slots");
     {
         const gguf::GGUFModel dense = tiny_qwen(1, 16, true);
         infer::Model other(infer::gguf_weights(dense));

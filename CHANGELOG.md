@@ -29,6 +29,7 @@ Each entry is one short line that links the doc explaining it; reasons, flags an
 
 ### Fixed
 
+- `--yarn` now reaches a DFlash or DSpine drafter's rope, as it reaches the target ([usage](docs/USAGE.md)).
 - `--mmproj` no longer runs a card out of memory: the fit leaves room for the vision encoder before the KV ([vision](docs/VISION.md)).
 - A tensor group no longer hangs when one of its cards fails; its sums give up after 30 seconds ([tensor split](docs/TENSOR-SPLIT.md)).
 - Vulkan prompts over F16 weights run up to 16 times faster and no longer lose the device on long calls ([Vulkan](docs/VULKAN.md#kernel-notes)).

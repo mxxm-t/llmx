@@ -52,6 +52,19 @@
 **Landing.** With the landing stack land-20261130, whose gates are recorded there (Landing stack land-20261130, below).
 
 **Gotchas.** The probe's model is per architecture, as for the TF32 tile. `describe()` prints the emulation warning on a CUDA bf16 run, which is accurate: only BF16 weights' prompts are in BF16.
+## --yarn reaches DFlash and DSpine drafters (2026-11-24, CONFFIX1 to CONFFIX3, branch fix/qwen35-dflash-yarn on main d8bd8735e)
+
+**Goal.** `--yarn` reaches a qwen35 DFlash or DSpine sidecar's drafter, whose rope tables were built without the request (architecture audit, item 1).
+
+**Done.**
+- Test commit 56f75d823: `arch-qwen35` `dspine_yarn` holds the drafter's tables at `--yarn 4` to the target's YaRN, the slow pair of a 4-wide head turning at 0.01 / 4 and both tables scaled by 0.1 ln 4 + 1.
+- Fix: `read_config` resolves `Config::draft_rope` at the target's factor over the target's original length, at most its context, and the constructor binds it; docs/USAGE.md, docs/src/model-arch-qwen35.md and docs/TESTS.md.
+- Fail then pass (rig, CPU build of each commit, `llmx-arch-qwen35-test`): the test commit fails `arch-qwen35` with "the DSpine drafter's rope ignores --yarn 4 at position 0"; the fix passes it.
+
+**Left.** Lands in COORD's stack after PR 607 and FLAGFIX1's branch, at most two commits, gitea PR 610; the stack's head runs the CPU suite, CTest, Qwen3-0.6B byte identity against main, byte identity on the CPU and a device for the models it reaches, the suite on a device, one timing round against main and the hosted run.
+
+**Gotchas.** A sidecar's own `dflash.rope.scaling` keys are now read, honoured or refused, where they were ignored.
+
 ## GELU's erf form through erfc on Vulkan and ROCm (2026-11-24, INKVIS5 and INKVIS6, branch fix/vulkan-gelu-erf on main e9daf3b6d)
 
 - **Goal:** GELU's erf form keeps its digits for negative inputs on the devices. Vulkan's `gelu.comp` took erf by Abramowitz and Stegun 7.1.26 and the GPU core's `llmx_gelu` took 1 + erff, and both cancel below x = -2, about 1e-3 relative at -4.

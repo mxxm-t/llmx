@@ -159,7 +159,7 @@ The block's follow them: its codes (the block's rows and the anchors' after them
 
 ## A DFlash drafter's context rows
 
-For every row of a pass the drafter gathers the row's taps side by side, runs `fc` and `enc.output_norm` over them, and for each of its layers writes K, normed and rotated over the whole head by the drafter's rope, and V into that layer's cache.
+For every row of a pass the drafter gathers the row's taps side by side, runs `fc` and `enc.output_norm` over them, and for each of its layers writes K, normed and rotated over the whole head by the drafter's rope (`Config::draft_rope`, YaRN at the target's factor where `--yarn` asks it of the target), and V into that layer's cache.
 
 ## A DSpine block
 

@@ -42,6 +42,7 @@ struct Config {
     bool expert_norm = true;
     // A DFlash sidecar joined to the file (model/arch/dflash.hpp), which drafts in place of its MTP block.
     std::optional<dflash::Config> dflash;
+    rope::Policy draft_rope;   // its rope over its whole head, YaRN where --yarn asks it of the target
 };
 
 // The rules a configuration keeps whichever file it came from: whole query heads per KV head and V heads per K head, a rotary width that is even and inside a head, and projections and a cache that fit an allocation.
@@ -126,6 +127,12 @@ inline Config read_config(const gguf::GGUFModel& m, const std::string& p, bool m
     check_config(c);
     if (m.find(p + "dflash.block_count")) c.dflash = dflash::read_config(m, p);
     c.rope_policy = rope::resolve(m, p, {rope::Base::negative_power, c.rope_theta, size_t(c.rope_dim), size_t(c.context_length)}, request);
+    // --yarn scales a DFlash sidecar's rope by the target's factor over the target's original length, at most its context, so both cover the one extended context.
+    if (c.dflash) {
+        rope::Request draft;
+        if (request.factor) draft = {request.factor, std::min(c.rope_policy.original, size_t(c.context_length))};
+        c.draft_rope = rope::resolve(m, p + "dflash.", {rope::Base::negative_power, c.dflash->rope_theta, size_t(c.dflash->head_dim), size_t(c.context_length)}, draft);
+    }
     // YaRN from the command line sets its own context, held to the same limits.
     if (c.rope_policy.context != size_t(c.context_length)) {
         c.context_length = int(c.rope_policy.context);
@@ -332,7 +339,7 @@ public:
     explicit Qwen35(const Config& cfg) : cfg_(cfg) {
         cfg_.rope_policy = rope::bind(cfg_.rope_policy, {rope::Base::negative_power, cfg_.rope_theta, size_t(cfg_.rope_dim), size_t(cfg_.context_length)});
         if (cfg_.dflash)
-            draft_rope_ = rope::bind({}, {rope::Base::negative_power, cfg_.dflash->rope_theta, size_t(cfg_.dflash->head_dim), size_t(cfg_.context_length)});
+            draft_rope_ = rope::bind(cfg_.draft_rope, {rope::Base::negative_power, cfg_.dflash->rope_theta, size_t(cfg_.dflash->head_dim), size_t(cfg_.context_length)});
     }
 
     // A layer's roles are its norm, then its mixer's by its kind, then the feed-forward norm and the dense block or, on qwen35moe, the router, expert stacks and shared expert with its gate.

@@ -28,6 +28,7 @@
 #include "model/layer_split.hpp"
 #include "model/place.hpp"
 #include "model/runtime.hpp"
+#include "cut_passes.hpp"
 #include "loading_backend.hpp"
 #include "server_harness.hpp"
 
@@ -1097,6 +1098,85 @@ void named() {
     require(true, "the first pass runs every layer with the drafter's zero ratios after the blocks");
 }
 
+// `stages` groups of two CPUs whose sums copy beside the work (BesideCpu, tests/cut_passes.hpp), so a group cuts its prompt passes as a device group does, the layers cut evenly between the stages.
+std::unique_ptr<infer::Model> beside_groups(const infer::ModelWeights& w, size_t L, size_t stages, std::vector<std::shared_ptr<BesideCpu>>& cpus) {
+    std::vector<backend::BackendPtr> backends;
+    for (size_t d = 0; d < 2 * stages; ++d) {
+        cpus.push_back(std::make_shared<BesideCpu>());
+        cpus.back()->set_threads(2);
+        backends.push_back(cpus.back());
+    }
+    infer::Placement placement;
+    for (size_t l = 0; l < L; ++l) placement.mixer_device.push_back(int(l * stages / L * 2));
+    placement.ffn_device = placement.mixer_device;
+    placement.output_device = placement.mixer_device.back();
+    placement.width = 2;
+    infer::ModelOptions options;
+    options.dtype = backend::Dtype::f32;
+    options.state_slots = 2;
+    options.checkpoint_slots = 2;
+    return std::make_unique<infer::Model>(w, std::move(backends), placement, options);
+}
+
+// A pass of 256 rows over two stages, the second paced a layer a call as the server records it beside replies.
+// The first stage cuts it, the second cuts it at the same row in as many calls as it has layers, and every logits row is the pass's recorded whole.
+void paced_cut(infer::Model& model, BesideCpu& first, BesideCpu& second, size_t paced_layers) {
+    const size_t V = model.n_vocab(), n = 256;
+    std::vector<uint32_t> ids(n);
+    for (size_t i = 0; i < n; ++i) ids[i] = uint32_t((i * 2654435761u >> 7) % V);
+    std::vector<float> logits(n * V);
+    for (bool cut : {true, false}) {
+        *first.below = *second.below = cut ? std::numeric_limits<size_t>::max() : 0;
+        *first.sends = *second.sends = 0;
+        infer::Sequence seq = model.make_sequence();
+        infer::ExecContext ctx;
+        infer::BatchEntry entry{&seq, ids.data(), n, true};
+        entry.every_logits = true;
+        model.reserve_passes(ctx, 1, n, n);
+        model.begin_pass(ctx, 0, &entry, 1, 0);
+        for (size_t stage = 0; stage < 2; ++stage) {
+            model.prepare_pass_stage(ctx, 0, stage);
+            size_t calls = 1;
+            while (!model.record_pass_stage(ctx, 0, stage, stage)) ++calls;
+            require(calls == (stage ? paced_layers : 1), "a paced stage records its layers a call each, " + std::to_string(calls) + " calls at stage " + std::to_string(stage));
+            model.commit_pass_stage(ctx, 0);
+        }
+        require((*first.sends > 0) == cut && (*second.sends > 0) == cut, std::string("both stages ") + (cut ? "cut" : "record whole") + " the paced pass");
+        for (size_t r = 0; r < n; ++r) {
+            if (cut) std::memcpy(logits.data() + r * V, model.pass_logits(ctx, 0, r), V * sizeof(float));
+            else require(!std::memcmp(logits.data() + r * V, model.pass_logits(ctx, 0, r), V * sizeof(float)), "a paced pass cut in two parts gives another logits row " + std::to_string(r));
+        }
+        model.end_pass(ctx, 0);
+        model.reset(seq);
+    }
+}
+
+// On the file widened to 1024 tokens a pass a group cuts in two parts gives the whole pass's bytes and decode from no history, after 37 tokens beside another sequence, and on a fork's first pass across every window ring's wrap.
+// Over two stages, which carry pooled rows and picks between them, no stage cuts where the second group's sums never copy beside, and both cut where the second is paced a layer a call.
+void cut_passes(const std::string& path) {
+    gguf::GGUFModel m = gguf::read_gguf(path);
+    gguf::map_payload(m);
+    for (auto& [key, value] : m.kv)
+        if (key == P + "context_length") value.u = 1024;
+    const size_t window = golden["window_size"], L = size_t(config_of(m).n_layer);
+    require(window == 128, "the fixture's 128-row window, whose ring of 256 rows the shapes below wrap");
+    const infer::ModelWeights w = infer::gguf_weights(m);
+    std::vector<std::shared_ptr<BesideCpu>> one;
+    auto model = beside_groups(w, L, 1, one);
+    check_cut_passes(*model, one[0]->below, 256);
+    require(*one[0]->sends > 0, "a group whose sums copy beside its work cut no pass");
+    // Forks sit on the CPU's 128-token blocks: after 128 tokens a 384-row pass wraps the ring inside its first part and a 256-row one at the cut, and after 384 the fork reads a wrapped ring.
+    for (const auto& [history, rows] : {std::pair<size_t, size_t>{128, 384}, {128, 256}, {384, 256}}) check_cut_fork(*model, one[0]->below, one[0]->sends, history, rows);
+    std::vector<std::shared_ptr<BesideCpu>> two;
+    auto staged = beside_groups(w, L, 2, two);
+    *two[2]->below = *two[3]->below = 0;
+    check_cut_passes(*staged, two[0]->below, 256);
+    require(*two[0]->sends == 0 && *two[2]->sends == 0, "a stage whose group cannot cut keeps every stage of the pass whole");
+    paced_cut(*staged, *two[0], *two[2], L - L / 2);
+    std::cout << "arch-deepseek4: a pass cut in two parts gives the whole pass's logits, KV and state bytes and decode on a group of two CPUs, from no history, after 37 tokens, "
+                 "on a fork's first pass across the window ring's wrap, over two stages of which only the first can cut, recorded whole, and over two stages the second paced a layer a call\n";
+}
+
 // The writer's tiny file split over CPUs gives one CPU's logits bit for bit: every row of a 40-token text in passes of 3, then 4 decode steps.
 // A cut at 3 parts reader 3 from layer 2's entries and picks, which its replica and the carried picks give it; a cut at 6 parts readers 6 and 7 from layer 5's entries, picks and candidate blocks; both pres cross at every cut.
 void split_cuts(const std::string& path) {
@@ -2058,6 +2138,18 @@ void dspark_window(const gguf::GGUFModel& joined, size_t taps, size_t B) {
     require(kept.second == kept_one.second && same(got, want), "a retract to the kept state gives the drafts and draft logits of its prefix in one pass");
 }
 
+// A group of two CPUs with the drafter cuts a prompt pass as a device group does: the cut parts write the whole pass's taps, so the context rows and the drafter's window rings are the same state bytes (tests/cut_passes.hpp).
+void dspark_cut(const gguf::GGUFModel& joined) {
+    gguf::GGUFModel longer = joined;
+    put(longer, P + "context_length", scalar(gguf::V_UINT32, 1024));
+    const infer::ModelWeights jw = infer::gguf_weights(longer);
+    std::vector<std::shared_ptr<BesideCpu>> one;
+    auto model = beside_groups(jw, size_t(config_of(longer).n_layer), 1, one);
+    check_cut_passes(*model, one[0]->below, 256);
+    require(*one[0]->sends > 0, "a group with the drafter whose sums copy beside its work cut no pass");
+    std::cout << "arch-deepseek4: with the DSpark drafter a pass cut in two parts gives the whole pass's logits, KV and state bytes and decode on a group of two CPUs\n";
+}
+
 // DSpark on the tiny trunk and sidecar against DeepSeek's forward_spec, a block of drafts after each token, ids to a row whose top two logits lie within twice the bound and logits within 2e-5 (docs/TESTS.md, arch-deepseek4).
 // Two layer cuts, a tensor group and stages forced apart from the head give the one CPU's or the group's drafts and draft logits bit for bit, the group the reference's by the same rule.
 void dspark(const std::string& trunk, const std::string& sidecar) {
@@ -2209,6 +2301,7 @@ void dspark(const std::string& trunk, const std::string& sidecar) {
     require(group_most <= 2e-5, "a group's DSpark draft logits within 2e-5 of the reference's, " + std::to_string(group_most) + " at " + group_where + coded);
     dspark_served(trunk, joined, jw);
     dspark_window(joined, field(field(d, "args"), "dspark_target_layer_ids").asArray().size(), B);
+    dspark_cut(joined);
 }
 
 int main(int argc, char** argv) {
@@ -2228,6 +2321,7 @@ int main(int argc, char** argv) {
             groups(argv[3], 2);
             slices(argv[3]);
             split_cuts(argv[3]);
+            cut_passes(argv[3]);
             prefill_then_decode(argv[3]);
             native_cache(argv[3]);
             rollback(argv[3]);

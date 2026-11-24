@@ -56,13 +56,13 @@ struct BesideCpu final : backend::CpuBackend {
 
 // A pass a group model cuts, ending at token 256 from no history and after 37, against the same rows beside a one-token entry of another sequence: logits, KV and state bytes and the decode after.
 // Where `below` is BesideCpu's bound the second arm records whole and two sequences are cut inside the second entry and at their boundary, else both arms cut; a state model needs two state slots.
-inline void check_cut_passes(infer::Model& model, const std::shared_ptr<size_t>& below = {}) {
+inline void check_cut_passes(infer::Model& model, const std::shared_ptr<size_t>& below = {}, size_t first = 128) {
     const size_t bound = below ? *below : 0;
     const auto whole = [&](bool on) {
         if (below) *below = on ? 0 : bound;
     };
     const size_t V = model.n_vocab();
-    std::vector<uint32_t> ids(384);
+    std::vector<uint32_t> ids(2 * first + 128);
     for (size_t i = 0; i < ids.size(); ++i) ids[i] = uint32_t((i * 2654435761u >> 7) % V);
     for (size_t history : {size_t(0), size_t(37)}) {
         const size_t n = 256 - history;
@@ -99,9 +99,10 @@ inline void check_cut_passes(infer::Model& model, const std::shared_ptr<size_t>&
         }
     }
     if (!below) return;
-    // Both sequences end on whole KV blocks, since the host copy that compares the bytes takes whole blocks, and the pass's cut falls 64 rows into the second (384 rows) or at their boundary (256).
-    for (const size_t second : {size_t(256), size_t(128)}) {
-        const size_t first = 128, rows = first + second;
+    // Both sequences end on whole KV blocks, since the host copy that compares the bytes takes whole blocks, and the pass's cut falls 64 rows into the second or at their boundary.
+    // A model whose state rings outgrow 128 rows passes a `first` that fills them, the second sequence as long or 128 rows longer, since a slot is never cleared and the bytes compare all of it.
+    for (const size_t second : {first + 128, first}) {
+        const size_t rows = first + second;
         const std::string shape = " of two sequences of " + std::to_string(first) + " and " + std::to_string(second) + " rows";
         std::vector<float> logits(rows * V);
         std::vector<uint8_t> bytes[2];
@@ -128,5 +129,49 @@ inline void check_cut_passes(infer::Model& model, const std::shared_ptr<size_t>&
             model.reset(a);
             model.reset(b);
         }
+    }
+}
+
+// A fork's first pass cut inside its entry, its first part reading the source's checkpoint and its second the fork's own state, against the pass whole: logits, both histories' KV and state bytes, the decode after.
+// The caller may pick `history` and `rows` so a window ring wraps in the pass; `below` and `sends` are BesideCpu's, and the cut arm must send while the whole arm and the source's pass send nothing.
+inline void check_cut_fork(infer::Model& model, const std::shared_ptr<size_t>& below, const std::shared_ptr<size_t>& sends, size_t history, size_t rows) {
+    const size_t bound = *below, V = model.n_vocab();
+    std::vector<uint32_t> ids(history + rows + 1);
+    for (size_t i = 0; i < ids.size(); ++i) ids[i] = uint32_t((i * 2654435761u >> 7) % V);
+    const std::string shape = " on a fork of " + std::to_string(history) + " tokens and a pass of " + std::to_string(rows) + " rows";
+    std::vector<float> logits(rows * V), decode(V);
+    std::vector<uint8_t> bytes, source;
+    for (bool cut : {true, false}) {
+        infer::Sequence a = model.make_sequence();
+        infer::ExecContext x;
+        *below = 0;
+        infer::BatchEntry h{&a, ids.data(), history, false};
+        h.keep = model.keeps_state();
+        model.forward(x, &h, 1);
+        infer::Sequence b = model.fork(a, history);
+        *below = cut ? bound : 0;
+        *sends = 0;
+        infer::BatchEntry e{&b, ids.data() + history, rows, true};
+        e.every_logits = true;
+        e.keep = h.keep;
+        model.forward(x, &e, 1);
+        *below = bound;
+        if ((*sends > 0) != cut) throw std::runtime_error(std::string(cut ? "a pass that should be cut was recorded whole" : "a pass recorded whole sent a cut part's sums") + shape);
+        for (size_t r = 0; r < rows; ++r) {
+            if (cut) std::memcpy(logits.data() + r * V, x.logits(r), V * sizeof(float));
+            else if (std::memcmp(logits.data() + r * V, x.logits(r), V * sizeof(float))) throw std::runtime_error("a pass cut in two parts gives another logits row " + std::to_string(r) + shape);
+        }
+        if (cut) {
+            bytes = history_bytes(model, b);
+            source = history_bytes(model, a);
+        } else if (bytes != history_bytes(model, b) || source != history_bytes(model, a)) {
+            throw std::runtime_error("a pass cut in two parts leaves other KV or state bytes in the fork or its source" + shape);
+        }
+        const infer::BatchEntry d{&b, &ids[history + rows], 1, true};
+        model.forward(x, &d, 1);
+        if (cut) std::memcpy(decode.data(), x.logits(0), V * sizeof(float));
+        else if (std::memcmp(decode.data(), x.logits(0), V * sizeof(float))) throw std::runtime_error("the decode after a pass cut in two parts differs" + shape);
+        model.reset(b);
+        model.reset(a);
     }
 }

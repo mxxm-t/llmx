@@ -1462,6 +1462,8 @@ int main(int argc, char** argv) {
                 infer::Model cutting(wide.weights, group, tensor_placement(), model_options(2, 2));
                 check_cut_passes(cutting, below);
                 if (sends && !*sends) throw std::runtime_error("a group whose sums copy beside its work cut no pass");
+                // A fork's first pass, cut inside its entry, reads its source's checkpoint in the first part and its own state in the second.
+                if (below) check_cut_fork(cutting, below, sends, 128, 256);
                 std::cout << "qwen4exp tensor width 2: a pass cut in two parts gives the whole pass's bits\n";
             }
             std::cout << "qwen4exp tensor width 2: " << cases.size()

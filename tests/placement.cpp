@@ -2190,9 +2190,12 @@ void fit_cut_first_pass() {
 }
 
 // A device that fails any one allocation past `limit` bytes however much room it has, as RADV fails a buffer past its largest allocation, and records the largest it made.
+// With `stated` it states the limit (Backend::allocation_limit), as Vulkan states maxMemoryAllocationSize.
 struct LimitedDevice : SizedDevice {
     size_t limit = SIZE_MAX;
+    bool stated = false;
     size_t largest = 0;
+    std::optional<size_t> allocation_limit() const override { return stated ? std::optional<size_t>(limit) : std::nullopt; }
     backend::BufferPtr alloc(size_t bytes, backend::Memory where) override {
         if (bytes > limit) throw std::bad_alloc();
         largest = std::max(largest, bytes);
@@ -2200,14 +2203,15 @@ struct LimitedDevice : SizedDevice {
     }
 };
 
-// An automatic budget over a device whose largest allocation is far below its room, which the device does not state: a build whose allocation fails with no reading to cut by is built again with a strictly smaller budget rather than given up.
+// An automatic budget over a device whose largest allocation is far below its room: one the device states is fitted to it at the first build, and one it does not state is built again with a strictly smaller budget rather than given up.
 // One whose every allocation fails keeps the allocation's own error after its bounded rebuilds.
 void kv_auto_allocation_limit() {
     const auto weights = fixture();
-    const auto automatic = [&](size_t limit, size_t* largest) {
+    const auto automatic = [&](size_t limit, size_t* largest, bool stated = false) {
         auto device = std::make_shared<LimitedDevice>();
         device->room = 8 << 20;
         device->limit = limit;
+        device->stated = stated;
         device->set_threads(1);
         infer::PlacementRequest request;
         request.names = {"device"};
@@ -2226,12 +2230,18 @@ void kv_auto_allocation_limit() {
     require(why.empty() && tokens > 0 && tokens < filled && limited_largest <= free_largest / 3,
             ("an automatic budget of " + std::to_string(filled) + " tokens whose largest buffer of " + std::to_string(free_largest) +
              " bytes passes the device's largest allocation was not built again smaller: " + (why.empty() ? std::to_string(tokens) + " tokens" : why)).c_str());
+    // Stated, the budget is the most whole blocks whose largest buffer the limit holds, more than the halving of an unstated limit leaves.
+    size_t stated_largest = 0;
+    const size_t fitted = automatic(free_largest / 3, &stated_largest, true);
+    require(fitted > tokens && stated_largest <= free_largest / 3 && fitted <= filled / 3,
+            ("an automatic budget over a device stating a largest allocation of " + std::to_string(free_largest / 3) + " bytes took " + std::to_string(fitted) +
+             " tokens, not the most of the " + std::to_string(filled) + " it fills unlimited that the limit holds").c_str());
     bool kept = false;
     try {
         automatic(64, &limited_largest);
     } catch (const std::bad_alloc&) { kept = true; } catch (const std::runtime_error&) {}
     require(kept, "a device whose every allocation fails did not keep the allocation's own error");
-    checked += 2;
+    checked += 3;
 }
 
 // A history recomputed in the classes that first computed it, over two CPU stages, as a paused request's resume does (docs/SERVER.md, pausing): a 40-token prompt in slices of 16, then 199 greedy tokens as entries of extent 1 of up to 64 rows.

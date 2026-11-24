@@ -818,6 +818,8 @@ beside the weights, a pass's activations, a recurrent state for each of the
 `--max-seqs` requests, the state checkpoints and an embedded drafter with its
 first mark; on the CPU, or over devices among which one's free memory is the
 host's or unknown, it is the model's context, and the start line says why.
+Either budget is also held so that no one KV buffer passes the largest
+allocation a device states, such as a Vulkan driver's `maxMemoryAllocationSize`.
 The default follows the free memory at start, so a server beside other work
 on its devices gets another pool at each start; `--kv-tokens` fixes it.
 It also waits at start, about 5 s, for that memory to stay level, which a

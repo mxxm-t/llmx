@@ -778,6 +778,13 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
                 Footprint fp = fit_footprint(source, *fitting, o, request);
                 fp.host_state = backend::size_add(fp.host_state, host_bytes);
                 reserve_slot(fp, weights, plan, request);
+                // A cache buffer past a device's largest allocation fails however much memory is free, and any device may hold the layer, so each one stating a limit holds every buffer to it.
+                for (const DeviceBudget& device : budgets)
+                    for (const auto& buffers : fp.cache_buffers)
+                        for (size_t n : buffers)
+                            if (device.allocation_limit && (device.allocated ? device.allocated(n) : n) > *device.allocation_limit)
+                                throw std::runtime_error("a KV buffer of " + std::to_string(n) + " bytes passes " + device.name + "'s largest allocation of " +
+                                                         std::to_string(*device.allocation_limit) + " bytes");
                 split_layers(fp, group_budgets(budgets, request.width, sum_width(plan)), rows, request.shares, host_room,
                              std::max<size_t>(1, request.slots), logits, reply_rows(request), request.rounds);
                 return true;
@@ -1362,14 +1369,18 @@ inline PlacedModel build_fitted(const ModelWeights& weights, PlannedModel planne
             if (need && per_block[d]) cut = std::max(cut, backend::blocks_for(need, per_block[d]));
         }
         const size_t tokens = kv_tokens(planned.architecture, planned.options) / block;
-        if (!cut && failed) std::rethrow_exception(failed);
         // The request's histories take whole blocks each (place_model), and no cut leaves fewer.
         const size_t asked = request.histories ? history_need(request, planned.architecture.context_length, block) / block : 1;
-        if (!cut || cut >= tokens || tokens - cut < asked)
+        // A strictly smaller budget: less the blocks the readings name, or half where they name none or all, since a failed allocation takes nothing a reading shows, and then not below the request's least.
+        size_t next = cut && cut < tokens ? tokens - cut : tokens / 2;
+        if (!(cut && cut < tokens) && next < asked) next = tokens > asked ? asked : 0;
+        if (next < asked) {
+            if (failed && !cut) std::rethrow_exception(failed);
             throw std::runtime_error("inference: the KV budget of " + std::to_string(tokens * block) + " tokens ran a device short once built, and the " +
                                      std::to_string(cut < tokens ? (tokens - cut) * block : 0) + " tokens that fit are fewer than " +
                                      (request.histories ? "the " + std::to_string(asked * block) + " the request needs" : "one block of " + std::to_string(block)));
-        planned.options.kv_tokens = (tokens - cut) * block;
+        }
+        planned.options.kv_tokens = next * block;
     }
 }
 

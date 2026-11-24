@@ -616,9 +616,11 @@ public:
             fn.vkEnumerateDeviceExtensionProperties(d.physical, nullptr, &core_ext_count, core_exts.data());
         bool has_core_props = false;
         bool has_pci = false;
+        bool has_maintenance4 = false;
         for (const auto& e : core_exts) {
             if (std::strcmp(e.extensionName, "VK_AMD_shader_core_properties") == 0) has_core_props = true;
             if (std::strcmp(e.extensionName, VK_EXT_PCI_BUS_INFO_EXTENSION_NAME) == 0) has_pci = true;
+            if (std::strcmp(e.extensionName, VK_KHR_MAINTENANCE_4_EXTENSION_NAME) == 0) has_maintenance4 = true;
         }
         VkPhysicalDeviceShaderCorePropertiesAMD core{};
         core.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_CORE_PROPERTIES_AMD;
@@ -632,7 +634,19 @@ public:
             pci.pNext = p2.pNext;
             p2.pNext = &pci;
         }
+        VkPhysicalDeviceMaintenance3Properties m3{};
+        m3.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_3_PROPERTIES;
+        m3.pNext = p2.pNext;
+        p2.pNext = &m3;
+        VkPhysicalDeviceMaintenance4PropertiesKHR m4{};
+        m4.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_4_PROPERTIES_KHR;
+        if (has_maintenance4) {
+            m4.pNext = p2.pNext;
+            p2.pNext = &m4;
+        }
         fn.vkGetPhysicalDeviceProperties2(d.physical, &p2);
+        d.allocation_limit = (size_t)m3.maxMemoryAllocationSize;
+        if (has_maintenance4) d.allocation_limit = std::min(d.allocation_limit, (size_t)m4.maxBufferSize);
         if (has_pci) d.pci_root = pci_root_of(pci.pciDomain, pci.pciBus, pci.pciDevice, pci.pciFunction);
         d.float_controls = float_control_support(floats);
         d.preserve_float32 = (d.float_controls & kPreserve32) == kPreserve32;
@@ -1194,6 +1208,7 @@ public:
     size_t memory_kept(size_t) const override { return kPipelineCodeBytes; }
     size_t resident_bytes(uint32_t type, size_t nin, size_t rows, size_t bytes, bool product) const override;
     size_t allocation_bytes(size_t bytes) const override { return alloc_bytes(bytes); }
+    std::optional<size_t> allocation_limit() const override { return dev_->allocation_limit; }
     void prepare_matrix(WeightView weight, size_t nin, size_t rows) override;
     void drop_tags();
     void forget_written(VkBuffer buffer, VkDeviceSize begin, VkDeviceSize end);

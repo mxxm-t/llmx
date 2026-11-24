@@ -181,6 +181,19 @@
 **Landing.** With the landing stack land-20261132, whose gates are recorded there (Landing stack land-20261132, below).
 
 **Gotchas.** The note is reached only by a device run: hosted CI checks only that the CPU stays silent.
+## KV buffers within a device's largest allocation (2026-11-24, CONFFIX7, branch fix/kv-budget-max-alloc on main d8bd8735e)
+
+**Goal.** `serve` of the deepseek41 fixture on `--device vulkan:0,vulkan:1` without `--kv-tokens` sized an automatic budget of 841066496 tokens, one 33642659840-byte buffer RADV cannot allocate, and the rebuild then read a fall in free memory from the other card's release and refused with 0 tokens (ARCHAUDIT4, flagaudit1/out/vk-main/deepseek41/s-dev2.txt); ROCm serves it.
+
+**Done.**
+- Test commit: `placement` (`kv_auto_allocation_limit`) builds an automatic budget over a device that fails any allocation past a third of the largest buffer it otherwise makes, which main gives up with the allocation's error, and one whose every allocation fails, which keeps that error.
+- Fix: `Backend::allocation_limit`, Vulkan's `maxMemoryAllocationSize` and maintenance4's `maxBufferSize`, held by `fitted_kv` over every layer's cache buffers on each device stating one; `build_fitted` rebuilds with a strictly smaller budget, half where the readings name no cut or the whole budget, floored at the request's least, which it tries before it gives up (Fable: a measured cut below the least still refuses with both counts, as on main). The test adds the stated limit, fitted at the first build. Not capped at context times sequences (XDEV 20:51 and Fable: prefix reuse keeps the spare room).
+- Evidence: `placement` fails on the test commit a77f7297c (rc 1, an automatic budget of 242944 tokens whose largest buffer of 1943552 bytes passes the device's largest allocation was not built again smaller: the allocation failed) and passes on the fix (1268 checks across two, three and four CPU backends).
+- On two MI50s under Vulkan (renderD134 and renderD135, RADV in llmx-build-vk), `serve` of the deepseek41 fixture on `--device vulkan:0,vulkan:1` without `--kv-tokens`: the test commit's Vulkan build refuses as main does (RADV fails a 33642659840-byte buffer, then the KV budget of 841066496 tokens ran a device short once built, and the 0 tokens that fit are fewer than one block of 64), and the fix's serves 107374080 KV tokens, caches of 2.01 and 6.01 GiB on the two cards, answering /v1/health and 8-token completions.
+
+**Left.** Lands in COORD's stack, whose head runs CTest, the suites, byte identity against main and the hosted run.
+
+**Gotchas.** Only layer cache buffers are held to the limit; a drafter's cache is not split into buffers in the footprint. The limit is held on every device stating one, since the fit does not know which device takes a layer.
 
 ## The fit charges the vision encoder (2026-11-24, FITMM1, branch fix/mmproj-fit on main 83ac07728)
 

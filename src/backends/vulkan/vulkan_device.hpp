@@ -269,6 +269,7 @@ struct Device {
     uint32_t copy_family = 0;              // copy_queue's family
     VkPhysicalDeviceProperties props{};
     VkPhysicalDeviceMemoryProperties memory{};
+    size_t allocation_limit = SIZE_MAX;   // the largest one buffer may be: maxMemoryAllocationSize, and maxBufferSize where maintenance4 states it
     DeviceCaps caps{};            // what this device says of itself
     DeviceProfile profile{};      // what measuring its kernels said (backends/device_profile.hpp)
     bool float64 = false; // shaderFloat64, enabled where the device has it, for the kernels that sum in double

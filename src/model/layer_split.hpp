@@ -91,6 +91,7 @@ struct DeviceBudget {
     bool argmax = false;                                              // the device keeps argmax passes' logits rows (not the CPU, and it implements argmax_rows)
     std::function<size_t(const backend::PassWidths&)> priced = nullptr;   // the scratch passes of those widths take there (Backend::scratch_bytes)
     std::function<size_t(size_t)> allocated = nullptr;                    // what a buffer of so many bytes takes there (Backend::allocation_bytes)
+    std::optional<size_t> allocation_limit;                               // the most one buffer may take there (Backend::allocation_limit)
     std::vector<char> serves;   // per device of the list, whether this one's crossings to it are ordered on the devices (Backend::handoff), with no host round trip
 };
 
@@ -133,6 +134,7 @@ inline std::vector<DeviceBudget> budgets_for(const std::vector<backend::BackendP
         budgets.back().argmax = !b->is_cpu() && b->implements(backend::Op::argmax_rows);
         budgets.back().priced = [b](const backend::PassWidths& w) { return b->scratch_bytes(w); };
         budgets.back().allocated = [b](size_t bytes) { return b->allocation_bytes(bytes); };
+        budgets.back().allocation_limit = b->allocation_limit();
     }
     // Asked once at load, as the model asks for its own readers: a handoff from each device to every other, and which of them it serves.
     for (size_t d = 0; d < backends.size(); ++d) {

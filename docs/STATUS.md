@@ -216,6 +216,20 @@
 - **Left:** qwen4exp's dense layers make the same four calls and could call it, with their own byte identity on Flash-Next; `llmx_attention_gated256` and its merge copy the bodies of `attention_vec<256>` and its merge and could be builds of those templates, as the sparse ones are, after a timing round (Fable). It lands with the landing stack land-20261129, whose gates are recorded there (Landing stack land-20261129, below).
 - **Gotchas:** A backend that fuses the layer may leave the formed q and k unwritten, unlike `norm_rope_kv`, so nothing after the layer may read them. Vulkan keeps the default.
 
+## Placement weight memory named as an estimate (2026-11-24, CONFFIX4, branch fix/placement-weight-bytes on main d8bd8735e)
+
+**Goal.** The `--verbose` placement line says what its weights figure counts: the fit's estimate of their device memory, each tensor as the device allocates it, which on Vulkan was 0.95 GiB a member of a tensor group of two for the 0.48 GiB Qwen3.5-0.8B file; and a tensor group's line says its figures are a member's (architecture audit ARCHAUDIT3, finding 4).
+
+**Done.**
+- Test commit: `placement` pins a hand-built split's line to `weight memory 1.50 GiB estimated` and a tensor group's, at one stage and two, to `per member: weight memory`.
+- Fix: `LayerSplit::describe` takes the tensor width from `place_model` and words the line so; docs/USAGE.md, docs/src/model-layer_split.md and docs/TESTS.md.
+- Kept: the figure itself, the fit's only count, and a tied table counted on both end devices of a layer split, since each holds a copy (`Model::resolve_tensors` adopts a tensor once a device); a raw byte count beside it would be a second count through the fit (Fable, XDEV).
+- Evidence (CPU build, `llmx-placement-test`, rig arms conffix1/arms3): main with the test commit fails `placement`, "a group's placement line does not say its figures are each member's: cpu+cpu: layers 0-2, weights 0.00 GiB, ..." (p0.res); the fix passes it (p1.res).
+
+**Left.** Lands in COORD's stack, at most two commits, gitea PR 618; the stack's head runs the CPU suite, CTest, Qwen3-0.6B byte identity against main and the hosted run.
+
+**Gotchas.** Nothing parses the old label; recorded benchmark lines keep the old wording as history.
+
 ## QSA identity rows in one launch (2026-11-21, FNGATE3 then FNGATE4, branch perf/qsa-identity-rows, revived 2026-11-23 by REVIVE1 on main bfb7f517)
 
 - **Goal:** Cut the launches and device time of QSA key selection for rows that take every group they see.

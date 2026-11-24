@@ -1184,7 +1184,7 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
         else fit();
         if (!split) std::rethrow_exception(refused);
         placed.placement = placement_for(*split, request.width);
-        placed.plan = split->describe(group_budgets(budgets, request.width, sum_width(plan)));
+        placed.plan = split->describe(group_budgets(budgets, request.width, sum_width(plan)), request.width);
         // Beside the CPU added at index 0 every device moves up one, and the first `cpu_moe` routed layers' feed-forward blocks go to the CPU.
         if (experts_host) {
             Placement& place = placed.placement;

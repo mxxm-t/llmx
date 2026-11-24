@@ -167,9 +167,10 @@ struct LayerSplit {
     std::vector<int> draft_device;   // each drafter stage's device
     size_t host = 0;   // what the host holds besides mapped weights: logits rows, position tables, the handoff between devices and the used backends' own host memory
 
-    std::string describe(const std::vector<DeviceBudget>& devices) const {
+    // A line a device, or a tensor group of `width` devices whose figures are then a member's; the weights figure is the fit's estimate of their device memory, each tensor as the device allocates it.
+    std::string describe(const std::vector<DeviceBudget>& devices, size_t width = 1) const {
         std::string s;
-        char line[256];
+        char line[384];
         const double gib = 1024.0 * 1024.0 * 1024.0;
         for (size_t d = 0; d < stages.size(); ++d) {
             const Stage& st = stages[d];
@@ -181,8 +182,9 @@ struct LayerSplit {
             if (!st.count)
                 std::snprintf(line, sizeof line, "%s: no layers\n", devices[d].name.c_str());
             else
-                std::snprintf(line, sizeof line, "%s: layers %s%s, weights %.2f GiB, cache %.2f GiB, activations and scratch %.2f GiB, %s\n",
-                              devices[d].name.c_str(), runs_text(st.runs).c_str(), drafts.c_str(), st.weights / gib, st.cache / gib, st.other / gib, free);
+                std::snprintf(line, sizeof line, "%s: layers %s%s, %sweight memory %.2f GiB estimated, cache %.2f GiB, activations and scratch %.2f GiB, %s\n",
+                              devices[d].name.c_str(), runs_text(st.runs).c_str(), drafts.c_str(), width > 1 ? "per member: " : "", st.weights / gib, st.cache / gib,
+                              st.other / gib, free);
             s += line;
         }
         std::snprintf(line, sizeof line, "host: logits, tables and staging %.2f GiB\n", host / gib);

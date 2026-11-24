@@ -443,7 +443,9 @@ share the layers as evenly as that allows; the CPU, which reads its weights
 in place, from the mapped file or with `--load-mode direct` from its own
 copy, takes only the layers the others cannot hold.
 A model that does not fit is refused: the fit names the model's layer count, and with `--layer-shares` the error names the device, the layers it was given, the memory they need and the memory it has free.
-`--verbose` prints what each device was given.
+`--verbose` prints what each device was given: its layers, its weight memory, its cache, and its activations and scratch.
+The weight memory is the fit's estimate, not a measurement and not the file's bytes: each tensor as the device allocates it, rounded up to its allocation unit, so a small model's figure on a GPU can be well above its file; a tied embedding and head table counts on both the first and the last device of a layer split, which each hold a copy; and a device that reads its weights in place, such as the CPU, counts only what it copies.
+A tensor group's line gives each figure per member.
 The CPU reports what the process can still take of the host's memory: the host's available memory, or less where a container's cgroup or a job object's memory limit leaves less; the loader's "available memory" below is the same figure.
 
 ```powershell

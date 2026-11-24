@@ -26,6 +26,7 @@ Each entry is one short line that links the doc explaining it; reasons, flags an
 - ROCm and CUDA tensor groups sum one part of a prompt beside the other part's work, batched prompts included ([tensor split](docs/TENSOR-SPLIT.md)).
 - DeepSeek-V4.1 decodes short contexts faster by skipping its indexer ([DeepSeek-V4.1](docs/src/model-arch-deepseek4.md)).
 - Q8_0 int8 decode of 9 or 10 sequences at once is faster on ROCm ([ROCm](docs/ROCM.md)).
+- `--verbose` placement lines call their weights figure an estimate of device memory, given per member for a tensor group ([usage](docs/USAGE.md)).
 
 ### Fixed
 

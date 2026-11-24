@@ -150,34 +150,43 @@ def held_to_hf(label, meta, rows, fixture, family=None):
     return worst, abs(nll - want)
 
 
-def drafts(tool, model, directory, devices, width):
-    """The embedded drafter's pick and two drafts after each of four prompts of `model` on `devices`, as llmx-decode-probe prints them with f32 caches: per prompt the pick, the drafted ids and each draft row's logits."""
+def drafts(tool, model, directory, devices, width, sidecar=None, count=2):
+    """The drafter's pick and `count` drafts after each of four prompts of `model` on `devices`, the embedded one or the sidecar file, as llmx-decode-probe prints them with f32 caches: per prompt the pick, the drafted ids and each draft row's logits."""
     out = []
     for prompt in ("a", "ab", "hello", "The quick br"):
-        p = decode_probe.probe(tool, model, directory, {"prompt": prompt, "ids": [], "tokens": [0, 1], "draft": 2, "cache": "f32"}, devices, width)
+        fixture = {"prompt": prompt, "ids": [], "tokens": [0, 1], "draft": count, "cache": "f32"}
+        if sidecar:
+            fixture["drafter_file"] = sidecar
+        p = decode_probe.probe(tool, model, directory, fixture, devices, width)
         assert p.returncode == 0, "tensor-split: llmx-decode-probe failed on %s at width %d: %s%s" % (devices, width, p.stdout, p.stderr)
         pick = re.search(r"^draft pick (\d+), (\d+) drafts$", p.stdout, re.M)
         rows = re.findall(r"^draft (\d+) (\d+):((?: \S+)+)$", p.stdout, re.M)
-        assert pick and len(rows) == 2, "tensor-split: no drafts on %s at width %d: %s" % (devices, width, p.stdout)
+        assert pick and len(rows) == count, "tensor-split: no drafts on %s at width %d: %s" % (devices, width, p.stdout)
         out.append((int(pick.group(1)), [int(r[1]) for r in rows], [[float(v) for v in r[2].split()] for r in rows]))
     return out
 
 
 def check_drafter(directory, single, widths, require):
-    """The qwen35 and qwen35moe fixtures with an MTP block as an embedded drafter over a group (docs/TENSOR-SPLIT.md, step 6): from four prompts, the pick and the two drafts must be one device's, whose drafts the qwen35 component holds to HF on its own fixture, and every draft row's logits within the F32 bound of one device's.
+    """The qwen35 and qwen35moe fixtures with an MTP block as an embedded drafter over a group (docs/TENSOR-SPLIT.md, step 6), and the qwen35 one with the DSpine sidecar of tests/fixture_dspine.py, which runs whole on the group's first member: from four prompts, the pick and the drafts must be one device's, whose drafts the qwen35 and drafters components hold to their references on their own fixtures, and every draft row's logits within the F32 bound of one device's.
     Returns the largest difference, or None with a skip line where the tool is not beside the executable."""
     tool = decode_probe.tool_path()
     if not os.path.exists(tool):
         assert not require, "tensor-split: llmx-decode-probe is not beside the executable, and --require-tools asks for it"
         print("tensor-split: SKIP the drafter over a group - llmx-decode-probe is not beside the executable")
         return None
+    import fixture_dspine
     worst = 0.0
-    for spec in (dict(QWEN35, name="split-mtp", mtp=True), dict(QWEN35MOE, name="split-moe-mtp", mtp=True)):
-        model = qwen35.write_fixture(directory, dict(spec, config=dict(spec["config"], context_length=128)), tokens=TOKENS)
-        one = drafts(tool, model, directory, single, 1)
+    plain = qwen35.write_fixture(directory, dict(QWEN35, config=dict(QWEN35["config"], context_length=128)), tokens=TOKENS)
+    sidecar = os.path.join(directory, "split-dspine.gguf")
+    fixture_dspine.write_sidecar(sidecar, plain, 1)
+    cases = [(qwen35.write_fixture(directory, dict(spec, config=dict(spec["config"], context_length=128)), tokens=TOKENS), spec["name"], None, 2)
+             for spec in (dict(QWEN35, name="split-mtp", mtp=True), dict(QWEN35MOE, name="split-moe-mtp", mtp=True))]
+    cases.append((plain, "split with DSpine", sidecar, fixture_dspine.SIDECAR["block_size"] - 1))
+    for model, name, drafter, count in cases:
+        one = drafts(tool, model, directory, single, 1, drafter, count)
         for width, devices in widths:
-            for (pick, ids, rows), (want_pick, want_ids, want_rows) in zip(drafts(tool, model, directory, devices, width), one):
-                assert pick == want_pick and ids == want_ids,                     "tensor-split: a group of %d drafts %s after %d on %s, one device %s after %d" % (width, ids, pick, spec["name"], want_ids, want_pick)
+            for (pick, ids, rows), (want_pick, want_ids, want_rows) in zip(drafts(tool, model, directory, devices, width, drafter, count), one):
+                assert pick == want_pick and ids == want_ids,                     "tensor-split: a group of %d drafts %s after %d on %s, one device %s after %d" % (width, ids, pick, name, want_ids, want_pick)
                 worst = max(worst, max(abs(a - b) for row, want in zip(rows, want_rows) for a, b in zip(row, want)))
     assert worst < common.F32_HF_LOGIT_BOUND, "tensor-split: a group's draft logits %.8f from one device's" % worst
     return worst

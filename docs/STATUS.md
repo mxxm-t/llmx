@@ -123,6 +123,18 @@
 **Left.** Lands in COORD's stack after PR 607 and FLAGFIX1's branch, at most two commits, gitea PR 613; the stack's head runs the CPU suite, CTest, Qwen3-0.6B byte identity against main, byte identity on the CPU and a device for the models it reaches, the suite on a device, one timing round against main and the hosted run.
 
 **Gotchas.** The refusal names the key, as the module's other limits do.
+## --draft-max needs a drafter (2026-11-24, CONFFIX6, branch fix/draft-max-needs-drafter on main d8bd8735e)
+
+**Goal.** `--draft-max` without `--drafter`, or with `--drafter off`, is refused as a usage error by `generate`, `chat`, `serve` and `bench --model`, which accepted it and drafted nothing (ARCHAUDIT4 and FLAGAUDIT1, on every architecture).
+
+**Done.**
+- Test commit 9f8913e75: `cli` checks the refusal on the four commands, with no drafter and with `--drafter off`; its help check tries `--draft-max` with `--drafter embedded`, as it tries other flags with the company they need.
+- Fix: `Drafts::check` after the parse, one rule that bench calls through `Drafts::check_draft_max`; docs/USAGE.md, docs/SPECULATIVE.md and docs/TESTS.md.
+- Fail then pass (rig, CPU build): `cli` at the test commit fails, as generate took `--draft-max 4` without a drafter and went on to open the model, and passes at the fix (conffix1/arms6/res/dj2.txt).
+
+**Left.** Lands in COORD's stack; the stack's head runs the CPU suite, CTest, Qwen3-0.6B byte identity against main and the hosted run.
+
+**Gotchas.** No drafter source means no drafting on every path, an MTP file included (`load_model` plans its blocks only for `--drafter embedded`), so the refusal changes no run that drafted.
 
 ## The fit charges the vision encoder (2026-11-24, FITMM1, branch fix/mmproj-fit on main 83ac07728)
 

@@ -3063,10 +3063,10 @@ def check_flash_mtp_http(tool=None):
         body = {"messages": [{"role": "user", "content": prompt}], "max_tokens": 64,
                 "temperature": 0, "logprobs": True, "top_logprobs": 5}
         flags = ("--device", "cpu", "--threads", "1", "--dtype", "f32", "--cache-type-k", "f32", "--cache-type-v", "f32",
-                 "--max-seqs", "1", "--ctx-size", "512", "--ubatch", "16", "--state-checkpoints", "0", "--draft-max", "3")
+                 "--max-seqs", "1", "--ctx-size", "512", "--ubatch", "16", "--state-checkpoints", "0")
         replies, counts = [], []
         for drafter in ("off", side):
-            srv = Server(model, *flags, "--drafter", drafter)
+            srv = Server(model, *flags, "--drafter", drafter, *(() if drafter == "off" else ("--draft-max", "3")))
             try:
                 health = srv.get("/v1/health")
                 assert health["drafting"]["sources"] == ([] if drafter == "off" else [side]), health

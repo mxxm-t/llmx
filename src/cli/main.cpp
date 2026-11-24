@@ -816,6 +816,12 @@ struct Drafts {
         d->history = history;
         return d;
     }
+    // --draft-max sizes what a drafter drafts, so a line that names no drafter, or only off, is refused rather than ignored.
+    void check(const GivenFlags& given) const { check_draft_max(given, !sources.empty()); }
+    static void check_draft_max(const GivenFlags& given, bool drafting) {
+        const std::string spelled = given.spelling("--draft-max");
+        if (!drafting && !spelled.empty()) throw UsageError(spelled + " is the most drafts a drafter makes; give --drafter");
+    }
 };
 
 // --drafter and --draft-max, which generate, chat and serve take; true when `f` is one of them.
@@ -2062,6 +2068,7 @@ int main(int argc, char** argv) {
                 else { prompt = a; have_prompt = true; }
                 given.take(a, i > at);
             }
+            drafts.check(given);
             if (chat) return cmd_chat(argv[2], system, gp, exec, drafts);
             if (!have_prompt) throw UsageError("missing the prompt");
             if (!as_chat && !exec.chat_template_file.empty()) throw UsageError("--chat-template-file renders the one user message --chat sends");
@@ -2196,6 +2203,7 @@ int main(int argc, char** argv) {
             if (host_bytes) cfg.host_cache_bytes = (size_t)*host_bytes;
             if (cfg.disk.adopt_proved && !cfg.disk.keep) throw UsageError("--disk-cache-adopt proved adopts what --disk-cache-keep left and leaves; give --disk-cache-keep");
             if (images.max_tokens && images.mmproj.empty()) throw UsageError("--image-max-tokens sizes the images the encoder --mmproj names reads");
+            drafts.check(given);
             return cmd_serve(argv[2], cfg, exec, drafts, images);
         }
         if (cmd == "bench") {
@@ -2236,6 +2244,7 @@ int main(int argc, char** argv) {
                 if (std::find(specs.begin(), specs.end(), "cpu") != specs.end()) throw UsageError("--profile times the kernels of Vulkan, ROCm and CUDA devices, not the CPU");
             }
             const BenchDrafter drafts = bench_drafter(drafter, draft_max);
+            Drafts::check_draft_max(given, bool(drafts));
             if (!model_path.empty()) return cmd_bench_model(model_path, exec, n.prompt, n.decode, n.repeats, profile, n.seqs, n.depth, drafts);
             return cmd_bench(n.size, n.iters, exec.threads, n.prompt, n.decode, exec.device);
         }

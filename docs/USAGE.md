@@ -682,7 +682,7 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--stop "<text>"`       | stop generating once decoded output contains this, at most 256 bytes | (none)  |
 | `--ignore-eos`          | never end at the model's end-of-text token           | off     |
 | `--drafter D`           | draft tokens to verify in one pass: `off`, or sources tried in the order given, comma-separated: `lookup`, `embedded` or a drafter file beside the model, as `lookup,embedded` | `off`  |
-| `--draft-max N`         | most drafts a draft holds, verified up to 63 a pass, 1 to 1023 | 3 |
+| `--draft-max N`         | most drafts a draft holds, verified up to 63 a pass, 1 to 1023; refused without `--drafter` | 3 |
 | `-f`, `--file <path>`   | read the prompt from a UTF-8 file, right after the model | (none) |
 | `--chat`                | send the prompt as one user message through the model's chat template | off (raw text) |
 | `--chat-template-file PATH` | chat template file that replaces the model's own, with `--chat` (Chat template file, above) | (the model's) |

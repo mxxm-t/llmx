@@ -499,7 +499,7 @@ layers on the CPU, `--cpu-moe` that of every routed layer. Attention, dense
 feed-forward blocks, the embedding table and the output head stay on the
 `--device`, and the residual stream crosses to the CPU and back once per
 offloaded layer. `--threads` then sets the CPU's workers. With
-`--device cpu` the flags change nothing, and a model without routed
+`--device cpu` alone, where the experts already run, `--cpu-moe` and a nonzero `--n-cpu-moe` are refused, naming the flag (`--n-cpu-moe 0` asks for none and is taken), and a model without routed
 layers refuses them on every device, the CPU included, naming the flag
 given.
 Over a `--device` list the same first `N` routed layers keep their experts on the CPU, whichever device runs their attention, and the fit gives each device its layers by what it holds without those experts, so the device with them takes more layers.
@@ -578,7 +578,7 @@ All three give the same model, bit for bit. With `--verbose`, and always with `b
 
 ## Bounded lookup tables (`--lookup-storage`)
 
-Every model command accepts `--lookup-storage auto|device|file` for the immutable lookup tables an architecture declares; models without such tables are unchanged.
+Every model command accepts `--lookup-storage auto|device|file` for the immutable lookup tables an architecture declares; a model without such tables refuses `device` and `file`, which would place nothing.
 `device` keeps the whole table on the devices that run its layers; where it fits only with less KV room the KV budget is cut to fit, and where it does not fit at all the load is refused.
 `file` reads each pass's rows from the model file on the table's own reader threads and uploads only those packed rows: buffered reads in `--load-mode auto` and `mapped`, and direct reads in `direct`. Lookup reads do not use a mapping or keep the whole table in host memory.
 `auto` keeps the table on the devices where it fits beside the fitted KV budget, and otherwise reads it from the file.
@@ -854,10 +854,10 @@ The server-only flags accepted by `llmx serve` are listed below. Each row gives 
 | Limits | `--max-seqs N` | `16` | At least 1; active requests, including prompt and generation work |
 | Limits | `--max-queue N` | `64` | At least 1; waiting requests before a new request gets 503; paused requests are not counted; connections whose request is not yet with the scheduler, past `--max-seqs` plus `--max-queue` plus 16 for the other routes, get 503 before their request is read |
 | Limits | `--passes N` | one per stage for a layer split, otherwise `1` | At least 1; values above 1 require a multi-device layer split |
-| Prefix reuse | `--state-checkpoints N` | fitted, up to `--max-seqs` | At least 0; saved recurrent states for follow-up turns; 0 disables them |
+| Prefix reuse | `--state-checkpoints N` | fitted, up to `--max-seqs` | At least 0; saved recurrent states for follow-up turns; 0 disables them; above 0 refused on a model without recurrent layers |
 | Context | `--context-overflow HOW` | `refuse` | `refuse` returns 413; `shift` drops oldest turns when a prompt does not fit, and again as an uncapped reply reaches the limit |
 | Speculative decoding | `--drafter D` | `off` | `off`, `lookup`, `embedded` (the model's MTP block), a drafter file with MTP blocks, or comma-separated sources with a model drafter last |
-| Speculative decoding | `--draft-max N` | `3` | From 1 to 63; maximum drafts checked in a pass |
+| Speculative decoding | `--draft-max N` | `3` | From 1 to 63; maximum drafts checked in a pass; refused without a drafter |
 | Images | `--mmproj PATH` | (none) | Vision encoder file beside the model; the chat routes then read `image_url` parts |
 | Images | `--image-max-tokens N` | the encoder's | At least 1, k or m suffix; most tokens of a resized image; needs `--mmproj` |
 | Chat | `--chat-template-file PATH` | the model's | Chat template file that replaces the model's own on every route (Chat template file, above) |
@@ -892,7 +892,8 @@ A prompt alone or replies alone run as before; several prompts read the least wo
 `--timing` times the rounds and each device's work for `/v1/health`, its dispatches between timestamps, which slows serving: throughput is read from a server without it.
 A model whose layers keep a recurrent state, a `qwen35` file such as Qwen3.5 or Qwen3.6-27B, holds a state for each of the `--max-seqs` requests it runs at once, and keeps a request's state where its prompt's last whole block ends within what a follow-up turn begins with, so a chat's next turn forks that state and reads only the rest (docs/SERVER.md).
 `--state-checkpoints N` is how many such states the server keeps, each the size of one request's state (149.6 MiB on Qwen3.6-27B), by default the fewer of `--max-seqs` and the most that take at most a quarter of the KV budget's room; the oldest finished conversation's goes first, and 0 keeps none, so a follow-up turn recomputes its whole prompt and a paused request resumes from its start.
-The line the server prints as it starts gives the number it took and the KV tokens they took from the budget.
+The line the server prints as it starts gives the number it took and the KV tokens they took from the budget; a model without recurrent layers keeps no state, so it refuses a count above 0.
+The line after it, `server: KV cache f16/f16, 8 CPU threads, load mode auto`, gives the cache types, the CPU's workers (or `no layer on the CPU`) and the load mode, which leave no other trace in a reply.
 `--host-cache-bytes SIZE` is how much host memory the server keeps a lookup table's hot rows and the prefixes the devices evict in; the rows take first, at most half of it ([Bounded lookup tables](#bounded-lookup-tables---lookup-storage)), and the start line gives both shares. The prefixes' share is by default what `--max-seqs` histories take at the most one request may hold (the model context or the KV pool, whichever is smaller), within half of the memory the host has free once the model and its caches are loaded, less the rows, and none where every cache sits on the CPU, whose copies would only move host memory into more of it (an explicit value is still taken), 0 keeping none; a copy whose new memory would leave the host less free than the tier's reserve, a twentieth of what the host had free at the start and fixed then, is not kept: a donor the devices evict is copied there, and a request that matches it is given it back, so more conversations than the devices hold resume rather than read their history again; eviction follows the conversation policy described in [SERVER](SERVER.md).
 The server takes that memory while it has nothing to do, four slabs of 64 MiB a step from its start on, or as many as the shortest conversation's copy needs where that is more, so its resident memory reaches the tier's size within seconds of a start whether or not a conversation has yet been evicted, as far as the host's memory allows: the size is a cap, every slab must leave the host a reserve, a twentieth of what it had free at the start and fixed then, and the slabs taken ahead must leave twice that; a copy made later then waits for no allocation.
 Once a second the server looks at the host's free memory, and where that is below the reserve it gives idle slabs back, never one that holds a conversation, and takes none ahead again until the host has twice the reserve free; a copy or a read that would leave less than the reserve is refused, and its request reads its prompt instead. This guards against the server's own growth; it reads a figure that another process can change the next moment and is no guarantee that the host does not run out.
@@ -909,6 +910,7 @@ Equal, the entries are this build's from then on and the request has reused what
 Unequal, the entries and every other unproved entry of that build are deleted and the request reads its prompt from the start, which costs that one request about twice its prompt.
 A proof compares the first block and the last stretch, not the rows between them, a kind of row neither holds, or a context longer than the conversation reached, and it computes the last stretch over the rows the entries hold below it, not over rows of its own: a build that differs only in the rows between passes, and its entries are served as this build's, so use `exact` where every served bit must be this build's own.
 `proved` needs `--disk-cache-keep`, under which alone entries are adopted, and is refused without it; on a model that keeps a state it also needs two `--state-checkpoints` or more, and proves nothing with one.
+`--disk-cache-dir`, `--disk-cache-floor`, `--disk-cache-keep`, `--disk-cache-max-age` and `--disk-cache-adopt` set the tier `--disk-cache-bytes` sizes, and each is refused while that is 0; the start line `server: disk cache of ...` names the directory, the floor, the age limit, keep and the adopt policy.
 `--context-overflow HOW` says what a prompt gets that does not fit what one request may hold, the smaller of the model's context and the KV budget, beside its reply.
 With an explicit `max_tokens`, the prompt must leave room for that many reply tokens. On the compatible routes, omitting the cap requires the prompt to leave at least one eighth of the request limit free. The reply can use all the remaining room.
 `refuse`, the default, answers 413 on every route with the prompt's tokens, the limit and this flag's name; that includes a prompt without `max_tokens` that fits but leaves less than the eighth, which was answered with a reply cut short at the limit before 2026-10-12.
@@ -1034,7 +1036,7 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 
 ```
 {"status": "ok",
- "server": {"version": "0.1.0+g1234567", "numerics": "0123456789abcdef", "uptime_s": 8123, "model": "Qwen3-8B-Q8_0.gguf", "context_tokens": 40960, "request_tokens": 40960, "kv_tokens": 40960, "devices": ["vulkan:0"]},
+ "server": {"version": "0.1.0+g1234567", "numerics": "0123456789abcdef", "uptime_s": 8123, "model": "Qwen3-8B-Q8_0.gguf", "context_tokens": 40960, "request_tokens": 40960, "kv_tokens": 40960, "cache_type_k": "f16", "cache_type_v": "f16", "threads": 0, "load_mode": "auto", "devices": ["vulkan:0"]},
  "precision": {"requested": "auto", "declared": "bf16", "effective": "f16", "devices": [{"device": "vulkan:0", "how": "native", "paths": "...", "effective": "f16"}]},
  "rope": {"type": "none", "context": 40960, "forced": false, "declared": {"type": "none"}, "requested": null},
  "requests": {"now": {"active": 3, "queued": 0, "paused": 0, "kv_tokens": 9216}, "limits": {"active": 16, "queued": 64},
@@ -1061,6 +1063,9 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 | `server.uptime_s` | seconds | now | Since the server started | it is small and you did not restart it |
 | `server.model`, `server.context_tokens`, `server.devices` | text, tokens, names | fixed | The model file's name, its context length, and the devices it runs on | |
 | `server.kv_tokens` | tokens | fixed | The KV pool every request and kept conversation shares (`--kv-tokens`, or what the devices' memory gave) | |
+| `server.cache_type_k`, `server.cache_type_v` | names | fixed | The KV cache types the model keeps (`--cache-type-k`, `--cache-type-v`, or the default it settled on) | |
+| `server.threads` | threads | fixed | The CPU's workers (`--threads`); 0 where no layer runs on the CPU | |
+| `server.load_mode` | name | fixed | The load mode asked for (`--load-mode`): `auto`, `mapped` or `direct` | |
 | `server.request_tokens` | tokens | fixed | What one request may hold: the smallest of `--ctx-size`, the model's context and the pool | |
 | `precision` | | fixed | The activation precision requested and the one each device runs, with `how` it runs (`native`, `emulated` or `fallback`) | a device shows `fallback` |
 | `rope` | factor, tokens | fixed | The rope the model runs (Rope scaling, above): `type` `none` or `yarn`, under YaRN its `factor`, `original` length, `attention_factor`, `beta_fast` and `beta_slow`; the model `context`, whether `--yarn` `forced` it away from what the file `declared`, and the `requested` factor and original length, null without `--yarn` | `forced` is true and you did not mean to force it |

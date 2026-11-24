@@ -1481,6 +1481,8 @@ public:
     size_t retract(size_t length) { return retract(seq_, length); }
     bool keep() { return keep(seq_); }
 
+    // The K and V cache types the model settled from the options (settle_cache).
+    std::pair<backend::KVType, backend::KVType> cache_types() const { return {options_.kv_k, options_.kv_v}; }
     // Allocated is what the backends back, every member of a tensor group its share; used is the committed history.
     // The gap is the paging cost in memory (docs/KV-CACHE.md).
     size_t kv_allocated_bytes() const {

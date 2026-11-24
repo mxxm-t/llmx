@@ -1026,6 +1026,12 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
     const std::string experts_flag = request.cpu_moe < 0 ? "--cpu-moe" : "--n-cpu-moe";
     if (request.cpu_moe && std::none_of(plan.layers.begin(), plan.layers.end(), [](const LayerPlan& l) { return l.routed; }))
         throw std::runtime_error(experts_flag + ": the model has no expert layers");
+    // The CPU alone already runs every expert, so the flags would move none.
+    if (request.cpu_moe && backends.size() == 1 && backends[0] && backends[0]->is_cpu() && request.shares.empty())
+        throw std::runtime_error(experts_flag + ": the experts already run on the CPU, the only device; list a Vulkan, ROCm or CUDA device");
+    // A storage policy places the tables an architecture declares, so a model without any refuses one rather than ignoring it.
+    if (request.lookup_storage != LookupStorage::automatic && std::none_of(plan.layers.begin(), plan.layers.end(), [](const LayerPlan& l) { return l.lookup.has_value(); }))
+        throw std::runtime_error(std::string("--lookup-storage ") + lookup_storage_name(request.lookup_storage) + ": the model has no lookup tables");
     // A storage has the blocks the budget fills at its backend's block size and each history takes whole ones, so the request's histories are counted in each backend's blocks.
     // The budget becomes what they take in the largest blocks where none is given or any storage would fall short of it, and no history counts beyond the model's context.
     if (request.histories) {
@@ -1161,7 +1167,7 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
     if (backends.size() > 1 || !request.shares.empty()) {
         // The experts go to a CPU placed before the devices, so a CPU listed among them would hold layers of its own beside them.
         if (request.cpu_moe && !experts_host)
-            throw std::runtime_error(experts_flag + ": not with the CPU as a device of a split; list the devices without the CPU, or the CPU alone");
+            throw std::runtime_error(experts_flag + ": not with the CPU as a device of a split; list the devices without the CPU");
         const size_t rows = fitted_rows(request);
         Footprint fp = fit_footprint(weights, experts_host ? device_held_plan(plan, request) : plan, options, request);
         if (experts_host) reserve_slot(fp, weights, plan, request);

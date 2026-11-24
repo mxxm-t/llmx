@@ -869,9 +869,10 @@ void Drafts::attach(const infer::LoadedModel& loaded, const ExecOptions& exec, b
     if (server)
         throw std::runtime_error("serve: " + file + " is a draft model, which drafts in generate and chat; the server drafts with lookup, embedded, or MTP blocks in a file beside the model");
     // A draft model that keeps a recurrent state keeps one where its drafts begin, so each draft goes back there (infer::spec::DraftModel); it shares the model's devices, so the two take turns on one queue a device.
-    // The draft model renders no template, so the model's --chat-template-file stays the model's.
+    // The draft model renders no template and may have no lookup tables, so the model's --chat-template-file and lookup storage stay the model's.
     ExecOptions own = exec;
     own.chat_template_file.clear();
+    own.lookup_storage = infer::LookupStorage::automatic;
     beside = open_model(file, own, progress, exec.threads, infer::spec::kVerifyRows, 0, false, nullptr, 0, 0, false, 1, 0, false, {}, loaded.backends);
     proposer = std::make_unique<infer::spec::DraftModel>(*beside->model, lookup_first);
 }
@@ -1530,6 +1531,8 @@ void serve_loaded(const std::string& model_path, const server::Config& cfg, cons
                                    images.mmproj, images.max_tokens);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
+    // Checkpoints keep recurrent states, so a count above 0 on a model that keeps none would keep nothing.
+    if (cfg.state_checkpoints > 0 && !model.keeps_state()) throw std::runtime_error("--state-checkpoints keeps recurrent states, and the model has no recurrent layers");
     drafts.attach(*loaded, exec, true, true);
     // A template the renderer refuses stops the server before it serves, as it stops chat before a turn.
     loaded->chat.require();
@@ -1537,6 +1540,7 @@ void serve_loaded(const std::string& model_path, const server::Config& cfg, cons
     // The path is UTF-8, as the loader reads it, so the name is read back as UTF-8 rather than in the system code page.
     c.model_name = std::filesystem::u8path(model_path).filename().u8string();
     c.dtype = loaded->dtype;
+    c.load_mode = infer::load_mode_name(loaded->times.mode);
     // A request's limit is at most the model's context, which only the file gives.
     if (c.ctx_size > (size_t)model.context_length())
         throw std::runtime_error("--ctx-size " + std::to_string(c.ctx_size) + " is past the model's context of " + std::to_string(model.context_length()) +
@@ -1576,6 +1580,11 @@ void serve_loaded(const std::string& model_path, const server::Config& cfg, cons
               << ", " << (*c.host_cache_bytes >> 20) << " MiB of host memory for evicted prefixes"
               << (rows ? " and " + std::to_string(rows >> 20) + " MiB for the lookup tables' hot rows" : std::string())
               << ", queue of " << c.max_queue << ")\n";
+    // The settings that leave no other trace in a reply: the cache types, the CPU's workers and how the weights were read, as /v1/health's server object gives them.
+    const auto [kv_k, kv_v] = model.cache_types();
+    const int threads = model.threads_available();
+    std::cerr << "server: KV cache " << backend::kv_type_name(kv_k) << "/" << backend::kv_type_name(kv_v) << ", "
+              << (threads ? std::to_string(threads) + " CPU threads" : std::string("no layer on the CPU")) << ", load mode " << c.load_mode << "\n";
     if (!loaded->kv_kept_context.empty()) std::cerr << "server: the KV pool is the model's context, without --kv-tokens: " << loaded->kv_kept_context << "\n";
     if (limit < (c.ctx_size ? c.ctx_size : (size_t)model.context_length()))
         std::cerr << "server: a request holds at most the pool's " << limit << " tokens, fewer than the " << (c.ctx_size ? "--ctx-size" : "model's context") << " of "
@@ -1774,7 +1783,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "                          draft model). One that runs a model comes last: embedded alone, or\n"
             << "                          lookup,embedded to take the reply's own history first (default: off)\n"
             << "  --draft-max N           Most drafted tokens a draft holds, checked up to " << infer::spec::kVerifyRows - 1 << " a pass, 1 to "
-            << infer::spec::kMaxDrafts << " (default: " << Drafts{}.draft_max << ")\n";
+            << infer::spec::kMaxDrafts << " (default: " << Drafts{}.draft_max << "); needs --drafter\n";
         model_options(true);
         if (chat) page << "\nEnter one message per line. Press Ctrl+C or end of input to exit.\n";
         page << "\nExample: llmx " << command << " model.gguf"
@@ -1807,7 +1816,8 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "                          evict, the rows taking first, at most half. A value of 0 keeps neither\n"
             << "                          (default: half the free host memory, the prefixes taking room for\n"
             << "                          --max-seqs full histories, none when every cache is on the CPU)\n"
-            << "  --disk-cache-bytes SIZE  Disk for what the host cache drops. Needs a host cache (default: 0, none)\n"
+            << "  --disk-cache-bytes SIZE  Disk for what the host cache drops. Needs a host cache (default: 0, none).\n"
+            << "                          The other --disk-cache flags need it\n"
             << "  --disk-cache-dir PATH   Where the disk cache lives (default: <home>/" << hub::cache_in_home << "/kv)\n"
             << "  --disk-cache-floor SIZE  Free space the disk keeps after every write\n"
             << "                          (default: the larger of 16 GiB and a twentieth of the disk)\n"
@@ -1825,7 +1835,8 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "                          also as a reply without max_tokens reaches it, so the reply goes on.\n"
             << "                          Use shift for chat front ends that do not manage their own context\n"
             << "  --state-checkpoints N   Saved conversation states for models with recurrent layers (Qwen 3.5),\n"
-            << "                          so a follow-up turn skips re-reading its prompt (default: fitted, up to --max-seqs)\n"
+            << "                          so a follow-up turn skips re-reading its prompt (default: fitted, up to --max-seqs);\n"
+            << "                          a count above 0 is refused on a model without them\n"
             << "\nSpeculative decoding (replies are the same either way):\n"
             << "  --drafter D             Propose several tokens and check them in one pass, where measured to help:\n"
             << "                          off, or sources tried in the order given, comma-separated: lookup (the\n"
@@ -1833,7 +1844,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "                          file carries) or a file of MTP blocks beside the model. One that runs a\n"
             << "                          model comes last: embedded alone, or lookup,embedded (default: off)\n"
             << "  --draft-max N           Most drafted tokens checked in a pass, 1 to " << infer::spec::kVerifyRows - 1
-            << " (default: " << Drafts{}.draft_max << ")\n"
+            << " (default: " << Drafts{}.draft_max << "); needs --drafter\n"
             << "\nImages (on the chat routes, as image_url parts holding data: URLs of PNG or JPEG):\n"
             << "  --mmproj PATH           Vision encoder file of the model's images\n"
             << "  --image-max-tokens N    Most tokens of a resized image, 4k = 4096 (default: the encoder's)\n"
@@ -2210,6 +2221,9 @@ int main(int argc, char** argv) {
             }
             if (host_bytes) cfg.host_cache_bytes = (size_t)*host_bytes;
             if (cfg.disk.adopt_proved && !cfg.disk.keep) throw UsageError("--disk-cache-adopt proved adopts what --disk-cache-keep left and leaves; give --disk-cache-keep");
+            // Every other disk flag sets the tier --disk-cache-bytes sizes, which a size of 0, the default, leaves out.
+            for (const char* flag : {"--disk-cache-dir", "--disk-cache-floor", "--disk-cache-keep", "--disk-cache-max-age", "--disk-cache-adopt"})
+                if (!cfg.disk.bytes && !given.spelling(flag).empty()) throw UsageError(std::string(flag) + " sets the disk cache --disk-cache-bytes sizes, and it is 0; give --disk-cache-bytes");
             if (images.max_tokens && images.mmproj.empty()) throw UsageError("--image-max-tokens sizes the images the encoder --mmproj names reads");
             drafts.check(given);
             return cmd_serve(argv[2], cfg, exec, drafts, images);

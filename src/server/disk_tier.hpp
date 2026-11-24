@@ -109,8 +109,11 @@ inline void check_disk_cache(DiskOptions& o, size_t host_cap) {
     std::filesystem::create_directories(root);
     const auto space = std::filesystem::space(root);
     if (!o.floor) o.floor = std::max<uint64_t>(uint64_t(16) << 30, (uint64_t)space.capacity / 20);
-    std::fprintf(stderr, "server: disk cache of %llu MiB in %s, %llu MiB free, keeping %llu MiB free\n", (unsigned long long)(o.bytes >> 20), root.u8string().c_str(),
-                 (unsigned long long)(space.available >> 20), (unsigned long long)(*o.floor >> 20));
+    // The line names every disk flag's setting, so each one given shows (--disk-cache-keep, --disk-cache-max-age, --disk-cache-adopt).
+    const std::string age = o.max_age ? "entries unused for " + std::to_string(o.max_age) + " s expire" : std::string("entries never expire");
+    std::fprintf(stderr, "server: disk cache of %llu MiB in %s, %llu MiB free, keeping %llu MiB free, %s, %s, adopting %s\n", (unsigned long long)(o.bytes >> 20),
+                 root.u8string().c_str(), (unsigned long long)(space.available >> 20), (unsigned long long)(*o.floor >> 20), age.c_str(),
+                 o.keep ? "kept for the next server" : "removed at exit", o.adopt_proved ? "proved" : "exact");
     if (o.bytes > space.available || *o.floor > space.available - o.bytes)
         throw std::runtime_error("server: a disk cache of " + std::to_string(o.bytes) + " bytes and a floor of " + std::to_string(*o.floor) + " bytes need more than the " +
                                  std::to_string(space.available) + " bytes free in " + root.u8string());

@@ -67,6 +67,7 @@ struct Config {
     DiskOptions disk;                         // the disk tier under the host tier (docs/DISK-TIER.md); its bytes 0 keeps none
     std::string model_name;
     infer::DtypePlan dtype;
+    std::string load_mode;   // the load mode asked for (--load-mode), which /v1/health names
     // The proposer a decoding request drafts with and its most drafts a verify (docs/SPECULATIVE.md, section 3); none drafts nothing.
     infer::spec::Proposer* proposer = nullptr;
     std::vector<std::string> drafter_sources;   // the sources `--drafter` listed in the order tried, which /v1/health names
@@ -446,7 +447,9 @@ private:
         c.respond(200, "application/json",
                   "{\"status\":\"ok\",\"server\":{\"version\":" + jmini::quote(LLMX_VERSION_STRING) + ",\"numerics\":" + jmini::quote(numerics) +
                   ",\"uptime_s\":" + n((uint64_t)std::max<int64_t>(0, up)) + ",\"model\":" + jmini::quote(cfg_.model_name) +
-                  ",\"context_tokens\":" + n(model_.context_length()) + ",\"request_tokens\":" + n(sched_.token_limit()) + ",\"kv_tokens\":" + n(model_.kv_tokens_total()) + ",\"devices\":[" + devices + "]}" + (startup_ ? ",\"startup\":" + startup_->json() : std::string()) +
+                  ",\"context_tokens\":" + n(model_.context_length()) + ",\"request_tokens\":" + n(sched_.token_limit()) + ",\"kv_tokens\":" + n(model_.kv_tokens_total()) + ",\"cache_type_k\":" + jmini::quote(backend::kv_type_name(model_.cache_types().first)) +
+                  ",\"cache_type_v\":" + jmini::quote(backend::kv_type_name(model_.cache_types().second)) + ",\"threads\":" + n((uint64_t)model_.threads_available()) +
+                  ",\"load_mode\":" + jmini::quote(cfg_.load_mode) + ",\"devices\":[" + devices + "]}" + (startup_ ? ",\"startup\":" + startup_->json() : std::string()) +
                   ",\"topology\":" + cached_topology_json_ + ",\"precision\":" + dtype_json(cfg_.dtype) + ",\"rope\":" + rope_json(model_.rope_policy()) +
                   ",\"requests\":{\"now\":{\"active\":" + n(s.active) + ",\"queued\":" + n(s.queued) + ",\"paused\":" + n(s.paused) + ",\"kv_tokens\":" + n(s.kv_tokens) +
                   "},\"limits\":{\"active\":" + n(cfg_.max_seqs) + ",\"queued\":" + n(cfg_.max_queue) +

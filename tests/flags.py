@@ -383,8 +383,8 @@ def judge(outcome, rc, out, runs, base):
 
 
 def run():
-    if common.tensor_width() > 1 or any(os.environ.get(v) for v in ("LLMX_LAYER_SHARES", "LLMX_CACHE_TYPE", "LLMX_DTYPE", "LLMX_LOAD_MODE")) or "," in device():
-        print("flags: skipped, each flag is compared against a base run on one device without the suite's configured flags")
+    if common.tensor_width() > 1 or any(os.environ.get(v) for v in ("LLMX_LAYER_SHARES", "LLMX_CACHE_TYPE", "LLMX_DTYPE", "LLMX_LOAD_MODE")) or device() != "cpu":
+        print("flags: skipped, each flag is compared against a base run on the CPU without the suite's configured flags")
         return common.SKIPPED
     problems = completeness()
     cpu = device() == "cpu"

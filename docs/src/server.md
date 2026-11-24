@@ -2,6 +2,7 @@
 
 The API configuration carries placement's `DtypePlan`; `/v1/health` serializes it as `precision`, its requested, declared and effective dtype plus each device's name, effective dtype, implementation mode and paths. The server does not choose precision. This capability record does not establish which kernel a request executed.
 `/v1/health` also writes the model's rope as `rope` (`Api::rope_json` over `Model::rope_policy`, [rope](model-rope.md)): its type and YaRN parameters, the context, what the file declared, what `--yarn` asked and whether it forced the rope.
+`server` in `/v1/health` also gives `cache_type_k` and `cache_type_v` (`Model::cache_types`), `threads` (`Model::threads_available`, 0 where no layer runs on the CPU) and `load_mode` (`Config::load_mode`, the mode asked for), and the disk tier's start line (`check_disk_cache`) names its age limit, keep and adopt policy.
 
 `llmx serve`, above the inference layer and designed in `docs/SERVER.md`.
 No external libraries: sockets, HTTP/1.1, JSON and the

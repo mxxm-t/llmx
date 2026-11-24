@@ -2272,6 +2272,25 @@ bool close(const Drafted& a, const Drafted& b) {
     return true;
 }
 
+// --yarn 4 reaches the DSpine drafter's rope tables (2 and 3) as the target's: its 4-wide head's slow pair turns at 0.01 / 4 and both tables scale by 0.1 ln 4 + 1, as docs/USAGE.md says of a draft model.
+void dspine_yarn() {
+    const gguf::GGUFModel file = tiny_dspine();
+    for (const bool yarn : {false, true}) {
+        infer::rope::Request request;
+        if (yarn) request.factor = 4.0f;
+        const infer::ModelWeights w = infer::gguf_weights(file, request);
+        std::vector<std::vector<float>> tables(4);
+        const size_t positions = 200;
+        tables[2].resize(positions * 2), tables[3].resize(positions * 2);
+        w.arch->fill_tables(tables, w.tensors);
+        const double slow = yarn ? 0.01 / 4 : 0.01, scale = yarn ? 0.1 * std::log(4.0) + 1 : 1;
+        for (size_t pos : {size_t(0), size_t(100), size_t(199)})
+            require(std::fabs(tables[2][pos * 2 + 1] - std::cos(double(pos) * slow) * scale) < 1e-5 && std::fabs(tables[3][pos * 2 + 1] - std::sin(double(pos) * slow) * scale) < 1e-5 &&
+                        std::fabs(tables[2][pos * 2] - std::cos(double(pos)) * scale) < 1e-5,
+                    std::string("the DSpine drafter's rope ") + (yarn ? "ignores --yarn 4" : "differs from the unscaled one") + " at position " + std::to_string(pos));
+    }
+}
+
 // A DSpine block over the context rows a history keeps (docs/SPECULATIVE.md, section 11), as docs/TESTS.md lists under arch-qwen35.
 void dspine_block() {
     const gguf::GGUFModel file = tiny_dspine();
@@ -2793,6 +2812,7 @@ int main(int argc, char** argv) {
             marks();
             drafts();
             drafter_layers();
+            dspine_yarn();
             dspine_block();
             slices(tiny());
             split_with_a_stage_of_states(tiny());

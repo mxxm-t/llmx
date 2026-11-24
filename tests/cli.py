@@ -51,6 +51,31 @@ def check_expert_flags(model):
     return len(devices)
 
 
+THREADS_NOTE = "note: --threads and --threads-batch set the CPU's workers, and this placement runs nothing on the CPU, so they change nothing"
+
+
+def check_threads_note(directory, model):
+    """A positive --threads or --threads-batch on a placement that runs nothing on the CPU is noted once, from a model command and the synthetic bench (docs/USAGE.md).
+    The CPU, experts kept on the CPU beside a device, and counts left automatic run without the note; the note is reached only where the configured device is not the CPU."""
+    configured = os.environ.get("LLMX_DEVICE", "cpu")
+    gpu_only = "cpu" not in configured.split(",")
+    for flags, noted in ((["--threads", "2"], gpu_only), (["-tb", "2"], gpu_only), (["--threads", "0"], False), ([], False)):
+        for command in (["generate", model, "a", "-n", "1"], ["bench", "--size", "32", "--iters", "1", "--p", "1", "--n", "1"]):
+            if command[0] == "bench" and flags[:1] == ["-tb"]:
+                continue
+            p = common.run_process(command + flags, text=True, timeout=120)
+            assert p.returncode == 0 and (THREADS_NOTE in p.stderr) == noted, (command, flags, configured, p.returncode, p.stderr)
+            assert p.stderr.count(THREADS_NOTE) <= 1, (command, flags, p.stderr)
+    p = common.run_process(["generate", model, "a", "-n", "1", "--device", "cpu", "--threads", "2"], text=True, timeout=120)
+    assert p.returncode == 0 and THREADS_NOTE not in p.stderr, (p.returncode, p.stderr)
+    if gpu_only and "," not in configured:
+        weights = moe.tensors()
+        experts = f32.write_model(os.path.join(directory, "threads-moe.gguf"), weights, config=moe.CONFIG, arch="qwen3moe")
+        p = common.run_process(["generate", experts, "a", "-n", "1", "--cpu-moe", "--threads", "2"], text=True, timeout=120)
+        assert p.returncode == 0 and THREADS_NOTE not in p.stderr, (p.returncode, p.stderr)
+    return gpu_only
+
+
 def check_info(directory):
     """`info` names the architecture and the layer count, and lists every tensor written with its type, shape and size."""
     weights = moe.tensors()
@@ -416,17 +441,18 @@ def run():
         check_device(model)
         check_dtype(model)
         devices = check_expert_flags(model)
+        noted = check_threads_note(directory, model)
         check_info(directory)
         check_known_storage(directory)
         budget = check_generate_budget(directory)
     check_usage_errors()
     taken, switches, refused, twice = check_help()
     print("cli: a Vulkan and a ROCm device refused without the backend or without the device, experts on the CPU refused on a model without routed layers "
-          "on %d device(s) by the flag's name, info's architecture, layers and tensors, known unsupported storage metadata and execution refusals, "
+          "on %d device(s) by the flag's name, CPU thread counts %s on a placement without the CPU, info's architecture, layers and tensors, known unsupported storage metadata and execution refusals, "
           "generate's KV budget of its prompt and reply (%d and %d bytes for -n 1 and 200), "
           "usage errors exiting 2 with the command's page, and every help page shown without a model, "
           "with %d lines of the flags it lists taken, %d of them giving a switch twice, %d of the flags it does not list refused and %d giving a listed flag a second value refused  [ok]"
-          % (devices, budget[0], budget[1], taken, switches, refused, twice))
+          % (devices, "noted" if noted else "not reached", budget[0], budget[1], taken, switches, refused, twice))
     return True
 
 

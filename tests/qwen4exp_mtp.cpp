@@ -43,7 +43,9 @@ template<class F> void refuses(F&& run, const std::string& text) {
 struct Oracle {
     const Fixture& f;
     std::vector<Vec> keys, values, index;
+    std::vector<size_t> at;   // each row's position
     bool auxiliary_changes_selection = false;
+    size_t plain_from = SIZE_MAX, plain_to = SIZE_MAX;   // a group whose last row is in [plain_from, plain_to) pools at its first row's index, blind to what an image saved
     explicit Oracle(const Fixture& fixture) : f(fixture) {}
     const std::vector<float>& w(const std::string& name) const { return f.data.at(name + ".weight"); }
     static double sigmoid(double x) { return 1.0 / (1.0 + std::exp(-x)); }
@@ -100,23 +102,27 @@ struct Oracle {
         const double a = x[0], b = x[1], cs = std::cos(double(position)), sn = std::sin(double(position));
         x[0] = a * cs - b * sn; x[1] = a * sn + b * cs;
     }
-    void cache(const Vec& mixed) {
+    // A row's key turns at its index, or at the position given where a history holds an image.
+    void cache(const Vec& mixed) { cache(mixed, keys.size()); }
+    void cache(const Vec& mixed, size_t position) {
         Vec k = norm("blk.2.attn_k_norm", product("blk.2.attn_k", mixed), E);
-        rotate(k, keys.size()); keys.push_back(k);
+        rotate(k, position); keys.push_back(k); at.push_back(position);
         values.push_back(product("blk.2.attn_v", mixed));
         if (f.c.nextn_compress_ratio) index.push_back(product("blk.2.indexer.k_proj", mixed));
     }
-    std::vector<size_t> selected(const Vec& mixed) const {
+    // The index query turns at the row's position and each pooled group at its first row's.
+    std::vector<size_t> selected(const Vec& mixed, size_t position) const {
         const size_t length = keys.size(), ratio = size_t(f.c.nextn_compress_ratio);
         std::vector<size_t> ids;
         if (!ratio) { for (size_t i = 0; i < length; ++i) ids.push_back(i); return ids; }
         Vec q = norm("blk.2.indexer.q_norm", product("blk.2.indexer.q_proj", mixed), E);
-        rotate(q, length - 1);
+        rotate(q, position);
         std::vector<std::pair<double, size_t>> scores;
         for (size_t pool = 0; pool < length / ratio; ++pool) {
             Vec k(E);
             for (size_t j = 0; j < ratio; ++j) for (size_t i = 0; i < E; ++i) k[i] += index[pool * ratio + j][i] / ratio;
-            k = norm("blk.2.indexer.k_norm", k, E); rotate(k, pool * ratio);
+            k = norm("blk.2.indexer.k_norm", k, E); const size_t last = pool * ratio + ratio - 1;
+            rotate(k, last >= plain_from && last < plain_to ? pool * ratio : at[pool * ratio]);
             double score = 0; for (size_t i = 0; i < E; ++i) score += q[i] * k[i];
             scores.push_back({std::max(score, 0.0) / std::sqrt(double(E)), pool});
         }
@@ -141,16 +147,17 @@ struct Oracle {
         for (size_t i = 0; i < E; ++i) out[i] += gate * shared[i];
         return out;
     }
-    Vec draft(uint32_t token, Vec& hidden) {
+    Vec draft(uint32_t token, Vec& hidden) { return draft(token, hidden, keys.size()); }
+    Vec draft(uint32_t token, Vec& hidden, size_t position) {
         Vec x = input(token, hidden), injection, mixed = mix("blk.2.hc_attn", x, &injection);
-        cache(mixed);
+        cache(mixed, position);
         Vec raw = product("blk.2.attn_q", mixed), q(raw.begin(), raw.begin() + E);
-        q = norm("blk.2.attn_q_norm", q, E); rotate(q, keys.size() - 1);
-        const auto rows = selected(mixed);
+        q = norm("blk.2.attn_q_norm", q, E); rotate(q, position);
+        const auto rows = selected(mixed, position);
         if (f.c.nextn_compress_ratio) {
             const auto saved = index;
             for (Vec& key : index) std::fill(key.begin(), key.end(), 0.0);
-            auxiliary_changes_selection = auxiliary_changes_selection || rows != selected(mixed);
+            auxiliary_changes_selection = auxiliary_changes_selection || rows != selected(mixed, position);
             index = saved;
         }
         Vec scores; double peak = -1e100;
@@ -466,6 +473,92 @@ void routed_steps() {
     require(counting->steps == 2 * size_t(fixture.c.n_layer) && counting->outside == 0, "a routed layer did not take one routed step a pass");
 }
 
+// The rope calls of a CPU backend, counted by whether they carry a row's position streams.
+struct RopeCalls : backend::CpuBackend {
+    size_t with = 0, without = 0;
+    void norm_rope_partial(backend::Slice dst, backend::CSlice src, size_t rows, size_t src_stride, size_t src_head_stride, size_t heads, size_t head_dim,
+                           size_t rope_dim, backend::CSlice w, float eps, backend::CSlice cos, backend::CSlice sin, const uint32_t* pos,
+                           const backend::RopeForm& form, backend::RopeStreams streams) override {
+        ++(streams.of ? with : without);
+        backend::CpuBackend::norm_rope_partial(dst, src, rows, src_stride, src_head_stride, heads, head_dim, rope_dim, w, eps, cos, sin, pos, form, streams);
+    }
+};
+
+// An image of `grid_h` by `grid_w` rows at row `first` of a history of `rows` rows, the others text, its rows' contents from `seed`, and the chain's first token.
+struct ImageCase {
+    size_t first, grid_h, grid_w, rows, seed;
+    uint32_t token;
+};
+
+// The largest gap of the two drafts after the image to the oracle's, and of the oracle to one pooling at plain indices the groups the history completes and to one pooling so the groups the drafts complete.
+struct ImageGaps { double worst = 0, history = 0, drafted = 0; };
+ImageGaps image_drafts(int compression, const ImageCase& c, size_t* with = nullptr, size_t* without = nullptr) {
+    Fixture fixture(false, compression);
+    auto calls = std::make_shared<RopeCalls>();
+    calls->set_threads(1);
+    infer::Model m(fixture.weights, infer::plan_model(fixture.weights, true), {calls}, infer::Placement{}, options());
+    auto s = m.make_sequence();
+    infer::MediaRun image;
+    image.first = c.first, image.rows = c.grid_h * c.grid_w, image.grid_h = c.grid_h, image.grid_w = c.grid_w;
+    std::vector<float> rows(image.rows * E);
+    for (size_t i = 0; i < rows.size(); ++i) rows[i] = float(int((i * c.seed) % 23) - 11) / 16.0f;
+    image.encoded = std::make_shared<const std::vector<float>>(std::move(rows));
+    m.add_media(s, image);
+    // Stream 0 alone rotates here (rope_sections {1, 0, 0, 0}): an image's rows at its first row's position, the text after it at that plus the grid's larger side.
+    std::vector<uint32_t> ids(c.rows);
+    std::vector<size_t> at(c.rows);
+    for (size_t i = 0; i < c.rows; ++i) {
+        const bool picture = i >= c.first && i < c.first + image.rows;
+        ids[i] = picture ? 0 : uint32_t(1 + (i * 5) % (V - 1));
+        at[i] = i < c.first ? i : picture ? c.first : i - image.rows + std::max(c.grid_h, c.grid_w);
+    }
+    fixture.observed->capture = true;
+    feed(m, s, ids, ids.size());
+    const auto hidden = fixture.observed->hidden;
+    fixture.observed->capture = false;
+    if (with) *with = calls->with, *without = calls->without;
+    Oracle oracle(fixture), plain(fixture), drafted_plain(fixture); Vec previous(R);
+    plain.plain_from = 0, plain.plain_to = c.rows;
+    drafted_plain.plain_from = c.rows;
+    for (size_t i = 0; i < ids.size(); ++i) {
+        const Vec mixed = oracle.mix("blk.2.hc_attn", oracle.input(ids[i], previous));
+        oracle.cache(mixed, at[i]); plain.cache(mixed, at[i]); drafted_plain.cache(mixed, at[i]);
+        previous = hidden[i];
+    }
+    std::vector<uint32_t> drafted; m.draft(s, c.token, 2, drafted);
+    require(drafted.size() == 2, "two-step chain after an image");
+    uint32_t token = c.token;
+    ImageGaps gaps;
+    Vec plain_previous = previous, drafted_previous = previous;
+    for (size_t step = 0; step < 2; ++step) {
+        const size_t position = at.back() + 1 + step;
+        const Vec expected = oracle.draft(token, previous, position), moved = plain.draft(token, plain_previous, position),
+                  drafted_moved = drafted_plain.draft(token, drafted_previous, position);
+        for (size_t i = 0; i < V; ++i) {
+            gaps.worst = std::max(gaps.worst, std::fabs(expected[i] - m.draft_logits(step)[i]));
+            gaps.history = std::max(gaps.history, std::fabs(expected[i] - moved[i]));
+            gaps.drafted = std::max(gaps.drafted, std::fabs(expected[i] - drafted_moved[i]));
+        }
+        token = drafted[step];
+    }
+    return gaps;
+}
+
+// A pass over an image's rows ropes every K and Q row at the image's position streams, the MTP block's context rows as the trunk's, and a compressed block's pooled groups turn at their first rows' positions (docs/VISION.md, section 5).
+// The drafts after it must be the scalar oracle's at those positions, and pooling at plain indices the groups of the history, or those of the drafts, must move the oracle well past the bound, so the check reaches both.
+void image_rows_rope(int compression, const ImageCase& c) {
+    size_t with = 0, without = 0;
+    const ImageGaps gaps = image_drafts(compression, c, &with, &without);
+    const std::string at_ratio = " at compression " + std::to_string(compression);
+    require(gaps.worst < 2e-5, "MTP logits after an image against the oracle at its positions" + at_ratio + " max_abs=" + std::to_string(gaps.worst));
+    if (compression) {
+        require(gaps.history > 1e-3, "pooling the history's groups at plain indices moves the oracle's logits only " + std::to_string(gaps.history) + at_ratio);
+        require(gaps.drafted > 1e-3, "pooling the drafts' groups at plain indices moves the oracle's logits only " + std::to_string(gaps.drafted) + at_ratio);
+    }
+    require(with > 0 && without == 0, "a pass over image rows ropes " + std::to_string(without) + " calls at plain positions beside " +
+                                          std::to_string(with) + " at the image's position streams" + at_ratio);
+}
+
 void run(bool split, int compression, const std::string& device) {
     Fixture fixture(split, compression);
     auto reference = model(fixture, true);
@@ -598,6 +691,9 @@ int main(int argc, char** argv) {
         if (group_devices.empty() && group_width != 2) throw std::runtime_error(usage);
         qwen35_pairing();
         routed_steps();
+        image_rows_rope(0, {2, 2, 2, 7, 11, 5});
+        image_rows_rope(2, {2, 2, 2, 7, 11, 5});
+        image_rows_rope(2, {2, 2, 2, 8, 5, 6});
         streamed_host_history(device);
         if (group_devices.empty()) {
             streamed_host_history("cpu", {"cpu", "cpu"}, 2);

@@ -107,8 +107,12 @@ inline void VulkanBackend::check_group(const Projection* projections, size_t cou
 // A nonzero split_tiles fixes the split to that many column tiles; zero uses the call's width.
 inline void VulkanBackend::matmul_group_impl(const Projection* projections, size_t count, CSlice X,
                                              size_t nin, size_t nbatch, bool accumulate, Dtype dtype, int kernel_choice, size_t split_tiles) {
-    // The kernels' limit; no caller passes more.
-    if (count > 3) throw std::logic_error("vulkan: a matmul call of more than three projections");
+    // The kernels take up to three projections a call, so a wider group, such as MiniMax's five attention inputs, runs as calls of three over the same X.
+    if (count > 3) {
+        for (size_t i = 0; i < count; i += 3)
+            matmul_group_impl(projections + i, std::min<size_t>(3, count - i), X, nin, nbatch, accumulate, dtype, kernel_choice, split_tiles);
+        return;
+    }
     if (!nbatch) return;
     const OpSteps steps(*this);
     std::vector<const Projection*> live;

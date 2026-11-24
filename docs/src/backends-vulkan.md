@@ -236,8 +236,8 @@ The real-device `vulkan-lifetime` check uses its existing private test friend to
   `check_group` checks a matmul call whole, weights, outputs and X, before `matmul_runs` records any of the calls its runs split it into, so a call it refuses records and writes nothing.
   `supports_type`, through the weight descriptor, decides which types have kernels, and a type without one is refused with the unsupported-type error that `tests/common.py` matches, naming the operand as `what`, a matrix or an embedding.
   The operand must then hold `rows` rows sized by `quant::row_bytes`, which refuses a row that ends inside a block.
-- `matmul` and `matmul_group` (up to three projections a call, the
-  kernels' limit, with a type's block sizes from `quant::Registry`): narrow
+- `matmul` and `matmul_group` (up to three projections a dispatch, the
+  kernels' limit, a wider group taken as dispatches of three, with a type's block sizes from `quant::Registry`): narrow
   batches take the row kernel, one
   module per family of types, reading quantized rows against an integer
   twin of the activations (`shaders/xquant.glsl`) that the producing

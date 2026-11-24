@@ -195,6 +195,18 @@
 **Left.** Lands in COORD's stack after PR 607 and FLAGFIX1's branch, at most two commits, gitea PR 616; the stack's head runs the CPU suite, CTest, Qwen3-0.6B byte identity against main, byte identity on the CPU and a device for the models it reaches, the suite on a device, one timing round against main and the hosted run.
 
 **Gotchas.** None.
+## MiniMax-M3.1 attention on a device with --cpu-moe (2026-11-24, CONFFIX1 to CONFFIX3, branch fix/minimax-device-attention on main d8bd8735e via PR 607 e7e425c21)
+
+**Goal.** MiniMax-M3.1's attention runs on Vulkan and ROCm with its routed experts on the CPU, held to HF, and the `minimax` component checks it where a device refuses the routed layers (architecture audit, item 8).
+
+**Done.**
+- Test commit 1ef39737b: `tests/minimax.py` reruns its HF checks with `--cpu-moe` where the device refuses the routed experts, and reports SKIP only where that is refused too.
+- Fix: Vulkan's `matmul_group_impl` runs a group wider than its kernels' three projections as calls of up to three over the same input, where it threw; docs/MINIMAX.md, docs/src/backends-vulkan.md and docs/TESTS.md.
+- Fail then pass (one MI50, renderD136, `--only minimax`): main d8bd8735e's Vulkan binary with the branch's `tests/minimax.py` fails with "vulkan: a matmul call of more than three projections"; the fix passes, small and wide fixtures with `--cpu-moe` every logit within 1.2e-6 and 1.8e-6 of HF's against the 2e-5 bound, NLL within 7.5e-7 and 1.3e-6 against 1e-5, greedy ids HF's. On rocm:0 main's binary already passes (1.2e-6 and 1.8e-6).
+
+**Left.** Lands in COORD's stack after PR 607 and FLAGFIX1's branch, at most two commits, gitea PR 617; the stack's head runs the CPU suite, CTest, Qwen3-0.6B byte identity against main, byte identity on the CPU and a device for the models it reaches, the suite on a device, one timing round against main and the hosted run, the Vulkan device suite and the Radeon VII check (label needs-rvii).
+
+**Gotchas.** Based on PR 607's head e7e425c21, whose MINIMAX.md rewrite it extends, so it stacks after 607.
 
 ## Gated attention layer in one launch (2026-11-23, FUSE8 to FUSE14, branch products/a3-gated-attention on main bfb7f517b)
 

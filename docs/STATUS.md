@@ -133,6 +133,19 @@
 - **Tests:** `placement` (`encoder_charged`) and `arch-qwen3vl-vision` (`memory_charged`), described in docs/TESTS.md.
 - **Landing:** with the landing stack land-20261131, whose gates are recorded there (Landing stack land-20261131, below).
 
+## Vulkan implements as an allow-list (2026-11-24, CONFFIX1 to CONFFIX3, branch fix/vulkan-op-allowlist on main d8bd8735e)
+
+**Goal.** Vulkan's `implements` lists the ops it runs, as the GPU core's does, so an op it does not name, a new one included, is refused instead of counted as supported (architecture audit, item 5).
+
+**Done.**
+- Test commit 10f366d65: `backend-vulkan` `check_refusals` holds `sigmoid_routing` and an op value past the last one refused.
+- Fix: the allow-list in vulkan_backend.cpp, default false; the ops it reports are unchanged; docs/src/backends-vulkan.md and docs/TESTS.md.
+- Fail then pass (one MI50, renderD136, `llmx-backend-vulkan-test` built from each commit): the test commit fails with "Vulkan advertises an op it does not list"; the fix passes (rc 0).
+
+**Left.** Lands in COORD's stack after PR 607 and FLAGFIX1's branch, at most two commits, gitea PR 614; the stack's head runs the CPU suite, CTest, Qwen3-0.6B byte identity against main, byte identity on the CPU and a device for the models it reaches, the suite on a device, one timing round against main and the hosted run, the Vulkan device suite and the Radeon VII check (label needs-rvii).
+
+**Gotchas.** No user-visible change today, so no CHANGELOG line: every op a model uses on Vulkan is listed.
+
 ## CUDA sm_90 spill of the pushing held Q8_0 build (2026-11-23, SASS1, branch fix/cuda-sm90-held-push on main bfb7f517e)
 
 - **Goal:** the CUDA CTest `cuda-sass` passes on main again. It failed with `no kernel spills to local memory outside the listed families: llmx_q8_0_half8_1h4p on sm_90`.

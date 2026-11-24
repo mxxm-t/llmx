@@ -1124,11 +1124,21 @@ public:
         return out;
     }
 
-    // Every op but mixed routed products, since grouped expert projections must share one storage type, and the model formats where the device cannot keep subnormals.
-    // The ops that sum in double need the device's double.
+    // The ops listed here, as the GPU core lists its own, an unlisted one refused: not mixed routed products, whose grouped projections must share one storage type, nor sigmoid routing.
+    // The ops that sum in double need the device's double, and the model formats a device that keeps subnormals.
     bool implements(Op op) const override {
-        if (op == Op::unit_rows || op == Op::sigmoid_gate_rows || op == Op::matmul_at_ids) return dev_->float64;
-        return op != Op::mixed_experts && op != Op::sigmoid_routing && ((op != Op::model_format_qdq && op != Op::model_format_pack) || dev_->preserve_float32);
+        switch (op) {
+            case Op::unit_rows: case Op::sigmoid_gate_rows: case Op::matmul_at_ids: return dev_->float64;
+            case Op::model_format_qdq: case Op::model_format_pack: return dev_->preserve_float32;
+            case Op::causal_conv_silu: case Op::gated_delta_rule: case Op::gated_rms_norm: case Op::norm_rope_partial: case Op::sigmoid_mul: case Op::routed_experts:
+            case Op::argmax_rows: case Op::embed_ids: case Op::group_rms_norm: case Op::silu_scaled: case Op::mix_streams: case Op::inject_streams: case Op::signed_sqrt_gate:
+            case Op::dilated_conv_silu_add: case Op::select_kv: case Op::sparse_attention: case Op::layer_norm: case Op::gelu: case Op::add_bias: case Op::mix_rows:
+            case Op::rope_streams: case Op::attention_full: case Op::hc_coeffs: case Op::hc_collapse_norm: case Op::hc_expand: case Op::sparse_attention_sink:
+            case Op::topk_rows: case Op::candidate_blocks: case Op::compress_pool: case Op::indexer_scores: case Op::pool_write: case Op::sqrt_softplus_routing:
+            case Op::silu_mul_clamp: case Op::rope_forms: case Op::glu_quick_gelu: case Op::raw_index_scores: case Op::sparse_attention_blocks: case Op::attention_window:
+            case Op::chain_pick: return true;
+            default: return false;
+        }
     }
 
     // Host worker counts mean nothing to a device.

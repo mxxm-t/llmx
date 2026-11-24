@@ -221,6 +221,9 @@ void configuration() {
     refuses("direct query/KV head mismatch", "head count must be divisible by KV head count", [&] {
         auto bad = c; bad.n_head_kv = 3; infer::qwen4exp::check_config(bad);
     });
+    refuses("direct expert limit", "more experts per token than the layer has, or above 256", [&] {
+        auto bad = c; bad.n_expert = 300; bad.n_expert_used = 257; infer::qwen4exp::check_config(bad);
+    });
     refuses("direct PLE head range", "PLE head range does not fit the int32 row index", [&] {
         auto bad = c; bad.ple_hash.head_offsets[0] = uint64_t(std::numeric_limits<int32_t>::max());
         infer::qwen4exp::check_config(bad);

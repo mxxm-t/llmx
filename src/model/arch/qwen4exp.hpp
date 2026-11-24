@@ -100,8 +100,8 @@ inline void check_config(const Config& c) {
         throw std::runtime_error("inference: invalid Qwen4Exp dimensions");
     if (!std::isfinite(c.rope_theta) || c.rope_theta <= 0 || !std::isfinite(c.rms_eps) || c.rms_eps <= 0)
         throw std::runtime_error("inference: invalid Qwen4Exp floating-point configuration");
-    if (c.n_expert_used > c.n_expert)
-        throw std::runtime_error("inference: more experts per token than the layer has");
+    if (c.n_expert_used > c.n_expert || c.n_expert_used > 256)
+        throw std::runtime_error("inference: more experts per token than the layer has, or above 256");
     if (c.layers.size() != size_t(c.n_layer) || c.compress_ratios.size() != size_t(c.n_layer))
         throw std::runtime_error("inference: invalid Qwen4Exp layer metadata length");
     if (c.n_head % c.n_head_kv)
@@ -250,7 +250,7 @@ inline Config read_config(const gguf::GGUFModel& m, const std::string& p, const 
         throw std::runtime_error("inference: " + p + "rope.dimension_sections must have four entries");
     c.rope_sections = metadata::counts(m, p + "rope.dimension_sections");
 
-    if (integer(m, p + "ssm.conv_kernel") != 4)
+    if (integer(m, p + "ssm.conv_kernel") != int(backend::kConvTaps))
         throw std::runtime_error("inference: unsupported metadata " + p + "ssm.conv_kernel");
     c.k_dim = integer(m, p + "ssm.state_size");
     c.k_heads = integer(m, p + "ssm.group_count");
@@ -507,8 +507,6 @@ public:
         check_config(cfg_);
         if (!vocab_ || vocab_ > uint32_t(std::numeric_limits<int>::max()))
             throw std::runtime_error("inference: invalid vocabulary dimension");
-        if (cfg_.n_expert_used > 256)
-            throw std::runtime_error("inference: more than 256 experts per token are unsupported");
         if (cfg_.has_ple) blocks::ngram_rows(cfg_.ple_hash, vocab_, nullptr, 0, nullptr, 0, nullptr, 0);
     }
 

@@ -184,6 +184,18 @@
   After a give-up the collective takes the conservative path, whose live members wait on the gone card's events with no bound, so a later sum on a group with a dead card still hangs its live streams (no spin); refusing later sums on a collective whose sum ran out is the follow-up this branch does not make.
   README unchanged (no user-facing change).
 
+## qwen4exp config checks (2026-11-24, CONFFIX1 to CONFFIX3, branch tidy/qwen4exp-config on main d8bd8735e)
+
+**Goal.** qwen4exp reads its conv taps against `backend::kConvTaps` and holds its experts a token to 256 in `check_config` with the shared text, in place of a literal 4 and a second check in its constructor (architecture audit, item 7).
+
+**Done.**
+- One commit, no behaviour change: `arch-qwen4exp` checks the limit through `check_config`.
+- `arch-qwen4exp` passes on the commit (rig, CPU build).
+
+**Left.** Lands in COORD's stack after PR 607 and FLAGFIX1's branch, at most two commits, gitea PR 616; the stack's head runs the CPU suite, CTest, Qwen3-0.6B byte identity against main, byte identity on the CPU and a device for the models it reaches, the suite on a device, one timing round against main and the hosted run.
+
+**Gotchas.** None.
+
 ## Gated attention layer in one launch (2026-11-23, FUSE8 to FUSE14, branch products/a3-gated-attention on main bfb7f517b)
 
 - **Goal:** Run a decode row of qwen35's full attention, q and k norm and rope, the cache write, attention and the gate, in one GPU launch where it took four, for Qwen3.6-27B decode at a tensor width of 4.

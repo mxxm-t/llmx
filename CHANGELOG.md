@@ -22,6 +22,8 @@ Each entry is one short line that links the doc explaining it; reasons, flags an
 - `--dtype bf16` runs BF16 files' prompts on BF16 tensor cores with CUDA ([CUDA](docs/CUDA.md#bf16-prompt-tile)).
 - Qwen3.6-27B decodes faster with ROCm on four MI50s as one tensor group at `--dtype int8` ([tensor split](docs/TENSOR-SPLIT.md)).
 - Qwen3.5 and Qwen3.6 decode each full attention layer in one ROCm launch ([kernel notes](docs/src/backends-gpu.md)).
+- ROCm and CUDA tensor groups sum one part of a prompt beside the other part's work, batched prompts included ([tensor split](docs/TENSOR-SPLIT.md)).
+- DeepSeek-V4.1 decodes short contexts faster by skipping its indexer ([DeepSeek-V4.1](docs/src/model-arch-deepseek4.md)).
 
 ### Fixed
 
@@ -30,6 +32,7 @@ Each entry is one short line that links the doc explaining it; reasons, flags an
 - Image encoders on the CPU and Vulkan sum attention by blocks, so a 1080p image meets its HF bound ([precision](docs/PRECISION.md#attention-value-sums)).
 - Chat templates that use Jinja's `float` filter, such as Inkling-2-Mini's, render ([chat templates](docs/src/inference-chat.md)).
 - DeepSeek-V4.1-Flash with its DSpark drafter fits the ten-card layer split ([speculative decoding](docs/SPECULATIVE.md)).
+- A pipelined prompt is no longer cut into one-row slices after its stages grow faster ([slicing](docs/src/model-slicing.md)).
 
 ## [0.2.1] - 2026-11-23
 

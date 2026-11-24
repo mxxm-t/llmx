@@ -2189,6 +2189,51 @@ void fit_cut_first_pass() {
     }
 }
 
+// A device that fails any one allocation past `limit` bytes however much room it has, as RADV fails a buffer past its largest allocation, and records the largest it made.
+struct LimitedDevice : SizedDevice {
+    size_t limit = SIZE_MAX;
+    size_t largest = 0;
+    backend::BufferPtr alloc(size_t bytes, backend::Memory where) override {
+        if (bytes > limit) throw std::bad_alloc();
+        largest = std::max(largest, bytes);
+        return SizedDevice::alloc(bytes, where);
+    }
+};
+
+// An automatic budget over a device whose largest allocation is far below its room, which the device does not state: a build whose allocation fails with no reading to cut by is built again with a strictly smaller budget rather than given up.
+// One whose every allocation fails keeps the allocation's own error after its bounded rebuilds.
+void kv_auto_allocation_limit() {
+    const auto weights = fixture();
+    const auto automatic = [&](size_t limit, size_t* largest) {
+        auto device = std::make_shared<LimitedDevice>();
+        device->room = 8 << 20;
+        device->limit = limit;
+        device->set_threads(1);
+        infer::PlacementRequest request;
+        request.names = {"device"};
+        request.kv_auto = true;
+        const size_t tokens = infer::place_model(infer::gguf_weights(weights), {device}, request, infer::ModelOptions{}).model->kv_tokens_total();
+        *largest = device->largest;
+        return tokens;
+    };
+    size_t free_largest = 0, limited_largest = 0;
+    const size_t filled = automatic(SIZE_MAX, &free_largest);
+    std::string why;
+    size_t tokens = 0;
+    try {
+        tokens = automatic(free_largest / 3, &limited_largest);
+    } catch (const std::bad_alloc&) { why = "the allocation failed"; } catch (const std::runtime_error& e) { why = e.what(); }
+    require(why.empty() && tokens > 0 && tokens < filled && limited_largest <= free_largest / 3,
+            ("an automatic budget of " + std::to_string(filled) + " tokens whose largest buffer of " + std::to_string(free_largest) +
+             " bytes passes the device's largest allocation was not built again smaller: " + (why.empty() ? std::to_string(tokens) + " tokens" : why)).c_str());
+    bool kept = false;
+    try {
+        automatic(64, &limited_largest);
+    } catch (const std::bad_alloc&) { kept = true; } catch (const std::runtime_error&) {}
+    require(kept, "a device whose every allocation fails did not keep the allocation's own error");
+    checked += 2;
+}
+
 // A history recomputed in the classes that first computed it, over two CPU stages, as a paused request's resume does (docs/SERVER.md, pausing): a 40-token prompt in slices of 16, then 199 greedy tokens as entries of extent 1 of up to 64 rows.
 // The synthetic Q8_0 model's decode rows take the 8-bit dots, so the replay, whole and from a fork at the first block, must give the logits one backend gives after the prompt and 199 single decode steps.
 void replay_over_stages() {
@@ -3597,7 +3642,7 @@ int main() {
     try {
         // A fit short of its devices' free memory waits five seconds for it to settle (model/place.hpp, settle), so the cases that make such fits run on threads of their own beside the rest.
         std::vector<std::future<void>> waiting;
-        for (void (*settling)() : {kv_fitted, kv_refused, kv_auto_fitted, kv_auto_overstated, encoder_charged, fit_cut_first_pass, experts_beside_split, replies_arena_fitted, lookup_storage_planned, layer_split_fits, rounded_buffers_fit})
+        for (void (*settling)() : {kv_fitted, kv_refused, kv_auto_fitted, kv_auto_overstated, kv_auto_allocation_limit, encoder_charged, fit_cut_first_pass, experts_beside_split, replies_arena_fitted, lookup_storage_planned, layer_split_fits, rounded_buffers_fit})
             waiting.push_back(std::async(std::launch::async, settling));
         tensor_widths();
         pass_values_once_a_stage();

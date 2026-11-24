@@ -274,6 +274,7 @@ struct Pass {
     std::vector<size_t> start;                         // per entry, the history the pass found, which a failed pass returns to
     size_t rows = 0, want = 0;
     bool long_runs = false;                            // some entry takes its streamed layers on the device
+    size_t cut = 0;                                    // the row every group stage cuts the pass at, which stage 0 decides (Model::cut_row), else 0
     std::vector<uint32_t> ids, pos, pick;
     bool argmax = false;                               // its logits rows stay on the output device and their ids come to the host (BatchEntry::argmax)
     bool image_rows = false;                           // some row is an image's, so each row holds the plan's three position streams (ModelPlan::image_streams)
@@ -2047,10 +2048,10 @@ private:
     void group_sum(ExecContext& ctx, size_t g, const std::vector<backend::Slice>& x, size_t rows, backend::RowRuns runs, uint8_t kind, const Weights& w, size_t set = 0);
     // The fewest rows of a prompt pass a tensor group cuts in two parts (cut_row), measured on a 2x2 group (docs/STATUS.md, perf/ts-copy-queue).
     static constexpr size_t kCutRows = 128;
-    size_t cut_row(const Pass& p, const backend::Collective& sum) const;
+    size_t cut_row(ExecContext& ctx, const Pass& p) const;
     void cut_parts(ExecContext& ctx, const Pass& p, size_t g, size_t cut, PassPart* parts) const;
     Step narrow(Step s, PassPart& q, size_t m, int l) const;
-    void cut_record(ExecContext& ctx, Pass& p, size_t s, size_t cut);
+    void cut_record(ExecContext& ctx, Pass& p, size_t s, size_t cut, int end);
     template <class Weights>
     void group_sum(ExecContext& ctx, const Pass& p, size_t g, const std::vector<backend::Slice>& x, size_t rows, backend::RowRuns runs, uint8_t kind, const Weights& w) {
         group_sum(ctx, g, x, rows, runs, kind, w, p.scratch);

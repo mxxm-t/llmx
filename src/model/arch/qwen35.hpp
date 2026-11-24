@@ -572,8 +572,8 @@ private:
         const std::vector<int>& taps = cfg_.dflash->taps;
         const size_t i = size_t(std::find(taps.begin(), taps.end(), s.layer) - taps.begin()), E = (size_t)cfg_.n_embd;
         if (i == taps.size()) throw std::logic_error("inference: a qwen35 tap on a layer the drafter does not read");
-        const backend::Slice plane = s.slot(tap_slot());
-        s.b.copy(*plane.buffer, (plane.offset + i * s.rows * E) * sizeof(float), *s.x.buffer, s.x.offset * sizeof(float), s.rows * E * sizeof(float));
+        const backend::Slice plane = s.plane(tap_slot(), i, E);
+        s.b.copy(*plane.buffer, plane.offset * sizeof(float), *s.x.buffer, s.x.offset * sizeof(float), s.rows * E * sizeof(float));
     }
 
     // A DFlash sidecar (docs/SPECULATIVE.md, section 11): fc and its norm over the taps, the drafter's layers each in a KV layer of its own, its final norm, the code bridge and the target's embedding and head.

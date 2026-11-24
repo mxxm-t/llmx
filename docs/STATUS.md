@@ -112,6 +112,12 @@ Reports: rig `/opt/claude-work/conffix1/arms7a/r-{vd1,vtw2,rd1}/report.json`.
 **Landing.** With the landing stack land-20261132, whose gates are recorded there (Landing stack land-20261132, below).
 
 **Gotchas.** A sidecar's own `dflash.rope.scaling` keys are now read, honoured or refused, where they were ignored.
+## A cut prompt pass on DeepSeek-V4.1 groups (2026-11-25, DSCUT1, branch fix/ds-cut-pass on main d8bd8735)
+
+- **Goal:** a prompt pass a tensor group cuts in two parts (`Model::cut_row`) gives the whole pass's bits on DeepSeek-V4.1. Found by INKMERGE2 on main: logits off 0.02-0.05 from the second part's first row, and from no history the pass threw "sparse attention id past its kv rows"; XDEV localized it to the index lengths.
+- **Cause:** `pass_values` writes the index lengths once a pass as one plane of the pass's rows a ratio, and `Model::narrow` moves a cut part's slots by its first row times the slot's floats a row, so a part's indexer read its lengths from another plane's rows. The DSpark taps had the converse (the cut mixer wrote planes of the part's rows, the context rows read the whole pass's), and a stage that cut handed its pooled rows and picks to a later stage that recorded the pass whole (another group, or paced a layer a call by the server).
+- **Done:** `Step::plane` addresses a slot of planes over the pass's rows the same way in a part (the pass's offsets and rows and the part's first row, which `narrow` keeps); the lengths, the DSpark taps and qwen35's DFlash taps take it. Stage 0 decides the cut (`Pass::cut`) over every stage's collective and later stages cut at that row, a paced one a few layers a call (`cut_record` to the call's end). qwen4exp, qwen35, MiniMax and Inkling-2 (spd/dense) carry no other slot across a cut in another layout; qwen35's DFlash refuses groups today.
+- **Test:** arch-deepseek4 `cut_passes` and `dspark_cut` (docs/TESTS.md); the test commit fails on main's source. Device check: see the PR.
 
 ## GELU's erf form through erfc on Vulkan and ROCm (2026-11-24, INKVIS5 and INKVIS6, branch fix/vulkan-gelu-erf on main e9daf3b6d)
 

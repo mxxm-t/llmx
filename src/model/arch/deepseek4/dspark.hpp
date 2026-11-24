@@ -30,8 +30,7 @@ inline void DeepSeek41::tap(const Step& s) const {
     const size_t i = size_t(std::find(cfg_.taps.begin(), cfg_.taps.end(), s.layer) - cfg_.taps.begin());
     if (i == cfg_.taps.size()) throw std::logic_error("inference: a DeepSeek-V4.1 tap on a layer the drafter does not read");
     if (!s.indices || s.indices_size < n) throw std::runtime_error("inference: the DeepSeek-V4.1 tap's index scratch is too small");
-    backend::Slice plane = s.slot(tap_slot);
-    plane.offset += backend::size_mul(i * s.rows, E);
+    const backend::Slice plane = s.plane(tap_slot, i, E);
     std::fill(s.indices, s.indices + s.rows, 0u);
     s.b.gather_rows(plane, {s.tables[zeros].get(), 0}, E, s.indices, s.rows);
     static thread_local std::vector<float> weights;

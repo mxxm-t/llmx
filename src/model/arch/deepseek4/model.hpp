@@ -358,7 +358,7 @@ public:
         if (!s.indices || s.indices_size < count) throw std::runtime_error("inference: the DeepSeek-V4.1 index lengths' scratch is too small");
         for (size_t j = 0; j < ratios.size(); ++j)
             for (size_t r = 0; r < s.rows; ++r) s.indices[j * s.rows + r] = uint32_t((size_t(s.pos[r]) + 1) / ratios[j]);
-        s.b.write(*s.arena, s.offsets[index_lens], s.indices, count * sizeof(uint32_t));
+        s.b.write(*s.arena, s.plane(index_lens, 0, 1).offset * sizeof(float), s.indices, count * sizeof(uint32_t));
     }
 
     // The attention's coefficients from the streams, its input collapsed with the pre the block before left, and its output expanded back (model.py:982-986 at e5decd76).
@@ -748,7 +748,7 @@ private:
                            s.native ? backend::ModelFormat::fp4_power : backend::ModelFormat::f32, visible,
                            masked ? backend::CSlice(s.slot(candidate_ids)) : backend::CSlice{}, masked ? blocks : 0, masked ? block : 0);
         const size_t at = size_t(std::lower_bound(ratios_.begin(), ratios_.end(), ratio) - ratios_.begin());
-        const backend::CSlice lens{s.arena, s.offsets[index_lens] / sizeof(float) + at * rows};
+        const backend::CSlice lens = s.plane(index_lens, at, 1);
         if (s.kind & picks_candidates) s.b.candidate_blocks(s.slot(candidate_ids), s.slot(index_scores), lens, rows, visible, block, blocks);
         s.b.topk_rows(s.slot(index_picks), s.slot(index_scores), lens, rows, visible, k, 0);
         return picked;

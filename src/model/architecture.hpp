@@ -354,6 +354,14 @@ struct Step {
     int layer = -1;
     const RouteHook* routes = nullptr;  // ModelOptions::routes where a caller gave one
     backend::Slice slot(size_t i) const { return {arena, offsets[i] / sizeof(float)}; }
+    // A cut part's rows from first_row of the pass's pass_rows, and the pass's slot offsets, which Model::narrow keeps; none for a step over the whole pass.
+    const size_t* pass_offsets = nullptr;
+    size_t first_row = 0, pass_rows = 0;
+    // The step's rows of plane `index` of slot i, whose planes of `width` floats a row each hold the pass's rows one after another, the same address whether or not a cut narrowed the step.
+    backend::Slice plane(size_t i, size_t index, size_t width) const {
+        if (!pass_offsets) return {arena, offsets[i] / sizeof(float) + index * rows * width};
+        return {arena, pass_offsets[i] / sizeof(float) + (index * pass_rows + first_row) * width};
+    }
 };
 
 // The KV heads a member of a tensor group of `width` keeps of `kv_heads`: its share, or one where the width is a multiple of them and each is replicated; none of none, which only a plan whose layers keep no K or V has.

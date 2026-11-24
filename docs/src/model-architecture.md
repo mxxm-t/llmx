@@ -87,7 +87,7 @@ never sees devices, placements, stages or caches beyond what a call hands it.
 - `RouteHook`: what a routed step hands a caller that follows its picks (tools/route_probe.cpp): the model's layer, the step's rows, each row's k expert ids and its router scores, read back from the device after the step.
 - `StreamHook`: what a pass hands a caller that checks the stream a drafter taps (tools/route_probe.cpp): the model's layer, the pass's rows, the residual's floats a row and the residual entering the layer, read back from the device before the layer's mixer runs.
 - `Step`: one call of a part: the backend of the device it runs on and that
-  device's arena with each slot's offset (`slot(i)`), the residual at the
+  device's arena with each slot's offset (`slot(i)`), and for a slot whose planes each hold the pass's rows one after another the step's rows of a plane (`plane(i, index, width)`), the same address in a cut part as over the whole pass, from the pass's offsets, its rows and the part's first row, which `Model::narrow` keeps (`pass_offsets`, `pass_rows`, `first_row`), the residual at the
   call's first row (`x`), the rows and their runs, the row of weights by
   role id (the layer's, the pass's, or a streamed layer's copies and
   windows), the layer's kind and the model's layer it belongs to (`layer`, -1 for the embedding, the head, the drafter and a group's sum), the caller's route hook where it gave one (`routes`, `ModelOptions::routes`), the cache views and the layer's index in its

@@ -935,13 +935,14 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s, size_t laye
         }
         p.open = true;
     }
-    // A stage recorded whole may be cut in two parts; one recorded a few layers a call keeps main's order.
-    const size_t cut = layers || p.layer != st.first ? 0 : cut_row(p, sum);
-    if (cut) {
-        cut_record(ctx, p, s, cut);
-        p.layer = st.end;
-    }
+    // Stage 0 recorded whole may cut the pass in two parts, and every later stage then cuts it at the same row, a few layers a call where it is paced.
+    // A cut stage leaves the rows it carries to the next (DeepSeek's pooled rows and picks) at its parts' rows.
+    if (s == 0 && p.layer == st.first) p.cut = layers ? 0 : cut_row(ctx, p);
     const int end = layers ? std::min(st.end, p.layer + (int)std::min<size_t>(layers, INT_MAX)) : st.end;
+    if (p.cut) {
+        cut_record(ctx, p, s, p.cut, end);
+        p.layer = end;
+    }
     for (int l = p.layer; l < end; l++) {
         finish_lookup(ctx, p, g, W, l);
         for (size_t m = 0; m < W; ++m) {
@@ -987,9 +988,9 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s, size_t laye
     stage_submit(ctx, p, s, g);
 }
 
-// Where a group's stage cuts a pass of kCutRows rows or more whose parts' sums both copy beside its work, a row at or below the middle, or 0 where it records the pass whole (docs/TENSOR-SPLIT.md, section 4.3).
+// Where a pass of kCutRows rows or more has both parts' sums copy beside the work on every group stage, the row each cuts it at, at or below the middle, or 0 where each records it whole (docs/TENSOR-SPLIT.md, section 4.3).
 // The row is an entry's end or 64-row grid step of the entry it falls in, so each entry keeps its recurrent layers' chunks and its extent, and so its row class; it falls on a whole unit of four floats at any width.
-inline size_t Model::cut_row(const Pass& p, const backend::Collective& sum) const {
+inline size_t Model::cut_row(ExecContext& ctx, const Pass& p) const {
     constexpr size_t kGrid = 64;
     static_assert(kCutRows >= 2 * kGrid, "each part of a cut pass holds a whole chunk of the grid");
     if (width_ < 2 || p.rows < kCutRows || p.image_rows || p.long_runs || !p.group_pos.empty()) return 0;
@@ -1004,7 +1005,11 @@ inline size_t Model::cut_row(const Pass& p, const backend::Collective& sum) cons
         start = r.end;
     }
     if (cut < kGrid || p.rows - cut < kGrid) return 0;
-    return sum.copies_beside((p.rows - cut) * sum_width(plan_)) && sum.copies_beside(cut * sum_width(plan_)) ? cut : 0;
+    for (const Stage& st : stages_) {
+        const backend::Collective& sum = *ctx.collectives[st.device];
+        if (!sum.copies_beside((p.rows - cut) * sum_width(plan_)) || !sum.copies_beside(cut * sum_width(plan_))) return 0;
+    }
+    return cut;
 }
 
 // The two parts of a pass cut at row `cut` on group g, each the entries its rows hold: the entry the cut falls in continues in the second part from the history, state slot and last ids the first writes.
@@ -1060,6 +1065,9 @@ inline void Model::cut_parts(ExecContext& ctx, const Pass& p, size_t g, size_t c
 
 // Step `s` over every row of a cut pass narrowed to part q on member m: its residual, slots, rows, positions, scratch indices, cache views, lookup ids and tokens those of the part's rows.
 inline Step Model::narrow(Step s, PassPart& q, size_t m, int l) const {
+    s.pass_offsets = s.offsets;
+    s.first_row = q.base;
+    s.pass_rows = s.rows;
     s.offsets = q.offsets[m].data();
     s.x.offset += q.base * plan_.residual;
     s.rows = q.rows;
@@ -1080,9 +1088,9 @@ inline Step Model::narrow(Step s, PassPart& q, size_t m, int l) const {
     return s;
 }
 
-// A group's layers over a pass cut in two parts, recorded part by part: each part's sum is sent after its part and finished before its next, so one part's sum crosses while the other's part runs.
+// A group's layers from the pass's layer to `end` over a pass cut in two parts, recorded part by part: each part's sum is sent after its part and finished before its next, so one part's sum crosses while the other's part runs.
 // The second part's part of a layer is recorded after the first's, so it reads the cache and state the first wrote.
-inline void Model::cut_record(ExecContext& ctx, Pass& p, size_t s, size_t cut) {
+inline void Model::cut_record(ExecContext& ctx, Pass& p, size_t s, size_t cut, int end) {
     const Stage& st = stages_[s];
     const size_t g = st.device, W = width_, wide = sum_width(plan_);
     backend::Collective& sum = *ctx.collectives[g];
@@ -1117,7 +1125,7 @@ inline void Model::cut_record(ExecContext& ctx, Pass& p, size_t s, size_t cut) {
         p.sum_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - from).count();
     };
     try {
-        for (int l = st.first; l < st.end; l++) {
+        for (int l = p.layer; l < end; l++) {
             finish_lookup(ctx, p, g, W, l);
             const LayerPlan& layer = plan_.layers[(size_t)l];
             for (int phase = 0; phase < 2; ++phase)

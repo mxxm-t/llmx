@@ -1141,14 +1141,18 @@ public:
     // A device may fuse them where it gives the same bits, leaving every slot the base writes but `conv` as the base leaves it, so a retract's rerun reads the products' rows it saved.
     virtual void delta_step(const DeltaStep& d, CSlice mixed, size_t nin, size_t rows, size_t layer, const StateView* views, size_t n_views, RowRuns runs = {},
                             Dtype dtype = Dtype::f16) {
-        unordered(true);
-        matmul(d.qkv.weight, mixed, d.qkv.out, nin, d.qkv.rows, rows, runs, dtype);
-        matmul_group({d.gate, d.alpha, d.beta}, mixed, nin, rows, runs, dtype);
-        unordered(false);
+        delta_products(d, mixed, nin, rows, runs, dtype);
         causal_conv_silu(d.conv, d.qkv.out, d.conv_w, layer, views, n_views);
         gated_delta_rule(d.out, d.conv, d.alpha.out, d.beta.out, d.a, d.dt_bias, layer, views, n_views);
         const size_t heads = d.alpha.rows;
         gated_rms_norm(d.out, d.out, d.gate.out, d.norm, rows, heads, heads ? d.gate.rows / heads : 0, d.eps, runs, d.norm_gate);
+    }
+    // delta_step's products, qkv alone and then gate, alpha and beta as one group: the calls whose bits a fused step that reads alpha and beta from them keeps.
+    void delta_products(const DeltaStep& d, CSlice mixed, size_t nin, size_t rows, RowRuns runs, Dtype dtype) {
+        unordered(true);
+        matmul(d.qkv.weight, mixed, d.qkv.out, nin, d.qkv.rows, rows, runs, dtype);
+        matmul_group({d.gate, d.alpha, d.beta}, mixed, nin, rows, runs, dtype);
+        unordered(false);
     }
 
     // dst[r][h][d] = x[r][h][d] * sigmoid(gate[r * gate_stride + h * gate_head_stride + d]), x and dst being `rows` rows of heads * dim floats.

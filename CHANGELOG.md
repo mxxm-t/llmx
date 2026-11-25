@@ -24,6 +24,7 @@ Each entry is one short line that links the doc explaining it; reasons, flags an
 - Several sequences of BF16, F16 and F32 weights decode faster on CUDA, and 2 to 4 on MI50s ([GPU backends](docs/src/backends-gpu.md)).
 - Batched CUDA decode of BF16, F16 and F32 weights takes a faster column geometry, q/k/v and gate/up one launch each ([GPU backends](docs/src/backends-gpu.md)).
 - The Docker Hub page is set from the tree at each release, and its quick start serves with a key file ([releases](docs/RELEASE.md)).
+- Qwen 3.5-family linear-attention layers run one fused GPU step at every type, f16 included ([GPU backends](docs/src/backends-gpu.md)).
 - BF16 files run their prompts on TF32 tensor cores with CUDA, in the F16 precision class ([CUDA](docs/CUDA.md#bf16-prompt-tile)).
 - `--dtype bf16` runs BF16 files' prompts on BF16 tensor cores with CUDA ([CUDA](docs/CUDA.md#bf16-prompt-tile)).
 - Qwen3.6-27B decodes faster with ROCm on four MI50s as one tensor group at `--dtype int8` ([tensor split](docs/TENSOR-SPLIT.md)).

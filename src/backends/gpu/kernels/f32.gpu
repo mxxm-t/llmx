@@ -5081,7 +5081,7 @@ struct DeltaStepArgs {
     unsigned kd, vd;          // the K and V head widths, multiples of 4 up to 128
     const signed char* xq;    // the int8 twin of mixed, a row's blocks after the row before (form 2)
     const float* xd;
-    unsigned form;            // alpha and beta's order: 0 exact_sum of F32 rows, 1 exact_sum of Q8_0 rows, 2 the int8 class's half-block rows (kernels/rows.h)
+    unsigned form;            // alpha and beta's order: 0 exact_sum of F32 rows, 1 exact_sum of Q8_0 rows, 2 the int8 class's half-block rows (kernels/rows.h), 3 read from ao and bo
     unsigned sig;             // the norm's gate as llmx_gated_rms_norm's `sig`: 1 the sigmoid of z, 0 SiLU
 };
 
@@ -5115,8 +5115,9 @@ extern "C" __global__ void __launch_bounds__(kThreads, 1) llmx_delta_step(DeltaS
     }
     // A product before the step leaves its code in neither cache, so each thread loads one 64 B line of the kernel's code after here into L2, never past the kernel's end label (docs/src/backends-gpu.md, delta_step).
     const unsigned pf = GPU_CODE_PREFETCH(llmx_delta_step_end, blockIdx.x + gridDim.x * threadIdx.x, 448u);
-    // Alpha and beta of head j for every row of the view, a wave a product.
-    for (unsigned p = lid / kWave; p < 2u * nq; p += kThreads / kWave) {
+    // Alpha and beta of head j for every row of the view, a wave a product, or as the base's products wrote them (form 3).
+    if (A.form == 3u && lid < 2u * nq) ab[lid] = ((lid & 1u) ? A.bo : A.ao)[(row0 + lid / 2u) * (unsigned long long)v_heads + j];
+    for (unsigned p = lid / kWave; A.form != 3u && p < 2u * nq; p += kThreads / kWave) {
         const unsigned long long r = row0 + p / 2u;
         const unsigned char* w = (p & 1u) ? A.wb : A.wa;
         const unsigned blocks = A.E / 32u;

@@ -200,6 +200,7 @@ None of these is probed today; the MI50 values above come from separate microben
 |---|---|---|---|---|
 | Code prefetch into L2 | a 64-byte line a thread up to the end label; the weight stream had evicted the code | 35.84 to 28.64 us bench; 66.02 to 67.20 tok/s | llmx_delta_step, MI50 ROCm | 57ee77537, cuts22, cuts25 |
 | Four-way dot for Q8_0 rows | dot4_i8 for a scalar byte loop | 60 v_bfe_i32 and 43 multiplies to 2 and 0; 0.227 ms a token | llmx_delta_step | 2362d1fe3 |
+| Fused step on the base's products | the base's alpha and beta products, then llmx_delta_step reads them: three launches to one at f16 and other types | 70.9 to 63.2 us bench, 27B 1x4 one row; 27B tw4 f16 tg 48.57 to 48.70 tok/s, inside the noise | llmx_delta_step, MI50 ROCm | perf/delta-f16 |
 | Split-plane Q8_0 | scales apart, codes aligned | token 7749 to 7466 us, 12/12 rounds, bits same | held decode, MI50 | keff33 |
 | Planes on multi-column rows and tiles | aligned loads issued together | 0.94-0.98 of file layout; int8 prompt tile 0.90-0.97; c16_r4 with hoisted loads 0.85-0.90 | MI50 ROCm | keff34, keff36, keff41 |
 | 10-column build at 84 VGPR, 3 waves | stay on the occupancy step | 0.53-0.85 vs 0.77-0.97 | Q8_0 decode | 607bdf679, keff43 |

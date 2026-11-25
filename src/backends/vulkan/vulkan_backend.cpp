@@ -1138,7 +1138,7 @@ public:
         return out;
     }
 
-    // The ops listed here, as the GPU core lists its own, an unlisted one refused: not mixed routed products, whose grouped projections must share one storage type, nor sigmoid routing.
+    // The ops listed here, as the GPU core lists its own, an unlisted one refused: not mixed routed products, whose grouped projections must share one storage type.
     // The ops that sum in double need the device's double, and the model formats a device that keeps subnormals.
     bool implements(Op op) const override {
         switch (op) {
@@ -1148,7 +1148,7 @@ public:
             case Op::argmax_rows: case Op::embed_ids: case Op::group_rms_norm: case Op::silu_scaled: case Op::mix_streams: case Op::inject_streams: case Op::signed_sqrt_gate:
             case Op::dilated_conv_silu_add: case Op::select_kv: case Op::sparse_attention: case Op::layer_norm: case Op::gelu: case Op::add_bias: case Op::mix_rows:
             case Op::rope_streams: case Op::attention_full: case Op::hc_coeffs: case Op::hc_collapse_norm: case Op::hc_expand: case Op::sparse_attention_sink:
-            case Op::topk_rows: case Op::candidate_blocks: case Op::compress_pool: case Op::indexer_scores: case Op::pool_write: case Op::sqrt_softplus_routing:
+            case Op::topk_rows: case Op::candidate_blocks: case Op::compress_pool: case Op::indexer_scores: case Op::pool_write: case Op::sqrt_softplus_routing: case Op::sigmoid_routing:
             case Op::silu_mul_clamp: case Op::rope_forms: case Op::glu_quick_gelu: case Op::raw_index_scores: case Op::sparse_attention_blocks: case Op::attention_window:
             case Op::chain_pick: case Op::tap_weighted_rows: return true;
             default: return false;
@@ -2566,7 +2566,7 @@ public:
                       uint32_t per = 0, size_t entries = 1, VkDescriptorBufferInfo ids = {},
                       uint32_t order0 = 0, VkDescriptorBufferInfo tab = {}, size_t routed = 0);
     void route_experts(CSlice scores, size_t rows, size_t n_expert, size_t k, const RouteRule& rule, Slice ids, Slice weights) override;
-    void route_sqrt_softplus(CSlice scores, size_t rows, size_t n_expert, size_t k, const RouteRule& rule, Slice ids, Slice weights);
+    void route_biased(CSlice scores, size_t rows, size_t n_expert, size_t k, const RouteRule& rule, Slice ids, Slice weights);
     template <typename Fn>
     void expert_runs(uint32_t type, size_t nrows, RowRuns runs, const Fn& each);
     static CSlice at_float(CSlice s, size_t floats);

@@ -1177,8 +1177,8 @@ const uint32_t kSpvPoolWrite[] = {
 const uint32_t kSpvModelFormatQdq[] = {
 #include "vulkan/model_format_qdq.inc"
 };
-const uint32_t kSpvRouteSqrtSoftplus[] = {
-#include "vulkan/route_sqrt_softplus.inc"
+const uint32_t kSpvRouteBiased[] = {
+#include "vulkan/route_biased.inc"
 };
 const uint32_t kSpvNormRopePartialForm[] = {
 #include "vulkan/norm_rope_partial_form.inc"
@@ -1605,7 +1605,7 @@ const uint32_t kSpvFlagRecv[] = {
     X(K_INDEXER_SCORES, "indexer_scores", kSpvIndexerScores, sizeof(kSpvIndexerScores), 6, nullptr) \
     X(K_INDEXER_SCORES_TILE, "indexer_scores_tile", kSpvIndexerScoresTile, sizeof(kSpvIndexerScoresTile), 6, nullptr) \
     X(K_RAW_INDEX_SCORES, "raw_index_scores", kSpvRawIndexScores, sizeof(kSpvRawIndexScores), 4, nullptr)     X(K_POOL_WRITE, "pool_write", kSpvPoolWrite, sizeof(kSpvPoolWrite), 3, nullptr) \
-    X(K_ROUTE_SQRT_SOFTPLUS, "route_sqrt_softplus", kSpvRouteSqrtSoftplus, sizeof(kSpvRouteSqrtSoftplus), 4, nullptr) \
+    X(K_ROUTE_BIASED, "route_biased", kSpvRouteBiased, sizeof(kSpvRouteBiased), 4, nullptr) \
     X(K_NORM_ROPE_PARTIAL_FORM, "norm_rope_partial_form", kSpvNormRopePartialForm, sizeof(kSpvNormRopePartialForm), 7, nullptr) \
     X(K_SILU_MUL_CLAMP, "silu_mul_clamp", kSpvSiluMulClamp, sizeof(kSpvSiluMulClamp), 4, nullptr) \
     X(K_MODEL_FORMAT_QDQ, "model_format_qdq", kSpvModelFormatQdq, sizeof(kSpvModelFormatQdq), 2, nullptr, nullptr, 0, kPreserve32, 0) \

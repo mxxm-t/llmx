@@ -4755,20 +4755,25 @@ Gotchas: a kernel without `__launch_bounds__` is compiled for 1024 lanes and cap
 - F2DEV's 4e note 1 (a shape at groups 2 over 4 KV heads) is not taken: MiniMax has as many index heads as KV heads, so only the ends of that mapping run.
 - The file's index keys are F32 per position (0.5 KiB a layer); a 16-bit form is a contract change of its own, measured first.
 
-## MiniMax-M3.1 on devices (2026-11-24, MMXDEV1, branch arch/minimax-device on main d8bd8735e; lands by fast-forward as two commits, the failing check and then the change)
+## MiniMax-M3.1 on devices (2026-11-24, MMXDEV1 and MMXDEV2, branch arch/minimax-device on fix/minimax-device-attention bed4f1c38, PR 617, on main d8bd8735e; stacks after 617 and lands by fast-forward as two commits, the failing check and then the change)
 
 **Goal.** MiniMax-M3.1-Flash placed whole on ROCm (the GPU core, so CUDA too) and Vulkan, each op held to the CPU, the real file on nine MI50s (renderD137 out of service) against the CPU on the 512-token windows, then speed against the reference (llama.cpp pull request 31192 at 6b95a9908) on the same cards.
 
 **Done.**
-- Main already runs `glu_quick_gelu`, `raw_index_scores` and `sparse_attention_blocks` on the GPU core and Vulkan (block "MiniMax-M3.1", 7b to 7e); `sigmoid_routing` is the one mode both lack.
+- Main already runs `glu_quick_gelu`, `raw_index_scores` and `sparse_attention_blocks` on the GPU core and Vulkan (block "MiniMax-M3.1", 7b to 7e); `sigmoid_routing` was the one mode both lacked.
+- Test commit: `check_routing` (`tests/deepseek4_checks.hpp`) holds the sigmoid score beside sqrt_softplus, rows 1 to 600, 1 to 1024 experts, 1 to 256 picks, each bias form; on main's code it fails on rocm:0 with "rocm: route_experts has no sigmoid scores".
+- Change: the GPU core's `llmx_route_sqrt_softplus` becomes `llmx_route_biased` with a sigmoid argument and Vulkan's `route_sqrt_softplus.comp` becomes `route_biased.comp` with a sigmoid push constant; normalized sigmoid weights divide by the plain sum of the picks at every k, as the CPU does.
+- `tests/minimax.py` runs its checks on a device whole and again with `--cpu-moe`, since no device refuses the model now.
+- One MI50 each: `llmx-backend-rocm-test deepseek4` PASS (renderD136); `llmx-backend-vulkan-test --deepseek4` PASS (renderD136); suite `--only minimax` PASS on rocm:0 (small: every logit within 1.0e-6 of HF's, target NLL within 7.1e-7; wide: 1.8e-6, 1.2e-6) and on vulkan:0 over PR 617 (renderD129; small 1.2e-6, 9.3e-7; wide 1.6e-6, 1.4e-6), bounds 2e-5 and 1e-5.
+  Without PR 617 the Vulkan component fails with "vulkan: a matmul call of more than three projections", the gap 617 closes.
 
 **Left.**
-- `sigmoid_routing` on the GPU core and Vulkan as the score form of the existing biased router (`llmx_route_sqrt_softplus`, `shaders/route_sqrt_softplus.comp`), renamed by what they compute, held by `check_routing` over both scores.
-- The real file placed whole on one MI50 and on nine against the CPU's logits on the 512-token windows; then the same on Vulkan after CONFFIX3's fix of a routed call of five projections.
+- The real file whole on nine MI50s, ROCm at f32 caches and at the default dtype and Vulkan at f32, against the CPU f32 logits and HF on the raw 512-token window (`/opt/claude-work/mmxdev1/c3.sh`, `c4.sh`, streamed by `rd.sh`).
 - Speed cells against the reference on the same cards.
 
 **Gotchas.**
 - Under sigmoid a score of +inf is finite (1), so only a NaN row picks no expert, unlike sqrt_softplus where +inf does too.
+- A lone expert scored -inf has sigmoid 0, so its normalized weight is 0 / 0 on every backend; `check_routing` leaves that case out.
 ## Vulkan Q1_0 one-column rows: four rows a cluster and mask decode (2026-11-16, VKDEV9, branch perf/vulkan-q1-rows on perf/vulkan-row-sizes 2510f5789; VKDEV5's step 3 proposal with F2DEV's review of 2026-11-15 05:21, items 8 to 12; lands by fast-forward after steps 1 and 2)
 
 **Goal.** Q1_0 decode on Vulkan above the reference's on the same file and card (Boole-1.7B Q1_0, one MI50), with every row's bits unchanged.

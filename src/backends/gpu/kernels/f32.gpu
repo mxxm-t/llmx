@@ -4739,16 +4739,16 @@ extern "C" __global__ void __launch_bounds__(256) llmx_sparse_values_few16x2(LLM
 #undef LLMX_SPARSE_VALUES_ARGS
 #undef LLMX_SPARSE_VALUES_PASS
 
-// A wave a row: route_experts' sqrt_softplus rule in the CPU's order, s = sqrt(softplus(x)), the k picks by s + bias, highest first and ties to the lower id, weighed s / (sum + 1e-20) when normalizing more than one, then times scale.
+// A wave a row: route_experts' biased rules in the CPU's order, s = sqrt(softplus(x)) or sigmoid(x), the k picks by s + bias, highest first, ties to the lower id, weighed as route_experts weighs them, times scale.
 // Each pick is an exact argmax over (s + bias, id) by shuffles, the same in any order, and the sum runs in pick order on one lane; a row whose s + bias is not finite everywhere gives k picks of kNoExpert with weights 0.
 __device__ inline float softplus_root(float v) { return sqrtf(v > 20.0f ? v : log1pf(expf(v))); }
 constexpr unsigned kRouteLanes = 64u, kRouteHeld = 1024u / kRouteLanes;   // a lane holds experts lane, lane + 64, ..., of at most 1024; one wave on wave64 devices
 __device__ inline void route_best(unsigned& be, float& bb, unsigned oe, float ob, unsigned none) {
     if (oe != none && (be == none || ob > bb || (ob == bb && oe < be))) be = oe, bb = ob;
 }
-extern "C" __global__ void __launch_bounds__(kRouteLanes) llmx_route_sqrt_softplus(const float* scores, const float* bias, unsigned* ids, float* weights, unsigned long long rows,
-                                                                                  unsigned n_expert, unsigned k, int normalize, float scale,
-                                                                                  unsigned long long bias_stride) {
+extern "C" __global__ void __launch_bounds__(kRouteLanes) llmx_route_biased(const float* scores, const float* bias, unsigned* ids, float* weights, unsigned long long rows,
+                                                                           unsigned n_expert, unsigned k, int normalize, float scale,
+                                                                           unsigned long long bias_stride, int sigmoid) {
     __shared__ float s_of[1024];
     __shared__ unsigned chosen[256], wave_e[kRouteLanes / kWave];
     __shared__ float wave_b[kRouteLanes / kWave], total_of;
@@ -4765,7 +4765,7 @@ extern "C" __global__ void __launch_bounds__(kRouteLanes) llmx_route_sqrt_softpl
         const unsigned e = t + i * kRouteLanes;
         b_of[i] = -INFINITY;
         if (e < n_expert) {
-            const float s = softplus_root(x[e]), b = bias ? s + bias[e] : s;
+            const float s = sigmoid ? 1.0f / (1.0f + expf(-x[e])) : softplus_root(x[e]), b = bias ? s + bias[e] : s;
             s_of[e] = s;
             b_of[i] = b;
             finite = finite && isfinite(b);
@@ -4802,10 +4802,11 @@ extern "C" __global__ void __launch_bounds__(kRouteLanes) llmx_route_sqrt_softpl
     }
     __syncthreads();
     const float total = total_of;
-    const bool divide = normalize && k > 1u;
+    const bool divide = normalize && (sigmoid || k > 1u);
+    const float sum = sigmoid ? total : total + 1e-20f;
     for (unsigned j = t; j < k; j += kRouteLanes) {
         const float s = s_of[chosen[j]];
-        wt[j] = (divide ? s / (total + 1e-20f) : s) * scale;
+        wt[j] = (divide ? s / sum : s) * scale;
     }
 }
 
@@ -4816,7 +4817,7 @@ struct RouteShared {
     unsigned chosen[256];
     float total;
 };
-// llmx_route_sqrt_softplus's picks and weights for one row on one wave of kWave lanes with the same bits, lane t holding experts t + kWave j as sorted keys of s + bias then the lower id.
+// llmx_route_biased's sqrt_softplus picks and weights for one row on one wave of kWave lanes with the same bits, lane t holding experts t + kWave j as sorted keys of s + bias then the lower id.
 // A round takes the wave's largest key by cross-lane steps, the same pick the argmax makes, since equal floats have equal keys once both zeros read as +0.
 template <unsigned J>
 __device__ inline void route_sqrt_wave(const float* x, const float* bias, unsigned* id, float* wt, unsigned n_expert, unsigned k, int normalize, float scale, RouteShared& sh) {

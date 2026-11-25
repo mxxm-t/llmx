@@ -3,7 +3,7 @@
 Each fixture of tests/fixture_minimax.py is written from the committed golden's seed, its file held to the reference's SHA-256.
 `llmx logits` reads the golden's sequence through --then-ids, and every position's logits must be HF's within 2e-5 and each target's NLL within 1e-5: whole at lengths either side of the first sparse drop, token by token (--per-token), at ubatch 1, 3 and 16 and at one and three threads.
 Greedy `generate` after the golden's prompt gives HF's ids, and no selection or greedy pick of the golden sits within 2e-5 of a tie.
-On a configured device whose backend lacks one of the experts' ops the file is refused at load by the op's name, and the component runs every check again with --cpu-moe, the attention on the device and the experts on the CPU, reporting SKIP only where that is refused too.
+On a configured device every check runs with the model whole on the device, then again with --cpu-moe, the attention on the device and the experts on the CPU.
 On the CPU, llmx-route-probe found beside the executable prints the rows `logits` prints at its settings byte for byte, and each routed layer's picks at every position are the top k of the router scores it wrote.
 """
 import hashlib
@@ -19,7 +19,6 @@ import common
 import fixture_minimax
 
 GOLDEN = os.path.join(common.ROOT, "tests", "data", "minimax_m3_reference.json")
-DEVICE = common.DEVICE_REFUSAL
 F32 = ["--cache-type-k", "f32", "--cache-type-v", "f32"]
 LOGIT_BOUND = 2e-5
 NLL_BOUND = 1e-5
@@ -139,18 +138,10 @@ def run(require=False):
             path = str(fixture_minimax.write_minimax(os.path.join(directory, name + ".gguf"), golden["config"], state))
             with open(path, "rb") as f:
                 assert hashlib.sha256(f.read()).hexdigest() == golden["file_sha256"], "minimax: the %s file is not the reference's" % name
-            extra = []
+            gate(name, path, directory, golden, document["margin_floor"])
             if any(d != "cpu" for d in os.environ.get("LLMX_DEVICE", "cpu").split(",")):
-                p = common.run_process(["logits", path, "a"] + F32, text=True)
-                if p.returncode == 1 and DEVICE in p.stderr:
-                    # A device that lacks the experts' routing still runs the attention with the experts on the CPU, held to HF's bounds the same way.
-                    extra = ["--cpu-moe"]
-                    p = common.run_process(["logits", path, "a"] + F32 + extra, text=True)
-                    if p.returncode == 1 and DEVICE in p.stderr:
-                        print("minimax: SKIP - the device refuses the model at load, its experts on the CPU too (%s), so nothing was compared" % p.stderr.strip().splitlines()[-1])
-                        return common.SKIPPED
-            gate(name, path, directory, golden, document["margin_floor"], extra)
-            if os.environ.get("LLMX_DEVICE", "cpu") != "cpu":
+                # The experts' offload keeps the attention on the device and moves the routed experts to the CPU, held to HF's bounds the same way.
+                gate(name, path, directory, golden, document["margin_floor"], ["--cpu-moe"])
                 continue
             tool = probe_path()
             if not os.path.exists(tool):

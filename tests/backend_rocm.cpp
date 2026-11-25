@@ -328,7 +328,7 @@ void refusals(Backend& g) {
     // The loop ends at Op's last enumerator (backend.hpp), so an Op appended there moves this end with it.
     for (int i = 0; i <= int(Op::chain_pick); ++i) {
         const Op op = Op(i);
-        const bool lacked = op == Op::mixed_experts || op == Op::sigmoid_routing;
+        const bool lacked = op == Op::mixed_experts;
         require(g.implements(op) != lacked, std::string("the backend reports ") + backend::op_name(op) + (lacked ? ", which it lacks" : " as it lacks it"));
     }
 }

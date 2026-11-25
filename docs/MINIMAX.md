@@ -2,10 +2,10 @@
 
 Design for MiniMax-M3.1-Flash, written before the code (`docs/ADDING-AN-ARCHITECTURE.md`, The order of the work, step 1).
 The steps, their gates and the decisions are in [STATUS](STATUS.md), in the block "MiniMax-M3.1".
-The model runs on the CPU, held to HF on tiny fixtures (Classes and checks, below), where `generate`, `logits` and `serve` run those fixtures.
+The model runs on the CPU, ROCm and Vulkan, held to HF on tiny fixtures (Classes and checks, below), where `generate`, `logits` and `serve` run those fixtures.
 A real file is refused at load until step 2, since a pretokenizer other than `qwen2`, `qwen35` and `joyai-llm` is refused and the file's is `minimax-m2` ([USAGE](USAGE.md)); the fixtures name none.
-A device refuses the model at load by op, against the device each part is placed on: of the ops the plan names, `sigmoid_routing`, which every routed layer's feed-forward part names, is the one Vulkan, ROCm and CUDA lack (`mixed_experts` too, where an expert's gate and up stacks differ in storage type), so the refusal comes from the routed layers' feed-forward part, and a part placed on the CPU (the experts' offload flags) does not meet it.
-With `--cpu-moe` the attention runs on Vulkan and ROCm and the experts on the CPU, held to HF on the same fixtures (`tests/minimax.py`); Vulkan takes its five attention input products as calls of three.
+Vulkan, ROCm and CUDA run every op the plan names, `sigmoid_routing` as the sigmoid score of the biased router beside sqrt_softplus; they lack `mixed_experts`, so a file whose expert gate and up stacks differ in storage type is refused at load by the routed layers' feed-forward part, which a part placed on the CPU (the experts' offload flags) does not meet.
+Whole on the device and with `--cpu-moe`, the experts on the CPU, the model is held to HF on the same fixtures (`tests/minimax.py`); Vulkan takes its five attention input products as calls of three.
 A tensor width above 1 is refused, as the module declares no role that splits.
 
 Sources, read on 2026-11-15:

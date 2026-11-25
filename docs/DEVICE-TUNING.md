@@ -223,6 +223,10 @@ None of these is probed today; the MI50 values above come from separate microben
 | Sums per window, self-staged pull shares | one submit a window; shares rounded to 256 B | all 33 cells beat RCCL; W4 2.6M floats 1625 vs 2305 us | MI50 ROCm | sums43 |
 | Square K tile | 128x128 for Q4_K-Q6_K | 27B pp512 901 to 1024 tok/s; A6000 702 to 935 | CUDA 3090 | cuda99 |
 | exact_cols reduce-scatter | one weight load feeds G columns | c16 step 4869 vs 10503 us | CUDA | cuda123 |
+| Route build per decoder pair | a runtime F16/BF16 branch held 148 VGPR in the F32 build; one build a router and row-gate decoder pair keeps the F32 one at 65-68 | route r1/r4/r8 17/29/52 to 13/19.5/33 us (trace p50) | llmx_moe_step_route, MI50 ROCm | dspine28 p1, dspine29 kcf-16 |
+| Entry-fastest step grids | rows of h the grid's fast dimension, so an expert several rows pick is read from DRAM once | down_q8_0 r8 143 to 130 us; Q8_0 gate step r8 414 to 354 us | llmx_moe_step_up/down, Qwen3.6-35B-A3B shapes | dspine28 m8 |
+| Ids, weights and y0 staged with the twin | the down's combine waited on 2k serial global loads and each task on one; the limit was the vmcnt chain of dependent L2 reads, removed by the staging | step medians r1/r4/r8, main to staged: Q5_1 down 62.8/170.2/274.9 to 62.2/147.9/258.1 us, Q8_0 69.3/169.6/311.2 to 65.4/152.7/250.3 us | llmx_moe_step_down, Qwen3.6-35B-A3B shapes | dspine29 m10 |
+| lane_row: twin before the weights' decode, shift trip count, fold by selects | the twin's LDS reads and sum run under the weight load's wait; the runtime stride's division and branchy fold were the instruction excess against main | down_q5_1 r1 25.1 (w12) to 20.8 us (trace p50); step Q5_1 r1/r4/r8 62.8/151.4/274.4 (main) to 60.1/143.2/241.4 us | lane_row, MI50 ROCm | dspine29 m11 |
 
 ## Patterns that failed, to 2026-11-23
 
@@ -259,6 +263,8 @@ Each line is the arm, the reason as read at the time, and its numbers; "implemen
 | Attention four heads a block (ROCm) | | 24.6 vs 17.7 us | STATUS, ROCm decode launches and host time |
 | K rows: waves_per_eu 4/5, lane-fixed index, K45 pair | spills, VALU | 10-37% slower | keff1 |
 | CUDA BF16 prompts, cols8, KT_FULL | | pp512 2988 vs 9379; cols8 912/938 vs 1245/1516 tok/s; no gain | cuda102, cuda121, cuda87kt |
+| Fused step: no next load on the last trip (lane_row) | the guard made the Q4_K up wait on each unit (vmcnt) | up r8 126.7 to 138.6 us; a one-trip path before the loop took its place | dspine28 m8 |
+| Fused step down through lane_row at a runtime stride | division, clamps and a branchy fold: about 120 more instructions a wave at 4 waves a SIMD | down_q5_1 r1 22.4 to 25.1 us (trace p50) against the hand-written main kernel | dspine28 m9, Fable |
 
 Recurring readings across the ledger:
 - Microbenchmark wins shrink or reverse in situ: tile push, held_t and the held-stride arm all did, from a wrong shape or build flag, a cold I-cache or a dirty L2.

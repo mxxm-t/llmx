@@ -24,6 +24,26 @@
   UD-Q4_K_XL, the one file whose cells all ran clean, gains 6 to 13%; Q4_K_M, which main's step already took, stays within noise (0.96 to 1.04); Q8_0 and UD-Q8_K_XL are within or above noise but their cells are disk- or load-bound and settle nothing beyond "no clear loss". The microbench above is the clean measure of the step itself.
 - **Left:** the landing gates.
 - **Gotchas:** at 8 rows the test's NaN row routes nowhere and the base's quick_gelu of the poison flips its NaN's sign, so `moe::run` sets an expert-less entry's activations back to the poison; main's step already left them unwritten, and nothing reads them. feat/path-report (PATHVIS1) edits `decode_step` too: whichever lands second keeps this accept rule inside its `take()`.
+## Fused MoE step over every twin type (2026-11-25, DSPINE22 to DSPINE32, branch perf/moe-step-generic on main 63657ff21)
+
+- **Goal:** the fused ROCm MoE step (`fused_step`) takes its per-type work from the routed products' owner and every type they take, so Qwen3.6-35B-A3B (Q5_K and Q6_K downs, which the step skipped in all 40 layers) and other files run it, and its router reads F32, F16 or BF16.
+- **Done:** `k_unit` holds `k_rows`' per-unit arithmetic, and `lane_row` runs a row of any lane-unit type on 16 lanes with `k_rows`' bits at the routed cluster (chains at compile-time indices, loads first).
+  The gate+up and the down take it for every type whose `TwinKernels` names `step_up` and `step_down` (Q4_K, Q5_K, Q6_K, Q4_0, Q4_1, Q5_0, Q5_1; the Q8_0 down keeps its half-block order); `q4k_row` and the Q5_1 down loop are gone.
+  The route reads an F32, F16 or BF16 router and row gate, the half types at one row alone, through a build per decoder pair that `TypeKernels::step_route` picks (the F32 build 65 VGPRs, no type list in the kernel).
+  The step grids take the rows of h as the fast dimension, and the down stages its entry ids, weights and row of y with the twins (docs/DEVICE-TUNING.md).
+  Tests: `moe_step_bits` and `moe_rows_bits` extended (docs/src/backends-gpu.md, moe_step), the latter over all nine router and row-gate pairs with each route build required to run; `llmx-backend-rocm-test step` runs both; `rates moe` times 10 arms.
+  Step medians on one MI50, us, rows 1/4/8, main 63657ff21 against this branch (dspine29/m11, w15): fused Q5_1 down 62.8/151.4/274.4 against 60.1/143.2/241.4, Q8_0 down 68.8/169.7/310.7 against 65.8/151.6/251.9, Q5_K down 103.3/212.9/344.6 against 61.0/150.8/254.0, Q6_K down 117.5/261.5/389.6 against 69.5/173.8/296.8.
+  Qwen3.6-35B-A3B UD-Q4_K_XL on one MI50, both arms with the GGUF half-vector fix 370bf19d (dspine29/t4): int8 MTP k7 189.55 to 209.31 tok/s median, ids equal in 12 of 12 pairs, the fused step in all 40 layers by the launch witness.
+- **Left:** landing by fast-forward.
+- **Landing gates (squashed head on main 63657ff21, gfx906 ROCm builds of both arms, dspine30/g1, g2, t1, t2):**
+  Identity against main: 26 cells SAME, 0 DIFF; Qwen3-0.6B on the CPU, the Qwen3.6-35B-A3B IQ4_NL, Q4_K_M, Q5_K_M and Q6_K files on one MI50, and the Qwen3.6-35B-A3B Q8_0 and Qwen3.5-35B-A3B UD-Q8_K_XL files on two (layer split, since they do not fit one), each under int8 and auto.
+  The suite with `--device rocm:0` passes (rc 0, no FAIL), CTest passes 96 of 96, and the `docs` and `dead-code` components pass.
+  Timing round (t1), Qwen3.6-35B-A3B UD-Q4_K_XL MTP file on one MI50, kv 8k, host load 55-70, main + 370bf19d against this branch + 370bf19d, median / upper quartile tok/s: int8 without MTP 72.81/87.80 to 81.89/107.08 (20 runs), int8 MTP k7 139.44/169.32 to 186.96/209.26 (10), auto without MTP 69.39/77.77 to 67.56/81.67 (6), auto MTP k7 135.51/149.06 to 109.98/155.32 (6); ids equal in 42 of 42 pairs; the launch witness shows the fused step in all 40 layers under int8 on this branch and none on main.
+  auto resolves to f16, where neither arm launches the fused step (rocprofv3, t2), so its rows cannot move; 12 alternating pairs of auto MTP k7 at 512 tokens give a paired median difference of -0.14%, this branch faster in 6 of 12 (medians 175.55 and 167.04 tok/s), ids equal in 12 of 12, so the auto MTP median of t1 was noise.
+- **Hardware (DSPINE27, dspine27/dis.py on the gfx906 dot objects):** the one-kernel lane_row (v3) waited vmcnt(0) before every 16-dot unit, its next load under an exec mask and the load's registers copied, so no load overlapped the products; main's q4k_row waits once a 32-dot step.
+  One kernel a chain count (_c2, _c4, `step_chains`, `step_build`) gives up_q4_k 53, 73 and 76 VGPRs against 81 in one kernel; a clamped unconditional next load with a trip count the same on every lane, past-the-end units dropped by a select, leaves the steady loop at vmcnt(2) and vmcnt(3) and up_q4_k_c2 at 55 VGPRs (four waves; main 60).
+  Scheduling barriers after the load or between segments changed neither the VGPRs nor the waits.
+- **Gotchas:** a member function's parameter type must be declared above it in the class (two build slots lost to `TwinKernels` and `Kernel` this way); dspine24/chk.sh compiles the TUs syntax-only before a build.
 
 ## Docs set to the architecture audits (2026-11-24, DOCFIX1, branch docs/arch-audit-fixes on main d8bd8735e)
 

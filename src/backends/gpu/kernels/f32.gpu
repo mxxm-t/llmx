@@ -3260,22 +3260,23 @@ struct MfRoute {
     unsigned n_expert, k;
     int normalize;
     unsigned* counter;
-    unsigned rows, pad;
+    unsigned rows;
 };
-static_assert(offsetof(MfRoute, gw) == 40 && offsetof(MfRoute, ids) == 80 && offsetof(MfRoute, n_expert) == 96 && offsetof(MfRoute, counter) == 112 && offsetof(MfRoute, rows) == 120 && sizeof(MfRoute) == 128,
+static_assert(offsetof(MfRoute, gw) == 40 && offsetof(MfRoute, ids) == 80 && offsetof(MfRoute, n_expert) == 96 && offsetof(MfRoute, counter) == 112 && offsetof(MfRoute, rows) == 120 &&
+                  sizeof(MfRoute) == 128,
               "host packs MfRoute by these offsets");
 
-} // namespace
-
 // Blocks 0 to nout / 4 - 1 four router rows each, the next the row gate; the first blocks also the twin of h, 8 twin blocks each; the last block out routes.
-extern "C" __global__ void __launch_bounds__(256) llmx_moe_step_route(MfRoute a) {
+// RW and GW are the router's and the row gate's exact decoders, a build each pair, so a build holds the registers of its own decoders alone (docs/DEVICE-TUNING.md).
+template <class RW, class GW>
+__device__ inline void step_route(const MfRoute& a) {
     __shared__ unsigned last;
     const unsigned b = blockIdx.x, w = threadIdx.x / 64, rb = (unsigned)(a.nout / 4);
     // Each row of h on its own, in the one-row step's order, so a row keeps its bits at any row count.
     for (unsigned r = 0; r < a.rows; ++r)
-        if (b < rb) exact_row<ExactF32>(a.w, a.x + r * a.nin, a.scores + r * a.nout, a.nin, 4ull * b + w, 0);
+        if (b < rb) exact_row<RW>(a.w, a.x + r * a.nin, a.scores + r * a.nout, a.nin, 4ull * b + w, 0);
     if (b >= rb)
-        for (unsigned r = w; r < a.rows; r += 4) exact_row<ExactF32>(a.gw, a.x + r * a.nin, a.rg + r, a.nin, 0, 0);
+        for (unsigned r = w; r < a.rows; r += 4) exact_row<GW>(a.gw, a.x + r * a.nin, a.rg + r, a.nin, 0, 0);
     for (unsigned long long tb = (unsigned long long)b * 8 + threadIdx.x / 32; tb < a.hblocks; tb += (unsigned long long)gridDim.x * 8) {
         const int lane = threadIdx.x % 32;
         const float v = a.x[tb * 32 + lane];
@@ -3305,6 +3306,21 @@ extern "C" __global__ void __launch_bounds__(256) llmx_moe_step_route(MfRoute a)
         }
     }
 }
+
+} // namespace
+
+// The fused step's route, a build for each pair of the router's and the row gate's float types, in the order of backend_core.hpp's TypeKernels::step_route (moe_step).
+#define LLMX_MOE_STEP_ROUTE(name, RW, GW) \
+    extern "C" __global__ void __launch_bounds__(256) llmx_moe_step_route##name(MfRoute a) { step_route<RW, GW>(a); }
+LLMX_MOE_STEP_ROUTE(, ExactF32, ExactF32)
+LLMX_MOE_STEP_ROUTE(_f32_f16, ExactF32, ExactDecoded<rq::F16>)
+LLMX_MOE_STEP_ROUTE(_f32_bf16, ExactF32, ExactDecoded<rq::BF16>)
+LLMX_MOE_STEP_ROUTE(_f16_f32, ExactDecoded<rq::F16>, ExactF32)
+LLMX_MOE_STEP_ROUTE(_f16_f16, ExactDecoded<rq::F16>, ExactDecoded<rq::F16>)
+LLMX_MOE_STEP_ROUTE(_f16_bf16, ExactDecoded<rq::F16>, ExactDecoded<rq::BF16>)
+LLMX_MOE_STEP_ROUTE(_bf16_f32, ExactDecoded<rq::BF16>, ExactF32)
+LLMX_MOE_STEP_ROUTE(_bf16_f16, ExactDecoded<rq::BF16>, ExactDecoded<rq::F16>)
+LLMX_MOE_STEP_ROUTE(_bf16_bf16, ExactDecoded<rq::BF16>, ExactDecoded<rq::BF16>)
 
 // DeepSeek-V4.1's layer ops (docs/DEEPSEEK4.md, section 4.2) as first forms, in the CPU backend's order where one value is formed, so a value without an exponential is the CPU's bits.
 

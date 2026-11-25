@@ -1910,6 +1910,23 @@ __device__ void mxfp4_quad_rows(const RowCall& rc, const signed char* q, const f
         store_sum<1>(r, acc[0], 0, 0, p == 0, o, rc.total, ncols, add, m);
     }
 }
+// One lane unit segment's term of a weight row and a twin column, added into the lane's chain or chains: the row kernels' and the fused moe_step's one arithmetic (lane_row).
+template <typename KT, typename QT, int CH, int NW>
+__device__ __forceinline__ void k_unit(const int (&ww)[NW], const int (&xw)[NW], int xsum, float ds, float dm, float xd, float& acc, float& acc2) {
+    if constexpr (CH == 2) {
+        int ia = 0, ib = 0;
+#pragma unroll
+        for (int i = 0; i < NW / 2; ++i) ia = word_dot(ww[i], xw[i], ia, QT(0)), ib = word_dot(ww[NW / 2 + i], xw[NW / 2 + i], ib, QT(0));
+        acc = fmaf(xd, ds * (float)ia, acc);
+        acc2 = fmaf(xd, ds * (float)ib, acc2);
+    } else {
+        int isum = 0;
+#pragma unroll
+        for (int i = 0; i < NW; ++i) isum = word_dot(ww[i], xw[i], isum, QT(0));
+        const float term = KNoMin<KT>::value ? ds * (float)isum : k_term<KT>(ds, dm, isum, xsum);
+        acc = fmaf(xd, term, acc);
+    }
+}
 // A cluster of rc.cluster lanes computes R output rows for up to C generated rows; each lane adds its runs' terms into F32 in block order, and the cluster folds them by one xor tree.
 // The cluster and the lane follow the row's width and type alone (backend_core.hpp, row_cluster and row_form), so a row and a column keep their bits in every build.
 template <typename KT, int C, typename QT, int R, int G, typename M = Cols, typename L = typename KRaw<KT>::Lane>
@@ -1986,21 +2003,7 @@ __device__ void k_rows(const RowCall& rc, const QT* q, const float* dx, unsigned
                             for (int i = 0; i < NW; ++i) xsum = word_dot(ONES, xw[c][i], xsum, QT(0));
                         }
 #pragma unroll
-                        for (int j = 0; j < R; ++j) {
-                            if constexpr (CH == 2) {
-                                int ia = 0, ib = 0;
-#pragma unroll
-                                for (int i = 0; i < NW / 2; ++i) ia = word_dot(ww[j][i], xw[c][i], ia, QT(0)), ib = word_dot(ww[j][NW / 2 + i], xw[c][NW / 2 + i], ib, QT(0));
-                                acc[j][g + c] = fmaf(xd[c], ds[j] * (float)ia, acc[j][g + c]);
-                                acc2[j][g + c] = fmaf(xd[c], ds[j] * (float)ib, acc2[j][g + c]);
-                            } else {
-                                int isum = 0;
-#pragma unroll
-                                for (int i = 0; i < NW; ++i) isum = word_dot(ww[j][i], xw[c][i], isum, QT(0));
-                                const float term = KNoMin<KT>::value ? ds[j] * (float)isum : k_term<KT>(ds[j], dm[j], isum, xsum);
-                                acc[j][g + c] = fmaf(xd[c], term, acc[j][g + c]);
-                            }
-                        }
+                        for (int j = 0; j < R; ++j) k_unit<KT, QT, CH>(ww[j], xw[c], xsum, ds[j], dm[j], xd[c], acc[j][g + c], acc2[j][g + c]);
                     }
                 }
             }
@@ -2867,9 +2870,9 @@ __device__ inline RowCall with_expert(const RoutedCall& rc, unsigned id) {
     c.cluster = rc.c.cluster;
     return c;
 }
-// Entry first + blockIdx.y's call over its expert's rows into its own outputs, and its twin column; false for an entry without an expert, which writes nothing.
-__device__ inline bool routed_entry(const RoutedCall& rc, RowCall& c, unsigned long long& col) {
-    const unsigned long long e = rc.first + blockIdx.y;
+// Entry first + y's call over its expert's rows into its own outputs, and its twin column; false for an entry without an expert, which writes nothing.
+__device__ inline bool routed_entry(const RoutedCall& rc, RowCall& c, unsigned long long& col, unsigned y) {
+    const unsigned long long e = rc.first + y;
     const unsigned id = rc.ids[e];
     if (id >= rc.n_expert) return false;
     c = with_expert(rc, id);
@@ -3023,7 +3026,7 @@ template <> constexpr int tile8_blocks<rq::IQ2_S>() { return 1; }
     extern "C" __global__ void __launch_bounds__(kThreads) name(RoutedCall rc, const QT* q, const float* dx, unsigned long long nin) { \
         RowCall c;                                                                                                                       \
         unsigned long long col;                                                                                                          \
-        if (!routed_entry(rc, c, col)) return;                                                                                           \
+        if (!routed_entry(rc, c, col, blockIdx.y)) return;                                                                               \
         __VA_ARGS__(c, q + col * (nin / 32) * 32, dx + col * (nin / 32), nin, 1, 0);                                                     \
     }
 LLMX_ROUTED(llmx_q8_0_routed16, short, q8_0_rows<1, short, 2, 1>)
@@ -3031,13 +3034,13 @@ LLMX_ROUTED(llmx_q8_0_routed8, signed char, q8_0_rows<1, signed char, 2, 1>)
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_routed_half8(RoutedCall rc, const signed char* q, const float* dx, unsigned long long nin) {
     RowCall c;
     unsigned long long col;
-    if (!routed_entry(rc, c, col)) return;
+    if (!routed_entry(rc, c, col, blockIdx.y)) return;
     q8_0_half_one<1, kSteps>(c, q + col * (nin / 32) * 32, dx + col * (nin / 32), nin, 0);
 }
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_routed_half8s1(RoutedCall rc, const signed char* q, const float* dx, unsigned long long nin) {
     RowCall c;
     unsigned long long col;
-    if (!routed_entry(rc, c, col)) return;
+    if (!routed_entry(rc, c, col, blockIdx.y)) return;
     q8_0_half_one<1, kNarrowSteps>(c, q + col * (nin / 32) * 32, dx + col * (nin / 32), nin, 0);
 }
 // A grouped build runs a row build of C columns over one expert's entries (EntryCols), a column an entry, so each entry has the bits of its one-column product and the expert's rows are read once a group.
@@ -3695,82 +3698,109 @@ extern "C" __global__ void __launch_bounds__(kThreads, 2) llmx_hc_entry8(HcEntry
 
 namespace {
 
-typedef gpu_words<4> U4;
-typedef gpu_words<2> U2;
-typedef const GPU_GLOBAL_SPACE U4* G4;
-typedef const GPU_GLOBAL_SPACE U2* G2;
-
-// The 16-lane Q4_K unit math and loads, and the same for Q5_K with its fifth bits.
-template <bool Q5>
-__device__ inline void q4k_math(const K45Lane<Q5>& raw, unsigned b, unsigned t, const int4* lq, const float* ld, float& acc) {
+// One lane unit u of a row into one chain: its segments' terms (k_unit), the twin read from shared memory.
+template <typename KT, typename L>
+__device__ inline void lane_unit(const L& raw, unsigned u, unsigned t, const int4* lq, const float* ld, float& a, float& a2) {
+    constexpr int NV = L::values / 4, NW = NV, CH = LaneChains<L>::n;
+    const unsigned kb = u / L::lanes;
 #pragma unroll
-    for (int s = 0; s < 2; ++s) {
-        unsigned v[4];
-        float ds, dm;
-        raw.decode(t, s, v, ds, dm);
-        const unsigned xb = b * 8 + 2 * (t >> 1) + s;
-        const int4 x = lq[xb * 2 + (t & 1)];
+    for (int s = 0; s < L::segments; ++s) {
+        int ww[NW], xw[NW];
+        // The twin's words, scale and sum come first: they read shared memory alone, so they run while the unit's weights are still in flight.
+        const unsigned xb = kb * (KT::values / 32) + L::xblock(t, s);
+        const int* qc = (const int*)lq + xb * 8 + L::xoff(t, s) / 4;
+        if constexpr (NW % 4 == 0) {
+#pragma unroll
+            for (int i = 0; i < NW; i += 4) {
+                const int4 x = *(const int4*)(qc + i);
+                xw[i] = x.x, xw[i + 1] = x.y, xw[i + 2] = x.z, xw[i + 3] = x.w;
+            }
+        } else {
+            static_assert(NW == 2, "a lane's twin words come as int4 or int2 loads");
+            const int2 x = *(const int2*)qc;
+            xw[0] = x.x, xw[1] = x.y;
+        }
+        int xsum = 0;
+        if constexpr (!KNoMin<KT>::value) {
+#pragma unroll
+            for (int i = 0; i < NW; ++i) xsum = word_dot(0x01010101, xw[i], xsum, (signed char)0);
+        }
         const float xd = ld[xb];
-        int xsum = 0, isum = 0;
-        xsum = dot4_i8(0x01010101, x.x, xsum);
-        xsum = dot4_i8(0x01010101, x.y, xsum);
-        xsum = dot4_i8(0x01010101, x.z, xsum);
-        xsum = dot4_i8(0x01010101, x.w, xsum);
-        isum = dot4_i8((int)v[0], x.x, isum);
-        isum = dot4_i8((int)v[1], x.y, isum);
-        isum = dot4_i8((int)v[2], x.z, isum);
-        isum = dot4_i8((int)v[3], x.w, isum);
-        acc = fmaf(xd, k_term<typename std::conditional<Q5, rq::Q5_K, rq::Q4_K>::type>(ds, dm, isum, xsum), acc);
-    }
-}
-template <bool Q5>
-__device__ inline void q4k_load(K45Lane<Q5>& raw, const unsigned char* row, unsigned b, unsigned t) {
-    const G4 w = (G4)(row + b * (Q5 ? 176 : 144));
-    const U4 hd = w[0], qw = w[(Q5 ? 3 : 1) + t];
-    raw.dm = hd.x, raw.sc[0] = hd.y, raw.sc[1] = hd.z, raw.sc[2] = hd.w;
-    raw.q[0] = qw.x, raw.q[1] = qw.y, raw.q[2] = qw.z, raw.q[3] = qw.w;
-    if constexpr (Q5) {
-        const U4 hw = w[1 + (t & 1)];
-        raw.h[0] = hw.x, raw.h[1] = hw.y, raw.h[2] = hw.z, raw.h[3] = hw.w;
-    }
-}
-// One Q4_K or Q5_K row on 16 lanes, p the lane of the 16, with the bits k_rows gives it at the 32-lane cluster fused_step requires (backend_core.hpp); every lane of the 16 returns the sum.
-template <bool Q5>
-__device__ inline float q4k_row(const unsigned char* w, unsigned units, unsigned p, const int4* lq, const float* ld) {
-    const unsigned t = p & 7;
-    float a0 = 0.0f, a1 = 0.0f;
-    const unsigned steps = (units - p + 15) / 16;
-    K45Lane<Q5> cur, nxt;
-    q4k_load(cur, w, p >> 3, t);
-    for (unsigned k = 0; k < steps; ++k) {
-        const unsigned b = (p >> 3) + 2 * k;
-        if (k + 1 < steps) q4k_load(nxt, w, b + 2, t);
-        if (k & 1) q4k_math(cur, b, t, lq, ld, a1);
-        else q4k_math(cur, b, t, lq, ld, a0);
-        cur = nxt;
-    }
-    return wave_sum(a0 + a1, 8);
-}
-
-__device__ inline void q51_load(Q51Lane& raw, const unsigned char* row, unsigned b) {
-    const unsigned char* bp = row + b * 24;
-    const U2 a = *(G2)bp;
-    const U4 n = *(G4)(bp + 8);
-    raw.dm = a.x, raw.h = a.y, raw.l[0] = n.x, raw.l[1] = n.y, raw.l[2] = n.z, raw.l[3] = n.w;
-}
-__device__ inline void q51_math(const Q51Lane& raw, unsigned b, const int4* lq, const float* ld, float& acc) {
-    unsigned v[8];
-    float ds, dm;
-    raw.decode(0, 0, v, ds, dm);
-    const int4 x0 = lq[b * 2], x1 = lq[b * 2 + 1];
-    const float xd = ld[b];
-    const int xw[8] = {x0.x, x0.y, x0.z, x0.w, x1.x, x1.y, x1.z, x1.w};
-    int xsum = 0, isum = 0;
+        float ds, dm;
+        unsigned v[NV];
+        raw.decode(t, s, v, ds, dm);
 #pragma unroll
-    for (int i = 0; i < 8; ++i) xsum = dot4_i8(0x01010101, xw[i], xsum);
+        for (int i = 0; i < NV; i += 2) {
+            const unsigned pair[2] = {v[i], v[i + 1]};
+            int w2[KWords<signed char>::n];
+            widen<signed char, KT>(pair, w2);
 #pragma unroll
-    for (int i = 0; i < 8; ++i) isum = dot4_i8((int)v[i], xw[i], isum);
-    acc = fmaf(xd, k_term<rq::Q5_1>(ds, dm, isum, xsum), acc);
+            for (int x = 0; x < KWords<signed char>::n; ++x) ww[i / 2 * KWords<signed char>::n + x] = w2[x];
+        }
+        k_unit<KT, signed char, CH>(ww, xw, xsum, ds, dm, xd, a, a2);
+    }
+}
+// One row of any twin type on 16 lanes, p the lane of the 16, with k_rows' bits at a cluster of cl lanes (backend_core.hpp row_cluster) and CN chains a lane (step_chains); lanes below min(cl, 16) return the sum.
+// Lane p takes the cluster's lanes p, p + 16, ..., each in a chain of its own: its k-th unit p + k * min(cl, 16) is chain k % CN's; the chains fold as the cluster's tree folds its largest distances, and the 16 lanes by the rest of it.
+template <typename KT, int CN, typename L = typename KRaw<KT>::Lane>
+__device__ inline float lane_row(const unsigned char* w, unsigned units, unsigned cl, unsigned p, const int4* lq, const float* ld) {
+    static_assert(!KFactor<KT>::value, "a row with a factor leaves the twin family (backend_core.hpp integer)");
+    static_assert(16 % L::lanes == 0, "a lane keeps its position in the block at every step of 16");
+    constexpr int CH = LaneChains<L>::n;
+    const unsigned stride = CN > 1 ? 16u : cl < 16 ? cl : 16u, t = p % L::lanes;
+    float acc[CN], acc2[CN];
+#pragma unroll
+    for (int f = 0; f < CN; ++f) acc[f] = 0.0f, acc2[f] = 0.0f;
+    {
+        // A trip count the same on every lane, past-the-end units loaded from the row's last unit and kept out of the chains by a select: no branch in the loop depends on the lane, so the wait before a unit's products leaves the next load in flight.
+        // A row of one trip a lane takes its unit alone, without the loop's load of a next unit; the stride is a power of two, so the trip count is a shift (docs/DEVICE-TUNING.md).
+        const unsigned trips = (units + stride - 1) >> __builtin_ctz(stride), last = units - 1;
+        const bool lane_on = p < stride;
+        L b[2];
+        b[0].load(w + (p < units ? p : last) / L::lanes * KT::bytes, t);
+        if (trips == 1) {
+            float a = 0.0f, a2 = 0.0f;
+            lane_unit<KT>(b[0], p < units ? p : last, t, lq, ld, a, a2);
+            if (lane_on && p < units) acc[0] = a, acc2[0] = a2;
+        }
+        for (unsigned k = 0; trips > 1 && k < trips; k += 2) {
+#pragma unroll
+            for (int j = 0; j < 2; ++j) {
+                const unsigned kk = k + j;
+                if (kk >= trips) break;
+                const unsigned u = p + kk * stride, nu = u + stride;
+                b[(j + 1) & 1].load(w + (nu < units ? nu : last) / L::lanes * KT::bytes, t);
+                const bool on = lane_on && u < units;
+                const unsigned uu = u < units ? u : last;
+                // Four chains on two buffers: the pair is the loop's parity, the same on every lane.
+                const int c = CN == 4 ? j + 2 * ((k >> 1) & 1) : j % CN;
+                float a = acc[0], a2 = acc2[0];
+#pragma unroll
+                for (int f = 1; f < CN; ++f)
+                    if (c == f) a = acc[f], a2 = acc2[f];
+                lane_unit<KT>(b[j & 1], uu, t, lq, ld, a, a2);
+#pragma unroll
+                for (int f = 0; f < CN; ++f)
+                    if (on && c == f) acc[f] = a, acc2[f] = a2;
+                schedule_barrier();
+            }
+        }
+    }
+    const auto fold = [&](float (&a)[CN]) {
+        float s = a[0];
+        if constexpr (CN == 4) s = (a[0] + a[2]) + (a[1] + a[3]);
+        else if constexpr (CN == 2) s = a[0] + a[1];
+        // Constant distances, each one exchange of its own kind (rows.h lane_xor), in the tree's order; a distance past the stride keeps s by a select rather than a branch.
+#pragma unroll
+        for (int d = 8; d > 0; d /= 2) {
+            const float x = lane_xor(s, d);
+            s = stride > unsigned(d) ? s + x : s;
+        }
+        return s;
+    };
+    const float s = fold(acc);
+    if constexpr (CH == 2) return s + fold(acc2);
+    return s;
 }
 
 // One lane's share of block bd of a Q8_0 row in the half-block order (two lanes a block, the even lane handing the scale on), 0 past the row, the twin read as int4s.
@@ -3797,7 +3827,7 @@ __device__ inline float q8_half_row(const unsigned* w, const signed char* q, con
     return wave_sum(q8_half_lane(w, (const int4*)q, dx, sl >> 1, blocks, sl & 1) + 0.0f, 16);
 }
 
-// Routed gate and up of one entry's 32 outputs a block (blockIdx.y the entry), then silu(gate) * up and its block-int8 twin, as llmx_silu_mul_twin8 makes them.
+// Routed gate and up of one entry's 32 outputs a block, then silu(gate) * up and its block-int8 twin, as llmx_silu_mul_twin8 makes them.
 struct MfGateUp {
     RoutedCall rc;
     const signed char* q;
@@ -3828,40 +3858,46 @@ struct MfGateUpS {
 static_assert(offsetof(MfGateUpS, s) == 232 && offsetof(MfGateUpS, s.sq) == 360 && offsetof(MfGateUpS, s.sact) == 384 && offsetof(MfGateUpS, s.std_) == 408 && offsetof(MfGateUpS, s.rows) == 416 && sizeof(MfGateUpS) == 424,
               "host packs MfGateUpS by these offsets");
 
-template <int NS, int R>
-__device__ inline void shared_gate_up(const MfShared& a) {
+// The 64 rows of a block of four waves, 32 gate and 32 up, as Q8_0 rows a wave each and R a wave, in q8_0_half_one's steps NS a load (rows.h half_steps), which keep a lane's block order and give the one-row build's bits.
+// row_at(lr) gives row lr, q and dx the twin of h, and out(lr, row, sum) takes each row's sum on lane 0.
+template <int NS, int R, class RowAt, class Out>
+__device__ inline void half_block_rows(RowAt row_at, const signed char* q, const float* dx, unsigned sb, Out out) {
     constexpr unsigned W = 4;
-    __shared__ float sv[64];
     const unsigned lane = threadIdx.x % 64, wave = threadIdx.x / 64, hl = lane & 1, span = 32;
-    const unsigned sb = (unsigned)(a.snin / 32), sff = (unsigned)a.sc.nout[0], c0 = blockIdx.x * 32;
+    for (unsigned rr = wave * R; rr < 64; rr += R * W) {
+        Row r[R];
+        const unsigned* w[R];
+#pragma unroll
+        for (int j = 0; j < R; ++j) {
+            r[j] = row_at(rr + j);
+            w[j] = (const unsigned*)r[j].w;
+        }
+        float acc[R] = {};
+        unsigned b = lane >> 1;
+        while (b + (NS - 1) * span < sb) half_steps<NS, R>(w, q, dx, b, sb, hl, acc);
+        if (b < sb) half_steps<NS, R, true>(w, q, dx, b, sb, hl, acc);
+#pragma unroll
+        for (int j = 0; j < R; ++j) {
+            const float v = wave_sum(acc[j]);
+            if (lane == 0) out(rr + j, r[j], v);
+        }
+    }
+}
+
+template <int NS, int R>
+__device__ inline void shared_gate_up(const MfShared& a, unsigned slice, unsigned xr) {
+    __shared__ float sv[64];
+    const unsigned sb = (unsigned)(a.snin / 32), sff = (unsigned)a.sc.nout[0], c0 = slice * 32;
     if (c0 >= sff) return;
     // Block row xr takes row xr of h; the rows' blocks run first and read the same weight rows, which the cache serves.
     {
-        const unsigned xr = blockIdx.y;
         const signed char* sq = a.sq + (unsigned long long)xr * a.snin;
         const float* sdx = a.sdx + (unsigned long long)xr * sb;
-        for (unsigned rr = wave * R; rr < 64; rr += R * W) {
-            Row r[R];
-            const unsigned* w[R];
-#pragma unroll
-            for (int j = 0; j < R; ++j) {
-                const unsigned lr = rr + j, o = lr < 32 ? c0 + lr : sff + c0 + lr - 32;
-                r[j] = row_of(a.sc, first_lane(o), sb * kQ8);
-                w[j] = (const unsigned*)r[j].w;
-            }
-            float acc[R] = {};
-            unsigned b = lane >> 1;
-            while (b + (NS - 1) * span < sb) half_steps<NS, R>(w, sq, sdx, b, sb, hl, acc);
-            if (b < sb) half_steps<NS, R, true>(w, sq, sdx, b, sb, hl, acc);
-#pragma unroll
-            for (int j = 0; j < R; ++j) {
-                const float v = wave_sum(acc[j]);
-                if (lane == 0) {
-                    r[j].y[(unsigned long long)xr * r[j].nout] = v;
-                    sv[rr + j] = v;
-                }
-            }
-        }
+        half_block_rows<NS, R>([&](unsigned lr) { return row_of(a.sc, first_lane(lr < 32 ? c0 + lr : sff + c0 + lr - 32), sb * kQ8); }, sq, sdx, sb,
+                               [&](unsigned lr, const Row& r, float v) {
+                                   r.y[(unsigned long long)xr * r.nout] = v;
+                                   sv[lr] = v;
+                               });
         __syncthreads();
         if (threadIdx.x < 32) {
             const unsigned t = threadIdx.x;
@@ -3878,15 +3914,16 @@ __device__ inline void shared_gate_up(const MfShared& a) {
 // The widest h gate_up stages in shared memory (backend_core.hpp kStepIn).
 constexpr unsigned kStepIn = 2560;
 
-template <bool Q5>
-__device__ inline void gate_up(const MfGateUp& a) {
+// CN is the chains lane_row holds a lane for the routed cluster, which the host picks the build by (backend_core.hpp step_chains).
+template <typename KT, int NS, int R, int CN>
+__device__ inline void gate_up(const MfGateUp& a, unsigned slice, unsigned y) {
     constexpr unsigned W = 4;
     __shared__ int4 lq[kStepIn / 16];
     __shared__ float ld[kStepIn / 32];
     __shared__ float sv[64];
     RowCall rc;
     unsigned long long col;
-    if (!routed_entry(a.rc, rc, col)) return;
+    if (!routed_entry(a.rc, rc, col, y)) return;
     const unsigned nin = (unsigned)a.nin;
     {
         const int4* gq = (const int4*)(a.q + col * (nin / 32) * 32);
@@ -3895,17 +3932,26 @@ __device__ inline void gate_up(const MfGateUp& a) {
         for (unsigned i = threadIdx.x; i < nin / 32; i += 64 * W) ld[i] = gd[i];
     }
     __syncthreads();
-    const unsigned lane = threadIdx.x % 64, p = lane & 15, wave = threadIdx.x / 64;
-    const unsigned nb = nin / 256, units = nb * 8, row_bytes = nb * (Q5 ? 176 : 144), ff = (unsigned)rc.nout[0], c0 = blockIdx.x * 32;
+    const unsigned row_bytes = nin / KT::values * KT::bytes, ff = (unsigned)rc.nout[0], c0 = slice * 32;
+    if constexpr (__is_same(KT, rq::Q8_0)) {
+        // A wave a row, as the grouped routed product takes a Q8_0 row: the shared expert's steps on the staged twin.
+        half_block_rows<NS, R>([&](unsigned lr) { return row_of(rc, lr < 32 ? c0 + lr : ff + c0 + lr - 32, row_bytes); }, (const signed char*)lq, ld, nin / 32,
+                               [&](unsigned lr, const Row& r, float v) {
+                                   *r.y = v;
+                                   sv[lr] = v;
+                               });
+    } else {
+        const unsigned lane = threadIdx.x % 64, p = lane & 15, wave = threadIdx.x / 64, units = nin / KT::values * KRaw<KT>::Lane::lanes;
 #pragma unroll
-    for (unsigned pass = 0; pass < 16 / W; ++pass) {
-        const unsigned lr = pass * 4 * W + wave * 4 + lane / 16;
-        const unsigned o = lr < 32 ? c0 + lr : ff + c0 + lr - 32;
-        const Row r = row_of(rc, o, row_bytes);
-        const float s = q4k_row<Q5>(r.w, units, p, lq, ld);
-        if (p == 0) {
-            *r.y = s;
-            sv[lr] = s;
+        for (unsigned pass = 0; pass < 16 / W; ++pass) {
+            const unsigned lr = pass * 4 * W + wave * 4 + lane / 16;
+            const unsigned o = lr < 32 ? c0 + lr : ff + c0 + lr - 32;
+            const Row r = row_of(rc, o, row_bytes);
+            const float s = lane_row<KT, CN>(r.w, units, a.rc.c.cluster, p, lq, ld);
+            if (p == 0) {
+                *r.y = s;
+                sv[lr] = s;
+            }
         }
     }
     __syncthreads();
@@ -3913,7 +3959,7 @@ __device__ inline void gate_up(const MfGateUp& a) {
         const unsigned t = threadIdx.x;
         const float g = sv[t], u = sv[32 + t];
         const float o = g / (1.0f + expf(-g)) * u;
-        const unsigned long long i = (a.rc.first + blockIdx.y) * ff + c0 + t;
+        const unsigned long long i = (a.rc.first + y) * ff + c0 + t;
         a.act[i] = o;
         (void)twin_value<signed char, 127>(o, twin_amax(o), a.aq + i, a.ad + i / 32, (int)t);
     }
@@ -3940,26 +3986,32 @@ static_assert(offsetof(MfDown, aq) == 184 && offsetof(MfDown, weights) == 208 &&
                   sizeof(MfDown) == 400,
               "host packs MfDown by these offsets");
 
-template <bool Q8>
+template <typename KT, int CN>
 __device__ inline void down(const MfDown& a) {
     // KM and FFM are backend_core.hpp's kStepPicks and kStepFf, k entries of ff values staged in shared memory.
     constexpr unsigned KM = 10, FFM = 640, RB = 8;
+    constexpr bool Q8 = __is_same(KT, rq::Q8_0);
     __shared__ int4 lq[KM * FFM / 16];
     __shared__ float ld[KM * FFM / 32];
     __shared__ float part[RB * KM];
     __shared__ float shv[RB];
-    const unsigned nin = (unsigned)a.nin, k = a.k, nb = nin / 32, row_bytes = nb * (Q8 ? kQ8 : 24);
+    __shared__ unsigned sid[KM];
+    __shared__ float swt[KM];
+    const unsigned nin = (unsigned)a.nin, k = a.k, nb = nin / 32, row_bytes = KT::values == 32 ? nb * KT::bytes : nin / KT::values * KT::bytes;
     const unsigned lane = threadIdx.x % 64, p = lane & 15, cl = threadIdx.x / 16;
-    const unsigned o0 = blockIdx.x * RB, xr = blockIdx.y;
+    // The rows of h are the grid's fast dimension, so the blocks of one output slice run together and an expert picked by several rows is read from DRAM once (docs/DEVICE-TUNING.md).
+    const unsigned o0 = blockIdx.y * RB, xr = blockIdx.x;
     // Row xr's k entries, its shared act and its y: a block row a row of h.
     const unsigned long long first = a.rc.first + (unsigned long long)xr * k;
     const signed char* sq = a.sq + (unsigned long long)xr * a.snin;
     const float* sdx = a.sdx + (unsigned long long)xr * (a.snin / 32);
-    const bool two = p + 16 < nb;
-    // The k entries' twin columns lie one after another.
+    // The row's start of y read now, so its load waits beside the products rather than after them.
+    const float y0 = threadIdx.x < RB ? a.y0[xr * a.y0s + o0 + threadIdx.x] : 0.0f;
+    // The k entries' twin columns lie one after another; their ids and weights are staged with them, so no task or sum waits on a global read of its own.
     {
         const int4* gq = (const int4*)(a.aq + first * nin);
         const float* gd = a.ad + first * nb;
+        if (threadIdx.x < k) sid[threadIdx.x] = a.rc.ids[first + threadIdx.x], swt[threadIdx.x] = a.weights[first + threadIdx.x];
         for (unsigned i = threadIdx.x; i < k * nin / 16; i += 256) lq[i] = gq[i];
         for (unsigned i = threadIdx.x; i < k * nb; i += 256) ld[i] = gd[i];
     }
@@ -3969,7 +4021,7 @@ __device__ inline void down(const MfDown& a) {
         const unsigned sl = lane % 32, hl = sl & 1, bd = sl >> 1;
         for (unsigned task = threadIdx.x / 32; task < RB * k; task += 8) {
             const unsigned j = task / RB, rr = task % RB;
-            const unsigned id = a.rc.ids[first + j];
+            const unsigned id = sid[j];
             if (id >= a.rc.n_expert) continue;
             const unsigned* w = (const unsigned*)(a.rc.c.w[0] + id * a.rc.stride[0] + (unsigned long long)(o0 + rr) * row_bytes);
             const int4* xq = lq + j * (nin / 16);
@@ -3979,19 +4031,14 @@ __device__ inline void down(const MfDown& a) {
             if (sl == 0) part[rr * KM + j] = s;
         }
     } else {
-        // A 16-lane cluster a task, each lane its block and the block 16 on.
+        // A 16-lane team a task, the row on the routed product's cluster of its type and width (lane_row).
+        const unsigned units = nin / KT::values * KRaw<KT>::Lane::lanes, rcl = a.rc.c.cluster;
         for (unsigned task = cl; task < RB * k; task += 16) {
             const unsigned j = task / RB, rr = task % RB;
-            const unsigned id = a.rc.ids[first + j];
+            const unsigned id = sid[j];
             if (id >= a.rc.n_expert) continue;
             const unsigned char* w = a.rc.c.w[0] + id * a.rc.stride[0] + (unsigned long long)(o0 + rr) * row_bytes;
-            Q51Lane y0, y1;
-            if (p < nb) q51_load(y0, w, p);
-            if (two) q51_load(y1, w, p + 16);
-            float a0 = 0.0f, a1 = 0.0f;
-            if (p < nb) q51_math(y0, p, lq + j * (nin / 16), ld + j * nb, a0);
-            if (two) q51_math(y1, p + 16, lq + j * (nin / 16), ld + j * nb, a1);
-            const float s = wave_sum(a0 + a1, 8);
+            const float s = lane_row<KT, CN>(w, units, rcl, p, lq + j * (nin / 16), ld + j * nb);
             if (p == 0) part[rr * KM + j] = s;
         }
     }
@@ -4023,12 +4070,12 @@ __device__ inline void down(const MfDown& a) {
         const unsigned t = threadIdx.x;
         float s = 0.0f;
         for (unsigned j = 0; j < k; ++j)
-            if (a.rc.ids[first + j] != 0xffffffffu) {
-                const float product = a.weights[first + j] * part[t * KM + j];
+            if (sid[j] != 0xffffffffu) {
+                const float product = swt[j] * part[t * KM + j];
                 s = j == 0 ? product : s + product;
             }
         float* y = a.y + xr * a.sc.nout[0] + o0 + t;
-        const float c = a.y0[xr * a.y0s + o0 + t] + s;
+        const float c = y0 + s;
         *y = c + shv[t];
     }
 }
@@ -4036,23 +4083,33 @@ __device__ inline void down(const MfDown& a) {
 } // namespace
 
 // The fused decode moe_step (backend_core.hpp moe_step): gate+up of every routed entry with the shared expert as the last block row, then the down with the combine and the shared down.
-// The _w builds take the shared rows two a wave and four steps a load: fewer serial loads a wave and more registers, for a grid resident at their occupancy (backend_core.hpp step_up_kernel).
-extern "C" __global__ void __launch_bounds__(256) llmx_moe_step_up_q4_k(MfGateUpS a) {
-    if (blockIdx.y < a.s.rows) shared_gate_up<2, 1>(a.s);
-    else gate_up<false>(a.g);
-}
-extern "C" __global__ void __launch_bounds__(256) llmx_moe_step_up_q5_k(MfGateUpS a) {
-    if (blockIdx.y < a.s.rows) shared_gate_up<2, 1>(a.s);
-    else gate_up<true>(a.g);
-}
-extern "C" __global__ void __launch_bounds__(256) llmx_moe_step_up_q4_k_w(MfGateUpS a) {
-    if (blockIdx.y < a.s.rows) shared_gate_up<kSteps, 2>(a.s);
-    else gate_up<false>(a.g);
-}
-extern "C" __global__ void __launch_bounds__(256) llmx_moe_step_up_q5_k_w(MfGateUpS a) {
-    if (blockIdx.y < a.s.rows) shared_gate_up<kSteps, 2>(a.s);
-    else gate_up<true>(a.g);
-}
-extern "C" __global__ void __launch_bounds__(256) llmx_moe_step_down_q5_1(MfDown a) { down<false>(a); }
-extern "C" __global__ void __launch_bounds__(256) llmx_moe_step_down_q8_0(MfDown a) { down<true>(a); }
+// The _w builds, the builds a chain count (_c2, _c4) and the grid with block rows fastest are described in docs/src/backends-gpu.md (moe_step).
+#define LLMX_STEP_UP_CN(name, KT, CN)                                                            \
+    extern "C" __global__ void __launch_bounds__(256) llmx_moe_step_up_##name(MfGateUpS a) {     \
+        if (blockIdx.x < a.s.rows) shared_gate_up<2, 1>(a.s, blockIdx.y, blockIdx.x);            \
+        else gate_up<KT, 2, 1, CN>(a.g, blockIdx.y, blockIdx.x);                                 \
+    }                                                                                            \
+    extern "C" __global__ void __launch_bounds__(256) llmx_moe_step_up_##name##_w(MfGateUpS a) { \
+        if (blockIdx.x < a.s.rows) shared_gate_up<kSteps, 2>(a.s, blockIdx.y, blockIdx.x);       \
+        else gate_up<KT, kSteps, 2, CN>(a.g, blockIdx.y, blockIdx.x);                            \
+    }
+#define LLMX_STEP_DOWN_CN(name, KT, CN) \
+    extern "C" __global__ void __launch_bounds__(256) llmx_moe_step_down_##name(MfDown a) { down<KT, CN>(a); }
+#define LLMX_STEP(name, KT)                   \
+    LLMX_STEP_UP_CN(name, KT, 1)              \
+    LLMX_STEP_UP_CN(name##_c2, KT, 2)         \
+    LLMX_STEP_UP_CN(name##_c4, KT, 4)         \
+    LLMX_STEP_DOWN_CN(name, KT, 1)            \
+    LLMX_STEP_DOWN_CN(name##_c2, KT, 2)       \
+    LLMX_STEP_DOWN_CN(name##_c4, KT, 4)
+LLMX_STEP(q4_k, rq::Q4_K)
+LLMX_STEP(q5_k, rq::Q5_K)
+LLMX_STEP(q6_k, rq::Q6_K)
+LLMX_STEP(q4_0, rq::Q4_0)
+LLMX_STEP(q4_1, rq::Q4_1)
+LLMX_STEP(q5_0, rq::Q5_0)
+LLMX_STEP(q5_1, rq::Q5_1)
+// Q8_0, whose wave takes a row, keeps its half-block loops and one build (backend_core.hpp TwinKernels step_up and step_down).
+LLMX_STEP_UP_CN(q8_0, rq::Q8_0, 1)
+LLMX_STEP_DOWN_CN(q8_0, rq::Q8_0, 1)
 #endif

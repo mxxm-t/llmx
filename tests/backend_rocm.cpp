@@ -939,6 +939,25 @@ void attention(Backend& g, Backend& c) {
 
 // moe_step of one generated row in the int8 class: on a 64-lane device with the dot module, three launches (llmx_moe_step_*) whose every output is the bits of the base's ops (Backend::moe_step).
 // Flash-Next's shape and a narrower h, other expert and pick counts, at both routed widths and all four type pairs; the router sends every pick to the first `few` experts, so only theirs are filled.
+
+// The fused gate+up ("up") or down ("down") a routed type takes (kernels/int16.gpu, LLMX_STEP_UP_CN and LLMX_STEP_DOWN_CN).
+std::string step_name(const char* part, uint32_t type) {
+    std::string n = std::string("llmx_moe_step_") + part + "_" + quant::storage_type(type)->name;
+    for (char& ch : n) ch = char(std::tolower(ch));
+    return n;
+}
+// Launches with the fused step's chain-count builds (_c2, _c4, kernels/int16.gpu LLMX_STEP) under their one-chain names.
+std::map<std::string, size_t> one_chain(const std::map<std::string, size_t>& launches) {
+    std::map<std::string, size_t> m;
+    for (const auto& [key, n] : launches) {
+        std::string name = key;
+        for (const char* c : {"_c2", "_c4"})
+            if (const size_t at = name.find(c); name.rfind("llmx_moe_step_", 0) == 0 && at != std::string::npos) name.erase(at, 3);
+        m[name] += n;
+    }
+    return m;
+}
+
 void moe_step_bits(Backend& g) {
     const size_t few = 24;
     // The build compiles the dot module for gfx906 alone (CMakeLists.txt, int16dot).
@@ -946,7 +965,7 @@ void moe_step_bits(Backend& g) {
     struct Shape {
         size_t nin, ne, k;
     };
-    const Shape shapes[] = {{2560, 512, 10}, {1280, 512, 10}, {2560, 128, 10}, {2560, 512, 6}, {1280, 64, 4}};
+    const Shape shapes[] = {{2560, 512, 10}, {1280, 512, 10}, {2560, 128, 10}, {2560, 512, 6}, {1280, 64, 4}, {2048, 256, 8}};
     for (const Shape& shape : shapes) {
         const size_t nin = shape.nin, ne = shape.ne, k = shape.k;
         const std::vector<float> h = row_classes::values(nin, 171), rgw = row_classes::values(nin, 172, 0.01f);
@@ -970,12 +989,17 @@ void moe_step_bits(Backend& g) {
         };
         // At Flash-Next's shape also a width of 17 blocks, an odd count the fused step refuses for either down type.
         const bool flash = nin == 2560 && ne == 512 && k == 10;
-        std::vector<size_t> widths = {320, 640};
+        // At Qwen3.6-35B-A3B's shape the widths of whole Q5_K blocks, 16 lane units and 8.
+        std::vector<size_t> widths = nin == 2048 ? std::vector<size_t>{512, 256} : std::vector<size_t>{320, 640};
         if (flash) widths.push_back(544);
         for (const size_t ff : widths)
-            for (const uint32_t gt : {quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K})
-                for (const uint32_t dt : {quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_Q8_0}) {
+            for (const uint32_t gt : {quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_Q8_0})
+                for (const uint32_t dt : {quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q4_0}) {
                     if (ff == 544 && gt != quant::GGML_TYPE_Q4_K) continue;
+                    // A down's rows hold whole blocks of its type, so a K-type down has no row of 320 or 640 values in any file.
+                    if (ff % quant::storage_type(dt)->block_size) continue;
+                    // The gates beyond Q4_K and Q5_K with one down each, which bounds the test's time.
+                    if (gt != quant::GGML_TYPE_Q4_K && gt != quant::GGML_TYPE_Q5_K && dt != quant::GGML_TYPE_Q6_K) continue;
                     const std::string at = std::to_string(nin) + " wide, " + std::to_string(k) + " of " + std::to_string(ne) + " experts, " + quant::storage_type(gt)->name +
                                            " gate and up, " + quant::storage_type(dt)->name + " down, ff " + std::to_string(ff);
                     const BufferPtr wg = stack(gt, nin, ff, 173), wu = stack(gt, nin, ff, 174), wd = stack(dt, ff, nin, 175);
@@ -1006,7 +1030,7 @@ void moe_step_bits(Backend& g) {
                     g.Backend::moe_step(st[0], {hb.get(), 0}, {o[0].y.get(), 0}, nin, 1, {decode, 1}, Dtype::int8);
                     const auto base = rocm_take_launches(g);
                     g.moe_step(st[1], {hb.get(), 0}, {o[1].y.get(), 0}, nin, 1, {decode, 1}, Dtype::int8);
-                    const auto step = rocm_take_launches(g);
+                    const auto step = one_chain(rocm_take_launches(g));
                     // A write forgets every kept twin, so the route launch makes h's.
                     g.write(*hb, 0, h.data(), nin * 4);
                     rocm_take_launches(g);
@@ -1018,8 +1042,8 @@ void moe_step_bits(Backend& g) {
                     for (const auto& [name, n] : base) base_steps += name.rfind("llmx_moe_step", 0) == 0 ? n : 0;
                     for (const auto& [name, n] : unkept) twins += name.rfind("llmx_twin", 0) == 0 ? n : 0;
                     require(base_steps == 0, "the base's moe_step launches no fused kernel, " + at);
-                    const std::string up = gt == quant::GGML_TYPE_Q5_K ? "llmx_moe_step_up_q5_k" : "llmx_moe_step_up_q4_k",
-                                      down = dt == quant::GGML_TYPE_Q8_0 ? "llmx_moe_step_down_q8_0" : "llmx_moe_step_down_q5_1";
+                    const std::string up = step_name("up", gt), down = step_name("down", dt);
+                    // An odd block count (544) runs the base's ops.
                     if (fused && ff != 544) {
                         require(step.size() == 3 && step.count("llmx_moe_step_route") && (step.count(up) || step.count(up + "_w")) && step.count(down), "moe_step is the three fused launches, " + at);
                         require(unkept.size() == 3 && unkept.count("llmx_moe_step_route") && twins == 0, "with h's twin not kept the route launch makes it, " + at);
@@ -1067,6 +1091,66 @@ void moe_step_bits(Backend& g) {
                     g.moe_step(strided, {hb.get(), 0}, {o[1].y.get(), 0}, nin, 1, {decode, 1}, Dtype::int8);
                     require(!rocm_take_launches(g).count("llmx_moe_step_route"), "a moe_step with a per-row bias runs the base's ops, " + at);
                 }
+    }
+}
+
+// moe_step's times, printed, never asserted: Qwen3.6-35B-A3B's layer (2048 wide, 8 of 256 experts, ff 512, Q8_0 shared expert) at its gate, up and down types, fused and through the base's ops.
+// h cycles through eight sets of rows so the picks move among 64 filled experts, about 120 MB of rows, outside the L2 cache; each arm prints its median us a step and its launches.
+void moe_rates(Backend& g) {
+    const size_t nin = 2048, ne = 256, k = 8, ff = 512, filled = 64, sets = 8;
+    std::vector<float> router = row_classes::values(ne * nin, 501, 0.05f), rgw = row_classes::values(nin, 502, 0.01f);
+    std::fill(router.begin() + filled * nin, router.end(), 0.0f);
+    const std::vector<float> zero(nin, 0.0f);
+    auto rb = g.adopt(router.data(), router.size() * 4), gb = g.adopt(rgw.data(), nin * 4), zb = g.adopt(zero.data(), nin * 4);
+    const auto stack = [&](uint32_t type, size_t width, size_t rows, uint32_t seed) {
+        std::vector<uint8_t> m(quant::row_bytes(type, width, ne * rows), 0);
+        const std::vector<uint8_t> f = type == quant::GGML_TYPE_Q8_0 ? q8_matrix(width, filled * rows, seed) : typed_matrix(type, width, filled * rows, seed);
+        std::copy(f.begin(), f.end(), m.begin());
+        BufferPtr b = g.alloc(m.size());
+        g.write(*b, 0, m.data(), m.size());
+        return b;
+    };
+    const std::vector<uint8_t> sg = q8_matrix(nin, ff, 507), su = q8_matrix(nin, ff, 508), sd = q8_matrix(ff, nin, 509);
+    auto sgb = g.adopt(sg.data(), sg.size()), sub = g.adopt(su.data(), su.size()), sdb = g.adopt(sd.data(), sd.size());
+    for (const size_t rows : {(size_t)1, (size_t)4, (size_t)8}) {
+        std::vector<BufferPtr> hs;
+        for (uint32_t s = 0; s < sets; ++s) {
+            const std::vector<float> h = row_classes::values(rows * nin, 510 + 16 * (uint32_t)rows + s);
+            hs.push_back(g.adopt(h.data(), h.size() * 4));
+        }
+        const RowRun generated[1] = {{rows, 1}};
+        struct Arm { const char* name; uint32_t gt, dt; bool base; };
+        constexpr uint32_t q4k = quant::GGML_TYPE_Q4_K, q5k = quant::GGML_TYPE_Q5_K, q6k = quant::GGML_TYPE_Q6_K;
+        const Arm arms[] = {{"fused Q5_K down", q4k, q5k, false}, {"base Q5_K down", q4k, q5k, true}, {"fused Q6_K down", q4k, q6k, false}, {"base Q6_K down", q4k, q6k, true},
+                             {"fused Q5_1 down", q4k, quant::GGML_TYPE_Q5_1, false}, {"fused Q8_0 down", q4k, quant::GGML_TYPE_Q8_0, false},
+                             {"fused Q6_K gate Q5_K down", q6k, q5k, false}, {"base Q6_K gate Q5_K down", q6k, q5k, true},
+                             {"fused Q8_0 gate Q5_K down", quant::GGML_TYPE_Q8_0, q5k, false}, {"base Q8_0 gate Q5_K down", quant::GGML_TYPE_Q8_0, q5k, true}};
+        for (const Arm& arm : arms) {
+            const BufferPtr wg = stack(arm.gt, nin, ff, 503), wu = stack(arm.gt, nin, ff, 504), wd = stack(arm.dt, ff, nin, 505);
+            BufferPtr sc = g.alloc(rows * ne * 4), ids = g.alloc(rows * k * 4), wts = g.alloc(rows * k * 4), gt = g.alloc(rows * k * ff * 4), up = g.alloc(rows * k * ff * 4),
+                      act = g.alloc(rows * k * ff * 4), sgt = g.alloc(rows * ff * 4), sup = g.alloc(rows * ff * 4), sact = g.alloc(rows * ff * 4), rg = g.alloc(rows * 4),
+                      y = g.alloc(rows * nin * 4);
+            std::vector<RowRun> scratch;
+            MoeShared sh{Projection{{quant::GGML_TYPE_Q8_0, {sgb.get(), 0}}, {sgt.get(), 0}, ff}, Projection{{quant::GGML_TYPE_Q8_0, {sub.get(), 0}}, {sup.get(), 0}, ff},
+                               {quant::GGML_TYPE_Q8_0, {sdb.get(), 0}}, {sact.get(), 0}, Projection{{quant::GGML_TYPE_F32, {gb.get(), 0}}, {rg.get(), 0}, 1}};
+            const MoeStep st{Projection{{quant::GGML_TYPE_F32, {rb.get(), 0}}, {sc.get(), 0}, ne}, k, backend::RouteRule::softmax(true), {ids.get(), 0}, {wts.get(), 0},
+                             Projection{{arm.gt, {wg.get(), 0}}, {gt.get(), 0}, ff}, Projection{{arm.gt, {wu.get(), 0}}, {up.get(), 0}, ff}, {arm.dt, {wd.get(), 0}}, {act.get(), 0}, &sh, zb.get(), &scratch};
+            size_t turn = 0;
+            const auto call = [&] {
+                const BufferPtr& h = hs[turn++ % sets];
+                if (arm.base) g.Backend::moe_step(st, {h.get(), 0}, {y.get(), 0}, nin, rows, {generated, 1}, Dtype::int8);
+                else g.moe_step(st, {h.get(), 0}, {y.get(), 0}, nin, rows, {generated, 1}, Dtype::int8);
+            };
+            rocm_take_launches(g);
+            call();
+            g.sync();
+            std::string ran;
+            size_t launches = 0;
+            for (const auto& [kn, n] : rocm_take_launches(g)) ran += (ran.empty() ? "" : "+") + kn + (n > 1 ? "x" + std::to_string(n) : ""), launches += n;
+            const auto [us, spread] = median_us(g, call);
+            rocm_take_launches(g);
+            std::printf("backend-rocm: moe rate Qwen3.6-35B-A3B rows %zu %s: %.1f us (spread %.1f), %zu launches [%s]\n", rows, arm.name, us, spread, launches, ran.c_str());
+        }
     }
 }
 
@@ -1154,12 +1238,22 @@ void moe_rows_bits(Backend& g) {
     const double grouped_from = 1.25;
     const bool fused = rocm_device(0).arch.rfind("gfx906", 0) == 0 && rocm_device(0).caps.subgroup_size == 64;
     size_t wide_runs = 0, lean_runs = 0;
+    std::set<std::string> routes_run;
+    constexpr uint32_t F32 = quant::GGML_TYPE_F32, F16 = quant::GGML_TYPE_F16, BF16 = quant::GGML_TYPE_BF16;
     struct Shape {
         size_t ne, k, ff;
         uint32_t gt, dt;
+        uint32_t ft = quant::GGML_TYPE_F32;   // the router's float type, F16 and BF16 fused at one row alone
+        uint32_t rt = quant::GGML_TYPE_F32;   // the row gate's float type, the same rule
     };
+    // Every pair of router and row gate types the route builds take, the mixed ones at the cheapest shape.
     const Shape shapes[] = {{512, 10, 320, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_1}, {512, 10, 640, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q8_0},
-                            {128, 6, 320, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q5_1}};
+                            {128, 6, 320, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q5_1}, {256, 8, 512, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K}, {256, 8, 512, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q6_K},
+                            {256, 8, 512, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, BF16, BF16}, {256, 8, 512, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, F16, F16},
+                            {128, 6, 320, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q5_1, F32, F16}, {128, 6, 320, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q5_1, F32, BF16},
+                            {128, 6, 320, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q5_1, F16, F32}, {128, 6, 320, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q5_1, F16, BF16},
+                            {128, 6, 320, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q5_1, BF16, F32}, {128, 6, 320, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q5_1, BF16, F16}};
+    const auto float_name = [](uint32_t t) { return std::string(t == quant::GGML_TYPE_F32 ? "f32" : t == quant::GGML_TYPE_F16 ? "f16" : "bf16"); };
     for (const Shape& sh : shapes) {
         const size_t ne = sh.ne, k = sh.k, ff = sh.ff;
         // The last row count the fused step takes, and one more, which the base takes.
@@ -1177,7 +1271,21 @@ void moe_rows_bits(Backend& g) {
             for (size_t i = 0; i < nin; ++i) router[e * nin + i] = float(h0[i] * score / hh) + (e < few ? rnoise[e * nin + i] : 0.0f);
         }
         const std::vector<float> zero(max_rows * nin, 0.0f);
-        auto hb = g.adopt(h.data(), h.size() * 4), rb = g.adopt(router.data(), router.size() * 4), gb = g.adopt(rgw.data(), nin * 4), zb = g.adopt(zero.data(), zero.size() * 4);
+        auto hb = g.adopt(h.data(), h.size() * 4), zb = g.adopt(zero.data(), zero.size() * 4);
+        const auto floats_as = [&](const std::vector<float>& v, uint32_t ft) {
+            std::vector<uint8_t> b(quant::row_bytes(ft, v.size(), 1));
+            for (size_t i = 0; i < v.size(); ++i) {
+                uint32_t u;
+                std::memcpy(&u, &v[i], 4);
+                const uint16_t x = ft == quant::GGML_TYPE_F16 ? uint16_t(f32_to_f16(v[i])) : uint16_t(u >> 16);
+                if (ft == quant::GGML_TYPE_F32) std::memcpy(&b[4 * i], &u, 4);
+                else std::memcpy(&b[2 * i], &x, 2);
+            }
+            BufferPtr r = g.alloc(b.size());
+            g.write(*r, 0, b.data(), b.size());
+            return r;
+        };
+        const BufferPtr rb = floats_as(router, sh.ft), gb = floats_as(rgw, sh.rt);
         const auto stack = [&](uint32_t type, size_t width, size_t rows, uint32_t seed) {
             const std::vector<uint8_t> m = type == quant::GGML_TYPE_Q8_0 ? q8_matrix(width, few * rows, seed) : typed_matrix(type, width, few * rows, seed);
             BufferPtr b = g.alloc(quant::row_bytes(type, width, ne * rows));
@@ -1187,10 +1295,11 @@ void moe_rows_bits(Backend& g) {
         const BufferPtr wg = stack(sh.gt, nin, ff, 185), wu = stack(sh.gt, nin, ff, 186), wd = stack(sh.dt, ff, nin, 187);
         const std::vector<uint8_t> sg = q8_matrix(nin, ff, 188), su = q8_matrix(nin, ff, 189), sd = q8_matrix(ff, nin, 190);
         auto sgb = g.adopt(sg.data(), sg.size()), sub = g.adopt(su.data(), su.size()), sdb = g.adopt(sd.data(), sd.size());
-        const std::string up = sh.gt == quant::GGML_TYPE_Q5_K ? "llmx_moe_step_up_q5_k" : "llmx_moe_step_up_q4_k";
+        const std::string up = step_name("up", sh.gt);
         for (const size_t rows : {size_t(1), size_t(2), size_t(3), size_t(4), last - 1, last, last + 1}) {
             const std::string at = std::to_string(rows) + " rows, " + std::to_string(k) + " of " + std::to_string(ne) + " experts, " + quant::storage_type(sh.gt)->name +
-                                   " gate and up, " + quant::storage_type(sh.dt)->name + " down, ff " + std::to_string(ff);
+                                   " gate and up, " + quant::storage_type(sh.dt)->name + " down, ff " + std::to_string(ff) + ", " + quant::storage_type(sh.ft)->name + " router, " +
+                                   quant::storage_type(sh.rt)->name + " row gate";
             const size_t entries = rows * k;
             struct Out {
                 BufferPtr scores, ids, weights, gate, up, act, sgate, sup, sact, rg, y;
@@ -1207,8 +1316,8 @@ void moe_rows_bits(Backend& g) {
             for (int a = 0; a < 3; ++a) {
                 shr[a] = MoeShared{Projection{{quant::GGML_TYPE_Q8_0, {sgb.get(), 0}}, {o[a].sgate.get(), 0}, ff},
                                    Projection{{quant::GGML_TYPE_Q8_0, {sub.get(), 0}}, {o[a].sup.get(), 0}, ff}, {quant::GGML_TYPE_Q8_0, {sdb.get(), 0}}, {o[a].sact.get(), 0},
-                                   Projection{{quant::GGML_TYPE_F32, {gb.get(), 0}}, {o[a].rg.get(), 0}, 1}};
-                st[a] = MoeStep{Projection{{quant::GGML_TYPE_F32, {rb.get(), 0}}, {o[a].scores.get(), 0}, ne}, k, backend::RouteRule::softmax(true), {o[a].ids.get(), 0},
+                                   Projection{{sh.rt, {gb.get(), 0}}, {o[a].rg.get(), 0}, 1}};
+                st[a] = MoeStep{Projection{{sh.ft, {rb.get(), 0}}, {o[a].scores.get(), 0}, ne}, k, backend::RouteRule::softmax(true), {o[a].ids.get(), 0},
                                 {o[a].weights.get(), 0}, Projection{{sh.gt, {wg.get(), 0}}, {o[a].gate.get(), 0}, ff}, Projection{{sh.gt, {wu.get(), 0}}, {o[a].up.get(), 0}, ff},
                                 {sh.dt, {wd.get(), 0}}, {o[a].act.get(), 0}, &shr[a], zb.get(), &o[a].scratch};
             }
@@ -1217,7 +1326,7 @@ void moe_rows_bits(Backend& g) {
             g.Backend::moe_step(st[0], {hb.get(), 0}, {o[0].y.get(), 0}, nin, rows, {generated, 1}, Dtype::int8);
             const auto base = rocm_take_launches(g);
             g.moe_step(st[1], {hb.get(), 0}, {o[1].y.get(), 0}, nin, rows, {generated, 1}, Dtype::int8);
-            const auto step = rocm_take_launches(g);
+            const auto step = one_chain(rocm_take_launches(g));
             // A write forgets every kept twin, so the route launch makes h's over all the rows, through its strided twin loop.
             const bool unkept_arm = rows == 1 || rows == last;
             std::map<std::string, size_t> unkept;
@@ -1232,18 +1341,27 @@ void moe_rows_bits(Backend& g) {
             for (const auto& [name, n] : step) step_twins += name.rfind("llmx_twin", 0) == 0 ? n : 0;
             for (const auto& [name, n] : unkept) unkept_twins += name.rfind("llmx_twin", 0) == 0 ? n : 0;
             require(base_steps == 0, "the base's moe_step launches no fused kernel, " + at);
-            const std::string down = sh.dt == quant::GGML_TYPE_Q8_0 ? "llmx_moe_step_down_q8_0" : "llmx_moe_step_down_q5_1";
+            const std::string down = step_name("down", sh.dt);
             const size_t wide = step.count(up + "_w") ? step.at(up + "_w") : 0, lean = step.count(up) ? step.at(up) : 0;
-            if (fused && rows <= last) {
-                require(step.size() == 3 && step.count("llmx_moe_step_route") && step.at("llmx_moe_step_route") == 1 && wide + lean == 1 && step.count(down) && step.at(down) == 1,
+            // The router and row gate take the route build of their two decoders, the F32 pair the plain name.
+            const bool f32_pair = sh.ft == quant::GGML_TYPE_F32 && sh.rt == quant::GGML_TYPE_F32;
+            const std::string route = "llmx_moe_step_route" + (f32_pair ? std::string() : "_" + float_name(sh.ft) + "_" + float_name(sh.rt));
+            const auto routes = [](const auto& l) {
+                size_t n = 0;
+                for (const auto& [name, count] : l)
+                    if (name.rfind("llmx_moe_step_route", 0) == 0) n += count;
+                return n;
+            };
+            if (fused && rows <= last && (f32_pair || rows == 1)) {
+                require(step.size() == 3 && step.count(route) && step.at(route) == 1 && wide + lean == 1 && step.count(down) && step.at(down) == 1,
                         "moe_step is the three fused launches below the grouped break-even, " + at);
+                routes_run.insert(route);
                 require(step_twins == 0, "with h's twin kept the fused step launches no twin, " + at);
-                if (unkept_arm)
-                    require(unkept.size() == 3 && unkept.count("llmx_moe_step_route") && unkept_twins == 0, "with h's twin not kept the route launch makes it, " + at);
+                if (unkept_arm) require(unkept.size() == 3 && unkept.count(route) && unkept_twins == 0, "with h's twin not kept the route launch makes it, " + at);
                 wide_runs += wide, lean_runs += lean;
             } else {
-                require(!step.count("llmx_moe_step_route") && wide + lean == 0, "moe_step from the grouped break-even on runs the base's ops, " + at);
-                if (unkept_arm) require(!unkept.count("llmx_moe_step_route"), "a step the fused kernels do not take runs the base's ops, " + at);
+                require(!routes(step) && wide + lean == 0, "moe_step from the grouped break-even on, or of several rows of a half-precision router, runs the base's ops, " + at);
+                if (unkept_arm) require(!routes(unkept), "a step the fused kernels do not take runs the base's ops, " + at);
             }
             for (int a = 1; a < (unkept_arm ? 3 : 2); ++a) {
                 const std::string of = std::string(a == 2 ? "h's twin not kept, " : "") + at;
@@ -1259,6 +1377,7 @@ void moe_rows_bits(Backend& g) {
     }
     // One row at ff 320 is 110 workgroups, which the wide build holds resident on a 60-unit gfx906; the rows near the break-even are far past it.
     if (fused) require(wide_runs > 0 && lean_runs > 0, "the fused gate+up takes the wide build where its grid is resident and the lean one elsewhere");
+    if (fused) require(routes_run.size() == 9, "each of the nine route builds ran, " + std::to_string(routes_run.size()) + " did");
 }
 
 // The hyper-connection mix's launches (llmx_hc_mix and its column builds) against the chain of ops they replace (Backend::hyper_mix's own steps), bit for bit, over 1 to 16 generated rows (backend-rocm, `twins`).
@@ -3838,6 +3957,7 @@ int main(int argc, char** argv) {
             if (part.empty() || part == "exact") exact_rates(*g);
             if (part.empty() || part == "decode") decode_rates(*g);
             if (part == "delta") delta_rates(*g);
+            if (part == "moe") moe_rates(*g);
             // `rates beside FORM` forces every lane's sum to FORM (one-shot, chain, shares or wrap).
             if (part == "beside") {
                 const std::string name = argc > 3 ? argv[3] : "";
@@ -3901,6 +4021,13 @@ int main(int argc, char** argv) {
             moe().routed_builds_witness(*g);
             moe().experts_add(*g);
             std::cout << (failures ? "backend-rocm moe: FAIL\n" : "backend-rocm moe: PASS\n");
+            return failures ? 1 : 0;
+        }
+        // `step` runs only the fused moe_step's bit checks against the base's ops.
+        if (argc > 1 && std::string(argv[1]) == "step") {
+            moe_step_bits(*g);
+            moe_rows_bits(*g);
+            std::cout << (failures ? "backend-rocm step: FAIL\n" : "backend-rocm step: PASS\n");
             return failures ? 1 : 0;
         }
         // `scratch [FILE [DEVICE]]` runs only the check that a fitted model's passes grow no device memory past what its fit priced, on FILE too when given.

@@ -1,7 +1,7 @@
-"""The tiny DSpine and DFlash2 sidecars beside the tiny qwen35 target and their goldens (docs/SPECULATIVE.md, section 11; docs/TESTS.md).
+"""The tiny DSpine, DFlash2 and DFlash sidecars beside the tiny qwen35 target and their goldens (docs/SPECULATIVE.md, section 11; docs/TESTS.md).
 
 The sidecar's K and V heads differ from the target's, so its KV layers take a shape of their own (ModelPlan::draft_kv).
-`python tests/fixture_dspine.py --exe LLMX [--variant dflash2] OUT.json` writes the golden: the target's taps from llmx-route-probe, then tools/dspine_reference.py over them, for seeds until every case has no near-tie.
+`python tests/fixture_dspine.py --exe LLMX [--variant dflash2|dflash] OUT.json` writes the golden: the target's taps from llmx-route-probe, then tools/dspine_reference.py over them, for seeds until every case has no near-tie.
 """
 import argparse
 import hashlib
@@ -22,7 +22,8 @@ SIDECAR = {"block_count": 2, "block_size": 4, "selector_top_k": 3, "attention.he
 CODES, ROUTES, MASK = 6, 5, 1
 # DFlash2's own keys: two taps, a coefficient a channel (the target's width of 37 is prime), a selector of rank 5.
 DFLASH2 = {"conv_kernel_size": 2, "conv_group_size": 1, "selector_rank": 5}
-VARIANTS = ("dspine", "dflash2")
+# A DFlash sidecar has no candidates and no attention.causal, its windowed first layer causal and its second over all positions not (model/arch/dflash.hpp, read_config).
+VARIANTS = ("dspine", "dflash2", "dflash")
 TARGET = "hv3"
 # Prompts of N context rows, N + block_size within the target's context of 16.
 PROMPTS = ["abc", "the cat s", "hello world"]
@@ -50,13 +51,13 @@ def tensors(seed, width, vocab, variant="dspine"):
     matrix("fc.weight", T * E, E)
     norm("enc.output_norm.weight", E)
     norm("output_norm.weight", E)
-    dflash2 = variant == "dflash2"
+    dflash2, spine = variant == "dflash2", variant == "dspine"
     S, CK = DFLASH2["selector_rank"], DFLASH2["conv_kernel_size"]
     if dflash2:
         matrix("selector_hidden.weight", E, S)
         for name in ("selector_predecessor.weight", "selector_successor.weight"):
             out.append((name, [S, vocab], rng.standard_normal((vocab, S)).astype(np.float32)))
-    else:
+    elif spine:
         out.append(("dspine_codebook.weight", [CODES, vocab], (rng.standard_normal((vocab, CODES)) / np.sqrt(CODES)).astype(np.float32)))
         for name in ("dspine_gate.weight", "dspine_pred_gate.weight", "dspine_prev.weight"):
             matrix(name, CODES, ROUTES)
@@ -78,7 +79,7 @@ def tensors(seed, width, vocab, variant="dspine"):
         matrix(p + "ffn_gate.weight", E, F)
         matrix(p + "ffn_up.weight", E, F)
         matrix(p + "ffn_down.weight", F, E)
-        if not dflash2:
+        if spine:
             matrix(p + "dspine_read.weight", E, CODES)
             matrix(p + "dspine_write.weight", ROUTES, E)
     return out
@@ -93,14 +94,17 @@ def write_sidecar(path, target, seed, variant="dspine"):
     width = t.value("qwen35.embedding_length")
     md["dflash.embedding_length"] = (4, width)
     for key, value in list(SIDECAR.items()) + (list(DFLASH2.items()) if variant == "dflash2" else []):
+        if key == "selector_top_k" and variant == "dflash":
+            continue
         if key == "target_layers":
             md["dflash." + key] = (9, (5, value))
         elif isinstance(value, float):
             md["dflash." + key] = (6, value)
         else:
             md["dflash." + key] = (4, value)
-    md["dflash.attention.sliding_window_pattern"] = (9, (7, [True] * SIDECAR["block_count"]))
-    md["dflash.attention.causal"] = (7, variant != "dflash2")
+    md["dflash.attention.sliding_window_pattern"] = (9, (7, [True] * SIDECAR["block_count"] if variant != "dflash" else [True, False]))
+    if variant != "dflash":
+        md["dflash.attention.causal"] = (7, variant == "dspine")
     md["dflash.rope.dimension_sections"] = (9, (5, [SIDECAR["attention.key_length"] // 2, 0, 0, 0]))
     vocab = next(x.shape[1] for x in t.tensors if x.name == "token_embd.weight")
     assert vocab == len(t.value("tokenizer.ggml.tokens")[1]), "fixture_dspine: the target's embedding rows are not its token list"
@@ -128,10 +132,12 @@ def taps(probe, target, directory, prompt):
 def near_tie(case):
     """Whether a case's candidates or picks rest on a gap below GAP."""
     import numpy as np
-    k = SIDECAR["selector_top_k"]
+    k = case["cand"].shape[1]
     order = np.sort(case["logits"], 1)[:, ::-1]
     if (order[:, k - 1] - order[:, k] < GAP).any():
         return True
+    if "score" not in case:
+        return False
     top = np.sort(case["score"], -1)[..., ::-1]
     return bool((top[..., 0] - top[..., 1] < GAP).any())
 

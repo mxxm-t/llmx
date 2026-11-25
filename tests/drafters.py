@@ -16,6 +16,7 @@ import tempfile
 
 import common
 import decode_probe
+import fixture_dspine
 import qwen35
 import spec_decode
 from common import run_f32_cache as cli
@@ -150,7 +151,7 @@ def check_refusals(directory, embedded, split, side):
 
 
 def check_dflash(d, split, embedded):
-    """A DFlash sidecar of the target's tokenizer (docs/SPECULATIVE.md, section 11): refused without a mask token, at another width or with taps past the layers, and paired, beside the file's MTP block too, up to the drafter's plan."""
+    """A DFlash sidecar of the target's tokenizer (docs/SPECULATIVE.md, section 11): refused without a mask token, at another width, with taps past the layers or with candidates and no bridge or selector, and paired, beside the file's MTP block too, up to the drafter's plan."""
     target = spec_decode.GGUF(split)
     md = {k: v for k, v in target.metadata.items() if k.startswith("tokenizer.")}
     md["general.architecture"] = (8, "dflash")
@@ -169,6 +170,8 @@ def check_dflash(d, split, embedded):
     refused(split, d("dflash-width.gguf"), "metadata dflash.embedding_length differs from the target's", "a DFlash sidecar of another width")
     spec_decode.write_gguf(d("dflash-taps.gguf"), dict(md, **{"dflash.target_layers": (9, (5, [1, 9]))}), norm)
     refused(split, d("dflash-taps.gguf"), "target_layers must be ascending distinct layers of the model", "a DFlash sidecar reading past the layers")
+    spec_decode.write_gguf(d("dflash-top.gguf"), {k: v for k, v in md.items() if k != "dflash.attention.causal"}, norm)
+    refused(split, d("dflash-top.gguf"), "unsupported metadata qwen35.dflash.selector_top_k", "a DFlash sidecar with candidates and no bridge or selector")
     for model in (split, embedded):
         refused(model, d("dflash.gguf"), "missing tensor dflash.dspine_codebook.weight", "a DFlash sidecar without its code bridge")
 
@@ -237,8 +240,7 @@ def check_drafting_set(directory):
 
 
 def check_dspine(directory, tool, variant="dspine"):
-    """The tiny DSpine or DFlash2 sidecar (tests/fixture_dspine.py) beside the tiny qwen35 target, its K and V heads not the target's: each golden case's pick, its block's drafts and each draft row's logits through llmx-decode-probe, against tools/dspine_reference.py's (tests/data/qwen35_dspine.json, qwen35_dflash2.json), the ids exactly, since the golden has no near-tie, and the logits within the F32 bound."""
-    import fixture_dspine
+    """The tiny DSpine, DFlash2 or DFlash sidecar (tests/fixture_dspine.py) beside the tiny qwen35 target, its K and V heads not the target's: each golden case's pick, its block's drafts and each draft row's logits through llmx-decode-probe, against tools/dspine_reference.py's (tests/data/qwen35_dspine.json, qwen35_dflash2.json, qwen35_dflash.json), the ids exactly, since the golden has no near-tie, and the logits within the F32 bound."""
     with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "qwen35_%s.json" % variant), encoding="utf-8") as f:
         doc = json.load(f)
     target = qwen35.write_fixture(directory, fixture_dspine.target_spec())
@@ -279,7 +281,7 @@ def run(require=False):
         check_refusals(directory, embedded, split, side)
         check_draft_models(directory)
         check_drafting_set(directory)
-        dspine = max(check_dspine(directory, tool, variant) for variant in ("dspine", "dflash2"))
+        dspine = max(check_dspine(directory, tool, variant) for variant in fixture_dspine.VARIANTS)
     print("drafters: the MTP block split beside its model drafts as embedded and embedded back, bit for bit, and gives generate, chat, bench and serve "
           "their output without drafts; qwen35 and qwen3 draft models give generate's and chat's; every pairing check, a DFlash drafter and a file cut short refused by name; the drafting set's driver reads generate's lines; the DSpine and DFlash2 sidecars' drafts the reference's, logits within %.8f  [ok]" % dspine)
     return True

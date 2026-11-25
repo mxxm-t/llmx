@@ -1,8 +1,8 @@
-"""A DSpine or DFlash2 drafter's block in F32 numpy, reading a dflash sidecar GGUF: DSpine ported from the official dspine_mlx code (model.py, bridge.py, propose.py RefinementTail.greedy), DFlash2 from its graph as docs/SPECULATIVE.md section 11 describes it.
+"""A DSpine, DFlash2 or DFlash drafter's block in F32 numpy, reading a dflash sidecar GGUF: DSpine ported from the official dspine_mlx code (model.py, bridge.py, propose.py RefinementTail.greedy), DFlash2 from its graph as docs/SPECULATIVE.md section 11 describes it, DFlash from z-lab's dflash/model.py.
 
 Usage: python3 dspine_reference.py SIDECAR.gguf TARGET.gguf IN.npz OUT.npz
 IN.npz holds taps [N, T, E] f32 (the residual entering each of the sidecar's target_layers at positions 0..N-1) and anchor (the token at position N).
-OUT.npz gets ctx_k and ctx_v [L, N, KV, D] (each layer's context K after its norm and rope, and V), cand [B-1, K] (ascending ids), score [B-1, K, K], drafts [B-1], logits_top [B-1, K] and final [B, E].
+OUT.npz gets ctx_k and ctx_v [L, N, KV, D] (each layer's context K after its norm and rope, and V), cand [B-1, K] (ascending ids), score [B-1, K, K] (none for DFlash, whose K is 1), drafts [B-1], logits_top [B-1, K] and final [B, E].
 The norms are read as the GGUF stores them, so a converter that adds one to a norm is checked separately against the original weights (docs/TESTS.md).
 """
 import struct
@@ -181,11 +181,62 @@ def dflash2_block(side, tgt, taps, anchor):
     return dict(ctx_k=np.stack(ctx_k), ctx_v=np.stack(ctx_v), cand=cand, score=score, drafts=np.array(drafts), logits_top=unary, final=final)
 
 
+def dflash_block(side, tgt, taps, anchor):
+    """A DFlash drafter's block, ported from z-lab's dflash/model.py (DFlashDraftModel, Qwen3DFlashAttention, _attention_mask): each layer's mask as its type gives it, then the argmax of each draft's logits.
+    Without dflash.attention.causal a layer over the window attends causally and a layer over all positions does not, as model.py's layer types give it; a non-causal windowed row also sees no block row W or more ahead."""
+    m = lambda k: side.kv["dflash." + k]
+    L, B, W = m("block_count"), m("block_size"), m("attention.sliding_window")
+    H, KV, D, THETA = m("attention.head_count"), m("attention.head_count_kv"), m("attention.key_length"), float(m("rope.freq_base"))
+    EPS, MASK = float(m("attention.layer_norm_rms_epsilon")), side.kv["tokenizer.ggml.mask_token_id"]
+    windowed = m("attention.sliding_window_pattern")
+    causal = [side.kv["dflash.attention.causal"]] * L if "dflash.attention.causal" in side.kv else list(windowed)
+    w = lambda name: side.rows(name)
+    v = lambda name: side.vector(name)
+    N, T, E = taps.shape
+    ids = np.array([anchor] + [MASK] * (B - 1))
+    bpos, kpos_ctx = np.arange(N, N + B), np.arange(N)
+    kpos = np.concatenate([kpos_ctx, bpos])
+    ctx = rmsnorm(taps.reshape(N, -1).astype(np.float32) @ w("fc.weight").T, v("enc.output_norm.weight"), EPS)
+    x = np.concatenate([tgt.rows("token_embd.weight", int(i), int(i) + 1) for i in ids])
+    ctx_k, ctx_v = [], []
+    for l in range(L):
+        p = "blk.%d." % l
+        mask = np.ones((B, N + B), bool)
+        if causal[l]:
+            mask &= kpos[None, :] <= bpos[:, None]
+        if windowed[l]:
+            mask &= bpos[:, None] - kpos[None, :] < W
+            if not causal[l]:
+                mask &= kpos[None, :] - bpos[:, None] < W
+        xn = rmsnorm(x, v(p + "attn_norm.weight"), EPS)
+        q = rmsnorm((xn @ w(p + "attn_q.weight").T).reshape(B, H, D), v(p + "attn_q_norm.weight"), EPS)
+        kb = rmsnorm((xn @ w(p + "attn_k.weight").T).reshape(B, KV, D), v(p + "attn_k_norm.weight"), EPS)
+        vb = (xn @ w(p + "attn_v.weight").T).reshape(B, KV, D)
+        kc = rmsnorm((ctx @ w(p + "attn_k.weight").T).reshape(N, KV, D), v(p + "attn_k_norm.weight"), EPS)
+        vc = (ctx @ w(p + "attn_v.weight").T).reshape(N, KV, D)
+        q, kb, kc = rope(q, bpos, THETA), rope(kb, bpos, THETA), rope(kc, kpos_ctx, THETA)
+        ctx_k.append(kc)
+        ctx_v.append(vc)
+        out = attend(q, np.concatenate([kc, kb]), np.concatenate([vc, vb]), mask, H, KV, D)
+        x = x + out.reshape(B, -1) @ w(p + "attn_output.weight").T
+        f = rmsnorm(x, v(p + "ffn_norm.weight"), EPS)
+        g = f @ w(p + "ffn_gate.weight").T
+        x = x + (g * sigmoid(g) * (f @ w(p + "ffn_up.weight").T)) @ w(p + "ffn_down.weight").T
+    final = rmsnorm(x, v("output_norm.weight"), EPS)
+    head_name = "output.weight" if "output.weight" in tgt.t else "token_embd.weight"
+    V = tgt.t[head_name][0][1]
+    logits = np.concatenate([final[1:] @ tgt.rows(head_name, lo, min(lo + 16384, V)).T for lo in range(0, V, 16384)], 1)
+    drafts = logits.argmax(-1)
+    return dict(ctx_k=np.stack(ctx_k), ctx_v=np.stack(ctx_v), cand=drafts[:, None], drafts=drafts, logits_top=logits.max(-1, keepdims=True), final=final)
+
+
 def block(side, tgt, taps, anchor):
     """The drafter's block after context rows `taps` [N, T, E] and the token `anchor` at position N, as a dict of the arrays OUT.npz holds."""
     load_numpy()
     if "selector_hidden.weight" in side.t:
         return dflash2_block(side, tgt, taps, anchor)
+    if "dspine_codebook.weight" not in side.t:
+        return dflash_block(side, tgt, taps, anchor)
     m = lambda k: side.kv["dflash." + k]
     L, B, W, K = m("block_count"), m("block_size"), m("attention.sliding_window"), m("selector_top_k")
     H, KV, D, THETA = m("attention.head_count"), m("attention.head_count_kv"), m("attention.key_length"), float(m("rope.freq_base"))

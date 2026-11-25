@@ -24,14 +24,16 @@ using WindowBuilds = std::array<std::string, 3>;
 inline const WindowBuilds kGpuWindowBuilds{"llmx_attention_chunk_window", "llmx_attention_vec_window", "llmx_attention_vec256_window"};
 
 // A drafter block's 16 rows after `hist` positions under windows below, at and past the history, a DFlash2 drafter's 2048 past 2100 positions among them, heads 64 (the chunk kernel), 128 and 256 wide (the per-row kernels).
-// Also the block's rows each seeing the whole block, as a DFlash2 drafter's do, against the CPU.
+// Also the block's rows each seeing the whole block, as a DFlash2 drafter's do, and with no window, as a DFlash drafter's full layer does, against the CPU.
 inline void window(Backend& g, Backend& c, const Launches& take, const Require& require, const WindowBuilds& builds = kGpuWindowBuilds) {
     const int n_head = 4, n_head_kv = 2;
     const size_t rows = 16;
     for (const bool causal : {true, false})
     for (const int dim : {64, 128, 256})
         for (const size_t hist : {size_t(0), size_t(40), size_t(300), size_t(2100)})
-            for (const size_t win : {size_t(7), size_t(64), size_t(1000), size_t(2048)}) {
+            for (const size_t win : {size_t(0), size_t(7), size_t(64), size_t(1000), size_t(2048)}) {
+                // No window is a causal layer's ordinary path, held elsewhere; a non-causal one is a DFlash drafter's full layer.
+                if (causal && !win) continue;
                 const size_t qw = size_t(n_head) * dim, kvw = size_t(n_head_kv) * dim, end = hist + rows;
                 const std::vector<float> keys = row_classes::values(end * kvw, 71), vals = row_classes::values(end * kvw, 72);
                 const std::vector<float> q = row_classes::values(rows * qw, 73, 4.0f);
@@ -59,7 +61,7 @@ inline void window(Backend& g, Backend& c, const Launches& take, const Require& 
                     b.attention({qb.get(), 0}, 0, &v, 1, {ob.get(), 0}, n_head, n_head_kv, dim);
                     out[k] = read(b, *ob, rows * qw);
                     // A non-causal view may take its window build where no row starts past 0 too, as Vulkan's do, having no full build over f16 sides.
-                    if (k == 0 && !causal) require(end <= win || take(b).count(builds[dim == 64 ? 0 : dim == 128 ? 1 : 2]), what + " runs its window build where a row starts past 0");
+                    if (k == 0 && !causal) require(!win || end <= win || take(b).count(builds[dim == 64 ? 0 : dim == 128 ? 1 : 2]), what + " runs its window build where a row starts past 0");
                     if (k == 0 && causal) {
                         const auto ran = take(b);
                         const std::string& body = builds[dim == 64 ? 0 : dim == 128 ? 1 : 2];

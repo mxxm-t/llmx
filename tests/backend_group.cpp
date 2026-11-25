@@ -301,6 +301,12 @@ struct Matrix {
             packed.resize(blocks * q->type_size);
             if (const auto quantize = testq::quantizer(type)) quantize(weights.data(), packed.data(), blocks);
             else if (type == quant::GGML_TYPE_MXFP4) packed = testq::mxfp4_matrix(weights.size(), 71);
+            // The weights are multiples of 1/128, which BF16 holds exactly; the scales below are for blocks of more than one value.
+            else if (type == quant::GGML_TYPE_BF16)
+                for (size_t i = 0; i < weights.size(); ++i) {
+                    const uint16_t b = f32_to_bf16(weights[i]);
+                    std::memcpy(packed.data() + 2 * i, &b, sizeof(b));
+                }
             else {
                 for (size_t i = 0; i < packed.size(); ++i)
                     packed[i] = uint8_t(i * 73 + 19);
@@ -540,10 +546,11 @@ struct StepWitness : backend::CpuBackend {
     }
 };
 
-// CpuBackend::moe_step's decode step against the base step (Backend::moe_step), every output bit for bit, on 1 and 4 threads and 1 to 4 rows.
-// Steps of decode rows on the decode dots must take it and every other step the base, which the witness's routed products tell apart.
+// CpuBackend::moe_step's decode step against the base step (Backend::moe_step), every output bit for bit, on 1 and 4 threads and 1 to 4 and 8 rows.
+// Steps of decode rows at f16 must take it whatever their weight types and every other step the base, which the witness's routed products tell apart.
 static size_t check_moe_decode_step(const moe::Matrix& matrix) {
     const uint32_t f32 = quant::GGML_TYPE_F32, q4k = quant::GGML_TYPE_Q4_K, q6k = quant::GGML_TYPE_Q6_K, q8 = quant::GGML_TYPE_Q8_0, mx = quant::GGML_TYPE_MXFP4;
+    const uint32_t q51 = quant::GGML_TYPE_Q5_1, q50 = quant::GGML_TYPE_Q5_0, q5k = quant::GGML_TYPE_Q5_K, bf16 = quant::GGML_TYPE_BF16;
     const backend::RouteRule::Score softplus = backend::RouteRule::Score::sqrt_softplus, sigmoid = backend::RouteRule::Score::sigmoid;
     struct Case { moe::Shape s; bool decode; const char* what; };
     const Case cases[] = {
@@ -555,13 +562,18 @@ static size_t check_moe_decode_step(const moe::Matrix& matrix) {
         {{256, 16, 4, 64, {mx, mx, mx, mx}, false, 7.0f, f32, f32, false, softplus}, true, "DeepSeek's step: MXFP4, an ungated shared expert, a limit and sqrt_softplus routing with a bias"},
         {{256, 16, 4, 64, {mx, mx, mx, mx}, false, 7.0f, f32, f32, false, sigmoid, backend::GluForm::quick_gelu}, true,
          "MiniMax's step: sigmoid routing with a bias, scaled by 2 and normalized, quick_gelu under a limit, an ungated shared expert"},
-        {{256, 16, 4, 64, {f32, f32, f32, f32}, false, 7.0f, f32, f32, false, sigmoid, backend::GluForm::quick_gelu}, false,
-         "MiniMax's step on F32 experts, which have no packed dot"},
-        {{256, 16, 4, 64, {mx, mx, 0, 0}, false, 0.0f, q8}, false, "a quantized router"},
-        {{256, 16, 4, 256, {q4k, q6k, q4k, q6k}, false, 0.0f, f32, q8}, false, "a quantized row gate"},
-        {{256, 16, 4, 64, {f32, f32, f32, f32}, false}, false, "F32 experts"},
-        {{256, 16, 4, 64, {q8, q8, 0, 0}, true}, false, "Q8_0 experts, which have no packed dot"},
-        {{256, 16, 4, 256, {q4k, q6k, q8, q8}, false}, false, "a Q8_0 shared expert"},
+        {{256, 16, 4, 64, {f32, f32, f32, f32}, false, 7.0f, f32, f32, false, sigmoid, backend::GluForm::quick_gelu}, true,
+         "MiniMax's step on F32 experts"},
+        {{256, 16, 4, 64, {mx, mx, 0, 0}, false, 0.0f, q8}, true, "a quantized router"},
+        {{256, 16, 4, 256, {q4k, q6k, q4k, q6k}, false, 0.0f, f32, q8}, true, "a quantized row gate"},
+        {{256, 16, 4, 64, {f32, f32, f32, f32}, false}, true, "F32 experts"},
+        {{256, 16, 4, 64, {q8, q8, 0, 0}, true}, true, "Q8_0 experts, which have no packed dot"},
+        {{256, 16, 4, 256, {q4k, q6k, q8, q8}, false}, true, "a Q8_0 shared expert"},
+        {{256, 16, 4, 64, moe::kFlash, true}, true, "Qwen3.8-Flash-Next's step: a Q5_1 down and a Q8_0 shared expert"},
+        {{256, 16, 4, 256, {q8, q8, q8, q8}, false, 0.0f, f32, q8}, true, "Qwen3.6-35B-A3B Q8_0's step, its row gate Q8_0"},
+        {{256, 16, 4, 256, {q4k, q5k, q8, q8}, false}, true, "a Q5_K down beside a Q8_0 shared expert"},
+        {{256, 16, 4, 64, {mx, mx, bf16, bf16}, false, 7.0f, bf16, f32, false, softplus}, true, "DeepSeek's step with a BF16 router and shared expert"},
+        {{256, 16, 4, 64, {q51, q50, q51, q51}, false, 0.0f, q50, q51}, true, "Q5_0 and Q5_1 everywhere, whose dense rows have no row dot"},
     };
     StepWitness cpu;
     size_t values = 0;
@@ -569,7 +581,7 @@ static size_t check_moe_decode_step(const moe::Matrix& matrix) {
         const moe::Weights w = moe::weights(cpu, c.s, matrix, 91);
         for (int threads : {1, 4}) {
             cpu.set_threads(threads);
-            for (size_t rows = 1; rows <= 4; ++rows) {
+            for (size_t rows : {size_t(1), size_t(2), size_t(3), size_t(4), size_t(8)}) {
                 const std::vector<float> h = moe::inputs(rows, c.s.E, 92), y0 = moe::residual(rows, c.s.E, 93);
                 const std::vector<backend::RowRun> none, prompt = {{rows, 512}}, mixed = {{1, 1}, {rows, 512}};
                 std::vector<std::pair<const std::vector<backend::RowRun>*, bool>> runs = {{&prompt, false}};

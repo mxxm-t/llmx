@@ -208,6 +208,11 @@ inline Out run(backend::Backend& b, const Weights& w, const std::vector<float>& 
     o.row_gate = read(sg, rows);
     o.ids.resize(rows * s.k);
     b.read(*ids, 0, o.ids.data(), o.ids.size() * sizeof(uint32_t));
+    // An entry of kNoExpert has no activation that any step reads, so its values go back to the poison: the base's GLU of the poison may flip its NaN's sign.
+    const uint32_t poison = 0x7fc0beefu;
+    for (size_t e = 0; e < o.ids.size(); ++e)
+        if (o.ids[e] == backend::Backend::kNoExpert)
+            for (size_t i = 0; i < s.ff; ++i) std::memcpy(&o.act[e * s.ff + i], &poison, sizeof(poison));
     return o;
 }
 

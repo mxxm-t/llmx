@@ -227,16 +227,16 @@ def check_expert_cache(directory, devices):
             print("moe: --expert-cache %s with %d slots identical to the experts on the device; %s  [ok]" % (args[0], slots, counts[0]))
 
 
-# A prompt pass of more cached waves than a device has tickets in flight (1024 on ROCm and CUDA): 23 routed layers of 64 experts, one slot each, take 64 waves a layer.
-WRAP_CONFIG = dict(CACHE_CONFIG, block_count=24, expert_count=64, expert_used_count=8)
+# Routing every token to all 64 experts makes each of 17 routed layers fill its one cache slot 64 times in the same prompt pass.
+WRAP_CONFIG = dict(CACHE_CONFIG, block_count=18, expert_count=64, expert_used_count=64)
 
 
-def check_expert_cache_wrap(directory):
+def check_expert_cache_wrap(directory, device):
     """A prompt whose cached waves outnumber the tickets in flight gives the logits of the experts all on the device: the ring's reader waits on tickets whose event slots the recording thread reuses."""
     model = write_model(os.path.join(directory, "wrap-moe.gguf"), tensors(config=WRAP_CONFIG), config=WRAP_CONFIG, arch="qwen3moe")
-    args = ["logits", model, "the expert ring wraps its tickets in one prompt pass here", "--top", "257"]
+    args = ["logits", model, "ab", "--top", "257", "--device", device]
     plain = common.run_process(args, cache="f32", timeout=300)
-    cache = common.run_process(args + ["--cpu-moe", "--expert-cache", str(23 * 3 * 64 * 16 * 4)], cache="f32", timeout=300)
+    cache = common.run_process(args + ["--cpu-moe", "--expert-cache", str(17 * 3 * 64 * 16 * 4)], cache="f32", timeout=300)
     assert plain.returncode == 0 and cache.returncode == 0, "expert cache wrap: " + (plain.stderr + cache.stderr).decode("utf-8", "replace")
     assert plain.stdout == cache.stdout, "expert cache wrap: the logits differ from the experts all on the device"
     counts = [line for line in cache.stderr.decode("utf-8", "replace").splitlines() if line.startswith("expert cache: ")]
@@ -266,7 +266,7 @@ def run():
         common.check_drafts("MoE", model)
         if all(d.startswith(("vulkan", "rocm", "cuda")) for d in device.split(",")):
             check_expert_cache(directory, len(device.split(",")))
-            check_expert_cache_wrap(directory)
+            check_expert_cache_wrap(directory, device.split(",")[0])
     print("moe: all 257 logits vs HF over routed and dense layers, batch widths, threads, expert placement and PPL; max error %.8f  [ok]" % worst)
     with open(os.path.join(os.path.dirname(__file__), "data", "baseline_moe_q8.json"), encoding="utf-8") as f:
         golden = json.load(f)

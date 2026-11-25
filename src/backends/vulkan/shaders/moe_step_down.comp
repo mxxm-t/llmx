@@ -98,31 +98,33 @@ void main() {
 #endif
     barrier();
 #if defined(LLMX_SHARED_Q8) || defined(LLMX_SHARED_ROW)
-    // The shared expert's rows of the block, a pass of sh_rows at a time, against its twin column after every routed entry's.
-    pi = 1u;
-    uint col = p.tokens * p.k + r;
-    for (uint base = 0u; base < p.rows_wg; base += p.sh_rows) {
+    // The shared expert's rows of the block, a pass of sh_rows at a time, against its twin column after every routed entry's; sh_rows 0 leaves them to the step.
+    if (p.sh_rows != 0u) {
+        pi = 1u;
+        uint col = p.tokens * p.k + r;
+        for (uint base = 0u; base < p.rows_wg; base += p.sh_rows) {
 #ifdef LLMX_SHARED_Q8
-        uint srow0 = o0 + base + gl_SubgroupID * ROWS;
-        float d[ROWS];
-        for (uint i = 0u; i < ROWS; ++i) d[i] = STAND_IN(i);
-        if (ROLES) q8_dots(srow0, nout, 0u, col, d);
-        for (uint i = 0u; i < ROWS; ++i) {
-            uint srow = srow0 + i;
-            if (lane == 0u && srow < nout && srow - o0 < p.rows_wg) store(r, srow, stage[srow - o0], d[i], nout);
-        }
+            uint srow0 = o0 + base + gl_SubgroupID * ROWS;
+            float d[ROWS];
+            for (uint i = 0u; i < ROWS; ++i) d[i] = STAND_IN(i);
+            if (ROLES) q8_dots(srow0, nout, 0u, col, d);
+            for (uint i = 0u; i < ROWS; ++i) {
+                uint srow = srow0 + i;
+                if (lane == 0u && srow < nout && srow - o0 < p.rows_wg) store(r, srow, stage[srow - o0], d[i], nout);
+            }
 #else
-        uint srow = o0 + base + gl_SubgroupID * p.rows_per_sg + rsub;
-        float d = ROLES ? row_dot(srow, l, nout, p.sh_type, p.sh_wide, srow, col) : STAND_IN(0u);
-        if (l == 0u && srow < nout && srow - o0 < p.rows_wg) store(r, srow, stage[srow - o0], d, nout);
+            uint srow = o0 + base + gl_SubgroupID * p.rows_per_sg + rsub;
+            float d = ROLES ? row_dot(srow, l, nout, p.sh_type, p.sh_wide, srow, col) : STAND_IN(0u);
+            if (l == 0u && srow < nout && srow - o0 < p.rows_wg) store(r, srow, stage[srow - o0], d, nout);
 #endif
+        }
+        return;
     }
-#else
-    // Without a shared expert the routed sum alone joins y.
+#endif
+    // Without a shared expert here the routed sum alone joins y, with no + 0 that would turn -0 into +0.
     uint t = gl_LocalInvocationIndex;
     if (t < p.rows_wg && o0 + t < nout) {
         float y0 = p.zero != 0u ? zero_row[o0 + t] : ys[0].y[r * nout + o0 + t];
         ys[0].y[r * nout + o0 + t] = y0 + stage[t];
     }
-#endif
 }

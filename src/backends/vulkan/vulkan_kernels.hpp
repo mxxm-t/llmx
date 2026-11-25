@@ -819,6 +819,54 @@ const uint32_t kSpvMoeStepDownKI8[] = {
 const uint32_t kSpvMoeStepDownKI8Preserve[] = {
 #include "vulkan/moe_step_down_k_i8_preserve.inc"
 };
+const uint32_t kSpvMoeStepDownQ8q8[] = {
+#include "vulkan/moe_step_down_q8q8.inc"
+};
+const uint32_t kSpvMoeStepDownQ8q8Preserve[] = {
+#include "vulkan/moe_step_down_q8q8_preserve.inc"
+};
+const uint32_t kSpvMoeStepDownQ8q8I8[] = {
+#include "vulkan/moe_step_down_q8q8_i8.inc"
+};
+const uint32_t kSpvMoeStepDownQ8q8I8Preserve[] = {
+#include "vulkan/moe_step_down_q8q8_i8_preserve.inc"
+};
+const uint32_t kSpvMoeStepDownKq8[] = {
+#include "vulkan/moe_step_down_kq8.inc"
+};
+const uint32_t kSpvMoeStepDownKq8Preserve[] = {
+#include "vulkan/moe_step_down_kq8_preserve.inc"
+};
+const uint32_t kSpvMoeStepDownKq8I8[] = {
+#include "vulkan/moe_step_down_kq8_i8.inc"
+};
+const uint32_t kSpvMoeStepDownKq8I8Preserve[] = {
+#include "vulkan/moe_step_down_kq8_i8_preserve.inc"
+};
+const uint32_t kSpvMoeStepDownK5q8[] = {
+#include "vulkan/moe_step_down_k5q8.inc"
+};
+const uint32_t kSpvMoeStepDownK5q8Preserve[] = {
+#include "vulkan/moe_step_down_k5q8_preserve.inc"
+};
+const uint32_t kSpvMoeStepDownK5q8I8[] = {
+#include "vulkan/moe_step_down_k5q8_i8.inc"
+};
+const uint32_t kSpvMoeStepDownK5q8I8Preserve[] = {
+#include "vulkan/moe_step_down_k5q8_i8_preserve.inc"
+};
+const uint32_t kSpvMoeStepDownK4[] = {
+#include "vulkan/moe_step_down_k4.inc"
+};
+const uint32_t kSpvMoeStepDownK4Preserve[] = {
+#include "vulkan/moe_step_down_k4_preserve.inc"
+};
+const uint32_t kSpvMoeStepDownK4I8[] = {
+#include "vulkan/moe_step_down_k4_i8.inc"
+};
+const uint32_t kSpvMoeStepDownK4I8Preserve[] = {
+#include "vulkan/moe_step_down_k4_i8_preserve.inc"
+};
 // The attention kernels at head width 256, qwen35's, in the same cache-type order.
 const uint32_t kSpvAttentionTileD256[] = {
 #include "vulkan/attention_tile_d256.inc"
@@ -1401,6 +1449,14 @@ const uint32_t kSpvFlagRecv[] = {
     X(K_MOE_STEP_DOWN_Q8_I8, "moe_step_down_q8_i8", kSpvMoeStepDownQ8I8, sizeof(kSpvMoeStepDownQ8I8), 14, kMoeStepDownCounts, kSpvMoeStepDownQ8I8Preserve, sizeof(kSpvMoeStepDownQ8I8Preserve), 0, kPreserve32) \
     X(K_MOE_STEP_DOWN_Q5Q8, "moe_step_down_q5q8", kSpvMoeStepDownQ5q8, sizeof(kSpvMoeStepDownQ5q8), 14, kMoeStepDownCounts, kSpvMoeStepDownQ5q8Preserve, sizeof(kSpvMoeStepDownQ5q8Preserve), 0, kPreserve32) \
     X(K_MOE_STEP_DOWN_Q5Q8_I8, "moe_step_down_q5q8_i8", kSpvMoeStepDownQ5q8I8, sizeof(kSpvMoeStepDownQ5q8I8), 14, kMoeStepDownCounts, kSpvMoeStepDownQ5q8I8Preserve, sizeof(kSpvMoeStepDownQ5q8I8Preserve), 0, kPreserve32) \
+    X(K_MOE_STEP_DOWN_Q8Q8, "moe_step_down_q8q8", kSpvMoeStepDownQ8q8, sizeof(kSpvMoeStepDownQ8q8), 14, kMoeStepDownCounts, kSpvMoeStepDownQ8q8Preserve, sizeof(kSpvMoeStepDownQ8q8Preserve), 0, kPreserve32) \
+    X(K_MOE_STEP_DOWN_Q8Q8_I8, "moe_step_down_q8q8_i8", kSpvMoeStepDownQ8q8I8, sizeof(kSpvMoeStepDownQ8q8I8), 14, kMoeStepDownCounts, kSpvMoeStepDownQ8q8I8Preserve, sizeof(kSpvMoeStepDownQ8q8I8Preserve), 0, kPreserve32) \
+    X(K_MOE_STEP_DOWN_KQ8, "moe_step_down_kq8", kSpvMoeStepDownKq8, sizeof(kSpvMoeStepDownKq8), 14, kMoeStepDownCounts, kSpvMoeStepDownKq8Preserve, sizeof(kSpvMoeStepDownKq8Preserve), 0, kPreserve32) \
+    X(K_MOE_STEP_DOWN_KQ8_I8, "moe_step_down_kq8_i8", kSpvMoeStepDownKq8I8, sizeof(kSpvMoeStepDownKq8I8), 14, kMoeStepDownCounts, kSpvMoeStepDownKq8I8Preserve, sizeof(kSpvMoeStepDownKq8I8Preserve), 0, kPreserve32) \
+    X(K_MOE_STEP_DOWN_K5Q8, "moe_step_down_k5q8", kSpvMoeStepDownK5q8, sizeof(kSpvMoeStepDownK5q8), 14, kMoeStepDownCounts, kSpvMoeStepDownK5q8Preserve, sizeof(kSpvMoeStepDownK5q8Preserve), 0, kPreserve32) \
+    X(K_MOE_STEP_DOWN_K5Q8_I8, "moe_step_down_k5q8_i8", kSpvMoeStepDownK5q8I8, sizeof(kSpvMoeStepDownK5q8I8), 14, kMoeStepDownCounts, kSpvMoeStepDownK5q8I8Preserve, sizeof(kSpvMoeStepDownK5q8I8Preserve), 0, kPreserve32) \
+    X(K_MOE_STEP_DOWN_K4, "moe_step_down_k4", kSpvMoeStepDownK4, sizeof(kSpvMoeStepDownK4), 14, kMoeStepDownCounts, kSpvMoeStepDownK4Preserve, sizeof(kSpvMoeStepDownK4Preserve), 0, kPreserve32) \
+    X(K_MOE_STEP_DOWN_K4_I8, "moe_step_down_k4_i8", kSpvMoeStepDownK4I8, sizeof(kSpvMoeStepDownK4I8), 14, kMoeStepDownCounts, kSpvMoeStepDownK4I8Preserve, sizeof(kSpvMoeStepDownK4I8Preserve), 0, kPreserve32) \
     X(K_MOE_STEP_DOWN_K, "moe_step_down_k", kSpvMoeStepDownK, sizeof(kSpvMoeStepDownK), 14, kMoeStepDownCounts, kSpvMoeStepDownKPreserve, sizeof(kSpvMoeStepDownKPreserve), 0, kPreserve32) \
     X(K_MOE_STEP_DOWN_K_I8, "moe_step_down_k_i8", kSpvMoeStepDownKI8, sizeof(kSpvMoeStepDownKI8), 14, kMoeStepDownCounts, kSpvMoeStepDownKI8Preserve, sizeof(kSpvMoeStepDownKI8Preserve), 0, kPreserve32) \
     X(K_MOE_STEP_ACT, "moe_step_act", kSpvMoeStepAct, sizeof(kSpvMoeStepAct), 5, nullptr) \
@@ -1900,7 +1956,8 @@ inline bool is_vec_kernel(KernelId id) { return id == K_MATMUL_VEC_Q8 || id == K
 // The fused routed step's kernels that hold a Q8_0 decode body, whose builds are its one-column ones (kVecBuilds), and all the step's kernels, which name their builds by those.
 inline bool moe_step_q8(KernelId id) {
     return id == K_MOE_STEP_UP_K4Q8 || id == K_MOE_STEP_UP_K4Q8_I8 || id == K_MOE_STEP_DOWN_Q8 || id == K_MOE_STEP_DOWN_Q8_I8 ||
-           id == K_MOE_STEP_DOWN_Q5Q8 || id == K_MOE_STEP_DOWN_Q5Q8_I8;
+           id == K_MOE_STEP_DOWN_Q5Q8 || id == K_MOE_STEP_DOWN_Q5Q8_I8 || id == K_MOE_STEP_DOWN_Q8Q8 || id == K_MOE_STEP_DOWN_Q8Q8_I8 ||
+           id == K_MOE_STEP_DOWN_KQ8 || id == K_MOE_STEP_DOWN_KQ8_I8 || id == K_MOE_STEP_DOWN_K5Q8 || id == K_MOE_STEP_DOWN_K5Q8_I8;
 }
 inline bool moe_step_kernel(KernelId id) { return id >= K_MOE_STEP_ROUTE_S1 && id <= K_MOE_STEP_DOWN_K_I8; }
 inline bool moe_step_route_kernel(KernelId id) { return id >= K_MOE_STEP_ROUTE_S1 && id <= K_MOE_STEP_ROUTE; }
@@ -2025,6 +2082,7 @@ inline bool grouped_build(KernelId id, int variant) {
 // The columns a row kernel's build holds, by pipeline variant.
 inline uint32_t build_cols(KernelId id, int variant) {
     if (is_vec_kernel(id)) return kVecBuilds[variant].capacity();
+    if (moe_step_kernel(id) && variant == 2) return 0;   // the fused step has no third build (vulkan_moe.hpp)
     if (id == K_MATMUL_ROW_Q2_0_DOT && variant == kQ2TreeRows) return kRowColsOne;
     if (low_bits_dot_row(id) && variant == kLowBitsRows) return kRowColsOne;
     if (row_kernel_builds_two_rows(id)) return kRowBuilds[variant].cols;

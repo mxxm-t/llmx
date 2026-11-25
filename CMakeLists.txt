@@ -226,6 +226,22 @@ if(LLMX_HAS_BACKEND_VULKAN)
         moe_step_down_q5q8_i8=moe_step_down=LLMX_Q4+LLMX_Q5+LLMX_DOT+LLMX_SHARED_Q8+LLMX_I8
         moe_step_down_q5q8_preserve=moe_step_down=LLMX_Q4+LLMX_Q5+LLMX_DOT+LLMX_SHARED_Q8+LLMX_PRESERVE_F32
         moe_step_down_q5q8_i8_preserve=moe_step_down=LLMX_Q4+LLMX_Q5+LLMX_DOT+LLMX_SHARED_Q8+LLMX_I8+LLMX_PRESERVE_F32
+        moe_step_down_q8q8=moe_step_down=LLMX_ROUTED_Q8+LLMX_SHARED_Q8
+        moe_step_down_q8q8_i8=moe_step_down=LLMX_ROUTED_Q8+LLMX_SHARED_Q8+LLMX_Q8_I8
+        moe_step_down_q8q8_preserve=moe_step_down=LLMX_ROUTED_Q8+LLMX_SHARED_Q8+LLMX_PRESERVE_F32
+        moe_step_down_q8q8_i8_preserve=moe_step_down=LLMX_ROUTED_Q8+LLMX_SHARED_Q8+LLMX_Q8_I8+LLMX_PRESERVE_F32
+        moe_step_down_kq8=moe_step_down=LLMX_KQUANT+LLMX_DOT+LLMX_SHARED_Q8
+        moe_step_down_kq8_i8=moe_step_down=LLMX_KQUANT+LLMX_DOT+LLMX_SHARED_Q8+LLMX_I8
+        moe_step_down_kq8_preserve=moe_step_down=LLMX_KQUANT+LLMX_DOT+LLMX_SHARED_Q8+LLMX_PRESERVE_F32
+        moe_step_down_kq8_i8_preserve=moe_step_down=LLMX_KQUANT+LLMX_DOT+LLMX_SHARED_Q8+LLMX_I8+LLMX_PRESERVE_F32
+        moe_step_down_k5q8=moe_step_down=LLMX_K5+LLMX_DOT+LLMX_SHARED_Q8
+        moe_step_down_k5q8_i8=moe_step_down=LLMX_K5+LLMX_DOT+LLMX_SHARED_Q8+LLMX_I8
+        moe_step_down_k5q8_preserve=moe_step_down=LLMX_K5+LLMX_DOT+LLMX_SHARED_Q8+LLMX_PRESERVE_F32
+        moe_step_down_k5q8_i8_preserve=moe_step_down=LLMX_K5+LLMX_DOT+LLMX_SHARED_Q8+LLMX_I8+LLMX_PRESERVE_F32
+        moe_step_down_k4=moe_step_down=LLMX_K4+LLMX_DOT+LLMX_SHARED_ROW
+        moe_step_down_k4_i8=moe_step_down=LLMX_K4+LLMX_DOT+LLMX_SHARED_ROW+LLMX_I8
+        moe_step_down_k4_preserve=moe_step_down=LLMX_K4+LLMX_DOT+LLMX_SHARED_ROW+LLMX_PRESERVE_F32
+        moe_step_down_k4_i8_preserve=moe_step_down=LLMX_K4+LLMX_DOT+LLMX_SHARED_ROW+LLMX_I8+LLMX_PRESERVE_F32
         moe_step_down_k=moe_step_down=LLMX_KQUANT+LLMX_DOT+LLMX_SHARED_ROW
         moe_step_down_k_i8=moe_step_down=LLMX_KQUANT+LLMX_DOT+LLMX_SHARED_ROW+LLMX_I8
         moe_step_down_k_preserve=moe_step_down=LLMX_KQUANT+LLMX_DOT+LLMX_SHARED_ROW+LLMX_PRESERVE_F32

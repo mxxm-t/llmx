@@ -34,7 +34,7 @@
 namespace backend {
 namespace {
 
-struct MoeBuild;   // the fused routed step's builds (vulkan_moe.hpp)
+struct MoePlan;   // what a fused routed step fuses (vulkan_moe.hpp)
 class VulkanCollective;   // a tensor group's collective (vulkan_collective.hpp)
 
 // The one thread that makes a tensor group's queue calls, in the order they are handed over, so the recording thread hands a submission over and records on (docs/TENSOR-SPLIT.md, section 4.3).
@@ -2589,7 +2589,7 @@ public:
         return dev_->device_clock && dev_->uncached_memory && dev_->props.limits.minStorageBufferOffsetAlignment <= ExpertRing::kAlign * sizeof(uint32_t);
     }
     void cached_step(const MoeStep& m, CSlice h, Slice y, size_t nin, size_t rows, RowRuns runs, Dtype dtype);
-    const MoeBuild* moe_build(const MoeStep& m, size_t nin, size_t rows, RowRuns runs, Dtype dtype) const;
+    bool moe_build(const MoeStep& m, size_t nin, size_t rows, RowRuns runs, Dtype dtype, MoePlan& plan) const;
     // The decode rows a fused routed step takes at most, the columns the decode-column checks reach.
     static constexpr size_t kMoeStepRows = 64;
     void check_matrix(uint32_t type, CSlice data, size_t nin, size_t rows, const char* what = "matrix") const;

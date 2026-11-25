@@ -5449,6 +5449,9 @@ MoeIsa check_moe_step_isa(const std::vector<std::pair<std::string, std::string>>
         else if (starts(name, "moe_step_up_k4")) parts = {"matmul_row_k4" + dot};
         else if (starts(name, "moe_step_down_q5q8")) parts = {"matmul_row_q5" + dot, vec};
         else if (starts(name, "moe_step_down_q8")) parts = {vec};
+        else if (starts(name, "moe_step_down_kq8")) parts = {"matmul_row_k" + dot, vec};
+        else if (starts(name, "moe_step_down_k5q8")) parts = {"matmul_row_k5" + dot, vec};
+        else if (starts(name, "moe_step_down_k4")) parts = {"matmul_row_k4" + dot};
         else if (starts(name, "moe_step_down_k")) parts = {"matmul_row_k" + dot};
         std::vector<FloatOps> c;
         for (const std::string& p : parts) {

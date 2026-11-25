@@ -5554,6 +5554,49 @@ size_t check_moe_step(backend::Backend& vk) {
     return values;
 }
 
+// The fused step composed per slot, over the routed layers of Qwen3.6-35B-A3B Q8_0, Q4_K_M and UD-Q4_K_XL, Qwen3.5-35B-A3B UD-Q8_K_XL and K downs with no shared down or another kernel's.
+// Each step at 1, 4 and 8 rows takes a fused down and gives the base step's bits.
+size_t check_moe_step_slots(backend::Backend& vk) {
+    using namespace quant;
+    struct Case { moe::Types t; uint32_t router; };
+    const Case cases[] = {
+        {{GGML_TYPE_Q8_0, GGML_TYPE_Q8_0, GGML_TYPE_Q8_0, GGML_TYPE_Q8_0}, GGML_TYPE_F32},
+        {{GGML_TYPE_Q8_0, GGML_TYPE_Q8_0, GGML_TYPE_BF16, GGML_TYPE_BF16}, GGML_TYPE_F32},
+        {{GGML_TYPE_Q4_K, GGML_TYPE_Q4_K, GGML_TYPE_Q4_K, GGML_TYPE_Q4_K}, GGML_TYPE_F32},
+        {{GGML_TYPE_Q4_K, GGML_TYPE_Q5_K, GGML_TYPE_Q8_0, GGML_TYPE_Q8_0}, GGML_TYPE_F32},
+        {{GGML_TYPE_Q4_K, GGML_TYPE_Q6_K, GGML_TYPE_Q8_0, GGML_TYPE_Q8_0}, GGML_TYPE_F32},
+        {{GGML_TYPE_Q4_K, GGML_TYPE_Q5_K, GGML_TYPE_Q8_0, GGML_TYPE_Q8_0}, GGML_TYPE_BF16},
+        {{GGML_TYPE_Q4_K, GGML_TYPE_Q6_K, 0, 0}, GGML_TYPE_F32},
+        {{GGML_TYPE_Q4_K, GGML_TYPE_Q5_1, GGML_TYPE_Q8_0, GGML_TYPE_BF16}, GGML_TYPE_F32},
+    };
+    size_t values = 0;
+    for (backend::Dtype dtype : {backend::Dtype::f16, backend::Dtype::int8})
+        for (const Case& c : cases) {
+            moe::Shape s{2048, 64, 8, 512, c.t, false};
+            s.router = c.router;
+            s.row_gate = c.router;
+            const moe::Weights w = moe::weights(vk, s, matrix, 61);
+            for (size_t rows : {size_t(1), size_t(4), size_t(8)}) {
+                const auto h = moe::inputs(rows, s.E, 62 + uint32_t(rows)), y0 = moe::residual(rows, s.E, 63);
+                const auto runs = moe::decode_runs(rows);
+                vk.sync();
+                vk.kernel_times();
+                const moe::Out op = moe::run(vk, w, h, y0, rows, runs, dtype, moe::How::op);
+                bool fused = false;
+                for (const auto& t : vk.kernel_times().kernels) fused = fused || t.first.rfind("moe_step_down", 0) == 0;
+                std::string what;
+                const size_t n = fused ? moe::same(op, moe::run(vk, w, h, y0, rows, runs, dtype, moe::How::base), what) : 0;
+                if (!n) {
+                    std::fprintf(stderr, "  moe step slots: types %u %u %u %u, router %u, %zu rows, %s\n", c.t.gate, c.t.down, c.t.sh_gate, c.t.sh_down, c.router, rows,
+                                 backend::dtype_name(dtype));
+                    throw std::runtime_error(fused ? "a composed fused routed step's " + what + " differ from its unfused calls" : std::string("a routed decode step did not take a fused down"));
+                }
+                values += n;
+            }
+        }
+    return values;
+}
+
 // A token's fused step at 1 to 64 tokens gives the bits of the token alone, as do 50 steps of random counts with unfused steps between, so the routing's counter is zero after every call.
 size_t check_moe_step_columns(backend::Backend& vk) {
     const moe::Shape shapes[] = {{256, 512, 10, 64, moe::kFlash, true}, {256, 512, 8, 256, moe::k35b, false}, {256, 512, 8, 64, moe::k30b, false}};
@@ -5969,6 +6012,7 @@ int main(int argc, char** argv) {
             std::cout << "backend-vulkan: " << check_moe_step_dispatches(*q8b) << " fused routed decode steps in four dispatches, prompts' steps unfused\n";
             std::cout << "backend-vulkan: " << check_moe_step(*q8b) << " fused routed step outputs equal to its unfused calls'\n";
             std::cout << "backend-vulkan: " << check_moe_step_columns(*q8b) << " fused routed step tokens equal to the same tokens alone, after any step\n";
+            std::cout << "backend-vulkan: " << check_moe_step_slots(*q8b) << " fused routed step outputs composed per slot equal to its unfused calls'\n";
             std::cout << "backend-vulkan: " << moe::check_row_classes(*q8b, matrix) << " pairs of extents of one class with the same bits through the fused routed step\n";
             if (q8_forced)
                 for (backend::Dtype dtype : {backend::Dtype::f16, backend::Dtype::int8})

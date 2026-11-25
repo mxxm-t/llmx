@@ -2398,19 +2398,27 @@ def check_uncapped(model):
         prompts = ["The capital of France is", "Once upon a time", "def fib(n):"]
         body = lambda p: {"prompt": p, "temperature": 0, "logprobs": TOP}
         alone = {}
+        began = time.time()
         for p in prompts:
             status, reply = srv.post("/v1/completions", body(p), timeout=600)
             assert status == 200, reply
             alone[p] = reply["choices"][0]
+        # The group runs the three replies in turns through a pool that holds about one, and a resume can recompute a history up to 1.5 times its reply, so it is bounded by the alone time measured on this host.
+        timeout = max(600, 4 * (time.time() - began))
         before = srv.get("/v1/health")
         results = {}
+        failure = []
         def worker(p):
-            results[p] = srv.post("/v1/completions", body(p), timeout=600)
+            try:
+                results[p] = srv.post("/v1/completions", body(p), timeout=timeout)
+            except Exception as e:
+                failure.append((p, e))
         threads = [threading.Thread(target=worker, args=(p,)) for p in prompts]
         for t in threads:
             t.start()
         for t in threads:
             t.join()
+        assert not failure, ("an uncapped request beside others failed within %.0f seconds, four times the alone replies'" % timeout, failure)
         for p in prompts:
             status, reply = results[p]
             assert status == 200 and reply["choices"][0]["finish_reason"] in ("stop", "length"), (p, reply)

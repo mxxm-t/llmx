@@ -44,6 +44,36 @@
   One kernel a chain count (_c2, _c4, `step_chains`, `step_build`) gives up_q4_k 53, 73 and 76 VGPRs against 81 in one kernel; a clamped unconditional next load with a trip count the same on every lane, past-the-end units dropped by a select, leaves the steady loop at vmcnt(2) and vmcnt(3) and up_q4_k_c2 at 55 VGPRs (four waves; main 60).
   Scheduling barriers after the load or between segments changed neither the VGPRs nor the waits.
 - **Gotchas:** a member function's parameter type must be declared above it in the class (two build slots lost to `TwinKernels` and `Kernel` this way); dspine24/chk.sh compiles the TUs syntax-only before a build.
+## ROCm and CUDA --profile in decode (2026-11-25, PROFVAL1, PROFFIX1 and PROFFIX2, branch fix/profile-host-gaps on main 63657ff21)
+
+**Goal.** `bench --profile` on ROCm and CUDA times decode kernels without the host's launch time in them, names its copies by direction and says how many ops it timed (PROFVAL1's report, `/opt/claude-work/profval1/REPORT.md` on the rig).
+
+**Done.**
+- Test commit: `twin_checks::host_stall`, run by `backend-rocm` and `backend-cuda` and by both alone as `timing`, sleeps 1 ms before each timed launch through `rocm_delay_launches` / `cuda_delay_launches`; `gpu-core` requires the gate and the copy names. On main 63657ff21 one MI50 fails it: six adds read 6.38 ms of op time and 0.02 ms of idle.
+- Fix: each flush of a timing backend waits on a host word the host sets once it has issued the flush (`GpuBackend::flush`, docs/src/backends-gpu.md); copies are named `upload`, `readback` and `copy` by direction; `kernel_times` counts the ops past the cap and bench prints the cap line. With the fix the six adds read 0.05 ms of op time and 6.71 ms of idle.
+- PROFFIX4: the gate hung a timing backend whose graves thread freed or synchronised during an open flush (DFLASH9's MoE microbench and `bench --profile` with a DFlash drafter, 100% CPU, no output); rocgdb showed the graves thread in HIP waiting behind the gate and the recording thread blocked on a HIP lock before `host_store`. `twin_checks::gated_drop` is the failing test (on 32c4b5c49 with the test, one MI50: the watchdog fails it after a minute, rig profval1/proffix4/j1); the fix keeps gated flushes and waiting runtime calls apart (`GateFence`), and the test then passes (profval1/proffix4/j1, `timing` PASS).
+- PROFFIX5: the drafter's `bench --profile` still hung with the fence; rocgdb and the HIP log showed the recording thread alone, in `hipMemcpyAsync` of a 4-byte `write` into host memory inside its own gated flush, which HIP makes on the host once the stream drains, behind the gate never. `gated_drop` now also writes into host-visible memory (on af82c0c32 with the test the watchdog fails it, rig profval1/proffix5/j2 tA), and `write` into host memory runs `llmx_copy` on the stream as `copy` between host memories already did (j2 tB `timing` PASS, `gpu-core` PASS). On one MI50 (renderD131), Qwen3.6-35B-A3B UD-Q4_K_XL with the DFlash Q8_0 drafter, int8, `--p 64 --n 32 --draft-max 7`, a DFlash branch with this fix: `--profile` finishes; its large prompt kernels sit within 6% of the trace's p50 and small ones 38-294% above it (the 4-6 us an op below), and each draft chain reads 3.76-4.23 ms of device time against 3.22-4.52 ms of wall in the untimed run; DFLASH9's MoE microbench finishes timed and untimed; outside `--profile` that write no longer holds the host until the stream drains.
+- Measured on one MI50 (renderD136), ROCm, f16, one sequence, Qwen3-0.6B Q8_0 `--p 512 --n 128 --r 3` and Qwen3.6-35B-A3B UD-Q4_K_XL `--p 512 --n 64 --r 3`, against a rocprofv3 kernel trace of an untimed run, host load1 43-47 (rig `/opt/claude-work/profval1/v2` and `v3`, `an2.py`):
+
+| case (decode unless noted) | main 63657ff21 | fix | trace |
+|---|---|---|---|
+| 0.6B `llmx_q8_0_rows16_1` | +66.6% | +55.2% (18.6 us) | 12.0 us p50 |
+| 0.6B `llmx_rms_norm_16_twin16` | +158.6% | +101.5% (10.0 us) | 5.0 us p50 |
+| 0.6B `norm_rope_kv` / `silu_mul` / `attention_vec` | +92 / +72 / +55% | +97 / +74 / +55% | p50 |
+| 0.6B copies | `copy` 10.35 ms (63 ops) | `readback` 0.66-1.29 ms a token (5 runs) | copy 46 us; gap after the last kernel p50 11 us, p90 614 us |
+| 35B `llmx_q8_0_rows16_1` | +39.5% | +37.1% | bimodal; -19.7% vs mean |
+| 35B `q4_k` / `q5_k` routed16 | +35.0 / +23.4% | +4.3 / +8.0% | p50 |
+| 35B `rms_norm` / `matmul_f32` / `delta_step` | +216 / +108 / +25% | +63 / +49 / +16% | p50 |
+| 35B copies | `copy` 4.73 ms | `readback` 0.41-1.35 ms a token (3 runs) | copy 73 us; gap p50 14 us, p90 1916 us |
+| prompt, both models | large kernels within 4% of the mean, small +5-7 us | same | mean |
+| cap line | none | 0.6B: 4096 of 35968 ops timed, about 14.6 of 128 tokens; 35B: 4096 of 41729, about 6.3 of 64 | |
+
+v3 opened the gate before each readback, to keep the copy engine from starting it on the runtime's slower dependency path; it did not help (0.6B 1.00-1.79 ms a token, 35B 0.22-1.05 ms, against 0.66-1.19 and 0.41-1.35 for the fix in the same run) and was dropped.
+The readback's gap after the last kernel is in the plain run's trace too, so `--profile` reports it rather than causing it (XDEV 10:10, Fable).
+
+**Left.** CUDA is not measured: the CUDA section `pf` (rig `/opt/claude-work/profval1/cuda/pf-section.txt`) runs the `timing` checks and the 0.6B bench on the next RTX 3090 session.
+
+**Gotchas.** Each op's event pair costs a fixed 4-6 us that the gate does not remove, so small decode kernels still read high; a timed decode runs slower than an untimed one, since the device waits while the host issues each chunk. The untimed runs are unchanged but for two branches a flush; at host load 44 their decode spread (sd 14-48 tok/s) hides any difference.
 
 ## Docs set to the architecture audits (2026-11-24, DOCFIX1, branch docs/arch-audit-fixes on main d8bd8735e)
 

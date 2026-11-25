@@ -397,6 +397,11 @@ int main() {
         fake.refuse_launch = false;
         require(refused && gate && fake.waited_word == gate && *gate >= fake.waited_value, "a flush whose launch is refused releases its gate word");
         (void)b.kernel_times();
+        // A reading times its first 4096 ops and counts the rest, so a section past the cap says how much of it went untimed.
+        for (size_t i = 0; i < 4100; ++i) b.add({buf.get(), 0}, {buf.get(), 0}, 1024);
+        const Backend::KernelTimes capped = b.kernel_times();
+        require(capped.ops == 4096 && capped.untimed == 4 && capped.dispatches == 4096, "a reading past the cap times 4096 ops and counts the rest: " + std::to_string(capped.untimed));
+        require(b.kernel_times().untimed == 0, "the next reading counts its own ops past the cap");
         require(b.kernel_times().kernels.empty(), "a reading starts the next interval empty");
         b.add({buf.get(), 0}, {buf.get(), 0}, 1024);
         fake.refuse_elapsed = true;

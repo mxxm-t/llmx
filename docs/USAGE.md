@@ -1275,7 +1275,18 @@ The output head's products are timed apart from the layers', under their kernel'
 With `--drafter` it first runs one more round of the draft timing and gives each count's chain and verify the same way (`profile draft chain K`, `profile verify K`), so a draft row's read of the head and a verify's cost by kernel are measured rather than inferred.
 It takes Vulkan, ROCm and CUDA devices and is refused where a listed device is the CPU; with several, a layer split or a tensor group, each section is printed for each device (`profile tg, device vulkan:1`).
 Copies between buffers and a write's copy into device memory are timed beside the kernels as `copy` and `write`, and each device's line ends with its idle time between timed ops and the part of it in gaps of a millisecond or more.
-On ROCm and CUDA each kernel, copy and zero fill is timed by a pair of events around it, kernels under their `llmx_` names and the others as `copy` and `fill`; a section times the first 4096 of them, and its first line counts the kernels among them as the dispatches sampled, followed by the ops whose events gave no time as unresolved where there are any, and the events add a little device time between ops, so the idle time there is an upper bound.
+On ROCm and CUDA each kernel, copy and zero fill is timed by a pair of events around it, kernels under their `llmx_` names, copies as `upload` from host memory, `readback` to it and `copy` on the device, and zero fills as `fill`.
+The device starts each batch of timed work only once the host has issued all of it, so a host that falls behind its device shows as idle between ops rather than as their time, and a timed decode runs slower than an untimed one.
+A section times the first 4096 ops, and its first line counts the kernels among them as the dispatches sampled, followed by the ops whose events gave no time as unresolved where there are any; where the section ran more, its next line gives the ops timed, those past the cap left untimed and about how many of its tokens the timed ops cover, which in a decode are the first ones.
+
+How far to trust `--profile` on ROCm and CUDA: each op's pair of events adds a fixed few microseconds to it, which a large kernel does not notice and a small decode kernel does.
+Against a rocprofv3 kernel trace of an untimed run on one MI50, prompt kernels of Qwen3-0.6B Q8_0 and Qwen3.6-35B-A3B UD-Q4_K_XL read within 4% of the trace's mean for the large ones and 5-7 us an op high for the small ones.
+In decode the 35B's routed products read within 4-8% of the trace's median, and small kernels such as `llmx_rms_norm_16_twin16` 4-6 us an op high, about twice the 0.6B's 5 us norms.
+In decode the logits `readback` reads 0.7-1.8 ms a token on the 0.6B against a 46 us copy in the trace: it holds the copy and the runtime's wait to start it after the last kernel, which a trace's copy time leaves out.
+That wait is there in untimed runs too (in the trace, 0.6 ms or more for one token in eight) and grows with host load.
+The 4096 timed ops cover about 14 of the 0.6B's decode tokens and 6 of the 35B's.
+Rank kernels by `--profile`, reading small decode kernels as a few microseconds high; the Vulkan profile, which times inside the command buffer, has no such cost and no cap.
+These figures are ROCm's; CUDA times its ops the same way and has not been measured against a trace.
 The driver's statistics after the sections are Vulkan's alone.
 Each stage then gets a line of its recordings in the run (`profile pp, stage 1`): how often one started, how many received the residual behind a device-side wait with no host wait or write (MULTI-DEVICE.md, Execution structure), and the host's time in each, apart its wait for the residual's sending stage, its write of the residual into its device and the rest, recording and submitting, with when the residual reached it after the pass's first stage began.
 

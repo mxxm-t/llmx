@@ -1364,7 +1364,8 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
     auto clear_times = [&] {
         for (backend::Backend* b : devices) b->kernel_times();
     };
-    auto print_times = [&](const std::string& what) {
+    // `tokens` is what the section ran, for the share of it a capped reading timed: the first ops, so the first tokens.
+    auto print_times = [&](const std::string& what, size_t tokens) {
         for (size_t i = 0; i < devices.size(); ++i) {
             const backend::Backend::KernelTimes read = devices[i]->kernel_times();
             auto times = read.kernels;
@@ -1373,6 +1374,10 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
             for (const auto& t : times) total += t.second;
             std::cout << "profile " << what << (devices.size() > 1 ? ", device " + names[i] : std::string()) << ": " << total << " ms of device time over "
                       << read.dispatches << " dispatches sampled" << (read.unresolved ? ", " + std::to_string(read.unresolved) + " ops unresolved" : std::string()) << "\n";
+            if (read.untimed)
+                std::cout << "profile " << what << (devices.size() > 1 ? ", device " + names[i] : std::string()) << ": the first " << read.ops << " of " << read.ops + read.untimed
+                          << " ops timed, " << read.untimed << " past the cap untimed, about " << (double)tokens * read.ops / (double)(read.ops + read.untimed) << " of " << tokens
+                          << " tokens\n";
             for (const auto& t : times)
                 std::cout << "profile:   " << t.first << " " << t.second << " ms (" << (total > 0.0 ? 100.0 * t.second / total : 0.0) << "%)\n";
             // The device's idle time between its timed ops, and of it the gaps of a millisecond or more, where it waited for work.
@@ -1408,13 +1413,13 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
                 auto t0 = clock::now();
                 if (k) proposer.draft(nullptr, before, k, drafted);
                 const double chain_ms = ms_since(t0);
-                if (profiled && k) print_times("draft chain " + std::to_string(k));
+                if (profiled && k) print_times("draft chain " + std::to_string(k), k);
                 if (k && !model.mark()) throw std::runtime_error("bench: no mark for the verify");
                 if (profiled) clear_times();
                 t0 = clock::now();
                 model.step(gen.data(), k + 1);
                 const double verify_ms = ms_since(t0);
-                if (profiled) print_times("verify " + std::to_string(k));
+                if (profiled) print_times("verify " + std::to_string(k), k + 1);
                 if (k) model.retract(L + 1);
                 if (!r || profiled) continue;
                 chain[k].push_back(chain_ms);
@@ -1460,10 +1465,10 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
         // One more prompt and one more decode run, each read on its own, so a pass is attributed to its kernels rather than inferred from kernels timed alone.
         // A run calls its argument where its interval starts: a batched decode's after its sequences' prompts.
         pp_from([&] { clear_times(); model.trace_stages(true); });
-        print_times("pp");
+        print_times("pp", (size_t)P);
         print_stages("pp");
         tg([&] { clear_times(); model.stage_times(); });
-        print_times(seqs > 1 ? "batched tg" : "tg");
+        print_times(seqs > 1 ? "batched tg" : "tg", (size_t)G * (size_t)std::max(seqs, 1));
         print_stages(seqs > 1 ? "batched tg" : "tg");
         model.trace_stages(false);
 #if LLMX_HAS_BACKEND_VULKAN

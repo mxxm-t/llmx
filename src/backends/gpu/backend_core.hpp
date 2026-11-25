@@ -55,10 +55,12 @@ constexpr size_t kGroupSignalBytes = 8192;  // a group member's signal block bef
 inline unsigned host_load(unsigned* p) { return unsigned(_InterlockedCompareExchange(reinterpret_cast<volatile long*>(p), 0, 0)); }
 inline unsigned host_exchange(unsigned* p, unsigned v) { return unsigned(_InterlockedExchange(reinterpret_cast<volatile long*>(p), long(v))); }
 inline void host_store(unsigned* p, unsigned v) { (void)_InterlockedExchange(reinterpret_cast<volatile long*>(p), long(v)); }
+inline void host_store(uint64_t* p, uint64_t v) { (void)_InterlockedExchange64(reinterpret_cast<volatile long long*>(p), (long long)v); }
 #else
 inline unsigned host_load(unsigned* p) { return __atomic_load_n(p, __ATOMIC_ACQUIRE); }
 inline unsigned host_exchange(unsigned* p, unsigned v) { return __atomic_exchange_n(p, v, __ATOMIC_ACQ_REL); }
 inline void host_store(unsigned* p, unsigned v) { __atomic_store_n(p, v, __ATOMIC_RELEASE); }
+inline void host_store(uint64_t* p, uint64_t v) { __atomic_store_n(p, v, __ATOMIC_RELEASE); }
 #endif
 
 // What a tensor group's first member keeps of the group's probes: the fast transports whose probes passed, why the others failed, and each fast sum's transport and form by its size, timed up to `timed` floats.
@@ -94,10 +96,57 @@ struct Args {
     }
 };
 
+// Keeps timing flushes with a closed gate apart from runtime calls that wait on a stream or on every stream of a device, process wide.
+// Such a call can hold a runtime lock while it waits behind the gate, and the flushing thread would then block on that lock before it opens the gate (docs/src/backends-gpu.md).
+class GateFence {
+public:
+    void gate_enter() {
+        std::unique_lock<std::mutex> lock(m_);
+        wake_.wait(lock, [&] { return !waiting_ && !syncing_; });
+        ++gated_;
+    }
+    void gate_leave() {
+        std::lock_guard<std::mutex> lock(m_);
+        if (!--gated_) wake_.notify_all();
+    }
+    void sync_enter() {
+        std::unique_lock<std::mutex> lock(m_);
+        ++waiting_;
+        wake_.wait(lock, [&] { return !gated_; });
+        --waiting_;
+        ++syncing_;
+    }
+    void sync_leave() {
+        std::lock_guard<std::mutex> lock(m_);
+        if (!--syncing_) wake_.notify_all();
+    }
+private:
+    std::mutex m_;
+    std::condition_variable wake_;
+    size_t gated_ = 0, waiting_ = 0, syncing_ = 0;   // flushes inside their gate, and waiting calls queued and running
+};
+inline GateFence& gate_fence() {
+    static GateFence f;
+    return f;
+}
+// Held around a runtime call that may wait on a stream: a synchronise, a free, an unregister or a teardown.
+struct Fenced {
+    Fenced() { gate_fence().sync_enter(); }
+    ~Fenced() { gate_fence().sync_leave(); }
+    Fenced(const Fenced&) = delete;
+    Fenced& operator=(const Fenced&) = delete;
+};
+
 // A free that fails has nothing left to act on.
 template <class Api>
 void free_memory(void* p, bool host) {
+    const Fenced fenced;
     (void)(host ? Api::host_free(p) : Api::free(p));
+}
+template <class Api>
+void sync_stream(typename Api::Stream s) {
+    const Fenced fenced;
+    (void)Api::stream_sync(s);
 }
 
 // Host memory wrap_host registered with HIP, which registers an address once for every device and drops it at one unregister however often it was registered: each view counts, and the last one dropped unregisters it.
@@ -133,6 +182,7 @@ void unregister_host(void* memory) {
     std::lock_guard<std::mutex> lock(r.m);
     const auto it = r.held.find(memory);
     if (it == r.held.end() || --it->second.second) return;
+    const Fenced fenced;
     (void)Api::host_unregister(memory);
     r.held.erase(it);
 }
@@ -172,7 +222,7 @@ struct Graves {
             freeing = ready.size();
             const typename Api::Stream s = stream;
             lock.unlock();
-            if (s) (void)Api::stream_sync(s);
+            if (s) sync_stream<Api>(s);
             for (const auto& r : ready) free_memory<Api>(r.first, r.second);
             lock.lock();
             freeing = 0;
@@ -226,7 +276,7 @@ public:
                 std::lock_guard<std::mutex> lock(graves_->m);
                 if (graves_->stream) {
                     graves_->flush();
-                    (void)Api::stream_sync(graves_->stream);
+                    sync_stream<Api>(graves_->stream);
                 }
             }
             unregister_host<Api>(p_);
@@ -322,13 +372,17 @@ public:
             stage_.slots[s] = std::make_shared<GpuBuffer<Api>>(kStageBytes, true, graves_);
             pass_.slots[s] = std::make_shared<GpuBuffer<Api>>(kArgBytes, false, graves_);
         }
+        if (timing_) {
+            gate_ = std::make_shared<GpuBuffer<Api>>(sizeof(uint64_t), true, graves_, true);
+            host_store(static_cast<uint64_t*>(as_gpu<Api>(*gate_).data()), uint64_t{0});
+        }
         graves_->thread = std::thread([g = graves_.get(), index] { g->run(index); });
         probe_memory();
     }
     ~GpuBackend() override {
         try { flush(); } catch (const std::exception&) {}
         (void)Api::set_device(dev_.index);
-        (void)Api::stream_sync(stream_);
+        sync_stream<Api>(stream_);
         ring_.reset();
         {
             std::lock_guard<std::mutex> lock(graves_->m);
@@ -355,6 +409,7 @@ public:
         stage_ = {};
         pass_ = {};
         uploads_ = {};
+        const Fenced fenced;
         if (module_) (void)Api::module_unload(module_);
         if (int16_module_) (void)Api::module_unload(int16_module_);
         if (dot_module_) (void)Api::module_unload(dot_module_);
@@ -362,7 +417,7 @@ public:
         for (auto e : starts_) if (e) (void)Api::event_destroy(e);
         for (auto e : timed_events_) (void)Api::event_destroy(e);
         if (stream_) (void)Api::stream_destroy(stream_);
-        if (fault_) (void)Api::host_free(fault_);
+        if (fault_) free_memory<Api>(fault_, true);
     }
 
     // The device and its driver, not the index or PCI address: cards of one device and driver give the same bits, so a history continues on whichever of them holds its member.
@@ -541,6 +596,9 @@ public:
             if (i && Api::event_elapsed(&gap, timed_events_[2 * i - 1], timed_events_[2 * i]) == Api::kSuccess) out.gaps.push_back(std::max(gap, 0.0f));
         }
         out.kernels.assign(ms.begin(), ms.end());
+        out.ops = timed_.size();
+        out.untimed = untimed_;
+        untimed_ = 0;
         timed_.clear();
         return out;
     }
@@ -601,7 +659,7 @@ public:
         for (size_t done = 0; done < bytes;) {
             const size_t n = std::min(bytes - done, kStageBytes);
             void* st = stage_.take(*this, n);
-            hold_copy(st, (const uint8_t*)src.data() + off + done, n, Api::kToHost);
+            hold_copy(st, (const uint8_t*)src.data() + off + done, n, Api::kToHost, "readback");
             wait(submit());
             raise_failed();
             ExpertRing::raise(ring_, *this, Api::prefix);
@@ -617,7 +675,13 @@ public:
             const size_t n = std::min(bytes - done, kStageBytes);
             void* st = stage_.take(*this, n);
             std::memcpy(st, (const uint8_t*)src + done, n);
-            hold_copy((uint8_t*)dst.data() + off + done, st, n, Api::kToDevice);
+            // HIP copies from the stage into host memory on the host once the stream has drained, as copy() notes, and behind a timing backend's closed gate never.
+            if (dst.host_ptr()) {
+                const unsigned long long m = n;
+                launch(kCopy, (unsigned)std::min<size_t>(1024, (n + 16 * kThreads - 1) / (16 * kThreads)), 1, Args((uint8_t*)dst.device_ptr() + off + done, (const uint8_t*)st, m));
+            } else {
+                hold_copy((uint8_t*)dst.data() + off + done, st, n, Api::kToDevice, "upload");
+            }
             done += n;
         }
     }
@@ -638,7 +702,7 @@ public:
             const Args args(d, s, n);
             return launch_writing({{written, floats}}, kCopy, (unsigned)std::min<size_t>(1024, (bytes + 16 * kThreads - 1) / (16 * kThreads)), 1, args);
         }
-        hold_copy((uint8_t*)dst.data() + dst_off, (const uint8_t*)src.data() + src_off, bytes, Api::kAnyCopy);
+        hold_copy((uint8_t*)dst.data() + dst_off, (const uint8_t*)src.data() + src_off, bytes, Api::kAnyCopy, src.host_ptr() ? "upload" : dst.host_ptr() ? "readback" : "copy");
         forget_written(written, floats);
     }
 
@@ -3132,7 +3196,7 @@ private:
             if (Api::mem_info(&before, &total) != Api::kSuccess) return 0;
             while (made < n && Api::malloc(&p[made], bytes) == Api::kSuccess) ++made;
             const bool read = Api::mem_info(&after, &total) == Api::kSuccess;
-            for (size_t i = 0; i < made; ++i) (void)Api::free(p[i]);
+            for (size_t i = 0; i < made; ++i) free_memory<Api>(p[i], false);
             return read && made == n && before > after ? (before - after) / n : 0;
         };
         small_unit_ = allocation_unit(4, taken(4, 64));
@@ -3197,7 +3261,7 @@ private:
                 return u.at;
             }
         void* d = pass_.take(*this, bytes);
-        hold_copy(d, arg(src, bytes), bytes, Api::kToDevice);
+        hold_copy(d, arg(src, bytes), bytes, Api::kToDevice, "upload");
         Upload& u = uploads_[next_upload_++ % kUploads];
         u.bytes.assign((const uint8_t*)src, (const uint8_t*)src + bytes);
         u.at = d;
@@ -4237,7 +4301,8 @@ private:
         std::memcpy(op_bytes_.data() + at, args.bytes, args.size);
         hold({Held::kernel, f, gx, gy, gz, threads, name, at, args.size, nullptr, nullptr, shared, Api::kAnyCopy, head_});
     }
-    void hold_copy(void* dst, const void* src, size_t bytes, typename Api::CopyKind dir) { hold({Held::copy, nullptr, 0, 0, 0, 0, "copy_async", 0, 0, dst, src, bytes, dir}); }
+    // A copy named by what kernel_times calls it: an upload from host memory, a readback to it, or a copy on the device.
+    void hold_copy(void* dst, const void* src, size_t bytes, typename Api::CopyKind dir, const char* name) { hold({Held::copy, nullptr, 0, 0, 0, 0, name, 0, 0, dst, src, bytes, dir}); }
     void hold_fill(void* dst, size_t bytes) { hold({Held::fill, nullptr, 0, 0, 0, 0, "zero_async", 0, 0, dst, nullptr, bytes, Api::kAnyCopy}); }
     // The stream waits until *word is at least `value`, or writes `value` there once the work before it is done.
     void hold_wait(uint64_t* word, uint64_t value) { hold({Held::wait_word, nullptr, 0, 0, 0, 0, "wait_word", 0, 0, word, nullptr, value, Api::kAnyCopy}); }
@@ -4257,7 +4322,14 @@ private:
         Api::check(Api::set_device(dev_.index), "set_device");
         unsigned* const take = take_status_;
         take_status_ = nullptr;
+        // A timing backend's stream waits behind its gate word until the host has issued the whole chunk, so a host behind its device shows as idle before the chunk's first op rather than inside one (docs/src/backends-gpu.md).
+        uint64_t* const gate = timing_ ? (uint64_t*)as_gpu<Api>(*gate_).data() : nullptr;
+        if (gate) gate_fence().gate_enter();
         try {
+            if (gate) {
+                if (!started_) waited_ = true;
+                Api::check(Api::wait_word(stream_, as_gpu<Api>(*gate_).device_ptr(), ++gated_), "wait_word");
+            }
             for (const Held& op : ops) {
                 // A submission's busy time starts at its first operation after its waits on other devices (busy_ms).
                 if (!started_ && op.kind == Held::wait_word) waited_ = true;
@@ -4266,12 +4338,13 @@ private:
                     started_ = true;
                 }
                 const bool timed = timing_ && op.kind <= Held::fill && timed_.size() < kTimedOps;
+                if (timing_ && op.kind <= Held::fill && !timed) ++untimed_;
                 if (timed) Api::check(Api::event_record(timed_event(2 * timed_.size()), stream_), "event_record");
                 if (timed && delay_.count()) std::this_thread::sleep_for(delay_);
                 if (op.kind == Held::kernel) {
                     launch_check(Api::launch(op.f, op.gx, op.gy, op.gz, op.threads, (unsigned)op.bytes, stream_, bytes.data() + op.at, op.size), op.name);
                 } else if (op.kind == Held::copy) {
-                    launch_check(Api::copy_async(op.dst, op.src, op.bytes, op.dir, stream_), op.name);
+                    launch_check(Api::copy_async(op.dst, op.src, op.bytes, op.dir, stream_), "copy_async");
                 } else if (op.kind == Held::wait_word) {
                     launch_check(Api::wait_word(stream_, op.dst, op.bytes), op.name);
                 } else if (op.kind == Held::write_word) {
@@ -4283,13 +4356,15 @@ private:
                 }
                 if (timed) {
                     Api::check(Api::event_record(timed_event(2 * timed_.size() + 1), stream_), "event_record");
-                    timed_.push_back({op.kind == Held::kernel ? op.name : op.kind == Held::copy ? "copy" : "fill", op.head, op.kind == Held::kernel});
+                    timed_.push_back({op.kind == Held::fill ? "fill" : op.name, op.head, op.kind == Held::kernel});
                 }
             }
         } catch (...) {
+            if (gate) host_store(gate, gated_), gate_fence().gate_leave();
             if (take) host_store(take, 1u);
             throw;
         }
+        if (gate) host_store(gate, gated_), gate_fence().gate_leave();
         // The vectors keep their capacity for the next records.
         ops.clear();
         bytes.clear();
@@ -4371,6 +4446,9 @@ private:
     // A reading times the first kTimedOps ops of its interval, each between a start and an end event, which bounds the events a long interval takes.
     static constexpr size_t kTimedOps = 4096;
     std::vector<TimedOp> timed_;   // the ops timed since the last reading
+    size_t untimed_ = 0;   // the ops past kTimedOps since the last reading
+    BufferPtr gate_;   // a timing backend's gate word in host memory, which each flush's stream waits on until the host sets it to gated_
+    uint64_t gated_ = 0;
     std::vector<typename Api::Event> timed_events_;   // their start and end events, two an op
     size_t launched_[kKernels] = {};   // launches of each kernel since rocm_take_launches last read them
     std::string route_only_;   // rocm_route_only's filter of the routed tile builds, empty for all of them

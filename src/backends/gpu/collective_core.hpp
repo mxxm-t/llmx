@@ -837,7 +837,7 @@ private:
             munmap(p, placed);
 #endif
         } else {
-            (void)(host ? Api::host_free(p) : Api::free(p));
+            free_memory<Api>(p, host);
         }
     }
 
@@ -847,7 +847,7 @@ private:
         for (size_t m = 0; m < copy_stream_.size(); ++m)
             if (copy_stream_[m]) {
                 (void)Api::set_device(members_[m]->dev_.index);
-                (void)Api::stream_sync(copy_stream_[m]);
+                sync_stream<Api>(copy_stream_[m]);
                 (void)Api::stream_destroy(copy_stream_[m]);
                 (void)Api::event_destroy(added_[m]);
                 (void)Api::event_destroy(sent_[m]);
@@ -855,7 +855,7 @@ private:
             }
         for (size_t m = 0; m < beside_.size(); ++m) {
             (void)Api::set_device(members_[m]->dev_.index);
-            if (beside_[m]) (void)Api::stream_sync(beside_[m]), (void)Api::stream_destroy(beside_[m]);
+            if (beside_[m]) sync_stream<Api>(beside_[m]), (void)Api::stream_destroy(beside_[m]);
             if (computed_[m]) (void)Api::event_destroy(computed_[m]);
             for (auto& e : summed_)
                 if (e[m]) (void)Api::event_destroy(e[m]);
@@ -868,9 +868,9 @@ private:
             if (ready_[m]) (void)Api::event_destroy(ready_[m]);
             ready_[m] = nullptr;
         }
-        if (status_) (void)Api::host_free(status_);
+        if (status_) free_memory<Api>(status_, true);
         status_ = nullptr;
-        if (words_) (void)Api::host_free(words_);
+        if (words_) free_memory<Api>(words_, true);
         words_ = nullptr;
     }
 
@@ -1279,7 +1279,7 @@ private:
         for (GpuBackend<Api>* b : readers_)
             if (b) b->sync();
         sender_.sync();
-        if (words_) (void)Api::host_free(words_);
+        if (words_) free_memory<Api>(words_, true);
     }
     GpuBackend<Api>& sender_;
     std::vector<GpuBackend<Api>*> readers_;   // per reader, null for one this handoff does not serve

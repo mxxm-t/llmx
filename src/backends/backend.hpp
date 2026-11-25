@@ -720,6 +720,7 @@ public:
         size_t dispatches = 0;
         std::vector<double> gaps;
         size_t unresolved = 0;  // timed ops whose events gave no time, left out of kernels so a short reading is not taken for a short interval
+        size_t ops = 0, untimed = 0;   // the ops timed, and those past a backend's cap on the ops a reading times, which it counts but does not time
     };
     virtual KernelTimes kernel_times() { return {}; }
     // The device time of the work recorded since the last call, in milliseconds, by timestamps on a backend made to time its work, which waits for its queue to read them; negative where the backend keeps none.

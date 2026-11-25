@@ -1428,11 +1428,12 @@ inline std::unique_ptr<Model::Chain> Model::draft_begin(const DraftAsk* asks, si
     if (c->order.empty()) return nullptr;
     c->block = std::max<size_t>(plan_.draft_block, 1);
     c->call_rows = draft_call_rows(plan_);
-    // A drafter with anchor rows that attends causally inside its block gives a chain's drafts from a block cut to the longest chain; a non-causal one (DFlash2) runs its whole block.
+    // A drafter with anchor rows that attends causally inside its block (DSpine) gives a chain's drafts from a block cut to the longest chain; a DFlash or DFlash2 block runs whole.
     if (plan_.draft_anchor && plan_.draft_causal && c->steps < c->block) {
         c->block = c->steps;
         c->call_rows = c->block + plan_.draft_anchor;
     }
+    c->drafts = c->steps;
     c->steps = draft_calls(plan_, c->steps);
     // An anchor row reads the context rows of the positions before it, which only the history has, so a later call would have none.
     if (plan_.draft_anchor && c->steps > 1) throw std::logic_error("inference: a drafter with anchor rows drafts one call a chain");
@@ -1571,6 +1572,7 @@ inline void Model::draft_record(Chain& c) {
             step.pos = &c.pos[m * R * c.call_rows];
             if (!c.group_at.empty()) step.group_pos = backend::GroupPositions{c.group_pos.data() + c.group_at[m], {3, plan_.image_streams.data()}};
             step.ids = B;
+            step.drafts = std::min(B, c.drafts - m * B);
             step.stride = R;
             step.phase = phase;
             step.lookup = lookup;

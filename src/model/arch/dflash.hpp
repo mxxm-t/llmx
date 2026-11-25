@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <cstdint>
 #include <set>
 #include <stdexcept>
@@ -32,19 +33,26 @@ inline const gguf::MetaValue& check_sidecar(const gguf::GGUFModel& target, const
     return *mask;
 }
 
+// What follows a sidecar's layers: a DFlash drafter's argmax of each row's logits, DSpine's code bridge and refinement tail, or DFlash2's convolutions and selector.
+enum class Kind : uint8_t { dflash, dspine, dflash2 };
+
 // A sidecar's configuration as a joined file holds it under `p` (normalize_beside): its layers, block, attention window and candidates a row, the taps it reads, its heads, rope and feed-forward width, and the mask token.
-// A DFlash2 sidecar also gives non-causal attention, its convolution's taps and channels a coefficient, and its selector's rank; a DSpine sidecar leaves them 0.
+// Each layer attends causally or not and over the window or all its context; a DFlash2 sidecar also gives its convolution's taps and channels a coefficient and its selector's rank, which the others leave 0.
 struct Config {
+    Kind kind = Kind::dflash;
     int layers = 0, block = 0, window = 0, top_k = 0;
-    bool causal = true;
+    std::vector<bool> causal, windowed;
     int conv_taps = 0, conv_group = 0, selector_rank = 0;
     std::vector<int> taps;
     int heads = 0, kv_heads = 0, head_dim = 0, ff = 0;
     float rope_theta = 0.0f, rms_eps = 0.0f;
     uint32_t mask = 0;
+    // The positions before its own that a row of layer `l` attends, 0 for all (KVView::window).
+    size_t layer_window(size_t l) const { return windowed[l] ? size_t(window) : 0; }
 };
 
-// The joined configuration, refused where it asks for what the drafter does not run: attention not over a window on every layer, non-causal attention without DFlash2's convolution and selector, or a rope over part of a head.
+// The joined configuration, refused where it asks for what the drafter does not run: DSpine's bridge on non-causal attention, DFlash2's convolution on causal attention, candidates without a bridge or selector, or a rope over part of a head.
+// Without `attention.causal` a DFlash drafter's windowed layers attend causally and its others not, as the reference code's layer types give it (docs/SPECULATIVE.md, section 11).
 inline Config read_config(const gguf::GGUFModel& m, const std::string& p) {
     using metadata::integer;
     const std::string q = p + "dflash.";
@@ -53,7 +61,7 @@ inline Config read_config(const gguf::GGUFModel& m, const std::string& p) {
     c.layers = integer(m, q + "block_count");
     c.block = integer(m, q + "block_size");
     c.window = integer(m, q + "attention.sliding_window");
-    c.top_k = integer(m, q + "selector_top_k");
+    c.top_k = int(metadata::count(m, q + "selector_top_k", 0));
     c.taps = metadata::counts(m, q + "target_layers");
     c.heads = integer(m, q + "attention.head_count");
     c.kv_heads = integer(m, q + "attention.head_count_kv");
@@ -65,18 +73,19 @@ inline Config read_config(const gguf::GGUFModel& m, const std::string& p) {
     if (integer(m, q + "attention.value_length", c.head_dim) != c.head_dim) throw refuse("attention.value_length");
     if (c.heads % c.kv_heads || c.head_dim % 2) throw refuse("attention.head_count_kv");
     if (c.block < 2) throw refuse("block_size");
-    if (c.top_k < 1 || c.top_k > 256) throw refuse("selector_top_k");
-    c.causal = metadata::boolean(m, q + "attention.causal", false);
     c.conv_taps = int(metadata::count(m, q + "conv_kernel_size", 0));
     c.conv_group = int(metadata::count(m, q + "conv_group_size", 0));
     c.selector_rank = int(metadata::count(m, q + "selector_rank", 0));
     const bool dflash2 = c.conv_taps || c.conv_group || c.selector_rank;
     if (dflash2 && (c.conv_taps < 1 || c.conv_group < 1 || c.selector_rank < 1)) throw refuse("conv_kernel_size");
-    if (c.causal == dflash2) throw refuse("attention.causal");
-    const std::vector<bool> windowed = metadata::booleans(m, q + "attention.sliding_window_pattern");
-    if (windowed.size() != size_t(c.layers)) throw refuse("attention.sliding_window_pattern");
-    for (bool w : windowed)
-        if (!w) throw refuse("attention.sliding_window_pattern");
+    c.windowed = metadata::booleans(m, q + "attention.sliding_window_pattern");
+    if (c.layers < 1 || c.windowed.size() != size_t(c.layers) || c.window < 1) throw refuse("attention.sliding_window_pattern");
+    const bool keyed = m.find(q + "attention.causal"), causal = metadata::boolean(m, q + "attention.causal", false);
+    c.kind = dflash2 ? Kind::dflash2 : causal ? Kind::dspine : Kind::dflash;
+    if (dflash2 && causal) throw refuse("attention.causal");
+    if (c.kind != Kind::dflash && std::find(c.windowed.begin(), c.windowed.end(), false) != c.windowed.end()) throw refuse("attention.sliding_window_pattern");
+    c.causal = keyed || dflash2 ? std::vector<bool>(size_t(c.layers), causal) : c.windowed;
+    if ((c.kind == Kind::dflash) != (c.top_k == 0) || c.top_k > 256) throw refuse("selector_top_k");
     const std::vector<int> sections = metadata::counts(m, q + "rope.dimension_sections");
     for (size_t i = 0; i < sections.size(); ++i)
         if (sections[i] != (i ? 0 : c.head_dim / 2)) throw refuse("rope.dimension_sections");

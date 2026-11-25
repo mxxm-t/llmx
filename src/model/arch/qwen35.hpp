@@ -525,7 +525,7 @@ public:
 
     // A draft row a sequence: each token's row read from its id and the row before it as the block's input, then the block's layers, shared_head_norm into `out`, the target's head into `logits` and its argmax into the next id.
     void draft(const DraftStep& s) const override {
-        if (cfg_.dflash) return cfg_.dflash->selector_rank ? dflash2_block(s) : dflash_block(s);
+        if (cfg_.dflash) return cfg_.dflash->kind == dflash::Kind::dspine ? dflash_block(s) : dflash2_block(s);
         backend::Backend& b = s.b;
         const Weight* w = s.w;
         const size_t E = (size_t)cfg_.n_embd, n = s.rows;
@@ -578,17 +578,17 @@ private:
         s.b.copy(*plane.buffer, plane.offset * sizeof(float), *s.x.buffer, s.x.offset * sizeof(float), s.rows * E * sizeof(float));
     }
 
-    // A DFlash sidecar (docs/SPECULATIVE.md, section 11): fc and its norm over the taps, the drafter's layers each in a KV layer of its own, its final norm, the code bridge and the target's embedding and head.
-    // A DFlash2 sidecar holds a convolution around each layer's attention and feed-forward and the selector in place of DSpine's code bridge.
+    // A DFlash sidecar (docs/SPECULATIVE.md, section 11): fc and its norm over the taps, the drafter's layers each in a KV layer of its own, its final norm and the target's embedding and head.
+    // A DSpine sidecar adds its code bridge, and a DFlash2 sidecar a convolution around each layer's attention and feed-forward and its selector.
     void plan_dflash(const TensorIndex& tensors, ModelPlan& p) const {
         const dflash::Config& d = *cfg_.dflash;
-        const bool dflash2 = d.selector_rank > 0;
+        const bool dflash2 = d.kind == dflash::Kind::dflash2, spine = d.kind == dflash::Kind::dspine;
         const uint64_t E = (uint64_t)cfg_.n_embd, T = d.taps.size(), D = (uint64_t)d.head_dim, Q = (uint64_t)d.heads * D, KV = (uint64_t)d.kv_heads * D, F = (uint64_t)d.ff;
         const auto shape = [&](const std::string& name, size_t axis) { return (uint64_t)tensors.view(tensors.at(name)).shape.at(axis); };
         if (uint64_t(d.top_k) > p.vocab) throw std::runtime_error("inference: a DFlash drafter's selector_top_k exceeds the vocabulary");
         if (dflash2 && E % uint64_t(d.conv_group)) throw std::runtime_error("inference: a DFlash2 drafter's conv_group_size does not divide its width");
         const uint64_t S = uint64_t(d.selector_rank), CW = dflash2 ? 2 * uint64_t(d.conv_taps) * (E / uint64_t(d.conv_group)) : 0;
-        const uint64_t C = dflash2 ? 0 : shape("dflash.dspine_codebook.weight", 0), R = dflash2 ? 0 : shape("dflash.dspine_gate.bias", 0);
+        const uint64_t C = spine ? shape("dflash.dspine_codebook.weight", 0) : 0, R = spine ? shape("dflash.dspine_gate.bias", 0) : 0;
         LayerPlan dl;
         dl.kind = full;
         dl.cache = Cache::kv;
@@ -601,7 +601,7 @@ private:
             dl.roles.insert(dl.roles.end(), {{dflash_selector_hidden, Part::draft, RoleKind::matrix, "dflash.selector_hidden.weight", "", E, S},
                                              {dflash_selector_prev, Part::draft, RoleKind::gather, "dflash.selector_predecessor.weight", "", S, p.vocab},
                                              {dflash_selector_next, Part::draft, RoleKind::matrix, "dflash.selector_successor.weight", "", S, p.vocab}});
-        else
+        else if (spine)
             dl.roles.insert(dl.roles.end(), {{dflash_codebook, Part::draft, RoleKind::gather, "dflash.dspine_codebook.weight", "", C, p.vocab},
                                              {dflash_gate, Part::draft, RoleKind::matrix, "dflash.dspine_gate.weight", "", C, R},
                                              {dflash_gate_bias, Part::draft, RoleKind::norm, "dflash.dspine_gate.bias", "", R},
@@ -630,27 +630,33 @@ private:
                 role(df_ffn_conv, RoleKind::matrix, "ffn_conv_proj.weight", E, CW);
                 role(df_ffn_conv_base, RoleKind::table, "ffn_conv_base", E, 2 * uint64_t(d.conv_taps));
                 dl.roles.back().sides = 2;
-            } else {
+            } else if (spine) {
                 role(df_read, RoleKind::matrix, "dspine_read.weight", E, C);
                 role(df_write, RoleKind::matrix, "dspine_write.weight", R, E);
             }
         }
         for (infer::Role& r : dl.roles) r.stream = Stream::none;
         using backend::Op;
-        for (Op op : {Op::norm_rope_partial, Op::attention_window, Op::embed_ids, Op::topk_rows, Op::matmul_at_ids, Op::chain_pick})
+        for (Op op : {Op::norm_rope_partial, Op::attention_window, Op::embed_ids})
             dl.ops.push_back({Part::draft, op});
+        if (d.kind == dflash::Kind::dflash) dl.ops.push_back({Part::draft, Op::argmax_rows});
+        else dl.ops.insert(dl.ops.end(), {{Part::draft, Op::topk_rows}, {Part::draft, Op::matmul_at_ids}, {Part::draft, Op::chain_pick}});
         if (dflash2) dl.ops.push_back({Part::draft, Op::tap_weighted_rows});
-        else dl.ops.insert(dl.ops.end(), {{Part::draft, Op::unit_rows}, {Part::draft, Op::sigmoid_gate_rows}});
-        // The block's selection picks top_k of a draft row's logits over the whole vocabulary, which the device's scratch is priced for.
-        p.widths.topk_picks = std::max(p.widths.topk_picks, size_t(d.top_k));
-        p.widths.topk_items = std::max(p.widths.topk_items, size_t(p.vocab));
+        else if (spine) dl.ops.insert(dl.ops.end(), {{Part::draft, Op::unit_rows}, {Part::draft, Op::sigmoid_gate_rows}});
+        // A DSpine or DFlash2 block picks top_k of a draft row's logits over the whole vocabulary, which the device's scratch is priced for.
+        if (d.kind != dflash::Kind::dflash) {
+            p.widths.topk_picks = std::max(p.widths.topk_picks, size_t(d.top_k));
+            p.widths.topk_items = std::max(p.widths.topk_items, size_t(p.vocab));
+        }
         // A tap layer's mixer writes its plane, which crosses with the residual from the first tap on (ModelPlan::Carried).
         for (int t : d.taps) p.layers[size_t(t)].kind |= writes_tap;
         p.carried.push_back({tap_slot(), d.taps.front() + 1});
         // Then the block's: its codes, gates, messages, row norms and last raw rows, and the tail's refined rows, scores and candidates, R * K tail rows in R * block_size rows' room.
         const size_t f = (size_t(d.top_k) + size_t(d.block) - 1) / size_t(d.block), two = std::max<size_t>(2, f), K = size_t(d.top_k);
         // DFlash2's: the convolution's coefficients and output, the selector's gates, predecessor rows, scores and candidates.
+        // A DFlash drafter's: the taps side by side and the context row alone.
         if (dflash2) p.slots.insert(p.slots.end(), {size_t(T * E), size_t(T * E), size_t(E), size_t(CW), size_t(E), size_t(S), f * S, K * K, K, 1});
+        else if (!spine) p.slots.insert(p.slots.end(), {size_t(T * E), size_t(T * E), size_t(E)});
         else p.slots.insert(p.slots.end(), {size_t(T * E), size_t(T * E), size_t(E), two * C, 2 * R, two * R, two * R, f * R, 1, size_t(E), f * E, K * K, K, 1});
         for (const auto& [slot, width] : std::initializer_list<std::pair<size_t, size_t>>{{2, size_t(Q)}, {3, size_t(KV)}, {4, size_t(KV)}, {6, size_t(Q)}, {7, size_t(F)}, {8, size_t(F)}, {9, size_t(F)}})
             p.slots[slot] = std::max(p.slots[slot], width);
@@ -660,8 +666,9 @@ private:
         p.role_ids = dflash_role(size_t(d.layers), df_norm);
         p.draft_kv_layers = size_t(d.layers);
         if (d.kv_heads != cfg_.n_head_kv || d.head_dim != cfg_.head_dim) p.draft_kv = {size_t(d.kv_heads), size_t(d.head_dim)};
-        p.draft_window = size_t(d.window);
-        p.draft_causal = d.causal;
+        // The views are windowed where every layer is and causal for DSpine, whose block takes the cut to its longest chain, and a layer that attends otherwise takes its own (draft_views); a layer over all its context makes every context row read.
+        p.draft_window = std::find(d.windowed.begin(), d.windowed.end(), false) == d.windowed.end() ? size_t(d.window) : 0;
+        p.draft_causal = spine;
         p.draft_block = size_t(d.block) - 1;
         p.draft_anchor = 1;
         p.drafter = std::move(dl);
@@ -686,6 +693,20 @@ private:
             s.b.norm_rope_partial(k, k, rows, Hkv * D, D, Hkv, D, D, w[dflash_role(l, df_k_norm)].slice(), cfg_.rms_eps, cos, sin, s.pos, backend::RopeForm{}, s.streams);
             s.b.kv_write(s.kv_layer + l, s.views, s.n_views, k, v);
         }
+    }
+
+    // The views drafter layer `l` attends through: the call's where they carry its causality and window, else copies that do in `own`, which outlives the layer's attention.
+    const backend::KVView* draft_views(const DraftStep& s, size_t l, std::vector<backend::KVView>& own) const {
+        const dflash::Config& d = *cfg_.dflash;
+        const bool causal = d.causal[l];
+        const size_t window = d.layer_window(l);
+        if (!s.n_views || (s.views[0].causal == causal && s.views[0].window == window)) return s.views;
+        own.assign(s.views, s.views + s.n_views);
+        for (backend::KVView& v : own) {
+            v.causal = causal;
+            v.window = window;
+        }
+        return own.data();
     }
 
     // A DSpine block of each sequence (tools/dspine_reference.py, block): its last pick then mask rows at the next positions through the drafter's layers, each layer's code bridge passing row r - 1's code to row r.
@@ -719,13 +740,14 @@ private:
         b.gather_rows(s.x, h, E, first, n);
         b.rms_norm_rows(h, s.x, lw(0, df_norm).slice(), n, E, E, eps, x.runs);
         const backend::CSlice cos{s.tables[2].get(), 0}, sin{s.tables[3].get(), 0};
+        std::vector<backend::KVView> own;
         for (size_t l = 0; l < L; ++l) {
             b.matmul_group({blocks::projection(lw(l, df_q), q), blocks::projection(lw(l, df_k), k), blocks::projection(lw(l, df_v), v)}, h, E, n, x.runs, s.dtype);
             b.norm_rope_partial(q, q, n, H * D, D, H, D, D, lw(l, df_q_norm).slice(), eps, cos, sin, s.pos, backend::RopeForm{}, s.streams);
             b.norm_rope_partial(k, k, n, Hkv * D, D, Hkv, D, D, lw(l, df_k_norm).slice(), eps, cos, sin, s.pos, backend::RopeForm{}, s.streams);
             // Every row's K and V are written before any row attends, so no row reads a stale row of an earlier block at its position.
             b.kv_write(s.kv_layer + l, s.views, s.n_views, k, v);
-            b.attention(q, s.kv_layer + l, s.views, s.n_views, att, int(H), int(Hkv), int(D));
+            b.attention(q, s.kv_layer + l, draft_views(s, l, own), s.n_views, att, int(H), int(Hkv), int(D));
             b.matmul_add(lw(l, df_output).operand(), att, s.x, H * D, E, n, x.runs, s.dtype);
             b.rms_norm_rows(h, s.x, lw(l, df_ffn_norm).slice(), n, E, E, eps, x.runs);
             blocks::swiglu(x, lw(l, df_gate), lw(l, df_up), lw(l, df_down), h, s.slot(7), s.slot(8), s.slot(9));
@@ -776,8 +798,8 @@ private:
         b.chain_pick(s.next, score, cand, R, B, K);
     }
 
-    // A DFlash2 block of each sequence: its last pick then mask rows through the drafter's layers, each row attending the whole block over the window, with the convolution of side 0 into each attention and feed-forward and of side 1 out of it.
-    // The target's head over the final-normed rows past the first gives each draft's logits and top_k candidates, and the selector scores each candidate after each of the step before's, which chain_pick walks.
+    // A DFlash or DFlash2 block: its last pick then mask rows through the drafter's layers, each attending as its layer does (draft_views), DFlash2 convolving side 0 into each attention and feed-forward and side 1 out.
+    // The target's head over the final-normed rows past the first gives each draft's logits; a DFlash drafter takes each one's argmax, and DFlash2's selector scores each top_k candidate after each of the step before's for chain_pick.
     void dflash2_block(const DraftStep& s) const {
         const dflash::Config& d = *cfg_.dflash;
         backend::Backend& b = s.b;
@@ -785,16 +807,17 @@ private:
         const auto lw = [&](size_t l, DFlashRole r) -> const Weight& { return w[dflash_role(l, r)]; };
         const size_t E = (size_t)cfg_.n_embd, D = (size_t)d.head_dim, H = (size_t)d.heads, Hkv = (size_t)d.kv_heads, L = (size_t)d.layers, F = (size_t)d.ff;
         const size_t A = (size_t)d.block, K = (size_t)d.top_k, R = s.rows, n = R * A, B = A - 1, S = (size_t)d.selector_rank;
-        const size_t CK = (size_t)d.conv_taps, group = (size_t)d.conv_group, CW = 2 * CK * (E / group);
-        const Weight &embd = w[token_embd], &head = w[output], &prev_rows = w[dflash_selector_prev], &next_rows = w[dflash_selector_next];
+        const bool conv = d.kind == dflash::Kind::dflash2;
+        const size_t CK = (size_t)d.conv_taps, group = conv ? (size_t)d.conv_group : 1, CW = 2 * CK * (E / group);
+        const Weight &embd = w[token_embd], &head = w[output];
         const size_t V = head.nout;
         const float eps = cfg_.rms_eps;
         if (s.width > 1) throw std::runtime_error("inference: a DFlash drafter does not run on a tensor group yet (docs/STATUS.md, DSpine drafters for qwen35)");
         if (s.stride != R || s.ids != B || s.phase >= 0) throw std::logic_error("inference: a DFlash draft is one call over its sequences' blocks");
         if (!s.indices || s.indices_size < n * (1 + CK)) throw std::runtime_error("inference: the DFlash draft's index scratch is too small");
         const size_t base = tap_slot();
-        const backend::Slice h = s.slot(1), q = s.slot(2), k = s.slot(3), v = s.slot(4), att = s.slot(6), dyn = s.slot(base + 3), cv = s.slot(base + 4),
-                             gate = s.slot(base + 5), prev = s.slot(base + 6), score = s.slot(base + 7), cand = s.slot(base + 8), lens = s.slot(base + 9);
+        const auto own_slot = [&](size_t i) { return conv ? s.slot(base + i) : backend::Slice{}; };
+        const backend::Slice h = s.slot(1), q = s.slot(2), k = s.slot(3), v = s.slot(4), att = s.slot(6), dyn = own_slot(3), cv = conv ? own_slot(4) : h;
         const auto at = [](backend::Slice x, size_t floats) { return backend::Slice{x.buffer, x.offset + floats}; };
         const auto side = [&](const Weight& wt, size_t i) { const backend::CSlice c = wt.slice(); return backend::CSlice{c.buffer, c.offset + i * CK * E}; };
         uint32_t *first = s.indices, *taps = s.indices + n;
@@ -810,15 +833,24 @@ private:
         for (size_t r = 0; r < n; ++r)
             for (size_t t = 0; t < CK; ++t) taps[r * CK + t] = r % A >= t ? uint32_t(r - t) : UINT32_MAX;
         const backend::CSlice cos{s.tables[2].get(), 0}, sin{s.tables[3].get(), 0}, coeff_in{dyn.buffer, dyn.offset}, coeff_out{dyn.buffer, dyn.offset + CK * (E / group)};
+        std::vector<backend::KVView> own;
         for (size_t l = 0; l < L; ++l) {
             b.rms_norm_rows(h, s.x, lw(l, df_norm).slice(), n, E, E, eps, x.runs);
-            b.matmul(lw(l, df_attn_conv).operand(), h, dyn, E, CW, n, x.runs, s.dtype);
-            b.tap_weighted_rows(cv, h, E, taps, n, CK, side(lw(l, df_attn_conv_base), 0), coeff_in, CW, group, false);
+            if (conv) {
+                b.matmul(lw(l, df_attn_conv).operand(), h, dyn, E, CW, n, x.runs, s.dtype);
+                b.tap_weighted_rows(cv, h, E, taps, n, CK, side(lw(l, df_attn_conv_base), 0), coeff_in, CW, group, false);
+            }
             b.matmul_group({blocks::projection(lw(l, df_q), q), blocks::projection(lw(l, df_k), k), blocks::projection(lw(l, df_v), v)}, cv, E, n, x.runs, s.dtype);
             b.norm_rope_partial(q, q, n, H * D, D, H, D, D, lw(l, df_q_norm).slice(), eps, cos, sin, s.pos, backend::RopeForm{}, s.streams);
             b.norm_rope_partial(k, k, n, Hkv * D, D, Hkv, D, D, lw(l, df_k_norm).slice(), eps, cos, sin, s.pos, backend::RopeForm{}, s.streams);
             b.kv_write(s.kv_layer + l, s.views, s.n_views, k, v);
-            b.attention(q, s.kv_layer + l, s.views, s.n_views, att, int(H), int(Hkv), int(D));
+            b.attention(q, s.kv_layer + l, draft_views(s, l, own), s.n_views, att, int(H), int(Hkv), int(D));
+            if (!conv) {
+                b.matmul_add(lw(l, df_output).operand(), att, s.x, H * D, E, n, x.runs, s.dtype);
+                b.rms_norm_rows(h, s.x, lw(l, df_ffn_norm).slice(), n, E, E, eps, x.runs);
+                blocks::swiglu(x, lw(l, df_gate), lw(l, df_up), lw(l, df_down), h, s.slot(7), s.slot(8), s.slot(9));
+                continue;
+            }
             b.matmul(lw(l, df_output).operand(), att, h, H * D, E, n, x.runs, s.dtype);
             b.tap_weighted_rows(s.x, h, E, taps, n, CK, side(lw(l, df_attn_conv_base), 1), coeff_out, CW, group, true);
             b.rms_norm_rows(h, s.x, lw(l, df_ffn_norm).slice(), n, E, E, eps, x.runs);
@@ -830,24 +862,29 @@ private:
             b.tap_weighted_rows(s.x, h, E, taps, n, CK, side(lw(l, df_ffn_conv_base), 1), coeff_out, CW, group, true);
         }
         // Draft j of sequence i from row i * A + j + 1, in row j * R + i of the logits: the head over its final-normed row, its top_k candidates, and the selector's gate of it.
-        for (size_t j = 0; j < B; ++j)
+        // Only the drafts some sequence reads take the head; the block's rows past them still shape these through its non-causal layers.
+        const size_t U = s.drafts ? std::min(s.drafts, B) : B;
+        for (size_t j = 0; j < U; ++j)
             for (size_t i = 0; i < R; ++i) first[j * R + i] = uint32_t(i * A + j + 1);
-        const backend::RowRun drafts{R * B, 1};
-        b.gather_rows(h, s.x, E, first, R * B);
-        b.rms_norm_rows(h, h, w[dflash_output_norm].slice(), R * B, E, E, eps, {&drafts, 1});
-        b.matmul_logits(head.operand(), h, s.logits, E, V, R * B, {&drafts, 1}, s.dtype);
-        b.matmul(w[dflash_selector_hidden].operand(), h, gate, E, S, R * B, {&drafts, 1}, s.dtype);
-        const std::vector<uint32_t> whole(R * B, uint32_t(V));
+        const backend::RowRun drafts{R * U, 1};
+        b.gather_rows(h, s.x, E, first, R * U);
+        b.rms_norm_rows(h, h, w[dflash_output_norm].slice(), R * U, E, E, eps, {&drafts, 1});
+        b.matmul_logits(head.operand(), h, s.logits, E, V, R * U, {&drafts, 1}, s.dtype);
+        if (!conv) return b.argmax_rows(s.next, s.logits, R * U, V);
+        const Weight &prev_rows = w[dflash_selector_prev], &next_rows = w[dflash_selector_next];
+        const backend::Slice gate = own_slot(5), prev = own_slot(6), score = own_slot(7), cand = own_slot(8), lens = own_slot(9);
+        b.matmul(w[dflash_selector_hidden].operand(), h, gate, E, S, R * U, {&drafts, 1}, s.dtype);
+        const std::vector<uint32_t> whole(R * U, uint32_t(V));
         b.write(*lens.buffer, lens.offset * sizeof(float), whole.data(), whole.size() * sizeof(uint32_t));
-        b.topk_rows(cand, s.logits, lens, R * B, V, K, 0);
+        b.topk_rows(cand, s.logits, lens, R * U, V, K, 0);
         // Step t scores draft t's candidates after each of draft t - 1's, the predecessor's row under the draft's gate against each candidate's row, plus the candidate's own logit; step 0 follows the last pick alone.
-        for (size_t t = 0; t < B; ++t) {
+        for (size_t t = 0; t < U; ++t) {
             const size_t per = t ? K : 1;
             b.embed_ids(prev, prev_rows.operand(), S, prev_rows.nout, t ? backend::CSlice{cand.buffer, cand.offset + (t - 1) * R * K} : s.id, R * per);
             b.matmul_at_ids(at(score, t * R * K * K), prev, backend::CSlice{gate.buffer, gate.offset + t * R * S}, S, next_rows.operand(), S, next_rows.nout,
                             backend::CSlice{cand.buffer, cand.offset + t * R * K}, R, K, per, backend::CSlice{s.logits.buffer, s.logits.offset + t * R * V}, V);
         }
-        b.chain_pick(s.next, score, cand, R, B, K);
+        b.chain_pick(s.next, score, cand, R, U, K);
     }
 
     // A full-attention layer's mixer roles under `pre`, run with `part`: its kind, its KV cache and its ops.

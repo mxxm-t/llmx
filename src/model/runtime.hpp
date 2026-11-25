@@ -1309,6 +1309,7 @@ public:
         std::vector<DraftAsk> asks;
         std::vector<size_t> order;             // the asks that draft, longest chain first
         size_t steps = 0, block = 1;           // the drafter's calls, each giving up to `block` drafts a sequence
+        size_t drafts = 0;                     // the longest chain's drafts
         size_t call_rows = 1;                  // and running that many rows a sequence (draft_call_rows)
         std::vector<uint32_t> last, carried;   // each row's last pick and the slot of the row its history carries
         std::vector<size_t> rows;              // each step's rows

@@ -157,6 +157,7 @@ On qwen35moe slots 10 to 13 hold the router scores, the expert ids, the expert w
 With a DFlash drafter three slots follow: the taps, one plane of the pass's rows each, the taps of each row side by side, and `fc`'s normed output.
 The block's follow them: its codes (the block's rows and the anchors' after them), the bridge's gate, pred_gate and prev rows, its messages, each row's root mean square, the last layer's rows before its bridge, and the tail's refined rows, scores and candidates; the tail's are `ceil(top_k / block_size)` times as wide, so a step's `R * top_k` rows fit the room of the call's `R * block_size`.
 A DFlash2 block's follow the same three instead: the convolution's coefficients and output, the selector's gates, predecessor rows, scores and candidates, and the candidates' lengths.
+A plain DFlash block takes none past the three.
 
 ## A DFlash drafter's context rows
 
@@ -170,10 +171,11 @@ After each layer's feed-forward block the code bridge takes the row's root mean 
 The target's head over the final-normed rows past the anchor gives each draft's logits, which are what `draft_logits` returns, not the draft's own scores, and `topk_rows` their `top_k` candidates by ascending id.
 The tail runs the last layer's bridge once more for draft t's row under each candidate code of the step before (the last pick for the first), `matmul_at_ids` scores each refined row against its candidates' head rows times `output_norm`, and `chain_pick` walks from the first row's best through each step's row of the candidate taken.
 
-## A DFlash2 block
+## A DFlash2 or DFlash block
 
-`dflash2_block` follows `tools/dspine_reference.py` (`dflash2_block`) on the CPU, taken in place of `dflash_block` where the sidecar has a `selector_rank`, over the same blocks of the last pick then mask rows.
-Its views are non-causal (`ModelPlan::draft_causal` false), so each row attends, through the window counted from its own position, the context rows and every row of its block.
+`dflash2_block` follows `tools/dspine_reference.py` (`dflash2_block`, or `dflash_block` for a plain DFlash drafter) on the CPU, taken in place of `dflash_block` for every kind but DSpine, over the same blocks of the last pick then mask rows.
+Each layer attends through `draft_views`: the chain's views where they carry the layer's causality and window, else copies that do, so a DFlash2 row sees, through the window counted from its own position, the context rows and every row of its block, and a plain DFlash drafter's windowed layers attend causally and its last over all positions not.
+A plain DFlash drafter has no convolution: its layers add the attention and the feed-forward output to the residual, and each draft is the `argmax_rows` of its logits.
 Around each layer's attention and feed-forward a convolution within the block: `attn_conv_proj` or `ffn_conv_proj` over the normed row gives its coefficients, and `tap_weighted_rows` with side 0 of the base feeds q, k and v or the gate and up products, and with side 1 adds the attention or feed-forward output into the residual, row r's tap t reading row r - t of its block and none before its first.
 The target's head over the final-normed rows past the anchor gives each draft's logits and `topk_rows` their `top_k` candidates, and `selector_hidden` over the same rows each draft's gate.
 Step t takes `selector_predecessor`'s rows of draft t - 1's candidates (the last pick for the first) through `embed_ids`, `matmul_at_ids` scores each under the draft's gate against its candidates' `selector_successor` rows plus each candidate's own logit, and `chain_pick` walks the scores.

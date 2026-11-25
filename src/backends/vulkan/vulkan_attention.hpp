@@ -134,9 +134,11 @@ inline void VulkanBackend::attention(CSlice Q, size_t layer, const KVView* views
     std::vector<Placed> placed = place_views(views, n_views);
     if (placed.empty()) return;
     const OpSteps steps(*this);
-    // A call's views are causal or not alike; non-causal ones without a window, a vision encoder's, take the per-row kernel's full build over f32 caches.
-    // Non-causal views over a window, a DFlash2 drafter's, take the window builds read through the block's last row, whatever their sides.
+    // A call's views are causal or not alike; non-causal ones without a window, a vision encoder's, take the full builds over f32 sides, which have no f16 form.
+    // Non-causal views over a window, a DFlash2 drafter's, take the window builds read through the block's last row, whatever their sides, as do a DFlash drafter's unwindowed ones over f16 under a window past every position.
     const bool full = !placed.front().view->causal;
+    const VulkanKVStorage& sides = storage_of(placed.front().view->storage);
+    const bool f32_sides = sides.k_type() == KVType::f32 && sides.v_type() == KVType::f32;
     bool windowed = false;
     for (const Placed& pv : placed) {
         if (!pv.view->nq) throw std::runtime_error("vulkan: invalid attention dimensions");
@@ -152,11 +154,10 @@ inline void VulkanBackend::attention(CSlice Q, size_t layer, const KVView* views
     if (floats_from(Q) < rows * qstride || floats_from(out) < rows * qstride)
         throw std::runtime_error("vulkan: attention rows outside their allocation");
     // Non-causal views of heads 64 or 72 wide, a vision encoder's, take the flash kernel: a tile of 64 query rows shares each staged tile of keys (shaders/attention_flash.comp).
-    if (full && !windowed && (head_dim == 64 || head_dim == 72)) {
+    if (full && !windowed && f32_sides && (head_dim == 64 || head_dim == 72)) {
         ViewTable t = view_table(layer, placed, false);
         VulkanKVStorage& s = *t.storage;
         check_storage(s, layer, n_head_kv, head_dim);
-        if (s.k_type() != KVType::f32 || s.v_type() != KVType::f32) throw std::runtime_error("vulkan: non-causal attention over a cache that is not f32");
         // A workgroup's multiply-adds: its 64 rows' dots and weighted sums over every key.
         std::vector<std::pair<size_t, size_t>> runs;
         for (const Placed& pv : placed)
@@ -206,13 +207,17 @@ inline void VulkanBackend::attention(CSlice Q, size_t layer, const KVView* views
         // A view whose window starts a row past position 0, and every non-causal view over a window, takes the window builds, one head a workgroup, a dispatch for each window; its other views run the builds they ran before.
         std::vector<Placed> sets[2];
         std::map<size_t, std::vector<Placed>> windows;
+        size_t unwindowed = 0;
         for (const Placed& pv : narrow) {
             const size_t end = size_add(pv.view->length, pv.view->nq);
             if (pv.view->window && (end > pv.view->window || full)) windows[pv.view->window].push_back(pv);
-            else sets[hg > 1 && end >= dev_->profile.attention_group_from ? 1 : 0].push_back(pv);
+            else if (full && !f32_sides) {
+                windows[UINT32_MAX].push_back(pv);
+                unwindowed = size_add(unwindowed, size_mul(pv.view->nq * (size_t)n_head, size_mul(2 * (size_t)head_dim, end)));
+            } else sets[hg > 1 && end >= dev_->profile.attention_group_from ? 1 : 0].push_back(pv);
         }
-        if (full && !sets[0].empty() && (s.k_type() != KVType::f32 || s.v_type() != KVType::f32))
-            throw std::runtime_error("vulkan: non-causal attention over a cache that is not f32");
+        // The window builds run uncut, so a vision encoder's long prompt over f16 sides is refused rather than left to outrun a job's time limit.
+        if (unwindowed > kFullRowProducts) throw std::runtime_error("vulkan: non-causal attention this long over f16 sides; run with --cache-type-k f32 --cache-type-v f32");
         for (int grouped = 0; grouped < 2; ++grouped)
             if (!sets[grouped].empty()) narrow_attention(Q, layer, sets[grouped], out, n_head, n_head_kv, head_dim, grouped ? hg : 1u, xq, quant, rows);
         for (const auto& [window, set] : windows) narrow_attention(Q, layer, set, out, n_head, n_head_kv, head_dim, 1u, xq, quant, rows, window);

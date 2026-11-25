@@ -499,6 +499,11 @@ Correctness of the drafter is held by a numpy port of the reference code over th
 The reference's walk can also stop below a probability floor; llmx drafts the whole block.
 The block's ops and the non-causal window run on the CPU, the GPU core (ROCm and CUDA) and Vulkan, whose window builds read a non-causal row through the block's last row.
 
+**DFlash.** z-lab's DFlash drafters (github.com/z-lab/dflash, `dflash/model.py`; Qwen3.6-35B-A3B-DFlash, 6 layers, block 16, window 4096 on the first five layers, taps 2, 7, 12, 17, 23, 28, 33 and 38) run through DFlash2's block without its convolution and selector: each draft is the argmax of the target's head over its final-normed row (`argmax_rows`).
+- Each layer attends as its type gives it, the drafter's views carrying the first layer's causality and window and a layer that differs attending through copies that carry its own (`KVView::causal`, `KVView::window`); a layer over all positions makes every prompt row a context row (`ModelPlan::draft_window` 0).
+- The converted GGUF has no `attention.causal`, and z-lab's code makes a layer of a config without `is_causal` causal over its window and non-causal over all positions, so llmx reads the five windowed layers as causal and the last as non-causal; the code the checkpoint shipped with (April 2026) ran every layer non-causal without a window, which a file with `dflash.attention.causal` false gives.
+- A non-causal windowed row of the reference also sees no block row a window or more ahead, which llmx's view does not cut; the two differ only for a block longer than the window.
+
 ## 12. DFly2: a DFlash drafter of DeepSeek-V4.1 with a correction
 
 DFly2 (AngelSpec, `dfly2` = DSpark without its Markov head) drafts a block of 6 for DeepSeek-V4.1-Flash: 3 trunk-shaped stages over the mask token's rows, then a correction that runs serially over the drafts before the target's head.

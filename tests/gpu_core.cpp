@@ -27,7 +27,10 @@ struct GroupLaunch {
 // What the fake has handed out and not yet taken back, each kind counted, and calls a test makes fail.
 struct FakeState {
     std::atomic<long> memory{0}, host{0}, streams{0}, events{0}, modules{0}, launches{0};
-    std::atomic<bool> refuse_malloc{false}, refuse_elapsed{false}, no_binary{false};
+    std::atomic<bool> refuse_malloc{false}, refuse_elapsed{false}, refuse_launch{false}, no_binary{false};
+    std::atomic<uint64_t*> waited_word{nullptr};   // the word of the last wait_word, and the value it waited for
+    std::atomic<uint64_t> waited_value{0};
+    bool first_wait_closed = false;
     std::atomic<int*> dead{nullptr};   // a stream whose events report a device error, a member whose card is gone
     bool recording = false;
     std::vector<GroupLaunch> groups;   // the group sums launched while recording
@@ -100,8 +103,9 @@ struct FakeApi {
         --fake.memory;
         return kSuccess;
     }
-    static Error host_malloc(void** p, size_t bytes, bool) {
+    static Error host_malloc(void** p, size_t bytes, bool coherent) {
         *p = std::calloc(1, bytes ? bytes : 1);
+        if (coherent && bytes == sizeof(uint64_t)) std::memset(*p, 1, bytes);
         ++fake.host;
         return kSuccess;
     }
@@ -142,7 +146,12 @@ struct FakeApi {
     }
     static Error stream_sync(Stream) { return kSuccess; }
     static Error stream_wait_event(Stream, Event) { return kSuccess; }
-    static Error wait_word(Stream, void*, uint64_t) { return kSuccess; }
+    static Error wait_word(Stream, void* word, uint64_t value) {
+        if (!fake.waited_word.load()) fake.first_wait_closed = *(uint64_t*)word < value;
+        fake.waited_word = (uint64_t*)word;
+        fake.waited_value = value;
+        return kSuccess;
+    }
     static Error write_word(Stream, void* word, uint64_t value) {
         *(uint64_t*)word = value;
         return kSuccess;
@@ -193,6 +202,7 @@ struct FakeApi {
         return kSuccess;
     }
     static Error launch(Function f, unsigned gx, unsigned, unsigned, unsigned, unsigned, Stream s, void* args, size_t size) {
+        if (fake.refuse_launch) return kRefused;
         ++fake.launches;
         const std::string name = f;
         if (fake.recording && (name == "llmx_group_sum" || name == "llmx_group_shares" || name == "llmx_group_chain"))
@@ -357,16 +367,36 @@ int main() {
     }
     {
         // A diagnostics backend times each kernel, copy and fill it issues, read once.
+        fake.waited_word = nullptr;
         GpuBackend<FakeApi> timed(0, true);
         Backend& b = timed;
         BufferPtr buf = b.alloc(4096 * sizeof(float), Memory::device);
         std::vector<float> in(4096, 1.0f);
         b.write(*buf, 0, in.data(), in.size() * sizeof(float));
         b.add({buf.get(), 0}, {buf.get(), 0}, 1024);
+        BufferPtr other = b.alloc(1024 * sizeof(float), Memory::device);
+        b.copy(*other, 0, *buf, 0, 1024 * sizeof(float));
+        b.read(*buf, 0, in.data(), 1024 * sizeof(float));
         const Backend::KernelTimes t = b.kernel_times();
         std::string names;
         for (const auto& k : t.kernels) names += " " + k.first;
-        require(names == " copy fill llmx_add" && t.dispatches == 1 && t.gaps.size() == 2 && t.unresolved == 0, "a diagnostics backend times its fill, copy and kernel:" + names);
+        require(names == " copy fill llmx_add readback upload" && t.dispatches == 1 && t.gaps.size() == 5 && t.unresolved == 0,
+                "a diagnostics backend times its fills, upload, kernel, device copy and readback apart:" + names);
+        // Each flush waits behind a word the host sets once the flush has issued every op, so the host's time to issue them is idle before the first (docs/src/backends-gpu.md).
+        require(fake.first_wait_closed, "the timing gate is closed when the first flush issues its wait");
+        uint64_t* const gate = fake.waited_word;
+        require(gate && *gate >= fake.waited_value && fake.waited_value > 0, "a diagnostics backend's flush waits behind its gate word and releases it");
+        fake.refuse_launch = true;
+        bool refused = false;
+        try {
+            b.add({buf.get(), 0}, {buf.get(), 0}, 1024);
+            (void)b.submit();
+        } catch (const std::exception&) {
+            refused = true;
+        }
+        fake.refuse_launch = false;
+        require(refused && gate && fake.waited_word == gate && *gate >= fake.waited_value, "a flush whose launch is refused releases its gate word");
+        (void)b.kernel_times();
         require(b.kernel_times().kernels.empty(), "a reading starts the next interval empty");
         b.add({buf.get(), 0}, {buf.get(), 0}, 1024);
         fake.refuse_elapsed = true;

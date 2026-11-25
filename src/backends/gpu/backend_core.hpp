@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <condition_variable>
 #include <cstddef>
@@ -2549,6 +2550,8 @@ public:
         return m;
     }
     void route_only(std::string build) { route_only_ = std::move(build); }
+    // A timing backend sleeps this long between a timed op's start event and its launch: the tests' host that falls behind its device.
+    void delay_launches(std::chrono::microseconds delay) { delay_ = delay; }
 
 private:
     // The F32 module's kernels, then from kRows16x1 the int16 module's, which only read twins.
@@ -4264,6 +4267,7 @@ private:
                 }
                 const bool timed = timing_ && op.kind <= Held::fill && timed_.size() < kTimedOps;
                 if (timed) Api::check(Api::event_record(timed_event(2 * timed_.size()), stream_), "event_record");
+                if (timed && delay_.count()) std::this_thread::sleep_for(delay_);
                 if (op.kind == Held::kernel) {
                     launch_check(Api::launch(op.f, op.gx, op.gy, op.gz, op.threads, (unsigned)op.bytes, stream_, bytes.data() + op.at, op.size), op.name);
                 } else if (op.kind == Held::copy) {
@@ -4370,6 +4374,7 @@ private:
     std::vector<typename Api::Event> timed_events_;   // their start and end events, two an op
     size_t launched_[kKernels] = {};   // launches of each kernel since rocm_take_launches last read them
     std::string route_only_;   // rocm_route_only's filter of the routed tile builds, empty for all of them
+    std::chrono::microseconds delay_{0};   // delay_launches' sleep before each timed launch
     std::mutex failed_mu_;
     std::string failed_;
     unsigned* fault_ = nullptr;   // host memory a group sum's kernel sets where it gave up waiting (kernels/f32.gpu, llmx_group_sum)

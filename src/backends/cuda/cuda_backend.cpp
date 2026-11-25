@@ -169,6 +169,7 @@ BackendPtr make_cuda_backend(int device, bool diagnostics) { return std::make_sh
 
 std::map<std::string, size_t> cuda_take_launches(Backend& backend) { return dynamic_cast<CudaBackend&>(backend).take_launches(); }
 void cuda_route_only(Backend& backend, std::string build) { dynamic_cast<CudaBackend&>(backend).route_only(std::move(build)); }
+void cuda_delay_launches(Backend& backend, std::chrono::microseconds delay) { dynamic_cast<CudaBackend&>(backend).delay_launches(delay); }
 DeviceProfile& cuda_profile(Backend& backend) { return dynamic_cast<CudaBackend&>(backend).profile(); }
 DeviceCaps& cuda_caps(Backend& backend) { return dynamic_cast<CudaBackend&>(backend).caps(); }
 

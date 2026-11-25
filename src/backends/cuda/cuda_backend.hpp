@@ -3,6 +3,7 @@
 #include "backends/device_profile.hpp"
 #include "backends/gpu/gpu_backend.hpp"
 
+#include <chrono>
 #include <map>
 #include <memory>
 #include <string>
@@ -22,6 +23,8 @@ std::map<std::string, size_t> cuda_take_launches(Backend& backend);
 
 // Limits the routed tile builds a CUDA backend's calls may take to those whose name holds `build`, or lifts the limit when it is empty: the routed builds' witness.
 void cuda_route_only(Backend& backend, std::string build);
+// A diagnostics CUDA backend sleeps `delay` between each timed op's start event and its launch: the tests' witness that a host falling behind its device shows as idle, not as op time.
+void cuda_delay_launches(Backend& backend, std::chrono::microseconds delay);
 
 // The device numbers a CUDA backend shapes its kernels by (backends/device_profile.hpp), which its witnesses read.
 DeviceProfile& cuda_profile(Backend& backend);

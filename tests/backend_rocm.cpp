@@ -3984,6 +3984,14 @@ int main(int argc, char** argv) {
             std::cout << (failures ? "backend-rocm hc_entry: FAIL\n" : "backend-rocm hc_entry: PASS\n");
             return failures ? 1 : 0;
         }
+        // `timing` runs only the checks of a backend timing its ops.
+        if (argc > 1 && std::string(argv[1]) == "timing") {
+            twin_checks::kernel_times(*make_rocm_backend(0, true), *g, rocm_take_launches, require);
+            twin_checks::host_stall(*make_rocm_backend(0, true), rocm_profile, rocm_delay_launches, require);
+            twin_checks::gated_drop(*make_rocm_backend(0, true), *g, rocm_delay_launches, require);
+            std::cout << (failures ? "backend-rocm timing: FAIL\n" : "backend-rocm timing: PASS\n");
+            return failures ? 1 : 0;
+        }
         if (argc > 1 && std::string(argv[1]) == "collective") {
             collective();
             held_push();
@@ -4143,6 +4151,8 @@ int main(int argc, char** argv) {
         ds4::sparse_grouped(*g, rocm_caps, rocm_take_launches, require);
         pass_args(*g);
         twin_checks::kernel_times(*make_rocm_backend(0, true), *g, rocm_take_launches, require);
+        twin_checks::host_stall(*make_rocm_backend(0, true), rocm_profile, rocm_delay_launches, require);
+        twin_checks::gated_drop(*make_rocm_backend(0, true), *g, rocm_delay_launches, require);
         records();
         failure();
         collective();

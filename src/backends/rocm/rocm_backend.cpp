@@ -109,6 +109,7 @@ BackendPtr make_rocm_backend(int device, bool diagnostics) { return std::make_sh
 
 std::map<std::string, size_t> rocm_take_launches(Backend& backend) { return dynamic_cast<RocmBackend&>(backend).take_launches(); }
 void rocm_route_only(Backend& backend, std::string build) { dynamic_cast<RocmBackend&>(backend).route_only(std::move(build)); }
+void rocm_delay_launches(Backend& backend, std::chrono::microseconds delay) { dynamic_cast<RocmBackend&>(backend).delay_launches(delay); }
 
 DeviceProfile& rocm_profile(Backend& backend) { return dynamic_cast<RocmBackend&>(backend).profile(); }
 DeviceCaps& rocm_caps(Backend& backend) { return dynamic_cast<RocmBackend&>(backend).caps(); }

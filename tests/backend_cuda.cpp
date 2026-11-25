@@ -1031,9 +1031,18 @@ int main(int argc, char** argv) {
         groups();
         return failures ? 1 : 0;
     }
+    if (mode == "timing") {
+        guarded("kernel_times", [&] { twin_checks::kernel_times(*make_backend("cuda:0", true), *g, cuda_take_launches, require); });
+        guarded("host_stall", [&] { twin_checks::host_stall(*make_backend("cuda:0", true), cuda_profile, cuda_delay_launches, require); });
+        guarded("gated_drop", [&] { twin_checks::gated_drop(*make_backend("cuda:0", true), *g, cuda_delay_launches, require); });
+        std::printf("backend-cuda timing: %s\n", failures ? "FAIL" : "PASS");
+        return failures ? 1 : 0;
+    }
     if (!only_types) {
         basics(d, *g, *cpu);
         guarded("kernel_times", [&] { twin_checks::kernel_times(*make_backend("cuda:0", true), *g, cuda_take_launches, require); });
+        guarded("host_stall", [&] { twin_checks::host_stall(*make_backend("cuda:0", true), cuda_profile, cuda_delay_launches, require); });
+        guarded("gated_drop", [&] { twin_checks::gated_drop(*make_backend("cuda:0", true), *g, cuda_delay_launches, require); });
     }
     types(d, *g, *cpu);
     if (!only_types) qwen35(d, *g);

@@ -15,17 +15,21 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cctype>
 #include <cfloat>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <exception>
 #include <functional>
 #include <map>
 #include <memory>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -1477,6 +1481,86 @@ inline void kernel_times(Backend& timed, Backend& plain, const Launches& launche
         }
         require(!ran.empty() && t.dispatches == launched, "kernel_times counts the " + std::to_string(launched) + " launches of" + named + ": " + std::to_string(t.dispatches));
     }
+}
+
+// A host 1 ms behind its device between each timed op's start event and its launch shows as idle, not as op time, at a chunk of one op and at the profile's chunk.
+inline void host_stall(Backend& timed, const std::function<DeviceProfile&(Backend&)>& profile, const std::function<void(Backend&, std::chrono::microseconds)>& delay,
+                       const Require& require) {
+    const size_t n = 1024, ops = 6;
+    const std::vector<float> x(n, 1.0f);
+    const BufferPtr xb = timed.adopt(x.data(), n * sizeof(float));
+    DeviceProfile& p = profile(timed);
+    const uint32_t chunk = p.dispatch_chunk;
+    const auto run = [&](uint32_t at, std::chrono::microseconds stall) {
+        p.dispatch_chunk = at;
+        timed.sync();
+        (void)timed.kernel_times();
+        delay(timed, stall);
+        for (size_t i = 0; i < ops; ++i) timed.add({xb.get(), 0}, {xb.get(), 0}, n);
+        Backend::KernelTimes t = timed.kernel_times();
+        delay(timed, std::chrono::microseconds(0));
+        p.dispatch_chunk = chunk;
+        double ms = 0, idle = 0;
+        for (const auto& k : t.kernels) ms += k.second;
+        for (double g : t.gaps) idle += g;
+        return std::make_pair(ms, idle);
+    };
+    (void)run(1, std::chrono::microseconds(0));
+    for (const uint32_t at : {uint32_t(1), chunk}) {
+        const auto [ms, idle] = run(at, std::chrono::microseconds(1000));
+        std::printf("  host stall of 1 ms an op at a chunk of %u: %.3f ms of op time, %.3f ms idle over %zu ops\n", at, ms, idle, ops);
+        require(ms < 0.5 * ops, "a host stall before each launch at a chunk of " + std::to_string(at) + " is not op time: " + std::to_string(ms) + " ms over " + std::to_string(ops) + " ops");
+        if (at == 1) require(idle >= 0.9 * (ops - 1), "a host stall before each flush is idle between the ops: " + std::to_string(idle) + " ms");
+    }
+}
+
+// Buffers dropped on the timing backend and on another backend of its device are freed, and host memory written, while the timing backend issues long flushes, its host slowed by `delay`, and nothing hangs.
+// A free, a stream synchronise or a copy into host memory that waited behind a flush's closed gate would never return, so a watchdog ends the process after a minute.
+inline void gated_drop(Backend& timed, Backend& other, const std::function<void(Backend&, std::chrono::microseconds)>& delay, const Require& require) {
+    const size_t n = 1024, rounds = 8, ops = 96;
+    const std::vector<float> x(n, 1.0f);
+    const BufferPtr xb = timed.adopt(x.data(), n * sizeof(float));
+    std::atomic<bool> done{false};
+    std::thread watchdog([&] {
+        const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+        while (!done && std::chrono::steady_clock::now() < until) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        if (done) return;
+        std::printf("gated_drop: a buffer dropped or host memory written while a timing backend's flush was open hung the process: FAIL\n");
+        std::fflush(stdout);
+        std::_Exit(1);
+    });
+    size_t dropped = 0;
+    for (Backend* owner : {&timed, &other}) {
+        timed.sync();
+        (void)timed.kernel_times();
+        delay(timed, std::chrono::microseconds(500));
+        for (size_t r = 0; r < rounds; ++r) {
+            (void)owner->alloc(n * sizeof(float), backend::Memory::device);
+            (void)owner->submit();
+            ++dropped;
+            for (size_t i = 0; i < ops; ++i) timed.add({xb.get(), 0}, {xb.get(), 0}, n);
+        }
+        delay(timed, std::chrono::microseconds(0));
+        timed.sync();
+        owner->sync();
+        (void)timed.kernel_times();
+    }
+    // Each round's word, written into host-visible memory between the adds, lands in order with them.
+    const BufferPtr words = timed.alloc(rounds * sizeof(uint32_t), backend::Memory::host_visible);
+    delay(timed, std::chrono::microseconds(500));
+    for (uint32_t r = 0; r < rounds; ++r) {
+        for (size_t i = 0; i < ops; ++i) timed.add({xb.get(), 0}, {xb.get(), 0}, n);
+        const uint32_t word = 0x5a5a0000u + r;
+        timed.write(*words, r * sizeof(uint32_t), &word, sizeof word);
+    }
+    delay(timed, std::chrono::microseconds(0));
+    std::vector<uint32_t> got(rounds);
+    timed.read(*words, 0, got.data(), rounds * sizeof(uint32_t));
+    (void)timed.kernel_times();
+    done = true;
+    watchdog.join();
+    require(dropped == 2 * rounds, "buffers dropped during a timing backend's open flushes are freed without a hang");
+    for (uint32_t r = 0; r < rounds; ++r) require(got[r] == 0x5a5a0000u + r, "a word written into host-visible memory during a timing backend's open flushes lands: round " + std::to_string(r));
 }
 
 // NVFP4 under its tensor's F32 scales at MiniMax-M3.1-Flash's expert width: the F32 class on the exact family (kernels/f32.gpu, ExactNVFP4), the f16 and int8 classes on the twins, one factor a projection.

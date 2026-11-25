@@ -2580,7 +2580,9 @@ void experts() {
         infer::Model model(infer::gguf_weights(m), backend, options);
         model.prefill({7, 3, 11});
         step_row(model, 9);
-        require(backend->routers == 8 && backend->shared == 8, "gate policy check missed a layer or phase");
+        // At f16 the generated row takes CpuBackend::moe_step's fused step, which runs its router and row gate in its own dispatch.
+        const size_t calls = dtype == backend::Dtype::f16 ? 4 : 8;
+        require(backend->routers == calls && backend->shared == calls, "gate policy check missed a layer or phase");
         require(backend->steps == 8 && backend->outside == 0, "a routed layer did not take one routed step a pass");
         // A qwen3moe model's routed layers too (tiny_qwen_moe), with a plain CPU backend's logits; the file outlives the models, whose weights view it.
         const gguf::GGUFModel f3 = tiny_qwen_moe(2, 128, false);

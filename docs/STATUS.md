@@ -1,5 +1,30 @@
 # llmx - Development Status
 
+## CPU MoE decode step for every weight type (2026-11-25, GENQ1 and GENQ2, branch gq/cpu-moe-step on main 63657ff21)
+
+- **Goal:** `CpuBackend::moe_step`'s three-dispatch decode step takes each product's dot from the plain path's owner (`decode_dot`) instead of a type list, so Q8_0, Q5_K/Q6_K downs, Q5_1, BF16 and F32 steps no longer fall back to the six-dispatch base silently (qgate1 AUDIT row 10).
+- **Done:** test commit (`check_moe_decode_step` at 1 to 4 and 8 rows over the new types); the change (`decode_dot` named for `matmul_raw`, `expert_products` and the step; dense products without a row dot run their own op in place). Bits (pve1 job 20261125-100957-GENQ2-9368, llmx-backend-group-test): the test commit on main's code fails only on the 11 new cases, each taking the base with the base's bits, and the change passes with 0 failures. Microbench of the step (pve1 job 20261125-095805-GENQ1-19549, branch against the base step at 1/4/8 rows, bits same): 35B Q4_K_M 0.76/0.74/0.72x the base's time, Q8_0 0.91/0.80/0.82x, UD-Q4_K_XL 0.84/0.72/0.76x, UD-Q8_K_XL 0.86/0.81/0.84x, Flash-Next 0.79/0.86/0.87x, DeepSeek 0.97/0.90/0.90x.
+- Real-file decode timing (pve1 job 20261125-101032-GENQ2-5666, CPU only, `--threads 12`, `bench --p 16 --n 24 --r 3`, main 63657ff21 against the branch at the same source, m b b m twice, 4 cells per arm; `ids:` of a 24-token greedy generation SAME on all four files). pve1 is a shared production host whose load average ran 10 to 74 during the run, so tok/s is noisy; medians per arm over all 4 cells, with the clean median (load at most 40, at most 1000 major page faults) beside it. High-load marks cells at load above 40; disk-bound marks cells with over 1000 major page faults (Q8_0, 37 GB, and UD-Q8_K_XL, 39 GB, exceed the job's 26 GB memory cap and are re-read from disk).
+
+  | file | seqs | main tok/s | branch tok/s | ratio | clean ratio (cells m/b) | max load | max majflt | marks |
+  |---|---|---|---|---|---|---|---|---|
+  | Qwen3.6-35B-A3B Q4_K_M (accepted on main) | 1 | 11.70 | 11.18 | 0.956 | 0.956 (4/4) | 35 | 13 | - |
+  | | 4 | 17.05 | 17.77 | 1.042 | 0.995 (3/4) | 58 | 6 | high-load 1/8 |
+  | | 8 | 19.82 | 19.91 | 1.005 | 1.005 (4/4) | 32 | 0 | - |
+  | Qwen3.6-35B-A3B UD-Q4_K_XL | 1 | 11.23 | 11.88 | 1.057 | 1.057 (4/4) | 21 | 190 | - |
+  | | 4 | 21.85 | 24.69 | 1.130 | 1.130 (4/4) | 19 | 0 | - |
+  | | 8 | 24.65 | 27.78 | 1.127 | 1.127 (4/4) | 19 | 0 | - |
+  | Qwen3.6-35B-A3B Q8_0 | 1 | 9.82 | 9.12 | 0.929 | 0.971 (3/4) | 31 | 1968338 | disk-bound 1/8 |
+  | | 4 | 18.71 | 18.61 | 0.994 | 1.023 (3/4) | 31 | 157009 | disk-bound 1/8 |
+  | | 8 | 23.73 | 22.84 | 0.963 | 0.963 (4/4) | 32 | 0 | - |
+  | Qwen3.5-35B-A3B UD-Q8_K_XL | 1 | 5.12 | 6.48 | 1.264 | - (1/0) | 66 | 1771285 | high-load 6/8, disk-bound 3/8 |
+  | | 4 | 11.12 | 16.88 | 1.518 | 1.063 (1/1) | 74 | 124960 | high-load 5/8, disk-bound 1/8 |
+  | | 8 | 14.68 | 23.32 | 1.589 | 1.097 (2/1) | 71 | 66 | high-load 5/8 |
+
+  UD-Q4_K_XL, the one file whose cells all ran clean, gains 6 to 13%; Q4_K_M, which main's step already took, stays within noise (0.96 to 1.04); Q8_0 and UD-Q8_K_XL are within or above noise but their cells are disk- or load-bound and settle nothing beyond "no clear loss". The microbench above is the clean measure of the step itself.
+- **Left:** the landing gates.
+- **Gotchas:** at 8 rows the test's NaN row routes nowhere and the base's quick_gelu of the poison flips its NaN's sign, so `moe::run` sets an expert-less entry's activations back to the poison; main's step already left them unwritten, and nothing reads them. feat/path-report (PATHVIS1) edits `decode_step` too: whichever lands second keeps this accept rule inside its `take()`.
+
 ## Docs set to the architecture audits (2026-11-24, DOCFIX1, branch docs/arch-audit-fixes on main d8bd8735e)
 
 - **Goal:** the docs ARCHAUDIT1 and ARCHAUDIT2 found false or incomplete say what the code does: the precision table, DSpark over a tensor group, DFlash/DSpine drafters, MiniMax on the CPU and on devices, the MiniMax tensor-width refusal and the qwen4exp column of the role table.

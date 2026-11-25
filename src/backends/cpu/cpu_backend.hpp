@@ -531,7 +531,8 @@ public:
             });
             return;
         }
-        if (decode && quantized_dots(type, nin, dtype)) {
+        const RowDot kind = decode ? decode_dot(type, nin, dtype, false) : RowDot::none;
+        if (kind == RowDot::q8) {
             matvec_q8x(type, data, X, Y, nin, nout, nbatch);
             return;
         }
@@ -547,7 +548,7 @@ public:
         const bool float_type = f32 || type == quant::GGML_TYPE_F16 || type == quant::GGML_TYPE_BF16;
         // A decode row of a type with a float row dot takes it with no dequantized scratch, streaming each resident row once; prefill keeps the fused kernels that reuse weights across batch columns.
         // Float storage splits its rows as the batched float path below does, from DOT_ROWS rows per worker in whole DOT_ROWS chunks.
-        if (decode && (float_type || type == quant::GGML_TYPE_Q8_0 || type == quant::GGML_TYPE_IQ4_NL || type == quant::GGML_TYPE_IQ4_XS || is_kquant(type))) {
+        if (kind == RowDot::row) {
             const auto dots = [&](size_t o0, size_t o1) {
                 for (size_t o = o0; o < o1; ++o)
                     for (size_t c = 0; c < nbatch; ++c)
@@ -1712,6 +1713,8 @@ public:
     // The transcendental steps of the elementwise ops, each computed here only, with std::exp per element, since a vectorized approximation would shift the logits (docs/src/backends-cpu.md).
     static float silu_of(float x) { return x / (1.0f + std::exp(-x)); }
     static float sigmoid_of(float x) { return 1.0f / (1.0f + std::exp(-x)); }
+    // x under a sigmoid gate, a NaN x passing through as it is: the sigmoid of a NaN gate flips its sign, and which NaN a product of two keeps is the compiler's operand order.
+    static float sigmoid_gate(float x, float g) { return std::isnan(x) ? x : x * sigmoid_of(g); }
     // GELU in double, rounded once: x times the normal CDF through erf, or its tanh approximation.
     static float gelu_of(float x, GeluForm form) {
         const double d = x;
@@ -2585,7 +2588,7 @@ public:
             for (size_t h = 0; h < heads; ++h) {
                 const float* g = gate + r * gate_stride + h * gate_head_stride;
                 const size_t o = r * width + h * dim;
-                for (size_t d = 0; d < dim; ++d) dst[o + d] = x[o + d] * sigmoid_of(g[d]);
+                for (size_t d = 0; d < dim; ++d) dst[o + d] = sigmoid_gate(x[o + d], g[d]);
             }
         });
     }
@@ -3042,7 +3045,8 @@ public:
         });
     }
 
-    // A step whose rows are all generated tokens' in three pool dispatches instead of the base's six: each output takes the dot and the order the base's ops give it, so it keeps their bits (docs/src/backends-cpu.md, moe_step).
+    // A step of generated rows alone in three pool dispatches instead of six, keeping the base bits (docs/src/backends-cpu.md, moe_step).
+    // A dense product whose op has no row dot runs that op itself, in its place in the order.
     void moe_step(const MoeStep& m, CSlice h, Slice y, size_t nin, size_t rows, RowRuns runs = {}, Dtype dtype = Dtype::f16) override {
         if (!decode_step(m, nin, rows, runs, dtype)) return Backend::moe_step(m, h, y, nin, rows, runs, dtype);
         const MoeShared* s = m.shared;
@@ -3056,20 +3060,46 @@ public:
         for (CSlice o : {CSlice(m.gate.out), CSlice(m.up.out), CSlice(m.act)}) validate_float_slice(o, size_mul(entries, ff));
         if (s) for (CSlice o : {CSlice(s->gate.out), CSlice(s->up.out), CSlice(s->act)}) validate_float_slice(o, size_mul(rows, sff));
         if (gated) validate_float_slice(s->row_gate.out, rows);
+        // Each product's row dot: the router's at f32, as moe_router asks, and a dense product of scaled storage through its own op.
+        const auto dense = [&](const WeightView& w, size_t width, Dtype d) {
+            return weight_scales(w) ? RowDot::none : decode_dot(w.type, width, d, false);
+        };
+        const RowDot rk = dense(m.router.weight, nin, Dtype::f32), gk = decode_dot(m.gate.weight.type, nin, dtype, true),
+                     uk = decode_dot(m.up.weight.type, nin, dtype, true), dk = decode_dot(m.down.type, ff, dtype, true);
+        const RowDot sgk = s ? dense(s->gate.weight, nin, dtype) : RowDot::none, suk = s ? dense(s->up.weight, nin, dtype) : RowDot::none,
+                     sdk = s ? dense(s->down, sff, dtype) : RowDot::none, rgk = gated ? dense(s->row_gate.weight, nin, dtype) : RowDot::none;
+        // Routed scales, one per expert or one for the stack, as expert_products reads them.
+        const float *gsc = weight_scales(m.gate.weight, E), *usc = weight_scales(m.up.weight, E), *dsc = weight_scales(m.down, E);
+        const size_t gss = m.gate.weight.scale_count == 1 ? 0 : 1, uss = m.up.weight.scale_count == 1 ? 0 : 1, dss = m.down.scale_count == 1 ? 0 : 1;
         if (m.zero) repeat_row(y, *m.zero, rows, nin);
         const float* X = at(h);
         float* Y = at(y);
-        xq8_.reset(X, rows, nin);
-        prepare_x();
-        record_matrix_path(MatrixPath::f32);
-        record_matrix_path(MatrixPath::block_int16);
+        if (rk == RowDot::none) matmul(m.router.weight, h, m.router.out, nin, E, rows, runs, Dtype::f32);
+        if (gated && rgk == RowDot::none) matmul(s->row_gate.weight, h, s->row_gate.out, nin, 1, rows, runs, dtype);
+        if (s && sgk == RowDot::none) matmul(s->gate.weight, h, s->gate.out, nin, sff, rows, runs, dtype);
+        if (s && suk == RowDot::none) matmul(s->up.weight, h, s->up.out, nin, sff, rows, runs, dtype);
+        bool any_q8 = false, any_row = false;
+        for (RowDot d : {rk, gk, uk, dk, sgk, suk, sdk, rgk}) {
+            any_q8 = any_q8 || d == RowDot::q8;
+            any_row = any_row || d == RowDot::row;
+        }
+        if (any_row) record_matrix_path(MatrixPath::f32);
+        if (any_q8) record_matrix_path(MatrixPath::block_int16);
+        if (gk == RowDot::q8 || uk == RowDot::q8 || sgk == RowDot::q8 || suk == RowDot::q8 || rgk == RowDot::q8) {
+            xq8_.reset(X, rows, nin);
+            prepare_x();
+        }
+        // Row w of a product against activation row c, of x in float or xq quantized.
+        const auto dot = [&](RowDot d, uint32_t type, const uint8_t* w, const q8::Activations& xq, const float* x, size_t width, size_t c, const float* sc) {
+            return d == RowDot::q8 ? q8::dot(type, w, xq, c) : row_dot(type, w, x + c * width, width, sc);
+        };
         const Mat router = mat(m.router.weight, nin, E, 1), sgate = s ? mat(s->gate.weight, nin, sff, 1) : Mat{}, sup = s ? mat(s->up.weight, nin, sff, 1) : Mat{};
         const Mat rgate = gated ? mat(s->row_gate.weight, nin, 1, 1) : Mat{};
         // (1) the router's rows and the shared expert's gate, up and row gate.
-        const size_t RR = 8, SR = 32, router_tasks = (E + RR - 1) / RR, shared_tasks = s ? (2 * sff + SR - 1) / SR : 0;
+        const size_t RR = 8, SR = 32, router_tasks = rk == RowDot::none ? 0 : (E + RR - 1) / RR, shared_tasks = s ? (2 * sff + SR - 1) / SR : 0;
         float* scores = at(m.router.out);
         float *sg = s ? at(s->gate.out) : nullptr, *su = s ? at(s->up.out) : nullptr, *rg = gated ? at(s->row_gate.out) : nullptr;
-        tasks(router_tasks + shared_tasks + (gated ? 1 : 0), [&](size_t t) {
+        tasks(router_tasks + shared_tasks + (gated && rgk != RowDot::none ? 1 : 0), [&](size_t t) {
             if (t < router_tasks) {
                 for (size_t o = t * RR; o < std::min(E, t * RR + RR); ++o)
                     for (size_t c = 0; c < rows; ++c) scores[c * E + o] = row_dot(router.type, router.data + o * router.row_bytes, X + c * nin, nin);
@@ -3077,12 +3107,14 @@ public:
                 const size_t a = (t - router_tasks) * SR;
                 for (size_t r = a; r < std::min(2 * sff, a + SR); ++r) {
                     const Mat& w = r < sff ? sgate : sup;
+                    const RowDot d = r < sff ? sgk : suk;
+                    if (d == RowDot::none) continue;
                     const size_t o = r < sff ? r : r - sff;
                     float* out = r < sff ? sg : su;
-                    for (size_t c = 0; c < rows; ++c) out[c * sff + o] = q8::dot(w.type, w.data + o * w.row_bytes, xq8_, c);
+                    for (size_t c = 0; c < rows; ++c) out[c * sff + o] = dot(d, w.type, w.data + o * w.row_bytes, xq8_, X, nin, c, nullptr);
                 }
             } else {
-                for (size_t c = 0; c < rows; ++c) rg[c] = row_dot(rgate.type, rgate.data, X + c * nin, nin);
+                for (size_t c = 0; c < rows; ++c) rg[c] = dot(rgk, rgate.type, rgate.data, xq8_, X, nin, c, nullptr);
             }
         });
         route_experts(m.router.out, rows, E, k, m.rule, m.ids, m.weights);
@@ -3107,10 +3139,11 @@ public:
         tasks(gate_tasks + (s ? rows : 0), [&](size_t t) {
             if (t < gate_tasks) {
                 const size_t i = step_entries_[t / per_entry], e = ids[i], o0 = (t % per_entry) * GR;
+                const float *ge = gsc ? gsc + e * gss : nullptr, *ue = usc ? usc + e * uss : nullptr;
                 for (size_t o = o0; o < std::min(ff, o0 + GR); ++o) {
                     const size_t at_o = i * ff + o;
-                    gout[at_o] = q8::dot(gate.type, gate.matrix(e) + o * gate.row_bytes, xq8_, i / k);
-                    uout[at_o] = q8::dot(up.type, up.matrix(e) + o * up.row_bytes, xq8_, i / k);
+                    gout[at_o] = dot(gk, gate.type, gate.matrix(e) + o * gate.row_bytes, xq8_, X, nin, i / k, ge);
+                    uout[at_o] = dot(uk, up.type, up.matrix(e) + o * up.row_bytes, xq8_, X, nin, i / k, ue);
                     act[at_o] = swiglu(gout[at_o], uout[at_o], m.limit, m.form);
                 }
                 return;
@@ -3119,13 +3152,16 @@ public:
             for (size_t o = 0; o < sff; ++o) {
                 const size_t at_o = c * sff + o;
                 sact[at_o] = swiglu(sg[at_o], su[at_o], s->limit, s->form);
-                if (gated) sact[at_o] = sact[at_o] * sigmoid_of(rg[c]);
+                if (gated) sact[at_o] = sigmoid_gate(sact[at_o], rg[c]);
             }
         });
-        act_q8_.reset(act, entries, ff);
-        prepare_q8(act_q8_);
-        const Mat sdown = s ? mat(s->down, sff, nin, 1) : Mat{};
-        if (s) {
+        if (dk == RowDot::q8) {
+            act_q8_.reset(act, entries, ff);
+            prepare_q8(act_q8_);
+        }
+        const bool shared_in = s && sdk != RowDot::none;
+        const Mat sdown = shared_in ? mat(s->down, sff, nin, 1) : Mat{};
+        if (sdk == RowDot::q8) {
             shared_q8_.reset(sact, rows, sff);
             prepare_q8(shared_q8_);
         }
@@ -3138,16 +3174,17 @@ public:
                     for (size_t j = 0; j < k; ++j) {
                         const size_t i = r * k + j;
                         if (ids[i] == kNoExpert) continue;
-                        const float p = q8::dot(down.type, down.matrix(ids[i]) + o * down.row_bytes, act_q8_, i);
+                        const float p = dot(dk, down.type, down.matrix(ids[i]) + o * down.row_bytes, act_q8_, act, ff, i, dsc ? dsc + ids[i] * dss : nullptr);
                         sum += wts[i] * p;
                     }
                     Y[r * nin + o] += sum;
-                    if (s) {
-                        const float p = q8::dot(sdown.type, sdown.data + o * sdown.row_bytes, shared_q8_, r);
+                    if (shared_in) {
+                        const float p = dot(sdk, sdown.type, sdown.data + o * sdown.row_bytes, shared_q8_, sact, sff, r, nullptr);
                         Y[r * nin + o] += p;
                     }
                 }
         });
+        if (s && !shared_in) matmul_add(s->down, s->act, y, sff, nin, rows, runs, dtype);
     }
 
 private:
@@ -3205,19 +3242,18 @@ private:
         });
     }
 
-    // Whether moe_step takes the three dispatches: generated tokens' rows alone, an F32 router and row gate, and every other product on the decode dots.
+    // Whether moe_step takes the three dispatches: f16 steps of generated tokens' rows alone whose routed products have a row dot (decode_dot), every type but F8_E4M3.
     bool decode_step(const MoeStep& m, size_t nin, size_t rows, RowRuns runs, Dtype dtype) const {
-        if (dtype != Dtype::f16 || !rows || !m.k) return false;
+        if (dtype != Dtype::f16 || !rows || !m.k || m.slots) return false;
         bool decode = true;
         each_run(rows, runs, [&](size_t, size_t, bool d) { decode = decode && d; });
-        const auto f32 = [](const WeightView& w) { return w.data.buffer && !w.scales.buffer && w.type == quant::GGML_TYPE_F32; };
-        const auto dots = [&](const WeightView& w, size_t width) { return w.data.buffer && !w.scales.buffer && quantized_dots(w.type, width, dtype); };
-        if (!decode || !f32(m.router.weight) || m.up.rows != m.gate.rows) return false;
-        if (!dots(m.gate.weight, nin) || !dots(m.up.weight, nin) || !dots(m.down, m.gate.rows)) return false;
+        const auto routed = [&](const WeightView& w, size_t width) { return w.data.buffer && decode_dot(w.type, width, dtype, true) != RowDot::none; };
+        if (!decode || !m.router.weight.data.buffer || m.up.rows != m.gate.rows) return false;
+        if (!routed(m.gate.weight, nin) || !routed(m.up.weight, nin) || !routed(m.down, m.gate.rows)) return false;
         const MoeShared* s = m.shared;
         if (!s) return true;
-        if (s->row_gate.weight.data.buffer && (!f32(s->row_gate.weight) || s->row_gate.rows != 1)) return false;
-        return s->up.rows == s->gate.rows && dots(s->gate.weight, nin) && dots(s->up.weight, nin) && dots(s->down, s->gate.rows);
+        if (s->row_gate.weight.data.buffer && s->row_gate.rows != 1) return false;
+        return s->up.rows == s->gate.rows && s->gate.weight.data.buffer && s->up.weight.data.buffer && s->down.data.buffer;
     }
 
     // The GLU of one element, the clamps in the reference's order (model.py:847-850 at e5decd76), a NaN passing through both; quick_gelu in docs/MINIMAX.md's order; silu_mul and moe_step take it.
@@ -3400,6 +3436,18 @@ private:
     // Whether a type's rows meet quantized activations: the decode dots for a generated token's rows, the prompt dots for a prompt's.
     bool quantized_dots(uint32_t type, size_t nin, Dtype dtype) const { return dtype == Dtype::f16 && q8::has_dot(type) && nin % 32 == 0; }
 
+    // How a generated token's row of a type meets its activations: the decode dots, row_dot, or neither, when only the product's own op computes it.
+    // A routed entry (expert_products) has row_dot for every type but F8_E4M3; a dense row (matmul_raw) for float storage, Q8_0, IQ4 and the K-quants, the rest taking float_rows.
+    enum class RowDot : uint8_t { q8, row, none };
+    RowDot decode_dot(uint32_t type, size_t nin, Dtype dtype, bool routed) const {
+        if (type == quant::GGML_TYPE_F8_E4M3) return RowDot::none;
+        if (quantized_dots(type, nin, dtype)) return RowDot::q8;
+        if (routed) return RowDot::row;
+        const bool row = type == quant::GGML_TYPE_F32 || type == quant::GGML_TYPE_F16 || type == quant::GGML_TYPE_BF16 || type == quant::GGML_TYPE_Q8_0 ||
+                         type == quant::GGML_TYPE_IQ4_NL || type == quant::GGML_TYPE_IQ4_XS || is_kquant(type);
+        return row ? RowDot::row : RowDot::none;
+    }
+
     // The quantized activations for a type, the rows split across the pool when there are enough of them.
     void prepare_x() { prepare_q8(xq8_); }
     void prepare_q8(q8::Activations& a) {
@@ -3441,7 +3489,7 @@ private:
             read_experts({&stack}, used);
         }
         if (fp8) X = fp8_input(X, size_mul(xrows, nin), dtype);
-        const bool q8 = quantized_dots(type, nin, dtype);
+        const bool q8 = decode_dot(type, nin, dtype, true) == RowDot::q8;
         // MXFP4 prompts retain original activations, as the plain prompt product does.
         const bool prompt_q8 = q8 && type != quant::GGML_TYPE_MXFP4;
         if (q8 && (prompt_q8 || std::find(decode.begin(), decode.end(), char(1)) != decode.end())) {

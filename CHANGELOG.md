@@ -20,6 +20,7 @@ Each entry is one short line that links the doc explaining it; reasons, flags an
 ### Changed
 
 - Greedy server requests, `ignore_eos` ones too, take their tokens from the device's argmax ([server](docs/SERVER.md#device-argmax)).
+- Experts on the CPU decode in the three-dispatch MoE step whatever their weight types ([CPU backend](docs/src/backends-cpu.md)).
 - Several sequences of BF16, F16 and F32 weights decode faster on CUDA, and 2 to 4 on MI50s ([GPU backends](docs/src/backends-gpu.md)).
 - The Docker Hub page is set from the tree at each release, and its quick start serves with a key file ([releases](docs/RELEASE.md)).
 - BF16 files run their prompts on TF32 tensor cores with CUDA, in the F16 precision class ([CUDA](docs/CUDA.md#bf16-prompt-tile)).

@@ -602,6 +602,7 @@ struct PassWidths {
     bool float_head = false;            // on the head's device, the head's matrix is F32, F16 or BF16, a product of vocab outputs over logit_rows
     size_t streams = 0, mix_width = 0;  // a hyper-connection mix's streams and row, 0 without one
     size_t logit_rows = 0, vocab = 0;   // on the head's device, the logits rows a pass keeps in host memory and their width (a member's share)
+    size_t topk_picks = 0, topk_items = 0, topk_compression = 0;   // a topk_rows row's picks and its most scores, or the context's positions over topk_compression where that is set
 };
 
 class Backend {

@@ -641,6 +641,9 @@ private:
             dl.ops.push_back({Part::draft, op});
         if (dflash2) dl.ops.push_back({Part::draft, Op::tap_weighted_rows});
         else dl.ops.insert(dl.ops.end(), {{Part::draft, Op::unit_rows}, {Part::draft, Op::sigmoid_gate_rows}});
+        // The block's selection picks top_k of a draft row's logits over the whole vocabulary, which the device's scratch is priced for.
+        p.widths.topk_picks = std::max(p.widths.topk_picks, size_t(d.top_k));
+        p.widths.topk_items = std::max(p.widths.topk_items, size_t(p.vocab));
         // A tap layer's mixer writes its plane, which crosses with the residual from the first tap on (ModelPlan::Carried).
         for (int t : d.taps) p.layers[size_t(t)].kind |= writes_tap;
         p.carried.push_back({tap_slot(), d.taps.front() + 1});

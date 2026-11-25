@@ -171,6 +171,7 @@ The knobs live in `src/backends/device_profile.hpp`; the table gives the rule th
 | prompt_rows_below | 2 (9 / -) | intensity, ROCm decode rows up to 8 columns | measured |
 | attention_split_chunk, _max, _max_wide, attention_tile_part | 32, 64, 64, 1024 | 3 along the history | measured; 1024 within 1% of 2048 and 4096 |
 | attention_group_from, sparse_split_ids, argmax_slice, select_wide_from | 2048, 256, 4096, 4096 | 1: keep workgroups a CU until the work is long enough | measured |
+| topk_chunk | 0 (MI50 HIP 4096) | 1: a block a row leaves 52 of 60 CUs idle at 8 to 16 rows; chunks a block, then a merge over their picks | measured on one MI50, 248320 scores, 16 picks: 8 rows 2.0 -> 0.18 ms, 15 rows 1.9-4.7 -> 0.23-0.28 ms, chunks 2048-16384 within 0.1 ms, ids equal |
 | dispatch_chunk | 64 | 4 and the host-overlap rule | not swept against per-launch cost |
 | held_push_members | 0 (3 / -) | sums: push pays only when the hop overlaps enough product | push lost at two members; agrees |
 | prefer_integer_dot, lookup_integer_dot | false | none: a compiler property | Mesa gains 15%, the AMD driver loses 2% |

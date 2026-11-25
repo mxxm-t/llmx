@@ -621,6 +621,14 @@ Images are pushed by digest alone and tagged only by the run that publishes them
 - **Left:** nothing for this change; the model side is feat/dspine's, in the same stack. It lands with the landing stack land-20261127, whose gates are recorded there (Landing stack land-20261127, below).
 - **Gotchas:** the ROCm host TU was syntax-checked with hipcc's headers; the CUDA TU shares the same template but was not compiled here (no cuda.h on the rig).
 
+## Chunked topk_rows on ROCm (2026-11-25, DSPINE19/20, branch perf/dspine-topk2 on perf/dspine-prefix)
+
+- **Goal:** a selection of a few picks from a long row stops running one block a row, which left 52 of an MI50's 60 CUs idle for the DSpine drafter's 16 picks of 248320 logits (2.3-2.5 ms a draft block).
+- **Done:** where the device profile gives `topk_chunk` (MI50 HIP 4096), `topk_select` runs a mode-0 row as chunks a block (`llmx_topk_rows` mode 2) and a merge over their picks in position order (mode 3), the same ids at any chunk. The candidates sit in scratch slot 16, priced by the fit from the widths' `topk_picks` and `topk_items` (the DSpine drafter's vocabulary) or the context over `topk_compression` (DeepSeek-V4's indexer, 512 picks at its least ratio). `backend-rocm-test` deepseek4 checks every selection at chunk 128 against the CPU, its launches and the slot's price.
+- Measured (Qwen3.8-27B-Q8_0 with its DSpine-b16 Q8_0 sidecar, `--dtype int8 --tensor-width 4`, four MI50s on ROCm, `--draft-max 7`, against perf/dspine-prefix 1b7eed7d): `llmx_topk_rows` 2.45 -> 0.19 ms a draft block (rocprofv3, median of 8 blocks), member 0's draft kernel time 12.07 -> 10.07 ms; standalone at 248320 scores and 16 picks 1.9-4.7 -> 0.18-0.29 ms at 8 to 16 rows; generated ids equal to drafting off; decode tok/s within the host's noise (medians of 3, 111.0 -> 108.4 at 7, 93.0 -> 101.0 at 10).
+- **Left:** a DeepSeek-V4.1 ROCm timing round against main on nine cards (its 512-pick index selections take the chunked form from 8192 scores on), owed as this branch's landing gate; then the landing gates, after perf/dspine-prefix.
+- **Gotchas:** the merge of one block over chunks x picks candidates may be latency-bound again at DeepSeek's sizes (64 chunks x 512 at a 1M context); time it before claiming a DeepSeek gain.
+
 ## DSpine block cut to the chain (2026-11-25, DSPINE18, branch perf/dspine-prefix on perf/dspine-group dad387a33)
 
 - **Goal:** a DSpine chain of k drafts runs a block of k + 1 rows, not the file's 16, so `--draft-max 7` pays half the drafter body, head rows and refinement steps; depends on perf/dspine-group (PR 621) for the tw4 measurement.

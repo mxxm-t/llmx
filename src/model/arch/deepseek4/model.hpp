@@ -263,6 +263,8 @@ public:
         for (int r : c.compress_ratios)
             if (r && (!least || r < least)) least = r;
         if (least) p.position_slots = {{index_scores, size_t(least)}};
+        // The indexer's selection picks index_top_k of a row's scores, one a position at the least ratio, which the device's scratch is priced for.
+        if (least) p.widths.topk_picks = size_t(c.index_top_k), p.widths.topk_compression = size_t(least);
         // What a later layer reads crosses with the residual (docs/DEEPSEEK4.md, section 4.3): both pres, a source's new pooled rows for its readers' replicas, the latest index source's picks a reader reuses and the candidate blocks.
         bool readers = false, reuses = false;
         for (const Layer& t : layers_) {

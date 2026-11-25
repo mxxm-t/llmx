@@ -3706,14 +3706,14 @@ extern "C" __global__ void llmx_model_format_qdq(float* x, float* packed, unsign
     b[i] = isnan(q) ? q : q * s;
 }
 
-// A block a row: the `picks` best of `items` scores by score, then lower index, written by ascending index, mode 0 topk_rows and mode 1 candidate_blocks, as Vulkan's topk_rows.comp.
-// The picks' least key is found four bits at a time from the top by a radix select over counts of the row, so the workspace is the block's at any row length.
+// A block a row: the `picks` best of `items` scores by score, then lower index, written by ascending index, mode 0 topk_rows and mode 1 candidate_blocks, the ids of Vulkan's topk_rows.comp.
+// Modes 2 and 3 are mode 0 in two stages: block (row, c) of mode 2 writes the picks of chunk c, the last chunk taking the rest, as row positions; mode 3 selects over those in ascending position, so the ids are mode 0's.
 __device__ inline unsigned select_key(float s) {
     const unsigned u = __float_as_uint(s == 0.0f ? 0.0f : s);
     return u >> 31 ? ~u : u | 0x80000000u;
 }
 __device__ inline float select_score(const float* row, unsigned i, unsigned mode, unsigned n, unsigned block_size, unsigned pinned) {
-    if (mode == 0u) return row[i];
+    if (mode != 1u) return row[i];
     if (i == pinned) return INFINITY;
     float best = -INFINITY;
     const unsigned end = min(n, (i + 1u) * block_size);
@@ -3734,11 +3734,14 @@ template <unsigned N = kThreads> __device__ unsigned block_rank(bool v, unsigned
     return before + (unsigned)__popcll(b & ((1ull << lane) - 1ull));
 }
 extern "C" __global__ void llmx_topk_rows(unsigned* ids, const float* scores, const unsigned* lens, unsigned n, unsigned stride, unsigned picks, unsigned offset,
-                                            unsigned mode, unsigned block_size, unsigned items) {
+                                            unsigned mode, unsigned block_size, unsigned items, const unsigned* cand, unsigned chunk) {
     __shared__ unsigned hist[kWaves][16], counts[kWaves];
     const unsigned long long r = blockIdx.x;
-    const float* row = scores + r * n;
-    unsigned* out = ids + r * stride;
+    const unsigned c = blockIdx.y, base = mode == 2u ? c * chunk : 0u;
+    const float* row = scores + r * n + base;
+    const unsigned* at = mode == 3u ? cand + r * items : nullptr;
+    if (mode == 2u) items = c + 1u == gridDim.y ? items - base : chunk;
+    unsigned* out = mode == 2u ? ids + (r * gridDim.y + c) * picks : ids + r * stride;
     const unsigned len = lens[r], t = threadIdx.x, wave = t / kWave;
     const unsigned pinned = mode == 1u && len && (len - 1u) / block_size < items ? (len - 1u) / block_size : kNoExpert;
     // Each round counts the keys under the prefix found so far by their next four bits, a wave's histogram apiece, and takes the highest digit whose keys from the top reach the picks.
@@ -3753,13 +3756,16 @@ extern "C" __global__ void llmx_topk_rows(unsigned* ids, const float* scores, co
             for (; first + 4u * kThreads <= items; first += 4u * kThreads) {
                 unsigned key[4];
 #pragma unroll
-                for (unsigned u = 0; u < 4u; ++u) key[u] = select_key(select_score(row, first + u * kThreads + t, mode, n, block_size, pinned));
+                for (unsigned u = 0; u < 4u; ++u) {
+                    const unsigned i = first + u * kThreads + t;
+                    key[u] = select_key(select_score(row, at ? at[i] : i, mode, n, block_size, pinned));
+                }
 #pragma unroll
                 for (unsigned u = 0; u < 4u; ++u)
                     if ((key[u] & mask) == threshold) atomicAdd(&hist[wave][(key[u] >> shift) & 15u], 1u);
             }
             for (unsigned i = first + t; i < items; i += kThreads) {
-                const unsigned key = select_key(select_score(row, i, mode, n, block_size, pinned));
+                const unsigned key = select_key(select_score(row, at ? at[i] : i, mode, n, block_size, pinned));
                 if ((key & mask) == threshold) atomicAdd(&hist[wave][(key >> shift) & 15u], 1u);
             }
             __syncthreads();
@@ -3782,19 +3788,21 @@ extern "C" __global__ void llmx_topk_rows(unsigned* ids, const float* scores, co
     for (unsigned first = 0; first < items; first += kThreads) {
         const unsigned i = first + t;
         const bool live = i < items && picks;
-        const float s = i < items ? select_score(row, i, mode, n, block_size, pinned) : -INFINITY;
+        const unsigned p = i < items ? (at ? at[i] : i) : 0u;
+        const float s = i < items ? select_score(row, p, mode, n, block_size, pinned) : -INFINITY;
         const unsigned key = i < items ? select_key(s) : 0u;
         unsigned tie_total, written_total;
         const bool tie = live && key == threshold;
         const unsigned tie_before = ties + block_rank(tie, tie_total, counts);
         const bool picked = live && (key > threshold || (tie && tie_before < need));
-        const bool written = picked && (mode == 0u || s > -INFINITY);
-        const unsigned at = block_rank(written, written_total, counts);
-        if (written) out[kept + at] = mode == 0u ? (i < len ? i + offset : kNoExpert) : i;
+        const bool written = picked && (mode != 1u || s > -INFINITY);
+        const unsigned slot = block_rank(written, written_total, counts);
+        if (written) out[kept + slot] = mode == 1u ? i : mode == 2u ? base + i : (p < len ? p + offset : kNoExpert);
         ties += tie_total;
         kept += written_total;
     }
-    for (unsigned i = kept + t; i < stride; i += kThreads) out[i] = kNoExpert;
+    if (mode != 2u)
+        for (unsigned i = kept + t; i < stride; i += kThreads) out[i] = kNoExpert;
 }
 
 // A block a group, a thread a channel: the kv values weighted by the softmax of their scores over the group's rows in the CPU's order, then the pooled row's RMS norm with the CPU's sums and products.

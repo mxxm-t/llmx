@@ -110,6 +110,8 @@ struct DeviceProfile {
     size_t select_wide_from = 4096;
     // Logits a block of argmax_rows reduces before a merge a row takes the slices' results; the id is exact at any slice (docs/STATUS.md).
     size_t argmax_slice = 4096;
+    // Scores a block of topk_rows selects from before a merge over the blocks' picks, 0 for a block a row; the ids are the same at any chunk (docs/STATUS.md).
+    size_t topk_chunk = 0;
     // Dispatches recorded before a submission, so the device starts on a pass while the host is still recording it.
     uint32_t dispatch_chunk = 64;
     // Whether the matmuls take their dots through the integer dot product instructions: measured per device and driver, since the same silicon gains under Mesa and loses under the AMD proprietary driver.
@@ -155,6 +157,7 @@ inline const TunedDevice* tuned_devices(size_t& count) {
              p.qtile_tall_from = 4096;
              p.qtile_tall_from_8bit = 4096;
              p.held_push_members = 3;
+             p.topk_chunk = 4096;
          }},
         {"MI60 / MI50", "radv", [](DeviceProfile& p) {
              p.tile_from_8bit = 16;

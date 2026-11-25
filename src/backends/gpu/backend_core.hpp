@@ -420,6 +420,7 @@ public:
         staged_ = {};
         partials_ = {};
         scores_ = {};
+        topk_work_ = {};
         select_state_ = {};
         argmax_parts_ = {};
         args_ = {};
@@ -1518,7 +1519,7 @@ public:
         pending_ = Pending{k, false, nullptr, nullptr, nullptr, 0, 0};
         opened_ = true;
     }
-    BufferPtr hc_scratch_, hc_entry_scratch_;
+    BufferPtr hc_scratch_, hc_entry_scratch_, topk_work_;
     int hc_per_cu_[4] = {-1, -1, -1, -1};
     bool hc_refused_ = false;
     // Whether a generated row's mix here fits the entry, so a row's sum in place holds its take for one (GpuCollective::sum_in_place); a backend no mix reaches keeps one launch a sum.
@@ -3075,7 +3076,19 @@ private:
         const float* s = f32(scores);
         const unsigned* l = (const unsigned*)f32(lens);
         unsigned nn = u32(n), st = u32(stride), pk = u32(picks), of = offset, md = mode, bs = u32(block_size), it = u32(items);
-        const Args args(o, s, l, nn, st, pk, of, md, bs, it);
+        // A long row of mode 0 runs as chunks a block and a merge over their picks, the same ids (kernels/f32.gpu, modes 2 and 3).
+        const size_t chunk = dev_.profile.topk_chunk, need = mode == 0 ? topk_work_bytes(rows, items, picks) : 0;
+        if (need) {
+            const size_t chunks = items / chunk, cands = chunks * picks;
+            // The fit prices this buffer (scratch_sizes, slot 16); only a selection wider than its widths grows it here.
+            if (!topk_work_ || topk_work_->size() < need) topk_work_ = alloc(need, Memory::device);
+            unsigned* w = (unsigned*)as_gpu<Api>(*topk_work_).data();
+            unsigned two = 2, three = 3, ch = u32(chunk), cn = u32(cands);
+            launch(kTopkRows, u32(rows), u32(chunks), Args(w, s, l, nn, pk, pk, of, two, bs, it, (const unsigned*)nullptr, ch));
+            launch(kTopkRows, u32(rows), 1, Args(o, s, l, nn, st, pk, of, three, bs, cn, (const unsigned*)w, ch));
+            return;
+        }
+        const Args args(o, s, l, nn, st, pk, of, md, bs, it, (const unsigned*)nullptr, 0u);
         launch(kTopkRows, u32(rows), 1, args);
     }
     // The pooled rows a call's rows read (kernels/f32.gpu, pooled_at): for each row the offset of its view's block ids in the table and its position plus one, then the ids.
@@ -3199,12 +3212,17 @@ private:
         return {base, d, d + total};
     }
     // The scratch buffers in one order, and what passes of widths `w` grow each to.
-    static constexpr size_t kScratchBuffers = 16;
+    static constexpr size_t kScratchBuffers = 17;
     using ScratchSizes = std::array<size_t, kScratchBuffers>;
     BufferPtr* scratch_buffer(size_t i) {
         BufferPtr* const held[kScratchBuffers] = {&parts_, &sparse_, &moe_out_, &step_counter_, &step_twin_, &moe_tab_, &delta_counter_, &staged_,
-                                                  &partials_, &scores_, &argmax_parts_, &select_state_, &hc_scratch_, &twin_[0], &twin_[1], &expert_ids_};
+                                                  &partials_, &scores_, &argmax_parts_, &select_state_, &hc_scratch_, &twin_[0], &twin_[1], &expert_ids_, &topk_work_};
         return held[i];
+    }
+    // The candidates a mode-0 selection of `rows` rows keeps between its chunks and their merge (topk_select), 0 where it runs a block a row.
+    size_t topk_work_bytes(size_t rows, size_t items, size_t picks) const {
+        const size_t chunk = dev_.profile.topk_chunk, chunks = chunk && picks && picks <= chunk ? items / chunk : 0;
+        return chunks >= 2 ? size_mul(size_mul(rows, size_mul(chunks, picks)), sizeof(unsigned)) : 0;
     }
     ScratchSizes scratch_sizes(const PassWidths& w) const {
         ScratchSizes z{};
@@ -3243,6 +3261,8 @@ private:
         }
         if (w.logit_rows && w.vocab > std::max<size_t>(1, dev_.profile.argmax_slice)) z[10] = argmax_parts_bytes(w.logit_rows, w.vocab);
         if (w.streams) z[12] = hc_layout(R, w.streams, w.mix_width).need;
+        const size_t topk_items = w.topk_compression ? (w.context + w.topk_compression - 1) / w.topk_compression : w.topk_items;
+        z[16] = topk_work_bytes(R, topk_items, w.topk_picks);
         // A twin slot holds a product's rows, a prompt's padded to an odd multiple of 4 in each of the map's regions (twin_map), or a routed call's entries, at the 16-bit class's bytes.
         const size_t pad = TwinMap::kRegions * 7;
         z[13] = z[14] = std::max(twin_bytes(size_mul(size_add(R, pad), w.product_in / 32), false), twin_bytes(size_mul(size_add(entries, pad), w.expert_in / 32), false));

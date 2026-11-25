@@ -3780,7 +3780,31 @@ void deepseek4(Backend& g) {
     const size_t values = ds4::check_ops(p, {"hc_collapse_norm", "hc_expand", "indexer_scores", "rope_forms", "mix_rows"});
     // The FP4 keys 128 wide reach the integer index tile wherever the 8-bit dot is built.
     if (rocm_device(0).caps.integer_dot) require(rocm_take_launches(g).count("llmx_indexer_scores_int") == 1, "deepseek4's index checks take llmx_indexer_scores_int");
-    std::cout << "backend-rocm: deepseek4 ops: " << values << " values against the CPU, the formats, selections, routing picks, collapse, expansion, index scores, rope forms and taps bit for bit\n";
+    // topk_rows in chunks of 128 and a merge (kernels/f32.gpu, modes 2 and 3), at n 300 with k 1 and 101 and at n 5000 with k 1, the CPU's ids at every cut, tie and length.
+    size_t& chunk = rocm_profile(g).topk_chunk;
+    const size_t kept = chunk;
+    chunk = 0;
+    rocm_take_launches(g);
+    size_t split = ds4::check_selections(p);
+    const size_t whole = rocm_take_launches(g)["llmx_topk_rows"];
+    chunk = 128;
+    split += ds4::check_selections(p);
+    const size_t parts = rocm_take_launches(g)["llmx_topk_rows"];
+    // The fit prices the chunks' candidates (scratch_sizes, slot 16): 3 rows of 101 picks over a context of 20000 at ratio 4 keep 39 chunks of picks a row, and a row of the vocabulary's 248320 scores at 16 picks 1940.
+    const auto priced = [&](size_t items, size_t picks, size_t compression) {
+        backend::PassWidths w;
+        w.rows = 3;
+        w.context = 20000;
+        const size_t none = g.scratch_bytes(w);
+        w.topk_items = items, w.topk_picks = picks, w.topk_compression = compression;
+        return g.scratch_bytes(w) - none;
+    };
+    require(priced(0, 101, 4) == g.allocation_bytes(3 * 39 * 101 * 4) && priced(248320, 16, 0) == g.allocation_bytes(3 * 1940 * 16 * 4), "the fit prices topk_rows' chunk candidates");
+    chunk = 0;
+    require(priced(0, 101, 4) == 0, "a selection a block a row is priced no scratch");
+    chunk = kept;
+    require(parts == whole + 3, "topk_rows takes its chunks and merge on three of the selections");
+    std::cout << "backend-rocm: deepseek4 ops: " << values << " values against the CPU, the formats, selections, routing picks, collapse, expansion, index scores, rope forms and taps bit for bit; " << split << " selection values a block a row and in chunks\n";
     // SinkTerms (a bias by place, a gate into out, F32 tail rows beside packed ones) through every sparse build the plain shapes reach.
     std::cout << "backend-rocm: deepseek4 sparse attention with SinkTerms: " << ds4::check_sparse_shapes(p, {}, true) << " values against the CPU\n";
 }

@@ -6,6 +6,7 @@
 - **Done:** PRECISION.md (DeepSeek-V4.1's F32 hyper-connection mix and compressor products, its FP8 and FP4 cache rows under `f32`, the F32 auxiliary plane of MiniMax and Qwen3.8-Flash-Next); the deepseek4 source page (a group runs DSpark); USAGE.md (DSpine sidecars run, a group refuses them, MiniMax refused over a group); SPECULATIVE.md section 11 (landed on one device, owners named as they are, ops by name, groups not built); the dflash source page; MINIMAX.md (what runs where); TENSOR-SPLIT.md (qwen4exp column).
 - **Landing:** with the landing stack land-20261132, whose gates are recorded there (Landing stack land-20261132, below); the `--yarn` gap of DFlash and DSpine drafters the audits found is fixed in the same stack (--yarn reaches DFlash and DSpine drafters, below).
 - **Gotchas:** MINIMAX.md describes main as of d8bd8735e; an expert-offload flag that places the routed layers' feed-forward on the CPU changes which devices load the model.
+
 ## Flags that did nothing are refused or reported (2026-11-24, FLAGFIX1, branch fix/flag-refusals on main d8bd8735e)
 
 - **Goal:** every flag of a model command takes effect as docs/USAGE.md says, or refuses with its reason (owner 2026-11-24, "All stuff must work as expected"); the cells come from FLAGAUDIT1's matrix of every flag on every architecture's fixture on the CPU.
@@ -23,8 +24,9 @@
 - Evidence: `flags` on vulkan:0 has 15 problems on the test commit (logits refuses `--verbose`, and `--cpu-moe` and `--moe-stream-from` change no line naming the experts) and none on the fix, 331 cases over 8 fixtures; on rocm:0 (gfx906) none, 331 cases; on the CPU none, 378 cases; minimax-m3 is skipped on both devices, which refuse its base run for sigmoid_routing.
   The first device run also found `serve --state-checkpoints 0` unlike the base run on both devices, but two base runs of the same server differ the same way: the price cells' sample counts in `/v1/health`'s service object are measurements, so the component leaves them out of a comparison.
   The binaries were built from c34bcc8ca, the same source as this head but for `tests/flags.py`; docs and dead-code pass on the head.
-- **Left:** none beyond landing after PR 608.
+- **Left:** none; it lands with the landing stack land-20261133, whose gates are recorded there (Landing stack land-20261133, below).
 - **Gotchas:** an expert-cache layer without `--moe-stream-from` reports `min_prompt_tokens` 2 in `/v1/health` though it never streams (Fable's read, unchanged here).
+
 ## The minimax-m2 pretokenizer (2026-11-24, TOKFIX1, branch fix/tokenizer-minimax-m2 on main d8bd8735e)
 
 - **Goal:** a MiniMax-M3.1 GGUF loads as published. Its header names `tokenizer.ggml.pre` `minimax-m2`, which the tokenizer refused, so the MiniMax streams ran on a shard copy whose metadata was edited to `qwen2`.
@@ -33,6 +35,7 @@
 - **Gates (rig, capped containers, CPU builds of d8bd8735e, 4f74ca6e7 and 2ef7e657a):** the tokenizer component fails on the test commit's code, where main refuses `minimax-m2`, and passes at the head. On the unedited first shard of MiniMax-M3.1-Flash-UD-Q8_K_XL main refuses the file and the head tokenizes it, its ids equal HF's for 90 of 90 texts, and a short logits run completes. Qwen3-0.6B-Q8_0 on cpu auto and cpu f32 is byte identical to main for logits, per-token rows, generation, lookup drafting and four short prompts (16 of 16 SAME). CTest passes 91 of 91, `docs` and `dead-code` pass with the head binary, and the CPU suite passes every component but `server`, whose uncapped-pool check (`check_uncapped`, 600 s request timeout) times out on a 4-CPU container under a host load near 50 identically with main's binary, so it is a load effect and not this change; the hosted run is its gate. The change lands by fast-forward.
 - **Left:** the hosted run of the head that lands.
 - **Gotchas:** Split with `Removed` and `invert` keeps the matches and drops the rest, and every character matches some alternative, so nothing is dropped. The regex engine folds case by Unicode, so `'` with U+017F (long s) is the contraction `'s`; the Kelvin sign and the `st` ligature are not. HF's `tokenizer.json` reader (`hf_tokenizer.hpp`) still refuses this Split, which only a safetensors directory of MiniMax would reach.
+
 ## Uncapped requests bounded by their measured time (2026-11-25, CONFFIX9, branch fix/uncapped-timeout on main d8bd8735e)
 - **Goal:** the `server` component's `check_uncapped` timed out under host load (TOKFIX2, a 4-CPU container at load about 50, on main d8bd8735e too): `'def fib(n):'` beside the other two missed its 600-second timeout.
 - **Cause:** a fixed timeout for work the host's speed sets. Each uncapped reply on Qwen3-0.6B Q8_0 runs to its 1024-token request, and the three run in turns through a 1024-token pool, the third queued until the pool has room, so the slowest reply of the group takes about the three alone replies' time together.
@@ -40,6 +43,7 @@
 - **Done:** the test times the alone replies and gives each request of the group four times that time, at least the 600 seconds it had (Fable: a resume may recompute up to about 1.5 times its reply, so 4 rather than 3); a request that fails in its thread now fails the check with its error and the bound instead of a missing result.
 - **Gates:** both arms side by side in 4-CPU containers at host load 40 to 53 on main d8bd8735e's CPU binary (conffix1/out/u2-*.txt): main's test times out beside the others and fails after 1566 s (`KeyError('def fib(n):')`), this branch's passes after 1683 s; docs and dead-code pass. A tests-only change: no runtime gate applies.
 - **Left:** none.
+
 ## Qwen3.6-35B-A3B f16 on one Vulkan device against HF (2026-11-25, CONFFIX6 to CONFFIX8, record)
 An audit (ARCHAUDIT4) saw this model's f16 top-1 probabilities on one Vulkan device move 0.026 from its f32 run, against 0.0005 on ROCm, and asked whether the Vulkan expert products leave the HF bound.
 They do not: `tests/baseline_layered.py` on Qwen3.6-35B-A3B Q4_K_M with its file-exact HF goldens, main d8bd8735e, default f16, passes every check on vulkan:0, on vulkan:0,vulkan:1 at tensor width 2 and on rocm:0 (MI50s).
@@ -53,6 +57,7 @@ They do not: `tests/baseline_layered.py` on Qwen3.6-35B-A3B Q4_K_M with its file
 The NLL deltas are absolute differences of mean NLL from HF over 243 tokens, batched and `--per-token`, the worst of either.
 The 0.026 is a difference between llmx's own f16 and f32 runs, not an error against HF, and the Vulkan arm is no further from HF than ROCm, so no kernel changes.
 Reports: rig `/opt/claude-work/conffix1/arms7a/r-{vd1,vtw2,rd1}/report.json`.
+
 ## Server device argmax (2026-11-25, CUDA141, branch perf/serve-device-argmax on main d8bd8735e; lands as two commits, the failing test and then the change)
 
 - **Goal:** a server's greedy requests, `ignore_eos` ones included, take their tokens from the output device's argmax instead of copying every logits row to the host. On one RTX 3090 a c16 load of Qwen3-0.6B BF16 (greedy, `ignore_eos`, 512/128) copied 16 rows of 151936 F32 logits a step, about 1.05 ms of a 13.0 ms TPOT, where `bench --seqs 16` steps in 9.4 ms and vLLM 0.33.0 in 5.4 ms.
@@ -127,6 +132,7 @@ Reports: rig `/opt/claude-work/conffix1/arms7a/r-{vd1,vtw2,rd1}/report.json`.
 **Landing.** With the landing stack land-20261132, whose gates are recorded there (Landing stack land-20261132, below).
 
 **Gotchas.** A sidecar's own `dflash.rope.scaling` keys are now read, honoured or refused, where they were ignored.
+
 ## A cut prompt pass on DeepSeek-V4.1 groups (2026-11-25, DSCUT1, branch fix/ds-cut-pass on main d8bd8735)
 
 - **Goal:** a prompt pass a tensor group cuts in two parts (`Model::cut_row`) gives the whole pass's bits on DeepSeek-V4.1. Found by INKMERGE2 on main: logits off 0.02-0.05 from the second part's first row, and from no history the pass threw "sparse attention id past its kv rows"; XDEV localized it to the index lengths.
@@ -222,6 +228,7 @@ Reports: rig `/opt/claude-work/conffix1/arms7a/r-{vd1,vtw2,rd1}/report.json`.
 **Landing.** With the landing stack land-20261132, whose gates are recorded there (Landing stack land-20261132, below).
 
 **Gotchas.** The note is reached only by a device run: hosted CI checks only that the CPU stays silent.
+
 ## KV buffers within a device's largest allocation (2026-11-24, CONFFIX7, branch fix/kv-budget-max-alloc on main d8bd8735e)
 
 **Goal.** `serve` of the deepseek41 fixture on `--device vulkan:0,vulkan:1` without `--kv-tokens` sized an automatic budget of 841066496 tokens, one 33642659840-byte buffer RADV cannot allocate, and the rebuild then read a fall in free memory from the other card's release and refused with 0 tokens (ARCHAUDIT4, flagaudit1/out/vk-main/deepseek41/s-dev2.txt); ROCm serves it.
@@ -232,7 +239,7 @@ Reports: rig `/opt/claude-work/conffix1/arms7a/r-{vd1,vtw2,rd1}/report.json`.
 - Evidence: `placement` fails on the test commit a77f7297c (rc 1, an automatic budget of 242944 tokens whose largest buffer of 1943552 bytes passes the device's largest allocation was not built again smaller: the allocation failed) and passes on the fix (1268 checks across two, three and four CPU backends).
 - On two MI50s under Vulkan (renderD134 and renderD135, RADV in llmx-build-vk), `serve` of the deepseek41 fixture on `--device vulkan:0,vulkan:1` without `--kv-tokens`: the test commit's Vulkan build refuses as main does (RADV fails a 33642659840-byte buffer, then the KV budget of 841066496 tokens ran a device short once built, and the 0 tokens that fit are fewer than one block of 64), and the fix's serves 107374080 KV tokens, caches of 2.01 and 6.01 GiB on the two cards, answering /v1/health and 8-token completions.
 
-**Left.** Lands in COORD's stack, whose head runs CTest, the suites, byte identity against main and the hosted run.
+**Landing.** With the landing stack land-20261133, whose gates are recorded there (Landing stack land-20261133, below).
 
 **Gotchas.** Only layer cache buffers are held to the limit; a drafter's cache is not split into buffers in the footprint. The limit is held on every device stating one, since the fit does not know which device takes a layer.
 
@@ -441,14 +448,14 @@ Images are pushed by digest alone and tagged only by the run that publishes them
 - **Goal:** a DSpine chain of k drafts runs a block of k + 1 rows, not the file's 16, so `--draft-max 7` pays half the drafter body, head rows and refinement steps; depends on perf/dspine-group (PR 621) for the tw4 measurement.
 - **Done:** `Model::draft_begin` cuts the chain's block to its longest ask where the drafter has anchor rows (causal inside its block, which `dflash::Config` requires); `dflash_block` sizes its rows from the step's drafts. drafters' DSpine check also runs each golden case cut to half its drafts against the whole block's first drafts; drafters and tensor-split pass on the CPU.
 - Measured (DSPINE19/20, Qwen3.8-27B-Q8_0 with its DSpine-b16 Q8_0 sidecar, `--dtype int8 --tensor-width 4`, four MI50s on ROCm, 128 tokens at temp 0, group dad387a33 against this branch, interleaved, host load 40-52): member 0's draft kernel time a block (rocprofv3, median of 8 blocks) 19.41 -> 12.50 ms at `--draft-max 7` and 19.38 -> 16.04 ms at 10, the 248320-row head of 16 rows leaving with the cut; decode tok/s medians of 4 rounds 93.5 -> 105.5 at 7 and 87.7 -> 103.0 at 10; generated ids equal to drafting off in every run, drafts kept per position unchanged (rig dspine19/p3).
-- **Left:** the landing gates; it lands after perf/dspine-group (PR 621), in that stack.
+- **Left:** nothing for this change; it lands with the landing stack land-20261133, whose gates are recorded there (Landing stack land-20261133, below).
 - **Gotchas:** measured before the change (DSPINE16, tw4 int8): k7 ~100 tok/s, k15 ~80, MTP ~127. Host load makes tok/s noisy at this size, so the verdict is the kernel time. XDEV and Fable disagree on splitting the drafter body over the group (XDEV: keep one owner, head shards need an exact global top-K merge).
 
 ## DSpine drafter on a tensor group (2026-11-24, DSPINE16, branch perf/dspine-group on main d8bd8735e)
 
 - **Goal:** `--drafter` with the Qwen3.8-27B DSpine-b16 sidecar runs at `--tensor-width 4` on four MI50s, where main refuses it, toward the owner's 150 drafted tok/s.
 - **Done:** failing test 5f0746169 (tensor-split: the DSpine sidecar beside the split qwen35 fixture at widths 2 and 4 must give one device's pick, drafts and draft logits). A drafter that splits no role runs whole on the group's first member (`drafts_whole`, `Model::draft_members`): no member copies, no draft sums, its KV layers whole there, the fit charging its whole head and KV. tensor-split passes on CPU widths 2 and 4 (draft logits 1.4e-6 from one device). Qwen3.8-27B Q8_0 + DSpine-b16 Q8_0, int8, tw4, four MI50s (dspine16/t2): ids equal to drafting off; DSpine k15 85.26/76.22 tok/s, k7 101.39/94.41, MTP 127.18/82.34, plain 54.43/37.37 under host load 35-50. The drafters and qwen35 components (CPU) and backend-rocm dspine pass on this tree (dspine17/g1).
-- **Left:** byte identity, CTest and HF at the landing head; whether members past the first should hold no drafter KV (today they keep layers of the target's share, unused); a default draft length below 15 (k7 beat k15 at both layouts).
+- **Left:** it lands with the landing stack land-20261133, whose gates are recorded there (Landing stack land-20261133, below); open: whether members past the first should hold no drafter KV (today they keep layers of the target's share, unused); a default draft length below 15 (k7 beat k15 at both layouts).
 - **Gotchas:** measured on main d8bd8735e (dspine15/m1, int8): DSpine layer split 27-44 tok/s, MTP tw4 106; the 16-row verify pass is ~87% of a DSpine block at layer split (dspine16 m1-table.md).
 
 ## DSpine drafters for qwen35 (2026-11-22, DSPINE1, branch feat/dspine)
@@ -490,7 +497,7 @@ Images are pushed by digest alone and tagged only by the run that publishes them
   | DSpine-b16 | 39.78 | 22.40 | 5.05 |
   The runs vary by up to 40 percent under that load, so the order of the arms is not settled (dflash2a/m2).
   27B Q8_0 on the CPU (pve1, d8bd8735 with this tree, default dtype, 12 threads), 20-token prompt, 64 greedy tokens: DFlash2 --draft-max 7 prints the same ids and text as drafting off, keeping 10, 8, 8, 8, 7, 5 and 5 of 12 drafts at positions 1 to 7 (4.25 a block); pve1 timings are not compared.
-- **Left:** the Radeon VII check and the landing gates.
+- **Left:** nothing for this change; it lands with the landing stack land-20261133, whose gates are recorded there (Landing stack land-20261133, below).
 - **Gotchas:** the reference's walk can stop below a probability floor, which llmx's chain does not have, so parity holds for greedy drafting with no floor.
 
 ## Tensors shared by several layers in the fit and the shards
@@ -1579,6 +1586,87 @@ This test-only correction lands by fast-forward with the companion workflow.
 - **Checks:** The independent Chrome regression failed in 59.797 seconds before the fix and passed in 54.855 seconds after it. The combined browser fixture over public main `2ea30d410` passed in 66.845 seconds, including both themes at 1440, 390 and 320 pixels and 200 percent CSS zoom. Desktop preference, transient Settings access, mobile drawer state and toggle geometry passed. JavaScript syntax, whitespace and independent integration review passed. Dead-code passed with 17 expected findings and 20 planted faults in 34.8 seconds; docs passed with zero findings and 29 planted faults in 31.8 seconds and runs once more after this record.
 - **Landing:** Fast-forward from `2ea30d410` after final documentation validation and a fresh main check. This is static presentation only, with no server, runtime, API or numerical changes. The existing docs CLI remains applicable because native source and build inputs are unchanged. Full Markdown review checks references to details, temporary labels and layout; the companion README and TESTS own the updated behavior. Receipts are in `scratch/reading-landing/`, with independent matched screenshots in the main workspace's `scratch/chat-reading-layout/`.
 - **Gotchas:** Composer Settings and the narrow drawer are transient. Only explicit docked Details actions save the preference. Long titles can still truncate. Chrome emulation does not establish physical phone or Safari coverage. Settings semantics and history search remain separate audit work.
+## Landing stack land-20261133 (2026-11-25, LAND126 to LAND131, on main 63657ff21, lands by fast-forward)
+
+**What lands.** Twenty-two commits on 63657ff21, by fast-forward, in order: fix/flag-refusals 3f255118 (the failing test) and 3b86c37a, fix/flags-on-device 9cd12f04 and 02c229e4, fix/tokenizer-minimax-m2 18cf8a84 and 8a6ec491, fix/kv-budget-max-alloc 48520434 and 8d503bc7, fix/uncapped-timeout 5e685c74, docs/q36-vulkan-drift 24140a66, fix/ds-cut-pass 1f39236b and 21f13779, perf/dspine-group 8d491db1 and 13fcb446, perf/dspine-prefix dc6f2036 and 7ea860d0, feat/spec-dflash2 d5d1d9f7 and 70f576d6, arch/minimax-device bae81e1a and 66840cc5, perf/serve-device-argmax 8feee739 and c9e4af5d, and this record.
+Each branch's own block or commit gives its change and measurements; this record gives the gates of the stack.
+perf/dspine-topk2 (6e814d27, chunked `topk_rows` on ROCm) is deferred and keeps its branch: its DeepSeek-V4.1 MXFP4 timing round does not fit on the nine MI50s in service, renderD137 being out of service, and waits for that card's repair or a round with experts on the CPU.
+Its commit was dropped from the stack and the three branches after it rebased onto perf/dspine-prefix; feat/spec-dflash2 and arch/minimax-device conflicted only where they met its lines, in `docs/src/backends-gpu.md` and `qwen35.hpp`, whose `topk_picks` and `topk_items` widths go with it, and the stack's diff against the one gated before is exactly that commit reversed.
+Open on perf/dspine-topk2: XDEV measured the chunked selection at 512 rows of 65536 scores at +148% a call against the one-block kernel (devlog 2026-11-25 04:32 and 04:36), which its round at `--ubatch 256` would not reach; it is settled on the branch before its round.
+The members were picked onto 63657ff21 in that order; fix/flag-refusals was rebased onto main's draft and thread checks, keeping main's `Drafts::check` and threads note and dropping its own copies, feat/spec-dflash2's docs/src pages and `qwen35.hpp` kept both sides, and arch/minimax-device's Vulkan op list took main's allow-list form with `sigmoid_routing` added.
+
+**Fixes folded in.** Each was found by a gate whose test already existed and is fixed in the commit that caused it.
+fix/flag-refusals' test commit passed an undefined `extra` to a second server in `tests/server.py` (`server`).
+feat/spec-dflash2's role table let qwen35's `ssm_conv1d` take HF's `[4,1,C]` layout (CTest `arch-qwen35` on the CPU and the Radeon VII), so a role now names its sides and DFlash2's conv roles hold exactly two.
+Its history change, cut by perf/dspine-prefix, needed `plan_.draft_causal`, without which DFlash2 refused to draft (`drafters`, 27B DFlash2 identity).
+Its Vulkan op allow-list lacked `tap_weighted_rows`, so DFlash2 refused on Vulkan (`drafters` on MI50 Vulkan and the Radeon VII), and `tests/backend_vulkan.cpp` now probes the op past it as unlisted (CTest `backend-vulkan`).
+arch/minimax-device left a `backend-vulkan` refusal check for `sigmoid_routing`, which it now implements (CTest `backend-vulkan` on the Radeon VII).
+fix/ds-cut-pass and feat/spec-dflash2 had comment blocks over the `docs` limits, now split or moved back beside the code they describe, with no code change.
+The ROCm binaries were built at 40124ee6 and 870876e4, which differ from the stack gated before the deferral only by the Vulkan allow-list line, `tests/backend_vulkan.cpp` and comments; the Vulkan binaries and the Radeon VII build were rebuilt at caee6ac4 or at ffcb3414, which differs from it by the test line alone.
+The checks below that ran before the deferral ran on that stack with perf/dspine-topk2 in it (caee6ac4 and earlier); the gates its removal reaches were rerun at the landing head (Rerun after the deferral, below), and the others carry forward, since the removed commit changes only the ROCm and CUDA selection kernel's chunked form, its scratch slot, the device profile's `topk_chunk`, the DeepSeek-V4 and DSpine plans' widths and `tests/backend_rocm.cpp`, none of which the carried checks' other paths reach.
+
+**Checks rerun or rescored.** The first DeepSeek cut-pass compare passed a stray argument to its compare script; rescored by hand from its files, the stack's runs give count 0 against main's 192, as fix/ds-cut-pass requires.
+Two Vulkan reruns failed on the harness: CTest ran while its test executables were still linking, and the suite mounted a Python library of another image (numpy import); both were rerun.
+`moe`'s expert cache wrap check failed twice on stack builds, at 967 and 999 waves against its floor of 1024, and passed on others; six interleaved runs on one MI50 (main, stack, three times) all passed, the stack changes no expert cache file, and XDEV measured the ring past 1024 waves with logits identical to resident on both backends, so it is the check's margin on a varying wave count, which main has; reported to COORD with XDEV's fixture.
+The Radeon VII's first identity run differed from main on Qwen3.5-0.8B logits by about 1e-4 with the same generated ids; rerun from copied exes in the order main, stack, main, stack, all four agree at f16 and int8, as in land-20261132.
+The 27B rounds were invalid three times under contention on the timing cores, controls -3.63%, -6.54% and +2.72%, and the 35B ROCm rounds twice, -6.01% and +8.16%; the raw files of every round are kept.
+
+| Check | Result |
+|---|---|
+| CTest, CPU build of 870876e4 on pve1 | 91/91 |
+| Suite, CPU build, all components (pve1 at 870876e4; `docs` at the head on a git-archive copy) | pass |
+| Identity against 63657ff21 on the CPU, Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M, `cpu:auto` and `cpu:f32` | 32 of 32 output files equal |
+| Builds: ROCm gfx906 of 40124ee6 (sha256 e131399bbe55) and of 63657ff21 (c2e3e3777a4a), Vulkan of the head (1163438f86e7; main 03f11253503c), ROCm with the full target list (31edd9b8554d) | build |
+| Identity against 63657ff21 on one MI50, Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M at each dtype, ROCm | 48 of 48 output files equal |
+| Suite on one MI50, `--device rocm:0`; `drafters`, `server` and `flags` rerun at 40124ee6 | pass; `moe` as above |
+| CTest `arch-qwen35`, ROCm build of 40124ee6 | 2/2 |
+| Identity on Vulkan against 63657ff21, vision on both arms | 32 of 32 equal; pass in both arms |
+| CTest `-R "vulkan|arch-qwen35"`, Vulkan build of the head, one MI50 | 23/23; `backend-vulkan` rerun with the source tree mounted where the build reads its shaders, which the first run lacked |
+| Suite on one MI50, `--device vulkan:0`; `drafters`, `server` and `flags` rerun at ffcb3414 | pass |
+| Identity on Vulkan at `--tensor-width 2` against 63657ff21 | 19 of 19 output files equal |
+| Identity against 63657ff21, Qwen3.6-27B Q8_0 on four MI50s at `--tensor-width 4`, int8 and f16 | 8 of 8 output files equal |
+| Identity against 63657ff21, Qwen3.8-Flash-Next int8, layer split over four MI50s | 3 of 3 output files equal |
+| CTest, ROCm build, four MI50s | 95/96 at ea76aef36, `arch-qwen35` fixed as above and passing at 40124ee6 |
+| Identity against 63657ff21, Qwen3.6-35B-A3B Q4_K_M on one MI50: ROCm auto and int8, Vulkan auto, each also with `--cpu-moe`; expert ring smoke on both | 10 of 10 output files equal; runs on both |
+| DeepSeek-V4.1 tiny fixture, 1024-token pass cut in two at `--tensor-width 2` (fix/ds-cut-pass) | stack 0 differing values, main 192 |
+| Qwen3.8 27B int8: DSpine at `--tensor-width 4` k7 and k15, DFlash2 layer split k7 and k15, against drafts off and main's drafts off | all the same ids |
+| MiniMax on nine MI50s (arch/minimax-device): stack against PR 626's own build on the edited file, and the stack on the published file | the same ids; main refuses the published file's pretokenizer |
+| Serve cell: Flash-Next int8, MTP drafter, four MI50s as two groups of two | pass: 256 events and the same final text (a20c2daefb05) in all 12 requests, main, stack, stack, main, three each; median 45.60 tok/s stack, 38.10 main under a host load of about 50, informational |
+| Radeon VII (Windows, Vulkan) at ffcb3414: build, CTest, suite `dead-code`, `docs`, `drafters` and `flags`; CTest `backend-vulkan` at the head; identity Qwen3.5-0.8B from copied exes | builds; CTest passes but for `backend-vulkan` at ffcb3414, which passes at the head; suite pass; identity equal at f16 and int8 |
+| docs, dead-code | pass on a git-archive copy of the head and of this record's commit |
+| dead-code `--linked` (Vulkan, -O0, every target) | pass at ea76aef36 (16 findings, all listed) |
+| CTest, CUDA build (card-free: cuda-sass, gpu-core, gpu-port, cuda-driver) | 4/4 at ea76aef36; the stack's later changes touch no file under `src/backends/gpu` |
+| Hosted | the workflow run of this commit on GitHub |
+
+**Rerun after the deferral.** At the landing head, against 63657ff21 where an arm is named:
+
+| Check | Result |
+|---|---|
+| Builds at c9e4af5dc: ROCm gfx906 and all architectures, Vulkan, CUDA, and the CPU stack and main on pve1 | all build |
+| CTest, CPU build on pve1 | 91/91 |
+| CTest, ROCm gfx906 build, four MI50s | 96/96 |
+| CTest `vulkan\|arch-qwen35`, Vulkan build, one MI50 (a first run started while the build was still linking, and 11 of 23 did not run; rerun) | 23/23 |
+| CTest `cuda-sass\|gpu-core\|gpu-port\|cuda-driver`, CUDA build, no card | 4/4 |
+| Identity on the CPU, Qwen3.5-0.8B Q4_K_M, `cpu:auto` and `cpu:f32`: logits, per-token logits, generate and lookup | 8 of 8 output files equal |
+| Identity on the CPU, DeepSeek-V4 tiny fixture (fork1024), `cpu:auto` and `cpu:f32`, f16 and f32 cache: logits of 384, 5 and 2 ids, at `--ubatch 64`, and `--per-token` over 384 and 5 ids (the fixture's tokenizer reads no text and `generate` takes no ids, so `--per-token` stands for the decode path) | 24 of 24 output files equal |
+| Identity on ROCm, Qwen3.5-0.8B Q4_K_M, `rocm:0` auto, int8 and f32 | 24 of 24 output files equal |
+| Qwen3.8-27B Q8_0 `--dtype int8`, four MI50s: DSpine at `--tensor-width 4` and DFlash2 on a layer split, `--draft-max` 7 and 15, against `--drafter off` on the stack and on main | the same 128 ids in all 8 runs |
+| `docs` and `dead-code` on a git-archive copy of c9e4af5dc and of this record | pass |
+
+Timing (rule written before the runs, as in land-20261132): `bench --p 512 --n 128 --r 3`, arms s (stack), m (63657ff21) and c (a byte copy of m), the upper quartile of each arm's runs; a round counts if c/m tg128 is within 2%, and passes if s/m is at least -2% on pp512 and tg128 and s has at most two slow runs more than m or c.
+The stack arm of every round held perf/dspine-topk2, whose chunked selection runs only in DSpine drafting and DeepSeek-V4's indexer and whose scratch slot is priced only where their plans set its widths, so none of these cells reaches it and the verdicts carry to the landing head.
+Qwen3.6-35B-A3B Q4_K_M `--dtype auto` on one MI50, Vulkan, built at ea76aef36, whose Vulkan code differs from the head's by the fixes above: control -1.52%, s/m +0.82% tg128 and +0.15% pp512, upper quartile 114.30 to 115.24 and 1323.07 to 1325.04 tok/s; it passes.
+The rounds from 16:52 on 2026-11-25 ran their containers labelled `llmx.timing=1` on cores 12-15 with the host side under `taskset -c 12-15`; the 35B Vulkan round ran before that pinning.
+Qwen3.6-35B-A3B Q4_K_M `--dtype auto` on one MI50, ROCm, 18 runs under a host load of about 47 to 62: control -1.80%, s/m +1.13% tg128 and -1.07% pp512, slow runs s 5, m 6, c 6; it passes.
+Qwen3.6-27B Q8_0 `--dtype int8`, ROCm, four MI50s at `--tensor-width 4`, 30 runs under a host load of about 15 to 23, each container held to cores 12-15 (`--cpuset-cpus 12-15 --cpus 4`) and one set of four cards held per triad: control -0.34%, s/m -0.80% tg128 and +0.06% pp512, slow runs s 3, m 0, c 3; it passes. The round before it, with the same settings, counted at control -0.45% and missed at s/m -2.49% tg128 (paired median +0.27%), the stack arm having two undisturbed runs to five of main's; it was repeated once.
+perf/dspine-topk2's DeepSeek-V4.1 MXFP4 round on nine MI50s did not run: the file does not fit them, and it is deferred with that branch (What lands, above).
+
+| Arm, upper quartile, tok/s | 27B tw4 pp512 | 27B tw4 tg128 | 35B ROCm pp512 | 35B ROCm tg128 | 35B Vulkan pp512 | 35B Vulkan tg128 |
+|---|---|---|---|---|---|---|
+| s (stack) | 1220.95 | 73.17 | 1436.93 | 82.51 | 1325.04 | 115.24 |
+| m (63657ff21) | 1220.25 | 73.75 | 1452.52 | 81.58 | 1323.07 | 114.30 |
+| c (copy of m) | 1220.38 | 73.50 | 1427.34 | 80.11 | 1325.56 | 112.56 |
+
 ## Landing stack land-20261132 (2026-11-25, LAND124 and LAND125, on main d8bd8735e, lands by fast-forward)
 
 **What lands.** Twenty-three commits on d8bd8735e, by fast-forward, in order: docs/arch-audit-fixes c23d6d73, fix/qwen35-dflash-yarn 940eeeff (the failing test) and de60e972, fix/qwen4exp-mtp-image-rope 9bd88c29 and 9f5639fa, fix/moe-stream-kept-home 113de8ff and cd0f517f, fix/minimax-index-block e486dda6 and 8c2d86dc, fix/vulkan-op-allowlist 1a604971 and 7f757322, fix/kv-bytes-groups 04a21dfd and a3c07dc2, tidy/qwen4exp-config 2683e183, fix/minimax-device-attention 31ad98fd and 592960a6, fix/placement-weight-bytes 61dd2340 and 8d2a4e41, fix/draft-max-needs-drafter 0a1e4992 and 3885e140, fix/threads-without-cpu cd4b2977 and d35179f7, and this record.

@@ -1040,6 +1040,92 @@ void timed_cpu(const gguf::GGUFModel& weights, uint32_t vocab) {
 
 } // namespace
 
+// A CPU backend playing a device, so passes of plain argmax draws keep their rows on it; with `forced` at 0 or above every id its argmax gives is replaced by that one, so the draws read their rows.
+struct DeviceIds : backend::CpuBackend {
+    std::shared_ptr<std::atomic<uint64_t>> calls;
+    int64_t forced;
+    DeviceIds(std::shared_ptr<std::atomic<uint64_t>> c, int64_t f) : calls(std::move(c)), forced(f) { set_threads(1); }
+    bool is_cpu() const override { return false; }
+    std::optional<size_t> memory_available() const override { return std::nullopt; }
+    void argmax_rows(backend::Slice ids, backend::CSlice logits, size_t rows, size_t n, backend::CSlice after = {}) override {
+        CpuBackend::argmax_rows(ids, logits, rows, n, after);
+        ++*calls;
+        if (forced < 0) return;
+        const uint32_t id = (uint32_t)forced;
+        float* out = const_cast<float*>((const float*)ids.buffer->host_ptr()) + ids.offset;
+        for (size_t r = 0; r < rows; ++r) std::memcpy(out + r, &id, sizeof(id));
+    }
+};
+
+// Greedy replies with ignore_eos and without log-probabilities, on one device and on a layer split of two at P = 2, take their tokens from the device's argmax ids, each reply the CPU's.
+// An id the draw cannot take, the end token ignore_eos masks or the invalid id of a row whose largest logit is not finite, reads its row back and draws from it, the reply unchanged.
+void device_ids(const gguf::GGUFModel& file, uint32_t vocab) {
+    gguf::GGUFModel weights = file;
+    constexpr uint32_t kEnd = 5;
+    gguf::MetaValue end;
+    end.vtype = gguf::V_UINT32;
+    end.u = kEnd;
+    weights.kv.push_back({"tokenizer.ggml.eos_token_id", end});
+    const bpe::Tokenizer tok(weights);
+    require(tok.eos_id == (int32_t)kEnd, "device ids: the model has no end token");
+    const size_t pool = 16 * kBlock;
+    std::vector<server::SampleParams> params;
+    std::vector<std::vector<uint32_t>> prompts;
+    for (uint32_t i = 0; i < 4; ++i) {
+        server::SampleParams p;
+        p.temp = 0.0f;
+        p.max_tokens = 24;
+        p.ignore_eos = true;
+        params.push_back(p);
+        prompts.push_back(prompt_of(41 + 3 * i, 5 + i, vocab));
+    }
+    const auto replies = [&](infer::Model& model, size_t passes, server::Scheduler::Stats* stats) {
+        server::Scheduler sched(model, tok, kSeqs, 64, passes);
+        std::vector<std::shared_ptr<server::Request>> handles;
+        for (size_t i = 0; i < prompts.size(); ++i) handles.push_back(sched.submit(prompts[i], params[i]));
+        std::thread runner([&] { sched.run(); });
+        std::vector<std::vector<uint32_t>> got;
+        try {
+            for (auto& h : handles) {
+                std::vector<uint32_t> ids;
+                for (const auto& t : drain(*h)) ids.push_back(t.id);
+                got.push_back(ids);
+            }
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        if (stats) *stats = sched.stats();
+        sched.stop();
+        runner.join();
+        return got;
+    };
+    auto cpu = on(weights, [] { return cpus(1); })(pool, kUbatch);
+    const std::vector<std::vector<uint32_t>> want = replies(*cpu, 1, nullptr);
+    for (const size_t stages : {size_t(1), size_t(2)})
+        for (const int64_t forced : {int64_t(-1), int64_t(kEnd), int64_t(vocab)}) {
+            const std::string where = "device ids on " + std::to_string(stages) + " stage" + (stages == 1 ? "" : "s") +
+                                      (forced < 0 ? "" : forced == kEnd ? ", every id the end token" : ", every id invalid");
+            auto calls = std::make_shared<std::atomic<uint64_t>>(0);
+            std::vector<backend::BackendPtr> devices;
+            for (size_t i = 0; i < stages; ++i) devices.push_back(std::make_shared<DeviceIds>(calls, forced));
+            infer::ModelOptions options;
+            options.kv_tokens = pool;
+            options.argmax_passes = true;
+            infer::PlacementRequest request;
+            for (size_t i = 0; i < stages; ++i) request.names.push_back("device " + std::to_string(i));
+            if (stages > 1) request.shares.assign(stages, 1);
+            request.ubatch = kUbatch;
+            auto model = infer::place_model(infer::gguf_weights(weights), std::move(devices), request, options).model;
+            server::Scheduler::Stats stats;
+            const std::vector<std::vector<uint32_t>> got = replies(*model, stages, &stats);
+            require(got == want, where + ": a reply differs from the CPU's");
+            require(calls->load() > 0, where + ": no pass kept its rows on the device");
+            ++checks;
+        }
+}
+
 // The room rule at its owner: the scheduler refuses, without a route before it, a prompt that leaves its reply less than the room, and admits one at the edge.
 void reply_room(const gguf::GGUFModel& weights, uint32_t vocab) {
     const bpe::Tokenizer tok(weights);
@@ -1699,6 +1785,7 @@ int main() {
                     S::draft_rows(16, 31) == 64 && S::draft_rows(2, 31) == 62 && S::draft_rows(3, 31) == 64 && S::draft_rows(1, 63) == 63,
                 "the logits rows of a pass with and without drafts");
         reply_room(served(kSplit), (uint32_t)kSplit.vocab);
+        device_ids(served(kSplit), (uint32_t)kSplit.vocab);
         grouped(served(kSplit), (uint32_t)kSplit.vocab);
         routed_groups(served_routed(kSplit), (uint32_t)kSplit.vocab);
         grouped(served_hybrid(kHybridEven), (uint32_t)kHybridEven.vocab);

@@ -1422,6 +1422,11 @@ inline std::unique_ptr<Model::Chain> Model::draft_begin(const DraftAsk* asks, si
     if (c->order.empty()) return nullptr;
     c->block = std::max<size_t>(plan_.draft_block, 1);
     c->call_rows = draft_call_rows(plan_);
+    // A drafter with anchor rows attends causally inside its block (dflash::Config refuses other attention), so a block cut to the longest chain gives that chain's drafts.
+    if (plan_.draft_anchor && c->steps < c->block) {
+        c->block = c->steps;
+        c->call_rows = c->block + plan_.draft_anchor;
+    }
     c->steps = draft_calls(plan_, c->steps);
     // An anchor row reads the context rows of the positions before it, which only the history has, so a later call would have none.
     if (plan_.draft_anchor && c->steps > 1) throw std::logic_error("inference: a drafter with anchor rows drafts one call a chain");

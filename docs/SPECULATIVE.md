@@ -469,6 +469,7 @@ The drafter runs beside a qwen35-family model on one device or the CPU, as the p
 - Drafts: the target's output head over rows 1 to B - 1 and their top 16 ids; then for row t and each predecessor candidate j (the anchor for row 1, row t - 1's candidates after it) the last write again with the exact code of j.
   Greedy scores are `head_k . (norm_w * (raw_t + rms_t * write_5(msg_tj)))`, the final norm being a positive scale per j that leaves the argmax alone, and the chain starts from predecessor 0 and takes each row's best candidate given the one before.
 - Causal attention in the block means a block of B rows gives the same first rows as a longer one, so a call of fewer drafts is a prefix.
+  A chain therefore runs a block of its longest ask's drafts and the anchor row (`Model::draft_begin`), not the file's `block_size` rows.
 
 **Where it lives.** `src/model/arch/dflash.hpp`, beside `blocks.hpp`, owns the sidecar's checks and configuration (`check_sidecar`, `normalize_beside`, `read_config`); the roles, the context rows and the block call with its bridge are `qwen35`'s (`plan_dflash`, `dflash_rows`, `dflash_block`), which its three drafter overrides (`plan_drafter`, `draft_rows`, `draft`) dispatch to when the paired drafter is a DFlash sidecar and not the file's MTP block.
 DSpark's stages are DeepSeek trunk blocks and stay in `deepseek4`; the generic head of its sidecar check (the `dflash.` keys equal to the target's but its own, the mask token required) is `dflash::check_sidecar`, which DSpark calls.

@@ -28,6 +28,7 @@ Each entry is one short line that links the doc explaining it; reasons, flags an
 - Q8_0 int8 decode of 9 or 10 sequences at once is faster on ROCm ([ROCm](docs/ROCM.md)).
 - `--verbose` placement lines call their weights figure an estimate of device memory, given per member for a tensor group ([usage](docs/USAGE.md)).
 - A DSpine drafter also drafts beside a model split as a tensor group (`--tensor-width`) ([speculative decoding](docs/SPECULATIVE.md)).
+- A DSpine drafter asked for fewer drafts runs a shorter block, so a small `--draft-max` decodes faster ([speculative decoding](docs/SPECULATIVE.md)).
 
 ### Fixed
 

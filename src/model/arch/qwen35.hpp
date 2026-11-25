@@ -668,12 +668,12 @@ private:
         const Weight* w = s.w;
         const auto lw = [&](size_t l, DFlashRole r) -> const Weight& { return w[dflash_role(l, r)]; };
         const size_t E = (size_t)cfg_.n_embd, D = (size_t)d.head_dim, H = (size_t)d.heads, Hkv = (size_t)d.kv_heads, L = (size_t)d.layers;
-        const size_t A = (size_t)d.block, K = (size_t)d.top_k, R = s.rows, n = R * A, B = A - 1;
+        const size_t B = s.ids, A = B + 1, K = (size_t)d.top_k, R = s.rows, n = R * A;
         const Weight &embd = w[token_embd], &head = w[output], &codebook = w[dflash_codebook];
         const size_t C = codebook.nin, G = w[dflash_gate].nout, V = head.nout;
         const float eps = cfg_.rms_eps, gain = std::sqrt(float(C));
         if (s.width > 1) throw std::logic_error("inference: a DFlash drafter runs whole on a tensor group's first member (Model::draft_members)");
-        if (s.stride != R || s.ids != B || s.phase >= 0) throw std::logic_error("inference: a DFlash draft is one call over its sequences' blocks");
+        if (s.stride != R || !B || A > (size_t)d.block || s.phase >= 0) throw std::logic_error("inference: a DFlash draft is one call over its sequences' blocks");
         if (!s.indices || s.indices_size < 2 * std::max(n, R * K)) throw std::runtime_error("inference: the DFlash draft's index scratch is too small");
         const size_t base = tap_slot();
         const backend::Slice h = s.slot(1), q = s.slot(2), k = s.slot(3), v = s.slot(4), att = s.slot(6), codes = s.slot(base + 3), qg = s.slot(base + 4),

@@ -421,6 +421,14 @@ Images are pushed by digest alone and tagged only by the run that publishes them
 - **Left:** nothing for this change; the model side is feat/dspine's, in the same stack. It lands with the landing stack land-20261127, whose gates are recorded there (Landing stack land-20261127, below).
 - **Gotchas:** the ROCm host TU was syntax-checked with hipcc's headers; the CUDA TU shares the same template but was not compiled here (no cuda.h on the rig).
 
+## DSpine block cut to the chain (2026-11-25, DSPINE18, branch perf/dspine-prefix on perf/dspine-group dad387a33)
+
+- **Goal:** a DSpine chain of k drafts runs a block of k + 1 rows, not the file's 16, so `--draft-max 7` pays half the drafter body, head rows and refinement steps; depends on perf/dspine-group (PR 621) for the tw4 measurement.
+- **Done:** `Model::draft_begin` cuts the chain's block to its longest ask where the drafter has anchor rows (causal inside its block, which `dflash::Config` requires); `dflash_block` sizes its rows from the step's drafts. drafters' DSpine check also runs each golden case cut to half its drafts against the whole block's first drafts; drafters and tensor-split pass on the CPU.
+- Measured (DSPINE19/20, Qwen3.8-27B-Q8_0 with its DSpine-b16 Q8_0 sidecar, `--dtype int8 --tensor-width 4`, four MI50s on ROCm, 128 tokens at temp 0, group dad387a33 against this branch, interleaved, host load 40-52): member 0's draft kernel time a block (rocprofv3, median of 8 blocks) 19.41 -> 12.50 ms at `--draft-max 7` and 19.38 -> 16.04 ms at 10, the 248320-row head of 16 rows leaving with the cut; decode tok/s medians of 4 rounds 93.5 -> 105.5 at 7 and 87.7 -> 103.0 at 10; generated ids equal to drafting off in every run, drafts kept per position unchanged (rig dspine19/p3).
+- **Left:** the landing gates; it lands after perf/dspine-group (PR 621), in that stack.
+- **Gotchas:** measured before the change (DSPINE16, tw4 int8): k7 ~100 tok/s, k15 ~80, MTP ~127. Host load makes tok/s noisy at this size, so the verdict is the kernel time. XDEV and Fable disagree on splitting the drafter body over the group (XDEV: keep one owner, head shards need an exact global top-K merge).
+
 ## DSpine drafter on a tensor group (2026-11-24, DSPINE16, branch perf/dspine-group on main d8bd8735e)
 
 - **Goal:** `--drafter` with the Qwen3.8-27B DSpine-b16 sidecar runs at `--tensor-width 4` on four MI50s, where main refuses it, toward the owner's 150 drafted tok/s.

@@ -66,7 +66,7 @@ delegated to a `backend::Backend`.
 - `ModelOptions`: what is fixed at construction, before the caches are
   allocated: each cache side's type (`kv_k`, `kv_v`, the CLI's
   `--cache-type-k` and `--cache-type-v`), `kv_tokens`, the positions
-  every pool holds, zero for one model context, `checkpoint_slots`, the states kept at a position beside the live ones (`serve --state-checkpoints`, two for `chat`), `mark_slots` and `mark_rows`, the marks a verify keeps its starting state in and the rows a pass after a mark may take (one of `--draft-max` + 1 rows for `generate` and `chat` with a drafter), `argmax_passes`, whether passes may keep plain argmax rows on the output device, as `generate` and `chat` ask and a server never does, so only then does the fit charge them (`argmax_rows`), and `state_slots`, the
+  every pool holds, zero for one model context, `checkpoint_slots`, the states kept at a position beside the live ones (`serve --state-checkpoints`, two for `chat`), `mark_slots` and `mark_rows`, the marks a verify keeps its starting state in and the rows a pass after a mark may take (one of `--draft-max` + 1 rows for `generate` and `chat` with a drafter), `argmax_rows`, the most logits rows passes may keep on the output device for plain argmax draws (a verify's mark rows or a step's one for `generate` and `chat`, every logits row the scheduler keeps for `serve`), zero for none, the rows the fit charges, and `state_slots`, the
   sequences that may hold a recurrent state at once in a model whose layers
   keep one: one for a command's own sequence, the sequences a pass carries
   for `bench --seqs` (the CLI's `open_model` sets it from them), four for

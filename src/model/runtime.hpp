@@ -97,8 +97,8 @@ struct ModelOptions {
     size_t checkpoint_slots = 0;
     // Marks (Model::mark), each a slot more in every state storage and room for the recurrent inputs of `mark_rows` rows of every state layer, the most a pass after a mark may take.
     size_t mark_slots = 0, mark_rows = 0;
-    // Passes may keep plain argmax draws' logits rows on the output device (Model::step with argmax), as infer::generate's do; a server's passes never do, so its fit holds no room for them.
-    bool argmax_passes = false;
+    // The most logits rows passes keep on the output device for plain argmax draws (BatchEntry::argmax), as infer::generate's and a server's do; zero where passes take no argmax, and the fit holds no room for them.
+    size_t argmax_rows = 0;
     backend::Dtype dtype = backend::Dtype::f16;
     std::vector<backend::Dtype> device_dtypes; // empty applies dtype to every device
     // The whole KV budget backed as the model is made rather than as passes write it, so no pass grows the cache (the budget every placement fits, fitted_kv in model/place.hpp).
@@ -113,8 +113,6 @@ struct ModelOptions {
     StreamHook streams;
 };
 
-// The most rows an argmax pass keeps on the output device (Model::argmax_buffers): a verify's, which a mark bounds, or a step's one, and none where passes take no argmax (ModelOptions::argmax_passes).
-inline size_t argmax_rows(const ModelOptions& o) { return o.argmax_passes ? std::max<size_t>(1, o.mark_rows) : 0; }
 
 // An image's rows in a history (docs/VISION.md, sections 4 and 5): its first row and its rows, the encoder's merged grid they fill row by row, its digest, and the encoder's rows, which a pass writes over their pad rows after the embedding.
 // The rows, held until read and possibly only those from `from` on, and the digest, zero where no tier compares it, are what a fork, a host copy and the owner's giving it again are held to.
@@ -1201,6 +1199,9 @@ public:
     }
     void commit_pass_stage(ExecContext& ctx, size_t slot);
     const float* pass_logits(ExecContext& ctx, size_t slot, size_t i);
+    // Whether the pass in flight in the slot keeps its logits rows on the output device, all its wanting entries asking only their argmax (BatchEntry::argmax), so pass_argmax_id gives its rows' ids.
+    bool argmax_pass(ExecContext& ctx, size_t slot) const { return in_flight(ctx, slot).argmax; }
+    uint32_t pass_argmax_id(ExecContext& ctx, size_t slot, size_t i);
     void end_pass(ExecContext& ctx, size_t slot);
     std::vector<size_t> abort_pass(ExecContext& ctx, size_t slot);
 
@@ -2069,6 +2070,7 @@ private:
     backend::BufferPtr alloc_arena(backend::Backend& b, const std::vector<size_t>& counts, std::vector<size_t>& offsets) const;
     void ensure(ExecContext& ctx, size_t rows, size_t want, size_t buffers, size_t reply_rows = 0);
     bool argmax_buffers(ExecContext& ctx, size_t end);
+    const Pass& retired_pass(ExecContext& ctx, size_t slot, size_t i);
     void send(ExecContext& ctx, size_t set, size_t from, size_t handoff, size_t base, size_t rows, int before, const std::vector<ModelPlan::Carried>* slots = nullptr);
     std::pair<double, double> receive(ExecContext& ctx, size_t set, size_t from, size_t handoff, backend::Ticket sent, size_t to, size_t base, size_t rows, int before,
                                       const std::vector<ModelPlan::Carried>* slots = nullptr);

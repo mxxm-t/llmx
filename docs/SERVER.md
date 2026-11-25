@@ -331,7 +331,7 @@ Every CTest run replays the owner's case at a smaller scale under three rules (`
 
 Sampling is per request, on the host, from the logits row the pass returns for that entry: the existing `inference/sampler.hpp` with the request's own temperature, top-k, top-p, penalty and seeded RNG, so a request with `seed` set is reproducible regardless of what it was batched with.
 The sampler ranks tokens by score with a tie going to the lower id and takes no sum in an order its selection leaves, so a seeded request gives the tokens `generate` gives with the same settings and seed.
-It reads the row in place in the pass's mapped logits, and the scheduler copies a row only for a request that asks for log-probabilities (below).
+It reads the row in place in the pass's mapped logits, or only the row's argmax id where the pass kept its rows on the device (Device argmax, below), and the scheduler copies a row only for a request that asks for log-probabilities (below).
 A retiring pass's rows are drawn on the scheduler's sampling threads (`core/job_threads.hpp`): four, or one fewer than the CPUs the process may use where that is fewer, beside the scheduler thread, which waits for the pass's logits, hands them the rows and waits for every draw before the pass ends and its logits rows come back.
 Each draw touches only its request's generator and row copy, and a request wants one row a pass, so no draw depends on another, on the thread that takes it or on the order they run in; the scheduler thread then pushes the tokens in entry order, and it alone pushes to the channels, keeps the ledger and calls the backends.
 A pass of one row is drawn on the scheduler thread without waking another.
@@ -344,6 +344,13 @@ Greedy requests give the text the CLI gives for the same prompt, which is the fi
 A request's `ignore_eos`, the CLI's `--ignore-eos`, is one rule of the sampler (`infer::Sampling::ignore_eos`): the id that ends a reply (`Tokenizer::is_eos`) is passed over by every sampling step, greedy included, and a draw leaves it out before top-k, top-p and the softmax, so the reply runs to its token limit, the context's for an uncapped request, while a stop text still ends it.
 The masked token does not exist for the draw, so the repetition penalty cannot bring it back and top-k and top-p count only the other tokens.
 The mask changes the draw, not the logits row: whatever reads the row reads the model's own distribution, the end token's share included.
+
+### Device argmax
+
+A request whose draw is its row's argmax alone (`infer::plain_argmax`: greedy and no penalty, with or without `ignore_eos`) and that asks no log-probabilities marks its entry `BatchEntry::argmax`, and a pass all of whose wanting entries are marked keeps their logits rows on the output device, which finds each row's argmax id; only the ids cross to the host (`Model::argmax_pass`, `Model::pass_argmax_id`).
+The id is the draw wherever the draw can take it (`infer::argmax_drawn`); where it is the end token `ignore_eos` masks, or the device's sentinel for a row whose largest logit is not finite or that holds a NaN, the scheduler reads that row back (`Model::pass_logits`) and the sampler draws from it, so every pick is the host draw's.
+A pass with any other entry, a tensor group's head, a CPU head and a scheduler with an observer of the rows (`Scheduler::on_retire`) keep the rows on the host.
+`serve` places the model with room on the output device for every logits row its passes keep (`ModelOptions::argmax_rows`), and `/v1/health` counts the rows drawn as plain argmax, those drawn from the device's id and those read back (`passes.since_start.argmax_rows`, `.argmax_ids`, `.argmax_reads`).
 
 ### Drafts
 

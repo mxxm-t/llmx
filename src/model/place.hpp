@@ -148,7 +148,7 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
     if (width > 1) fp.head_slice_per_row = fp.output.rows * sizeof(float);
     else {
         fp.argmax_per_row = (plan.vocab + 1) * sizeof(float);
-        fp.argmax_rows = argmax_rows(options);
+        fp.argmax_rows = options.argmax_rows;
     }
     // A member's caches hold its heads, one device's plan with the member's KV heads and state.
     ModelPlan heads;

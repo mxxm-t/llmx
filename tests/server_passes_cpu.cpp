@@ -1041,19 +1041,28 @@ void timed_cpu(const gguf::GGUFModel& weights, uint32_t vocab) {
 } // namespace
 
 // A CPU backend playing a device, so passes of plain argmax draws keep their rows on it; with `forced` at 0 or above every id its argmax gives is replaced by that one, so the draws read their rows.
+// `unusable` counts the rows whose own id is the end token `end` or the invalid id, which a draw under ignore_eos cannot take.
 struct DeviceIds : backend::CpuBackend {
-    std::shared_ptr<std::atomic<uint64_t>> calls;
+    std::shared_ptr<std::atomic<uint64_t>> calls, unusable;
     int64_t forced;
-    DeviceIds(std::shared_ptr<std::atomic<uint64_t>> c, int64_t f) : calls(std::move(c)), forced(f) { set_threads(1); }
+    uint32_t end;
+    DeviceIds(std::shared_ptr<std::atomic<uint64_t>> c, std::shared_ptr<std::atomic<uint64_t>> u, int64_t f, uint32_t e)
+        : calls(std::move(c)), unusable(std::move(u)), forced(f), end(e) { set_threads(1); }
     bool is_cpu() const override { return false; }
     std::optional<size_t> memory_available() const override { return std::nullopt; }
     void argmax_rows(backend::Slice ids, backend::CSlice logits, size_t rows, size_t n, backend::CSlice after = {}) override {
         CpuBackend::argmax_rows(ids, logits, rows, n, after);
         ++*calls;
-        if (forced < 0) return;
-        const uint32_t id = (uint32_t)forced;
         float* out = const_cast<float*>((const float*)ids.buffer->host_ptr()) + ids.offset;
-        for (size_t r = 0; r < rows; ++r) std::memcpy(out + r, &id, sizeof(id));
+        for (size_t r = 0; r < rows; ++r) {
+            uint32_t id;
+            std::memcpy(&id, out + r, sizeof(id));
+            if (forced >= 0) {
+                id = (uint32_t)forced;
+                std::memcpy(out + r, &id, sizeof(id));
+            }
+            *unusable += id == end || id >= n;
+        }
     }
 };
 
@@ -1107,12 +1116,12 @@ void device_ids(const gguf::GGUFModel& file, uint32_t vocab) {
         for (const int64_t forced : {int64_t(-1), int64_t(kEnd), int64_t(vocab)}) {
             const std::string where = "device ids on " + std::to_string(stages) + " stage" + (stages == 1 ? "" : "s") +
                                       (forced < 0 ? "" : forced == kEnd ? ", every id the end token" : ", every id invalid");
-            auto calls = std::make_shared<std::atomic<uint64_t>>(0);
+            auto calls = std::make_shared<std::atomic<uint64_t>>(0), unusable = std::make_shared<std::atomic<uint64_t>>(0);
             std::vector<backend::BackendPtr> devices;
-            for (size_t i = 0; i < stages; ++i) devices.push_back(std::make_shared<DeviceIds>(calls, forced));
+            for (size_t i = 0; i < stages; ++i) devices.push_back(std::make_shared<DeviceIds>(calls, unusable, forced, kEnd));
             infer::ModelOptions options;
             options.kv_tokens = pool;
-            options.argmax_passes = true;
+            options.argmax_rows = 64;
             infer::PlacementRequest request;
             for (size_t i = 0; i < stages; ++i) request.names.push_back("device " + std::to_string(i));
             if (stages > 1) request.shares.assign(stages, 1);
@@ -1122,6 +1131,12 @@ void device_ids(const gguf::GGUFModel& file, uint32_t vocab) {
             const std::vector<std::vector<uint32_t>> got = replies(*model, stages, &stats);
             require(got == want, where + ": a reply differs from the CPU's");
             require(calls->load() > 0, where + ": no pass kept its rows on the device");
+            const uint64_t drawn = 4 * 24;
+            require(stats.argmax_rows == drawn, where + ": " + std::to_string(stats.argmax_rows) + " rows drawn as plain argmax of " + std::to_string(drawn));
+            // Every row is drawn, so the rows read back are those whose id the draw cannot take: all of them where the ids are forced.
+            const uint64_t reads = unusable->load();
+            require(reads == (forced < 0 ? reads : drawn) && stats.argmax_reads == reads && stats.argmax_ids == drawn - reads && (forced >= 0 || reads < drawn),
+                    where + ": " + std::to_string(stats.argmax_ids) + " rows from the device's ids and " + std::to_string(stats.argmax_reads) + " read back");
             ++checks;
         }
 }

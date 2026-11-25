@@ -661,7 +661,7 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
         request.history_tokens = history_tokens;
     }
     infer::ModelOptions options = model_options(exec);
-    options.argmax_passes = argmax_passes;
+    options.argmax_rows = argmax_passes ? logit_rows : 0;
     if (!exec.chat_template_file.empty()) {
         options.chat_template = read_text_file(exec.chat_template_file, "--chat-template-file");
         if (options.chat_template.empty()) throw std::runtime_error("--chat-template-file: the file is empty: " + exec.chat_template_file);
@@ -1533,7 +1533,7 @@ void serve_loaded(const std::string& model_path, const server::Config& cfg, cons
     // The scheduler keeps logits rows for its passes in flight by its own rule, a row a request and its drafts, not one for every row of a pass.
     const size_t logit_rows = server::logit_rows(slots, server::Scheduler::logits_a_pass(cfg.max_seqs, drafts.mark_rows() ? drafts.mark_rows() - 1 : 0)).size;
     const auto loaded = open_model(model_path, exec, true, exec.threads, logit_rows, cfg.max_seqs, false, nullptr, 0, slots, cfg.timing, cfg.state_checkpoints,
-                                   drafts.mark_rows(), drafts.embedded, drafts.file, {}, cfg.host_cache_bytes, [&](const infer::LoadStep& step) { startup.step(step); }, false, {},
+                                   drafts.mark_rows(), drafts.embedded, drafts.file, {}, cfg.host_cache_bytes, [&](const infer::LoadStep& step) { startup.step(step); }, true, {},
                                    images.mmproj, images.max_tokens);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;

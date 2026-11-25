@@ -384,9 +384,15 @@ inline uint32_t sample(const float* logits, size_t n, const Sampling& s, int32_t
     return sample(logits, n, s.temp, s.top_k, s.top_p, s.penalty, gen, rng, s.ignore_eos ? end : -1, s.min_p, s.presence_penalty, s.frequency_penalty);
 }
 
-// Whether a draw with these settings is the row's argmax alone, as a device takes it (Model::argmax_id): greedy, no penalty and no masked id.
+// Whether a draw with these settings is the row's argmax, as a device takes it (Model::argmax_id): greedy and no penalty, the end token that ignore_eos masks aside (argmax_drawn).
 inline bool plain_argmax(const Sampling& s) {
-    return s.temp <= 0.0f && !(s.penalty > 0.0f && s.penalty != 1.0f) && s.presence_penalty == 0.0f && s.frequency_penalty == 0.0f && !s.ignore_eos;
+    return s.temp <= 0.0f && !(s.penalty > 0.0f && s.penalty != 1.0f) && s.presence_penalty == 0.0f && s.frequency_penalty == 0.0f;
+}
+
+// Whether a device's argmax id is a plain argmax draw's pick under `s` from `n` ids: not `n` or more, a row whose largest logit is not finite, and not the end token `end` that the draw masks.
+// Any other id is drawn from its row instead.
+inline bool argmax_drawn(uint32_t id, size_t n, const Sampling& s, int32_t end) {
+    return id < n && !(s.ignore_eos && end >= 0 && id == (uint32_t)end);
 }
 
 } // namespace infer

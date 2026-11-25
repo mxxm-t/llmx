@@ -53,6 +53,21 @@ They do not: `tests/baseline_layered.py` on Qwen3.6-35B-A3B Q4_K_M with its file
 The NLL deltas are absolute differences of mean NLL from HF over 243 tokens, batched and `--per-token`, the worst of either.
 The 0.026 is a difference between llmx's own f16 and f32 runs, not an error against HF, and the Vulkan arm is no further from HF than ROCm, so no kernel changes.
 Reports: rig `/opt/claude-work/conffix1/arms7a/r-{vd1,vtw2,rd1}/report.json`.
+## Server device argmax (2026-11-25, CUDA141, branch perf/serve-device-argmax on main d8bd8735e; lands as two commits, the failing test and then the change)
+
+- **Goal:** a server's greedy requests, `ignore_eos` ones included, take their tokens from the output device's argmax instead of copying every logits row to the host. On one RTX 3090 a c16 load of Qwen3-0.6B BF16 (greedy, `ignore_eos`, 512/128) copied 16 rows of 151936 F32 logits a step, about 1.05 ms of a 13.0 ms TPOT, where `bench --seqs 16` steps in 9.4 ms and vLLM 0.33.0 in 5.4 ms.
+- **Done:** the scheduler marks the entries of requests whose draw is plain argmax and that ask no log-probabilities (`Scheduler::device_pick`), and `serve` places the model with room for every logits row its passes keep (`ModelOptions::argmax_rows`, which replaces `argmax_passes`). `infer::plain_argmax` takes `ignore_eos`, and `infer::argmax_drawn` sends an id that is the masked end token or the invalid id to the row, which `Model::pass_logits` reads back from the device. `/v1/health` counts the rows (docs/SERVER.md, Device argmax).
+- **Measured:** one MI50 (renderD134), Qwen3-0.6B c1899de, ROCm gfx906 dev builds, default `--dtype f16`, `serve --timing --max-seqs 16`, `tools/server_load.py` c16 (512 in, 128 out, greedy, `ignore_eos`, 32 prompts, 2 rounds), main d8bd8735e and the branch at cd9066d75 interleaved twice:
+
+  | arm | out tok/s r1 / r2 | TPOT p50 ms r1 / r2 | round_ms | logits_wait_ms | sampling_ms |
+  |---|---|---|---|---|---|
+  | main | 259.3 / 256.7 | 47.78 / 53.70 | 37.82 / 38.01 | 34.05 / 32.51 | 1.14 / 2.04 |
+  | branch | 283.5 / 291.9 | 48.94 / 48.21 | 32.94 / 32.49 | 29.71 / 29.50 | 0.34 / 0.48 |
+
+  Output throughput +11.1% (mean of the rounds), round time -14%; the branch drew all 9472 rows from device ids and read none back. The 16 greedy 64-token completions hash the same on every arm and round (`cuda141/ids-*.txt`). The rig host was loaded, as the TPOT spread shows.
+- **Gates so far:** `server-passes-cpu` `device_ids` fails on main (no pass kept its rows on the device); the focused tests `server-passes-cpu`, `placement` and `spec` on pve1; `docs` and `dead-code`.
+- **Left:** the 3090 session S141 (main, PR 630, the branch and vLLM on one rental); the round reorder (publishing after the next pass is recorded), only if S141's `--timing` buckets show host work worth moving (on the MI50 the round outside the logits wait, recording and sampling is about 0.4 ms); landing gates.
+- **Gotchas:** a pass keeps its rows on the device only if every wanting entry asks only its argmax, so one request with log-probabilities or sampling in a pass sends the whole pass's rows to the host. A scheduler with `on_retire` set (tests) reads every row on the host.
 
 ## CUDA BF16 prompt tile (2026-11-21, CUDA105, branch cuda/bf16-prompt-tile on main c494eea6f)
 

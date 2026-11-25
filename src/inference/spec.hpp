@@ -22,13 +22,13 @@ struct Accepted {
 };
 
 // accept (below) where row i's argmax may be known without its row, as `id(i)` gives it after an argmax pass (Model::argmax_id) for draws that are plain argmax (plain_argmax).
-// An id of `n_vocab` or more, a row whose largest logit is not finite or holds a NaN, is drawn from its row `row(i)` instead, so every pick is accept's.
+// An id that is not the pick (argmax_drawn), a row whose largest logit is not finite or the end token the draw masks, is drawn from its row `row(i)` instead, so every pick is accept's.
 template <class Id, class Row, class Pick>
 Accepted accept_ids(Id&& id, Row&& row, size_t n_vocab, const uint32_t* drafts, size_t k, const Sampling& s, int32_t end, const std::vector<uint32_t>& gen,
                     RNG& rng, Pick&& pick) {
     for (size_t i = 0;; ++i) {
         uint32_t y = id(i);
-        if (y >= n_vocab) y = sample(row(i), n_vocab, s, end, gen, rng);
+        if (!argmax_drawn(y, n_vocab, s, end)) y = sample(row(i), n_vocab, s, end, gen, rng);
         if (!pick(y) || i == k || y != drafts[i]) return Accepted{i + 1, y};
     }
 }

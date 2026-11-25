@@ -1008,7 +1008,8 @@ void layer_split_fits() {
         served.mark_slots = 1;
         served.mark_rows = 64;
         infer::ModelOptions verifying = served, stepping;
-        verifying.argmax_passes = stepping.argmax_passes = true;
+        verifying.argmax_rows = 64;
+        stepping.argmax_rows = 1;
         require(infer::footprint(w, plan, served).argmax_rows == 0 && infer::footprint(w, plan, verifying).argmax_rows == 64 &&
                     infer::footprint(w, plan, stepping).argmax_rows == 1,
                 "argmax rows charged to passes that take none, or not to those that take them");

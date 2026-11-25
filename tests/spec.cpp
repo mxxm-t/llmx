@@ -93,7 +93,7 @@ std::unique_ptr<infer::Model> placed(const gguf::GGUFModel& weights, size_t stag
     infer::ModelOptions options;
     options.mark_slots = 1;
     options.mark_rows = 32;
-    options.argmax_passes = true;
+    options.argmax_rows = 32;
     return std::move(infer::place_model(infer::gguf_weights(weights), std::move(backends), request, options).model);
 }
 
@@ -724,20 +724,29 @@ void device_argmax(const gguf::GGUFModel& dense, size_t vocab) {
     infer::GenParams masked = gp, warm = gp;
     masked.ignore_eos = true;
     warm.temp = 0.5f;
-    require(!infer::plain_argmax(masked) && !infer::plain_argmax(warm), "device argmax: a masked or drawn sample taken as plain argmax");
+    require(infer::plain_argmax(masked) && !infer::plain_argmax(warm), "device argmax: an ignore_eos draw not taken as plain argmax, or a drawn sample taken as one");
     const std::vector<uint32_t> gen{3, 5, 3};
-    for (size_t trial = 0; trial < 2000; ++trial) {
+    // Under ignore_eos an id that is the end token is drawn from its row, which masks it: the end is the id most rows give.
+    std::vector<size_t> times(n, 0);
+    for (uint32_t v : id)
+        if (v < n) ++times[v];
+    const int32_t masked_end = (int32_t)(std::max_element(times.begin(), times.end()) - times.begin());
+    require(times[(size_t)masked_end] > 0, "device argmax: no row has a finite argmax");
+    for (size_t trial = 0; trial < 4000; ++trial) {
+        const bool m = trial >= 2000;
+        const infer::GenParams& ps = m ? masked : gp;
+        const int32_t end = m ? masked_end : -1;
         const size_t first = rng() % R, k = std::min<size_t>(rng() % 12, R - first - 1);
         std::vector<uint32_t> drafts(k);
         for (size_t i = 0; i < k; ++i) {
             infer::RNG g;
-            drafts[i] = rng() % 4 ? infer::sample(rows.data() + (first + i) * n, n, gp, -1, gen, g) : (uint32_t)(rng() % n);
+            drafts[i] = rng() % 4 ? infer::sample(rows.data() + (first + i) * n, n, ps, end, gen, g) : (uint32_t)(rng() % n);
         }
         const size_t stop = rng() % 14;
         std::vector<uint32_t> want_picks, got_picks;
         infer::RNG r1, r2;
-        const infer::Accepted want = infer::accept(rows.data() + first * n, n, drafts.data(), k, gp, -1, gen, r1, [&](uint32_t y) { want_picks.push_back(y); return want_picks.size() < stop; });
-        const infer::Accepted got = infer::accept_ids([&](size_t i) { return id[first + i]; }, [&](size_t i) { return rows.data() + (first + i) * n; }, n, drafts.data(), k, gp, -1, gen, r2,
+        const infer::Accepted want = infer::accept(rows.data() + first * n, n, drafts.data(), k, ps, end, gen, r1, [&](uint32_t y) { want_picks.push_back(y); return want_picks.size() < stop; });
+        const infer::Accepted got = infer::accept_ids([&](size_t i) { return id[first + i]; }, [&](size_t i) { return rows.data() + (first + i) * n; }, n, drafts.data(), k, ps, end, gen, r2,
                                                       [&](uint32_t y) { got_picks.push_back(y); return got_picks.size() < stop; });
         require(want.rows == got.rows && want.last == got.last && want_picks == got_picks, "device argmax: verify " + std::to_string(trial) + " from row " + std::to_string(first) + " differs from accept");
     }

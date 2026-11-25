@@ -217,19 +217,41 @@ inline void Model::commit_pass_stage(ExecContext& ctx, size_t slot) {
     ++p.ran;
 }
 
-// Row i of the pass's wanting rows, in entry order, once its last stage has run; this waits on the pass's own ticket, never on a later pass's.
-inline const float* Model::pass_logits(ExecContext& ctx, size_t slot, size_t i) {
+// The pass's wanting row i once its last stage has run and its head's submissions have retired; this waits on the pass's own tickets, never on a later pass's.
+inline const Pass& Model::retired_pass(ExecContext& ctx, size_t slot, size_t i) {
     const Pass& p = in_flight(ctx, slot);
     if (p.ran < stages_.size()) throw std::logic_error("inference: the logits of a pass before its last stage");
     if (i >= p.want) throw std::out_of_range("inference: no such logits row");
-    if (p.argmax) throw std::logic_error("inference: the logits rows of a pass that kept them on the device");
     devices_[(size_t)place_.output_device]->b->wait(p.sent);
     for (size_t m = 1; m < p.sent_members.size(); ++m) devices_[(size_t)place_.output_device + m]->b->wait(p.sent_members[m]);
     devices_[(size_t)place_.output_device]->b->raise(p.sent);
     for (size_t m = 1; m < p.sent_members.size(); ++m) devices_[(size_t)place_.output_device + m]->b->raise(p.sent_members[m]);
+    return p;
+}
+
+// Row i of the pass's wanting rows, in entry order, read in place; after an argmax pass the output device first copies the row into its place in the host-visible rows.
+inline const float* Model::pass_logits(ExecContext& ctx, size_t slot, size_t i) {
+    const Pass& p = retired_pass(ctx, slot, i);
+    if (p.argmax) {
+        backend::Backend& b = *devices_[(size_t)place_.output_device]->b;
+        const size_t at = (p.logits_base + i) * ctx.width * sizeof(float);
+        b.copy(*ctx.logits_buf, at, *ctx.argmax_logits, at, ctx.width * sizeof(float));
+        const backend::Ticket t = b.submit();
+        b.wait(t);
+        b.raise(t);
+    }
     const void* host = ctx.logits_host.data() ? ctx.logits_host.data() : ctx.logits_buf->host_ptr();
     if (!host) throw std::runtime_error("inference: logits are not host visible");
     return (const float*)host + (p.logits_base + i) * ctx.width;
+}
+
+// The id of the largest logit of the pass's wanting row i, ties to the lowest, after a pass that kept its rows on the output device (argmax_pass); the vocabulary size where its largest is not finite or it holds a NaN.
+inline uint32_t Model::pass_argmax_id(ExecContext& ctx, size_t slot, size_t i) {
+    const Pass& p = retired_pass(ctx, slot, i);
+    if (!p.argmax) throw std::logic_error("inference: argmax ids of a pass that kept its logits rows");
+    uint32_t id;
+    std::memcpy(&id, (const float*)ctx.argmax_ids->host_ptr() + p.logits_base + i, sizeof(id));
+    return id;
 }
 
 // The pass in `slot` is done once its last stage has run: its sequences leave flight with the tokens committed, and the slot, its handoff buffers and the logits rows it was given are free for the next pass.
@@ -1333,13 +1355,13 @@ inline backend::BufferPtr Model::alloc_arena(backend::Backend& b, const std::vec
     return b.alloc(total);
 }
 
-// The output device's logits rows and ids for argmax passes, a verify's rows (argmax_rows) at most; false where the device cannot take them, for good, or the pass ends past them (`end`).
+// The output device's logits rows and ids for argmax passes, ModelOptions::argmax_rows at most; false where the device cannot take them, for good, or the pass ends past them (`end`).
 // The CPU keeps its rows, already in host memory, which a draw reads only up to its first miss.
 inline bool Model::argmax_buffers(ExecContext& ctx, size_t end) {
     const size_t o = (size_t)place_.output_device;
     backend::Backend& b = *devices_[o]->b;
     if (ctx.argmax_refused || b.is_cpu() || !b.implements(backend::Op::argmax_rows)) return false;
-    const size_t rows = std::min(ctx.logit_rows, argmax_rows(options_));
+    const size_t rows = std::min(ctx.logit_rows, options_.argmax_rows);
     if (end > rows) return false;
     if (ctx.argmax_logits && ctx.argmax_rows >= rows) return true;
     if (ctx.argmax_logits) b.wait(ctx.tickets[o]);

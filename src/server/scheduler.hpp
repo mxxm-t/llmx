@@ -610,6 +610,8 @@ public:
         uint64_t prefilled_tokens = 0, published_tokens = 0;   // client prompt rows retired and output tokens published, including requests still running
         uint64_t host_limit = 0, disk_limit = 0;  // the host tier's and the disk tier's byte caps, 0 for a tier that is off
         uint64_t prompt_passes = 0;               // since start, the passes that carried a request's prompt rows
+        // Since start, the rows drawn as plain argmax (Scheduler::device_pick), those of them drawn from the output device's id, and those read whole for an id the draw cannot take (infer::argmax_drawn).
+        uint64_t argmax_rows = 0, argmax_ids = 0, argmax_reads = 0;
         uint64_t continued = 0;                   // since start, those formed while the same prompt's pass before them was in flight (Scheduler::continues)
         // Since start, the passes formed while replies and prompt work both waited (docs/SERVER.md, The service rule): of replies alone, of one prompt's chunk alone, and of both kinds or two prompts, which on a split the rule never forms.
         uint64_t rule_replies = 0, rule_chunks = 0, rule_mixed = 0;
@@ -631,6 +633,9 @@ public:
         }
         s.finished = finished_.load();
         s.prompt_passes = prompt_passes_.load();
+        s.argmax_rows = argmax_rows_.load();
+        s.argmax_ids = argmax_ids_.load();
+        s.argmax_reads = argmax_reads_.load();
         s.continued = continued_.load();
         s.rule_replies = rule_replies_.load();
         s.rule_chunks = rule_chunks_.load();
@@ -911,13 +916,15 @@ private:
     static constexpr size_t kDraftRows = 64;
 
     // One wanting entry of a retiring pass as the sampling pool draws it: the request, its mapped logits rows read in place, the rows the channel may still take copies of, the tokens drawn and the rows sampled.
-    // With logprobs asked a row is copied for the channel, or, once the reader has fallen behind (Request::kRowsWaiting), the token takes its values instead.
+    // After an argmax pass it holds each row's device id in `ids` instead, and in `reads` the rows read back for ids the draw cannot take (docs/src/server.md).
     struct Draw {
         Request* r;
         const float* row;
         size_t copies;
         std::vector<Request::Token> picks;
         size_t sampled = 0;
+        std::vector<uint32_t> ids;
+        std::vector<const float*> reads;
     };
 
     // A slot of the context reserved for passes: the round's view of it (Flight), its pass's requests by entry with the history each had and the rows each adds, those it samples in logits order, its logits rows and its decode entries.
@@ -1200,6 +1207,7 @@ private:
             f.from.push_back(r->seq_.length());
             f.rows.push_back(e.n);
             if (!e.want_logits) return;
+            entries_.back().argmax = device_pick(*r);
             f.wanting.push_back(r);
             f.first_row.push_back(f.want);
             f.want += e.every_logits ? e.n : 1;
@@ -1554,16 +1562,50 @@ private:
             // The scheduler thread waits for the logits and reads each request's state; the pool draws the rows, and every read of the pass's logits ends before end_pass gives them back.
             const Clock::time_point start = timed_ ? Clock::now() : Clock::time_point{};
             double waited = 0;
+            uint64_t rows = 0, ids = 0;
+            struct Back {
+                size_t draw, i, row;
+            };
+            std::vector<Back> backs;
             draws_.clear();
+            const uint32_t vocab = (uint32_t)ctx_.width;
+            const bool argmax = model_.argmax_pass(ctx_, k);
             for (size_t w = 0; w < f.wanting.size(); ++w) {
                 Request& r = *f.wanting[w];
                 if (r.cancel_.load()) continue;
                 const Clock::time_point read = timed_ ? Clock::now() : Clock::time_point{};
-                const float* row = model_.pass_logits(ctx_, k, f.first_row[w]);
+                // A plain argmax draw takes its rows' ids where the pass kept its rows on the device, and reads back only a row whose id it cannot take.
+                Draw d{&r, nullptr, 0, {}, 0, {}, {}};
+                const size_t n = r.verify_.empty() ? 1 : r.verify_.size();
+                if (argmax) {
+                    d.ids.resize(n);
+                    d.reads.assign(n, nullptr);
+                    for (size_t i = 0; i < n; ++i) {
+                        d.ids[i] = model_.pass_argmax_id(ctx_, k, f.first_row[w] + i);
+                        if (!infer::argmax_drawn(d.ids[i], vocab, r.params_, tok_.eos_id)) backs.push_back({draws_.size(), i, f.first_row[w] + i});
+                    }
+                    ids += n;
+                } else {
+                    d.row = model_.pass_logits(ctx_, k, f.first_row[w]);
+                    const size_t waiting = r.params_.logprobs ? r.rows_waiting() : Request::kRowsWaiting;
+                    d.copies = waiting < Request::kRowsWaiting ? Request::kRowsWaiting - waiting : 0;
+                }
+                if (device_pick(r)) rows += n;
                 if (timed_) waited += ms_since(read);
-                const size_t waiting = r.params_.logprobs ? r.rows_waiting() : Request::kRowsWaiting;
-                draws_.push_back(Draw{&r, row, waiting < Request::kRowsWaiting ? Request::kRowsWaiting - waiting : 0, {}, 0});
+                draws_.push_back(std::move(d));
             }
+            // A row read back is a copy on the output device, which only the head stage's thread may ask while it records.
+            if (!backs.empty()) {
+                const Clock::time_point read = timed_ ? Clock::now() : Clock::time_point{};
+                run_on(model_.stage_count() - 1, [&] {
+                    for (const Back& b : backs) draws_[b.draw].reads[b.i] = model_.pass_logits(ctx_, k, b.row);
+                });
+                if (timed_) waited += ms_since(read);
+            }
+            const uint64_t reads = backs.size();
+            if (rows) argmax_rows_ += rows;
+            if (ids) argmax_ids_ += ids - reads;
+            if (reads) argmax_reads_ += reads;
             samplers_.run(draws_.size(), [this](size_t i) { draw(draws_[i]); });
             for (Draw& d : draws_) step(d);
             if (timed_) {
@@ -2357,6 +2399,8 @@ private:
 
     // Whether r's cache lacks only its last generated token, which a decode entry reads.
     static bool decoding(const Request& r) { return !r.gen_.empty() && r.seq_.length() + 1 == history_tokens(r); }
+    // Whether r's rows are drawn as their argmax alone, which a pass may give as ids from the output device (BatchEntry::argmax): greedy, no penalty, no log-probabilities, and no observer reading the rows.
+    bool device_pick(const Request& r) const { return !on_retire && !r.params_.logprobs && infer::plain_argmax(r.params_); }
     // Whether r has work for a pass: a request always, a job while its cache lacks some of its ids.
     static bool working(const Request& r) { return !r.job_ || r.seq_.length() < r.prompt_.size(); }
 
@@ -2516,11 +2560,12 @@ private:
         const size_t w = ctx_.width, k = r.verify_.empty() ? 0 : r.verify_.size() - 1;
         size_t i = 0;
         const auto pick = [&](uint32_t id) {
-            const float* row = d.row + i++ * w;
+            const size_t at = i++;
             if (tok_.is_eos(id)) { r.finish_pending_ = "eos"; return false; }
             Request::Token t;
             t.id = id;
             if (r.params_.logprobs) {
+                const float* row = d.row + at * w;
                 if (d.copies) {
                     // A row the reader has finished with is filled first.
                     --d.copies;
@@ -2542,7 +2587,9 @@ private:
             if ((int)r.gen_.size() >= r.params_.max_tokens) { r.finish_pending_ = "length"; return false; }
             return true;
         };
-        d.sampled = infer::accept(d.row, w, k ? r.verify_.data() + 1 : nullptr, k, r.params_, tok_.eos_id, r.gen_, r.rng_, pick).rows;
+        const uint32_t* drafts = k ? r.verify_.data() + 1 : nullptr;
+        if (d.ids.empty()) d.sampled = infer::accept(d.row, w, drafts, k, r.params_, tok_.eos_id, r.gen_, r.rng_, pick).rows;
+        else d.sampled = infer::accept_ids([&](size_t j) { return d.ids[j]; }, [&](size_t j) { return d.reads[j]; }, w, drafts, k, r.params_, tok_.eos_id, r.gen_, r.rng_, pick).rows;
     }
 
     // A draw's tokens on the scheduler thread, pushed to the channel in order, the last its next decode feeds; a request that ends is finished after the pass, once every entry's logits have been read.
@@ -2757,6 +2804,7 @@ private:
     std::atomic<uint64_t> finished_{0}, prompt_total_{0}, generated_total_{0};   // what Stats gives as the totals since start
     std::atomic<uint64_t> prefilled_total_{0}, published_total_{0};
     std::atomic<uint64_t> prompt_passes_{0};                                     // Stats::prompt_passes
+    std::atomic<uint64_t> argmax_rows_{0}, argmax_ids_{0}, argmax_reads_{0};     // Stats::argmax_rows, argmax_ids, argmax_reads
     int slices_priced_ = -1;                                                     // whether the last prompt slice on a split was priced (slice_rows), -1 before any
     std::atomic<uint64_t> continued_{0};                                         // Stats::continued
     uint64_t lines_ = 0;        // the numbers of Request::line_, under the lock

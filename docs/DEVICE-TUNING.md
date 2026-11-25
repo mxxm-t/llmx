@@ -227,6 +227,10 @@ None of these is probed today; the MI50 values above come from separate microben
 | Entry-fastest step grids | rows of h the grid's fast dimension, so an expert several rows pick is read from DRAM once | down_q8_0 r8 143 to 130 us; Q8_0 gate step r8 414 to 354 us | llmx_moe_step_up/down, Qwen3.6-35B-A3B shapes | dspine28 m8 |
 | Ids, weights and y0 staged with the twin | the down's combine waited on 2k serial global loads and each task on one; the limit was the vmcnt chain of dependent L2 reads, removed by the staging | step medians r1/r4/r8, main to staged: Q5_1 down 62.8/170.2/274.9 to 62.2/147.9/258.1 us, Q8_0 69.3/169.6/311.2 to 65.4/152.7/250.3 us | llmx_moe_step_down, Qwen3.6-35B-A3B shapes | dspine29 m10 |
 | lane_row: twin before the weights' decode, shift trip count, fold by selects | the twin's LDS reads and sum run under the weight load's wait; the runtime stride's division and branchy fold were the instruction excess against main | down_q5_1 r1 25.1 (w12) to 20.8 us (trace p50); step Q5_1 r1/r4/r8 62.8/151.4/274.4 (main) to 60.1/143.2/241.4 us | lane_row, MI50 ROCm | dspine29 m11 |
+| exact_cols wave32 geometry, q/k/v and gate/up one launch | R4G2 over 8 waves past 8 rows, R2G2 over 4 below; fewer launches | 0.6B 28-layer round at 16 rows 4.79 to 3.10 ms, 8 rows 2.86 to 2.21, 0 bits differ (harness) | CUDA 3090 | cuda143, cuda145 |
+| exact_cols many-row build without spills | last whole step widens at load, the others hoist raw bits | 112 B stack and 160 B spills to 0 at 128 registers, sm_86 ptxas | CUDA | cuda145 |
+| exact_cols F32 column builds without spills | no raw hoist on wave32; many-row build one block an SM | few 8 B spill to 0 at 96 registers, many 32 B to 0 at 166; at 128 registers every F32 form spills 68-320 B, sm_86 ptxas | CUDA | cuda148 |
+| exact_cols 16-bit many-row build without spills on sm_70 and sm_120 | one block an SM there, two elsewhere (`LLMX_COLS16_BLOCKS`) | 16 B (sm_70) and 20 B (sm_120) spills at 128 registers to 0; no card of those targets timed | CUDA | cuda149 |
 
 ## Patterns that failed, to 2026-11-23
 

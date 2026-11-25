@@ -60,7 +60,7 @@ SPILL_ALLOWED = {
 
 
 # Kernels that spill only on the targets before sm_80, where the tensor-core products are four-way dots over exchanged fragments (kernels/port.h, mma_s8); no card of those targets has run them, and their tuning waits for one.
-PRE_SM80_SPILLS = ("llmx_q4_k_tile8", "llmx_q5_k_tile8", "llmx_q8_0_tile8", "llmx_matmul_cols4_f32")
+PRE_SM80_SPILLS = ("llmx_q4_k_tile8", "llmx_q5_k_tile8", "llmx_q8_0_tile8")
 
 # The int8 class's witnesses: the tensor-core prompt tiles of every int8 tile type, dense and routed, and a Q8_0 and a K-quant row build on the 8-bit twin.
 INT8_TILE_TYPES = ("q4_0", "q4_1", "q5_0", "q5_1", "iq4_nl", "mxfp4", "q4_k", "q5_k", "q6_k")

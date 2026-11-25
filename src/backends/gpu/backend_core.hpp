@@ -742,6 +742,30 @@ public:
             }
             return product_twin(*type_kernels(projections.begin()->weight.type)->twin, proj, n, X, nin, nbatch, false, runs, true, dtype == Dtype::int8);
         }
+        // Up to three exact projections of one type into disjoint device memory, every row on the column builds, take one column launch.
+        const TypeKernels* kinds = projections.size() ? type_kernels(projections.begin()->weight.type) : nullptr;
+        bool columns = kinds && projections.size() > 1 && projections.size() <= 3 && nin && nbatch && X.buffer;
+        for (auto p = projections.begin(); columns && p != projections.end(); ++p) {
+            columns = p->weight.data.buffer && p->weight.type == projections.begin()->weight.type && !integer(p->weight, dtype) && !p->weight.scales.buffer && p->rows && p->out.buffer &&
+                      !as_gpu<Api>(*p->out.buffer).host_ptr() && all_columns(*kinds, bytes(p->weight.data), f32(X), nin, nbatch, runs, dtype) &&
+                      !overlaps(CSlice(p->out), size_mul(p->rows, nbatch), X, size_mul(nin, nbatch));
+            for (auto q = projections.begin(); columns && q != p; ++q) columns = !overlaps(CSlice(p->out), size_mul(p->rows, nbatch), CSlice(q->out), size_mul(q->rows, nbatch));
+        }
+        if (columns) {
+            Proj proj[3];
+            size_t n = 0;
+            span(*X.buffer, X.offset * sizeof(float), size_mul(size_mul(nin, nbatch), sizeof(float)));
+            for (const Projection& p : projections) {
+                check_weight(p.weight, nin, "matrix", 1);
+                check_grid(p.weight, nin, p.rows, 1);
+                span(*p.weight.data.buffer, p.weight.data.offset * sizeof(float), quant::row_bytes(p.weight.type, nin, p.rows));
+                span(*p.out.buffer, p.out.offset * sizeof(float), size_mul(size_mul(p.rows, nbatch), sizeof(float)));
+                proj[n++] = {bytes(p.weight.data), f32(p.out), p.rows};
+            }
+            exact_columns(*kinds, proj, n, f32(X), nin, nbatch, 0);
+            record_matrix_path(MatrixPath::f32);
+            return;
+        }
         bool twinned = false;
         for (const Projection& p : projections) {
             if (!p.weight.data.buffer) throw std::runtime_error(Api::prefix + "projection without storage");
@@ -2626,7 +2650,7 @@ private:
                   kRmsNorm32Twin16Major, kRmsNorm32Twin8Major, kAttentionVecMajor, kAttentionVecMergeMajor, kTwin16Major, kTwin8Major, kGroupSum, kGroupChain, kGroupShares, kGroupCopies, kGroupArm, kGroupAddCheck, kGroupPush, kGroupTake, kSigmoidMul, kGatedRmsNorm, kNormRopeStreams, kCausalConvSilu, kGatedDeltaRule, kGatedDeltaRuleShort, kGroupRmsNorm, kSiluScaled, kMixStreams, kInjectStreams, kSignedSqrtGate, kDilatedConvSiluAdd, kKvIndexPool, kKvIndexScores, kKvIndexSelect, kKvIndexSelectWide, kKvIndexAll, kSparseChunk, kSparseMerge, kSparseVec, kSparseVec256, kSparseVecMerge, kSparseVecMerge256,
                   kAttentionVec256, kAttentionVec256Major, kAttentionVecMerge256, kAttentionVecMerge256Major, kAttentionGated256, kAttentionGatedMerge256, kArgmaxSlices, kArgmaxMerge, kArgmaxPart, kArgmaxPick,
                   kMoeRoute, kMoeCombine, kMoeGroup, kRoutedExactF32, kRoutedExactQ8, kRoutedExactQ4K, kRoutedExactQ5K, kRoutedExactQ6K, kRoutedExactQ50, kRoutedExactQ40, kRoutedExactQ41, kRoutedExactQ51, kRoutedExactBF16, kRoutedExactF16, kRoutedExactIQ4NL, kRoutedExactMXFP4, kRoutedExactNVFP4, kRoutedExactQ2K, kRoutedExactQ3K, kRoutedExactIQ4XS, kRoutedExactIQ2XXS, kRoutedExactIQ2XS, kRoutedExactIQ2S, kRoutedExactIQ3XXS, kRoutedExactIQ3S, kRoutedExactIQ1S, kRoutedExactIQ1M, kRoutedExactTQ10, kRoutedExactTQ20, kRoutedExactQ10, kRoutedExactQ20, kRoutedExactF8,
-                  kRowsExactF32, kRowsExactQ8, kRowsExactQ4K, kRowsExactQ5K, kRowsExactQ6K, kRowsExactQ50, kRowsExactQ40, kRowsExactQ41, kRowsExactQ51, kRowsExactBF16, kRowsExactF16, kRowsExactIQ4NL, kRowsExactMXFP4, kRowsExactNVFP4, kRowsExactQ2K, kRowsExactQ3K, kRowsExactIQ4XS, kRowsExactIQ2XXS, kRowsExactIQ2XS, kRowsExactIQ2S, kRowsExactIQ3XXS, kRowsExactIQ3S, kRowsExactIQ1S, kRowsExactIQ1M, kRowsExactTQ10, kRowsExactTQ20, kRowsExactQ10, kRowsExactQ20, kRowsExactF8, kSparseVecG4, kSparseVec256G4, kColsF32x4, kColsF32x8, kColsBF16x4, kColsBF16x8, kColsF16x4, kColsF16x8, kMoeStepRoute, kMoeStepRouteF32F16, kMoeStepRouteF32BF16, kMoeStepRouteF16F32, kMoeStepRouteF16F16, kMoeStepRouteF16BF16, kMoeStepRouteBF16F32, kMoeStepRouteBF16F16, kMoeStepRouteBF16BF16,
+                  kRowsExactF32, kRowsExactQ8, kRowsExactQ4K, kRowsExactQ5K, kRowsExactQ6K, kRowsExactQ50, kRowsExactQ40, kRowsExactQ41, kRowsExactQ51, kRowsExactBF16, kRowsExactF16, kRowsExactIQ4NL, kRowsExactMXFP4, kRowsExactNVFP4, kRowsExactQ2K, kRowsExactQ3K, kRowsExactIQ4XS, kRowsExactIQ2XXS, kRowsExactIQ2XS, kRowsExactIQ2S, kRowsExactIQ3XXS, kRowsExactIQ3S, kRowsExactIQ1S, kRowsExactIQ1M, kRowsExactTQ10, kRowsExactTQ20, kRowsExactQ10, kRowsExactQ20, kRowsExactF8, kSparseVecG4, kSparseVec256G4, kColsF32, kColsF32Many, kColsBF16, kColsBF16Many, kColsF16, kColsF16Many, kMoeStepRoute, kMoeStepRouteF32F16, kMoeStepRouteF32BF16, kMoeStepRouteF16F32, kMoeStepRouteF16F16, kMoeStepRouteF16BF16, kMoeStepRouteBF16F32, kMoeStepRouteBF16F16, kMoeStepRouteBF16BF16,
                   kHcCoeffsCollapse, kHcExpand, kModelFormatQdq, kTopkRows, kCompressPool, kIndexerScores, kIndexerScoresTile, kIndexerScoresInt, kRawIndexScores, kPoolWrite, kSparseScoresFew16, kSparseValuesFew16, kSparseScoresFew8, kSparseValuesFew8, kSparseScoresFew4, kSparseValuesFew4, kSparseScoresFew2, kSparseValuesFew2, kSparseScoresFew32, kSparseValuesFew16x2, kSparseScoresTile, kSparseValuesTile, kSparseScoresTile32, kSparseValuesTile32, kRouteBiased, kRouteStepF32, kRouteStepBF16,
 
                   kNormRopeForm, kDeltaStep, kMixRows, kLayerNormRows, kGelu, kAddBias, kAttentionChunkWindow, kAttentionVecWindow, kAttentionVec256Window, kUnitRows, kSigmoidGateRows, kMatmulAtIds, kChainPick, kTapWeightedRows, kExpertMark, kExpertWave, kExpertPull, kExpertRound,
@@ -2666,7 +2690,7 @@ private:
                                                            "llmx_twin16", "llmx_twin8", "llmx_silu_mul_twin16_major", "llmx_silu_mul_twin8_major",
                                                            "llmx_rms_norm_16_twin16_major", "llmx_rms_norm_16_twin8_major", "llmx_rms_norm_32_twin16_major",
                                                            "llmx_rms_norm_32_twin8_major", "llmx_attention_vec_major", "llmx_attention_vec_merge_major",
-                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_group_chain", "llmx_group_shares", "llmx_group_copies", "llmx_group_arm", "llmx_group_add_check", "llmx_group_push", "llmx_group_take", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_kv_index_all", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_attention_gated256", "llmx_attention_gated_merge256", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_argmax_part", "llmx_argmax_pick", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q4_0", "llmx_routed_q4_1", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_f16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_routed_nvfp4", "llmx_routed_q2_k", "llmx_routed_q3_k", "llmx_routed_iq4_xs", "llmx_routed_iq2_xxs", "llmx_routed_iq2_xs", "llmx_routed_iq2_s", "llmx_routed_iq3_xxs", "llmx_routed_iq3_s", "llmx_routed_iq1_s", "llmx_routed_iq1_m", "llmx_routed_tq1_0", "llmx_routed_tq2_0", "llmx_routed_q1_0", "llmx_routed_q2_0", "llmx_routed_f8_e4m3", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q4_0", "llmx_matmul_rows_q4_1", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_f16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_matmul_rows_nvfp4", "llmx_matmul_rows_q2_k", "llmx_matmul_rows_q3_k", "llmx_matmul_rows_iq4_xs", "llmx_matmul_rows_iq2_xxs", "llmx_matmul_rows_iq2_xs", "llmx_matmul_rows_iq2_s", "llmx_matmul_rows_iq3_xxs", "llmx_matmul_rows_iq3_s", "llmx_matmul_rows_iq1_s", "llmx_matmul_rows_iq1_m", "llmx_matmul_rows_tq1_0", "llmx_matmul_rows_tq2_0", "llmx_matmul_rows_q1_0", "llmx_matmul_rows_q2_0", "llmx_matmul_rows_f8_e4m3", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols4_f32", "llmx_matmul_cols8_f32", "llmx_matmul_cols4_bf16", "llmx_matmul_cols8_bf16", "llmx_matmul_cols4_f16", "llmx_matmul_cols8_f16", "llmx_moe_step_route", "llmx_moe_step_route_f32_f16", "llmx_moe_step_route_f32_bf16", "llmx_moe_step_route_f16_f32", "llmx_moe_step_route_f16_f16", "llmx_moe_step_route_f16_bf16", "llmx_moe_step_route_bf16_f32", "llmx_moe_step_route_bf16_f16", "llmx_moe_step_route_bf16_bf16", "llmx_hc_coeffs_collapse", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_indexer_scores_tile", "llmx_indexer_scores_int", "llmx_raw_index_scores", "llmx_pool_write", "llmx_sparse_scores_few16", "llmx_sparse_values_few16", "llmx_sparse_scores_few8", "llmx_sparse_values_few8", "llmx_sparse_scores_few4", "llmx_sparse_values_few4", "llmx_sparse_scores_few2", "llmx_sparse_values_few2", "llmx_sparse_scores_few32", "llmx_sparse_values_few16x2", "llmx_sparse_scores_tile", "llmx_sparse_values_tile", "llmx_sparse_scores_tile32", "llmx_sparse_values_tile32", "llmx_route_biased", "llmx_route_step_f32", "llmx_route_step_bf16", "llmx_norm_rope_form", "llmx_delta_step", "llmx_mix_rows", "llmx_layer_norm_rows", "llmx_gelu", "llmx_add_bias", "llmx_attention_chunk_window", "llmx_attention_vec_window", "llmx_attention_vec256_window", "llmx_unit_rows", "llmx_sigmoid_gate_rows", "llmx_matmul_at_ids", "llmx_chain_pick", "llmx_tap_weighted_rows", "llmx_expert_mark", "llmx_expert_wave", "llmx_expert_pull", "llmx_expert_round", "llmx_q8_0_rows16_1",
+                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_group_chain", "llmx_group_shares", "llmx_group_copies", "llmx_group_arm", "llmx_group_add_check", "llmx_group_push", "llmx_group_take", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_kv_index_all", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_attention_gated256", "llmx_attention_gated_merge256", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_argmax_part", "llmx_argmax_pick", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q4_0", "llmx_routed_q4_1", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_f16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_routed_nvfp4", "llmx_routed_q2_k", "llmx_routed_q3_k", "llmx_routed_iq4_xs", "llmx_routed_iq2_xxs", "llmx_routed_iq2_xs", "llmx_routed_iq2_s", "llmx_routed_iq3_xxs", "llmx_routed_iq3_s", "llmx_routed_iq1_s", "llmx_routed_iq1_m", "llmx_routed_tq1_0", "llmx_routed_tq2_0", "llmx_routed_q1_0", "llmx_routed_q2_0", "llmx_routed_f8_e4m3", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q4_0", "llmx_matmul_rows_q4_1", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_f16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_matmul_rows_nvfp4", "llmx_matmul_rows_q2_k", "llmx_matmul_rows_q3_k", "llmx_matmul_rows_iq4_xs", "llmx_matmul_rows_iq2_xxs", "llmx_matmul_rows_iq2_xs", "llmx_matmul_rows_iq2_s", "llmx_matmul_rows_iq3_xxs", "llmx_matmul_rows_iq3_s", "llmx_matmul_rows_iq1_s", "llmx_matmul_rows_iq1_m", "llmx_matmul_rows_tq1_0", "llmx_matmul_rows_tq2_0", "llmx_matmul_rows_q1_0", "llmx_matmul_rows_q2_0", "llmx_matmul_rows_f8_e4m3", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols_few_f32", "llmx_matmul_cols_many_f32", "llmx_matmul_cols_few_bf16", "llmx_matmul_cols_many_bf16", "llmx_matmul_cols_few_f16", "llmx_matmul_cols_many_f16", "llmx_moe_step_route", "llmx_moe_step_route_f32_f16", "llmx_moe_step_route_f32_bf16", "llmx_moe_step_route_f16_f32", "llmx_moe_step_route_f16_f16", "llmx_moe_step_route_f16_bf16", "llmx_moe_step_route_bf16_f32", "llmx_moe_step_route_bf16_f16", "llmx_moe_step_route_bf16_bf16", "llmx_hc_coeffs_collapse", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_indexer_scores_tile", "llmx_indexer_scores_int", "llmx_raw_index_scores", "llmx_pool_write", "llmx_sparse_scores_few16", "llmx_sparse_values_few16", "llmx_sparse_scores_few8", "llmx_sparse_values_few8", "llmx_sparse_scores_few4", "llmx_sparse_values_few4", "llmx_sparse_scores_few2", "llmx_sparse_values_few2", "llmx_sparse_scores_few32", "llmx_sparse_values_few16x2", "llmx_sparse_scores_tile", "llmx_sparse_values_tile", "llmx_sparse_scores_tile32", "llmx_sparse_values_tile32", "llmx_route_biased", "llmx_route_step_f32", "llmx_route_step_bf16", "llmx_norm_rope_form", "llmx_delta_step", "llmx_mix_rows", "llmx_layer_norm_rows", "llmx_gelu", "llmx_add_bias", "llmx_attention_chunk_window", "llmx_attention_vec_window", "llmx_attention_vec256_window", "llmx_unit_rows", "llmx_sigmoid_gate_rows", "llmx_matmul_at_ids", "llmx_chain_pick", "llmx_tap_weighted_rows", "llmx_expert_mark", "llmx_expert_wave", "llmx_expert_pull", "llmx_expert_round", "llmx_q8_0_rows16_1",
 
                                                            "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_2_r4", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_4_r4",
                                                            "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_8_r4", "llmx_q8_0_rows16_16", "llmx_q8_0_tile16", "llmx_q8_0_rows8_1",
@@ -2841,7 +2865,7 @@ private:
         const char* name;
         Kernel exact, rows, embed, routed;
         const TwinKernels* twin;
-        Kernel cols;   // the column builds of the exact product, 4 and 8 rows a wave from here on (exact_columns); kKernels where the type has none
+        Kernel cols;   // the column builds of the exact product, the few-row build and the many-row build after it (exact_columns); kKernels where the type has none
         Kernel half = kKernels;   // the F16 class's prompt tile, which reads the activations rounded to binary16 (half_product); kKernels where the type has none
         Scaled scaled = Scaled::no;   // the scales the exact family takes after its other arguments (kernels/f32.gpu): NVFP4's factors, F8_E4M3's grid and row shift
         size_t outputs = 1;   // the outputs a wave takes in the one-row and routed exact products (kernels/f32.gpu): F8_E4M3's f8_wave takes four
@@ -2849,11 +2873,11 @@ private:
         int step_route = -1;   // the fused step route's index of this type's exact decoder, the builds' order in kernels/f32.gpu (step_route_kernel); -1 where the route has none
     };
     static constexpr TypeKernels kTypes[] = {
-        {quant::GGML_TYPE_F32, "F32", kMatmul, kRowsExactF32, kGather, kRoutedExactF32, nullptr, kColsF32x4, kKernels, Scaled::no, 1, kKernels, 0},          {quant::GGML_TYPE_Q8_0, "Q8_0", kMatmulQ8, kRowsExactQ8, kGatherQ8, kRoutedExactQ8, &kQ8Twins, kKernels},
+        {quant::GGML_TYPE_F32, "F32", kMatmul, kRowsExactF32, kGather, kRoutedExactF32, nullptr, kColsF32, kKernels, Scaled::no, 1, kKernels, 0},          {quant::GGML_TYPE_Q8_0, "Q8_0", kMatmulQ8, kRowsExactQ8, kGatherQ8, kRoutedExactQ8, &kQ8Twins, kKernels},
         {quant::GGML_TYPE_Q4_K, "Q4_K", kMatmulQ4K, kRowsExactQ4K, kGatherQ4K, kRoutedExactQ4K, &kQ4KTwins, kKernels}, {quant::GGML_TYPE_Q5_K, "Q5_K", kMatmulQ5K, kRowsExactQ5K, kGatherQ5K, kRoutedExactQ5K, &kQ5KTwins, kKernels},
         {quant::GGML_TYPE_Q6_K, "Q6_K", kMatmulQ6K, kRowsExactQ6K, kGatherQ6K, kRoutedExactQ6K, &kQ6KTwins, kKernels}, {quant::GGML_TYPE_Q5_0, "Q5_0", kMatmulQ50, kRowsExactQ50, kGatherQ50, kRoutedExactQ50, &kQ50Twins, kKernels},
-        {quant::GGML_TYPE_Q5_1, "Q5_1", kMatmulQ51, kRowsExactQ51, kGatherQ51, kRoutedExactQ51, &kQ51Twins, kKernels},    {quant::GGML_TYPE_BF16, "BF16", kMatmulBF16, kRowsExactBF16, kGatherBF16, kRoutedExactBF16, nullptr, kColsBF16x4, kBF16Tile, Scaled::no, 1, kBF16TileBF16, 2},
-        {quant::GGML_TYPE_F16, "F16", kMatmulF16, kRowsExactF16, kGatherF16, kRoutedExactF16, nullptr, kColsF16x4, kF16Tile, Scaled::no, 1, kKernels, 1},
+        {quant::GGML_TYPE_Q5_1, "Q5_1", kMatmulQ51, kRowsExactQ51, kGatherQ51, kRoutedExactQ51, &kQ51Twins, kKernels},    {quant::GGML_TYPE_BF16, "BF16", kMatmulBF16, kRowsExactBF16, kGatherBF16, kRoutedExactBF16, nullptr, kColsBF16, kBF16Tile, Scaled::no, 1, kBF16TileBF16, 2},
+        {quant::GGML_TYPE_F16, "F16", kMatmulF16, kRowsExactF16, kGatherF16, kRoutedExactF16, nullptr, kColsF16, kF16Tile, Scaled::no, 1, kKernels, 1},
         {quant::GGML_TYPE_Q4_0, "Q4_0", kMatmulQ40, kRowsExactQ40, kGatherQ40, kRoutedExactQ40, &kQ40Twins, kKernels},     {quant::GGML_TYPE_Q4_1, "Q4_1", kMatmulQ41, kRowsExactQ41, kGatherQ41, kRoutedExactQ41, &kQ41Twins, kKernels},
         {quant::GGML_TYPE_IQ4_NL, "IQ4_NL", kMatmulIQ4NL, kRowsExactIQ4NL, kGatherIQ4NL, kRoutedExactIQ4NL, &kIQ4NLTwins, kKernels},
         {quant::GGML_TYPE_MXFP4, "MXFP4", kMatmulMXFP4, kRowsExactMXFP4, kGatherMXFP4, kRoutedExactMXFP4, &kMXFP4Twins, kKernels},
@@ -2875,7 +2899,7 @@ private:
         {quant::GGML_TYPE_F8_E4M3, "F8_E4M3", kMatmulF8, kRowsExactF8, kGatherF8, kRoutedExactF8, nullptr, kKernels, kF8Tile, Scaled::grid, 4},
     };
     static_assert(kQ8Twins.routed_stream != kKernels && kQ4KTwins.routed_stream != kKernels && kQ5KTwins.routed_stream != kKernels && kQ6KTwins.routed_stream != kKernels && kQ50Twins.routed_stream != kKernels && kQ40Twins.routed_stream != kKernels && kQ41Twins.routed_stream != kKernels && kQ51Twins.routed_stream != kKernels && kIQ4NLTwins.routed_stream != kKernels && kMXFP4Twins.routed_stream != kKernels, "every twin type has its 8-bit routed stream, since its 8-bit routed tiles leave it the groups of up to kStreamRows entries");
-    static_assert(kColsF32x8 < kRows16x1 && kColsBF16x8 < kRows16x1 && kColsF16x8 < kRows16x1 && kAttentionChunkWindow < kRows16x1 && kAttentionVecWindow < kRows16x1 && kAttentionVec256Window < kRows16x1 && kUnitRows < kRows16x1 && kSigmoidGateRows < kRows16x1 && kMatmulAtIds < kRows16x1 && kChainPick < kRows16x1, "the column builds, the window builds and the unit_rows, sigmoid_gate_rows, matmul_at_ids and chain_pick kernels are in kernels/f32.gpu, which the constructor loads for the kernels below kRows16x1");
+    static_assert(kColsF32Many < kRows16x1 && kColsBF16Many < kRows16x1 && kColsF16Many < kRows16x1 && kAttentionChunkWindow < kRows16x1 && kAttentionVecWindow < kRows16x1 && kAttentionVec256Window < kRows16x1 && kUnitRows < kRows16x1 && kSigmoidGateRows < kRows16x1 && kMatmulAtIds < kRows16x1 && kChainPick < kRows16x1, "the column builds, the window builds and the unit_rows, sigmoid_gate_rows, matmul_at_ids and chain_pick kernels are in kernels/f32.gpu, which the constructor loads for the kernels below kRows16x1");
     static const TypeKernels* type_kernels(uint32_t type) {
         for (const TypeKernels& t : kTypes)
             if (t.type == type) return &t;
@@ -3347,12 +3371,11 @@ private:
         float* y = f32(Y);
         unsigned long long ni = nin, no = nout;
         int add = accumulate;
-        // Prompt rows of a type with its class's tile in this module take it outside the F32 class, on whole steps of 32 values (half_product): the BF16 tile at bf16, the half tile at f16 and int8.
-        const Kernel tile = dtype == Dtype::bf16 ? kinds.brain : dtype == Dtype::f32 ? kKernels : kinds.half;
-        if (nbatch > 1 && tile != kKernels && kernels_[tile] && nin % 32 == 0 && ((uintptr_t)w | (uintptr_t)x) % 16 == 0)
-            return half_product(kinds, tile, weight, w, x, y, nin, nout, nbatch, add, runs);
-        if (on_columns(kinds, nbatch)) {
-            exact_columns(kinds, w, x, y, nin, nout, nbatch, add);
+        const Kernel tile = prompt_tile(kinds, w, x, nin, nbatch, dtype);
+        if (tile != kKernels) return half_product(kinds, tile, weight, w, x, y, nin, nout, nbatch, add, runs);
+        if (on_columns(kinds, nbatch, nin)) {
+            const Proj one[1] = {{w, y, nout}};
+            exact_columns(kinds, one, 1, x, nin, nbatch, add);
         } else if (nbatch > 1) {
             // Several rows take the blocked build, each output the bits of its one-row product (kernels/f32.gpu, exact_rows).
             unsigned long long nr = nbatch;
@@ -3370,23 +3393,17 @@ private:
         // Every product here reads F32 activations, whatever dtype was asked for.
         record_matrix_path(MatrixPath::f32);
     }
+    // The tile a call's prompt rows take outside the F32 class, on whole steps of 32 values (half_product): the BF16 tile at bf16, the half tile at f16 and int8; kKernels where they take none.
+    Kernel prompt_tile(const TypeKernels& kinds, const uint8_t* w, const float* x, size_t nin, size_t nbatch, Dtype dtype) const {
+        const Kernel tile = dtype == Dtype::bf16 ? kinds.brain : dtype == Dtype::f32 ? kKernels : kinds.half;
+        return nbatch > 1 && tile != kKernels && kernels_[tile] && nin % 32 == 0 && ((uintptr_t)w | (uintptr_t)x) % 16 == 0 ? tile : kKernels;
+    }
     // Whether rows of an exact product take the type's column builds: from two up to the profile's exact_cols_upto, past which a call, a prompt's among them, takes the 8-by-8 row block; both give the same bits.
-    bool on_columns(const TypeKernels& kinds, size_t rows) const { return kinds.cols != kKernels && dev_.profile.exact_on_columns(rows); }
-    // Rows of X on a type's column builds, each output the bits of its one-row product (kernels/f32.gpu, exact_cols): two to four rows take the 4-row build, more the 8-row build over groups of eight.
-    // A remainder of four or fewer past whole groups of eight takes the 4-row build, since the 8-row build costs eight rows whatever it is given (docs/STATUS.md).
-    void exact_columns(const TypeKernels& kinds, const uint8_t* w, const float* x, float* y, size_t nin, size_t nout, size_t nbatch, int add) {
-        const size_t waves = kThreads / dev_.caps.subgroup_size;
-        unsigned long long ni = nin, no = nout;
-        for (size_t begin = 0; begin < nbatch;) {
-            const size_t left = nbatch - begin, rem = left % 8;
-            const bool eight = left > 4;
-            const size_t take = eight && rem && rem <= 4 ? left - rem : left, per = eight ? 8 : 4;
-            unsigned long long nr = take;
-            const Args args(w, x + begin * nin, y + begin * nout, ni, no, nr, add);
-            launch_writing({{y + begin * nout, size_mul(nout, take)}}, static_cast<Kernel>(kinds.cols + (eight ? 1 : 0)), (unsigned)((nout + waves * (eight ? 1 : 2) - 1) / (waves * (eight ? 1 : 2))),
-                           (unsigned)((take + per - 1) / per), args);
-            begin += take;
-        }
+    // A row's units stay below 2^31, which the builds count in 32 bits (kernels/f32.gpu, exact_cols).
+    bool on_columns(const TypeKernels& kinds, size_t rows, size_t nin) const { return kinds.cols != kKernels && dev_.profile.exact_on_columns(rows) && nin < (size_t(1) << 31); }
+    // Whether every row of an exact call takes the column builds, as product and half_product choose: decode columns past any tile, or rows of a call that takes none.
+    bool all_columns(const TypeKernels& kinds, const uint8_t* w, const float* x, size_t nin, size_t nbatch, RowRuns runs, Dtype dtype) const {
+        return on_columns(kinds, nbatch, nin) && (generated_rows(nbatch, runs) || prompt_tile(kinds, w, x, nin, nbatch, dtype) == kKernels);
     }
     // A call's prompt runs on the type's half tile, which rounds the activations to binary16 and sums in F32, and its decode columns on the exact product, wider than asked, so a column keeps its bits in any call.
     void half_product(const TypeKernels& kinds, Kernel tile, const WeightView& weight, const uint8_t* w, const float* x, float* y, size_t nin, size_t nout, size_t nbatch, int add, RowRuns runs) {
@@ -3402,8 +3419,9 @@ private:
             while (r + 1 < all.n && (all.runs[r + 1].extent == 1) == column && all.runs[r + 1].end > end && all.runs[r + 1].end <= nbatch) end = all.runs[++r].end;
             const size_t rows = end - begin;
             float* yr = y + begin * nout;
-            if (column && on_columns(kinds, rows)) {
-                exact_columns(kinds, w, x + begin * nin, yr, nin, nout, rows, add);
+            if (column && on_columns(kinds, rows, nin)) {
+                const Proj one[1] = {{w, yr, nout}};
+                exact_columns(kinds, one, 1, x + begin * nin, nin, rows, add);
                 exact = true;
             } else if (column) {
                 unsigned long long nr = rows;
@@ -3451,6 +3469,42 @@ private:
     };
     static_assert(sizeof(TileCall) == 168 && offsetof(TileCall, nin) == 88 && offsetof(TileCall, partials) == 120 && offsetof(TileCall, xblock) == 132 && offsetof(TileCall, xs) == 136 && offsetof(TileCall, f) == 144,
                   "TileCall is the kernel's layout");
+    // The host's copy of a column call (kernels/f32.gpu, ColsCall), field for field.
+    struct ColsCall {
+        const uint8_t* w[3];
+        float* y[3];
+        unsigned long long nout[3];
+        unsigned start[4];
+    };
+    static_assert(sizeof(ColsCall) == 88 && offsetof(ColsCall, nout) == 48 && offsetof(ColsCall, start) == 72, "ColsCall is the kernel's layout");
+    // The column builds' shapes (kernels/f32.gpu, LLMX_COLS), the few-row build's then the many-row build's: outputs and rows a wave, and waves a block; wave32's, then wave64's.
+    struct ColsShape {
+        unsigned outputs, rows, waves;
+    };
+    static constexpr ColsShape kColsShapes[2][2] = {{{2, 2, 4}, {4, 2, 8}}, {{2, 4, 4}, {1, 8, 4}}};
+    // Rows of X on a type's column builds for up to three projections of one input in one launch, each output the bits of its one-row product (kernels/f32.gpu, exact_cols).
+    // The few-row build takes calls up to its block's rows, the many-row build the rest; a block's waves split the rows by the fewest powers of two that hold them, the others taking more outputs.
+    void exact_columns(const TypeKernels& kinds, const Proj* proj, size_t n, const float* x, size_t nin, size_t nbatch, int add) {
+        const unsigned wave = dev_.caps.subgroup_size;
+        const ColsShape* shapes = kColsShapes[wave == 32 ? 0 : 1];
+        const bool many = nbatch > size_t(shapes[0].rows) * shapes[0].waves;
+        const ColsShape& c = shapes[many];
+        unsigned ls = 0;
+        while ((1u << ls) < c.waves && (size_t(c.rows) << ls) < nbatch) ++ls;
+        const size_t per = size_t(c.waves >> ls) * c.outputs, block_rows = size_t(c.rows) << ls;
+        ColsCall call{};
+        for (size_t m = 0; m < n; ++m) {
+            call.w[m] = proj[m].w, call.y[m] = proj[m].y, call.nout[m] = proj[m].nout;
+            call.start[m + 1] = call.start[m] + (unsigned)((proj[m].nout + per - 1) / per);
+        }
+        for (size_t m = n; m < 3; ++m) call.start[m + 1] = call.start[n];
+        unsigned long long ni = nin, nr = nbatch;
+        const Args args(call, x, ni, nr, ls, add);
+        const Proj& p1 = proj[n > 1 ? 1 : 0];
+        const Proj& p2 = proj[n > 2 ? 2 : 0];
+        launch_writing({{proj[0].y, size_mul(proj[0].nout, nbatch)}, {p1.y, size_mul(p1.nout, nbatch)}, {p2.y, size_mul(p2.nout, nbatch)}}, static_cast<Kernel>(kinds.cols + (many ? 1 : 0)),
+                       call.start[3], (unsigned)((nbatch + block_rows - 1) / block_rows), args, 1, c.waves * wave);
+    }
     // The host's copy of a routed tile call's groups (kernels/int16.gpu, TileGroups), field for field.
     struct TileGroups {
         const unsigned* tab;

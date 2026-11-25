@@ -25,6 +25,8 @@
 #define GPU_FLOAT_MMA 0
 // The launch bounds of the dense int8 tiles, which HIP leaves at the block size so gfx9 keeps its code.
 #define LLMX_TILE8_BOUNDS(blocks) __launch_bounds__(kThreads)
+// The launch bounds of a block of `threads` held to `blocks` an SM, which HIP leaves at the block size (kernels/f32.gpu, LLMX_COLS).
+#define LLMX_BLOCK_BOUNDS(threads, blocks) __launch_bounds__(threads)
 // The one-shot group sum at five waves a SIMD, so the 16 blocks each of a 16-rank group stay resident together on one 60-compute-unit gfx906 (docs/src/backends-gpu.md).
 #define LLMX_ONE_SHOT_BOUNDS __launch_bounds__(kThreads) __attribute__((amdgpu_waves_per_eu(5)))
 // A kernel's by-value struct parameter, which HIP leaves as it is so gfx9 keeps its code.
@@ -293,6 +295,7 @@ __device__ __forceinline__ void mma_bf16(float (&d)[4], const unsigned (&a)[4], 
 }
 // The dense int8 tiles' blocks an SM: two hold a tile to 128 registers, which the tensor-core fragments pass otherwise (docs/STATUS.md, CUDA int8 tiles of every type on the tensor cores).
 #define LLMX_TILE8_BOUNDS(blocks) __launch_bounds__(kThreads, blocks)
+#define LLMX_BLOCK_BOUNDS(threads, blocks) __launch_bounds__(threads, blocks)
 #define LLMX_ONE_SHOT_BOUNDS __launch_bounds__(kThreads)
 // A kernel's by-value struct parameter read in place, since a kernel taking its address otherwise copies it to local memory (docs/STATUS.md, CUDA prompt gap).
 #define LLMX_GRID_CONST const __grid_constant__

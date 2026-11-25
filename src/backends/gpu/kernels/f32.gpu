@@ -1057,6 +1057,9 @@ struct ExactF32 {
     static constexpr int weight_bytes = 4;
     static constexpr unsigned long long align = 16;
     static __device__ float4 load4(const unsigned char* row, unsigned long long u) { return ((const float4*)row)[u / 4]; }
+    using Raw = float4;
+    static __device__ Raw raw4(const unsigned char* row, unsigned u) { return ((const float4*)row)[u / 4]; }
+    static __device__ float4 widen(Raw b) { return b; }
     static __device__ unsigned long long row_bytes(unsigned long long nin) { return nin * sizeof(float); }
     static __device__ unsigned long long units(unsigned long long nin) { return nin; }
     static __device__ float step(const unsigned char* row, const float* x, unsigned long long u, float s) { return fmaf(((const float*)row)[u], x[u], s); }
@@ -1095,6 +1098,16 @@ template <class T> struct ExactDecoded {
     static constexpr unsigned long long align = 8;
     static __device__ float4 load4(const unsigned char* row, unsigned long long u) {
         const uint2 b = ((const uint2*)row)[u / 4];
+        if constexpr (__is_same(T, rq::F16)) {
+            const auto h = [](unsigned v) { return __half2float(__ushort_as_half((unsigned short)v)); };
+            return make_float4(h(b.x & 0xffffu), h(b.x >> 16), h(b.y & 0xffffu), h(b.y >> 16));
+        }
+        return make_float4(__uint_as_float(b.x << 16), __uint_as_float(b.x & 0xffff0000u), __uint_as_float(b.y << 16), __uint_as_float(b.y & 0xffff0000u));
+    }
+    // load4 in two halves, so exact_cols holds a step's weights as their 16-bit bits, half the registers, until its loads are all issued.
+    using Raw = uint2;
+    static __device__ Raw raw4(const unsigned char* row, unsigned u) { return ((const uint2*)row)[u / 4]; }
+    static __device__ float4 widen(Raw b) {
         if constexpr (__is_same(T, rq::F16)) {
             const auto h = [](unsigned v) { return __half2float(__ushort_as_half((unsigned short)v)); };
             return make_float4(h(b.x & 0xffffu), h(b.x >> 16), h(b.y & 0xffffu), h(b.y >> 16));
@@ -1190,95 +1203,124 @@ __device__ inline void exact_row(const unsigned char* W, const float* X, float* 
     const float s = exact_sum<D>(W, X, nin, o, d);
     if (threadIdx.x % kWave == 0) Y[o] = add ? Y[o] + s : s;
 }
-// R outputs by G rows of X a wave, rows on the grid's second dimension G at a time, each (output, row) the bits of exact_sum on that row alone: lane t holds chains 4t to 4t + 3 and those 4 kWave on.
-// Levels at or above 4 kWave fold in registers, the next three scatter the 8 pairs over the top lane bits, the rest go by shuffles and the last two in the lane; rows and outputs past the call are not written.
-template <class D, int R, int G>
-__device__ void exact_cols(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, unsigned long long nrows, int add) {
-    static_assert(R * G == 8 && kWave >= 16, "the scatter takes the 8 (output, row) pairs over three lane bits");
-    constexpr int J = kThreads / kWave, K = J / 4;
-    const int t = threadIdx.x % kWave;
-    const unsigned long long o0 = ((unsigned long long)blockIdx.x * (kThreads / kWave) + threadIdx.x / kWave) * R, b0 = (unsigned long long)blockIdx.y * G;
-    if (o0 >= nout) return;
+// A column call: up to three matrices of one input, blocks [start[m], start[m + 1]) of the grid's first dimension taking matrix m (backend_core.hpp, exact_columns).
+struct ColsCall {
+    const unsigned char* w[3];
+    float* y[3];
+    unsigned long long nout[3];
+    unsigned start[4];
+};
+// R outputs by G rows of X a wave and WB waves a block, of which 2^ls share the block's outputs and split its rows (all WB where FULL, as the many-row build's calls always take), each (output, row) the bits of exact_sum on that row alone.
+// Lane t holds chains 4t to 4t + 3 and those 4 kWave on; levels at or above 4 kWave fold in registers, the next log2(R G) scatter the pairs over the top lane bits, the rest go by shuffles and the last two in the lane.
+template <class D, int R, int G, int WB, bool FULL>
+__device__ __forceinline__ void exact_cols(const unsigned char* W, float* Y, unsigned long long nout, unsigned bx, const float* X, unsigned long long nin, unsigned long long nrows, unsigned split,
+                                           int add) {
+    constexpr int P = R * G, J = kThreads / kWave, K = J / 4, LB = P == 4 ? 2 : 3;
+    static_assert((P == 4 || P == 8) && kWave >= 2 * P && (WB == 4 || WB == 8), "the scatter takes the (output, row) pairs over the top lane bits");
+    // A fixed split keeps the many-row build's registers within its two blocks an SM on wave32.
+    const unsigned ls = FULL ? (WB == 8 ? 3u : 2u) : split;
+    const int t = threadIdx.x % kWave, wv = threadIdx.x / kWave;
+    const unsigned long long o0 = ((unsigned long long)bx * (WB >> ls) + (wv >> ls)) * R, b0 = (((unsigned long long)blockIdx.y << ls) + (wv & ((1 << ls) - 1))) * G;
+    if (o0 >= nout || b0 >= nrows) return;
     const unsigned char* rows[R];
-    const float* x[G];
-    bool aligned = true;
+    bool aligned = (unsigned long long)X % 16 == 0 && nin % 4 == 0;
 #pragma unroll
     for (int r = 0; r < R; ++r) {
         rows[r] = W + (o0 + r < nout ? o0 + r : nout - 1) * D::row_bytes(nin);
         aligned = aligned && (unsigned long long)rows[r] % D::align == 0;
     }
+    const float* x[G];
 #pragma unroll
-    for (int g = 0; g < G; ++g) {
-        x[g] = X + (b0 + g < nrows ? b0 + g : nrows - 1) * nin;
-        aligned = aligned && (unsigned long long)x[g] % 16 == 0;
-    }
-    const unsigned long long n = D::units(nin), full = n / kThreads, first = 4ull * t;
-    float s[8][J];
+    for (int g = 0; g < G; ++g) x[g] = X + (b0 + g < nrows ? b0 + g : nrows - 1) * nin;
+    // 32-bit unit indices, which the dispatch keeps a row's units within (backend_core.hpp, on_columns), hold the registers to the blocks an SM the bounds name.
+    const unsigned n = (unsigned)nin, full = n / kThreads, first = 4u * t;
+    float s[P][J];
 #pragma unroll
-    for (int q = 0; q < 8; ++q)
+    for (int q = 0; q < P; ++q)
 #pragma unroll
         for (int j = 0; j < J; ++j) s[q][j] = 0.0f;
+    auto step4 = [&](const float4 (&w)[R][K], unsigned u) {
+#pragma unroll
+        for (int g = 0; g < G; ++g)
+#pragma unroll
+            for (int k = 0; k < K; ++k) {
+                const float4 a = ((const float4*)(x[g]))[(u + 4 * kWave * k) / 4];
+#pragma unroll
+                for (int r = 0; r < R; ++r) {
+                    float* z = s[r * G + g] + 4 * k;
+                    z[0] = fmaf(w[r][k].x, a.x, z[0]), z[1] = fmaf(w[r][k].y, a.y, z[1]), z[2] = fmaf(w[r][k].z, a.z, z[2]), z[3] = fmaf(w[r][k].w, a.w, z[3]);
+                }
+            }
+    };
+    unsigned mm = 0;
     if (D::vector && aligned) {
-        for (unsigned long long m = 0; m < full; ++m) {
-            const unsigned long long u = first + m * kThreads;
+        // Every whole step but the last loads its weights as raw bits before the first is widened, and the last widens them as it loads: that form keeps the many-row build in 128 registers without spills on sm_86 (docs/DEVICE-TUNING.md).
+        // On wave32 a type whose raw bits are already floats saves no registers that way and spills under it, so its steps all load as the last does.
+        constexpr bool hoist = sizeof(typename D::Raw) < sizeof(float4) || GPU_WAVE != 32;
+        for (; hoist && mm + 1 < full; ++mm) {
+            typename D::Raw b[R][K];
+#pragma unroll
+            for (int r = 0; r < R; ++r)
+#pragma unroll
+                for (int k = 0; k < K; ++k) b[r][k] = D::raw4(rows[r], first + mm * kThreads + 4 * kWave * k);
+            schedule_barrier();
             float4 w[R][K];
 #pragma unroll
             for (int r = 0; r < R; ++r)
 #pragma unroll
-                for (int k = 0; k < K; ++k) w[r][k] = D::load4(rows[r], u + 4 * kWave * k);
+                for (int k = 0; k < K; ++k) w[r][k] = D::widen(b[r][k]);
+            step4(w, first + mm * kThreads);
+        }
+        for (; mm < full; ++mm) {
+            float4 w[R][K];
 #pragma unroll
-            for (int g = 0; g < G; ++g)
+            for (int r = 0; r < R; ++r)
 #pragma unroll
-                for (int k = 0; k < K; ++k) {
-                    const float4 a = ((const float4*)x[g])[(u + 4 * kWave * k) / 4];
-#pragma unroll
-                    for (int r = 0; r < R; ++r) {
-                        float* z = s[r * G + g] + 4 * k;
-                        z[0] = fmaf(w[r][k].x, a.x, z[0]), z[1] = fmaf(w[r][k].y, a.y, z[1]), z[2] = fmaf(w[r][k].z, a.z, z[2]), z[3] = fmaf(w[r][k].w, a.w, z[3]);
-                    }
-                }
+                for (int k = 0; k < K; ++k) w[r][k] = D::load4(rows[r], first + mm * kThreads + 4 * kWave * k);
+            step4(w, first + mm * kThreads);
         }
     } else {
-        for (unsigned long long m = 0; m < full; ++m)
+        for (; mm < full; ++mm)
 #pragma unroll
             for (int j = 0; j < J; ++j)
 #pragma unroll
-                for (int q = 0; q < 8; ++q) s[q][j] = D::step(rows[q / G], x[q % G], first + j % 4 + 4 * kWave * (j / 4) + m * kThreads, s[q][j]);
+                for (int q = 0; q < P; ++q) s[q][j] = D::step(rows[q / G], x[q % G], first + j % 4 + 4 * kWave * (j / 4) + mm * kThreads, s[q][j]);
     }
 #pragma unroll
     for (int j = 0; j < J; ++j) {
-        const unsigned long long u = first + j % 4 + 4 * kWave * (j / 4) + full * kThreads;
+        const unsigned u = first + j % 4 + 4 * kWave * (j / 4) + full * kThreads;
         if (u < n)
 #pragma unroll
-            for (int q = 0; q < 8; ++q) s[q][j] = D::step(rows[q / G], x[q % G], u, s[q][j]);
+            for (int q = 0; q < P; ++q) s[q][j] = D::step(rows[q / G], x[q % G], u, s[q][j]);
     }
 #pragma unroll
     for (int h = K / 2; h > 0; h >>= 1)
 #pragma unroll
-        for (int q = 0; q < 8; ++q)
+        for (int q = 0; q < P; ++q)
 #pragma unroll
             for (int i = 0; i < 4 * h; ++i) s[q][i] += s[q][i + 4 * h];
     // Each scatter level keeps the half of the pairs its lane bit names and adds the partner lane's sum of the same pairs; adds commute, so either order gives exact_sum's bits.
-    const bool top = t & (kWave / 2), mid = t & (kWave / 4), low = t & (kWave / 8);
-    float v4[4][4], v2[2][4], v1[4];
+    int q = 0;
 #pragma unroll
-    for (int k = 0; k < 4; ++k)
+    for (int l = 0; l < LB; ++l) {
+        const int half = P >> (l + 1), bit = kWave >> (l + 1);
+        const bool up = t & bit;
 #pragma unroll
-        for (int i = 0; i < 4; ++i) v4[k][i] = (top ? s[4 + k][i] : s[k][i]) + shuffle_xor(top ? s[k][i] : s[4 + k][i], kWave / 2);
+        for (int k = 0; k < half; ++k)
 #pragma unroll
-    for (int k = 0; k < 2; ++k)
+            for (int i = 0; i < 4; ++i) {
+                const float a = s[k][i], b = s[half + k][i];
+                s[k][i] = (up ? b : a) + shuffle_xor(up ? a : b, bit);
+            }
+        q += up ? half : 0;
+    }
 #pragma unroll
-        for (int i = 0; i < 4; ++i) v2[k][i] = (mid ? v4[2 + k][i] : v4[k][i]) + shuffle_xor(mid ? v4[k][i] : v4[2 + k][i], kWave / 4);
+    for (int h = kWave >> (LB + 1); h > 0; h >>= 1)
 #pragma unroll
-    for (int i = 0; i < 4; ++i) v1[i] = (low ? v2[1][i] : v2[0][i]) + shuffle_xor(low ? v2[0][i] : v2[1][i], kWave / 8);
-#pragma unroll
-    for (int h = kWave / 16; h > 0; h >>= 1)
-#pragma unroll
-        for (int i = 0; i < 4; ++i) v1[i] += shuffle_xor(v1[i], h);
-    const float y = (v1[0] + v1[2]) + (v1[1] + v1[3]);
-    const int q = (top ? 4 : 0) + (mid ? 2 : 0) + (low ? 1 : 0);
+        for (int i = 0; i < 4; ++i) s[0][i] += shuffle_xor(s[0][i], h);
+    const float y = (s[0][0] + s[0][2]) + (s[0][1] + s[0][3]);
     const unsigned long long o = o0 + q / G, b = b0 + q % G;
-    if (t % (kWave / 8) == 0 && o < nout && b < nrows) {
+    if (t % (kWave >> LB) == 0 && o < nout && b < nrows) {
         float* out = Y + b * nout + o;
         *out = add ? *out + y : y;
     }
@@ -1362,9 +1404,31 @@ template <class D> __device__ void routed_exact(const unsigned char* W, const fl
     }
 LLMX_EXACT(f32, ExactF32)
 LLMX_EXACT(q8_0, ExactQ8)
-#define LLMX_COLS(t, G, D)     extern "C" __global__ void __launch_bounds__(kThreads) llmx_matmul_cols##G##_##t(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, unsigned long long nrows, int add) { exact_cols<D, 8 / G, G>(W, X, Y, nin, nout, nrows, add); }
-LLMX_COLS(f32, 4, ExactF32)
-LLMX_COLS(f32, 8, ExactF32)
+// A column kernel's body for its block's matrix, which it passes as scalars so the many-row build keeps its registers (docs/DEVICE-TUNING.md).
+template <class D, int R, int G, int WB, bool FULL>
+__device__ __forceinline__ void cols_call(const ColsCall& c, const float* X, unsigned long long nin, unsigned long long nrows, unsigned split, int add) {
+    const unsigned bx = blockIdx.x;
+    const bool m1 = bx >= c.start[1], m2 = bx >= c.start[2];
+    exact_cols<D, R, G, WB, FULL>(m2 ? c.w[2] : m1 ? c.w[1] : c.w[0], m2 ? c.y[2] : m1 ? c.y[1] : c.y[0], m2 ? c.nout[2] : m1 ? c.nout[1] : c.nout[0],
+                                  bx - (m2 ? c.start[2] : m1 ? c.start[1] : 0u), X, nin, nrows, split, add);
+}
+// A type's column builds, few rows then many, in the shapes backend_core.hpp's kColsShapes mirrors: wave32 takes the shapes an RTX 3090 measured fastest (docs/DEVICE-TUNING.md), wave64 gfx906's 4-row and 8-row builds.
+// MB is the many-row build's blocks an SM on wave32: F32 weights take one and 16-bit weights two, but one on sm_70 and from sm_120, where nvcc spills at 128 registers (docs/DEVICE-TUNING.md).
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 750 || __CUDA_ARCH__ >= 1200)
+#define LLMX_COLS16_BLOCKS 1
+#else
+#define LLMX_COLS16_BLOCKS 2
+#endif
+#if GPU_WAVE == 32
+#define LLMX_COLS(t, D, MB) \
+    extern "C" __global__ void LLMX_BLOCK_BOUNDS(128, 5) llmx_matmul_cols_few_##t(LLMX_GRID_CONST ColsCall c, const float* X, unsigned long long nin, unsigned long long nrows, unsigned ls, int add) { cols_call<D, 2, 2, 4, false>(c, X, nin, nrows, ls, add); } \
+    extern "C" __global__ void LLMX_BLOCK_BOUNDS(256, MB) llmx_matmul_cols_many_##t(LLMX_GRID_CONST ColsCall c, const float* X, unsigned long long nin, unsigned long long nrows, unsigned ls, int add) { cols_call<D, 4, 2, 8, true>(c, X, nin, nrows, ls, add); }
+#else
+#define LLMX_COLS(t, D, MB) \
+    extern "C" __global__ void __launch_bounds__(kThreads) llmx_matmul_cols_few_##t(LLMX_GRID_CONST ColsCall c, const float* X, unsigned long long nin, unsigned long long nrows, unsigned ls, int add) { cols_call<D, 2, 4, 4, false>(c, X, nin, nrows, ls, add); } \
+    extern "C" __global__ void __launch_bounds__(kThreads) llmx_matmul_cols_many_##t(LLMX_GRID_CONST ColsCall c, const float* X, unsigned long long nin, unsigned long long nrows, unsigned ls, int add) { cols_call<D, 1, 8, 4, true>(c, X, nin, nrows, ls, add); }
+#endif
+LLMX_COLS(f32, ExactF32, 1)
 
 // Rows of a table of type T decoded: dst row i = table row ids[i], `width` floats each, and a zero row for an id of `nrows` or more; offsets are 64-bit, since a lookup table passes 4 GiB.
 template <class T> __device__ void gather_decoded(float* dst, const unsigned char* table, const unsigned* ids, unsigned long long width, unsigned nrows, float factor = 1.0f) {
@@ -1395,10 +1459,8 @@ LLMX_DECODED(q5_0, Q5_0)
 LLMX_DECODED(q5_1, Q5_1)
 LLMX_DECODED(bf16, BF16)
 LLMX_DECODED(f16, F16)
-LLMX_COLS(bf16, 4, ExactDecoded<rq::BF16>)
-LLMX_COLS(bf16, 8, ExactDecoded<rq::BF16>)
-LLMX_COLS(f16, 4, ExactDecoded<rq::F16>)
-LLMX_COLS(f16, 8, ExactDecoded<rq::F16>)
+LLMX_COLS(bf16, ExactDecoded<rq::BF16>, LLMX_COLS16_BLOCKS)
+LLMX_COLS(f16, ExactDecoded<rq::F16>, LLMX_COLS16_BLOCKS)
 LLMX_DECODED(iq4_nl, IQ4_NL)
 LLMX_DECODED(mxfp4, MXFP4)
 LLMX_DECODED(q2_k, Q2_K)

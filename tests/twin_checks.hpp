@@ -185,9 +185,12 @@ inline std::vector<std::array<size_t, 2>> flash_shapes(uint32_t type) {
     return out;
 }
 
+// The exact column build a call of `rows` takes on a wave of `wave` lanes (backend_core.hpp, exact_columns): the few-row build up to its block's rows, 8 on wave32 and 16 on wave64, then the many-row build.
+inline std::string cols_build(size_t rows, size_t wave, const std::string& type) { return "llmx_matmul_cols_" + std::string(rows <= (wave == 32 ? 8u : 16u) ? "few_" : "many_") + type; }
+
 // Each given exact type's product over several rows must give each output the bits of its row alone through the one-row build, plain and added, at each side of a block's outputs and rows.
 // The widths give lanes chains of unequal length (2561, 2080), lanes without one (100), the hyper-connection maps' 10240 and F32 rows off the vector loads' alignment (2561).
-inline void exact_rows(Backend& g, DeviceProfile& profile, const std::vector<uint32_t>& kinds, const Launches& launches, const Require& require) {
+inline void exact_rows(Backend& g, DeviceProfile& profile, size_t wave, const std::vector<uint32_t>& kinds, const Launches& launches, const Require& require) {
     const size_t nouts[] = {1, 13, 512}, nrows[] = {2, 3, 4, 5, 7, 8, 9, 12, 16, 17, 33};
     const size_t keep = profile.exact_cols_upto;
     for (uint32_t type : kinds) {
@@ -195,12 +198,11 @@ inline void exact_rows(Backend& g, DeviceProfile& profile, const std::vector<uin
         const size_t block = quant::storage_type(type)->block_size;
         std::string tname = name;
         for (char& ch : tname) ch = char(std::tolower(ch));
-        // The column types take the 8-row build past four rows and the 4-row build for up to four, or for a remainder of up to four past whole groups of eight, up to the profile's exact_cols_upto rows.
+        // The column types take one launch of the few-row or the many-row build (cols_build) up to the profile's exact_cols_upto rows, and a group of three projections one launch for all three.
         // They run at the device's exact_cols_upto, the counts past it on the row block (4 and 5 stand at the default's edge), at 1, every count on the row block, and at 33, every count on the column builds.
         const bool cols = type == quant::GGML_TYPE_F32 || type == quant::GGML_TYPE_BF16 || type == quant::GGML_TYPE_F16;
         const auto on_cols = [&](size_t n) { return cols && profile.exact_on_columns(n); };
-        const auto build = [&](size_t n) { return on_cols(n) ? "llmx_matmul_cols" + std::string(n <= 4 ? "4_" : "8_") + tname : "llmx_matmul_rows_" + tname; };
-        const auto tail = [&](size_t n) { return on_cols(n) && n > 4 && n % 8 && n % 8 <= 4; };
+        const auto build = [&](size_t n) { return on_cols(n) ? cols_build(n, wave, tname) : "llmx_matmul_rows_" + tname; };
         const std::vector<size_t> widths = block == 1 ? std::vector<size_t>{2560, 2561, 100, 10240} : block == 32 ? std::vector<size_t>{2560, 2080} : std::vector<size_t>{2560};
         for (size_t nin : widths)
         for (size_t nout : nouts) {
@@ -218,7 +220,7 @@ inline void exact_rows(Backend& g, DeviceProfile& profile, const std::vector<uin
                     }
             }
             const std::vector<float> x = row_classes::values(nin * 33, uint32_t(nout + 11)), y0 = row_classes::values(nout * 33, uint32_t(nout + 17));
-            auto wb = g.adopt(w.data(), w.size()), xb = g.adopt(x.data(), x.size() * 4), yb = g.alloc(nout * 33 * 4), y1 = g.alloc(nout * 4);
+            auto wb = g.adopt(w.data(), w.size()), xb = g.adopt(x.data(), x.size() * 4), yb = g.alloc(nout * 33 * 4), y1 = g.alloc(nout * 4), yg = g.alloc(nout * 33 * 3 * 4);
             for (size_t upto : cols ? std::vector<size_t>{keep, 1, 33} : std::vector<size_t>{keep})
             for (size_t n : nrows)
                 for (int add = 0; add < 2; ++add) {
@@ -230,7 +232,7 @@ inline void exact_rows(Backend& g, DeviceProfile& profile, const std::vector<uin
                     else g.matmul({type, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, n, {}, Dtype::f32);
                     const auto ran = launches(g);
                     require(ran.count(build(n)) == 1, "a " + at + " exact product takes " + build(n));
-                    require(!on_cols(n) || n <= 4 || ran.count("llmx_matmul_cols4_" + tname) == (tail(n) ? 1u : 0u), "a " + at + " exact product takes the 4-row build for a remainder of up to four rows and only then");
+                    require(!on_cols(n) || ran.at(build(n)) == 1, "a " + at + " exact product takes one launch of " + build(n));
                     const std::vector<float> all = read(g, *yb, nout * 33);
                     bool ok = std::memcmp(all.data() + n * nout, y0.data() + n * nout, (33 - n) * nout * 4) == 0;
                     for (size_t r = 0; r < n && ok; ++r) {
@@ -240,6 +242,16 @@ inline void exact_rows(Backend& g, DeviceProfile& profile, const std::vector<uin
                         ok = std::memcmp(read(g, *y1, nout).data(), all.data() + r * nout, nout * 4) == 0;
                     }
                     require(ok, "every row of a " + at + " exact product is the row alone, bit for bit, and nothing past it is written");
+                    if (!add && on_cols(n)) {
+                        const WeightView wt{type, {wb.get(), 0}};
+                        launches(g);
+                        g.matmul_group({{wt, {yg.get(), 0}, nout}, {wt, {yg.get(), nout * n}, nout}, {wt, {yg.get(), 2 * nout * n}, nout}}, {xb.get(), 0}, nin, n, {}, Dtype::f32);
+                        const auto grouped = launches(g);
+                        require(grouped.count(build(n)) && grouped.at(build(n)) == 1, "a group of three " + at + " exact products takes one launch of " + build(n));
+                        const std::vector<float> three = read(g, *yg, nout * n * 3);
+                        for (size_t m = 0; m < 3; ++m)
+                            require(std::memcmp(three.data() + m * nout * n, all.data(), nout * n * 4) == 0, "each projection of a group of three " + at + " exact products has its own product's bits");
+                    }
                 }
             profile.exact_cols_upto = keep;
         }
@@ -1060,7 +1072,7 @@ struct Bits {
     // The exact product of F16 or BF16 rows that skip the tile: the column build where the device profile puts the count on the columns (DeviceProfile::exact_on_columns, which the backend asks too), else the row block.
     std::string exact_kernel_name(Backend& g, bool bf16, size_t rows) {
         const std::string type = bf16 ? "bf16" : "f16";
-        return profile_of(g).exact_on_columns(rows) ? "llmx_matmul_cols" + std::string(rows <= 4 ? "4_" : "8_") + type : "llmx_matmul_rows_" + type;
+        return profile_of(g).exact_on_columns(rows) ? cols_build(rows, caps.subgroup_size, type) : "llmx_matmul_rows_" + type;
     }
 
     // At bf16 a BF16 weight's prompt takes the BF16 tile where the module has it: outputs within the F32 bound of the double sum over BF16-rounded inputs past binary16's range, a row's bits in any row count, the path bf16-mma.

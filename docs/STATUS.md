@@ -4,7 +4,7 @@
 
 - **Goal:** the docs ARCHAUDIT1 and ARCHAUDIT2 found false or incomplete say what the code does: the precision table, DSpark over a tensor group, DFlash/DSpine drafters, MiniMax on the CPU and on devices, the MiniMax tensor-width refusal and the qwen4exp column of the role table.
 - **Done:** PRECISION.md (DeepSeek-V4.1's F32 hyper-connection mix and compressor products, its FP8 and FP4 cache rows under `f32`, the F32 auxiliary plane of MiniMax and Qwen3.8-Flash-Next); the deepseek4 source page (a group runs DSpark); USAGE.md (DSpine sidecars run, a group refuses them, MiniMax refused over a group); SPECULATIVE.md section 11 (landed on one device, owners named as they are, ops by name, groups not built); the dflash source page; MINIMAX.md (what runs where); TENSOR-SPLIT.md (qwen4exp column).
-- **Left:** code the audits found wrong, not changed here: a DFlash sidecar's rope never sees `--yarn` (qwen35.hpp:334 at d8bd8735e) against USAGE.md's "a draft model beside it included".
+- **Landing:** with the landing stack land-20261132, whose gates are recorded there (Landing stack land-20261132, below); the `--yarn` gap of DFlash and DSpine drafters the audits found is fixed in the same stack (--yarn reaches DFlash and DSpine drafters, below).
 - **Gotchas:** MINIMAX.md describes main as of d8bd8735e; an expert-offload flag that places the routed layers' feed-forward on the CPU changes which devices load the model.
 
 ## CUDA BF16 prompt tile (2026-11-21, CUDA105, branch cuda/bf16-prompt-tile on main c494eea6f)
@@ -52,6 +52,7 @@
 **Landing.** With the landing stack land-20261130, whose gates are recorded there (Landing stack land-20261130, below).
 
 **Gotchas.** The probe's model is per architecture, as for the TF32 tile. `describe()` prints the emulation warning on a CUDA bf16 run, which is accurate: only BF16 weights' prompts are in BF16.
+
 ## --yarn reaches DFlash and DSpine drafters (2026-11-24, CONFFIX1 to CONFFIX3, branch fix/qwen35-dflash-yarn on main d8bd8735e)
 
 **Goal.** `--yarn` reaches a qwen35 DFlash or DSpine sidecar's drafter, whose rope tables were built without the request (architecture audit, item 1).
@@ -61,7 +62,7 @@
 - Fix: `read_config` resolves `Config::draft_rope` at the target's factor over the target's original length, at most its context, and the constructor binds it; docs/USAGE.md, docs/src/model-arch-qwen35.md and docs/TESTS.md.
 - Fail then pass (rig, CPU build of each commit, `llmx-arch-qwen35-test`): the test commit fails `arch-qwen35` with "the DSpine drafter's rope ignores --yarn 4 at position 0"; the fix passes it.
 
-**Left.** Lands in COORD's stack after PR 607 and FLAGFIX1's branch, at most two commits, gitea PR 610; the stack's head runs the CPU suite, CTest, Qwen3-0.6B byte identity against main, byte identity on the CPU and a device for the models it reaches, the suite on a device, one timing round against main and the hosted run.
+**Landing.** With the landing stack land-20261132, whose gates are recorded there (Landing stack land-20261132, below).
 
 **Gotchas.** A sidecar's own `dflash.rope.scaling` keys are now read, honoured or refused, where they were ignored.
 
@@ -72,6 +73,7 @@
 - **Test:** the vision ops check (`tests/vision_checks.hpp`) holds the erf form within 16 float units of the CPU and 1e-9 absolute over a dense sweep of the negative tail. On one MI50, the test commit 1f022b9ed fails `backend-rocm vision` and CTest `backend-vulkan` on it (x = -3.369: -0.0012697100 on ROCm and -0.0012698105 on Vulkan against the CPU's -0.0012696750), and the fix 9db9b8af8 passes both.
 - **Claim:** the op's accuracy only. On the Inkling-2 vision tower the model-level change is reordering noise (better on the photo, worse at 1080p), so no model accuracy gain is claimed.
 - **Landing:** with the landing stack land-20261130, whose gates are recorded there (Landing stack land-20261130, below). No README or CHANGELOG change.
+
 ## Flash-Next MTP drafts after an image (2026-11-24, CONFFIX1 to CONFFIX5, branch fix/qwen4exp-mtp-image-rope on main d8bd8735e)
 
 **Goal.** The qwen4exp MTP block reads an image's positions as the trunk does: its context rows' keys turn at the image's position streams (architecture audit, item 2), and a compressed block's pooled groups, of the context rows and of the chain, at their first rows' positions (Fable, CONFFIX2).
@@ -81,7 +83,7 @@
 - Fix: `attention_cache` passes the streams; `Model::group_positions` beside `positions` (history.hpp) gives the pass's pooled layers, the drafter's context rows (`draft_context`) and each chain step (`Chain::group_pos`) their groups' positions where a history holds an image; docs/src/model-history.md and docs/TESTS.md.
 - Fail-then-pass (rig CPU builds, `llmx-qwen4exp-mtp-test`, arms conffix1/arms2, CONFFIX5): main d8bd8735e with the test FAILS at ratio 0 (max_abs 0.0029 against the oracle); the stream fix alone FAILS at ratio 2 (0.011); the full fix PASSES; the fix without the chain step's group positions (history.hpp) FAILS at ratio 2 (0.023) and without the pass's (passes.hpp) FAILS (0.035), each the gap a search of 1080 cases predicted from the oracle alone, so each half is needed.
 
-**Left.** Lands in COORD's stack after PR 607 and FLAGFIX1's branch, at most two commits, gitea PR 611; the stack's head runs the CPU suite, CTest, Qwen3-0.6B byte identity against main, byte identity on the CPU and a device for the models it reaches, the suite on a device, one timing round against main and the hosted run; the CPU, Vulkan and ROCm pool calls already honour `GroupPositions`, so no backend changes.
+**Landing.** With the landing stack land-20261132, whose gates are recorded there (Landing stack land-20261132, below).
 
 **Gotchas.** A text-only history sets no group positions, so it runs as before; a pass with an image keeps tensor cuts off, as the trunk's pooled layers already did.
 
@@ -91,6 +93,7 @@
 - **Done:** failing test first (`vulkan-quantization` `check_f16_tile_time`, F16 at most 1.5 times BF16 at 4096 by 12288 over 300 rows); the tile widens F16 pairs through `f16_pair_to_f32`, the same exact values. On one MI50 under RADV (renderD134, best of 3 calls twice, main 5615d875d's shaders against the fix): 4096x12288 BF16 inputs 300/512/1201 rows 104.2/173.5/390.0 ms to 7.4/11.3/24.3; f32 inputs 32 rows 8.90 to 1.72 ms; 12288x4096 BF16 inputs 1201 rows 57.4 to 23.4 ms; 1024x4096 BF16 inputs 1201 rows 9.15 to 2.66 ms; f32 inputs at 128 rows and more within -4.2 to +1.7 percent (the wide tile, unchanged). `vulkan-quantization` passes on the fix (wide tile equal to the float tile bit for bit).
 - **Landing:** with the landing stack land-20261130, whose gates are recorded there (Landing stack land-20261130, below).
 - **Gotchas:** the timing check is a ratio on one device in one process, an exception to exact checks recorded here because the bug is a cost, not a value; stdout of a benchmark is buffered, so the last printed cell is not the cell that hung.
+
 ## Streamed-expert layers kept on the host say why (2026-11-24, CONFFIX1 to CONFFIX3, branch fix/moe-stream-kept-home on main d8bd8735e)
 
 **Goal.** A load that keeps layers eligible for `--moe-stream-from` or `--expert-cache` on the host, because the device lacks a feed-forward op or a weight type, says so instead of keeping them there silently (architecture audit, item 3).
@@ -100,7 +103,7 @@
 - Fix: `Model::stream_note`, one stderr line a reason naming the layers, printed by the load helper beside the dtype and rope lines (src/cli/main.cpp); docs/USAGE.md, docs/src/model-runtime.md and docs/TESTS.md.
 - Fail then pass (rig, CPU build per commit): the test commit fails to build `llmx-model-validation-test` on main's code, which has no `Model::stream_note`; the fix passes `model-validation`.
 
-**Left.** Lands in COORD's stack after PR 607 and FLAGFIX1's branch, at most two commits, gitea PR 612; the stack's head runs the CPU suite, CTest, Qwen3-0.6B byte identity against main, byte identity on the CPU and a device for the models it reaches, the suite on a device, one timing round against main and the hosted run; it touches src/cli/main.cpp, which FLAGFIX1 also edits (devlog).
+**Landing.** With the landing stack land-20261132, whose gates are recorded there (Landing stack land-20261132, below).
 
 **Gotchas.** No refusal: `model-validation` expects a load with every layer home to load. The type reads as the constructor's other messages give it, `Q4_0 (2)`.
 
@@ -111,6 +114,7 @@
 - **Focused results (MI50 RADV, CPU in the same container):** `dominant_key` ratio to its bound, heads 64/72: CPU 3.88/12.3 before at 1296/4096 keys, 0.32-0.38 after; Vulkan 1.50/4.77 before, 0.053/0.062 (hd 64) and 0.031/0.045 (hd 72) after. ROCm's backend vision check passes unchanged. The 1080p Inkling-2 image against its HF float64 rows (bound 9.37e-6), on the image branch's 61636d85a with and without this change: CPU 1.48e-5 -> 4.03e-6, Vulkan 1.32e-5 -> 7.6e-6.
 - **Landing:** with the landing stack land-20261130, whose gates are recorded there (Landing stack land-20261130, below), which records the CPU HF errors again, the CPU 16k raw and chat checks against HF and the vision towers' errors on the devices; byte identity against main differs by design on the CPU past 128 keys and on Vulkan vision towers only.
 - **Gotchas:** a fixture with v = +1 everywhere cancels and hides the CPU error; the dominant key's own block still drops its other keys. The Vulkan text attention kernels and the ROCm and CUDA chunk chains are unchanged (ideas.md).
+
 ## MiniMax-M3 indexer block size (2026-11-24, CONFFIX1 to CONFFIX3, branch fix/minimax-index-block on main d8bd8735e)
 
 **Goal.** MiniMax-M3 refuses an `attention.indexer.block_size` that is not a power of two at load, since the devices split a position into its block by shift and mask (architecture audit, item 4).
@@ -120,9 +124,10 @@
 - Fix: `read_config` refuses a size that is not a power of two; docs/MINIMAX.md, docs/src/model-arch-minimax_m3.md and docs/TESTS.md.
 - Fail-then-pass (rig CPU builds, test target only): main d8bd8735e with the test FAILS `attention.indexer.block_size: not refused`; the fix 31c5d0115 PASSES `arch-minimax-m3`.
 
-**Left.** Lands in COORD's stack after PR 607 and FLAGFIX1's branch, at most two commits, gitea PR 613; the stack's head runs the CPU suite, CTest, Qwen3-0.6B byte identity against main, byte identity on the CPU and a device for the models it reaches, the suite on a device, one timing round against main and the hosted run.
+**Landing.** With the landing stack land-20261132, whose gates are recorded there (Landing stack land-20261132, below).
 
 **Gotchas.** The refusal names the key, as the module's other limits do.
+
 ## --draft-max needs a drafter (2026-11-24, CONFFIX6, branch fix/draft-max-needs-drafter on main d8bd8735e)
 
 **Goal.** `--draft-max` without `--drafter`, or with `--drafter off`, is refused as a usage error by `generate`, `chat`, `serve` and `bench --model`, which accepted it and drafted nothing (ARCHAUDIT4 and FLAGAUDIT1, on every architecture).
@@ -132,9 +137,10 @@
 - Fix: `Drafts::check` after the parse, one rule that bench calls through `Drafts::check_draft_max`; docs/USAGE.md, docs/SPECULATIVE.md and docs/TESTS.md.
 - Fail then pass (rig, CPU build): `cli` at the test commit fails, as generate took `--draft-max 4` without a drafter and went on to open the model, and passes at the fix (conffix1/arms6/res/dj2.txt).
 
-**Left.** Lands in COORD's stack; the stack's head runs the CPU suite, CTest, Qwen3-0.6B byte identity against main and the hosted run.
+**Landing.** With the landing stack land-20261132, whose gates are recorded there (Landing stack land-20261132, below).
 
 **Gotchas.** No drafter source means no drafting on every path, an MTP file included (`load_model` plans its blocks only for `--drafter embedded`), so the refusal changes no run that drafted.
+
 ## CPU thread counts on a placement without the CPU (2026-11-24, CONFFIX6, branch fix/threads-without-cpu on main d8bd8735e)
 
 **Goal.** A positive `--threads` or `--threads-batch` on a placement that runs nothing on the CPU says once on stderr that it changes nothing, where it was silently ignored on every architecture and both GPU backends (ARCHAUDIT4, FLAGAUDIT1 row 13).
@@ -145,7 +151,7 @@
 - A note, not a refusal: XDEV (devlog 20:51) and Fable agreed, since USAGE.md documents the counts as inert on a device, the production serve line and the device suite pass `--threads`, and only the built placement knows whether it has CPU workers (`--cpu-moe` adds a CPU backend only at width 1). This is the recorded exception to "takes effect or refuses".
 - Fail then pass (rig, Vulkan build, `--device vulkan:0` on renderD129): `cli` at the test commit fails, as generate with `--threads 2` on vulkan:0 printed no note, and passes at the fix; `cli` on the CPU at the fix passes, with the counts not reached on a placement without the CPU (conffix1/arms6/res/tj-run.txt, dj.txt).
 
-**Left.** Lands in COORD's stack; the stack's head runs CTest, the CPU suite, the suite on a device, Qwen3-0.6B byte identity against main and the hosted run.
+**Landing.** With the landing stack land-20261132, whose gates are recorded there (Landing stack land-20261132, below).
 
 **Gotchas.** The note is reached only by a device run: hosted CI checks only that the CPU stays silent.
 
@@ -167,7 +173,7 @@
 - Fix: the allow-list in vulkan_backend.cpp, default false; the ops it reports are unchanged; docs/src/backends-vulkan.md and docs/TESTS.md.
 - Fail then pass (one MI50, renderD136, `llmx-backend-vulkan-test` built from each commit): the test commit fails with "Vulkan advertises an op it does not list"; the fix passes (rc 0).
 
-**Left.** Lands in COORD's stack after PR 607 and FLAGFIX1's branch, at most two commits, gitea PR 614; the stack's head runs the CPU suite, CTest, Qwen3-0.6B byte identity against main, byte identity on the CPU and a device for the models it reaches, the suite on a device, one timing round against main and the hosted run, the Vulkan device suite and the Radeon VII check (label needs-rvii).
+**Landing.** With the landing stack land-20261132, whose gates are recorded there (Landing stack land-20261132, below).
 
 **Gotchas.** No user-visible change today, so no CHANGELOG line: every op a model uses on Vulkan is listed.
 
@@ -191,7 +197,7 @@
 - Fix: `kv_allocated_bytes` and `kv_peak_bytes` sum every device with a storage, `Model::state_bytes`, and the kv line appends `, recurrent state N bytes f32` (src/cli/main.cpp); docs/USAGE.md and docs/TESTS.md.
 - Fail-then-pass (rig CPU builds, `placement` target): main d8bd8735e with the test FAILS `allocated 12288 against 12288, 2 of 1 heads held` (the first member only); the fix PASSES `placement`; `arch-qwen35` and `tests/qwen35.py` passed on the fix (CONFFIX3).
 
-**Left.** Lands in COORD's stack after PR 607 and FLAGFIX1's branch, at most two commits, gitea PR 615; the stack's head runs the CPU suite, CTest, Qwen3-0.6B byte identity against main, byte identity on the CPU and a device for the models it reaches, the suite on a device, one timing round against main and the hosted run; it touches src/cli/main.cpp, which FLAGFIX1 also edits (devlog).
+**Landing.** With the landing stack land-20261132, whose gates are recorded there (Landing stack land-20261132, below).
 
 **Gotchas.** Where a group is wider than the KV heads, each member keeps a replicated head, so the allocated bytes exceed one device's; CONFFIX2's first test expected one device's and failed on both arms. A bare `infer::Model` on one CPU backs half the KV bytes of one placed through `place_model` for the same history (6144 against 12288 at the fixture's shape), so the reference is placed (CONFFIX4).
 
@@ -217,9 +223,10 @@
 - One commit, no behaviour change: `arch-qwen4exp` checks the limit through `check_config`.
 - `arch-qwen4exp` passes on the commit (rig, CPU build).
 
-**Left.** Lands in COORD's stack after PR 607 and FLAGFIX1's branch, at most two commits, gitea PR 616; the stack's head runs the CPU suite, CTest, Qwen3-0.6B byte identity against main, byte identity on the CPU and a device for the models it reaches, the suite on a device, one timing round against main and the hosted run.
+**Landing.** With the landing stack land-20261132, whose gates are recorded there (Landing stack land-20261132, below).
 
 **Gotchas.** None.
+
 ## MiniMax-M3.1 attention on a device with --cpu-moe (2026-11-24, CONFFIX1 to CONFFIX3, branch fix/minimax-device-attention on main d8bd8735e via PR 607 e7e425c21)
 
 **Goal.** MiniMax-M3.1's attention runs on Vulkan and ROCm with its routed experts on the CPU, held to HF, and the `minimax` component checks it where a device refuses the routed layers (architecture audit, item 8).
@@ -229,7 +236,7 @@
 - Fix: Vulkan's `matmul_group_impl` runs a group wider than its kernels' three projections as calls of up to three over the same input, where it threw; docs/MINIMAX.md, docs/src/backends-vulkan.md and docs/TESTS.md.
 - Fail then pass (one MI50, renderD136, `--only minimax`): main d8bd8735e's Vulkan binary with the branch's `tests/minimax.py` fails with "vulkan: a matmul call of more than three projections"; the fix passes, small and wide fixtures with `--cpu-moe` every logit within 1.2e-6 and 1.8e-6 of HF's against the 2e-5 bound, NLL within 7.5e-7 and 1.3e-6 against 1e-5, greedy ids HF's. On rocm:0 main's binary already passes (1.2e-6 and 1.8e-6).
 
-**Left.** Lands in COORD's stack after PR 607 and FLAGFIX1's branch, at most two commits, gitea PR 617; the stack's head runs the CPU suite, CTest, Qwen3-0.6B byte identity against main, byte identity on the CPU and a device for the models it reaches, the suite on a device, one timing round against main and the hosted run, the Vulkan device suite and the Radeon VII check (label needs-rvii).
+**Landing.** With the landing stack land-20261132, whose gates are recorded there (Landing stack land-20261132, below).
 
 **Gotchas.** Based on PR 607's head e7e425c21, whose MINIMAX.md rewrite it extends, so it stacks after 607.
 
@@ -251,7 +258,7 @@
 - Kept: the figure itself, the fit's only count, and a tied table counted on both end devices of a layer split, since each holds a copy (`Model::resolve_tensors` adopts a tensor once a device); a raw byte count beside it would be a second count through the fit (Fable, XDEV).
 - Evidence (CPU build, `llmx-placement-test`, rig arms conffix1/arms3): main with the test commit fails `placement`, "a group's placement line does not say its figures are each member's: cpu+cpu: layers 0-2, weights 0.00 GiB, ..." (p0.res); the fix passes it (p1.res).
 
-**Left.** Lands in COORD's stack, at most two commits, gitea PR 618; the stack's head runs the CPU suite, CTest, Qwen3-0.6B byte identity against main and the hosted run.
+**Landing.** With the landing stack land-20261132, whose gates are recorded there (Landing stack land-20261132, below).
 
 **Gotchas.** Nothing parses the old label; recorded benchmark lines keep the old wording as history.
 
@@ -1455,6 +1462,56 @@ This test-only correction lands by fast-forward with the companion workflow.
 - **Checks:** The independent Chrome regression failed in 59.797 seconds before the fix and passed in 54.855 seconds after it. The combined browser fixture over public main `2ea30d410` passed in 66.845 seconds, including both themes at 1440, 390 and 320 pixels and 200 percent CSS zoom. Desktop preference, transient Settings access, mobile drawer state and toggle geometry passed. JavaScript syntax, whitespace and independent integration review passed. Dead-code passed with 17 expected findings and 20 planted faults in 34.8 seconds; docs passed with zero findings and 29 planted faults in 31.8 seconds and runs once more after this record.
 - **Landing:** Fast-forward from `2ea30d410` after final documentation validation and a fresh main check. This is static presentation only, with no server, runtime, API or numerical changes. The existing docs CLI remains applicable because native source and build inputs are unchanged. Full Markdown review checks references to details, temporary labels and layout; the companion README and TESTS own the updated behavior. Receipts are in `scratch/reading-landing/`, with independent matched screenshots in the main workspace's `scratch/chat-reading-layout/`.
 - **Gotchas:** Composer Settings and the narrow drawer are transient. Only explicit docked Details actions save the preference. Long titles can still truncate. Chrome emulation does not establish physical phone or Safari coverage. Settings semantics and history search remain separate audit work.
+## Landing stack land-20261132 (2026-11-25, LAND124 and LAND125, on main d8bd8735e, lands by fast-forward)
+
+**What lands.** Twenty-three commits on d8bd8735e, by fast-forward, in order: docs/arch-audit-fixes c23d6d73, fix/qwen35-dflash-yarn 940eeeff (the failing test) and de60e972, fix/qwen4exp-mtp-image-rope 9bd88c29 and 9f5639fa, fix/moe-stream-kept-home 113de8ff and cd0f517f, fix/minimax-index-block e486dda6 and 8c2d86dc, fix/vulkan-op-allowlist 1a604971 and 7f757322, fix/kv-bytes-groups 04a21dfd and a3c07dc2, tidy/qwen4exp-config 2683e183, fix/minimax-device-attention 31ad98fd and 592960a6, fix/placement-weight-bytes 61dd2340 and 8d2a4e41, fix/draft-max-needs-drafter 0a1e4992 and 3885e140, fix/threads-without-cpu cd4b2977 and d35179f7, and this record.
+Each branch's own block or commit gives its change and measurements; this record gives the gates of the stack.
+The members were picked onto d8bd8735e in that order; docs/STATUS.md and CHANGELOG.md kept both sides, and no code conflicted.
+
+**Fixes folded in.** Three tests the stack's own changes broke were fixed in the commits that broke them: the comment of `src/cli/main.cpp` named a heading docs/USAGE.md does not have (fix/threads-without-cpu, found by `docs`); `tests/server.py` started a drafts-off server with `--draft-max 3`, which fix/draft-max-needs-drafter now refuses (found by `server`); and `tests/chat.py` matched non-verbose stderr to the dtype line alone, where fix/threads-without-cpu adds the threads note on a device (found by `chat` on Vulkan).
+The binaries were built at 0a508912d, which differs from the landed head only by those two tests and the comment; the components that run them were rerun at d35179f7 and the other results carry forward.
+
+**Checks rerun or rescored.** The suite on `rocm:0` ran in a container that could not read the worktree's git directory, so `dead-code` and `docs` failed on `git ls-files` alone (both pass on a git-archive copy), and it reached its 6000 s limit after `decode-probe`; the components after it were rerun at d35179f7 and pass.
+The serve cell's first run found no client script and ran no request; it was rerun.
+The first timing rounds of the 27B and of the 35B on Vulkan were invalid by their own rule, control -5.30% and -3.47% under a host load of about 45 to 66; the 27B's second round counts, and the 35B's on Vulkan counts at its third, the second missing at control -2.30% (s/m -0.05% tg128); the raw files of every round are kept.
+The Radeon VII's first identity run differed from main on Qwen3.5-0.8B logits; rerun with both exes copied to fresh paths in the order main, stack, main, stack, all four agree at f16 and int8, so the difference was the exe at its original path, as in land-20261130 and land-20261131.
+`nvfp4` failed on MI50 Vulkan (RADV) at the prompt check, logit error 0.21 to 0.36 against a bound of 0.0059 on a varying fixture, and main fails it the same way: d8bd8735e's build failed on renderD136, the stack's failed on renderD133 and renderD128 and passed on renderD136; the Radeon VII passes it, so it is a nondeterminism main already has, reported to COORD, not a change of this stack.
+
+| Check | Result |
+|---|---|
+| CTest, CPU build of 0a508912d on pve1 | 91/91 |
+| Suite, CPU build, all components (pve1 at 0a508912d; `docs` and `server` rerun at d35179f7 on the rig without a device) | pass |
+| Identity against d8bd8735e on the CPU, Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M, `cpu:auto` and `cpu:f32` | 32 of 32 output files equal |
+| Builds: ROCm gfx906 of the stack (sha256 dac7135fc4b6) and of d8bd8735e (79be003c4090), Vulkan (d99aaf8d8c63; main 8daaf229ca1f), ROCm with the full target list (a2d483d1d734) | build |
+| Identity against d8bd8735e on one MI50 (renderD136), Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M at each dtype | 48 of 48 output files equal |
+| Suite on one MI50, `--device rocm:0` (renderD136), components through `decode-probe` at 0a508912d and the rest at d35179f7 | pass; dead-code and docs as above |
+| Identity on Vulkan against d8bd8735e (renderD133), CTest `-R vulkan`, vision on both arms | 32 of 32 equal; 21/21; pass in both arms (file-exact mmproj-BF16 not on disk) |
+| Suite on one MI50, `--device vulkan:0` (renderD133) at 0a508912d; `chat`, `server` and `nvfp4` rerun at d35179f7 (renderD136) | pass but for `nvfp4` (main fails it too, above); dead-code and docs pass on a git-archive copy |
+| Identity on Vulkan at `--tensor-width 2` against d8bd8735e (renderD128 and renderD129) | 19 of 19 output files equal |
+| Identity against d8bd8735e, Qwen3.6-27B Q8_0 on four MI50s at `--tensor-width 4`, int8 and f16 (renderD128-131) | 8 of 8 output files equal |
+| Identity against d8bd8735e, Qwen3.8-Flash-Next UD-Q4_K_XL int8, layer split over four MI50s | 3 of 3 output files equal |
+| CTest, ROCm build, four MI50s | 100% pass |
+| Serve cell: Flash-Next int8, MTP v2 drafter, four MI50s as two groups of two | pass: 256 events in each arm, the same final text (47254779395e); 43.09 tok/s stack, 31.51 main under a host load of about 45 |
+| Identity against d8bd8735e, Qwen3.6-35B-A3B Q4_K_M on one MI50 (renderD132): ROCm auto and int8, Vulkan auto, each also with `--cpu-moe` | 10 of 10 output files equal |
+| Expert ring smoke, Qwen3.6-35B-A3B Q4_K_M `--cpu-moe`, ROCm and Vulkan | runs on both |
+| Radeon VII (Windows, Vulkan): builds, CTest, suite on `vulkan:0` (`dead-code`, `docs`, `server` and `chat` rerun at d35179f7), identity Qwen3-0.6B and Qwen3.5-0.8B | builds; CTest pass; suite pass; identity equal on the rerun |
+| docs, dead-code | pass on a git-archive copy of the stack and of this record's commit |
+| dead-code `--linked` (Vulkan, -O0, every target) | pass at 0a508912d (16 findings, all listed) |
+| CTest, CUDA build | not run: the stack changes no file under `src/backends/gpu` |
+| Hosted | the workflow run of this commit on GitHub |
+
+Timing (rule written before the runs): `bench --p 512 --n 128 --r 3`, arms s (stack), m (d8bd8735e) and c (a byte copy of m), the upper quartile of each arm's runs; a round counts if c/m tg128 is within 2%, and passes if s/m is at least -2% on pp512 and tg128 and s has at most two slow runs more than m or c.
+All three pass.
+Qwen3.6-27B Q8_0 `--dtype int8`, ROCm, four MI50s at `--tensor-width 4` (renderD128-131), second round, 30 runs under a host load of about 48 to 56: control -0.28%, s/m +0.28% tg128 and -0.16% pp512, every run of every arm slow, as the load gives.
+Qwen3.6-35B-A3B Q4_K_M `--dtype auto`, one MI50 a run: ROCm, 18 runs under a host load of about 48 to 52, control -0.86%, s/m +2.57% tg128 and -0.00% pp512, slow runs s 5, m 6, c 5; Vulkan, third round, 18 runs under a load of about 24 to 36, control +0.06%, s/m +1.85% tg128 and +0.03% pp512, slow runs s 5, m 6, c 5.
+Decode on four cards is about 28% below land-20261131's figures in every arm alike, from the host load, not from either build.
+
+| Arm, upper quartile, tok/s | 27B tw4 pp512 | 27B tw4 tg128 | 35B ROCm pp512 | 35B ROCm tg128 | 35B Vulkan pp512 | 35B Vulkan tg128 |
+|---|---|---|---|---|---|---|
+| m, d8bd8735e | 1215.21 | 52.64 | 1463.72 | 88.16 | 1321.78 | 103.57 |
+| c, copy of m | 1200.92 | 52.49 | 1463.09 | 87.40 | 1322.72 | 103.63 |
+| s, stack | 1213.29 | 52.79 | 1463.72 | 90.43 | 1322.19 | 105.49 |
+
 ## Landing stack land-20261131 (2026-11-24, LAND122 and LAND123, on main e25f862ff, lands by fast-forward)
 
 **What lands.** Seven commits on e25f862ff, by fast-forward, in order: moe/expert-ring-fit 5d840e8b (the tests) and d9df6051, keff49/wide-barriers f9eff556, fix/mmproj-fit c87eddae (the failing test) and 097e0f9c, feat/vulkan-tagged-writeback 593b2186 and this record.

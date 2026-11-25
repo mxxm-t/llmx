@@ -32,8 +32,9 @@ struct FakeState {
     std::atomic<uint64_t> waited_value{0};
     bool first_wait_closed = false;
     std::atomic<int*> dead{nullptr};   // a stream whose events report a device error, a member whose card is gone
-    bool recording = false;
+    bool recording = false, watching = false;
     std::vector<GroupLaunch> groups;   // the group sums launched while recording
+    std::vector<GroupLaunch> watched;  // every launch while watching
 };
 FakeState fake;
 
@@ -208,6 +209,7 @@ struct FakeApi {
         const std::string name = f;
         if (fake.recording && (name == "llmx_group_sum" || name == "llmx_group_shares" || name == "llmx_group_chain"))
             fake.groups.push_back({name, gx, s, std::vector<uint8_t>((uint8_t*)args, (uint8_t*)args + size)});
+        if (fake.watching) fake.watched.push_back({name, gx, s, std::vector<uint8_t>((uint8_t*)args, (uint8_t*)args + size)});
         return kSuccess;
     }
     static Error can_access_peer(int* can, int, int) {
@@ -516,6 +518,46 @@ int main() {
         }
         require(threw, what + "a live member's backend throws at its next check");
         fake.dead = nullptr;
+    }
+    {
+        // A mixed round, decode rows on both sides of a prompt the tile kernel answers: the per-row kernel and its merge launch over the decode rows alone, named by the row list they read.
+        GpuBackend<FakeApi> core(0, false);
+        Backend& b = core;
+        const int n_head = 4, n_head_kv = 2, dim = 128;
+        const size_t prompt = 40, rows = prompt + 2, qfloats = rows * n_head * dim;
+        std::unique_ptr<KVStorage> kv = b.kv_alloc(1, n_head_kv, dim, 4 * kBlockTokens, KVType::f16, KVType::f16, {}, {}, {});
+        const int32_t first[1] = {0}, middle[1] = {1}, last[2] = {2, 3};
+        BufferPtr q = b.alloc(qfloats * sizeof(float), Memory::device), o = b.alloc(qfloats * sizeof(float), Memory::device);
+        // The views as written, then as attended: each row's history ends at its own position.
+        KVView wr[3] = {{kv.get(), first, 1, 0, 11}, {kv.get(), middle, 1, 0, prompt, prompt}, {kv.get(), last, 2, 0, 101}};
+        BufferPtr fill = b.alloc((11 + prompt + 101) * n_head_kv * dim * sizeof(float), Memory::device);
+        b.kv_write(0, wr, 3, {fill.get(), 0}, {fill.get(), 0}, {});
+        const KVView at[3] = {{kv.get(), first, 1, 10, 1}, {kv.get(), middle, 1, 0, prompt, prompt}, {kv.get(), last, 2, 100, 1}};
+        fake.watched.clear();
+        fake.watching = true;
+        b.attention({q.get(), 0}, 0, at, 3, {o.get(), 0}, n_head, n_head_kv, dim);
+        b.wait(b.submit());
+        fake.watching = false;
+        const GroupLaunch* vec = nullptr;
+        const GroupLaunch* merge = nullptr;
+        std::string names;
+        for (const GroupLaunch& l : fake.watched) {
+            names += " " + l.name;
+            if (l.name == "llmx_attention_vec") vec = &l;
+            if (l.name == "llmx_attention_vec_merge") merge = &l;
+        }
+        const unsigned pairs = 2 * n_head;
+        bool listed = false;
+        if (vec && merge && vec->args.size() >= 64 && merge->args.size() >= 24) {
+            const int32_t *vrows = nullptr, *mrows = nullptr;
+            std::memcpy(&vrows, vec->args.data() + 56, sizeof(vrows));
+            std::memcpy(&mrows, merge->args.data() + 16, sizeof(mrows));
+            listed = vrows && vrows == mrows && vrows[0] == 0 && vrows[1] == (int32_t)prompt + 1;
+        }
+        require(vec && merge && merge->blocks == pairs && vec->blocks > pairs && vec->blocks % pairs == 0,
+                "a mixed round's per-row attention launches over its 2 decode rows' 8 (row, head) pairs and their splits, not the prompt's 40 rows:" + names +
+                    (vec ? " vec " + std::to_string(vec->blocks) : "") + (merge ? " merge " + std::to_string(merge->blocks) : ""));
+        require(listed, "the per-row kernel and its merge read one list of the call's decode rows, 0 and 41");
     }
     require(fake.memory == 0 && fake.host == 0, "every device and host allocation is freed with the backend");
     require(fake.streams == 0 && fake.events == 0 && fake.modules == 0, "every stream, event and module is released with the backend");

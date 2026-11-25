@@ -1493,6 +1493,46 @@ void attention_rates(Backend& g) {
         std::printf("backend-rocm: attention rate %d, %d, %d, %zu, %zu, %zu: %.1f us, %s\n", n_head, n_head_kv, head_dim, cs.hist, cs.rows, cs.extent, us, ran.c_str());
         s.abort();
     }
+    // A serving round of Qwen3-0.6B's shape: 15 decode rows of 576 positions, alone, then beside a 512-token prompt, then the prompt alone.
+    {
+        const int n_head = 16, n_head_kv = 8, head_dim = 128;
+        const size_t qw = (size_t)n_head * head_dim, kvw = (size_t)n_head_kv * head_dim, decode = 15, hist = 576, prompt = 512;
+        auto st = g.kv_alloc(1, n_head_kv, head_dim, 16896, KVType::f16, KVType::f16);
+        infer::BlockPool pool;
+        pool.configure(st->max_blocks());
+        std::vector<std::unique_ptr<infer::KVSequence>> seqs;
+        std::vector<KVView> views;
+        for (size_t i = 0; i <= decode; ++i) {
+            const size_t all = i < decode ? hist : prompt;
+            seqs.push_back(std::make_unique<infer::KVSequence>(&pool, g.kv_layout().block_tokens));
+            seqs.back()->prepare(all);
+            const std::vector<float> keys = row_classes::values(all * kvw, 81 + i), vals = row_classes::values(all * kvw, 182 + i);
+            auto kb = g.adopt(keys.data(), keys.size() * 4), vb = g.adopt(vals.data(), vals.size() * 4);
+            KVView v = seqs.back()->view(st.get());
+            g.kv_write(0, &v, 1, {kb.get(), 0}, {vb.get(), 0});
+            g.sync();
+            if (i < decode) v.length = hist - 1, v.nq = 1;
+            else v.length = 0, v.nq = prompt, v.extent = prompt;
+            views.push_back(v);
+        }
+        const std::vector<float> q = row_classes::values((decode + prompt) * qw, 83, 4.0f);
+        auto qb = g.adopt(q.data(), q.size() * 4), ob = g.alloc(q.size() * 4);
+        for (const auto& [name, first, count] : {std::tuple<const char*, size_t, size_t>{"decode", 0, decode}, {"mixed", 0, decode + 1}, {"prompt", decode, 1}}) {
+            const auto call = [&] { g.attention({qb.get(), 0}, 0, views.data() + first, count, {ob.get(), 0}, n_head, n_head_kv, head_dim); };
+            for (int i = 0; i < 3; ++i) call();
+            g.sync();
+            rocm_take_launches(g);
+            const int iters = 20;
+            const auto t0 = std::chrono::steady_clock::now();
+            for (int i = 0; i < iters; ++i) call();
+            g.sync();
+            const double us = 1e6 * std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count() / iters;
+            std::string ran;
+            for (const auto& [k, n] : rocm_take_launches(g)) ran += (ran.empty() ? "" : "+") + k;
+            std::printf("backend-rocm: attention round %s, %zu decode rows of %zu beside a %zu-token prompt: %.1f us, %s\n", name, decode, hist, prompt, us, ran.c_str());
+        }
+        for (auto& s : seqs) s->abort();
+    }
     std::fflush(stdout);
 }
 

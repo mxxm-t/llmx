@@ -2018,19 +2018,18 @@ __device__ inline void attention_tile(const float* Q, float* O, const void* kc, 
 LLMX_ATTENTION_TILE(llmx_attention_tile, 128)
 LLMX_ATTENTION_TILE(llmx_attention_tile256, 256)
 
-// Causal attention of rows that attend one at a time in the Vulkan per-row design, heads 128 or 256 wide: a block a (row, head, split), its streams merged in stream order.
+// Causal attention of rows that attend one at a time in the Vulkan per-row design, heads 128 or 256 wide: a block a (row, head, split), the row the call's rows[] entry (a sparse call's own index), its streams merged in stream order.
 // One split writes O and its twin and several write partials for llmx_attention_vec_merge; SPARSE splits its selected ids by the stride alone.
 template <int DIM, bool SPARSE, bool WINDOW = false>
-__device__ inline void attention_vec(const float* Q, float* O, const void* kc, const void* vc, const int* table, const int* firsts, const int* ends,
+__device__ inline void attention_vec(const float* Q, float* O, const void* kc, const void* vc, const int* table, const int* firsts, const int* ends, const int* rows,
                                      int n_head, int heads_kv, int bt, int k_half, int v_half, float scale, int nsplit, int chunk0, int max_parts,
                                      float* partials, void* tq, float* td, void* ts, int tlevel, const TwinMap* tm, const unsigned* ids, int stride, unsigned shift, int groups,
                                      const int* starts = nullptr) {
     constexpr int LANES = DIM / 8, STREAMS = kThreads / LANES;
     __shared__ float ms[STREAMS], ls[STREAMS];
     __shared__ float accs[STREAMS * DIM];
-    const int split = blockIdx.x % nsplit, rh = blockIdx.x / nsplit, r = rh / n_head, h = rh % n_head;
+    const int split = blockIdx.x % nsplit, ch = blockIdx.x / nsplit, h = ch % n_head, r = SPARSE ? ch / n_head : rows[ch / n_head];
     const int len = ends[r];
-    if (len == 0) return;
     const int kvh = h / (n_head / heads_kv), lid = threadIdx.x, stream = lid / LANES, d0 = (lid % LANES) * 8;
     const int* blocks = table + firsts[r];
     const unsigned* row_ids = SPARSE ? slot_ids(ids, r, kvh, heads_kv, groups, stride, shift) : nullptr;
@@ -2083,7 +2082,7 @@ __device__ inline void attention_vec(const float* Q, float* O, const void* kc, c
         O[qrow + lid] = r;
         twin_at(r, qrow + lid, tq, td, ts, tlevel, tm);
     } else {
-        float* out = partials + ((unsigned long long)rh * nsplit + split) * (DIM + 2);
+        float* out = partials + ((unsigned long long)ch * nsplit + split) * (DIM + 2);
         out[2 + lid] = A;
         if (lid == 0) {
             out[0] = M;
@@ -2092,35 +2091,35 @@ __device__ inline void attention_vec(const float* Q, float* O, const void* kc, c
     }
 }
 extern "C" __global__ void llmx_attention_vec(const float* Q, float* O, const void* kc, const void* vc, const int* table, const int* firsts, const int* ends,
-                                              int n_head, int heads_kv, int bt, int k_half, int v_half, float scale, int nsplit, int chunk0, int max_parts,
+                                              const int* rows, int n_head, int heads_kv, int bt, int k_half, int v_half, float scale, int nsplit, int chunk0, int max_parts,
                                               float* partials, void* tq, float* td, void* ts, int tlevel) {
-    attention_vec<128, false>(Q, O, kc, vc, table, firsts, ends, n_head, heads_kv, bt, k_half, v_half, scale, nsplit, chunk0, max_parts, partials, tq, td, ts, tlevel,
+    attention_vec<128, false>(Q, O, kc, vc, table, firsts, ends, rows, n_head, heads_kv, bt, k_half, v_half, scale, nsplit, chunk0, max_parts, partials, tq, td, ts, tlevel,
                               nullptr, nullptr, 0, 0u, 1);
 }
 extern "C" __global__ void llmx_attention_vec_major(const float* Q, float* O, const void* kc, const void* vc, const int* table, const int* firsts,
-                                                    const int* ends, int n_head, int heads_kv, int bt, int k_half, int v_half, float scale, int nsplit, int chunk0,
+                                                    const int* ends, const int* rows, int n_head, int heads_kv, int bt, int k_half, int v_half, float scale, int nsplit, int chunk0,
                                                     int max_parts, float* partials, void* tq, float* td, void* ts, int tlevel, LLMX_GRID_CONST TwinMap tm) {
-    attention_vec<128, false>(Q, O, kc, vc, table, firsts, ends, n_head, heads_kv, bt, k_half, v_half, scale, nsplit, chunk0, max_parts, partials, tq, td, ts, tlevel, &tm,
+    attention_vec<128, false>(Q, O, kc, vc, table, firsts, ends, rows, n_head, heads_kv, bt, k_half, v_half, scale, nsplit, chunk0, max_parts, partials, tq, td, ts, tlevel, &tm,
                               nullptr, 0, 0u, 1);
 }
 extern "C" __global__ void llmx_attention_vec256(const float* Q, float* O, const void* kc, const void* vc, const int* table, const int* firsts, const int* ends,
-                                                 int n_head, int heads_kv, int bt, int k_half, int v_half, float scale, int nsplit, int chunk0, int max_parts,
+                                                 const int* rows, int n_head, int heads_kv, int bt, int k_half, int v_half, float scale, int nsplit, int chunk0, int max_parts,
                                                  float* partials, void* tq, float* td, void* ts, int tlevel) {
-    attention_vec<256, false>(Q, O, kc, vc, table, firsts, ends, n_head, heads_kv, bt, k_half, v_half, scale, nsplit, chunk0, max_parts, partials, tq, td, ts, tlevel,
+    attention_vec<256, false>(Q, O, kc, vc, table, firsts, ends, rows, n_head, heads_kv, bt, k_half, v_half, scale, nsplit, chunk0, max_parts, partials, tq, td, ts, tlevel,
                               nullptr, nullptr, 0, 0u, 1);
 }
 extern "C" __global__ void llmx_attention_vec256_major(const float* Q, float* O, const void* kc, const void* vc, const int* table, const int* firsts,
-                                                       const int* ends, int n_head, int heads_kv, int bt, int k_half, int v_half, float scale, int nsplit, int chunk0,
+                                                       const int* ends, const int* rows, int n_head, int heads_kv, int bt, int k_half, int v_half, float scale, int nsplit, int chunk0,
                                                        int max_parts, float* partials, void* tq, float* td, void* ts, int tlevel, LLMX_GRID_CONST TwinMap tm) {
-    attention_vec<256, false>(Q, O, kc, vc, table, firsts, ends, n_head, heads_kv, bt, k_half, v_half, scale, nsplit, chunk0, max_parts, partials, tq, td, ts, tlevel, &tm,
+    attention_vec<256, false>(Q, O, kc, vc, table, firsts, ends, rows, n_head, heads_kv, bt, k_half, v_half, scale, nsplit, chunk0, max_parts, partials, tq, td, ts, tlevel, &tm,
                               nullptr, 0, 0u, 1);
 }
 // A windowed view's rows (KVView::window): ends[r] positions from starts[r], with no twin written beside the output.
 #define LLMX_WINDOW_VEC(name, D) \
-    extern "C" __global__ void name(const float* Q, float* O, const void* kc, const void* vc, const int* table, const int* firsts, const int* ends, int n_head, \
-                                    int heads_kv, int bt, int k_half, int v_half, float scale, int nsplit, int chunk0, int max_parts, float* partials, \
-                                    const int* starts) { \
-        attention_vec<D, false, true>(Q, O, kc, vc, table, firsts, ends, n_head, heads_kv, bt, k_half, v_half, scale, nsplit, chunk0, max_parts, partials, nullptr, \
+    extern "C" __global__ void name(const float* Q, float* O, const void* kc, const void* vc, const int* table, const int* firsts, const int* ends, \
+                                    const int* rows, int n_head, int heads_kv, int bt, int k_half, int v_half, float scale, int nsplit, int chunk0, int max_parts, \
+                                    float* partials, const int* starts) { \
+        attention_vec<D, false, true>(Q, O, kc, vc, table, firsts, ends, rows, n_head, heads_kv, bt, k_half, v_half, scale, nsplit, chunk0, max_parts, partials, nullptr, \
                                       nullptr, nullptr, 0, nullptr, nullptr, 0, 0u, 1, starts); \
     }
 LLMX_WINDOW_VEC(llmx_attention_vec_window, 128)
@@ -2129,7 +2128,7 @@ LLMX_WINDOW_VEC(llmx_attention_vec256_window, 256)
     extern "C" __global__ void name(const float* Q, float* O, const void* kc, const void* vc, const int* table, const int* firsts, const int* ends, int n_head, \
                                     int heads_kv, int bt, int k_half, int v_half, float scale, int nsplit, int chunk, float* partials, const unsigned* ids, \
                                     int stride, unsigned shift, int groups) { \
-        attention_vec<D, true>(Q, O, kc, vc, table, firsts, ends, n_head, heads_kv, bt, k_half, v_half, scale, nsplit, chunk, 0, partials, nullptr, nullptr, nullptr, 0, \
+        attention_vec<D, true>(Q, O, kc, vc, table, firsts, ends, nullptr, n_head, heads_kv, bt, k_half, v_half, scale, nsplit, chunk, 0, partials, nullptr, nullptr, nullptr, 0, \
                                nullptr, ids, stride, shift, groups);          \
     }
 LLMX_SPARSE_VEC(llmx_sparse_attention_vec, 128)
@@ -2229,11 +2228,11 @@ LLMX_SPARSE_VEC_GROUPED(llmx_sparse_attention_vec256_g4, 256, 4)
 // The splits of one (row, head) merged (the Vulkan split merge's order, attention_merge.comp): the largest maximum, then the sums in split order, a split without tokens weighing nothing.
 // SPARSE gives zeros for a row whose splits saw no selected id.
 template <int DIM, bool SPARSE>
-__device__ inline void attention_vec_merge(const float* partials, float* O, const int* ends, int n_head, int nsplit, void* tq, float* td, void* ts, int tlevel, const TwinMap* tm) {
+__device__ inline void attention_vec_merge(const float* partials, float* O, const int* rows, int n_head, int nsplit, void* tq, float* td, void* ts, int tlevel, const TwinMap* tm) {
     __shared__ float sw[kThreads], sl[kThreads];
-    const int rh = blockIdx.x, r = rh / n_head, lid = threadIdx.x;
-    if (ends[r] == 0) return;
-    const float* base = partials + (unsigned long long)rh * nsplit * (DIM + 2);
+    const int ch = blockIdx.x, h = ch % n_head, r = SPARSE ? ch / n_head : rows[ch / n_head], lid = threadIdx.x;
+    const unsigned long long rh = (unsigned long long)r * n_head + h;
+    const float* base = partials + (unsigned long long)ch * nsplit * (DIM + 2);
     float M = -INFINITY;
     for (int i = 0; i < nsplit; ++i) M = fmaxf(M, base[i * (DIM + 2)]);
     if (lid < nsplit) {
@@ -2251,28 +2250,28 @@ __device__ inline void attention_vec_merge(const float* partials, float* O, cons
         A = fmaf(base[i * (DIM + 2) + 2 + lid], c, A);
     }
     const float o = SPARSE && !(L > 0.0f) ? 0.0f : A / L;
-    O[(unsigned long long)rh * DIM + lid] = o;
-    twin_at(o, (unsigned long long)rh * DIM + lid, tq, td, ts, tlevel, tm);
+    O[rh * DIM + lid] = o;
+    twin_at(o, rh * DIM + lid, tq, td, ts, tlevel, tm);
 }
-extern "C" __global__ void llmx_attention_vec_merge(const float* partials, float* O, const int* ends, int n_head, int nsplit, void* tq, float* td, void* ts, int tlevel) {
-    attention_vec_merge<128, false>(partials, O, ends, n_head, nsplit, tq, td, ts, tlevel, nullptr);
+extern "C" __global__ void llmx_attention_vec_merge(const float* partials, float* O, const int* rows, int n_head, int nsplit, void* tq, float* td, void* ts, int tlevel) {
+    attention_vec_merge<128, false>(partials, O, rows, n_head, nsplit, tq, td, ts, tlevel, nullptr);
 }
-extern "C" __global__ void llmx_attention_vec_merge_major(const float* partials, float* O, const int* ends, int n_head, int nsplit, void* tq, float* td, void* ts, int tlevel,
+extern "C" __global__ void llmx_attention_vec_merge_major(const float* partials, float* O, const int* rows, int n_head, int nsplit, void* tq, float* td, void* ts, int tlevel,
                                                           LLMX_GRID_CONST TwinMap tm) {
-    attention_vec_merge<128, false>(partials, O, ends, n_head, nsplit, tq, td, ts, tlevel, &tm);
+    attention_vec_merge<128, false>(partials, O, rows, n_head, nsplit, tq, td, ts, tlevel, &tm);
 }
-extern "C" __global__ void llmx_attention_vec_merge256(const float* partials, float* O, const int* ends, int n_head, int nsplit, void* tq, float* td, void* ts, int tlevel) {
-    attention_vec_merge<256, false>(partials, O, ends, n_head, nsplit, tq, td, ts, tlevel, nullptr);
+extern "C" __global__ void llmx_attention_vec_merge256(const float* partials, float* O, const int* rows, int n_head, int nsplit, void* tq, float* td, void* ts, int tlevel) {
+    attention_vec_merge<256, false>(partials, O, rows, n_head, nsplit, tq, td, ts, tlevel, nullptr);
 }
-extern "C" __global__ void llmx_attention_vec_merge256_major(const float* partials, float* O, const int* ends, int n_head, int nsplit, void* tq, float* td, void* ts,
+extern "C" __global__ void llmx_attention_vec_merge256_major(const float* partials, float* O, const int* rows, int n_head, int nsplit, void* tq, float* td, void* ts,
                                                              int tlevel, LLMX_GRID_CONST TwinMap tm) {
-    attention_vec_merge<256, false>(partials, O, ends, n_head, nsplit, tq, td, ts, tlevel, &tm);
+    attention_vec_merge<256, false>(partials, O, rows, n_head, nsplit, tq, td, ts, tlevel, &tm);
 }
-extern "C" __global__ void llmx_sparse_attention_vec_merge(const float* partials, float* O, const int* ends, int n_head, int nsplit) {
-    attention_vec_merge<128, true>(partials, O, ends, n_head, nsplit, nullptr, nullptr, nullptr, 0, nullptr);
+extern "C" __global__ void llmx_sparse_attention_vec_merge(const float* partials, float* O, int n_head, int nsplit) {
+    attention_vec_merge<128, true>(partials, O, nullptr, n_head, nsplit, nullptr, nullptr, nullptr, 0, nullptr);
 }
-extern "C" __global__ void llmx_sparse_attention_vec_merge256(const float* partials, float* O, const int* ends, int n_head, int nsplit) {
-    attention_vec_merge<256, true>(partials, O, ends, n_head, nsplit, nullptr, nullptr, nullptr, 0, nullptr);
+extern "C" __global__ void llmx_sparse_attention_vec_merge256(const float* partials, float* O, int n_head, int nsplit) {
+    attention_vec_merge<256, true>(partials, O, nullptr, n_head, nsplit, nullptr, nullptr, nullptr, 0, nullptr);
 }
 
 // A block a (row, head): the row's chunks merged in order, each scaled to the largest maximum.

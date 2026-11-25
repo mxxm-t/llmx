@@ -2187,10 +2187,10 @@ public:
         if (!s.holds(layer, (size_t)n_head_kv, (size_t)head_dim)) throw std::runtime_error(Api::prefix + "attention outside the KV view");
         // Views of a prompt whose extent reaches the profile's attention_tile_rows, causal and of 128- or 256-wide heads, take the tile kernel, the rest the chunk kernel: by the view's extent, its row class, never by how many rows the call holds.
         const size_t tile_rows = dev_.profile.attention_tile_rows;
-        std::vector<int32_t> table, firsts, ends, wide, starts;
+        std::vector<int32_t> table, firsts, ends, wide, starts, narrow_rows;
         std::vector<RowRun> runs;   // the views as the rows' runs, for the layout of the twin written beside the output
         int32_t row0 = 0, tiles = 0;
-        bool narrow = false, windowed = false;
+        bool windowed = false;
         for (size_t vi = 0; vi < n_views; ++vi) {
             const KVView& view = views[vi];
             if (&storage(view) != &s) throw std::runtime_error(Api::prefix + "attention over views of different storages");
@@ -2203,9 +2203,9 @@ public:
                 wide.insert(wide.end(), {row0, (int32_t)view.nq, (int32_t)view.length, first, tiles});
                 tiles += (int32_t)((view.nq + 31) / 32);
             }
-            narrow = narrow || (!tiled && view.nq);
             // A windowed row's end is its span, the positions from its start, set by its own, through its own or a non-causal view's last (CpuBackend::attention).
             for (size_t b = 0; b < view.nq; ++b) {
+                if (!tiled) narrow_rows.push_back((int32_t)firsts.size());
                 const size_t own = view.length + b + 1, end = view.causal ? own : view.length + view.nq, begin = view.window && own > view.window ? own - view.window : 0;
                 firsts.push_back(first);
                 ends.push_back(tiled ? 0 : (int32_t)(end - begin));
@@ -2215,8 +2215,9 @@ public:
             row0 += (int32_t)view.nq;
             if (view.nq) runs.push_back({(size_t)row0, extent});
         }
-        const size_t rows = firsts.size();
+        const size_t rows = firsts.size(), nr = narrow_rows.size();
         if (!rows) return;
+        const bool narrow = nr != 0;
         const size_t floats = size_mul(size_mul(rows, (size_t)n_head), (size_t)head_dim);
         span(*Q.buffer, Q.offset * sizeof(float), size_mul(floats, sizeof(float)));
         span(*out.buffer, out.offset * sizeof(float), size_mul(floats, sizeof(float)));
@@ -2224,16 +2225,18 @@ public:
         float* o = f32(out);
         const void* kc = as_gpu<Api>(*s.k_buffer(layer)).data();
         const void* vc = as_gpu<Api>(*s.v_buffer(layer)).data();
-        // The table, firsts, ends, tile views and, under a window, the starts in one set, which every layer of the pass reads alike.
+        // The table, firsts, ends, tile views, under a window the starts, and the rows of the per-row kernels in one set, which every layer of the pass reads alike.
         const size_t nt = table.size();
         table.insert(table.end(), firsts.begin(), firsts.end());
         table.insert(table.end(), ends.begin(), ends.end());
         table.insert(table.end(), wide.begin(), wide.end());
         if (windowed) table.insert(table.end(), starts.begin(), starts.end());
+        table.insert(table.end(), narrow_rows.begin(), narrow_rows.end());
         const int* tp = (const int*)pass_arg(table.data(), table.size() * sizeof(int32_t));
         const int* fp = tp + nt;
         const int* ep = fp + rows;
         const int* sp = ep + rows + wide.size();
+        const int* np = sp + (windowed ? rows : 0);
         int ratio = n_head / n_head_kv, bt = (int)kBlockTokens;
         int kh = s.k_type() == KVType::f16, vh = s.v_type() == KVType::f16;
         float scale = 1.0f / std::sqrt((float)head_dim);
@@ -2247,14 +2250,14 @@ public:
         const size_t need = attention_parts_bytes(rows, (size_t)n_head, kChunks, (size_t)head_dim);
         if (!parts_ || parts_->size() < need) parts_ = alloc(need, Memory::device);
         float* pp = (float*)as_gpu<Api>(*parts_).data();
-        // Rows of the tile kernel's views were answered above, and every kernel below skips them by their end of 0.
+        // Rows of the tile kernel's views were answered above: the per-row kernel and its merge launch over the other rows alone (np), the chunk kernel skips them by their end of 0.
         // Heads 128 and 256 wide take the per-row kernel, its splits chunks of each row's length, as many as the longest row needs (a shorter row's extra splits are empty), within the profile's limit for the width.
         if (narrow && (head_dim == 128 || head_dim == 256)) {
             int longest = 0;
             for (int32_t e : ends) longest = std::max(longest, e);
             int chunk = (int)dev_.profile.attention_split_chunk, nsplit = (int)attention_splits((size_t)head_dim, (size_t)longest);
             int max_parts = (int)(head_dim == 256 ? dev_.profile.attention_split_max_wide : dev_.profile.attention_split_max);
-            const size_t vneed = attention_parts_bytes(rows, (size_t)n_head, (size_t)nsplit, (size_t)head_dim);
+            const size_t vneed = attention_parts_bytes(nr, (size_t)n_head, (size_t)nsplit, (size_t)head_dim);
             if (nsplit > 1 && (!parts_ || parts_->size() < vneed)) parts_ = alloc(vneed, Memory::device);
             float* vp = nsplit > 1 ? (float*)as_gpu<Api>(*parts_).data() : nullptr;
             // With no row on the tile kernel, the kernel that writes the output writes the twin the output projection reads beside it.
@@ -2265,19 +2268,19 @@ public:
             TwinMap map = t.map;
             int tl = !t.q ? 0 : t.int8 ? 2 : 1, none = 0;
             if (windowed) {
-                const Args args(q, o, kc, vc, tp, fp, ep, n_head, n_head_kv, bt, kh, vh, scale, nsplit, chunk, max_parts, vp, sp);
-                launch(head_dim == 256 ? kAttentionVec256Window : kAttentionVecWindow, (unsigned)(rows * n_head * nsplit), 1, args);
+                const Args args(q, o, kc, vc, tp, fp, ep, np, n_head, n_head_kv, bt, kh, vh, scale, nsplit, chunk, max_parts, vp, sp);
+                launch(head_dim == 256 ? kAttentionVec256Window : kAttentionVecWindow, (unsigned)(nr * n_head * nsplit), 1, args);
             } else {
                 const Kernel k = head_dim == 256 ? kAttentionVec256 : kAttentionVec, build = twin_build(k, map);
-                Args args(q, o, kc, vc, tp, fp, ep, n_head, n_head_kv, bt, kh, vh, scale, nsplit, chunk, max_parts, vp, tq, td, ts, nsplit > 1 ? none : tl);
+                Args args(q, o, kc, vc, tp, fp, ep, np, n_head, n_head_kv, bt, kh, vh, scale, nsplit, chunk, max_parts, vp, tq, td, ts, nsplit > 1 ? none : tl);
                 if (build != k) args.put(map);
-                launch(build, (unsigned)(rows * n_head * nsplit), 1, args);
+                launch(build, (unsigned)(nr * n_head * nsplit), 1, args);
             }
             if (nsplit > 1) {
                 const Kernel mk = head_dim == 256 ? kAttentionVecMerge256 : kAttentionVecMerge, mbuild = twin_build(mk, map);
-                Args margs(vp, o, ep, n_head, nsplit, tq, td, ts, tl);
+                Args margs(vp, o, np, n_head, nsplit, tq, td, ts, tl);
                 if (mbuild != mk) margs.put(map);
-                launch(mbuild, (unsigned)(rows * n_head), 1, margs);
+                launch(mbuild, (unsigned)(nr * n_head), 1, margs);
             }
             keep(t, o, floats);
             return;
@@ -2355,7 +2358,7 @@ public:
             if (ratio % 4 == 0 && rows * size_t(n_head) / 4 >= size_t(dev_.caps.compute_units)) launch(head_dim == 256 ? kSparseVec256G4 : kSparseVecG4, (unsigned)(rows * (n_head / 4) * nsplit), 1, args);
             else launch(head_dim == 256 ? kSparseVec256 : kSparseVec, (unsigned)(rows * n_head * nsplit), 1, args);
             if (nsplit > 1) {
-                const Args margs(vp, o, ep, n_head, nsplit);
+                const Args margs(vp, o, n_head, nsplit);
                 launch(head_dim == 256 ? kSparseVecMerge256 : kSparseVecMerge, (unsigned)(rows * n_head), 1, margs);
             }
             return;

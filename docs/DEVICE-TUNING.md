@@ -223,6 +223,7 @@ None of these is probed today; the MI50 values above come from separate microben
 | A3 gated-attention fold | norm_rope and kv_write into attention | 7.2 us a layer at len 1; 0.55 ms a token on 27B tw4 | MI50 | fuse7, fuse13 |
 | Sums per window, self-staged pull shares | one submit a window; shares rounded to 256 B | all 33 cells beat RCCL; W4 2.6M floats 1625 vs 2305 us | MI50 ROCm | sums43 |
 | Square K tile | 128x128 for Q4_K-Q6_K | 27B pp512 901 to 1024 tok/s; A6000 702 to 935 | CUDA 3090 | cuda99 |
+| Per-row attention over the decode rows alone | a mixed round launched blocks for its tiled prompt rows that returned at once (about 163500 of 168320) | prompt-round decode attention 8348 to 1710 us (two hosts); c16 1197-1224 to 1266-1303 tok/s (+6.1%), Qwen3-0.6B BF16; MI50 mixed round 1074 to 639 us; bits same | attention_vec and its merge, CUDA 3090 and MI50 ROCm | cuda151, cuda150/PLAN.md section 8 |
 | exact_cols reduce-scatter | one weight load feeds G columns | c16 step 4869 vs 10503 us | CUDA | cuda123 |
 | Route build per decoder pair | a runtime F16/BF16 branch held 148 VGPR in the F32 build; one build a router and row-gate decoder pair keeps the F32 one at 65-68 | route r1/r4/r8 17/29/52 to 13/19.5/33 us (trace p50) | llmx_moe_step_route, MI50 ROCm | dspine28 p1, dspine29 kcf-16 |
 | Entry-fastest step grids | rows of h the grid's fast dimension, so an expert several rows pick is read from DRAM once | down_q8_0 r8 143 to 130 us; Q8_0 gate step r8 414 to 354 us | llmx_moe_step_up/down, Qwen3.6-35B-A3B shapes | dspine28 m8 |

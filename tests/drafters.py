@@ -245,8 +245,9 @@ def check_dspine(directory, tool):
     sidecar = os.path.join(directory, "dspine.gguf")
     assert fixture_dspine.write_sidecar(sidecar, target, doc["seed"]) == doc["sha256"], "drafters: the DSpine sidecar is not the golden's"
     worst = 0.0
-    for case in doc["cases"]:
-        drafts = len(case["drafts"])
+    # Each case whole, then cut to half its drafts, which runs a block of fewer rows and must give the whole block's first drafts (docs/SPECULATIVE.md, section 11).
+    for case, drafts in [(c, n) for c in doc["cases"] for n in (len(c["drafts"]), len(c["drafts"]) // 2)]:
+        case = dict(case, drafts=case["drafts"][:drafts], logits=case["logits"][:drafts])
         p = decode_probe.probe(tool, target, directory, {"prompt": case["prompt"], "ids": [], "tokens": [0, 1], "draft": drafts, "cache": "f32", "drafter_file": sidecar})
         assert p.returncode == 0, "drafters: llmx-decode-probe with the DSpine sidecar failed: " + p.stdout[-2000:] + p.stderr[-2000:]
         pick = re.search(r"^draft pick (\d+), (\d+) drafts$", p.stdout, re.M)

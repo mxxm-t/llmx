@@ -2472,16 +2472,16 @@ void sentinel_sums() {
         for (const auto& [a, b] : {std::pair<size_t, size_t>{1024, 1027}, {2048, 1024}, {256, 512}, {64, 1028}}) lane_sums(group, *fast, 1, a, b, lane_seed);
         const size_t least = W >= 4 ? 64 : 128;
         require(fast->copies_beside(least) && !fast->copies_beside(least - 1) && !fast->copies_beside(1027) && fast->copies_beside(1028), "a ROCm group's lane sums copy beside where their pick is a kernel form");
-        std::vector<BackendPtr> e = rocm_devices(W), h = rocm_devices(W);
+        // All three arms sum on the same backends, one a device as the product makes them, so their sums queue in one order on every card (backend-rocm-queues).
         const auto can = f.hipDeviceCanAccessPeer;
         f.hipDeviceCanAccessPeer = no_peer;
-        std::unique_ptr<Collective> host = h[0]->join(raw(h, W), cap, 1);
+        std::unique_ptr<Collective> host = d[0]->join(group, cap, 1);
         f.hipDeviceCanAccessPeer = can;
         sum_calls(*host, W, true);
-        std::unique_ptr<Collective> slow = rocm_collective(raw(e, W), cap, 1, GpuSumForm::one_shot, GroupTransport::pulls);
+        std::unique_ptr<Collective> slow = rocm_collective(group, cap, 1, GpuSumForm::one_shot, GroupTransport::pulls);
         sum_calls(*slow, W, false);
         constexpr size_t kArms = 3;   // peer writes, host writes, pulls; the last is the reference
-        const std::vector<Backend*> sides[kArms] = {group, raw(h, W), raw(e, W)};
+        const std::vector<Backend*> sides[kArms] = {group, group, group};
         Collective* arms[kArms] = {fast.get(), host.get(), slow.get()};
         std::vector<BufferPtr> x[kArms][2];   // per arm, per sum in flight, per member
         for (size_t a = 0; a < kArms; ++a)

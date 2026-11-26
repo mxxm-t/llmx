@@ -162,7 +162,7 @@ public:
                     beside_.resize(W, nullptr);
                     computed_.resize(W, nullptr);
                     for (auto& e : summed_) e.resize(W, nullptr);
-                    Api::check(Api::stream_create(&beside_[m]), "stream_create");
+                    beside_[m] = b.sum_stream(false);
                     Api::check(Api::event_create(&computed_[m], false), "event_create");
                     for (auto& e : summed_) Api::check(Api::event_create(&e[m], false), "event_create");
                 }
@@ -556,7 +556,7 @@ private:
                 s.copy_at.push_back(nullptr);
                 Api::check(Api::host_device_pointer(&s.copy_at.back(), s.copy.back()), "host_device_pointer");
                 if (!copy_stream_[m]) {
-                    Api::check(Api::stream_create(&copy_stream_[m]), "stream_create");
+                    copy_stream_[m] = b.sum_stream(true);
                     Api::check(Api::event_create(&added_[m], false), "event_create");
                     Api::check(Api::event_create(&sent_[m], false), "event_create");
                 }
@@ -841,21 +841,20 @@ private:
         }
     }
 
-    // Every member and copy stream drained first, so no kernel or copy still names what goes.
+    // Every member, copy and beside stream drained first, so no kernel or copy still names what goes; the latter two are the members' and outlive the collective (GpuBackend::sum_stream).
     void release() noexcept {
         for (GpuBackend<Api>* m : members_) m->sync();
         for (size_t m = 0; m < copy_stream_.size(); ++m)
             if (copy_stream_[m]) {
                 (void)Api::set_device(members_[m]->dev_.index);
                 sync_stream<Api>(copy_stream_[m]);
-                (void)Api::stream_destroy(copy_stream_[m]);
                 (void)Api::event_destroy(added_[m]);
                 (void)Api::event_destroy(sent_[m]);
                 copy_stream_[m] = nullptr;
             }
         for (size_t m = 0; m < beside_.size(); ++m) {
             (void)Api::set_device(members_[m]->dev_.index);
-            if (beside_[m]) sync_stream<Api>(beside_[m]), (void)Api::stream_destroy(beside_[m]);
+            if (beside_[m]) sync_stream<Api>(beside_[m]);
             if (computed_[m]) (void)Api::event_destroy(computed_[m]);
             for (auto& e : summed_)
                 if (e[m]) (void)Api::event_destroy(e[m]);

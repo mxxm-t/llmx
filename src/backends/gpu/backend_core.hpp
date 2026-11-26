@@ -383,6 +383,8 @@ public:
         try { flush(); } catch (const std::exception&) {}
         (void)Api::set_device(dev_.index);
         sync_stream<Api>(stream_);
+        for (auto s : {beside_stream_, copy_stream_})
+            if (s) sync_stream<Api>(s), (void)Api::stream_destroy(s);
         ring_.reset();
         {
             std::lock_guard<std::mutex> lock(graves_->m);
@@ -4457,12 +4459,23 @@ private:
         }
         return timed_events_[i];
     }
+    // The stream every collective of this backend sends its lanes' sums on (`beside`) or its copies' copies on, made the first time one asks.
+    // One of each a backend, however many collectives it joins, keeps a device at four hardware queues with HIP's null stream, one to each compute pipe, since two sums waiting on one pipe can starve each other (docs/src/backends-gpu.md).
+    typename Api::Stream sum_stream(bool copies) {
+        typename Api::Stream& s = copies ? copy_stream_ : beside_stream_;
+        if (!s) {
+            Api::check(Api::set_device(dev_.index), "set_device");
+            Api::check(Api::stream_create(&s), "stream_create");
+        }
+        return s;
+    }
     template <class> friend class GpuCollective;
     template <class> friend class GpuHandoff;
 
     typename Api::Device dev_;
     std::shared_ptr<Graves<Api>> graves_ = std::make_shared<Graves<Api>>();   // before every buffer member, so it outlives them
     typename Api::Stream stream_ = nullptr;
+    typename Api::Stream beside_stream_ = nullptr, copy_stream_ = nullptr;   // sum_stream's, null until a collective asks
     typename Api::Module module_ = nullptr, int16_module_ = nullptr, dot_module_ = nullptr;
     BufferPtr parts_;  // attention's chunk partials, grown as calls need
     BufferPtr sparse_;  // sparse attention's scratch rows, grown as calls need

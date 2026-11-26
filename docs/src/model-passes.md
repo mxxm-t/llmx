@@ -98,9 +98,10 @@ reads saved inputs and performs no table lookup.
   `pass_logits(ctx, slot, i)` waits on the pass's own head
   and returns its wanting row `i`, written from row `logits_base` on; after an argmax pass, whose rows stay on the device, the output device first copies the row into its place in the host-visible rows (`logits_buf`), which the pass does not write.
   `argmax_pass(ctx, slot)` says whether the pass kept its rows on the device, and `pass_argmax_id(ctx, slot, i)` gives its row `i`'s argmax id from `argmax_ids`, the vocabulary size where the largest logit is not finite or the row holds a NaN; both wait as `pass_logits` does (`retired_pass`).
+  `begin_pass` takes a fed entry (`BatchEntry::fed_slot`) only after its sequence's one pass in flight, an argmax pass past its last stage, and refuses rows past the argmax ids held; it gathers the fed rows into runs (`FedRun`, `Pass::fed`) that the embedding step reads (`Step::fed`). `begin` takes a drafted entry (`BatchEntry::drafted`) only inside `draft_verify`, from its sequence's chain, as one run of the drafter's ids from its last pick on; the drafter's context rows read the same runs (`draft_context`).
   `end_pass` takes a pass whose last stage has run out of flight, and
   `abort_pass` abandons one at any point: every device drained, then only
-  its entries truncated in every storage to where it found them, its sequences' later passes rolled back first, newest first, each by the rows up to the furthest end in flight, so a rollback by length counts every chunk against the rings' headroom, and their slots returned. Each
+  its entries truncated in every storage to where it found them, its sequences' later passes and a pass it feeds whole rolled back first, newest first, each by the rows up to the furthest end in flight, so a rollback by length counts every chunk against the rings' headroom, and their slots returned. Each
   pass's stages run in order; passes interleave as the caller likes, since
   each device runs the stages recorded on it in that order and a pass
   keeps its own handoff buffer, logits rows and ticket. `forward`,

@@ -939,6 +939,7 @@ int cmd_generate(const std::string& model_path, const std::string& prompt, bool 
                 for (size_t i = 0; i < fed.size(); ++i) printf(" %zu/%zu", kept[i], fed[i]);
                 printf("\n");
             }
+            if (drafting->proposer->feeds_verify()) printf("verifies fed on the device: %zu\n", drafting->device_fed);
         }
     }
     return 0;
@@ -1536,7 +1537,9 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
 void serve_loaded(const std::string& model_path, const server::Config& cfg, const ExecOptions& exec, Drafts& drafts, const Images& images, size_t slots, server::Front& front) {
     server::Startup& startup = front.startup();
     // The scheduler keeps logits rows for its passes in flight by its own rule, a row a request and its drafts, not one for every row of a pass.
-    const size_t logit_rows = server::logit_rows(slots, server::Scheduler::logits_a_pass(cfg.max_seqs, drafts.mark_rows() ? drafts.mark_rows() - 1 : 0)).size;
+    // One pass in flight without drafts keeps a second pass's rows, for a decode pass fed on the device behind it (docs/SERVER.md, Fed decode).
+    const size_t kept = !cfg.passes && slots == 1 && !drafts.mark_rows() ? 2 : slots;
+    const size_t logit_rows = server::logit_rows(kept, server::Scheduler::logits_a_pass(cfg.max_seqs, drafts.mark_rows() ? drafts.mark_rows() - 1 : 0)).size;
     const auto loaded = open_model(model_path, exec, true, exec.threads, logit_rows, cfg.max_seqs, false, nullptr, 0, slots, cfg.timing, cfg.state_checkpoints,
                                    drafts.mark_rows(), drafts.embedded, drafts.file, {}, cfg.host_cache_bytes, [&](const infer::LoadStep& step) { startup.step(step); }, true, {},
                                    images.mmproj, images.max_tokens);

@@ -252,6 +252,41 @@ Reports: rig `/opt/claude-work/conffix1/arms7a/r-{vd1,vtw2,rd1}/report.json`.
 - **Left:** the 3090 session S141 (main, PR 630, the branch and vLLM on one rental); the round reorder (publishing after the next pass is recorded), only if S141's `--timing` buckets show host work worth moving (on the MI50 the round outside the logits wait, recording and sampling is about 0.4 ms); landing gates.
 - **Gotchas:** a pass keeps its rows on the device only if every wanting entry asks only its argmax, so one request with log-probabilities or sampling in a pass sends the whole pass's rows to the host. A scheduler with `on_retire` set (tests) reads every row on the host.
 
+## Verify fed the drafts on the device (2026-11-25, DFLASH6 and DFLASH7, branch perf/dflash-fed-verify on land126/stack2 40124ee6 with PR 635 feat/spec-dflash-noncausal and perf/device-fed-decode's last two commits; lands after both, as two commits, the failing test and then the change)
+
+- **Goal:** `generate` with an embedded drafter queues the verify behind the drafter's chain and feeds it the drafts on the device, reusing fed decode's runs (`Pass::fed`, `blocks::embed`), so the host reads the drafts after the verify is queued, not before; then, if it wins, the next chain queued early.
+- **Done:** `Model::draft_verify` and `feeds_drafts`, `BatchEntry::drafted`, `draft_record(chain, read)` and `draft_release`; the MTP block's context rows embed through the same fed runs; `Proposer::feeds_verify`, `generate --verbose` counts `verifies fed on the device:`.
+  Tests: the drafters component requires that count above zero for the MTP sidecar and the three DFlash-family sidecars (fails on the test commit), and `arch-qwen35` checks a fed verify's drafts, every row's logits and the draft after a retract bit for bit against the host-fed verify, also with a draft outside the vocabulary.
+- **Timing** (Qwen3.6-35B-A3B UD-Q4_K_XL with its DFlash Q8_0 drafter, one MI50, ROCm, `generate` greedy, 128 tokens, medians of 3 interleaved rounds; base 79fb4869 (PR 635 ca721d94 with fed decode), fed 14bf5764; tok/s, ids equal in all 24 runs and `verifies fed on the device` above 0 in every fed run):
+
+  | --dtype, k | base | fed |
+  |---|---|---|
+  | int8, 4 | 165.8 | 184.0 (+11.0%) |
+  | int8, 7 | 215.9 | 223.4 (+3.5%) |
+  | f16, 4 | 149.7 | 151.1 (+0.9%) |
+  | f16, 7 | 160.1 | 158.8 (-0.8%) |
+
+- **Left:** tensor groups (27B tw4 DSpine) need per-member fed runs; the server's chains; the next chain queued behind the retract's rerun (Fable: the all-kept bet needs about 94 percent full accepts); about 1.7 ms of the 2.4 ms int8 k7 host gap per cycle is not yet attributed; landing gates.
+- **Gotchas:** `mark()` settles the sequence's last tickets, so the chain's are published only after the verify (`draft_end` keeps the later); a context that grows for the verify waits on the chain.
+
+## Server fed decode (2026-11-25, CUDA143 to CUDA147, branch perf/device-fed-decode on perf/serve-device-argmax cf0d90ae8; lands as two commits, the tests and then the change)
+
+- **Goal:** on one device, the next greedy decode pass is recorded and queued while the one before is in flight, its ids fed on the device by that pass's argmax, so the device does not wait for the host's draw and recording between steps. On one RTX 3090 (S141) the host's share of a 10.77 ms c16 round was about 1.38 ms.
+- **Done:** fed entries in the model (`BatchEntry::fed_slot`, `Model::feeds`, `blocks::embed` over `embed_ids`, `abort_pass` taking a fed pass whole); the scheduler's second slot on one stage, `form_fed` in quiet rounds, the fed pass's retire a round after its feeder (`round_steps`), void rows skipped and retracted; `serve` keeps logits rows for two passes; `/v1/health` counts `passes.since_start.fed` (docs/SERVER.md, Fed decode).
+- **Measured:** one MI50, Qwen3-0.6B c1899de, ROCm gfx906 dev builds (`build-one.sh R`), default `--dtype f16`, `serve --timing --max-seqs 16`, `tools/server_load.py` 512 in, 128 out, greedy, `ignore_eos`, 32 prompts, 2 rounds, 4 interleaved rounds an arm, host loaded; A = perf/serve-device-argmax cf0d90ae8, B = this branch at e64b5380f (means, ms a round):
+
+  | arm | out tok/s | TPOT p50 ms | round | logits_wait | recording | fed passes |
+  |---|---|---|---|---|---|---|
+  | A c1 | 143.2 | 4.70 | 7.17 | 5.31 | 1.80 | 0 |
+  | B c1 | 153.7 (+7.3%) | 4.30 | 6.98 | 4.86 | 2.05 | 2268 |
+  | A c16 | 288.1 | 48.0 | 35.15 | 32.22 | 2.25 | 0 |
+  | B c16 | 291.8 (+1.3%) | 46.9 | 34.17 | 30.91 | 2.35 | 628 |
+
+  The generated text is identical across all 8 files (`cuda143/tm/ids-*.txt`). The c16 fed count is not a low share: a c16 decode pass carries about 12 rows, so a c16 run has about 700 decode-only passes against 2286 at c1, and 607 to 637 of them are fed (91%), where c1 feeds all but the first decode pass of each request. The unfed rest is about one pass a request, the first decode pass after a prompt or mixed pass. About 200 of the c16 run's 890 to 930 rounds carry prompt chunks, about 80% of its time, and their host-embedded rows cannot be fed, so c16 gains little; feeding the rest (a subset of a pass's requests, or the decode rows of a mixed pass) is worth at most 0.1% and 0.3% and was not built (ideas.md).
+- **Gates so far:** `server-passes` (round_steps fed cases) and the whole `server-passes-cpu` (`fed_chain`, `device_ids` with void rows on every pass) pass at e64b5380f on one CPU; `fed_chain` failed on the model half before one stage reserved two passes; Vulkan ordering of an argmax write before a fed `embed_ids` read checked on an MI50 (64 pairs exact); `docs` and `dead-code`.
+- **Left:** the 3090 arm (lserve, beside S145); landing gates once PR 631 lands (CTest, CPU suite, `server` component on an MI50 with `--device vulkan:0 --only server`, 0.6B byte identity CPU and device, hosted run, Radeon VII for the Vulkan embed path).
+- **Gotchas:** on CPU the fed chain cannot show host uploads of pass N+1 sharing a buffer with pass N still running; the MI50 ids identity covers it, and a differing id points at the backend upload rings first. A cancel or a natural end landing mid-chain has no unit check of its own; the MI50 ids run covers end and stop.
+
 ## CUDA BF16 prompt tile (2026-11-21, CUDA105, branch cuda/bf16-prompt-tile on main c494eea6f)
 
 **Goal.** BF16 files' prompts on CUDA run on tensor cores in the F16 class, toward vLLM on the same RTX 3090: Qwen3-0.6B pp512/pp2048 TTFT 172/754 ms against 38/72, c16 439 against 2515 tok/s (CUDA104, docs/CUDA.md, BF16 prompt tile).

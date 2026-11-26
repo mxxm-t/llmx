@@ -323,6 +323,12 @@ using RouteHook = std::function<void(int layer, size_t rows, size_t k, const uin
 // It gets the model's layer, the pass's rows and the residual's floats a row, read back from the device before the layer's mixer runs.
 using StreamHook = std::function<void(int layer, size_t rows, size_t width, const float* x)>;
 
+// Rows of a pass embedded from ids a device holds (BatchEntry::fed_slot): `count` rows from `row` on, their ids at `ids`.
+struct FedRun {
+    size_t row, count;
+    backend::CSlice ids;
+};
+
 // One call of an architecture's part: the backend of the device it runs on and that device's arena, the residual at the call's first row, the rows and their runs, the weights to read by role id, and the layer's kind and cache views.
 // It also holds the rows' positions, the position tables on that device, a run list the part may rebuild without allocating, which holds a run for every entry of the pass, and a state layer's views.
 struct Step {
@@ -373,6 +379,9 @@ struct Step {
     // The model's layer this part belongs to, -1 for the embedding, the head, the drafter and a group's sum.
     int layer = -1;
     const RouteHook* routes = nullptr;  // ModelOptions::routes where a caller gave one
+    // On the embedding's step, the rows whose ids a device holds (Architecture::embeds_fed).
+    const FedRun* fed = nullptr;
+    size_t n_fed = 0;
     backend::Slice slot(size_t i) const { return {arena, offsets[i] / sizeof(float)}; }
     // A cut part's rows from first_row of the pass's pass_rows, and the pass's slot offsets, which Model::narrow keeps; none for a step over the whole pass.
     const size_t* pass_offsets = nullptr;
@@ -426,6 +435,8 @@ public:
     // The rope the model runs, which its tables hold, for the record, the server and the identity of a history copied off the devices.
     virtual const rope::Policy& rope_policy() const = 0;
     virtual void embed(const Step& s, const uint32_t* ids) const = 0;
+    // Whether embed writes Step::fed's rows from their device ids (blocks::embed does).
+    virtual bool embeds_fed() const { return false; }
     // Fill Step::indices from the pass's tokens and preceding token snapshots, without backend work, allocation or I/O.
     virtual void lookup_ids(const Step&) const { throw std::runtime_error("inference: this architecture has no weight-row lookup"); }
     // What every layer on the step's device reads of the pass's rows alone, such as their block lengths, written into its arena slots once as a stage of the pass begins there, ahead of the layers' mixers.

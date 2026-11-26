@@ -25,6 +25,8 @@ Each entry is one short line that links the doc explaining it; reasons, flags an
 - Greedy server requests, `ignore_eos` ones too, take their tokens from the device's argmax ([server](docs/SERVER.md#device-argmax)).
 - Experts on the CPU decode in the three-dispatch MoE step whatever their weight types ([CPU backend](docs/src/backends-cpu.md)).
 - A server round mixing a prompt with decoding spends no attention launches on the prompt's rows on CUDA and ROCm ([GPU backends](docs/src/backends-gpu.md)).
+- A server on one device queues the next greedy decode step on the device before the host reads the last one ([server](docs/SERVER.md#fed-decode)).
+- `generate` with a drafter on one device feeds each verify its drafts on the device ([speculative decoding](docs/SPECULATIVE.md)).
 - Several sequences of BF16, F16 and F32 weights decode faster on CUDA, and 2 to 4 on MI50s ([GPU backends](docs/src/backends-gpu.md)).
 - Batched CUDA decode of BF16, F16 and F32 weights takes a faster column geometry, q/k/v and gate/up one launch each ([GPU backends](docs/src/backends-gpu.md)).
 - The Docker Hub page is set from the tree at each release, and its quick start serves with a key file ([releases](docs/RELEASE.md)).

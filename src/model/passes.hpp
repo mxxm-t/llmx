@@ -29,7 +29,8 @@ inline void Model::forward(ExecContext& ctx, const BatchEntry* entries, size_t n
 inline void Model::reserve_passes(ExecContext& ctx, size_t slots, size_t rows, size_t logit_rows, size_t reply_rows) {
     if (ctx.slots || !ctx.scratch.empty()) throw std::logic_error("inference: reserve_passes takes a fresh context, once");
     if (!slots || !rows) throw std::logic_error("inference: reserve_passes needs a slot and a row");
-    if (slots > 1 && !pipelined_) throw std::logic_error("inference: passes in flight need a pipelined placement");
+    // On one stage a second slot holds a fed decode pass recorded behind the one in flight (Model::feeds).
+    if (slots > 1 && !pipelined_ && !(slots == 2 && feeds())) throw std::logic_error("inference: passes in flight need a pipelined placement, or two a fed decode");
     ExecContext reserved;
     try {
         ensure(reserved, rows, logit_rows, handoffs(slots), reply_rows);
@@ -61,6 +62,24 @@ inline void Model::begin_pass(ExecContext& ctx, size_t slot, const BatchEntry* e
     bool continues = false;
     for (size_t e = 0; entries && e < n_entries; ++e) {
         const Sequence* q = entries[e].seq;
+        if (entries[e].fed_slot != SIZE_MAX) {
+            // A fed entry follows its sequence's one pass in flight, an argmax pass past its last stage whose wanting row it names.
+            const size_t from = entries[e].fed_slot;
+            if (!feeds()) throw std::logic_error("inference: a fed entry where passes take none");
+            if (!q || entries[e].n != 1 || from >= ctx.slots || from == slot) throw std::logic_error("inference: a fed entry of one token after another slot's pass");
+            const Pass& o = ctx.passes[from];
+            if (!o.in_flight || !o.argmax || o.ran < stages_.size() || q->flights_ != 1 || q->mark_.held()) throw std::logic_error("inference: a fed entry before its pass in flight ran its last stage as an argmax pass");
+            size_t row = 0;
+            const BatchEntry* source = nullptr;
+            for (const BatchEntry& en : o.entries) {
+                if (!en.want_logits) continue;
+                if (row == entries[e].fed_row) source = &en;
+                row += en.every_logits ? en.n : 1;
+            }
+            if (!source || source->seq != q || source->every_logits) throw std::logic_error("inference: a fed entry names another sequence's row");
+            continues = true;
+            continue;
+        }
         if (!q || !q->flights_) continue;
         if (n_entries != 1) throw std::logic_error("inference: a sequence in flight continues in a pass of its own");
         if (q->mark_.held()) throw std::logic_error("inference: a marked sequence in flight continued");
@@ -262,14 +281,23 @@ inline void Model::end_pass(ExecContext& ctx, size_t slot) {
 }
 
 // Abandon the pass in `slot`, run or not: every device drained, then only its entries' histories back to where it found them in every storage, and its sequences out of flight.
-// Later passes of its sequences go first, newest first, so the history ends where this pass found it; their slots are returned, abandoned too.
+// Later passes of its sequences, and a pass it feeds whole, go first, newest first, so the history ends where this pass found it; their slots are returned, abandoned too.
 inline std::vector<size_t> Model::abort_pass(ExecContext& ctx, size_t slot) {
     Pass& p = in_flight(ctx, slot);
     std::vector<size_t> later, entry(ctx.passes.size()), ends(p.entries.size());
     for (size_t e = 0; e < p.entries.size(); ++e) ends[e] = p.start[e] + p.entries[e].n;
+    std::vector<size_t> fed;
     for (size_t k = 0; k < ctx.passes.size(); ++k) {
         const Pass& o = ctx.passes[k];
         if (k == slot || !o.in_flight) continue;
+        // A pass fed this one's ids goes whole, its rows counted against the histories of this pass's entries.
+        if (std::any_of(o.entries.begin(), o.entries.end(), [&](const BatchEntry& en) { return en.fed_slot == slot; })) {
+            fed.push_back(k);
+            for (size_t i = 0; i < o.entries.size(); ++i)
+                for (size_t e = 0; e < p.entries.size(); ++e)
+                    if (o.entries[i].seq == p.entries[e].seq) ends[e] = std::max(ends[e], o.start[i] + o.entries[i].n);
+            continue;
+        }
         for (size_t e = 0; e < p.entries.size(); ++e)
             if (o.entries.size() == 1 && o.entries[0].seq == p.entries[e].seq && o.start[0] > p.start[e]) {
                 later.push_back(k);
@@ -278,6 +306,10 @@ inline std::vector<size_t> Model::abort_pass(ExecContext& ctx, size_t slot) {
             }
     }
     std::sort(later.begin(), later.end(), [&](size_t a, size_t b) { return ctx.passes[a].start[0] > ctx.passes[b].start[0]; });
+    for (size_t k : fed) {
+        roll_back(ctx.passes[k]);
+        release(ctx.passes[k]);
+    }
     // The rows every later pass wrote count against each ring's headroom, so each goes back by the furthest end in flight.
     for (size_t k : later) {
         roll_back(ctx.passes[k], &ends[entry[k]]);
@@ -285,6 +317,7 @@ inline std::vector<size_t> Model::abort_pass(ExecContext& ctx, size_t slot) {
     }
     roll_back(p, ends.data());
     release(p);
+    later.insert(later.end(), fed.begin(), fed.end());
     return later;
 }
 
@@ -358,6 +391,24 @@ inline void Model::begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, s
     p.rows = rows;
     p.want = want;
     // A pass whose wanting entries all read only their argmax keeps its logits rows on the output device, where that device can hold them.
+    // Fed entries read the ids buffer earlier passes wrote, which an argmax pass may not grow under them.
+    p.fed.clear();
+    for (size_t e = 0, r = 0; e < n_entries; r += entries[e++].n) {
+        const BatchEntry& en = entries[e];
+        if (en.drafted) {
+            // The chain's ids of its one sequence: its last pick, then each draft (draft_record).
+            const Chain* c = verifying_;
+            if (!c || c->order.size() != 1 || c->asks[c->order[0]].seq != en.seq || en.n > c->drafts + 1 || en.fed_slot != SIZE_MAX)
+                throw std::logic_error("inference: a drafted entry outside the verify of its sequence's chain");
+            p.fed.push_back({r, en.n, {draft_ids_[0].get(), 0}});
+            continue;
+        }
+        if (en.fed_slot == SIZE_MAX) continue;
+        if (!ctx.argmax_ids || logits_base + want > ctx.argmax_rows) throw std::logic_error("inference: a pass with fed entries beyond the argmax rows held");
+        const size_t at = ctx.passes[en.fed_slot].logits_base + en.fed_row;
+        if (!p.fed.empty() && p.fed.back().row + p.fed.back().count == r && p.fed.back().ids.offset + p.fed.back().count == at) ++p.fed.back().count;
+        else p.fed.push_back({r, 1, {ctx.argmax_ids.get(), at}});
+    }
     p.argmax = want && width_ == 1 && std::all_of(entries, entries + n_entries, [](const BatchEntry& en) { return !en.want_logits || en.argmax; }) && argmax_buffers(ctx, logits_base + want);
     p.handoff = 0;
     p.logits_base = logits_base;
@@ -796,7 +847,10 @@ inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s, size_t lay
         for (int l = st.first; l < st.end; ++l) start_lookup(ctx, p, st.device, l);
         if (s == 0) {
             p.cur = (size_t)place_.embed_device;
-            arch_->embed(part(ctx, p, p.cur, pass_.data(), 0, 0, p.rows, all), p.ids.data());
+            Step step = part(ctx, p, p.cur, pass_.data(), 0, 0, p.rows, all);
+            step.fed = p.fed.data();
+            step.n_fed = p.fed.size();
+            arch_->embed(step, p.ids.data());
             if (p.image_rows) write_media(ctx, p, p.cur);
         } else if (p.at != p.cur) {
             const auto [waited, wrote] = receive(ctx, p, p.at, handoff_buffer(p, s - 1, p.at), p.sent, p.cur, 0, p.rows, st.first);
@@ -1251,6 +1305,8 @@ inline void Model::draft_context(ExecContext& ctx, Pass& p, size_t s) {
     const auto call = [&](size_t d, size_t m, int phase) {
         Device& dev = *devices_[d + m];
         DraftRowsStep step{part(ctx, p, d + m, drafter_row(m), plan_.drafter->kind, 0, p.rows, all), p.ids.data(), carries ? ctx.carry.data() : nullptr};
+        step.fed = p.fed.data();
+        step.n_fed = p.fed.size();
         step.width = draft_members();
         step.n_views = n;
         step.phase = phase;
@@ -1355,6 +1411,13 @@ inline backend::BufferPtr Model::alloc_arena(backend::Backend& b, const std::vec
         total = (total + bytes + 63) / 64 * 64;
     }
     return b.alloc(total);
+}
+
+inline bool Model::feeds() const {
+    if (!arch_->embeds_fed() || width_ != 1 || stages_.size() != 1 || place_.embed_device != place_.output_device || keeps_state() || token_width_ || plan_.drafter ||
+        plan_.text_position_images || !options_.argmax_rows)
+        return false;
+    return std::none_of(plan_.layers.begin(), plan_.layers.end(), [](const LayerPlan& l) { return l.lookup || l.token_history; });
 }
 
 // The output device's logits rows and ids for argmax passes, ModelOptions::argmax_rows at most; false where the device cannot take them, for good, or the pass ends past them (`end`).

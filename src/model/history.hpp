@@ -1376,6 +1376,53 @@ inline void Model::draft(DraftAsk* asks, size_t n) {
     draft_end(*c);
 }
 
+inline bool Model::feeds_drafts() const {
+    const size_t o = (size_t)place_.output_device;
+    if (!plan_.drafter || !arch_->embeds_fed() || width_ != 1 || draft_apart_ || place_.embed_device != place_.output_device || token_width_ || plan_.text_position_images ||
+        !devices_[o]->b->implements(backend::Op::embed_ids))
+        return false;
+    return std::none_of(plan_.layers.begin(), plan_.layers.end(), [](const LayerPlan& l) { return l.lookup || l.token_history; });
+}
+
+// The chain is recorded and left in flight, its sequence released so the mark and the verify follow it, and the verify's rows read the chain's ids on the device (BatchEntry::drafted); the host reads the chain once the verify is queued.
+inline bool Model::draft_verify(uint32_t last, size_t k, std::vector<uint32_t>& out, bool argmax) {
+    if (!feeds_drafts()) throw std::logic_error("inference: a verify fed on the device where the model feeds no drafts");
+    DraftAsk a{&seq_, last, k, &out};
+    std::unique_ptr<Chain> c = draft_begin(&a, 1);
+    if (!c) return false;
+    bool verified = false;
+    try {
+        draft_record(*c, false);
+        draft_release(*c);
+        // A context that grows for the verify waits on the chain, which reads it.
+        const size_t o = (size_t)place_.output_device;
+        if (ctx_.tickets.size() > o) ctx_.tickets[o] = std::max(ctx_.tickets[o], c->sent[o]);
+        if (mark(seq_)) {
+            std::vector<uint32_t> ids(c->drafts + 1, 0);
+            ids[0] = last;
+            BatchEntry entry{&seq_, ids.data(), std::min(k, c->drafts) + 1, true};
+            entry.every_logits = true;
+            entry.extent = 1;
+            entry.argmax = argmax;
+            entry.drafted = true;
+            verifying_ = c.get();
+            try {
+                forward(ctx_, &entry, 1);
+            } catch (...) {
+                verifying_ = nullptr;
+                throw;
+            }
+            verifying_ = nullptr;
+            verified = true;
+        }
+    } catch (...) {
+        draft_end(*c);
+        throw;
+    }
+    draft_end(*c);
+    return verified;
+}
+
 // The drafter's room for chains of `seqs` sequences of `steps` steps: the ids of every step, and each member's logits of its vocabulary rows of every step, on the device until draft_logits reads them.
 inline void Model::draft_buffers(size_t seqs, size_t steps) {
     const size_t o = (size_t)place_.output_device, W = draft_members();
@@ -1528,7 +1575,7 @@ inline std::unique_ptr<Model::Chain> Model::draft_begin(const DraftAsk* asks, si
 
 // The chain on the head stage's thread in a server: a step a draft on the head's devices, or with stages apart its parts on each stage's devices, submitted, the head's waited for and the drafted ids read back.
 // Step m takes the sequences whose chains are longer than m, longest first, each reading the token drafted before it.
-inline void Model::draft_record(Chain& c) {
+inline void Model::draft_record(Chain& c, bool read) {
     const size_t R = c.order.size(), o = (size_t)place_.output_device, W = draft_members(), V = plan_.vocab, steps = c.steps, B = c.block;
     const bool carries = carries_row(plan_);
     // A server records the chain beside a deferred rerun's parts on other stages, which share the context.
@@ -1679,11 +1726,7 @@ inline void Model::draft_record(Chain& c) {
                 c.sent[o + g] = devices_[o + g]->b->submit();
             }
         }
-        for (size_t g = 0; g < W; ++g) devices_[o + g]->b->wait(c.sent[o + g]);
-        // The ids buffers serve the next chain, which a server may record before this one ends.
-        const size_t per = R * (steps * B + 1);
-        c.ids.resize(per * W);
-        for (size_t g = 0; g < W; ++g) std::memcpy(c.ids.data() + g * per, draft_ids_[g]->host_ptr(), per * sizeof(uint32_t));
+        if (read) read_chain(c);
     } catch (...) {
         // Only the drafter's devices and the table's recorded the chain, and another stage's thread may be recording on the rest.
         for (size_t d = 0; d < devices_.size(); ++d) {
@@ -1697,23 +1740,40 @@ inline void Model::draft_record(Chain& c) {
     c.recorded = true;
 }
 
+// The head's devices waited on and the drafted ids read back; the ids buffers serve the next chain, which a server may record before this one ends.
+inline void Model::read_chain(Chain& c) {
+    const size_t R = c.order.size(), o = (size_t)place_.output_device, W = draft_members(), per = R * (c.steps * c.block + 1);
+    for (size_t g = 0; g < W; ++g) devices_[o + g]->b->wait(c.sent[o + g]);
+    c.ids.resize(per * W);
+    for (size_t g = 0; g < W; ++g) std::memcpy(c.ids.data() + g * per, draft_ids_[g]->host_ptr(), per * sizeof(uint32_t));
+    c.read = true;
+}
+
+inline void Model::draft_release(Chain& c) {
+    if (c.released) return;
+    for (size_t p = 0; p < c.prepared; ++p) c.kv[p]->abort();
+    c.prepared = 0;
+    for (size_t p = 0; p < c.order.size(); ++p) --c.asks[c.order[p]].seq->flights_;
+    c.released = true;
+}
+
 // The chain's end on the thread that owns the histories: the drafted rows given back, the sequences out of flight and, once recorded, each history's drafts.
 // A chain ends at the first id outside the vocabulary or, on a tensor group, one its members disagree on.
 inline void Model::draft_end(Chain& c) {
     const size_t R = c.order.size(), W = draft_members(), V = plan_.vocab, per = R * (c.steps * c.block + 1);
-    for (size_t p = 0; p < c.prepared; ++p) c.kv[p]->abort();
-    c.prepared = 0;
-    for (size_t p = 0; p < R; ++p) --c.asks[c.order[p]].seq->flights_;
+    draft_release(c);
     draft_order_.assign(c.asks.size(), R);
     draft_k_.assign(c.asks.size(), 0);
     draft_width_ = R;
     draft_read_ = SIZE_MAX;
     if (!c.recorded) return;
+    if (!c.read) read_chain(c);
+    // A verify recorded behind the chain may already hold later tickets.
     for (size_t p = 0; p < R; ++p) {
         draft_order_[c.order[p]] = p;
         draft_k_[c.order[p]] = c.asks[c.order[p]].k;
         for (size_t d = 0; d < c.sent.size(); ++d)
-            if (c.sent[d]) c.asks[c.order[p]].seq->last_[d] = c.sent[d];
+            if (c.sent[d]) c.asks[c.order[p]].seq->last_[d] = std::max(c.asks[c.order[p]].seq->last_[d], c.sent[d]);
     }
     const uint32_t* ids = c.ids.data();
     const auto agreed = [&](size_t i) {

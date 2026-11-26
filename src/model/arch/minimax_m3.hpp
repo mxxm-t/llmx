@@ -235,6 +235,7 @@ public:
     const rope::Policy& rope_policy() const override { return cfg_.rope_policy; }
 
     void embed(const Step& s, const uint32_t* ids) const override { blocks::embed(s, s.w[token_embd], ids); }
+    bool embeds_fed() const override { return true; }
 
     // Each index head of a row keeps its blocks up to the row's own, whose count candidate_blocks reads as the row's length, the same in every layer.
     void pass_values(const Step& s) const override {

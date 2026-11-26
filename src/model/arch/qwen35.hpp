@@ -430,6 +430,7 @@ public:
     }
 
     void embed(const Step& s, const uint32_t* ids) const override { blocks::embed(s, s.w[token_embd], ids); }
+    bool embeds_fed() const override { return true; }
 
     // The slots are those of slot_widths.
     void mixer(const Step& s) const override {
@@ -507,7 +508,7 @@ public:
         const size_t base = draft_slot();
         const backend::Slice hn = s.slot(base), pair = s.slot(base + 1), u = s.slot(base + 3), h = s.slot(1), k = s.slot(3), v = s.slot(4);
         b.rms_norm_rows(hn, s.x, w[output_norm].slice(), s.rows, E, E, cfg_.rms_eps);
-        b.embed(pair, w[token_embd].operand(), w[token_embd].nin, w[token_embd].nout, s.ids, s.rows);
+        blocks::embed(s, w[token_embd], s.ids, pair);
         const size_t prev = pair.offset + s.rows * E;
         for (size_t e = 0, r0 = 0; e < s.runs.n; r0 = s.runs.runs[e++].end) {
             const size_t r1 = s.runs.runs[e].end;

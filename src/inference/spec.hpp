@@ -82,6 +82,8 @@ public:
     // The most drafts one chain gives, as the drafter defines it, beside the pass's bound on a chain's rows.
     virtual size_t block() const { return SIZE_MAX; }
     virtual bool on_head() const { return false; }
+    // Whether generate's verify may take this proposer's drafts of the model's own sequence on the device (Model::draft_verify) in place of draft.
+    virtual bool feeds_verify() const { return false; }
     // For a proposer on the head's devices, the asks' chain begun for a caller that records it on the head stage's thread behind the work queued there and ends it (Model::Chain); null where no ask drafts.
     virtual std::unique_ptr<Model::Chain> begin_all(Ask*, size_t) { throw std::logic_error("inference: a proposer without a chain on the head's devices"); }
 };
@@ -170,6 +172,7 @@ public:
     bool after_lookup() const override { return after_lookup_; }
     bool on_device() const override { return true; }
     bool on_head() const override { return true; }
+    bool feeds_verify() const override { return model_.feeds_drafts(); }
     size_t block() const override { return model_.draft_block(); }
 
 private:
@@ -498,6 +501,7 @@ struct Drafting {
     std::vector<uint32_t> history;
     ImageRows images;   // the history's image rows
     Record record;
+    size_t device_fed = 0;   // generate's verifies that took the proposer's drafts on the device
 };
 
 } // namespace spec

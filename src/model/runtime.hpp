@@ -263,6 +263,10 @@ struct BatchEntry {
     bool argmax = false;
     // An embedded drafter computes the entry's context rows (Architecture::draft_rows); a prompt's slice that no later draft reads leaves them out, and a pass of such slices alone runs none (ModelPlan::draft_window).
     bool context = true;
+    // A one-token entry whose id is the argmax of wanting row `fed_row` of the pass in flight in slot `fed_slot`, read on the device (Model::feeds), so the entry is recorded before that pass retires; `ids` holds a placeholder.
+    size_t fed_slot = SIZE_MAX, fed_row = 0;
+    // A verify entry whose ids, its last pick and the drafts after it, are those the chain draft_verify recorded for its sequence, read on the device (Model::feeds_drafts); `ids` holds placeholders.
+    bool drafted = false;
 };
 
 // What a pass's stages read as they are recorded: its entries, its rows and their positions, the rows the head reads, and each storage's cache views once its stage has reserved them.
@@ -274,6 +278,7 @@ struct Pass {
     bool long_runs = false;                            // some entry takes its streamed layers on the device
     size_t cut = 0;                                    // the row every group stage cuts the pass at, which stage 0 decides (Model::cut_row), else 0
     std::vector<uint32_t> ids, pos, pick;
+    std::vector<FedRun> fed;                           // the rows whose ids an earlier pass's argmax gives on the device (BatchEntry::fed_slot), in runs
     bool argmax = false;                               // its logits rows stay on the output device and their ids come to the host (BatchEntry::argmax)
     bool image_rows = false;                           // some row is an image's, so each row holds the plan's three position streams (ModelPlan::image_streams)
     std::vector<uint32_t> image_marks;                 // under ModelPlan::text_position_images, per row 1 where it holds the image id, empty where no row does (Step::image_marks)
@@ -1222,6 +1227,8 @@ public:
     const float* pass_logits(ExecContext& ctx, size_t slot, size_t i);
     // Whether the pass in flight in the slot keeps its logits rows on the output device, all its wanting entries asking only their argmax (BatchEntry::argmax), so pass_argmax_id gives its rows' ids.
     bool argmax_pass(ExecContext& ctx, size_t slot) const { return in_flight(ctx, slot).argmax; }
+    // Whether a pass may take entries fed by an earlier pass's argmax ids on the device (BatchEntry::fed_slot): one stage, the embedding on the output device, no tensor group, and nothing else reading the pass's ids on the host.
+    bool feeds() const;
     uint32_t pass_argmax_id(ExecContext& ctx, size_t slot, size_t i);
     void end_pass(ExecContext& ctx, size_t slot);
     std::vector<size_t> abort_pass(ExecContext& ctx, size_t slot);
@@ -1323,10 +1330,15 @@ public:
         std::vector<backend::Ticket> sent;
         std::vector<uint32_t> ids;             // every member's drafted ids, read back as the chain is recorded
         bool recorded = false;
+        bool read = false;                     // its ids are in `ids`
+        bool released = false;                 // its drafted rows given back and its sequences out of flight (draft_release)
     };
     std::unique_ptr<Chain> draft_begin(const DraftAsk* asks, size_t n, bool behind = false);
-    void draft_record(Chain& c);
+    // With `read` false the chain is left in flight on the devices, and draft_end waits on it and reads its ids.
+    void draft_record(Chain& c, bool read = true);
     void draft_end(Chain& c);
+    // The chain's drafted rows given back and its sequences out of flight, so a verify may follow it on the devices before its ids are read; draft_end does it where nothing has.
+    void draft_release(Chain& c);
     // Room for every mark's rerun and for a chain of every mark's sequence at the most drafts a mark holds, taken now, so neither allocates while a stage's thread records (Scheduler).
     void reserve_drafting();
     // The model's own context's arena for a prompt pass of up to `rows` rows, made as the model is built (build_fitted), so its first pass makes no arena.
@@ -1418,6 +1430,11 @@ public:
     const float* logits(size_t i) { return ctx_.logits(i); }
     bool mark() { return mark(seq_); }
     void draft(uint32_t last, size_t k, std::vector<uint32_t>& out) { draft(seq_, last, k, out); }
+    // Whether a verify may take the drafter's chain on the device (draft_verify): one device of width 1 holds the chain, the embedding and the head, and nothing reads the pass's ids on the host while it is recorded.
+    bool feeds_drafts() const;
+    // A draft of up to `k` tokens after `last` on the model's own sequence and, with a mark, the verify of `last` and those `k` rows, recorded behind the chain and fed its ids on the device, as step(ids, k + 1, argmax) would be fed them.
+    // The drafts, up to the first outside the vocabulary, are in `out` once it returns; false where no mark was free, with no verify run.
+    bool draft_verify(uint32_t last, size_t k, std::vector<uint32_t>& out, bool argmax);
 
     // Process a whole prompt with matrix-matrix matmuls instead of one token at a time, so each weight row is reused across the batch and only the last pass asks for the final token's logits.
     // A `keep_at` inside the prompt keeps the state there as the sequence's checkpoint, the chunk before it cut to end there; `media` are the prompt's images, counted from its first token.
@@ -1727,6 +1744,8 @@ private:
     size_t stage_devices_ = 0;                   // the devices stages record on, fewer than the stages where a device runs several
     // The last draft's ids per member of the head's group, the last picks first, host visible, and each member's logits of its own vocabulary rows for every row of every step, on its device.
     std::vector<backend::BufferPtr> draft_ids_, draft_logits_;
+    const Chain* verifying_ = nullptr;   // the chain whose ids a drafted entry reads, within draft_verify
+    void read_chain(Chain& c);
     size_t draft_id_rows_ = 0, draft_rows_ = 0;   // the ids and the logits rows they hold
     mutable std::vector<float> draft_row_;        // the draft row draft_logits read last, draft_read_, none after a draft
     mutable size_t draft_read_ = SIZE_MAX;

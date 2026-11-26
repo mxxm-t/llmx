@@ -119,7 +119,7 @@ delegated to a `backend::Backend`.
   in entry order. After an argmax pass (`BatchEntry::argmax`) the rows sit on the output device (`argmax_logits`), `argmax_id(i)` gives row `i`'s argmax from host-visible `argmax_ids`, the vocabulary size where its largest logit is not finite or it holds a NaN, and `logits(i)` reads the row back.
 - `BatchEntry`: what one sequence contributes to a pass: tokens appended to
   it and whether the logits after its last token are wanted, or with
-  `every_logits` the logits after every one of its tokens, with `argmax` only as their argmax, which a pass all of whose wanting entries ask keeps on an output device that is not the CPU. A prefill
+  `every_logits` the logits after every one of its tokens, with `argmax` only as their argmax, which a pass all of whose wanting entries ask keeps on an output device that is not the CPU. A one-token entry with `fed_slot` and `fed_row` takes its id from that row's argmax of the argmax pass in flight in that slot, read on the device, so it is recorded before that pass retires (`feeds`). A `drafted` entry, a verify of its sequence's last pick and drafts, takes its ids from the chain `draft_verify` recorded for it, read on the device (`feeds_drafts`). A prefill
   microbatch is one entry with many tokens, a decode batch is many entries
   with one, and they mix. `extent` is what a device picks the entry's
   kernels by (`backend.hpp` `RowRuns`): for a prompt's rows the position one
@@ -197,6 +197,7 @@ delegated to a `backend::Backend`.
     records their GPU stages on a recorder even with one pass on one device,
     keeping file reads outside its scheduler lock.
   - `make_sequence()`: a fresh history over the model's cache, a table per KV storage and a count for each stage without one.
+  - `feeds()`: whether a pass may take fed entries: one stage on one device that embeds and gives the logits, an architecture that embeds fed rows (`Architecture::embeds_fed`), argmax rows held, and no recurrent state, drafter, image positions or layer that reads the pass's ids on the host; such a model reserves a second pass in flight without a pipelined placement.
   - `keeps_state()`: whether some layer keeps a recurrent state, which
     exists only at the end of what it has read, so such a model forks and
     takes a history back only at its checkpoint ([history](model-history.md)).

@@ -19,8 +19,8 @@ run them.
 - `projection(weight, out)`: a weight's product into `out` for
   `matmul_group` and `matmul_experts`, the buffer passed by raw pointer so
   building one copies no shared pointer on the per-token path.
-- `embed(step, table, ids)`: the table's rows the ids name, into the
-  residual.
+- `embed(step, table, ids[, x])`: the table's rows the ids name, into the
+  residual or `x`; the step's fed runs (`Step::fed`) take their rows by the ids a device holds (`embed_ids`), and a step whose rows are all fed embeds no host ids.
 - `swiglu(step, gate, up, down, h, g, u, act, limit, form)`: the dense SwiGLU
   feed-forward block over the normed rows `h`: gate and up grouped through
   `matmul_group`, `silu_mul` with its clamp `limit` and GLU `form` (0 and `silu` by default, MiniMax-M3.1's quick_gelu under 7), and the down projection joining the residual

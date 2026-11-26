@@ -300,13 +300,15 @@ inline std::string turns_line(size_t cap, size_t need, size_t tokens, bool keeps
     return cap && cap >= need ? std::string() : short_tier_line(cap, need, tokens);
 }
 
-// A pass slot as the round sees it: whether a pass is in flight in it, its place in formation order, the stages recorded, whether its next stage is being recorded now on its stage's thread, and whether it carries replies.
+// A pass slot as the round sees it: whether a pass is in flight in it, its place in formation order, the stages recorded and whether its next stage is being recorded now on its stage's thread.
+// It also says whether the pass carries replies and whether the pass before it feeds its ids on the device.
 struct Flight {
     bool live = false;
     uint64_t formed = 0;
     size_t ran = 0;
     bool recording = false;
     bool replies = false;
+    bool fed = false;
 };
 
 // What a round records and retires, by slot, before it makes room and forms passes.
@@ -332,8 +334,11 @@ inline Steps round_steps(const std::vector<Flight>& slots, size_t stages) {
         }
         if (pick != none && (!busy || (!replies_busy && slots[pick].replies))) st.advance.push_back({pick, s});
     }
+    const auto older_done = [&](size_t k) {
+        return std::any_of(slots.begin(), slots.end(), [&](const Flight& o) { return o.live && o.ran == stages && o.formed < slots[k].formed; });
+    };
     for (size_t k = 0; k < slots.size(); ++k)
-        if (slots[k].live && slots[k].ran == stages) st.retire.push_back(k);
+        if (slots[k].live && slots[k].ran == stages && !(slots[k].fed && older_done(k))) st.retire.push_back(k);
     std::sort(st.retire.begin(), st.retire.end(), [&](size_t a, size_t b) { return slots[a].formed < slots[b].formed; });
     return st;
 }

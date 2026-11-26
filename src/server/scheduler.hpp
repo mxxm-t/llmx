@@ -259,6 +259,7 @@ private:
     size_t media_next_ = 0;
     std::vector<ImageTail> tails_;   // its images' last rows, its own encodes' and those of the history it forked
     uint32_t last_id_ = 0;
+    bool fed_void_ = false;        // its row in the fed pass in flight is void: the pass before gave it no usable id there, or it ended (docs/SERVER.md, Fed decode)
     // Drafting (docs/SPECULATIVE.md, section 3): its record, the draft its own history gave ahead of the proposer, and the verify its pass in flight carries, its last pick then the drafts, empty for a decode entry.
     infer::spec::Record record_;
     std::vector<uint32_t> own_draft_;
@@ -371,6 +372,9 @@ public:
         size_t p = passes ? passes : model_.pipelined() && model_.stage_count() > 1 ? model_.stage_devices() + 1 : 1;
         if (p > 1 && !model_.pipelined())
             throw std::runtime_error("server: " + std::to_string(p) + " passes in flight need a layer split over several devices, each running its layers whole; this placement runs one at a time");
+        passes_ = p;
+        // One stage that feeds keeps a second slot, for a decode pass fed its ids on the device behind the one in flight (docs/SERVER.md, Fed decode).
+        if (!passes && p == 1 && !proposer_ && model_.feeds() && !model_.stage_on_host(0)) p = 2;
         // A pass carries at most draft_rows draft rows beside a row a decoding request and a ubatch of prompt rows, each draft row wanting its logits.
         const size_t drafts = draft_rows_;
         for (;; --p) {
@@ -387,13 +391,14 @@ public:
             }
         }
         slots_.resize(p);
+        passes_ = std::min(passes_, p);
         // A chain on the head stage's thread and a mark's rerun on the state stages' threads take the model's context, and the chain the drafter's buffers, as taken now (Model::reserve_drafting).
         model_.reserve_drafting();
         // A stage that passes share gets a thread of its own, so the round goes on to the other stages while it records and a reply waits there for a chunk's groups, not its whole stage (docs/SERVER.md, the round).
         recorders_.resize(model_.stage_count());
         plain_.resize(recorders_.size());
         for (size_t s = 0; s < recorders_.size(); ++s) {
-            plain_[s] = stage_threaded(p, s, model_.stage_grouped(s), model_.pipelined(), model_.stage_on_host(s), model_.stage_reads(s));
+            plain_[s] = stage_threaded(passes_, s, model_.stage_grouped(s), model_.pipelined(), model_.stage_on_host(s), model_.stage_reads(s));
             if (!plain_[s]) continue;
             locks_.push_back(std::make_unique<std::mutex>());
             recorders_[s] = std::make_unique<Recorder>(*locks_.back(), lanes_.add(s, *locks_.back()));
@@ -612,6 +617,7 @@ public:
         uint64_t prompt_passes = 0;               // since start, the passes that carried a request's prompt rows
         // Since start, the rows drawn as plain argmax (Scheduler::device_pick), those of them drawn from the output device's id, and those read whole for an id the draw cannot take (infer::argmax_drawn).
         uint64_t argmax_rows = 0, argmax_ids = 0, argmax_reads = 0;
+        uint64_t fed = 0;                         // since start, the passes whose ids the pass before gave on the device (docs/SERVER.md, Fed decode)
         uint64_t continued = 0;                   // since start, those formed while the same prompt's pass before them was in flight (Scheduler::continues)
         // Since start, the passes formed while replies and prompt work both waited (docs/SERVER.md, The service rule): of replies alone, of one prompt's chunk alone, and of both kinds or two prompts, which on a split the rule never forms.
         uint64_t rule_replies = 0, rule_chunks = 0, rule_mixed = 0;
@@ -636,6 +642,7 @@ public:
         s.argmax_rows = argmax_rows_.load();
         s.argmax_ids = argmax_ids_.load();
         s.argmax_reads = argmax_reads_.load();
+        s.fed = fed_.load();
         s.continued = continued_.load();
         s.rule_replies = rule_replies_.load();
         s.rule_chunks = rule_chunks_.load();
@@ -780,6 +787,7 @@ public:
                 try {
                     // A pass is formed when its first stage can be recorded, so it takes the requests ready then and not those of a stage's time before.
                     form_round(active, host);
+                    form_fed(active);
                     // A request in flight outside a pass, its chain on the head stage's thread, comes back when the chain reports.
                     const auto left = std::find_if(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return !r->job_ && !r->seq_.in_flight() && Cache::image_stop(*r) > r->seq_.length(); });
                     if (!flying() && chains_.empty() && !encoded_ && left != active.end()) throw std::logic_error("server: a round with active requests formed an empty pass: " + left_out(active, **left, requests(active)));
@@ -994,7 +1002,7 @@ private:
         if (prompts.empty() && !decoders) prompts = jobs;
         p.overlap = decoders && !prompts.empty();
         const size_t S = model_.stage_count();
-        p.packed = packed_passes(decoders, model_.decode_columns(), slots_.size());
+        p.packed = packed_passes(decoders, model_.decode_columns(), passes_);
         const size_t band = depth_band(deepest);
         const auto slowest = [&](size_t rows) {
             double ms = 0;
@@ -1016,7 +1024,7 @@ private:
             if (p.reading) p.rows = l.rows;
             p.gap_ms = c.gap_ms;
         }
-        p.limit = passes_in_flight(slots_.size(), S, p.overlap, p.packed);
+        p.limit = passes_in_flight(passes_, S, p.overlap, p.packed);
         p.share = packed_share(decoders, p.packed);
         if (p.priced) p.replies_ms = slowest(p.share);
         const size_t reply_share = p.overlap ? p.share : decode_share(decoders, p.limit, S);
@@ -1084,7 +1092,7 @@ private:
             return d;
         };
         const auto price = [&](size_t rows) { return slice_price(cls, rows_band, rows); };
-        return pipeline_layout(decoders, slots_.size(), S, layers, gap_ms, decode, price, ubatch_, host);
+        return pipeline_layout(decoders, passes_, S, layers, gap_ms, decode, price, ubatch_, host);
     }
     // A row class's index for the price table, numbered as first seen.
     size_t class_id(size_t extent) {
@@ -1160,9 +1168,9 @@ private:
         const auto held = [&](Rows r) { return first_stage_held() && !(r == Rows::generated && first_stage_paced()); };
         for (size_t k = free_slot(); k < slots_.size() && flights_live() < p.limit; k = free_slot()) {
             Rows rows = Rows::all;
-            if (p.overlap && slots_.size() > 1) rows = replying < p.packed && ready_decoders(active) ? Rows::generated : Rows::prompt;
+            if (p.overlap && passes_ > 1) rows = replying < p.packed && ready_decoders(active) ? Rows::generated : Rows::prompt;
             // Cold, on one pass in flight the replies go alone first, so their pass is measured before a chunk rides it.
-            if (p.overlap && !p.priced && slots_.size() == 1 && ready_decoders(active)) rows = Rows::generated;
+            if (p.overlap && !p.priced && passes_ == 1 && ready_decoders(active)) rows = Rows::generated;
             // A replies' pass takes the quick prompt every other time.
             const auto riding = [&](Rows r) { return (r == Rows::generated || (r == Rows::all && p.overlap)) && p.quick && quick_turn_ && ready_decoders(active) ? Rows::quick : r; };
             rows = riding(rows);
@@ -1184,6 +1192,64 @@ private:
             rule_mixed_ += (slots_[k].decoders && prompts) || prompts > 1;
         }
     }
+    // On one stage that feeds, a quiet round forms the next decode pass of the one in flight now, its ids fed on the device by that pass's argmax, so the device records it before the host has waited (docs/SERVER.md, Fed decode).
+    // Quiet: every active request decodes in that pass, by device argmax alone, with nothing queued, paused, stalled or chained, and each has room and tokens left for one more step past the one in flight.
+    void form_fed(std::vector<std::shared_ptr<Request>>& active) {
+        if (slots_.size() != 2 || passes_ != 1 || flights_live() != 1 || stalled_now_ || encoded_ || !chains_.empty()) return;
+        const size_t s = slots_[0].live ? 0 : 1, k = 1 - s;
+        const Slot& o = slots_[s];
+        if (o.ran != model_.stage_count() || o.recording || !o.decoders || o.members.size() != o.decoders || o.wanting.size() != o.decoders || active.size() != o.decoders ||
+            !model_.argmax_pass(ctx_, s))
+            return;
+        {
+            std::lock_guard<std::mutex> lk(m_);
+            if (!queue_.empty() || !paused_.empty()) return;
+        }
+        for (size_t w = 0; w < o.wanting.size(); ++w) {
+            const Request& r = *o.wanting[w];
+            if (r.job_ || !device_pick(r) || r.cancel_.load() || !r.finish_pending_.empty() || r.fed_void_ || !r.verify_.empty() || o.rows[w] != 1 ||
+                std::find(active.begin(), active.end(), o.wanting[w]) == active.end() || (int)r.gen_.size() + 2 > r.params_.max_tokens ||
+                !kGrowth.step(pools_, r.params_.until_limit, true, r.seq_.length(), r.need_).empty())
+                return;
+        }
+        Slot& f = slots_[k];
+        entries_.clear();
+        f.members = o.wanting;
+        f.wanting = o.wanting;
+        f.from.clear();
+        f.rows.assign(o.wanting.size(), 1);
+        f.first_row.clear();
+        for (size_t w = 0; w < o.wanting.size(); ++w) {
+            Request& r = *o.wanting[w];
+            infer::BatchEntry e{&r.seq_, &r.last_id_, 1, true};
+            e.argmax = true;
+            e.fed_slot = s;
+            e.fed_row = o.first_row[w];
+            entries_.push_back(e);
+            f.from.push_back(r.seq_.length());
+            f.first_row.push_back(w);
+        }
+        f.decoders = f.want = o.wanting.size();
+        f.base = take_rows(logit_rows_, k, f.want);
+        if (f.base == logit_rows_.size) throw std::logic_error("server: no logits rows for a fed pass");
+        model_.begin_pass(ctx_, k, entries_.data(), entries_.size(), f.base, true);
+        price(f);
+        f.pieces = 0;
+        f.pieces_host_ms = 0;
+        f.wait_ms = std::numeric_limits<double>::infinity();
+        f.continues = false;
+        f.live = true;
+        f.formed = ++formed_;
+        f.ran = 0;
+        f.replies = true;
+        f.fed = true;
+        f.generated = f.work.chunks.empty() ? f.work.decode_rows : 0;
+        f.decode_ms = f.generated ? record_.decode_price(f.work.decode_band, f.generated, 1) : 0;
+        f.begun = Clock::now();
+        ++fed_;
+        advance(active, k, 0);
+    }
+
     // Whether a decoding request is ready for a pass.
     static bool ready_decoders(const std::vector<std::shared_ptr<Request>>& active) {
         return std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return !r->job_ && decoding(*r) && !r->seq_.in_flight() && !r->stalled_; });
@@ -1203,6 +1269,7 @@ private:
         f.want = 0;
         const auto add_entry = [&](const std::shared_ptr<Request>& r, const infer::BatchEntry& e) {
             entries_.push_back(e);
+            r->fed_void_ = false;
             f.members.push_back(r);
             f.from.push_back(r->seq_.length());
             f.rows.push_back(e.n);
@@ -1374,6 +1441,7 @@ private:
         f.formed = ++formed_;
         f.ran = 0;
         f.replies = f.decoders > 0;
+        f.fed = false;
         // Measured as the price table keys it, so a one-row prompt slice is not taken for a decode row.
         f.generated = f.work.chunks.empty() ? f.work.decode_rows : 0;
         f.decode_ms = f.generated ? record_.decode_price(f.work.decode_band, f.generated, plan.rotation) : 0;
@@ -1541,6 +1609,13 @@ private:
             changed_ms_ = ms;
             turn_to_ = 0;
         }
+        // A fed pass's void rows, read before this retire marks those of the fed pass behind it.
+        std::vector<char> gone(f.members.size(), 0);
+        if (f.fed)
+            for (size_t e = 0; e < f.members.size(); ++e) {
+                gone[e] = f.members[e]->fed_void_;
+                f.members[e]->fed_void_ = false;
+            }
         try {
             if (on_retire) {
                 Retired t;
@@ -1572,7 +1647,7 @@ private:
             const bool argmax = model_.argmax_pass(ctx_, k);
             for (size_t w = 0; w < f.wanting.size(); ++w) {
                 Request& r = *f.wanting[w];
-                if (r.cancel_.load()) continue;
+                if (r.cancel_.load() || gone[w]) continue;
                 const Clock::time_point read = timed_ ? Clock::now() : Clock::time_point{};
                 // A plain argmax draw takes its rows' ids where the pass kept its rows on the device, and reads back only a row whose id it cannot take.
                 Draw d{&r, nullptr, 0, {}, 0, {}, {}};
@@ -1608,6 +1683,14 @@ private:
             if (reads) argmax_reads_ += reads;
             samplers_.run(draws_.size(), [this](size_t i) { draw(draws_[i]); });
             for (Draw& d : draws_) step(d);
+            // The fed pass behind this one took each request's id on the device: its row is void where the draw kept another id, or none, or the request ends.
+            for (const Slot& n : slots_) {
+                if (!n.live || !n.fed || n.formed <= f.formed) continue;
+                for (const auto& m : n.members) {
+                    const auto d = std::find_if(draws_.begin(), draws_.end(), [&](const Draw& x) { return x.r == m.get(); });
+                    if (d == draws_.end() || d->sampled != 1 || d->ids.empty() || m->last_id_ != d->ids[0] || m->cancel_.load() || !m->finish_pending_.empty()) m->fed_void_ = true;
+                }
+            }
             if (timed_) {
                 round_.logits_wait_ms += waited;
                 round_.sampling_ms += ms_since(start) - waited;
@@ -1619,6 +1702,19 @@ private:
             return;
         }
         model_.end_pass(ctx_, k);
+        // A void row of a fed pass leaves the history, which then holds what its request has published, as a pass formed on the host would have left it.
+        if (f.fed) {
+            for (size_t e = 0; e < f.members.size(); ++e) {
+                Request& r = *f.members[e];
+                if (!gone[e]) continue;
+                try {
+                    model_.retract(r.seq_, f.from[e]);
+                } catch (const std::exception& ex) {
+                    r.finish_pending_ = "error";
+                    r.error_pending_ = ex.what();
+                }
+            }
+        }
         uint64_t prefilled = 0;
         for (size_t e = f.decoders; e < f.members.size(); ++e) {
             Request& r = *f.members[e];
@@ -1652,7 +1748,11 @@ private:
         size_t again = 0, job_rows = 0;
         for (size_t e = 0; e < f.members.size(); ++e) {
             Request& r = *f.members[e];
-            const size_t to = r.seq_.length(), n = std::min(to, r.reached_) - std::min(f.from[e], r.reached_);
+            // A fed pass in flight behind this one holds a row past this pass's, which it counts itself.
+            const bool fed_behind = std::any_of(slots_.begin(), slots_.end(), [&](const Slot& n) {
+                return n.live && n.fed && n.formed > f.formed && std::any_of(n.members.begin(), n.members.end(), [&](const std::shared_ptr<Request>& m) { return m.get() == &r; });
+            });
+            const size_t to = fed_behind ? f.from[e] + f.rows[e] : r.seq_.length(), n = std::min(to, r.reached_) - std::min(f.from[e], r.reached_);
             r.recomputed_ += n;
             again += n;
             r.reached_ = std::max(r.reached_, to);
@@ -1688,6 +1788,7 @@ private:
         Slot& f = slots_[k];
         f.live = false;
         f.recording = false;
+        f.fed = false;
         f.members.clear();
         f.wanting.clear();
         f.decoders = 0;
@@ -2739,6 +2840,7 @@ private:
     const bpe::Tokenizer& tok_;
     size_t max_seqs_, ubatch_, max_queue_;
     const size_t limit_;                  // the tokens a request may hold (request_limit)
+    size_t passes_ = 1;                   // the passes in flight the round plans for; slots_ holds one more for a fed decode pass on one stage that feeds
     const bool timed_;
     const size_t host_cap_;               // the host tier's bytes at most
     const Clock::duration wait_bound_;    // the bound of a wait for a restore or a save while nothing better is measured: kWaitBound, or DiskOptions::wait in tests
@@ -2805,6 +2907,7 @@ private:
     std::atomic<uint64_t> prefilled_total_{0}, published_total_{0};
     std::atomic<uint64_t> prompt_passes_{0};                                     // Stats::prompt_passes
     std::atomic<uint64_t> argmax_rows_{0}, argmax_ids_{0}, argmax_reads_{0};     // Stats::argmax_rows, argmax_ids, argmax_reads
+    std::atomic<uint64_t> fed_{0};                                                // Stats::fed
     int slices_priced_ = -1;                                                     // whether the last prompt slice on a split was priced (slice_rows), -1 before any
     std::atomic<uint64_t> continued_{0};                                         // Stats::continued
     uint64_t lines_ = 0;        // the numbers of Request::line_, under the lock

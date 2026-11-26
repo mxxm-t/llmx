@@ -91,10 +91,16 @@ inline void join(const Step& s, const Weight& w, backend::CSlice in) {
     else s.b.matmul_add(w.operand(), in, s.x, w.nin, w.nout, s.rows, s.runs, s.dtype);
 }
 
-// The rows of `table` the ids name, into the residual.
-inline void embed(const Step& s, const Weight& table, const uint32_t* ids) {
-    s.b.embed(s.x, table.operand(), table.nin, table.nout, ids, s.rows);
+// The rows of `table` the ids name, into `x`, those of the step's fed runs from their ids on the device.
+inline void embed(const Step& s, const Weight& table, const uint32_t* ids, backend::Slice x) {
+    // Fed runs never overlap, so rows they cover in full leave no host id to embed.
+    size_t fed = 0;
+    for (size_t i = 0; i < s.n_fed; ++i) fed += s.fed[i].count;
+    if (fed < s.rows) s.b.embed(x, table.operand(), table.nin, table.nout, ids, s.rows);
+    for (size_t i = 0; i < s.n_fed; ++i)
+        s.b.embed_ids({x.buffer, x.offset + s.fed[i].row * table.nin}, table.operand(), table.nin, table.nout, s.fed[i].ids, s.fed[i].count);
 }
+inline void embed(const Step& s, const Weight& table, const uint32_t* ids) { embed(s, table, ids, s.x); }
 
 // The SwiGLU feed-forward block over the normed rows `h`: the residual gains down(silu(gate h) * up h), through the slots `g`, `u` and `act`, each as wide as the block.
 // `limit` and `form` are silu_mul's clamp and GLU form, SiLU or quick_gelu.

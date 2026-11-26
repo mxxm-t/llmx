@@ -189,6 +189,11 @@ A mark takes a slot only from free ones; a request without one drafts nothing th
 Draft rows count in the pass's ubatch budget; the logits rows become max_seqs + draft_rows a pass slot, `draft_rows` being 64 or `--draft-max` a request where that is less (`Scheduler::draft_rows`), draft rows in flight capped at it; `Request::kRowsWaiting` becomes at least k_max + 1; a draft pass runs per drafter device, in that device's formation order, and is retired like a stage.
 A request is in at most one pass at a time, so with passes in flight its next draft waits for its verify.
 
+**A verify fed on the device:** where an embedded drafter runs on the one device, of width 1, that embeds and holds the head, and no layer reads ids on the host (`Model::feeds_drafts`), `generate` hands the draft, the mark and the verify to the model whole (`Model::draft_verify`).
+The verify is recorded behind the chain, its rows embedded from the drafter's ids on the device through the fed runs the server's fed decode uses (`Pass::fed`), and the host reads the drafts only once the verify is queued, so the device does not idle while the host reads them and records the verify.
+Its rows are the drafts asked for; a draft outside the vocabulary embeds a zero row, and acceptance stops before it, the later rows retracted as any missed draft's.
+Tensor groups, a drafter on other devices and the server's chains feed the verify from the host.
+
 **What changed from the 2026-09-26 plan, and why:**
 - **The verify-slot pool and the qwen35 restore become the mark,** from the one slot pool: one owner and one fit count for live slots, checkpoints and marks, instead of a pool per purpose.
 - **`Model::retract` returns the length it reached,** so one call serves a rejected draft, a donor trimmed to its checkpoint, a failed pass and a pause, and a caller recomputes the rest by the exact resume's rule.

@@ -352,6 +352,13 @@ The id is the draw wherever the draw can take it (`infer::argmax_drawn`); where 
 A pass with any other entry, a tensor group's head, a CPU head and a scheduler with an observer of the rows (`Scheduler::on_retire`) keep the rows on the host.
 `serve` places the model with room on the output device for every logits row its passes keep (`ModelOptions::argmax_rows`), and `/v1/health` counts the rows drawn as plain argmax, those drawn from the device's id and those read back (`passes.since_start.argmax_rows`, `.argmax_ids`, `.argmax_reads`).
 
+### Fed decode
+
+On one stage whose model feeds (`Model::feeds`: one device, no tensor group, no drafter, no recurrent state), a scheduler started without `--passes` keeps a second slot, and `serve` keeps logits rows for two passes.
+A quiet round, in which every active request decodes by device argmax in the one pass in flight and nothing is queued, paused, stalled or chained, forms that pass's next decode pass at once (`Scheduler::form_fed`): each entry reads its id from the earlier pass's argmax on the device (`BatchEntry::fed_slot`), so the device has the next pass queued while the host waits for and draws the earlier one.
+The fed pass retires a round after the pass that feeds it (`round_steps`); a request whose draw there kept another id than the device's, took none or ended has a void row in the fed pass, which is not drawn and leaves its history (`Model::retract`), so the request's next pass is formed on the host as before and every reply is the one an unfed pass gives.
+A request admitted, queued or with prompt rows ends the chain within a round, and `/v1/health` counts the fed passes (`passes.since_start.fed`).
+
 ### Drafts
 
 With `--drafter lookup`, `--drafter embedded`, `--drafter lookup,embedded` or a file of MTP blocks beside the model (`--drafter PATH` or `--drafter lookup,PATH`, which draft as `embedded` does) a decoding request drafts the tokens after its last pick and verifies them in the same pass as the other requests' rows (docs/SPECULATIVE.md, section 3), and every reply is the one it gives without drafts.

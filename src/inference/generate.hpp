@@ -55,6 +55,7 @@ inline std::vector<uint32_t> generate(infer::Model& model, bpe::Tokenizer& tok,
     while (going) {
         // y is the last pick, not yet fed.
         size_t k = 0;
+        bool on_device = false;   // the verify takes the proposer's drafts on the device (Model::draft_verify)
         if (drafting) {
             // One request alone: its verify is the pass, so every column its kernels hold is its own.
             const size_t left = (size_t)gp.max_tokens - gen.size(), room = (size_t)model.context_length() - (size_t)model.n_tokens();
@@ -66,7 +67,7 @@ inline std::vector<uint32_t> generate(infer::Model& model, bpe::Tokenizer& tok,
             } else {
                 record.drafted = spec::Source::proposer;
                 const bool first = drafting->proposer->after_lookup();
-                if (first || !record.proposer.resting()) {
+                if (first || (!record.proposer.resting() && !drafting->proposer->feeds_verify())) {
                     history = drafting->history;
                     history.insert(history.end(), gen.begin(), gen.end());
                 }
@@ -75,17 +76,20 @@ inline std::vector<uint32_t> generate(infer::Model& model, bpe::Tokenizer& tok,
                 if (!k) {
                     k = spec::draft_length(drafting->draft_max, left, room, drafting->proposer->on_device() ? pass_drafts : drafting->draft_max,
                                            drafting->proposer->block(), record.proposer);
-                    if (k) drafting->proposer->draft(nullptr, history, k, drafts, drafting->images);
+                    on_device = k && drafting->proposer->feeds_verify();
+                    if (k && !on_device) drafting->proposer->draft(nullptr, history, k, drafts, drafting->images);
                 }
                 // A draft past the vocabulary, and those after it, are not fed: the verify needs nothing a decode does not.
                 const auto past = std::find_if(drafts.begin(), drafts.end(), [&](uint32_t id) { return id >= n_vocab; });
                 drafts.erase(past, drafts.end());
             }
-            k = std::min(k, drafts.size());
-            if (k > pass_drafts) rest.assign(drafts.begin() + (std::ptrdiff_t)pass_drafts, drafts.begin() + (std::ptrdiff_t)k);
+            if (!on_device) k = std::min(k, drafts.size());
+            if (!on_device && k > pass_drafts) rest.assign(drafts.begin() + (std::ptrdiff_t)pass_drafts, drafts.begin() + (std::ptrdiff_t)k);
             k = std::min(k, pass_drafts);
         }
-        if (!k || !model.mark()) {
+        const size_t start = (size_t)model.n_tokens();
+        // On the device the verify is queued behind the chain before the host reads the drafts, of which it keeps those inside the vocabulary.
+        if (!k || !(on_device ? model.draft_verify(y, k, drafts, argmax) : model.mark())) {
             if (drafting) {
                 chain_end();
                 rest.clear();
@@ -97,11 +101,15 @@ inline std::vector<uint32_t> generate(infer::Model& model, bpe::Tokenizer& tok,
             if (end == End::fed) model.step((int)y);
             continue;
         }
-        const size_t start = (size_t)model.n_tokens();
-        feed.assign(1, y);
-        feed.insert(feed.end(), drafts.begin(), drafts.begin() + (std::ptrdiff_t)k);
-        // Plain argmax draws read the rows' ids, which the output device takes where it can, and only a row whose ids say nothing.
-        model.step(feed.data(), feed.size(), argmax);
+        if (on_device) {
+            ++drafting->device_fed;
+            k = std::min(k, drafts.size());
+        } else {
+            feed.assign(1, y);
+            feed.insert(feed.end(), drafts.begin(), drafts.begin() + (std::ptrdiff_t)k);
+            // Plain argmax draws read the rows' ids, which the output device takes where it can, and only a row whose ids say nothing.
+            model.step(feed.data(), feed.size(), argmax);
+        }
         const Accepted a = infer::accept_ids([&](size_t i) { return model.argmax_id(i); }, [&](size_t i) { return model.logits(i); }, n_vocab, drafts.data(), k, gp,
                                              tok.eos_id, gen, rng, [&](uint32_t id) { return going = take(id); });
         // y and the drafts its picks equalled were fed, and a last pick the reply ends on fed where the verify fed it as its draft.

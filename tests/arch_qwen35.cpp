@@ -1866,6 +1866,34 @@ void drafts() {
         require(witness->heads == before + depth, "the drafter's head was not reached once a draft");
     }
 
+    // A verify fed the chain's ids on the device (Model::draft_verify) gives the drafts, every verify row's logits and the draft after a retract of the verify fed from the host, bit for bit.
+    // So it does where a draft outside the vocabulary ends the chain after one draft and the verify's later rows read a zero row.
+    for (size_t invalid : {SIZE_MAX, size_t(2)}) {
+        auto host_b = std::make_shared<InvalidDraft>(), fed_b = std::make_shared<InvalidDraft>();
+        host_b->invalid = fed_b->invalid = invalid;
+        auto host = make(host_b, options), fed = make(fed_b, options);
+        require(fed->feeds_drafts(), "the tiny MTP model on the CPU feeds no drafts on the device");
+        require(same(host->prefill(prompt), fed->prefill(prompt)), "two drafting models gave other prompt logits");
+        std::vector<uint32_t> want, got;
+        host->draft(last, depth, want);
+        require(host->mark(), "no mark for the host's verify");
+        std::vector<uint32_t> feed{last};
+        feed.insert(feed.end(), want.begin(), want.end());
+        host->step(feed.data(), feed.size());
+        require(fed->draft_verify(last, depth, got, false), "no mark for the verify fed on the device");
+        require(got == want && got.size() == (invalid == SIZE_MAX ? depth : 1), "the verify fed on the device read other drafts than the host's");
+        for (size_t i = 0; i < feed.size(); ++i)
+            require(!std::memcmp(host->logits(i), fed->logits(i), VOCAB * sizeof(float)), "verify row " + std::to_string(i) + " fed on the device differs from the host's");
+        host->retract(prompt.size() + 2);
+        fed->retract(prompt.size() + 2);
+        std::vector<uint32_t> next_host, next_fed;
+        host->draft(steps[0], depth, next_host);
+        fed->draft(steps[0], depth, next_fed);
+        require(next_host == next_fed, "a draft after the verify fed on the device differs");
+        for (size_t m = 0; m < next_host.size(); ++m)
+            require(!std::memcmp(host->draft_logits(m), fed->draft_logits(m), VOCAB * sizeof(float)), "a draft row after the verify fed on the device differs");
+    }
+
     // Loaded, the drafter leaves every logit of the prompt and of decode as it was.
     {
         infer::Model plain(w, backend::make_cpu_backend(), options);

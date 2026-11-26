@@ -1888,7 +1888,8 @@ inline bool Cache::checkpoint_room_held(size_t keeps, uint64_t spare) {
 // How much of r's history a fork of `seq`, holding the history `t` computed as `classes` record, can give it: whole blocks of the same tokens over rows computed as r's were or, at its first admission, would be.
 // A job's rows are at the class every longer prompt takes, it is within what `seq` holds, and on a model that keeps a state only as far as the checkpoint.
 inline size_t Cache::shareable(const Request& r, const std::vector<uint32_t>& t, const std::vector<RowClass>& classes, const infer::Sequence& seq) const {
-    return shareable(r, t, classes, seq.length(), model_.checkpoint(seq));
+    // A fed pass in flight holds a row for an id its request has yet to publish, past the history `t`.
+    return shareable(r, t, classes, std::min(seq.length(), t.size()), model_.checkpoint(seq));
 }
 
 // The same for a history of `held` tokens whose state, on a model that keeps one, is kept at `kept`.

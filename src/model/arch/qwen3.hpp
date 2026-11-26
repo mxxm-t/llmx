@@ -267,6 +267,7 @@ public:
     }
 
     void embed(const Step& s, const uint32_t* ids) const override { blocks::embed(s, s.w[token_embd], ids); }
+    bool embeds_fed() const override { return true; }
 
     // The slots are those of slot_widths; on a tensor group of s.width members each runs its share of the heads, a KV head replicated where the width is a multiple of them.
     void mixer(const Step& s) const override {

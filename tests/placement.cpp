@@ -2121,6 +2121,7 @@ void kv_auto_overstated() {
 struct PagedDevice : SizedDevice {
     size_t unit = 1, hidden = 0;
     bool priced = false;
+    bool late = false;   // the hidden bytes come at the first host-visible allocation, the logits rows a caller's passes take, rather than at the first mebibyte
     mutable bool started = false;
     std::vector<std::pair<std::weak_ptr<backend::Buffer>, size_t>> live;
     size_t taken(size_t bytes) const { return (bytes + unit - 1) / unit * unit; }
@@ -2138,7 +2139,7 @@ struct PagedDevice : SizedDevice {
     // Room for the CPU's sum scratch, which its first product with an add takes (CpuBackend::matmul_add).
     size_t memory_kept(size_t) const override { return taken(size_t(64) << 10); }
     backend::BufferPtr alloc(size_t bytes, backend::Memory where) override {
-        started = started || bytes >= (size_t(1) << 20);
+        started = started || (late ? where == backend::Memory::host_visible : bytes >= (size_t(1) << 20));
         if (held() + taken(bytes) > room) throw std::bad_alloc();
         backend::BufferPtr b = SizedDevice::alloc(bytes, where);
         live.emplace_back(b, taken(bytes));
@@ -2243,6 +2244,46 @@ void kv_auto_allocation_limit() {
     } catch (const std::bad_alloc&) { kept = true; } catch (const std::runtime_error&) {}
     require(kept, "a device whose every allocation fails did not keep the allocation's own error");
     checked += 3;
+}
+
+// A server's passes reserved after the fit (Model::reserve_passes, as the Scheduler does) on a device whose runtime takes 3 MiB unstated once they are made.
+// The fit makes them inside its build, so a short device is built again with fewer KV tokens rather than failing once the model is served (build_fitted).
+void fit_cut_server_passes() {
+    const auto wide = tiny_qwen_shaped(2, uint64_t(1) << 20, true, 2, 1, 16384, 16);
+    auto device = std::make_shared<PagedDevice>();
+    device->room = 24 << 20;
+    device->hidden = 3 << 20;
+    device->late = true;
+    device->copying = true;
+    device->set_threads(1);
+    infer::PlacementRequest request;
+    request.names = {"device"};
+    request.ubatch = 64;
+    request.decode_rows = 16;
+    request.slots = 1;
+    request.logit_rows = 16;
+    std::vector<backend::BufferPtr> uploads;
+    const infer::ModelWeights model = infer::gguf_weights(wide);
+    const infer::AdoptWeight adopt = [&](size_t tensor, backend::Backend& b, const infer::shard::Held*) {
+        return uploads.emplace_back(b.alloc(model.tensors[tensor].bytes));
+    };
+    std::string failed;
+    size_t tokens = 0, builds = 0, left = 0;
+    try {
+        infer::PlacedModel placed = infer::place_model(model, {device}, request, infer::ModelOptions{}, adopt, [&] { uploads.clear(); ++builds; });
+        tokens = placed.model->kv_tokens_total();
+        infer::ExecContext ctx;
+        placed.model->reserve_passes(ctx, request.slots, infer::fitted_rows(request), request.logit_rows);
+        left = device->memory_available().value_or(0);
+    } catch (const std::bad_alloc&) {
+        failed = "out of memory";
+    } catch (const std::runtime_error& e) {
+        failed = e.what();
+    }
+    require(failed.empty() && tokens && tokens < (size_t(1) << 20) && builds == 2 && left >= device->memory_kept(0),
+            ("a budget the fit cut beside a server's passes on a device whose runtime takes 3 MiB unstated (" + std::to_string(tokens) + " tokens, " +
+             std::to_string(builds) + " builds, " + std::to_string(left) + " bytes left) did not leave the passes their room: " + failed).c_str());
+    ++checked;
 }
 
 // A history recomputed in the classes that first computed it, over two CPU stages, as a paused request's resume does (docs/SERVER.md, pausing): a 40-token prompt in slices of 16, then 199 greedy tokens as entries of extent 1 of up to 64 rows.
@@ -3653,7 +3694,7 @@ int main() {
     try {
         // A fit short of its devices' free memory waits five seconds for it to settle (model/place.hpp, settle), so the cases that make such fits run on threads of their own beside the rest.
         std::vector<std::future<void>> waiting;
-        for (void (*settling)() : {kv_fitted, kv_refused, kv_auto_fitted, kv_auto_overstated, kv_auto_allocation_limit, encoder_charged, fit_cut_first_pass, experts_beside_split, replies_arena_fitted, lookup_storage_planned, layer_split_fits, rounded_buffers_fit})
+        for (void (*settling)() : {kv_fitted, kv_refused, kv_auto_fitted, kv_auto_overstated, kv_auto_allocation_limit, encoder_charged, fit_cut_first_pass, fit_cut_server_passes, experts_beside_split, replies_arena_fitted, lookup_storage_planned, layer_split_fits, rounded_buffers_fit})
             waiting.push_back(std::async(std::launch::async, settling));
         tensor_widths();
         pass_values_once_a_stage();

@@ -688,18 +688,22 @@ private:
     }
 
     // Every fast sum takes the half its transport's next one-shot takes, which every peer finished reading at that transport's one-shot before the last (docs/src/backends-gpu.md, the collective).
-    // A lane's sum beside waits for its member's work recorded before it, which summed flushed, and records the lane's event behind it.
+    // A lane's sum beside waits for its member's work recorded before it, which summed flushed, and records the lane's event behind it; no record sits between two members' launches, as a record may wait for its stream (docs/src/backends-gpu.md, the collective).
     void pushed(const std::vector<Slice>& residual, size_t n, bool replace, Areas& s, GpuSumPick pick, std::vector<typename GpuBackend<Api>::TakeDesc>* takes, const std::vector<char>& sent, size_t from = 0, int lane = -1) {
-        for (size_t m = 0; m < members_.size(); ++m) {
-            if (lane < 0) {
-                launch(m, residual[m], n, replace, true, pick, s, s.half, pick.form == GpuSumForm::one_shot ? takes : nullptr, sent[m], from);
-                continue;
-            }
+        for (size_t m = 0; lane < 0 && m < members_.size(); ++m)
+            launch(m, residual[m], n, replace, true, pick, s, s.half, pick.form == GpuSumForm::one_shot ? takes : nullptr, sent[m], from);
+        for (size_t m = 0; lane >= 0 && m < members_.size(); ++m) {
             GpuBackend<Api>& b = *members_[m];
             Api::check(Api::set_device(b.dev_.index), "set_device");
             Api::check(Api::event_record(computed_[m], b.stream_), "event_record");
             Api::check(Api::stream_wait_event(beside_[m], computed_[m]), "stream_wait_event");
+        }
+        for (size_t m = 0; lane >= 0 && m < members_.size(); ++m) {
+            Api::check(Api::set_device(members_[m]->dev_.index), "set_device");
             launch(m, residual[m], n, replace, true, pick, s, s.half, nullptr, false, from, beside_[m]);
+        }
+        for (size_t m = 0; lane >= 0 && m < members_.size(); ++m) {
+            Api::check(Api::set_device(members_[m]->dev_.index), "set_device");
             Api::check(Api::event_record(summed_[(size_t)lane][m], beside_[m]), "event_record");
         }
         if (pick.form == GpuSumForm::one_shot || pick.form == GpuSumForm::shares) s.half ^= 1u;

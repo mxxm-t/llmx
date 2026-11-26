@@ -43,6 +43,7 @@ Each entry is one short line that links the doc explaining it; reasons, flags an
 - `bench --profile` on ROCm and CUDA no longer books the host's launch time into decode kernels, and says how many ops it timed ([usage](docs/USAGE.md)).
 - Small split Vulkan float-weight products no longer give infinity for a finite sum ([Vulkan](docs/VULKAN.md#kernel-notes)).
 - Small split Vulkan products that add to their output sum their parts before adding it, as unsplit ones do ([Vulkan](docs/VULKAN.md#kernel-notes)).
+- GPU tensor groups no longer stall for 30 s and give up a sum when device memory is freed during lane sums ([GPU backends](docs/src/backends-gpu.md)).
 - A GPU tensor group keeps each device at four hardware queues however many sum collectives are open ([GPU backends](docs/src/backends-gpu.md)).
 - `--yarn` now reaches a DFlash or DSpine drafter's rope, as it reaches the target ([usage](docs/USAGE.md)).
 - `--lookup-storage` without lookup tables and `--cpu-moe` or `--n-cpu-moe` with the CPU alone are refused, not ignored ([usage](docs/USAGE.md)).

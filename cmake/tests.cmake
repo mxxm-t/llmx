@@ -932,6 +932,8 @@ if(LLMX_HAS_BACKEND_ROCM)
     set_tests_properties(backend-rocm PROPERTIES TIMEOUT 1200 SKIP_RETURN_CODE 77)
     add_test(NAME backend-rocm-sixteen COMMAND llmx-backend-rocm-test sixteen)
     set_tests_properties(backend-rocm-sixteen PROPERTIES TIMEOUT 300 SKIP_RETURN_CODE 77)
+    add_test(NAME backend-rocm-queues COMMAND llmx-backend-rocm-test queues)
+    set_tests_properties(backend-rocm-queues PROPERTIES TIMEOUT 300 SKIP_RETURN_CODE 77)
     add_test(NAME backend-rocm-scratch COMMAND llmx-backend-rocm-test scratch)
     set_tests_properties(backend-rocm-scratch PROPERTIES TIMEOUT 120 SKIP_RETURN_CODE 77)
     # The code objects as built, read without a device: delta_step's code prefetch stays inside the kernel on each checked target the build holds.

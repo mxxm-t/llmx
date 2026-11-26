@@ -2148,6 +2148,12 @@ hipError_t no_peer(int* can, int, int) {
     *can = 0;
     return hipSuccess;
 }
+int streams_made = 0;   // stream creations while the queues check counts them
+decltype(HipFn::hipStreamCreateWithFlags) real_stream = nullptr;
+hipError_t counted_stream(hipStream_t* s, unsigned flags) {
+    ++streams_made;
+    return real_stream(s, flags);
+}
 
 std::vector<BackendPtr> rocm_devices(size_t most) {
     std::vector<BackendPtr> d;
@@ -3196,6 +3202,61 @@ void beside_rates(const GpuSumForm* lanes) {
     }
 }
 
+// Collectives against a device's hardware queues (docs/TESTS.md, backend-rocm-queues): four collectives on a pair open no stream past a beside and a copy stream a backend.
+// Their eight lane sums in flight, 500 rounds, must never give up where HIP gives the process eight queues a device, two to a pipe, which a stream of each collective's own shares between spinning sums.
+void queues() {
+    HipFn& f = hip();
+    std::vector<BackendPtr> d = rocm_devices(2);
+    if (d.size() < 2) {
+        std::cout << "backend-rocm queues: one device, so no collective\n";
+        return;
+    }
+    const std::vector<Backend*> group = raw(d, 2);
+    constexpr size_t rows = 256, half = 128, width = 97, kRounds = 500;
+    // The join turns peer access on for the forced collectives' peer writes, as the product's join does.
+    std::unique_ptr<Collective> joined = d[0]->join(group, rows, width);
+    require(joined != nullptr, "two ROCm devices joined no collective");
+    if (!joined) return;
+    real_stream = f.hipStreamCreateWithFlags;
+    f.hipStreamCreateWithFlags = counted_stream;
+    streams_made = 0;
+    std::vector<std::unique_ptr<Collective>> cs;
+    for (const GpuSumForm form : {GpuSumForm::one_shot, GpuSumForm::chain, GpuSumForm::shares, GpuSumForm::one_shot}) cs.push_back(rocm_collective(group, rows, width, form));
+    // A fifth collective under host writes sums whole on the members' streams while the lanes cross beside.
+    cs.push_back(rocm_collective(group, rows, width, GpuSumForm::one_shot, GroupTransport::host_writes));
+    f.hipStreamCreateWithFlags = real_stream;
+    require(streams_made <= 4, "five collectives on two ROCm backends opened " + std::to_string(streams_made) + " streams, more than a beside and a copy stream a backend");
+    for (size_t k = 0; k + 1 < cs.size(); ++k) require(cs[k]->copies_beside(half * width), "a lane sum of the queues check does not cross beside");
+    // Member 0 holds 1 and member 1 holds 2 in every float, written again each round, so every sum gives 3.
+    const std::vector<float> held[2] = {std::vector<float>(rows * width, 1.0f), std::vector<float>(rows * width, 2.0f)};
+    double worst = 0;
+    for (size_t r = 0; r < kRounds; ++r) {
+        const auto t0 = std::chrono::steady_clock::now();
+        for (const auto& c : cs)
+            for (size_t m = 0; m < 2; ++m) {
+                const Slice p = c->partial(m);
+                group[m]->write(*p.buffer, p.offset * sizeof(float), held[m].data(), rows * width * sizeof(float));
+            }
+        for (size_t k = 0; k + 1 < cs.size(); ++k) cs[k]->send(0, 0, half, width), cs[k]->send(1, half, half, width);
+        cs.back()->sum_in_place(rows, width);
+        for (size_t k = 0; k + 1 < cs.size(); ++k) cs[k]->finish(0, 0, half, width, nullptr), cs[k]->finish(1, half, half, width, nullptr);
+        for (Backend* b : group) b->sync();
+        worst = std::max(worst, std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
+        if (worst >= 5.0) break;
+    }
+    size_t wrong = 0;
+    for (const auto& c : cs)
+        for (size_t m = 0; m < 2; ++m) {
+            std::vector<float> got(rows * width);
+            const Slice p = c->partial(m);
+            group[m]->read(*p.buffer, p.offset * sizeof(float), got.data(), got.size() * sizeof(float));
+            for (float v : got) wrong += v != 3.0f;
+        }
+    require(wrong == 0, "the queues check's lane sums gave " + std::to_string(wrong) + " floats other than their members' sum");
+    require(worst < 5.0, "a round of the queues check's lane sums took " + std::to_string(worst) + " s, a sum that waited for a peer its pipe did not run");
+    std::cout << "backend-rocm queues: 4 collectives on 2 devices opened " << streams_made << " streams; " << kRounds << " rounds of 8 lane sums, slowest " << worst * 1e3 << " ms\n";
+}
+
 void collective() {
     HipFn& f = hip();
     real_launch = f.hipModuleLaunchKernel;
@@ -3926,6 +3987,9 @@ int main(int argc, char** argv) {
     // `sixteen` runs groups of up to 16 ranks on one device, which with the backend's own stream need more hardware queues than HIP's default of 4; a real group runs one rank per device and needs none.
     const bool sixteen = argc > 1 && std::string(argv[1]) == "sixteen";
     if (sixteen) setenv("GPU_MAX_HW_QUEUES", "32", 1);
+    // `queues` takes eight hardware queues a device, two to each of the four pipes, as a user may set and the rig's runs do, so streams past four share a pipe.
+    const bool queues_only = argc > 1 && std::string(argv[1]) == "queues";
+    if (queues_only) setenv("GPU_MAX_HW_QUEUES", "8", 1);
     BackendPtr g;
     try {
         g = make_rocm_backend(0);
@@ -3992,6 +4056,11 @@ int main(int argc, char** argv) {
             twin_checks::host_stall(*make_rocm_backend(0, true), rocm_profile, rocm_delay_launches, require);
             twin_checks::gated_drop(*make_rocm_backend(0, true), *g, rocm_delay_launches, require);
             std::cout << (failures ? "backend-rocm timing: FAIL\n" : "backend-rocm timing: PASS\n");
+            return failures ? 1 : 0;
+        }
+        if (queues_only) {
+            queues();
+            std::cout << (failures ? "backend-rocm queues: FAIL\n" : "backend-rocm queues: PASS\n");
             return failures ? 1 : 0;
         }
         if (argc > 1 && std::string(argv[1]) == "collective") {

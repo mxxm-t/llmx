@@ -46,6 +46,7 @@ Each entry is one short line that links the doc explaining it; reasons, flags an
 - Small split Vulkan products that add to their output sum their parts before adding it, as unsplit ones do ([Vulkan](docs/VULKAN.md#kernel-notes)).
 - GPU tensor groups no longer stall for 30 s and give up a sum when device memory is freed during lane sums ([GPU backends](docs/src/backends-gpu.md)).
 - A GPU tensor group keeps each device at four hardware queues however many sum collectives are open ([GPU backends](docs/src/backends-gpu.md)).
+- `serve` with an automatic KV budget no longer runs a nearly empty GPU out of memory after loading ([placement](docs/src/model-place.md)).
 - `--yarn` now reaches a DFlash or DSpine drafter's rope, as it reaches the target ([usage](docs/USAGE.md)).
 - `--lookup-storage` without lookup tables and `--cpu-moe` or `--n-cpu-moe` with the CPU alone are refused, not ignored ([usage](docs/USAGE.md)).
 - `logits --verbose` and the `experts:` placement line show `--per-token`, `--cpu-moe` and `--moe-stream-from` at work ([usage](docs/USAGE.md#llmx-logits)).

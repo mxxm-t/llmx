@@ -252,17 +252,32 @@ struct Graves {
     }
 };
 
+// A device allocation refused for want of memory: a bad_alloc, as the fit's recut and the passes' retries catch it, carrying the runtime's reason.
+class DeviceOutOfMemory final : public std::bad_alloc {
+    std::string what_;
+public:
+    explicit DeviceOutOfMemory(std::string what) : what_(std::move(what)) {}
+    const char* what() const noexcept override { return what_.c_str(); }
+};
+
 // Device memory from hipMalloc, pinned host memory the device reads in place (Memory::host_visible, coherent for Memory::host_coherent), or the caller's host memory registered with HIP (wrap_host).
 // Dropped, HIP's memory goes to the backend's graves, while the caller's is unregistered at once, once the stream's copies naming it retire, since the caller may free it as soon as the view is gone (Backend::wrap_host).
 template <class Api>
 class GpuBuffer final : public Buffer {
+    static void taken(typename Api::Error e, const char* what) {
+        if (e != Api::kOutOfMemory) return Api::check(e, what);
+        try {
+            Api::check(e, what);
+        } catch (const std::runtime_error& r) {
+            throw DeviceOutOfMemory(r.what());
+        }
+    }
 public:
     GpuBuffer(size_t bytes, bool host, std::shared_ptr<Graves<Api>> graves, bool coherent = false) : size_(bytes), host_(host), graves_(std::move(graves)) {
         if (!bytes) return;
         // Whole words: the prompt tile reads a Q8_0 quarter as aligned words, the last of which may run past a buffer's final block.
         const size_t words = (bytes + 3) & ~size_t(3);
-        if (host) Api::check(Api::host_malloc(&p_, words, coherent), "host_malloc");
-        else Api::check(Api::malloc(&p_, words), "malloc");
+        taken(host ? Api::host_malloc(&p_, words, coherent) : Api::malloc(&p_, words), host ? "host_malloc" : "malloc");
         device_ = p_;
         if (host) Api::check(Api::host_device_pointer(&device_, p_), "host_device_pointer");
     }
@@ -502,7 +517,7 @@ public:
         std::shared_ptr<GpuBuffer<Api>> b;
         try {
             b = std::make_shared<GpuBuffer<Api>>(bytes, where != Memory::device, graves_, where == Memory::host_coherent);
-        } catch (const std::runtime_error&) {
+        } catch (const std::exception&) {
             // Dropped memory whose covering ticket is recorded goes back first, which waits for the whole stream; a drop since the last ticket waits for the next.
             // Nothing is recorded here, since alloc may run beside the thread that records.
             if (!graves_->settle()) throw;

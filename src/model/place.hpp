@@ -1353,6 +1353,18 @@ inline PlacedModel build_fitted(const ModelWeights& weights, PlannedModel planne
                 }
                 if (free && *free < need) short_by[d] = need - *free;
             }
+            // A caller's own passes, made after the model is returned, are made here once and dropped, so what a runtime takes beside them unstated reads as a device short.
+            if (again && request.slots && (request.slots == 1 || placed.model->pipelined()) && std::all_of(short_by.begin(), short_by.end(), [](size_t n) { return n == 0; })) {
+                ExecContext passes;
+                const size_t rows = fitted_rows(request);
+                placed.model->reserve_passes(passes, request.slots, rows, request.logit_rows ? request.logit_rows : rows, reply_rows(request));
+                for (size_t d = 0; d < backends.size(); ++d) {
+                    if (!device(backends[d]) || !per_block[d]) continue;
+                    const std::optional<size_t> free = backends[d]->memory_available();
+                    const size_t kept = backends[d]->memory_kept(free.value_or(0));
+                    if (free && *free < kept) short_by[d] = kept - *free;
+                }
+            }
             if (std::all_of(short_by.begin(), short_by.end(), [](size_t n) { return n == 0; })) {
                 if (!request.slots) placed.model->reserve_prompt(fitted_rows(request));
                 return placed;

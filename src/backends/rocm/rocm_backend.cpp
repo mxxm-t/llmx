@@ -35,7 +35,7 @@ struct HipApi {
     using Function = hipFunction_t;
     using CopyKind = hipMemcpyKind;
     using Device = RocmDevice;
-    static constexpr Error kSuccess = hipSuccess, kNotReady = hipErrorNotReady, kPeerAlreadyEnabled = hipErrorPeerAccessAlreadyEnabled;
+    static constexpr Error kSuccess = hipSuccess, kNotReady = hipErrorNotReady, kPeerAlreadyEnabled = hipErrorPeerAccessAlreadyEnabled, kOutOfMemory = hipErrorOutOfMemory;
     // The ROCm loader reports a module without a code object for the device as an invalid image.
     static bool no_binary(Error e) { return e == hipErrorNoBinaryForGpu || e == hipErrorInvalidImage; }
     static constexpr CopyKind kToHost = hipMemcpyDeviceToHost, kToDevice = hipMemcpyHostToDevice, kAnyCopy = hipMemcpyDefault;

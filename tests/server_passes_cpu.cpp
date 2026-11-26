@@ -827,20 +827,37 @@ void made_and_destroyed(const gguf::GGUFModel& weights) {
     ++checks;
 }
 
-// A device that reports `room` bytes free and counts what is allocated on it.
+// A device that reports `room` bytes free and keeps the most it held allocated at once, so a buffer made and dropped, as a fit's passes are, is not counted twice.
 struct Metered : NoCpu {
+    struct Meter {
+        std::mutex lock;
+        size_t live = 0, peak = 0;
+    };
     size_t room = 0;
-    std::atomic<size_t> taken{0};
+    std::shared_ptr<Meter> meter = std::make_shared<Meter>();
     using NoCpu::NoCpu;
     std::optional<size_t> memory_available() const override { return room; }
     size_t decode_columns() const override { return 16; }
+    size_t peak() const {
+        std::lock_guard<std::mutex> held(meter->lock);
+        return meter->peak;
+    }
     backend::BufferPtr alloc(size_t bytes, backend::Memory where) override {
-        taken += bytes;
-        return NoCpu::alloc(bytes, where);
+        backend::BufferPtr buffer = NoCpu::alloc(bytes, where);
+        {
+            std::lock_guard<std::mutex> held(meter->lock);
+            meter->live += bytes;
+            meter->peak = std::max(meter->peak, meter->live);
+        }
+        // The returned pointer shares the buffer and gives its bytes back to the meter when the last holder drops it.
+        return backend::BufferPtr(buffer.get(), [buffer, bytes, meter = meter](backend::Buffer*) {
+            std::lock_guard<std::mutex> held(meter->lock);
+            meter->live -= bytes;
+        });
     }
 };
 
-// A model fitted to a device's free memory as the command line asks for a server (`open_model`), then a scheduler made over it: the bytes both allocated on the device, and the bytes of one KV block.
+// A model fitted to a device's free memory as the command line asks for a server (`open_model`), then a scheduler made over it: the most bytes both held on the device at once, and the bytes of one KV block.
 // Without `arena` the request leaves the draft rows out of a pass's rows, and without `logits` out of its logits rows, each as before the fix.
 std::pair<size_t, size_t> fitted_server(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, size_t room, bool drafting, bool arena = true, bool logits = true) {
     Submitters seen;
@@ -862,7 +879,7 @@ std::pair<size_t, size_t> fitted_server(const gguf::GGUFModel& weights, const bp
     auto model = infer::place_model(infer::gguf_weights(weights), {device}, request, options).model;
     infer::spec::Lookup lookup;
     server::Scheduler sched(*model, tok, seqs, 64, 0, false, 0, drafting ? &lookup : nullptr, draft_max, false, {});
-    return {device->taken.load(), model->kv_allocated_bytes() / (model->kv_tokens_total() / kBlock)};
+    return {device->peak(), model->kv_allocated_bytes() / (model->kv_tokens_total() / kBlock)};
 }
 // A drafter's rows come out of the fitted KV budget and not on top of it: fitted to the same free memory, a drafting server allocates within the room and no more than one without a drafter.
 // Fitted without the draft rows in a pass's rows, in its logits rows, or in both as before the fix, it allocates more, so each half of the fix is seen alone.

@@ -55,7 +55,7 @@ struct CudaApi {
     using Function = CUfunction;
     using CopyKind = int;   // the driver infers the direction from unified addresses
     using Device = CudaDevice;
-    static constexpr Error kSuccess = CUDA_SUCCESS, kNotReady = CUDA_ERROR_NOT_READY, kPeerAlreadyEnabled = CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED;
+    static constexpr Error kSuccess = CUDA_SUCCESS, kNotReady = CUDA_ERROR_NOT_READY, kPeerAlreadyEnabled = CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED, kOutOfMemory = CUDA_ERROR_OUT_OF_MEMORY;
     static bool no_binary(Error e) { return e == CUDA_ERROR_NO_BINARY_FOR_GPU; }
     static constexpr CopyKind kToHost = 0, kToDevice = 0, kAnyCopy = 0;
     static constexpr const char* name = "cuda";

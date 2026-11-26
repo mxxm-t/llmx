@@ -59,7 +59,7 @@ struct FakeApi {
     using Function = const char*;
     using CopyKind = int;
     using Device = FakeDevice;
-    static constexpr Error kSuccess = 0, kNotReady = 1, kPeerAlreadyEnabled = 2, kNoBinary = 4;
+    static constexpr Error kSuccess = 0, kNotReady = 1, kPeerAlreadyEnabled = 2, kNoBinary = 4, kOutOfMemory = 5;
     static bool no_binary(Error e) { return e == kNoBinary; }
     static constexpr int kRefused = 3;
     static constexpr CopyKind kToHost = 0, kToDevice = 0, kAnyCopy = 0;

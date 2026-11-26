@@ -303,6 +303,106 @@ void check_wide_tile(backend::VulkanBackend& b, const char* build) {
     require(failed == 0, "the wide float tile's outputs differ from the float tile's");
 }
 
+// A split float call's reduce (shaders/matmul_reduce.comp) against each output's exact sum rounded to f32, through matmul and matmul_add on 128 rows and 768 inputs, which split K on a device of more than a few compute units.
+// Row 1 holds +H, +H, -H at k 0, 256 and 512 (H = 2^127 products), each part finite and their running total not; row 5's +H and -H at k 0 and 256 cancel, so y stays only if added last; rows from 6 hold small integers.
+void check_split_reduce(backend::VulkanBackend& b, const char* build, bool preserving) {
+    const float inf = std::numeric_limits<float>::infinity(), nan = std::numeric_limits<float>::quiet_NaN();
+    const size_t rows = 128, cols = 128, nin = 768;
+    uint32_t seed = 9127;
+    size_t checked = 0, failed = 0;
+    bool timed = false, reduced = false;   // the split calls' reduce, where the device times its dispatches
+    for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_F16, quant::GGML_TYPE_BF16}) {
+        // F16 weights reach 2^127 products through their inputs, so the replay's scaling falls on the input; the others scale the weight.
+        const float a = type == quant::GGML_TYPE_F16 ? 32768.0f : std::ldexp(1.0f, 127), unit = std::ldexp(1.0f, 127) / a;
+        std::vector<float> w(rows * nin, 0.0f), x(nin * cols, unit), y0(rows * cols);
+        for (size_t r = 6; r < rows; ++r)
+            for (size_t k = 0; k < nin; ++k) w[r * nin + k] = float(int(random_bits(seed) % 17u) - 8);
+        w[1 * nin + 0] = a; w[1 * nin + 256] = a; w[1 * nin + 512] = -a;
+        w[5 * nin + 0] = a; w[5 * nin + 256] = -a;
+        // An infinite weight, a NaN, both infinities and an infinite input, which a preserving build carries to the output through the replay.
+        if (preserving) {
+            w[2 * nin + 5] = inf;
+            w[3 * nin + 9] = nan;
+            w[4 * nin + 3] = inf; w[4 * nin + 600] = -inf;
+            x[1 * nin + 7] = inf;
+        }
+        for (float& v : y0) v = float(int(random_bits(seed) % 17u) - 8);
+        std::vector<float> exact(rows * cols);
+        for (size_t c = 0; c < cols; ++c)
+            for (size_t r = 0; r < rows; ++r) {
+                double e = 0.0;
+                for (size_t k = 0; k < nin; ++k) e += double(w[r * nin + k]) * double(x[c * nin + k]);
+                exact[c * rows + r] = float(e);
+            }
+        std::vector<uint16_t> h(w.size());
+        for (size_t i = 0; i < w.size(); ++i) {
+            uint32_t bits;
+            std::memcpy(&bits, &w[i], 4);
+            h[i] = type == quant::GGML_TYPE_F16 ? f32_to_f16(w[i]) : (bits & 0x7fffffffu) > 0x7f800000u ? uint16_t(0x7fc0u) : uint16_t((bits + 0x7fffu + ((bits >> 16) & 1u)) >> 16);
+        }
+        const auto wb = type == quant::GGML_TYPE_F32 ? b.adopt(w.data(), w.size() * 4) : b.adopt(h.data(), h.size() * 2);
+        const auto xb = b.adopt(x.data(), x.size() * 4);
+        for (bool accum : {false, true}) {
+            const auto y = b.adopt(y0.data(), y0.size() * 4);
+            if (accum) b.matmul_add({type, {wb.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, nin, rows, cols, {}, backend::Dtype::f32);
+            else b.matmul({type, {wb.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, nin, rows, cols, {}, backend::Dtype::f32);
+            std::vector<float> got(rows * cols);
+            b.read(*y, 0, got.data(), got.size() * 4);
+            for (const auto& k : b.kernel_times().kernels) {
+                timed = true;
+                reduced |= k.first == "matmul_reduce_float";
+            }
+            for (size_t i = 0; i < got.size(); ++i) {
+                const float e = accum ? y0[i] + exact[i] : exact[i];
+                const bool ok = std::isnan(e) ? std::isnan(got[i]) : std::memcmp(&got[i], &e, 4) == 0;
+                if (!ok && failed++ < 8)
+                    std::fprintf(stderr, "split reduce (%s build, type %u%s): row %zu column %zu gives %.9g, exact %.9g\n", build, type, accum ? ", accum" : "", i % rows, i / rows, got[i], e);
+                ++checked;
+            }
+        }
+    }
+    std::cout << "vulkan-quantization: split reduce (" << build << " build): " << checked << " outputs, " << failed << " differ from their exact sums\n";
+    require(failed == 0, "a split float call's output differs from its exact sum");
+    require(!timed || reduced, "the split reduce check reached no split call");
+}
+
+// A split Q8_0 call's plain reduce under matmul_add keeps y when its parts cancel, through the float tile (f32 inputs) and the integer-dot tile (f16 inputs), on 128 rows and 768 inputs.
+// Row 5 holds codes 127 in its first block and -127 in its last, scale 2^15 and inputs 1024, so its parts are about 2^37 and exact negations that sum to 0 and absorb y when y is added first; every other row's scale is 0.
+void check_split_reduce_quantized(backend::VulkanBackend& b, const char* build) {
+    const size_t rows = 128, cols = 128, nin = 768, blocks = nin / 32;
+    uint32_t seed = 9133;
+    size_t checked = 0, failed = 0, timed = 0;
+    std::vector<uint8_t> w(rows * blocks * quant::Q8_0_TYPESIZE, 0);
+    uint8_t up[32], down[32];
+    std::memset(up, 127, sizeof(up));
+    std::memset(down, uint8_t(-127), sizeof(down));
+    quant::write_block_q8_0(0x7800u, up, w.data() + (5 * blocks) * quant::Q8_0_TYPESIZE);
+    quant::write_block_q8_0(0x7800u, down, w.data() + (5 * blocks + blocks - 1) * quant::Q8_0_TYPESIZE);
+    std::vector<float> x(nin * cols, 1024.0f), y0(rows * cols);
+    for (float& v : y0) v = float(int(random_bits(seed) % 17u) - 8);
+    const auto wb = b.adopt(w.data(), w.size()), xb = b.adopt(x.data(), x.size() * 4);
+    for (backend::Dtype dtype : {backend::Dtype::f32, backend::Dtype::f16})
+        for (bool accum : {false, true}) {
+            const auto y = b.adopt(y0.data(), y0.size() * 4);
+            if (accum) b.matmul_add({quant::GGML_TYPE_Q8_0, {wb.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, nin, rows, cols, {}, dtype);
+            else b.matmul({quant::GGML_TYPE_Q8_0, {wb.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, nin, rows, cols, {}, dtype);
+            std::vector<float> got(rows * cols);
+            b.read(*y, 0, got.data(), got.size() * 4);
+            // Each call's own dispatches, where the device times them: it must have split and reduced.
+            const auto times = b.kernel_times().kernels;
+            timed += !times.empty();
+            require(times.empty() || std::any_of(times.begin(), times.end(), [](const auto& k) { return k.first == "matmul_reduce"; }), "a quantized split reduce call reached no split");
+            for (size_t i = 0; i < got.size(); ++i) {
+                const float e = accum ? y0[i] : 0.0f;
+                if (got[i] != e && failed++ < 8)
+                    std::fprintf(stderr, "split reduce (%s build, Q8_0, dtype %d%s): row %zu column %zu gives %.9g, exact %.9g\n", build, int(dtype), accum ? ", accum" : "", i % rows, i / rows, got[i], e);
+                ++checked;
+            }
+        }
+    std::cout << "vulkan-quantization: quantized split reduce (" << build << " build): " << checked << " outputs, " << failed << " differ from their exact sums, " << timed << " calls seen to reduce\n";
+    require(failed == 0, "a split Q8_0 call's output differs from its exact sum");
+}
+
 // The routed combine's preserving module (moe_combine.glsl) gives the ordinary module's bits on normal inputs: F32 down rows, which take the ordinary row kernel in both, so the combine is all that differs.
 // Scores spread enough that later picks' weights underflow to 0 put signed zero products into the sums, and residual rows hold -0.
 void check_combine_identity(backend::VulkanBackend& preserved, backend::VulkanBackend& ordinary) {
@@ -1120,6 +1220,13 @@ int main() {
         check_f16_tile_time(*b);
         check_wide_tile(*b, backend::VulkanQuantizationTest::preserves_float32(*b) ? "preserving" : "plain");
         check_wide_tile(*fallback, "plain");
+        const bool preserving = backend::VulkanQuantizationTest::preserves_float32(*b);
+        check_split_reduce(*b, preserving ? "preserving" : "plain", preserving);
+        check_split_reduce(*fallback, "plain", false);
+        check_split_reduce_quantized(*b, preserving ? "preserving" : "plain");
+        check_split_reduce_quantized(*fallback, "plain");
+        auto timing = std::make_unique<backend::VulkanBackend>(0, true);
+        check_split_reduce_quantized(*timing, "timed");
         check_combine_identity(*b, *fallback);
         check_combine_subnormals(*b);
         check_combine_subnormals(*fallback);

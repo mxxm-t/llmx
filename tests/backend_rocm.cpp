@@ -3257,6 +3257,82 @@ void queues() {
     std::cout << "backend-rocm queues: 4 collectives on 2 devices opened " << streams_made << " streams; " << kRounds << " rounds of 8 lane sums, slowest " << worst * 1e3 << " ms\n";
 }
 
+decltype(HipFn::hipEventRecord) real_record = nullptr;
+decltype(HipFn::hipSetDevice) real_set = nullptr;
+hipEvent_t record_probe[2] = {};   // one a device, recorded on the device the caller last set
+thread_local int record_device = 0;
+int records_stalled = 0;   // records that found their stream still running after kRecordWaitMs
+constexpr int kRecordWaitMs = 2000;
+// A record that first waits for its stream, as a record does while another thread frees memory of the device, since hipFree waits for every stream of the device under the lock a record takes.
+hipError_t record_behind(hipEvent_t e, hipStream_t s) {
+    HipFn& f = hip();
+    if (real_record(record_probe[record_device], s) == hipSuccess) {
+        const auto t0 = std::chrono::steady_clock::now();
+        while (f.hipEventQuery(record_probe[record_device]) == hipErrorNotReady)
+            if (std::chrono::steady_clock::now() - t0 > std::chrono::milliseconds(kRecordWaitMs)) {
+                ++records_stalled;
+                break;
+            }
+    }
+    return real_record(e, s);
+}
+hipError_t set_noted(int device) {
+    record_device = device;
+    return real_set(device);
+}
+
+// Lane sums beside on two devices whose every event record waits for its stream, as under a free on another thread: a record behind a member's sum whose peer has not launched holds that sum until it gives up (docs/TESTS.md, backend-rocm).
+void records_behind_sums() {
+    HipFn& f = hip();
+    std::vector<BackendPtr> d = rocm_devices(2);
+    if (d.size() < 2) return;
+    const std::vector<Backend*> group = raw(d, 2);
+    constexpr size_t rows = 256, half = 128, width = 97, kRounds = 20;
+    // The join turns peer access on for the forced collectives' peer writes, as the product's join does.
+    std::unique_ptr<Collective> joined = d[0]->join(group, rows, width);
+    require(joined != nullptr, "two ROCm devices joined no collective");
+    if (!joined) return;
+    std::vector<std::unique_ptr<Collective>> cs;
+    for (const GpuSumForm form : {GpuSumForm::one_shot, GpuSumForm::chain, GpuSumForm::shares}) cs.push_back(rocm_collective(group, rows, width, form));
+    for (const auto& c : cs) require(c->copies_beside(half * width), "a lane sum of the records check does not cross beside");
+    for (int k = 0; k < 2; ++k) {
+        (void)f.hipSetDevice(k);
+        require(f.hipEventCreateWithFlags(&record_probe[k], hipEventDisableTiming) == hipSuccess, "the records check made no event");
+    }
+    real_record = f.hipEventRecord;
+    real_set = f.hipSetDevice;
+    f.hipEventRecord = record_behind;
+    f.hipSetDevice = set_noted;
+    records_stalled = 0;
+    // Member 0 holds 1 and member 1 holds 2 in every float, written again each round, so every sum gives 3.
+    const std::vector<float> held[2] = {std::vector<float>(rows * width, 1.0f), std::vector<float>(rows * width, 2.0f)};
+    size_t r = 0;
+    for (; r < kRounds && !records_stalled; ++r) {
+        for (const auto& c : cs)
+            for (size_t m = 0; m < 2; ++m) {
+                const Slice p = c->partial(m);
+                group[m]->write(*p.buffer, p.offset * sizeof(float), held[m].data(), rows * width * sizeof(float));
+            }
+        for (const auto& c : cs) c->send(0, 0, half, width), c->send(1, half, half, width);
+        for (const auto& c : cs) c->finish(0, 0, half, width, nullptr), c->finish(1, half, half, width, nullptr);
+        for (Backend* b : group) b->sync();
+    }
+    f.hipEventRecord = real_record;
+    f.hipSetDevice = real_set;
+    for (hipEvent_t e : record_probe) (void)f.hipEventDestroy(e);
+    require(records_stalled == 0, "a record on a ROCm lane sum's stream waited " + std::to_string(kRecordWaitMs) + " ms behind a sum whose peer had not launched");
+    size_t wrong = 0;
+    for (const auto& c : cs)
+        for (size_t m = 0; m < 2; ++m) {
+            std::vector<float> got(rows * width);
+            const Slice p = c->partial(m);
+            group[m]->read(*p.buffer, p.offset * sizeof(float), got.data(), got.size() * sizeof(float));
+            for (float v : got) wrong += v != 3.0f;
+        }
+    require(wrong == 0, "the records check's lane sums gave " + std::to_string(wrong) + " floats other than their members' sum");
+    std::cout << "backend-rocm records behind sums: " << r << " rounds of 6 lane sums, " << records_stalled << " records stalled\n";
+}
+
 void collective() {
     HipFn& f = hip();
     real_launch = f.hipModuleLaunchKernel;
@@ -4064,6 +4140,7 @@ int main(int argc, char** argv) {
             return failures ? 1 : 0;
         }
         if (argc > 1 && std::string(argv[1]) == "collective") {
+            records_behind_sums();
             collective();
             held_push();
             sentinel_sums();
@@ -4226,6 +4303,7 @@ int main(int argc, char** argv) {
         twin_checks::gated_drop(*make_rocm_backend(0, true), *g, rocm_delay_launches, require);
         records();
         failure();
+        records_behind_sums();
         collective();
         held_push();
         hc_entry();

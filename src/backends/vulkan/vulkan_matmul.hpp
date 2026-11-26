@@ -180,6 +180,9 @@ inline void VulkanBackend::matmul_group_impl(const Projection* projections, size
             const KernelId kernel = float_tile_kernel(tall, dtype, pr->weight.type, dev_->f16_inputs);
             const int small = height == kTileRowsSmall ? 1 : 0;
             if (parts > 1) {
+                // A float-weight call's parts may leave f32 where their sum does not; its reduce sums such an output again (shaders/matmul_reduce.comp).
+                const uint32_t t = pr->weight.type;
+                const bool float_weights = dtype != Dtype::bf16 && (t == quant::GGML_TYPE_F32 || t == quant::GGML_TYPE_F16 || t == quant::GGML_TYPE_BF16);
                 const size_t column_bytes = size_mul(size_mul(parts, pr->rows), pr->weight.type == quant::GGML_TYPE_MXFP4 ? sizeof(double) : sizeof(float));
                 const size_t alignment = std::max<size_t>(1, dev_->props.limits.minStorageBufferOffsetAlignment / sizeof(float));
                 const size_t aligned = alignment / std::gcd(alignment, std::gcd(nin, pr->rows));
@@ -199,9 +202,12 @@ inline void VulkanBackend::matmul_group_impl(const Projection* projections, size
                              pc, sizeof(pc), groups(pr->rows, height), u32(tiles * parts), small);
                     const size_t n = taken * pr->rows;
                     const uint32_t start = u32(groups(n, 256));
-                    const uint32_t rc[7] = {u32(n), 0, 0, u32(parts), accumulate ? 1u : 0u, start, start + 1};
-                    dispatch(pr->weight.type == quant::GGML_TYPE_MXFP4 ? K_MATMUL_REDUCE_MXFP4 : K_MATMUL_REDUCE, {bind(y), bind(y), bind(y), pb}, rc, sizeof(rc), start, 1, 0,
-                             {n, n, n});
+                    const uint32_t rc[12] = {u32(n), 0, 0, u32(parts), accumulate ? 1u : 0u, start, start + 1, u32(nin), u32(pr->rows), u32(kper * 32), u32(wstride), pr->weight.type};
+                    if (float_weights)
+                        dispatch(K_MATMUL_REDUCE_FLOAT, {bind(y), bind(y), bind(y), pb, bind(pr->weight.data), words, bind(x)}, rc, sizeof(rc), start, 1, 0, {n, n, n});
+                    else
+                        dispatch(pr->weight.type == quant::GGML_TYPE_MXFP4 ? K_MATMUL_REDUCE_MXFP4 : K_MATMUL_REDUCE, {bind(y), bind(y), bind(y), pb}, rc, 7 * sizeof(uint32_t), start, 1, 0,
+                                 {n, n, n});
                 }
             } else if (const KernelId wide = wide_tile_kernel(dtype, pr->weight.type); wide != K_COUNT && wide_tile_fits(dev_->caps, pr->rows, nbatch)) {
                 dispatch(wide, {bind(pr->out), bind(pr->weight.data), words, bind(X), bind(pr->weight.data), bind(X)},

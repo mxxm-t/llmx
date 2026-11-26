@@ -293,6 +293,9 @@ const uint32_t kSpvMatmulTileQ8i8[] = {
 const uint32_t kSpvMatmulReduce[] = {
 #include "vulkan/matmul_reduce.inc"
 };
+const uint32_t kSpvMatmulReduceFloat[] = {
+#include "vulkan/matmul_reduce_float.inc"
+};
 const uint32_t kSpvMatmulVecQ8[] = {
 #include "vulkan/matmul_vec_q8.inc"
 };
@@ -697,6 +700,9 @@ const uint32_t kSpvMatmulTileQ6Preserve[] = {
 };
 const uint32_t kSpvMatmulReducePreserve[] = {
 #include "vulkan/matmul_reduce_preserve.inc"
+};
+const uint32_t kSpvMatmulReduceFloatPreserve[] = {
+#include "vulkan/matmul_reduce_float_preserve.inc"
 };
 const uint32_t kSpvMoeRoute[] = {
 #include "vulkan/moe_route.inc"
@@ -1360,6 +1366,7 @@ const uint32_t kSpvFlagRecv[] = {
     X(K_MATMUL_TILE_Q8I8, "matmul_tile_q8i8", kSpvMatmulTileQ8i8, sizeof(kSpvMatmulTileQ8i8), 5, kMatmulTileQCounts) \
     X(K_MATMUL_TILE_Q8I8_TALL, "matmul_tile_q8i8_tall", kSpvMatmulTileQ8i8, sizeof(kSpvMatmulTileQ8i8), 5, kMatmulTileQCounts) \
     X(K_MATMUL_REDUCE, "matmul_reduce", kSpvMatmulReduce, sizeof(kSpvMatmulReduce), 2, kMatmulReduceCounts, kSpvMatmulReducePreserve, sizeof(kSpvMatmulReducePreserve), 0, kPreserve32) \
+    X(K_MATMUL_REDUCE_FLOAT, "matmul_reduce_float", kSpvMatmulReduceFloat, sizeof(kSpvMatmulReduceFloat), 5, kMatmulReduceFloatCounts, kSpvMatmulReduceFloatPreserve, sizeof(kSpvMatmulReduceFloatPreserve), 0, kPreserve32) \
     X(K_MATMUL_VEC_Q8, "matmul_vec_q8", kSpvMatmulVecQ8, sizeof(kSpvMatmulVecQ8), 12, kMatmulRowCounts, kSpvMatmulVecQ8Preserve, sizeof(kSpvMatmulVecQ8Preserve), 0, kPreserve32) \
     X(K_MATMUL_VEC_Q8_I8, "matmul_vec_q8_i8", kSpvMatmulVecQ8I8, sizeof(kSpvMatmulVecQ8I8), 12, kMatmulRowCounts, kSpvMatmulVecQ8I8Preserve, sizeof(kSpvMatmulVecQ8I8Preserve), 0, kPreserve32) \
     X(K_MATMUL_ROW_Q4_I8, "matmul_row_q4_i8", kSpvMatmulRowQ4I8, sizeof(kSpvMatmulRowQ4I8), 12, kMatmulRowCounts, kSpvMatmulRowQ4I8Preserve, sizeof(kSpvMatmulRowQ4I8Preserve), 0, kPreserve32) \
@@ -2077,6 +2084,8 @@ const uint32_t kMatmulTileQCounts[5] = {3, 3, 1, 1, 1};
 const uint32_t kMatmulTileIq3Counts[6] = {3, 3, 1, 1, 1, 1};
 const uint32_t kMatmulTileQ8mxCounts[6] = {3, 3, 1, 1, 1, 3};
 const uint32_t kMatmulReduceCounts[2] = {3, 1};
+// The float-weight reduce also reads the weights as 16-bit values and as floats, and the inputs, to sum again an output whose parts left f32.
+const uint32_t kMatmulReduceFloatCounts[5] = {3, 1, 1, 1, 1};
 // A tensor group's sum: the residual, the kept rows and one source a member (shaders/sum_rows.comp declares the 16).
 const uint32_t kSumRowsCounts[3] = {1, 1, uint32_t(kMaxTensorWidth)};
 static_assert(kMaxTensorWidth == 16, "shaders/sum_rows.comp declares 16 sources");

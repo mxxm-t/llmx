@@ -721,12 +721,20 @@ From the comment at line 2:
 - Each step stages the dequantized W tile and the X tile in shared memory, and every thread accumulates a MROWS x 4 micro-tile in registers.
 - TILE_ROWS is a specialization constant: a taller tile reads less shared memory per product but yields fewer workgroups, so the backend picks it per call.
 - Rows past nout and columns past nbatch read as zero and are not stored.
-- A call of few workgroups splits the inner dimension: workgroup row y is part y / ctiles of column tile y % ctiles, summing `kper` values from the part's start into its own slice of Y, which matmul_reduce.comp then adds in part order.
+- A call of few workgroups splits the inner dimension: workgroup row y is part y / ctiles of column tile y % ctiles, summing `kper` values from the part's start into its own slice of Y, which matmul_reduce.comp then adds in part order, adding the total to Y last when accumulating; for float weights its `LLMX_FLOAT_REPLAY` build (`matmul_reduce_float`) sums an output whose total is infinite or NaN again from each part's `tile_replay_scaled` sum, since a part can leave f32 where the sum does not.
 
 From the comment at line 32:
 
 - A routed call (per != 0, backend.hpp matmul_experts) runs workgroup row y as tile y of the grouping (moe_group.comp): up to TILE_COLS entries of one expert, column c being entry tab[order0 + first + c], which reads X column entry / per through the expert's rows and writes output row entry.
 - A routed call is never split.
+
+### `src/backends/vulkan/shaders/tile_replay.glsl`
+
+From the comment at line 1:
+
+- The range repair of a float-weight split call's parts, included by `matmul_reduce.comp` in its `LLMX_FLOAT_REPLAY` build, which defines `TILE_REPLAY_WEIGHT(row, k)` and `TILE_REPLAY_INPUT(col, k)`.
+- `tile_nonfinite` tests the exponent bits rather than calling `isinf` or `isnan`, which a module without signed-zero, infinity and NaN preservation may fold away.
+- `tile_replay_scaled` sums one output's products again over [kbeg, kend) with the larger operand of each product scaled by 2^-32, leaving the total scaled; times `TILE_REPLAY_UP` (2^32) it is finite where the exact sum is, since a power of two commutes with rounding outside the subnormal range, and an infinite or NaN operand still gives a nonfinite result (docs/VULKAN.md, Kernel notes).
 
 ### `src/backends/vulkan/shaders/matmul_tile_wide.comp`
 

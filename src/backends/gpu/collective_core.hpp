@@ -36,8 +36,9 @@ struct GroupPeers {
     unsigned* status;
     unsigned* fault;
     unsigned* cancel;
+    unsigned* flush;
 };
-static_assert(kGroupMembers == 16 && sizeof(GroupPeers) == 280 && offsetof(GroupPeers, status) == 256 && offsetof(GroupPeers, cancel) == 272, "kernels/f32.gpu, GroupPeers");
+static_assert(kGroupMembers == 16 && sizeof(GroupPeers) == 288 && offsetof(GroupPeers, status) == 256 && offsetof(GroupPeers, cancel) == 272 && offsetof(GroupPeers, flush) == 280, "kernels/f32.gpu, GroupPeers");
 constexpr size_t kGroupBlocks = 32;       // the kernel's signal slots a member, so the most blocks a chain or meeting takes
 constexpr unsigned kPushTile = 16;        // blocks of a pushing held build whose rows go out together (kernels/int16.gpu, held_push)
 constexpr size_t kChainBlocks = 16, kChainUnits = 4096;  // the kernel's chain blocks each way and float4 units a chunk
@@ -486,13 +487,13 @@ private:
         std::vector<size_t> copy_placed;
         std::vector<BufferPtr> copy_peers;
         std::vector<void*> copy_table;
-        unsigned half = 0, pull_half = 0, copy_half = 0;
+        unsigned half = 0, pull_half = 0, copy_half = 0, draw_half = 0;
         bool host() const { return transport == GroupTransport::host_writes; }
         bool fast() const { return transport != GroupTransport::pulls; }
     };
 
-    // A member's area: its signal block, then two parity halves of a slot per member, and under peer writes the slot its draws copy into.
-    size_t area_bytes(GroupTransport t) const { return size_add(kGroupSignalBytes, size_mul(size_mul(2 * members_.size() + (t == GroupTransport::peer_writes), cap_), sizeof(float))); }
+    // A member's area: its signal block, then two parity halves of a slot per member, and under peer writes the two slots its draws copy into.
+    size_t area_bytes(GroupTransport t) const { return size_add(kGroupSignalBytes, size_mul(size_mul(2 * members_.size() + 2 * (t == GroupTransport::peer_writes), cap_), sizeof(float))); }
 
     // A member's copies area: two parity halves of a share slot per member and of its totals.
     size_t copy_slot() const { return (cap_ / 4 + members_.size() - 1) / members_.size() * 4; }
@@ -575,6 +576,7 @@ private:
                 p.status = status_;
                 p.fault = members_[m]->fault_;
                 p.cancel = status_ + W;
+                p.flush = Api::flush_word(members_[m]->dev_);
                 std::vector<BufferPtr>& held = table == 2 ? s.copy_peers : s.peers;
                 held.push_back(members_[m]->alloc(sizeof(GroupPeers), Memory::device));
                 members_[m]->write(*held.back(), 0, &p, sizeof(GroupPeers));
@@ -695,10 +697,12 @@ private:
     }
 
     // Every fast sum takes the half its transport's next one-shot takes, which every peer finished reading at that transport's one-shot before the last (docs/src/backends-gpu.md, the collective).
-    // A lane's sum beside waits for its member's work recorded before it, which summed flushed, and records the lane's event behind it; no record sits between two members' launches, as a record may wait for its stream (docs/src/backends-gpu.md, the collective).
+    // A lane's sum beside waits for its member's work recorded before it and records the lane's event behind it; no record sits between two members' launches, as a record may wait for its stream (docs/src/backends-gpu.md, the collective).
     void pushed(const std::vector<Slice>& residual, size_t n, bool replace, Areas& s, GpuSumPick pick, std::vector<typename GpuBackend<Api>::TakeDesc>* takes, const std::vector<char>& sent, size_t from = 0, int lane = -1) {
+        // Draws alternate their own two slots the same way, as a peer may still read the last draws' totals when a member starts the next.
+        const bool draws = pick.form == GpuSumForm::draws;
         for (size_t m = 0; lane < 0 && m < members_.size(); ++m)
-            launch(m, residual[m], n, replace, true, pick, s, s.half, pick.form == GpuSumForm::one_shot ? takes : nullptr, sent[m], from);
+            launch(m, residual[m], n, replace, true, pick, s, draws ? s.draw_half : s.half, pick.form == GpuSumForm::one_shot ? takes : nullptr, sent[m], from);
         for (size_t m = 0; lane >= 0 && m < members_.size(); ++m) {
             GpuBackend<Api>& b = *members_[m];
             Api::check(Api::set_device(b.dev_.index), "set_device");
@@ -707,13 +711,14 @@ private:
         }
         for (size_t m = 0; lane >= 0 && m < members_.size(); ++m) {
             Api::check(Api::set_device(members_[m]->dev_.index), "set_device");
-            launch(m, residual[m], n, replace, true, pick, s, s.half, nullptr, false, from, beside_[m]);
+            launch(m, residual[m], n, replace, true, pick, s, draws ? s.draw_half : s.half, nullptr, false, from, beside_[m]);
         }
         for (size_t m = 0; lane >= 0 && m < members_.size(); ++m) {
             Api::check(Api::set_device(members_[m]->dev_.index), "set_device");
             Api::check(Api::event_record(summed_[(size_t)lane][m], beside_[m]), "event_record");
         }
         if (pick.form == GpuSumForm::one_shot || pick.form == GpuSumForm::shares) s.half ^= 1u;
+        if (draws) s.draw_half ^= 1u;
     }
 
     // Copies (docs/src/backends-gpu.md, the collective): each member's copy stream sends chunk j of every other share of its rows into the owners' host slots and counts it, its first kernel adds its share as the rows land.
@@ -818,7 +823,7 @@ private:
         if (lane_sent_[0] || lane_sent_[1]) throw std::logic_error("backend: a sum made in one call while a lane's sum is sent and not finished");
     }
     // The forms a member's kernel sends alone, which a lane's sum may take beside its member's stream; copies and pulls keep their copies on the member's streams.
-    static bool kernel_form(GpuSumForm f) { return f == GpuSumForm::one_shot || f == GpuSumForm::chain || f == GpuSumForm::wrap || f == GpuSumForm::shares; }
+    static bool kernel_form(GpuSumForm f) { return f == GpuSumForm::one_shot || f == GpuSumForm::chain || f == GpuSumForm::wrap || f == GpuSumForm::shares || f == GpuSumForm::draws; }
 
     // A member's staging slots, past its signal block, and the slots pulls copy into: under host writes device memory of their own, else the same.
     static float* stage(const Areas& s, size_t m) { return (float*)((uint8_t*)s.at[m] + kGroupSignalBytes); }

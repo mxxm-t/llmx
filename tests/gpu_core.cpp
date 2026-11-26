@@ -98,6 +98,7 @@ struct FakeApi {
         return kSuccess;
     }
     static Error malloc_uncached(void** p, size_t bytes) { return malloc(p, bytes); }
+    static unsigned* flush_word(const Device&) { return nullptr; }
     static Error free(void* p) {
         std::free(p);
         --fake.memory;

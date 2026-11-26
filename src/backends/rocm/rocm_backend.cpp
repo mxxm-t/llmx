@@ -58,6 +58,8 @@ struct HipApi {
     static Error malloc(void** p, size_t bytes) { return hip().hipMalloc(p, bytes); }
     // Device memory the host's caches do not hold, so a peer's writes to it are seen without a flush (the collective's staging).
     static Error malloc_uncached(void** p, size_t bytes) { return hip().hipExtMallocWithFlags(p, bytes, hipDeviceMallocUncached); }
+    // The device's HDP flush register, whose write drops the cache peers' reads of its memory pass through, so a draw slot the device rewrites reads new (kernels/f32.gpu, group_flush).
+    static unsigned* flush_word(const Device& d) { return d.hdp_flush; }
     static Error free(void* p) { return hip().hipFree(p); }
     static Error host_malloc(void** p, size_t bytes, bool coherent) { return hip().hipHostMalloc(p, bytes, coherent ? hipHostMallocCoherent : hipHostMallocDefault); }
     static Error host_free(void* p) { return hip().hipHostFree(p); }

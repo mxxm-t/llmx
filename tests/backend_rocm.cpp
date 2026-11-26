@@ -2943,7 +2943,8 @@ void held_push() {
     for (size_t W = std::max<size_t>(3, rocm_profile(*d[0]).held_push_members); W <= std::min<size_t>(d.size(), 4); ++W)
         for (const Shape& s : shapes) {
             const std::vector<Backend*> group = raw(d, W);
-            std::unique_ptr<Collective> c = d[0]->join(group, 1, s.nout);
+            // Forced to the one-shot, whose rows the held build pushes; a timed join may pick another form at these sizes.
+            std::unique_ptr<Collective> c = rocm_collective(group, 1, s.nout, GpuSumForm::one_shot);
             require(c != nullptr, "ROCm devices joined no collective");
             if (!c) return;
             std::vector<BufferPtr> wb, xb, other;
@@ -3842,8 +3843,9 @@ struct SixteenPeers {
     unsigned* status;
     unsigned* fault;
     unsigned* cancel;
+    unsigned* flush;   // null: these forms write their peers' memory, so none flushes
 };
-static_assert(sizeof(SixteenPeers) == 280 && offsetof(SixteenPeers, status) == 256 && offsetof(SixteenPeers, cancel) == 272, "kernels/f32.gpu, GroupPeers");
+static_assert(sizeof(SixteenPeers) == 288 && offsetof(SixteenPeers, status) == 256 && offsetof(SixteenPeers, cancel) == 272 && offsetof(SixteenPeers, flush) == 280, "kernels/f32.gpu, GroupPeers");
 
 void sixteen_ranks() {
     HipFn& f = hip();
@@ -4015,7 +4017,7 @@ void late_totals() {
         *word = epoch;
         *back_word = chunks * epoch;
         if (epoch == 1) put(totals, staged, n * sizeof(float));
-        put(at(32 + 1 + 32 * 16 + 16), back_word, sizeof(unsigned));
+        put(at(32 + 1 + 3 * 32 * 16 + 16), back_word, sizeof(unsigned));
         if (epoch == 2) {
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
             put(totals, staged, n * sizeof(float));

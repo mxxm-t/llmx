@@ -136,6 +136,27 @@ The readback's gap after the last kernel is in the plain run's trace too, so `--
 - **Left:** landing gates; depends on fix/sums-device-streams (SUMS55), which lands first.
 - **Gotchas:** on a backend made to time its work, `flush` records a timed event right after each held kernel, so whole sums under timing keep a record between members' launches (ideas.md, SUMS58).
 
+## Draws sum form (2026-11-23 to 2026-11-26, SUMS44 to SUMS60, branch sums/draws-form on fix/sums-launch-before-record 8e2dcf95; lands as two commits, the checks that fail and then the fixes)
+
+- **Goal:** prompt-sized group sums over peer writes on MI50 read the peers' rows across the link instead of writing them, since an MI50 reads a peer's memory faster than several peers write into it, so the collective beats RCCL at those sizes too.
+- **Done:** `GpuSumForm::draws`, flag 16 of `llmx_group_shares` (docs/src/backends-gpu.md, the collective), which the join times beside the other forms.
+  In a microbenchmark of the same kernel on four MI50 it summed 2621440 floats in 928 us at width 2 against 1267 for the one-shot, and 1625 against 2305 for the shares at width 4; it lost below about 20480 floats.
+- **Stale reads, fixed:** the second of two sums at 97 floats back to back returned the first sum's peer rows and totals, 10 of 11 at four MI50.
+  A probe on three MI50 under ROCm 7.2.1 (SUMS46 l2) had an owner store a slot and a peer read it again: about 99.9% of the words read stale at 25, 128 and 512 units, for every load kind, one or two readers, uncached and `hipMalloc` memory alike, and none at 2062 units, where the lines had been evicted.
+  With the owner writing and reading back its `hdpMemFlushCntl` word after its stores, no word read stale in any cell, so the cache is the owner's host data path, which a peer's reads pass through and the owner's own stores do not drop.
+  Each block of the draws now does that after each phase, before the meeting that lets its peers read (`GroupPeers::flush`, the Api's `flush_word`, null under CUDA).
+  The other forms write into their peers' memory and read only their own, and the copies and pulls go through host memory, so the draws are the one form that reads a peer's memory its owner wrote; a read of `src/backends/gpu/kernels` for loads of another member's `stage` or `signal` found no other.
+- **Slot reuse, fixed:** no meeting follows the reads of the totals, so a member could start its next draws while a peer still read its last totals, and draws of another size write shares over them; with one slot and the flush, two sequences of draws of different sizes in flight failed 2 of 20 runs of `backend-rocm collective` on four MI50 (100 and 512, 2048 and 4100 floats at width 4).
+  Consecutive draws now alternate two slots (`draw_half`), at no extra meeting.
+- **Checks:** `backend-rocm collective` (docs/TESTS.md, backend-rocm) runs the draws back to back at 25 to 2062 units and four sums in flight per forced form, which failed 20 of 20 runs on the test commit (SUMS48 u1) and 3 of 20 with the flush alone (SUMS47 f1: the two slot-reuse runs above and one timed pick of the shares where `held_push` asserts the one-shot's kernels); `rocm-isa` holds the two flushes of `llmx_group_shares` on every target the bundle holds, and fails the test commit's gfx906 object with none.
+- **Lane sums beside:** on fix/sums-launch-before-record the draws are a form a member's kernel sends alone, so a lane's draws take the beside stream like the shares (`kernel_form`); `held_push` forces its collective to the one-shot, whose rows the held build pushes, as a timed join may pick the draws at its sizes, and `late_totals` writes its back word past the draws' third row of meeting words.
+- **Measured (SUMS60, 2026-11-26):** `backend-rocm collective` at eight hardware queues on four MI50 (ROCm 7.2.1) passed 10 of 10 runs, 18-27 s each (sums60/out/c.log).
+  `tools/sums_vs_reference.py` against 8e2dcf95 and RCCL `all_reduce_perf` on the same four cards, labelled timing on cores 12-15 under host load 25-47, beat RCCL at every size and width in two rounds (5 cycles at widths 2-4, then 10 at widths 4 and 2).
+  At 2621440 floats the draws took 959 us against 1241 at width 2, 1360 against 1734 at width 3 and 1513 against 2070 at width 4 (RCCL 1313, 1965, 2425); at 655360, 255 against 316, 363 against 456 and 409 against 543; at 163840, 2-6% faster.
+  At 65537 floats and below the picks keep the forms 8e2dcf95 has and the one-shot's code is byte-identical; cells there moved within -8% to +16% in the first round and -8% to +2.4% in the second, the 256-float cell at width 4 at 15.13 then 11.55 us against 13.05 and 12.57.
+- **Left:** the landing gates; depends on fix/sums-launch-before-record (PR 654) and fix/sums-device-streams (PR 653), which land first. README: none.
+- **Gotchas:** a test of the stale read needs sums small enough that the lines stay cached; far larger sums pass on the unfixed kernel and prove nothing.
+
 ## A device's sum streams belong to its backend (2026-11-26, SUMS55 to SUMS58, branch fix/sums-device-streams on main 2b77837fe; lands as two commits, the failing test and then the change)
 
 - **Goal:** every collective a GPU backend joins sends its lane sums and its copies on one beside stream and one copy stream of that backend, so a device holds at most four hardware queues however many collectives are open.

@@ -458,14 +458,14 @@ public:
     std::vector<size_t> member_order(const std::vector<Backend*>& devices, size_t width, size_t rows, size_t summed) override;
     bool times_groups() const override { return true; }
     std::unique_ptr<Handoff> handoff(const std::vector<Backend*>& readers) override;
-    // A member's partial rows beside two parity halves of a device slot a member for each transport its timed groups picked (GpuCollective<Api>), the staging or the slots pulls copy into, and a draw slot under peer writes.
+    // A member's partial rows beside two parity halves of a device slot a member for each transport its timed groups picked (GpuCollective<Api>), the staging or the slots pulls copy into, and two draw slots under peer writes.
     // Before any group of this device is timed, peer writes' alone.
     size_t collective_bytes_per_row(size_t members, size_t width) const override {
         if (!members) return 0;
         const unsigned by = summed_by_ ? summed_by_ : transport_bit(GroupTransport::peer_writes);
         size_t slots = 1;
         for (const GroupTransport t : {GroupTransport::peer_writes, GroupTransport::host_writes, GroupTransport::pulls})
-            if (by & transport_bit(t)) slots += 2 * members + (t == GroupTransport::peer_writes);
+            if (by & transport_bit(t)) slots += 2 * members + 2 * (t == GroupTransport::peer_writes);
         return size_mul(slots, size_mul(width, sizeof(float)));
     }
     bool supports_type(uint32_t type) const override { return type_kernels(type) != nullptr; }

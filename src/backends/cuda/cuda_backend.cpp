@@ -87,6 +87,8 @@ struct CudaApi {
     }
     // Device memory is not held in the host's caches, so a peer's writes to it are seen as they land.
     static Error malloc_uncached(void** p, size_t bytes) { return malloc(p, bytes); }
+    // Peers' reads of device memory pass no cache the device must drop, so the collective's draws flush nothing (kernels/f32.gpu, group_flush).
+    static unsigned* flush_word(const Device&) { return nullptr; }
     static Error free(void* p) { return cu().cuMemFree(dptr(p)); }
     // Pinned host memory is coherent unless write-combined, so both kinds are one allocation, mapped for every context.
     static Error host_malloc(void** p, size_t bytes, bool) { return cu().cuMemHostAlloc(p, bytes, CU_MEMHOSTALLOC_PORTABLE | CU_MEMHOSTALLOC_DEVICEMAP); }

@@ -15,6 +15,7 @@ struct RocmDevice {
     std::string arch, pci_bus, pci_root;
     size_t total_memory = 0;
     size_t lanes_resident = 0;   // the lanes a compute unit holds at once, which the runtime's private scratch is sized for
+    unsigned* hdp_flush = nullptr;   // hipDeviceProp_t::hdpMemFlushCntl, mapped into this device's own address space, or null where the runtime gives none
     DeviceProfile profile;   // profile_for(caps), taken once the backend knows the integer dot
 };
 
@@ -35,6 +36,7 @@ inline RocmDevice rocm_device(int index) {
     d.caps.shared_bytes = (uint32_t)p.sharedMemPerBlock;
     d.total_memory = p.totalGlobalMem;
     d.lanes_resident = (size_t)p.maxThreadsPerMultiProcessor;
+    d.hdp_flush = p.hdpMemFlushCntl;
     char bus[32] = {};
     hip_check(f.hipDeviceGetPCIBusId(bus, sizeof(bus), index), "hipDeviceGetPCIBusId");
     d.pci_bus = bus;

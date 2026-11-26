@@ -23,13 +23,14 @@ struct GroupSignal {
 };
 static_assert(sizeof(GroupSignal) <= 8192, "the host's kGroupSignalBytes");
 struct GroupPeers {
-    float* stage[kGroupMembers];      // each member's staging slots, cap floats a member, two parity halves of them and under peer writes its draw slot
+    float* stage[kGroupMembers];      // each member's staging slots, cap floats a member, two parity halves of them and under peer writes its two draw slots
     unsigned* signal[kGroupMembers];  // each member's GroupSignal
     unsigned* status;                 // host memory, a word a member, set where its sum failed
     unsigned* fault;                  // host memory, this member's backend's fault word
     unsigned* cancel;                 // host memory, set by the host where a peer's sum will never launch
+    unsigned* flush;                  // this member's word whose write makes its own stores visible to peers' reads of its memory (ROCm's HDP flush), or null where none is needed
 };
-static_assert(sizeof(GroupPeers) == 280, "the host's GroupPeers");  // in device memory, written once at join, so the launch does not grow with kGroupMembers
+static_assert(sizeof(GroupPeers) == 288, "the host's GroupPeers");  // in device memory, written once at join, so the launch does not grow with kGroupMembers
 
 // A fast one-shot's staging slot holds the signalling NaN kGroupArmed until its sender's value lands; a sender's value of those bits goes as the quiet kGroupQuiet, which any add makes of it (group_probe checks that on each device).
 constexpr unsigned kGroupArmed = 0x7f800001u, kGroupQuiet = 0x7fc00001u;

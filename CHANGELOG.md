@@ -20,6 +20,7 @@ Each entry is one short line that links the doc explaining it; reasons, flags an
 
 ### Changed
 
+- ROCm tensor groups on MI50 sum prompt-sized parts up to a quarter faster by reading their peers' rows ([GPU backends](docs/src/backends-gpu.md)).
 - Greedy server requests, `ignore_eos` ones too, take their tokens from the device's argmax ([server](docs/SERVER.md#device-argmax)).
 - Experts on the CPU decode in the three-dispatch MoE step whatever their weight types ([CPU backend](docs/src/backends-cpu.md)).
 - Several sequences of BF16, F16 and F32 weights decode faster on CUDA, and 2 to 4 on MI50s ([GPU backends](docs/src/backends-gpu.md)).

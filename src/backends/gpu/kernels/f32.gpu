@@ -543,14 +543,24 @@ __device__ inline float4 copy_load(const float* src, unsigned long long i, unsig
     return make_float4(v[0], v[1], v[2], v[3]);
 }
 
+// After the block's stores to its draw slot, thread 0 writes the member's flush word and reads it back, so peers' next reads of the slot miss the cache their earlier reads filled.
+// The barrier after it holds every thread until the readback returns, before the meeting tells the peers.
+__device__ inline void group_flush(const GroupPeers* p) {
+    __syncthreads();
+    if (p->flush && !threadIdx.x) {
+        *(volatile unsigned*)p->flush = 1u;
+        (void)*(volatile unsigned*)p->flush;
+    }
+    __syncthreads();
+}
+
 // Draws (docs/src/backends-gpu.md, the collective): each member copies the shares it does not own into its draw slot, each owner reads its share from the peers' slots and adds it in member order, and every member reads the totals.
-// Block b of every member takes the same runs of 16 units of each share and meets its peers' block b twice, which orders every overwrite of a slot after the peers' reads of it.
-__device__ void group_draws(const GroupPeers* p, GroupSignal* self, const float* own, float* out, unsigned long long n, unsigned long long cap, int members, int rank, bool replace,
-                            unsigned long long deadline, unsigned long long tick, int* failed) {
+// Block b of every member takes the same runs of 16 units of each share and meets its peers' block b twice; consecutive draws alternate two slots, since a peer may still read the totals of the last one.
+__device__ void group_draws(const GroupPeers* p, GroupSignal* self, const float* own, float* out, unsigned long long n, unsigned long long cap, unsigned long long draw_at, int members, int rank,
+                            bool replace, unsigned long long deadline, unsigned long long tick, int* failed) {
     unsigned epoch = self->epoch[blockIdx.x] + 1;
     if (!epoch) epoch = 1;
     const unsigned long long units = (n + 3) / 4, share = ((units + members - 1) / members + 15) / 16 * 16, per = ((share + gridDim.x - 1) / gridDim.x + 15) / 16 * 16;
-    const unsigned long long draw_at = 2ull * members * cap;
     const bool aligned = ((unsigned long long)out & 15) == 0;
     // Block b's units of share k, [from(k), to(k)).
     const auto from = [&](int k) { const unsigned long long a = share * k + per * blockIdx.x, e = share * (k + 1) < units ? share * (k + 1) : units; return a < e ? a : e; };
@@ -560,7 +570,7 @@ __device__ void group_draws(const GroupPeers* p, GroupSignal* self, const float*
         if (k != rank)
             for (unsigned long long u = from(k) + threadIdx.x; u < to(k); u += kThreads) group_store(mine, u * 4, n, group_load(own, u * 4, n));
     __threadfence_system();
-    __syncthreads();
+    group_flush(p);
     bool met = group_meet(p, self, members, rank, epoch, deadline, tick, failed, 1);
     if (met)
         for (unsigned long long u = from(rank) + threadIdx.x; u < to(rank); u += kThreads) {
@@ -577,7 +587,7 @@ __device__ void group_draws(const GroupPeers* p, GroupSignal* self, const float*
             group_out(out, i, n, t, replace, aligned);
         }
     __threadfence_system();
-    __syncthreads();
+    group_flush(p);
     met = met && group_meet(p, self, members, rank, epoch, deadline, tick, failed, 2);
     if (met)
         for (int s = 1; s < members; ++s) {
@@ -611,7 +621,7 @@ extern "C" __global__ void __launch_bounds__(kThreads) llmx_group_shares(const G
     const unsigned long long deadline = timeout ? (unsigned long long)wall_clock() + timeout : ~0ull;
     if (!threadIdx.x) failed = 0;
     __syncthreads();
-    if (flags & 16) return group_draws(p, self, own, out, n, cap, members, rank, replace, deadline, tick, &failed);
+    if (flags & 16) return group_draws(p, self, own, out, n, cap, (2ull * members + (flags >> 2 & 1)) * cap, members, rank, replace, deadline, tick, &failed);
     float* mine = p->stage[rank] + half_at;
     unsigned long long next = (unsigned long long)wall_clock() + tick;
     bool met = true;

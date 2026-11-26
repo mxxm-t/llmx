@@ -936,7 +936,7 @@ if(LLMX_HAS_BACKEND_ROCM)
     set_tests_properties(backend-rocm-queues PROPERTIES TIMEOUT 300 SKIP_RETURN_CODE 77)
     add_test(NAME backend-rocm-scratch COMMAND llmx-backend-rocm-test scratch)
     set_tests_properties(backend-rocm-scratch PROPERTIES TIMEOUT 120 SKIP_RETURN_CODE 77)
-    # The code objects as built, read without a device: delta_step's code prefetch stays inside the kernel on each checked target the build holds.
+    # The code objects as built, read without a device: delta_step's code prefetch stays inside the kernel and the draws flush twice on each checked target the build holds.
     find_package(Python3 COMPONENTS Interpreter REQUIRED)
     get_filename_component(LLMX_HIP_LLVM_BIN ${LLMX_HIP_CLANG} DIRECTORY)
     add_test(NAME rocm-isa COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/rocm_isa.py ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm ${LLMX_HIP_LLVM_BIN})

@@ -61,18 +61,21 @@ struct VulkanQuantizationTest {
     // Where the device does not prefer the integer dot, preferring it reaches the tile's twin layouts, which change only where a twin's values lie.
     static void prefer_integer_dot(VulkanBackend& b, bool on) { b.dev_->profile.prefer_integer_dot = on; }
     static bool tile_reads(VulkanBackend& b, size_t nin, size_t nbatch, RowRuns runs) { return b.tile_reads(nin, nbatch, runs); }
-    // One unsplit float-weight product on the float tile at height `rows_tile` (128 or 64), or on the wide tile, as the dispatch in vulkan_matmul.hpp records them.
-    static void float_tile(VulkanBackend& b, uint32_t type, Dtype dtype, CSlice w, CSlice x, Slice y, size_t nin, size_t rows, size_t cols, bool accum, size_t rows_tile) {
+    // The kernel float_tile records; named, not given as a height, since the wide tile is as high as the tall float tile.
+    enum class FloatTile { tall, short_rows, wide };
+    // One unsplit float-weight product on the float tile at its tall or short height, or on the wide tile, as the dispatch in vulkan_matmul.hpp records them.
+    static void float_tile(VulkanBackend& b, uint32_t type, Dtype dtype, CSlice w, CSlice x, Slice y, size_t nin, size_t rows, size_t cols, bool accum, FloatTile tile) {
+        const size_t rows_tile = tile == FloatTile::short_rows ? kTileRowsShort : kTileRowsTall;
         const VkDescriptorBufferInfo wf = b.padded_f32(w, type, rows, nin);
         const size_t wstride = wf.buffer == b.bind(w).buffer ? nin : nin + kF32Pad;
         const VkDescriptorBufferInfo words = b.weight_floats({type, w}, b.lookup_grid(type, wf));
         const size_t gy = (cols + 63) / 64;
-        const uint32_t pc[10] = {uint32_t(nin), uint32_t(rows), uint32_t(cols), type, accum ? 1u : 0u, 0, 0, uint32_t((nin + 31) / 32 * 32), uint32_t(gy), uint32_t(wstride)};
-        if (rows_tile == kWideTile)
+        uint32_t pc[10] = {uint32_t(nin), uint32_t(rows), uint32_t(cols), type, accum ? 1u : 0u, 0, 0, uint32_t((nin + 31) / 32 * 32), uint32_t(gy), uint32_t(wstride)};
+        if (tile == FloatTile::wide)
             b.dispatch(wide_tile_kernel(dtype, type), {b.bind(y), b.bind(w), words, b.bind(x), b.bind(w), b.bind(x)}, pc, sizeof(pc),
                        uint32_t((rows + kWideTile - 1) / kWideTile), uint32_t((cols + kWideTile - 1) / kWideTile), 0, {cols * rows});
         else
-            b.dispatch(float_tile_kernel(rows_tile == kTileRowsTall, dtype, type, false), {b.bind(y), b.bind(w), words, b.bind(x), b.bind(w), b.bind(x)}, pc, sizeof(pc),
+            b.dispatch(float_tile_kernel(tile == FloatTile::tall, dtype, type, false), {b.bind(y), b.bind(w), words, b.bind(x), b.bind(w), b.bind(x)}, pc, sizeof(pc),
                        uint32_t((rows + rows_tile - 1) / rows_tile), uint32_t(gy), 0, {cols * rows});
     }
     static uint32_t compute_units(VulkanBackend& b) { return b.dev_->caps.compute_units; }
@@ -272,9 +275,9 @@ void check_wide_tile(backend::VulkanBackend& b, const char* build) {
                 for (bool accum : {false, true}) {
                     std::vector<float> wide(y0.size()), tile(y0.size());
                     const auto yw = b.adopt(y0.data(), y0.size() * 4), yt = b.adopt(y0.data(), y0.size() * 4), ys = b.adopt(y0.data(), y0.size() * 4);
-                    T::float_tile(b, type, dtype, {wb.get(), 0}, {xb.get(), 0}, {yw.get(), 0}, s.nin, s.rows, s.cols, accum, backend::kWideTile);
-                    T::float_tile(b, type, dtype, {wb.get(), 0}, {xb.get(), 0}, {yt.get(), 0}, s.nin, s.rows, s.cols, accum, backend::kTileRowsTall);
-                    T::float_tile(b, type, dtype, {wb.get(), 0}, {xb.get(), 0}, {ys.get(), 0}, s.nin, s.rows, s.cols, accum, backend::kTileRowsShort);
+                    T::float_tile(b, type, dtype, {wb.get(), 0}, {xb.get(), 0}, {yw.get(), 0}, s.nin, s.rows, s.cols, accum, T::FloatTile::wide);
+                    T::float_tile(b, type, dtype, {wb.get(), 0}, {xb.get(), 0}, {yt.get(), 0}, s.nin, s.rows, s.cols, accum, T::FloatTile::tall);
+                    T::float_tile(b, type, dtype, {wb.get(), 0}, {xb.get(), 0}, {ys.get(), 0}, s.nin, s.rows, s.cols, accum, T::FloatTile::short_rows);
                     b.read(*yw, 0, wide.data(), wide.size() * 4);
                     b.read(*yt, 0, tile.data(), tile.size() * 4);
                     compare(wide, tile, "tall", s.rows, s.cols, s.nin);
@@ -294,7 +297,7 @@ void check_wide_tile(backend::VulkanBackend& b, const char* build) {
         const auto xb = b.adopt(x.data(), x.size() * 4);
         const auto yc = b.alloc(viacall.size() * 4, backend::Memory::device), yt = b.alloc(tile.size() * 4, backend::Memory::device);
         b.matmul({quant::GGML_TYPE_BF16, {wb.get(), 0}}, {xb.get(), 0}, {yc.get(), 0}, nin, rows, cols, {}, backend::Dtype::f32);
-        T::float_tile(b, quant::GGML_TYPE_BF16, backend::Dtype::f32, {wb.get(), 0}, {xb.get(), 0}, {yt.get(), 0}, nin, rows, cols, false, backend::kTileRowsTall);
+        T::float_tile(b, quant::GGML_TYPE_BF16, backend::Dtype::f32, {wb.get(), 0}, {xb.get(), 0}, {yt.get(), 0}, nin, rows, cols, false, T::FloatTile::tall);
         b.read(*yc, 0, viacall.data(), viacall.size() * 4);
         b.read(*yt, 0, tile.data(), tile.size() * 4);
         compare(viacall, tile, tiles >= units ? "matmul, wide by rule" : "matmul, float tile by rule", rows, cols, nin);
@@ -303,67 +306,118 @@ void check_wide_tile(backend::VulkanBackend& b, const char* build) {
     require(failed == 0, "the wide float tile's outputs differ from the float tile's");
 }
 
-// A split float call's reduce (shaders/matmul_reduce.comp) against each output's exact sum rounded to f32, through matmul and matmul_add on 128 rows and 768 inputs, which split K on a device of more than a few compute units.
-// Row 1 holds +H, +H, -H at k 0, 256 and 512 (H = 2^127 products), each part finite and their running total not; row 5's +H and -H at k 0 and 256 cancel, so y stays only if added last; rows from 6 hold small integers.
-void check_split_reduce(backend::VulkanBackend& b, const char* build, bool preserving) {
+// A deep F32 product on the float tile at both heights, the wide tile and through matmul keeps its rounding error near a 32-lane host sum's, against float64 (docs/VULKAN.md, Kernel notes).
+void check_float_tile_depth(backend::VulkanBackend& b, const char* build) {
+    using T = backend::VulkanQuantizationTest;
+    constexpr size_t rows = 256, cols = 128, nin = 6144, lanes = 32;
+    uint32_t seed = 6151;
+    std::vector<float> w(rows * nin), x(nin * cols);
+    for (float& v : w) v = float(int(random_bits(seed) % 65535u) - 32767) / 4099.0f;
+    for (float& v : x) v = float(int(random_bits(seed) % 65535u) - 32767) / 1009.0f;
+    std::vector<double> exact(rows * cols);
+    double host = 0.0;
+    for (size_t c = 0; c < cols; ++c)
+        for (size_t r = 0; r < rows; ++r) {
+            double e = 0.0;
+            float s[lanes] = {};
+            for (size_t k = 0; k < nin; ++k) {
+                e += double(w[r * nin + k]) * double(x[c * nin + k]);
+                s[k % lanes] = std::fma(w[r * nin + k], x[c * nin + k], s[k % lanes]);
+            }
+            for (size_t h = lanes / 2; h > 0; h /= 2)
+                for (size_t i = 0; i < h; ++i) s[i] += s[i + h];
+            exact[c * rows + r] = e;
+            host += (double(s[0]) - e) * (double(s[0]) - e);
+        }
+    host = std::sqrt(host / double(rows * cols));
+    const auto wb = b.adopt(w.data(), w.size() * 4), xb = b.adopt(x.data(), x.size() * 4);
+    auto ratio = [&](const backend::Slice& y) {
+        std::vector<float> got(rows * cols);
+        b.read(*y.buffer, 0, got.data(), got.size() * 4);
+        double err = 0.0;
+        for (size_t i = 0; i < got.size(); ++i) err += (double(got[i]) - exact[i]) * (double(got[i]) - exact[i]);
+        return std::sqrt(err / double(rows * cols)) / host;
+    };
+    struct Path { const char* name; T::FloatTile tile; bool matmul; };
+    for (const Path& p : {Path{"tall", T::FloatTile::tall, false}, Path{"short", T::FloatTile::short_rows, false}, Path{"wide", T::FloatTile::wide, false}, Path{"matmul", T::FloatTile::tall, true}}) {
+        const auto y = b.alloc(rows * cols * 4, backend::Memory::device);
+        if (!p.matmul) T::float_tile(b, quant::GGML_TYPE_F32, backend::Dtype::f32, {wb.get(), 0}, {xb.get(), 0}, {y.get(), 0}, nin, rows, cols, false, p.tile);
+        else b.matmul({quant::GGML_TYPE_F32, {wb.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, nin, rows, cols, {}, backend::Dtype::f32);
+        const double r = ratio({y.get(), 0});
+        std::printf("vulkan-quantization: float tile depth (%s build, %s): rms error %.3gx a %zu-lane host sum's over %zu inputs\n", build, p.name, r, lanes, nin);
+        require(r <= 1.5, "a deep F32 product on the float tile rounds well above a 32-lane host sum");
+    }
+}
+
+// Products of 2^127 whose partial sums leave f32 in one order and not in another, on every path the 256-input fold and a split call's parts reach, each output its exact sum rounded to f32 (docs/VULKAN.md, Kernel notes).
+// Row 0 holds -H, +H, +H at k 0, 256, 257 (a block or part over f32), row 1 +H, +H, -H at k 0, 256 and 257 or, at 768 inputs, 512 (a chain or the reduce's total over f32), row 5 +H and -H at k 0 and 256; rows from 6 hold small integers.
+void check_float_tile_range(backend::VulkanBackend& b, const char* build, bool preserving) {
+    using T = backend::VulkanQuantizationTest;
     const float inf = std::numeric_limits<float>::infinity(), nan = std::numeric_limits<float>::quiet_NaN();
-    const size_t rows = 128, cols = 128, nin = 768;
+    const size_t rows = 128, cols = 128;
     uint32_t seed = 9127;
     size_t checked = 0, failed = 0;
     bool timed = false, reduced = false;   // the split calls' reduce, where the device times its dispatches
-    for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_F16, quant::GGML_TYPE_BF16}) {
-        // F16 weights reach 2^127 products through their inputs, so the replay's scaling falls on the input; the others scale the weight.
-        const float a = type == quant::GGML_TYPE_F16 ? 32768.0f : std::ldexp(1.0f, 127), unit = std::ldexp(1.0f, 127) / a;
-        std::vector<float> w(rows * nin, 0.0f), x(nin * cols, unit), y0(rows * cols);
-        for (size_t r = 6; r < rows; ++r)
-            for (size_t k = 0; k < nin; ++k) w[r * nin + k] = float(int(random_bits(seed) % 17u) - 8);
-        w[1 * nin + 0] = a; w[1 * nin + 256] = a; w[1 * nin + 512] = -a;
-        w[5 * nin + 0] = a; w[5 * nin + 256] = -a;
-        // An infinite weight, a NaN, both infinities and an infinite input, which a preserving build carries to the output through the replay.
-        if (preserving) {
-            w[2 * nin + 5] = inf;
-            w[3 * nin + 9] = nan;
-            w[4 * nin + 3] = inf; w[4 * nin + 600] = -inf;
-            x[1 * nin + 7] = inf;
-        }
-        for (float& v : y0) v = float(int(random_bits(seed) % 17u) - 8);
-        std::vector<float> exact(rows * cols);
-        for (size_t c = 0; c < cols; ++c)
-            for (size_t r = 0; r < rows; ++r) {
-                double e = 0.0;
-                for (size_t k = 0; k < nin; ++k) e += double(w[r * nin + k]) * double(x[c * nin + k]);
-                exact[c * rows + r] = float(e);
+    for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_F16, quant::GGML_TYPE_BF16})
+        for (size_t nin : {size_t(512), size_t(264), size_t(768)}) {
+            // F16 weights reach 2^127 products through their inputs, so the replay's scaling falls on the input; the others scale the weight.
+            const float a = type == quant::GGML_TYPE_F16 ? 32768.0f : std::ldexp(1.0f, 127), unit = std::ldexp(1.0f, 127) / a;
+            std::vector<float> w(rows * nin, 0.0f), x(nin * cols, unit), y0(rows * cols);
+            for (size_t r = 5; r < rows; ++r)
+                for (size_t k = 0; k < nin; ++k) w[r * nin + k] = float(int(random_bits(seed) % 17u) - 8);
+            w[0 * nin + 0] = -a; w[0 * nin + 256] = a; w[0 * nin + 257] = a;
+            w[1 * nin + 0] = a; w[1 * nin + 256] = a; w[1 * nin + (nin >= 768 ? 512 : 257)] = -a;
+            // Row 5's parts +H and -H cancel, so an accumulating call keeps y only if it adds y to the parts' total last.
+            std::fill(w.begin() + 5 * nin, w.begin() + 6 * nin, 0.0f);
+            w[5 * nin + 0] = a; w[5 * nin + 256] = -a;
+            // An infinite weight, a NaN, both infinities and an infinite input, which a preserving build carries to the output through the replay.
+            if (preserving) {
+                w[2 * nin + 5] = inf;
+                w[3 * nin + 9] = nan;
+                w[4 * nin + 3] = inf; w[4 * nin + 130] = -inf;
+                x[1 * nin + 7] = inf;
             }
-        std::vector<uint16_t> h(w.size());
-        for (size_t i = 0; i < w.size(); ++i) {
-            uint32_t bits;
-            std::memcpy(&bits, &w[i], 4);
-            h[i] = type == quant::GGML_TYPE_F16 ? f32_to_f16(w[i]) : (bits & 0x7fffffffu) > 0x7f800000u ? uint16_t(0x7fc0u) : uint16_t((bits + 0x7fffu + ((bits >> 16) & 1u)) >> 16);
-        }
-        const auto wb = type == quant::GGML_TYPE_F32 ? b.adopt(w.data(), w.size() * 4) : b.adopt(h.data(), h.size() * 2);
-        const auto xb = b.adopt(x.data(), x.size() * 4);
-        for (bool accum : {false, true}) {
-            const auto y = b.adopt(y0.data(), y0.size() * 4);
-            if (accum) b.matmul_add({type, {wb.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, nin, rows, cols, {}, backend::Dtype::f32);
-            else b.matmul({type, {wb.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, nin, rows, cols, {}, backend::Dtype::f32);
-            std::vector<float> got(rows * cols);
-            b.read(*y, 0, got.data(), got.size() * 4);
-            for (const auto& k : b.kernel_times().kernels) {
-                timed = true;
-                reduced |= k.first == "matmul_reduce_float";
+            for (float& v : y0) v = float(int(random_bits(seed) % 17u) - 8);
+            std::vector<float> exact(rows * cols);
+            for (size_t c = 0; c < cols; ++c)
+                for (size_t r = 0; r < rows; ++r) {
+                    double e = 0.0;
+                    for (size_t k = 0; k < nin; ++k) e += double(w[r * nin + k]) * double(x[c * nin + k]);
+                    exact[c * rows + r] = float(e);
+                }
+            std::vector<uint16_t> h(w.size());
+            for (size_t i = 0; i < w.size(); ++i) {
+                uint32_t bits;
+                std::memcpy(&bits, &w[i], 4);
+                h[i] = type == quant::GGML_TYPE_F16 ? f32_to_f16(w[i]) : (bits & 0x7fffffffu) > 0x7f800000u ? uint16_t(0x7fc0u) : uint16_t((bits + 0x7fffu + ((bits >> 16) & 1u)) >> 16);
             }
-            for (size_t i = 0; i < got.size(); ++i) {
-                const float e = accum ? y0[i] + exact[i] : exact[i];
-                const bool ok = std::isnan(e) ? std::isnan(got[i]) : std::memcmp(&got[i], &e, 4) == 0;
-                if (!ok && failed++ < 8)
-                    std::fprintf(stderr, "split reduce (%s build, type %u%s): row %zu column %zu gives %.9g, exact %.9g\n", build, type, accum ? ", accum" : "", i % rows, i / rows, got[i], e);
-                ++checked;
-            }
+            const auto wb = type == quant::GGML_TYPE_F32 ? b.adopt(w.data(), w.size() * 4) : b.adopt(h.data(), h.size() * 2);
+            const auto xb = b.adopt(x.data(), x.size() * 4);
+            struct Path { const char* name; T::FloatTile tile; bool matmul; };
+            for (const Path& p : {Path{"tall", T::FloatTile::tall, false}, Path{"short", T::FloatTile::short_rows, false}, Path{"wide", T::FloatTile::wide, false}, Path{"matmul", T::FloatTile::tall, true}})
+                for (bool accum : {false, true}) {
+                    const auto y = b.adopt(y0.data(), y0.size() * 4);
+                    if (!p.matmul) T::float_tile(b, type, backend::Dtype::f32, {wb.get(), 0}, {xb.get(), 0}, {y.get(), 0}, nin, rows, cols, accum, p.tile);
+                    else if (accum) b.matmul_add({type, {wb.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, nin, rows, cols, {}, backend::Dtype::f32);
+                    else b.matmul({type, {wb.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, nin, rows, cols, {}, backend::Dtype::f32);
+                    std::vector<float> got(rows * cols);
+                    b.read(*y, 0, got.data(), got.size() * 4);
+                    for (const auto& k : b.kernel_times().kernels) {
+                        timed = true;
+                        reduced |= p.matmul && k.first == "matmul_reduce_float";
+                    }
+                    for (size_t i = 0; i < got.size(); ++i) {
+                        const float e = accum ? y0[i] + exact[i] : exact[i];
+                        const bool ok = std::isnan(e) ? std::isnan(got[i]) : std::memcmp(&got[i], &e, 4) == 0;
+                        if (!ok && failed++ < 8)
+                            std::fprintf(stderr, "float tile range (%s build, type %u, %s%s, nin %zu): row %zu column %zu gives %.9g, exact %.9g\n", build, type, p.name, accum ? " accum" : "", nin, i % rows, i / rows, got[i], e);
+                        ++checked;
+                    }
+                }
         }
-    }
-    std::cout << "vulkan-quantization: split reduce (" << build << " build): " << checked << " outputs, " << failed << " differ from their exact sums\n";
-    require(failed == 0, "a split float call's output differs from its exact sum");
-    require(!timed || reduced, "the split reduce check reached no split call");
+    std::cout << "vulkan-quantization: float tile range (" << build << " build): " << checked << " outputs, " << failed << " differ from their exact sums\n";
+    require(failed == 0, "a float tile output whose partial sums leave f32 differs from its exact sum");
+    require(!timed || reduced, "the float tile range check reached no split call");
 }
 
 // A split Q8_0 call's plain reduce under matmul_add keeps y when its parts cancel, through the float tile (f32 inputs) and the integer-dot tile (f16 inputs), on 128 rows and 768 inputs.
@@ -1220,9 +1274,11 @@ int main() {
         check_f16_tile_time(*b);
         check_wide_tile(*b, backend::VulkanQuantizationTest::preserves_float32(*b) ? "preserving" : "plain");
         check_wide_tile(*fallback, "plain");
+        check_float_tile_depth(*b, backend::VulkanQuantizationTest::preserves_float32(*b) ? "preserving" : "plain");
+        check_float_tile_depth(*fallback, "plain");
         const bool preserving = backend::VulkanQuantizationTest::preserves_float32(*b);
-        check_split_reduce(*b, preserving ? "preserving" : "plain", preserving);
-        check_split_reduce(*fallback, "plain", false);
+        check_float_tile_range(*b, preserving ? "preserving" : "plain", preserving);
+        check_float_tile_range(*fallback, "plain", false);
         check_split_reduce_quantized(*b, preserving ? "preserving" : "plain");
         check_split_reduce_quantized(*fallback, "plain");
         auto timing = std::make_unique<backend::VulkanBackend>(0, true);

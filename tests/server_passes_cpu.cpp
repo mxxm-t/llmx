@@ -1083,8 +1083,8 @@ struct DeviceIds : backend::CpuBackend {
     }
 };
 
-// Greedy replies with ignore_eos and without log-probabilities, on one device and on a layer split of two at P = 2, take their tokens from the device's argmax ids, each reply the CPU's.
-// An id the draw cannot take, the end token ignore_eos masks or the invalid id of a row whose largest logit is not finite, reads its row back and draws from it, the reply unchanged.
+// Greedy ignore_eos replies without log-probabilities take their tokens from the device's argmax ids on one device and on a layer split of two at P = 2, one device also feeding decode passes their ids; each reply is the CPU's.
+// An id the draw cannot take (the end token ignore_eos masks, or the invalid id of a row whose largest logit is not finite) reads its row back and draws from it, and a fed row whose id the draw did not take is void and computed again.
 void device_ids(const gguf::GGUFModel& file, uint32_t vocab) {
     gguf::GGUFModel weights = file;
     constexpr uint32_t kEnd = 5;
@@ -1145,17 +1145,91 @@ void device_ids(const gguf::GGUFModel& file, uint32_t vocab) {
             request.ubatch = kUbatch;
             auto model = infer::place_model(infer::gguf_weights(weights), std::move(devices), request, options).model;
             server::Scheduler::Stats stats;
-            const std::vector<std::vector<uint32_t>> got = replies(*model, stages, &stats);
+            const std::vector<std::vector<uint32_t>> got = replies(*model, stages == 1 ? 0 : stages, &stats);
             require(got == want, where + ": a reply differs from the CPU's");
             require(calls->load() > 0, where + ": no pass kept its rows on the device");
             const uint64_t drawn = 4 * 24;
             require(stats.argmax_rows == drawn, where + ": " + std::to_string(stats.argmax_rows) + " rows drawn as plain argmax of " + std::to_string(drawn));
-            // Every row is drawn, so the rows read back are those whose id the draw cannot take: all of them where the ids are forced.
-            const uint64_t reads = unusable->load();
-            require(reads == (forced < 0 ? reads : drawn) && stats.argmax_reads == reads && stats.argmax_ids == drawn - reads && (forced >= 0 || reads < drawn),
+            require((stages == 1) == (stats.fed > 0), where + ": " + std::to_string(stats.fed) + " passes fed their ids on the device");
+            // The rows read back are those drawn whose id the draw cannot take, all of them where the ids are forced; a void fed row's id is not drawn.
+            const uint64_t reads = stats.argmax_reads;
+            require((forced < 0 ? reads < drawn : reads == drawn) && stats.argmax_ids == drawn - reads && unusable->load() >= reads && (stats.fed || unusable->load() == reads),
                     where + ": " + std::to_string(stats.argmax_ids) + " rows from the device's ids and " + std::to_string(stats.argmax_reads) + " read back");
             ++checks;
         }
+}
+
+// A chain of one-token argmax passes on one device, each recorded while the one before is in flight and fed its ids on the device by that pass's argmax (BatchEntry::fed_slot), gives the ids of the same chain fed from the host.
+// Aborting a pass in the chain abandons the fed pass after it too, and leaves each history where the aborted pass found it.
+void fed_chain(const gguf::GGUFModel& weights, uint32_t vocab) {
+    constexpr size_t kFed = 3, kSteps = 12;
+    std::vector<std::vector<uint32_t>> prompts;
+    for (uint32_t i = 0; i < kFed; ++i) prompts.push_back(prompt_of(23 + 5 * i, 4 + i, vocab));
+    const auto chain = [&](bool fed, size_t abort_at) {
+        auto calls = std::make_shared<std::atomic<uint64_t>>(0), unusable = std::make_shared<std::atomic<uint64_t>>(0);
+        std::vector<backend::BackendPtr> devices{std::make_shared<DeviceIds>(calls, unusable, -1, vocab)};
+        infer::ModelOptions options;
+        options.kv_tokens = 8 * kBlock;
+        options.argmax_rows = 64;
+        infer::PlacementRequest request;
+        request.names = {"device 0"};
+        request.ubatch = kUbatch;
+        auto model = infer::place_model(infer::gguf_weights(weights), std::move(devices), request, options).model;
+        require(model->feeds(), "fed chain: a model on one device takes no fed entries");
+        infer::ExecContext ctx;
+        model->reserve_passes(ctx, fed ? 2 : 1, kUbatch + kFed, 2 * kFed);
+        std::vector<infer::Sequence> seqs;
+        seqs.reserve(kFed);
+        for (size_t i = 0; i < kFed; ++i) seqs.push_back(model->make_sequence());
+        std::vector<infer::BatchEntry> entries;
+        for (size_t i = 0; i < kFed; ++i) {
+            entries.push_back({&seqs[i], prompts[i].data(), prompts[i].size(), true});
+            entries.back().argmax = true;
+        }
+        model->begin_pass(ctx, 0, entries.data(), entries.size(), 0);
+        model->run_pass_stage(ctx, 0, 0);
+        std::vector<std::vector<uint32_t>> got(kFed);
+        std::vector<uint32_t> host(kFed);
+        const uint32_t placeholder = 0;
+        const auto retire = [&](size_t slot) {
+            require(model->argmax_pass(ctx, slot), "fed chain: a pass did not keep its rows on the device");
+            for (size_t i = 0; i < kFed; ++i) got[i].push_back(host[i] = model->pass_argmax_id(ctx, slot, i));
+            model->end_pass(ctx, slot);
+        };
+        size_t prev = 0;
+        for (size_t step = 0; step < kSteps; ++step) {
+            const size_t next = fed ? 1 - prev : 0;
+            if (!fed) retire(prev);
+            entries.clear();
+            for (size_t i = 0; i < kFed; ++i) {
+                entries.push_back({&seqs[i], fed ? &placeholder : &host[i], 1, true});
+                entries.back().argmax = true;
+                if (fed) {
+                    entries.back().fed_slot = prev;
+                    entries.back().fed_row = i;
+                }
+            }
+            model->begin_pass(ctx, next, entries.data(), entries.size(), (step + 1) % 2 * kFed);
+            model->run_pass_stage(ctx, next, 0);
+            if (step == abort_at) {
+                const std::vector<size_t> later = model->abort_pass(ctx, prev);
+                require(later == std::vector<size_t>{next}, "fed chain: an aborted pass left the pass it feeds in flight");
+                for (size_t i = 0; i < kFed; ++i)
+                    require(!seqs[i].in_flight() && seqs[i].length() == prompts[i].size() + step - 1, "fed chain: an aborted pass and the pass it feeds left a history past where they found it");
+                return got;
+            }
+            if (fed) retire(prev);
+            prev = next;
+        }
+        retire(prev);
+        for (const auto& s : seqs) require(!s.in_flight() && s.length() == prompts[&s - seqs.data()].size() + kSteps, "fed chain: a sequence left in flight or short of its rows");
+        require(!unusable->load(), "fed chain: a row's argmax gave an id no embedding row has");
+        return got;
+    };
+    const auto want = chain(false, SIZE_MAX), got = chain(true, SIZE_MAX);
+    require(got == want, "fed chain: ids fed on the device differ from ids fed from the host");
+    chain(true, 5);
+    checks += 2;
 }
 
 // The room rule at its owner: the scheduler refuses, without a route before it, a prompt that leaves its reply less than the room, and admits one at the edge.
@@ -1818,6 +1892,7 @@ int main() {
                 "the logits rows of a pass with and without drafts");
         reply_room(served(kSplit), (uint32_t)kSplit.vocab);
         device_ids(served(kSplit), (uint32_t)kSplit.vocab);
+        fed_chain(served(kSplit), (uint32_t)kSplit.vocab);
         grouped(served(kSplit), (uint32_t)kSplit.vocab);
         routed_groups(served_routed(kSplit), (uint32_t)kSplit.vocab);
         grouped(served_hybrid(kHybridEven), (uint32_t)kHybridEven.vocab);

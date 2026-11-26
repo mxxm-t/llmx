@@ -1284,6 +1284,11 @@ void rounds_by_hand() {
     require(st.retire == std::vector<size_t>({5, 4}), "passes past their last stage did not retire oldest first");
     st = server::round_steps({{true, 7, 1}}, 1);
     require(st.advance.empty() && st.retire == std::vector<size_t>({0}), "one stage's pass did not retire the round after it was formed");
+    // A fed pass past its last stage retires a round after the older pass past it that feeds it, and alone once that one has retired.
+    st = server::round_steps({{true, 9, 1, false, true, true}, {true, 8, 1, false, true, false}}, 1);
+    require(st.retire == std::vector<size_t>({1}), "a fed pass retired in the round of the older pass that feeds it");
+    st = server::round_steps({{true, 9, 1, false, true, true}, {false, 8, 1, false, true, false}}, 1);
+    require(st.retire == std::vector<size_t>({0}), "a fed pass did not retire once the pass that fed it had retired");
     st = server::round_steps({{false, 0, 0}, {false, 0, 0}}, 4);
     require(st.advance.empty() && st.retire.empty(), "a round without passes did something");
     // A pass being recorded: its stage takes no other pass this round, and it neither advances nor retires; a pass formed without its first stage waits for the round to give it that stage.

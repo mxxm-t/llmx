@@ -76,7 +76,7 @@ def check_sidecar(directory, tool):
         if prompt == "a":
             pack("embed", split, side, joined)
         assert probed(tool, joined, directory, fixture) == want, "the MTP block embedded back drafts otherwise, after %r" % prompt
-    common.check_drafts("drafters sidecar", split, drafter=side)
+    common.check_drafts("drafters sidecar", split, drafter=side, device_fed=True)
     common.check_drafts("drafters sidecar behind lookup", split, drafter="lookup," + side)
     rc, out = cli(["bench", "--model", split, "--p", "4", "--n", "8", "--r", "1", "--drafter", side])
     assert rc == 0 and re.search(r"^bench: tg8 ", out, re.M) and re.search(r"^bench: rollback keeping 3 of 4 rows", out, re.M) and \
@@ -240,7 +240,7 @@ def check_drafting_set(directory):
 
 
 def check_dspine(directory, tool, variant="dspine"):
-    """The tiny DSpine, DFlash2 or DFlash sidecar (tests/fixture_dspine.py) beside the tiny qwen35 target, its K and V heads not the target's: each golden case's pick, its block's drafts and each draft row's logits through llmx-decode-probe, against tools/dspine_reference.py's (tests/data/qwen35_dspine.json, qwen35_dflash2.json, qwen35_dflash.json), the ids exactly, since the golden has no near-tie, and the logits within the F32 bound."""
+    """The tiny DSpine, DFlash2 or DFlash sidecar (tests/fixture_dspine.py) beside the tiny qwen35 target, its K and V heads not the target's: each golden case's pick, its block's drafts and each draft row's logits through llmx-decode-probe, against tools/dspine_reference.py's (tests/data/qwen35_dspine.json, qwen35_dflash2.json, qwen35_dflash.json), the ids exactly, since the golden has no near-tie, and the logits within the F32 bound; and generate's output with it, as without drafts, its verifies fed on the device."""
     with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "qwen35_%s.json" % variant), encoding="utf-8") as f:
         doc = json.load(f)
     target = qwen35.write_fixture(directory, fixture_dspine.target_spec())
@@ -260,6 +260,7 @@ def check_dspine(directory, tool, variant="dspine"):
             assert len(got) == len(want), "drafters: a %s draft row of %d logits, the reference's %d" % (variant, len(got), len(want))
             worst = max(worst, max(abs(a - b) for a, b in zip(got, want)))
     assert worst < common.F32_HF_LOGIT_BOUND, "drafters: %s draft logits %.8f from the reference" % (variant, worst)
+    common.check_drafts("drafters " + variant, target, drafter=sidecar, device_fed=True)
     return worst
 
 

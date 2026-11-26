@@ -254,16 +254,18 @@ def cli_stdout(raw):
 
 def generate_text(stdout):
     """The bytes `llmx generate` wrote between its `pp:` and `tg:` lines, from its raw stdout, without the line feed that ends the text.
-    The lines `--verbose` adds, the prompt token count before them and the cache line, the generated ids and with a drafter the drafts kept after, may frame them; any other output raises ValueError."""
+    The lines `--verbose` adds, the prompt token count before them and the cache line, the generated ids and with a drafter the drafts kept and the verifies fed on the device after, may frame them; any other output raises ValueError."""
     out = cli_stdout(stdout)
-    frame = re.fullmatch(rb"(?:prompt tokens: \d+\n)?pp: [^\n]*\n(.*)\ntg: [^\n]*\n(?:kv: [^\n]*\nids:[^\n]*\n(?:drafts kept:[^\n]*\n(?:own drafts kept:[^\n]*\n)?)?)?", out, re.S)
+    frame = re.fullmatch(rb"(?:prompt tokens: \d+\n)?pp: [^\n]*\n(.*)\ntg: [^\n]*\n(?:kv: [^\n]*\nids:[^\n]*\n(?:drafts kept:[^\n]*\n(?:own drafts kept:[^\n]*\n)?(?:verifies fed on the device:[^\n]*\n)?)?)?", out, re.S)
     if not frame:
         raise ValueError("generate output outside the pp and tg frame: %r" % out)
     return frame[1]
 
 
-def check_drafts(name, model, prompt="ababab", n=9, chat=False, drafter="lookup"):
-    """Speculative decoding leaves output as it was (docs/SPECULATIVE.md, section 3): generate, greedy and seeded, with `--drafter lookup`, or the `drafter` given, at `--draft-max` 1, 4, 8 and 16 prints the bytes and the ids generate prints with drafts off, and feeds drafts with any drafter but lookup, and with `chat` so does a chat of two turns; `n` tokens after `prompt` fit the model's context."""
+def check_drafts(name, model, prompt="ababab", n=9, chat=False, drafter="lookup", device_fed=False):
+    """Speculative decoding leaves output as it was (docs/SPECULATIVE.md, section 3): generate, greedy and seeded, with `--drafter lookup`, or the `drafter` given, at `--draft-max` 1, 4, 8 and 16 prints the bytes and the ids generate prints with drafts off, and feeds drafts with any drafter but lookup, and with `chat` so does a chat of two turns; `n` tokens after `prompt` fit the model's context.
+    With `device_fed`, an embedded drafter on one device, some verify takes its drafts on the device (docs/SPECULATIVE.md, section 7)."""
+    one_device = "," not in os.environ.get("LLMX_DEVICE", "")
     for sampling in (["--temp", "0"], ["--temp", "0.8", "--seed", "3"]):
         base = ["generate", model, prompt, "-n", str(n), "--ignore-eos", "--verbose"] + sampling
         off = run_process(base + ["--drafter", "off"])
@@ -275,6 +277,8 @@ def check_drafts(name, model, prompt="ababab", n=9, chat=False, drafter="lookup"
             got = (generate_text(on.stdout), re.search(rb"^ids:.*$", cli_stdout(on.stdout), re.M)[0])
             fed = re.search(rb"^drafts kept:((?: \d+/\d+)*)$", cli_stdout(on.stdout), re.M)
             assert drafter == "lookup" or fed and sum(int(c.split(b"/")[1]) for c in fed[1].split()) > 0, "%s: generate with the drafter %s fed no draft" % (name, drafter)
+            on_device = re.search(rb"^verifies fed on the device: (\d+)$", cli_stdout(on.stdout), re.M)
+            assert not (device_fed and one_device) or on_device and int(on_device[1]) > 0, "%s: no verify with the drafter %s took its drafts on the device" % (name, drafter)
             assert got == want, "%s: generate %s with --draft-max %s gave %r, without drafts %r" % (name, sampling, k, got, want)
     if not chat:
         return

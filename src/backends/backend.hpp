@@ -598,6 +598,8 @@ struct PassWidths {
     size_t shared_ff = 0;               // the fused routed step's shared act row, 0 without one
     size_t product_in = 0;              // the widest row a product reads
     size_t product_out = 0;             // the most outputs one product call writes, its projections together
+    size_t float_out = 0;               // the most outputs one product of F32, F16 or BF16 weights writes, 0 without one (float_product_out)
+    bool float_head = false;            // on the head's device, the head's matrix is F32, F16 or BF16, a product of vocab outputs over logit_rows
     size_t streams = 0, mix_width = 0;  // a hyper-connection mix's streams and row, 0 without one
     size_t logit_rows = 0, vocab = 0;   // on the head's device, the logits rows a pass keeps in host memory and their width (a member's share)
 };

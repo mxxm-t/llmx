@@ -43,6 +43,18 @@ inline bool VulkanBackend::memory_is_host() const { return host_memory_device(de
 // The upload staging and each ring slot's argument arena, host-visible memory held for the backend's life.
 inline size_t VulkanBackend::host_resident() const { return kStagingBytes + kRing * kArenaBytes; }
 
+// The columns one dispatch of the folding wide tile takes over `rows` outputs: whole tiles whose fold totals, 64 KiB a workgroup, stay within kFloatPartBytes, one column of tiles at least.
+inline size_t wide_fold_columns(size_t rows) {
+    const size_t tile_bytes = kWideTile * kWideTile * sizeof(float), gx = (rows + kWideTile - 1) / kWideTile;
+    return kWideTile * std::max<size_t>(1, kFloatPartBytes / size_mul(gx, tile_bytes));
+}
+// The most bytes the fold totals take, in the split call's partials, for any call of at most `rows` by `columns` (VulkanBackend::wide_tile); once columns are sliced that is kFloatPartBytes or one column of tiles, whichever is more.
+inline size_t wide_fold_bytes(size_t rows, size_t columns) {
+    const size_t tile_bytes = kWideTile * kWideTile * sizeof(float), gx = (rows + kWideTile - 1) / kWideTile;
+    if (columns > wide_fold_columns(rows)) return std::max(kFloatPartBytes, size_mul(gx, tile_bytes));
+    return size_mul(size_mul(gx, (columns + kWideTile - 1) / kWideTile), tile_bytes);
+}
+
 // Each scratch buffer's bytes at the widest call passes of widths `w` make, by the formulas its grow site follows (docs/src/backends-vulkan.md, Scratch).
 inline VulkanBackend::ScratchSizes VulkanBackend::scratch_sizes(const PassWidths& w) const {
     ScratchSizes z{};
@@ -75,6 +87,9 @@ inline VulkanBackend::ScratchSizes VulkanBackend::scratch_sizes(const PassWidths
     }
     // A split tile call's parts, at the 8 bytes an MXFP4 part takes; the float tile's are bounded by kFloatPartBytes within that.
     z[2] = size_mul(split_partials_most(prof, dev_->caps, R, w.product_in, w.product_out, kTileRowsSmall), sizeof(double));
+    // The folding wide tile's totals share those partials, for a float product of R columns or a float head's logits rows; the bf16 build keeps none, which a fit cannot know.
+    if (w.float_out >= kWideTile && R >= kWideTile) z[2] = std::max(z[2], wide_fold_bytes(w.float_out, R));
+    if (w.float_head && w.vocab >= kWideTile && w.logit_rows >= kWideTile) z[2] = std::max(z[2], wide_fold_bytes(w.vocab, w.logit_rows));
     const size_t entries = size_mul(R, w.routed);
     if (entries) {
         z[3] = size_mul(size_mul(entries, w.expert_out), sizeof(float));

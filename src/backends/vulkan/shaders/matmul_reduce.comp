@@ -47,7 +47,7 @@ void main() {
     float s = 0.0;
     for (uint z = 0u; z < p.parts; ++z) s += part[base + z * n];
 #ifdef LLMX_FLOAT_REPLAY
-    // A part or the running total that left f32 is summed again: each part's scaled sum in part order, then scaled back.
+    // A part or the running total that left f32 is summed again: each part's scaled fold in part order, then scaled back.
     if (tile_nonfinite(s)) {
         uint row = local % p.nout, col = local / p.nout;
 #ifdef LLMX_PRESERVE_F32

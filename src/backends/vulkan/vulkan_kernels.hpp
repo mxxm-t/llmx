@@ -1051,6 +1051,12 @@ const uint32_t kSpvEmbedIdsWf16[] = {
 const uint32_t kSpvMatmulRowWf16[] = {
 #include "vulkan/matmul_row_wf16.inc"
 };
+const uint32_t kSpvMatmulTileWf32[] = {
+#include "vulkan/matmul_tile_wf32.inc"
+};
+const uint32_t kSpvMatmulTileWf32Preserve[] = {
+#include "vulkan/matmul_tile_wf32_preserve.inc"
+};
 const uint32_t kSpvMatmulTileWf16[] = {
 #include "vulkan/matmul_tile_wf16.inc"
 };
@@ -1537,6 +1543,8 @@ const uint32_t kSpvFlagRecv[] = {
     X(K_DILATED_CONV_SILU_ADD, "dilated_conv_silu_add", kSpvDilatedConvSiluAdd, sizeof(kSpvDilatedConvSiluAdd), 6, nullptr) \
     X(K_EMBED_WF16, "embed_wf16", kSpvEmbedWf16, sizeof(kSpvEmbedWf16), 4, nullptr) \
     X(K_MATMUL_ROW_WF16, "matmul_row_wf16", kSpvMatmulRowWf16, sizeof(kSpvMatmulRowWf16), 12, kMatmulRowCounts) \
+    X(K_MATMUL_TILE_WF32, "matmul_tile_wf32", kSpvMatmulTileWf32, sizeof(kSpvMatmulTileWf32), 6, nullptr, kSpvMatmulTileWf32Preserve, sizeof(kSpvMatmulTileWf32Preserve), 0, kPreserve32) \
+    X(K_MATMUL_TILE_WF32_TALL, "matmul_tile_wf32_tall", kSpvMatmulTileWf32, sizeof(kSpvMatmulTileWf32), 6, nullptr, kSpvMatmulTileWf32Preserve, sizeof(kSpvMatmulTileWf32Preserve), 0, kPreserve32) \
     X(K_MATMUL_TILE_WF16, "matmul_tile_wf16", kSpvMatmulTileWf16, sizeof(kSpvMatmulTileWf16), 6, nullptr, kSpvMatmulTileWf16Preserve, sizeof(kSpvMatmulTileWf16Preserve), 0, kPreserve32) \
     X(K_MATMUL_TILE_WF16_TALL, "matmul_tile_wf16_tall", kSpvMatmulTileWf16, sizeof(kSpvMatmulTileWf16), 6, nullptr, kSpvMatmulTileWf16Preserve, sizeof(kSpvMatmulTileWf16Preserve), 0, kPreserve32) \
     X(K_MATMUL_TILE_WF16_BF16, "matmul_tile_wf16_bf16", kSpvMatmulTileWf16Bf16, sizeof(kSpvMatmulTileWf16Bf16), 6, nullptr, kSpvMatmulTileWf16Bf16Preserve, sizeof(kSpvMatmulTileWf16Bf16Preserve), 0, kPreserve32) \
@@ -1665,7 +1673,7 @@ const WeightKernels weight_formats[] = {
      K_MATMUL_TILE_Q2_0, K_MATMUL_TILE_Q2_0_TALL, K_MATMUL_TILE_Q2_0_BF16, K_MATMUL_TILE_Q2_0_BF16_TALL,
      K_MATMUL_TILE_Q2_0_DOT, K_MATMUL_TILE_Q2_0_DOT_TALL, K_COUNT, K_COUNT, K_COUNT, false, false, &DeviceProfile::prefer_integer_dot, &DeviceProfile::moe_tile_from_q4},
     {quant::GGML_TYPE_F32, RowLayout::values, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_F32, K_MATMUL_ROW_F32, K_MATMUL_ROW_F32,
-     K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
+     K_MATMUL_TILE_WF32, K_MATMUL_TILE_WF32_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
      K_COUNT, K_COUNT, K_COUNT, K_COUNT, K_COUNT, true, false, &DeviceProfile::prefer_integer_dot, &DeviceProfile::moe_tile_from},
     {quant::GGML_TYPE_F16, RowLayout::values, K_EMBED_WF16, K_EMBED_IDS_WF16, K_MATMUL_ROW_WF16, K_MATMUL_ROW_WF16, K_MATMUL_ROW_WF16,
      K_MATMUL_TILE_WF16, K_MATMUL_TILE_WF16_TALL, K_MATMUL_TILE_WF16_BF16, K_MATMUL_TILE_WF16_BF16_TALL,
@@ -1850,6 +1858,7 @@ inline bool is_tile_kernel(KernelId id) {
     if (id == K_MATMUL_TILE_MXFP4 || id == K_MATMUL_TILE_MXFP4_TALL || id == K_MATMUL_TILE_MXFP4_NARROW || id == K_MATMUL_TILE_MXFP4_NARROW_TALL ||
         id == K_MATMUL_TILE_MXFP4_BF16 || id == K_MATMUL_TILE_MXFP4_BF16_TALL) return true;
     switch (id) {
+    case K_MATMUL_TILE_WF32: case K_MATMUL_TILE_WF32_TALL:
     case K_MATMUL_TILE_WF16: case K_MATMUL_TILE_WF16_TALL: case K_MATMUL_TILE_WF16_BF16: case K_MATMUL_TILE_WF16_BF16_TALL:
     case K_MATMUL_TILE_WBF16: case K_MATMUL_TILE_WBF16_TALL: case K_MATMUL_TILE_WBF16_BF16: case K_MATMUL_TILE_WBF16_BF16_TALL:
     case K_MATMUL_TILE: case K_MATMUL_TILE_TALL: case K_MATMUL_TILE_Q: case K_MATMUL_TILE_Q_TALL:
@@ -2084,7 +2093,7 @@ const uint32_t kMatmulTileQCounts[5] = {3, 3, 1, 1, 1};
 const uint32_t kMatmulTileIq3Counts[6] = {3, 3, 1, 1, 1, 1};
 const uint32_t kMatmulTileQ8mxCounts[6] = {3, 3, 1, 1, 1, 3};
 const uint32_t kMatmulReduceCounts[2] = {3, 1};
-// The float-weight reduce also reads the weights as 16-bit values and as floats, and the inputs, to sum again an output whose parts left f32.
+// The float tiles' reduce also reads the weights as 16-bit values and as floats, and the inputs, to sum again an output whose parts left f32.
 const uint32_t kMatmulReduceFloatCounts[5] = {3, 1, 1, 1, 1};
 // A tensor group's sum: the residual, the kept rows and one source a member (shaders/sum_rows.comp declares the 16).
 const uint32_t kSumRowsCounts[3] = {1, 1, uint32_t(kMaxTensorWidth)};

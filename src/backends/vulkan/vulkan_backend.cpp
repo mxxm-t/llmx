@@ -2535,6 +2535,8 @@ public:
     static size_t split_tiles_of(size_t extent);
     void matmul_runs(std::initializer_list<Projection> projections, CSlice X, size_t nin, size_t nbatch,
                      bool accumulate, RowRuns runs, Dtype dtype);
+    void wide_tile(KernelId wide, Dtype dtype, Slice out, VkDescriptorBufferInfo w, VkDescriptorBufferInfo words, CSlice X, uint32_t* pc, size_t pc_bytes,
+                   size_t nin, size_t rows, size_t nbatch);
     void check_group(const Projection* projections, size_t count, CSlice X, size_t nin, size_t nbatch) const;
     void matmul_group_impl(const Projection* projections, size_t count, CSlice X,
                            size_t nin, size_t nbatch, bool accumulate, Dtype dtype, int kernel_choice = -1, size_t split_tiles = 0);
@@ -2691,9 +2693,9 @@ public:
     void keep_until_retired(BufferPtr b);
 
 private:
-    // The code of every pipeline the backend can make, 319 kernels and 946 other builds, took 31.94 MiB on the Radeon VII's Windows driver and 15.75 MiB on RADV (docs/src/backends-vulkan.md, memory_kept).
-    // The kept figure is that bound plus half, 48 MiB, so a driver that packs code larger keeps headroom, and one constant serves every device because vulkan-scratch fails any that passes it.
-    static constexpr size_t kPipelineCodeBytes = size_t(48) << 20;
+    // The code of every pipeline the backend can make, 378 kernels and 1100 other builds, took 64 MiB on the Radeon VII's Windows driver, whose code pool grows in steps (docs/src/backends-vulkan.md, memory_kept).
+    // The kept figure is that bound plus half, 96 MiB, so a driver that packs code larger keeps headroom, and one constant serves every device because vulkan-scratch fails any that passes it.
+    static constexpr size_t kPipelineCodeBytes = size_t(96) << 20;
     static constexpr uint32_t kRing = 16;
     uint32_t chunk_ = 0;
     // The dispatches the open command buffer takes before it is submitted, and the last submission that held any (docs/VULKAN.md, Structure).

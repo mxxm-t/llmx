@@ -20,6 +20,26 @@ inline size_t VulkanBackend::decode_columns() const {
     return std::min<size_t>(dev_->profile.q8_decode_cols, dev_->profile.row_decode_cols ? dev_->profile.row_decode_cols : kRowColsWide);
 }
 
+// One unsplit product on the wide float tile; the folding builds keep each block's running totals in the split call's partials (idle when a call is unsplit), in column slices of wide_fold_columns.
+inline void VulkanBackend::wide_tile(KernelId wide, Dtype dtype, Slice out, VkDescriptorBufferInfo w, VkDescriptorBufferInfo words, CSlice X, uint32_t* pc,
+                                     size_t pc_bytes, size_t nin, size_t rows, size_t nbatch) {
+    const uint32_t gx = groups(rows, kWideTile);
+    if (dtype == Dtype::bf16) {
+        dispatch(wide, {bind(out), w, words, bind(X), w, bind(X)}, pc, pc_bytes, gx, groups(nbatch, kWideTile), 0, {nbatch * rows});
+        return;
+    }
+    const size_t columns = wide_fold_columns(rows), bytes = wide_fold_bytes(rows, nbatch);
+    if (!parts_ || parts_->size() < bytes) grow(parts_, bytes);
+    const VkDescriptorBufferInfo pb{parts_->handle(), 0, VK_WHOLE_SIZE};
+    for (size_t first = 0; first < nbatch; first += columns) {
+        const size_t taken = std::min(nbatch - first, columns);
+        const CSlice x{X.buffer, X.offset + first * nin};
+        const Slice y{out.buffer, out.offset + first * rows};
+        pc[2] = u32(taken);
+        dispatch(wide, {bind(y), w, words, bind(x), pb, bind(x)}, pc, pc_bytes, gx, groups(taken, kWideTile), 0, {taken * rows});
+    }
+}
+
 inline void VulkanBackend::matmul(WeightView weight, CSlice X, Slice Y, size_t nin, size_t nout,
                                   size_t nbatch, RowRuns runs, Dtype dtype) {
     const Projection one{weight, Y, nout};
@@ -180,9 +200,9 @@ inline void VulkanBackend::matmul_group_impl(const Projection* projections, size
             const KernelId kernel = float_tile_kernel(tall, dtype, pr->weight.type, dev_->f16_inputs);
             const int small = height == kTileRowsSmall ? 1 : 0;
             if (parts > 1) {
-                // A float-weight call's parts may leave f32 where their sum does not; its reduce sums such an output again (shaders/matmul_reduce.comp).
+                // The folding float builds' parts may leave f32 where their sum does not; their reduce sums such an output again (shaders/matmul_reduce.comp).
                 const uint32_t t = pr->weight.type;
-                const bool float_weights = dtype != Dtype::bf16 && (t == quant::GGML_TYPE_F32 || t == quant::GGML_TYPE_F16 || t == quant::GGML_TYPE_BF16);
+                const bool float_fold = dtype != Dtype::bf16 && (t == quant::GGML_TYPE_F32 || t == quant::GGML_TYPE_F16 || t == quant::GGML_TYPE_BF16);
                 const size_t column_bytes = size_mul(size_mul(parts, pr->rows), pr->weight.type == quant::GGML_TYPE_MXFP4 ? sizeof(double) : sizeof(float));
                 const size_t alignment = std::max<size_t>(1, dev_->props.limits.minStorageBufferOffsetAlignment / sizeof(float));
                 const size_t aligned = alignment / std::gcd(alignment, std::gcd(nin, pr->rows));
@@ -203,15 +223,14 @@ inline void VulkanBackend::matmul_group_impl(const Projection* projections, size
                     const size_t n = taken * pr->rows;
                     const uint32_t start = u32(groups(n, 256));
                     const uint32_t rc[12] = {u32(n), 0, 0, u32(parts), accumulate ? 1u : 0u, start, start + 1, u32(nin), u32(pr->rows), u32(kper * 32), u32(wstride), pr->weight.type};
-                    if (float_weights)
+                    if (float_fold)
                         dispatch(K_MATMUL_REDUCE_FLOAT, {bind(y), bind(y), bind(y), pb, bind(pr->weight.data), words, bind(x)}, rc, sizeof(rc), start, 1, 0, {n, n, n});
                     else
                         dispatch(pr->weight.type == quant::GGML_TYPE_MXFP4 ? K_MATMUL_REDUCE_MXFP4 : K_MATMUL_REDUCE, {bind(y), bind(y), bind(y), pb}, rc, 7 * sizeof(uint32_t), start, 1, 0,
                                  {n, n, n});
                 }
             } else if (const KernelId wide = wide_tile_kernel(dtype, pr->weight.type); wide != K_COUNT && wide_tile_fits(dev_->caps, pr->rows, nbatch)) {
-                dispatch(wide, {bind(pr->out), bind(pr->weight.data), words, bind(X), bind(pr->weight.data), bind(X)},
-                         pc, sizeof(pc), groups(pr->rows, kWideTile), groups(nbatch, kWideTile), 0, {nbatch * pr->rows});
+                wide_tile(wide, dtype, pr->out, bind(pr->weight.data), words, X, pc, sizeof(pc), nin, pr->rows, nbatch);
             } else {
                 dispatch(kernel, {bind(pr->out), bind(pr->weight.data), words, bind(X), bind(pr->weight.data), bind(X)},
                          pc, sizeof(pc), groups(pr->rows, height), (uint32_t)gy, small, {nbatch * pr->rows});

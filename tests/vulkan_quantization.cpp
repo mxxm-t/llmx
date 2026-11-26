@@ -18,6 +18,7 @@ namespace backend {
 namespace {
 struct VulkanQuantizationTest {
     static bool preserves_float32(VulkanBackend& b) { return b.dev_->preserve_float32; }
+    static size_t parts_bytes(const VulkanBackend& b) { return b.parts_ ? b.parts_->size() : 0; }
     // Refuse optional float modes at module creation, as a device without those capabilities would.
     struct WithoutPreservation {
         VulkanBackend& backend;
@@ -72,8 +73,7 @@ struct VulkanQuantizationTest {
         const size_t gy = (cols + 63) / 64;
         uint32_t pc[10] = {uint32_t(nin), uint32_t(rows), uint32_t(cols), type, accum ? 1u : 0u, 0, 0, uint32_t((nin + 31) / 32 * 32), uint32_t(gy), uint32_t(wstride)};
         if (tile == FloatTile::wide)
-            b.dispatch(wide_tile_kernel(dtype, type), {b.bind(y), b.bind(w), words, b.bind(x), b.bind(w), b.bind(x)}, pc, sizeof(pc),
-                       uint32_t((rows + kWideTile - 1) / kWideTile), uint32_t((cols + kWideTile - 1) / kWideTile), 0, {cols * rows});
+            b.wide_tile(wide_tile_kernel(dtype, type), dtype, y, b.bind(w), words, x, pc, sizeof(pc), nin, rows, cols);
         else
             b.dispatch(float_tile_kernel(tile == FloatTile::tall, dtype, type, false), {b.bind(y), b.bind(w), words, b.bind(x), b.bind(w), b.bind(x)}, pc, sizeof(pc),
                        uint32_t((rows + rows_tile - 1) / rows_tile), uint32_t(gy), 0, {cols * rows});
@@ -285,6 +285,29 @@ void check_wide_tile(backend::VulkanBackend& b, const char* build) {
                     compare(wide, tile, "short", s.rows, s.cols, s.nin);
                 }
             }
+    // Fold totals past kFloatPartBytes run in column slices (wide_fold_columns): 2110 row tiles take 128 columns a slice, so 136 columns, accumulated, take two at offset inputs and outputs.
+    {
+        const size_t rows = 270000, cols = 136, nin = 264;
+        std::vector<float> w(rows * nin), x(nin * cols), y0(rows * cols), wide(rows * cols), tile(rows * cols);
+        for (float& v : w) v = float(int(random_bits(seed) % 65535u) - 32767) / 4099.0f;
+        for (float& v : x) v = float(int(random_bits(seed) % 65535u) - 32767) / 1009.0f;
+        for (float& v : y0) v = float(int(random_bits(seed) % 65535u) - 32767) / 257.0f;
+        const auto wb = stored(quant::GGML_TYPE_F32, w);
+        const auto xb = b.adopt(x.data(), x.size() * 4);
+        const auto yw = b.adopt(y0.data(), y0.size() * 4), yt = b.adopt(y0.data(), y0.size() * 4);
+        // The partials a fit prices for a pass of these widths hold the totals, so the call grows nothing.
+        backend::PassWidths pw;
+        pw.rows = cols;
+        pw.float_out = rows;
+        b.reserve_scratch(pw);
+        const size_t priced = T::parts_bytes(b);
+        T::float_tile(b, quant::GGML_TYPE_F32, backend::Dtype::f32, {wb.get(), 0}, {xb.get(), 0}, {yw.get(), 0}, nin, rows, cols, true, T::FloatTile::wide);
+        require(T::parts_bytes(b) == priced, "the wide tile's fold totals outgrow the priced partials");
+        T::float_tile(b, quant::GGML_TYPE_F32, backend::Dtype::f32, {wb.get(), 0}, {xb.get(), 0}, {yt.get(), 0}, nin, rows, cols, true, T::FloatTile::tall);
+        b.read(*yw, 0, wide.data(), wide.size() * 4);
+        b.read(*yt, 0, tile.data(), tile.size() * 4);
+        compare(wide, tile, "tall, column slices", rows, cols, nin);
+    }
     // Through matmul: 128 rows by one column tile fewer than the compute units, which keeps the float tile, and by as many, which takes the wide one; both give the forced float tile's bits.
     const uint32_t units = T::compute_units(b);
     for (size_t tiles : {size_t(units) - 1, size_t(units)}) {

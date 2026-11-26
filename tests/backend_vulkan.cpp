@@ -728,6 +728,10 @@ size_t check_write_sets() {
                 if (inc != std::string::npos) read(line.substr(inc + 10, line.find('"', inc + 10) - inc - 10), text, seen);
             }
         };
+    // A binding one build of a source leaves out is read only there: the wide tile's fold scratch exists outside its BF16-input builds.
+    const auto left_out = [](const std::string& kernel, const std::string& source, size_t b) {
+        return source == "matmul_tile_wide" && b == 4 && kernel.find("_bf16") != std::string::npos;
+    };
     size_t bindings = 0;
     for (const auto& kw : backend::vulkan_kernel_writes()) {
         std::string name = kw.first;
@@ -750,9 +754,10 @@ size_t check_write_sets() {
             const auto d = declared[b];
             // No shader declares one binding both ways in different builds; one that does is refused until the check gives it an expectation of its own.
             require(!(d.first && d.second), ("a binding declared both readonly and writable in " + kw.first).c_str());
-            if (kw.second[b] != d.second) {
+            const bool written = d.second && !left_out(kw.first, sources[name], b);
+            if (kw.second[b] != written) {
                 std::fprintf(stderr, "  %s binding %zu: %s in the shader, %s in the write set\n", kw.first.c_str(), b,
-                             d.second ? "written" : "read only", kw.second[b] ? "written" : "read only");
+                             written ? "written" : "read only", kw.second[b] ? "written" : "read only");
                 require(false, "a kernel's write set differs from its shader's qualifiers");
             }
         }
@@ -3596,7 +3601,8 @@ size_t check_weight_dispatch() {
                                 expected = integer ? e.integer_tile : e.type == quant::GGML_TYPE_TQ1_0 ? "matmul_tile_tq1_0" : "matmul_tile_tq2_0";
                             else
                                 expected = integer ? e.integer_tile : e.type == 39 ? "matmul_tile_mxfp4" :
-                                           e.type == 1 ? "matmul_tile_wf16" : e.type == 30 ? "matmul_tile_wbf16" : "matmul_tile";
+                                           e.type == 1 ? "matmul_tile_wf16" : e.type == 30 ? "matmul_tile_wbf16" :
+                                           e.type == 0 && dtype != backend::Dtype::bf16 ? "matmul_tile_wf32" : "matmul_tile";
                             // The routed call's one entry on one expert is a run of 16 or fewer, so MXFP4's float tile takes its narrow build (kNarrowCols in VulkanBackend::routed_call).
                             if (routed && !integer && e.type == 39 && dtype != backend::Dtype::bf16) expected = "matmul_tile_mxfp4_narrow";
                             if (dtype == backend::Dtype::bf16) expected += "_bf16";

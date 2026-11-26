@@ -16,6 +16,10 @@ layout(set = 0, binding = 2) readonly buffer WF { float wf[]; };
 layout(set = 0, binding = 2) readonly buffer WFV { vec4 wf4[]; };
 layout(set = 0, binding = 3) readonly buffer X { float x[]; };
 layout(set = 0, binding = 3) readonly buffer XV { vec4 x4[]; };
+#ifndef LLMX_BF16
+// The fold scratch, 16384 floats a workgroup (the backend's float tile partials).
+layout(set = 0, binding = 4) buffer F { float fold[]; };
+#endif
 const uint TR = 128u, TC = 128u, SK = 16u;
 shared float ws[2][SK][TR];
 shared float xs[2][SK][TC];
@@ -44,6 +48,12 @@ float weight(uint row, uint k) {
     return wf[row * p.wstride + k];
 #endif
 }
+
+#ifndef LLMX_BF16
+#define TILE_REPLAY_WEIGHT(r, k) weight(r, k)
+#define TILE_REPLAY_INPUT(c, k) matrix_input(x[(c) * p.nin + (k)])
+#include "tile_replay.glsl"
+#endif
 
 // A thread's eight values of a stage: vector loads where the eight lie inside the matrix and the rows are whole vectors, else one value at a time.
 void load(uint wrow, uint xcol, uint k, out float wv[8], out float xv[8]) {
@@ -89,12 +99,22 @@ void main() {
 #else
     float acc[8][8];
 #endif
-    [[unroll]] for (uint i = 0u; i < 8u; ++i) [[unroll]] for (uint j = 0u; j < 8u; ++j) acc[i][j] = 0.0;
+#define WIDE_SUM acc
+#ifndef LLMX_BF16
+    // Each TILE_FOLD_K block sums from 0 in acc and folds into a running total in the workgroup's 16384 floats of fold scratch, element e of thread t at e * 256 + t so a wave's accesses are contiguous.
+    const uint BS = TILE_FOLD_K / SK;
+    uint sbase = (gl_WorkGroupID.y * gl_NumWorkGroups.x + gl_WorkGroupID.x) * 16384u + tid;
+#else
+    const uint BS = 0xffffffffu;
+#endif
     uint wrow = row_base + lr, xcol = col_base + lr;
     float wv[8], xv[8];
     load(wrow, xcol, lk, wv, xv);
     uint stages = (p.nin + SK - 1u) / SK;
-    for (uint s = 0u; s < stages; ++s) {
+    for (uint s0 = 0u; s0 < stages; s0 += BS) {
+    [[unroll]] for (uint i = 0u; i < 8u; ++i) [[unroll]] for (uint j = 0u; j < 8u; ++j) acc[i][j] = 0.0;
+    uint send = min(s0 + BS, stages);
+    for (uint s = s0; s < send; ++s) {
         uint b = s & 1u;
         [[unroll]] for (uint e = 0u; e < 8u; ++e) { ws[b][lk + e][lr] = wv[e]; xs[b][lk + e][lr] = xv[e]; }
         barrier();
@@ -109,21 +129,55 @@ void main() {
             float c[8] = float[8](c0.x, c0.y, c0.z, c0.w, c1.x, c1.y, c1.z, c1.w);
             [[unroll]] for (uint i = 0u; i < 8u; ++i) [[unroll]] for (uint j = 0u; j < 8u; ++j) {
 #ifdef LLMX_PRESERVE_F32
-                acc[i][j] = fma(a[i], c[j], acc[i][j]);
+                WIDE_SUM[i][j] = fma(a[i], c[j], WIDE_SUM[i][j]);
 #else
-                acc[i][j] += a[i] * c[j];
+                WIDE_SUM[i][j] += a[i] * c[j];
 #endif
             }
         }
     }
+#ifndef LLMX_BF16
+    if (send < stages) {
+        if (s0 == 0u) [[unroll]] for (uint e = 0u; e < 64u; ++e) fold[sbase + e * 256u] = acc[e >> 3u][e & 7u];
+        else [[unroll]] for (uint e = 0u; e < 64u; ++e) fold[sbase + e * 256u] += acc[e >> 3u][e & 7u];
+    }
+#endif
+    }
+#ifndef LLMX_BF16
+    // The total, as the float tile folds from -0 (-0 + v is v); a thread's slots are its own, so no barrier.
+    if (stages > BS) [[unroll]] for (uint e = 0u; e < 64u; ++e) acc[e >> 3u][e & 7u] = fold[sbase + e * 256u] + acc[e >> 3u][e & 7u];
+#endif
+#ifndef LLMX_BF16
+    uint bad[2] = uint[2](0u, 0u);   // the outputs tile_replay sums again, bit (i % 4) * 8 + j of word i / 4
+#endif
     [[unroll]] for (uint i = 0u; i < 8u; ++i) {
         uint row = row_base + tr * 8u + i;
         if (row >= p.nout) continue;
         [[unroll]] for (uint j = 0u; j < 8u; ++j) {
             uint col = col_base + (j < 4u ? tc * 4u + j : 60u + tc * 4u + j);
             if (col >= p.nbatch) continue;
+#ifndef LLMX_BF16
+            if (tile_nonfinite(acc[i][j])) {
+                bad[i >> 2u] |= 1u << ((i & 3u) * 8u + j);
+                continue;
+            }
+#endif
             if (p.accum != 0u) y[col * p.nout + row] += acc[i][j];
             else y[col * p.nout + row] = acc[i][j];
         }
     }
+#ifndef LLMX_BF16
+    // As the float tile does, after the unrolled stores, so they hold no copy of the replay.
+    for (uint h = 0u; h < 2u; ++h) {
+        while (bad[h] != 0u) {
+            uint b = findLSB(bad[h]);
+            bad[h] &= bad[h] - 1u;
+            uint i = h * 4u + b / 8u, j = b % 8u;
+            uint row = row_base + tr * 8u + i, col = col_base + (j < 4u ? tc * 4u + j : 60u + tc * 4u + j);
+            float s = tile_replay(row, col, 0u, p.nin);
+            if (p.accum != 0u) y[col * p.nout + row] += s;
+            else y[col * p.nout + row] = s;
+        }
+    }
+#endif
 }

@@ -101,6 +101,23 @@ float matrix_input(float value) {
     return value;
 }
 
+// The float-weight builds sum in TILE_FOLD_K-input blocks and FP8 in 128-input ones, each folded into the total (docs/VULKAN.md, Kernel notes); the plain module's quantized weights keep one chain.
+#if defined(LLMX_FP8) || (!defined(LLMX_BF16) && (defined(LLMX_WEIGHT_F32) || defined(LLMX_WEIGHT_F16) || defined(LLMX_WEIGHT_BF16)))
+#define TILE_BLOCKS
+#ifdef LLMX_FP8
+#define TILE_FOLD_K 128u
+#else
+#define TILE_FLOAT_FOLD
+#if defined(LLMX_WEIGHT_F16) || defined(LLMX_WEIGHT_BF16)
+#define TILE_REPLAY_WEIGHT(r, k) WEIGHT_FLOAT(uint(w16[(r) * p.nin + (k)]))
+#else
+#define TILE_REPLAY_WEIGHT(r, k) wf[(r) * p.wstride + (k)]
+#endif
+#define TILE_REPLAY_INPUT(c, k) matrix_input(x[(c) * p.nin + (k)])
+#include "tile_replay.glsl"
+#endif
+#endif
+
 // Rows a thread accumulates, threads sharing one W-tile row, and the values each loads; 256 threads cover one stage of TILE_ROWS rows.
 #define THREAD_COLS (TILE_COLS / CPT)
 #define MROWS (TILE_ROWS / (256u / THREAD_COLS))
@@ -213,8 +230,12 @@ void main() {
     float acc[MROWS][CPT];
 #endif
     for (uint i = 0u; i < MROWS; ++i) for (uint j = 0u; j < CPT; ++j) acc[i][j] = 0.0;
-#ifdef LLMX_FP8
-    // A 128-input block's sums of exact codes times inputs, scaled into acc by FMA at the block's end, as the CPU scales its partials.
+#ifdef TILE_BLOCKS
+    // A TILE_FOLD_K block's sums fold into acc at the block's end, FP8's scaled by FMA as the CPU scales its partials.
+#ifdef TILE_FLOAT_FOLD
+    // From -0 a first fold gives the block's own bits, so a product of at most TILE_FOLD_K inputs, or one not folded before its end, is the plain chain's.
+    for (uint i = 0u; i < MROWS; ++i) for (uint j = 0u; j < CPT; ++j) acc[i][j] = -0.0;
+#endif
 #ifdef LLMX_PRESERVE_F32
     precise float block_sum[MROWS][CPT];
 #else
@@ -324,6 +345,13 @@ void main() {
         }
         for (uint i = 0u; i < WVALS; ++i)
             ws[wseg * WVALS + i][wrow] = row < p.nout ? wv[i] : 0.0;
+#elif defined(LLMX_WEIGHT_F32)
+        float wv[WVALS];
+        for (uint i = 0u; i < WVALS; ++i) {
+            uint k = k0 + wseg * WVALS + i;
+            wv[i] = wf[row < p.nout && k < p.nin ? wr * p.wstride + k : 0u];
+        }
+        for (uint i = 0u; i < WVALS; ++i) ws[wseg * WVALS + i][wrow] = row < p.nout && k0 + wseg * WVALS + i < p.nin ? wv[i] : 0.0;
 #elif defined(LLMX_WEIGHT_F16) || defined(LLMX_WEIGHT_BF16)
         uint wh[WVALS];
         for (uint i = 0u; i < WVALS; ++i) {
@@ -626,12 +654,18 @@ void main() {
             }
         }
 #endif
-#ifdef LLMX_FP8
-        if ((k0 + STAGE_K) % 128u == 0u || k0 + STAGE_K >= kend) {
+#ifdef TILE_BLOCKS
+        if ((k0 + STAGE_K) % TILE_FOLD_K == 0u || k0 + STAGE_K >= kend) {
             for (uint i = 0u; i < MROWS; ++i) {
+#ifdef LLMX_FP8
                 float scale = fp8_scale(expert, min(row_base + tr * MROWS + i, p.nout - 1u), k0);
+#endif
                 for (uint j = 0u; j < CPT; ++j) {
+#ifdef LLMX_FP8
                     acc[i][j] = fma(block_sum[i][j], scale, acc[i][j]);
+#else
+                    acc[i][j] += block_sum[i][j];
+#endif
                     block_sum[i][j] = 0.0;
                 }
             }
@@ -662,6 +696,9 @@ void main() {
         wide_cols[j] = 0u;
         for (uint segment = 0u; segment < XPR; ++segment) wide_cols[j] |= xrange[segment][tc * CPT + j];
     }
+#endif
+#ifdef TILE_FLOAT_FOLD
+    uint bad = 0u;   // the outputs tile_replay sums again, bit i * CPT + j
 #endif
     for (uint i = 0u; i < MROWS; ++i) {
         uint row = row_base + tr * MROWS + i;
@@ -699,12 +736,31 @@ void main() {
                     ybits[index] = floatBitsToUint(s);
                 }
 #else
+#ifdef TILE_FLOAT_FOLD
+                if (tile_nonfinite(acc[i][j])) {
+                    bad |= 1u << (i * CPT + j);
+                    continue;
+                }
+#endif
                 if (p.accum != 0u) y[yoff + col * p.nout + row] += acc[i][j];
                 else y[yoff + col * p.nout + row] = acc[i][j];
 #endif
             }
         }
     }
+#ifdef TILE_FLOAT_FOLD
+    // The outputs whose fold left f32 are summed again after the tile, from one call site, so the unrolled stores hold no copy of the replay.
+    while (bad != 0u) {
+        uint b = findLSB(bad);
+        bad &= bad - 1u;
+        uint i = b / CPT, j = b - i * CPT;
+        uint row = row_base + tr * MROWS + i, col = col_base + tc * CPT + j;
+        if (p.per != 0u) col = tab[p.order0 + first + tc * CPT + j];
+        float s = tile_replay(expert * p.nout + row, p.per != 0u ? col / p.per : col, kbeg, kend);
+        if (p.accum != 0u) y[yoff + col * p.nout + row] += s;
+        else y[yoff + col * p.nout + row] = s;
+    }
+#endif
 }
 #else
 #include "matmul_tile_narrow.glsl"

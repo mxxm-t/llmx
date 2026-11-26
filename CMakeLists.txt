@@ -335,6 +335,7 @@ if(LLMX_HAS_BACKEND_VULKAN)
         embed_wf16=embed=LLMX_WEIGHT_F16 embed_wbf16=embed=LLMX_WEIGHT_BF16
         embed_ids_wf16=embed=LLMX_DEVICE_IDS+LLMX_WEIGHT_F16 embed_ids_wbf16=embed=LLMX_DEVICE_IDS+LLMX_WEIGHT_BF16
         matmul_row_wf16=matmul_row=LLMX_WEIGHT_F16 matmul_row_wbf16=matmul_row=LLMX_WEIGHT_BF16
+        matmul_tile_wf32=matmul_tile=LLMX_WEIGHT_F32 matmul_tile_wf32_preserve=matmul_tile=LLMX_WEIGHT_F32+LLMX_PRESERVE_F32
         matmul_tile_wf16=matmul_tile=LLMX_WEIGHT_F16
         matmul_tile_wf16_preserve=matmul_tile=LLMX_WEIGHT_F16+LLMX_PRESERVE_F32
         matmul_tile_wf16_bf16=matmul_tile=LLMX_WEIGHT_F16+LLMX_BF16

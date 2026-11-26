@@ -11,6 +11,7 @@
 #include <vector>
 #include "backends/backend.hpp"
 #include "core/host_memory.hpp"
+#include "quant/types.hpp"
 
 // A model split by layers over several devices: which consecutive layers each device runs, fitted against what each device reports free (docs/MULTI-DEVICE.md, phase 1).
 // Nothing here knows an architecture: the model describes what it asks of memory as a Footprint, and the split works on those numbers alone.
@@ -111,11 +112,23 @@ inline size_t arena_bytes(const Footprint& fp, size_t rows, size_t reply_rows, c
     return n;
 }
 
+// The most outputs one product of float weights (F32, F16, BF16) among `weights` writes, 0 without one (PassWidths::float_out).
+inline size_t float_product_out(const std::vector<Matrix>& weights) {
+    size_t most = 0;
+    for (const Matrix& m : weights)
+        if (m.product && (m.type == quant::GGML_TYPE_F32 || m.type == quant::GGML_TYPE_F16 || m.type == quant::GGML_TYPE_BF16)) most = std::max(most, m.rows);
+    return most;
+}
+
 // The widths a device's passes run its scratch at (Backend::scratch_bytes): the footprint's, at a pass's rows or the model's own context rows, whichever is more, and on the head's device its logits rows.
 inline backend::PassWidths pass_widths(const Footprint& fp, size_t rows, size_t logit_rows, bool head) {
     backend::PassWidths w = fp.widths;
+    for (const std::vector<Matrix>& layer : fp.layers) w.float_out = std::max(w.float_out, float_product_out(layer));
+    for (const std::vector<Matrix>& stage : fp.drafter_stages) w.float_out = std::max(w.float_out, float_product_out(stage));
+    w.float_out = std::max({w.float_out, float_product_out(fp.drafter), float_product_out(fp.head_aux)});
     w.rows = std::max(rows, fp.context_rows);
     w.logit_rows = head ? logit_rows : 0;
+    w.float_head = head && float_product_out({fp.output}) > 0;
     if (!head) w.vocab = 0;
     return w;
 }

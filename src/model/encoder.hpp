@@ -160,6 +160,7 @@ public:
         m.buffers.push_back(arena_bytes(plan, bound.arena_patches));
         const size_t kv = backend::size_mul(backend::size_mul(backend::blocks_for(bound.arena_patches, block), block), backend::size_mul(plan.heads * plan.head_dim, sizeof(float)));
         m.buffers.insert(m.buffers.end(), {kv, kv});
+        products.float_out = float_product_out(m.weights);
         products.rows = bound.patches;
         attention.rows = bound.attention_rows;
         attention.heads = plan.heads;

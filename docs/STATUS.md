@@ -133,7 +133,7 @@ The readback's gap after the last kernel is in the plain run's trace too, so `--
 - **Goal:** a GPU collective's lane sums never give up after 30 s while another thread frees device memory.
 - **Done:** a rocgdb dump at the stall showed the host blocked in `hipEventRecord(summed_[lane][m], beside_[m])` right after member m's sum launched and before member m+1's, while a `Graves` thread sat in `hipFree`, which waits for every stream of the device under the lock a record takes; member m's sum waits for a peer the host had not launched. `pushed` now records every member's work event and the beside streams' waits, then launches every member, then records the lanes' events. `records_behind_sums` in `backend-rocm` (`collective`) makes every event record wait up to 2 s for its stream and fails on main.
 - **Measured:** the records check fails 10/10 on main and passes 10/10 with this change (0 stalled); with this and fix/sums-device-streams (the dependency, whose one backend set the sentinel needs) the collective pass is 10/10 at 15-17 s a run; the sums timing passes against main and RCCL at every size and width on four MI50.
-- **Left:** landing gates; depends on fix/sums-device-streams (SUMS55), which lands first.
+- **Left:** none; it lands with the landing stack land-20261135, whose gates are recorded there (Landing stack land-20261135, below).
 - **Gotchas:** on a backend made to time its work, `flush` records a timed event right after each held kernel, so whole sums under timing keep a record between members' launches (ideas.md, SUMS58).
 
 ## Draws sum form (2026-11-23 to 2026-11-26, SUMS44 to SUMS60, branch sums/draws-form on fix/sums-launch-before-record 8e2dcf95; lands as two commits, the checks that fail and then the fixes)
@@ -154,7 +154,7 @@ The readback's gap after the last kernel is in the plain run's trace too, so `--
   `tools/sums_vs_reference.py` against 8e2dcf95 and RCCL `all_reduce_perf` on the same four cards, labelled timing on cores 12-15 under host load 25-47, beat RCCL at every size and width in two rounds (5 cycles at widths 2-4, then 10 at widths 4 and 2).
   At 2621440 floats the draws took 959 us against 1241 at width 2, 1360 against 1734 at width 3 and 1513 against 2070 at width 4 (RCCL 1313, 1965, 2425); at 655360, 255 against 316, 363 against 456 and 409 against 543; at 163840, 2-6% faster.
   At 65537 floats and below the picks keep the forms 8e2dcf95 has and the one-shot's code is byte-identical; cells there moved within -8% to +16% in the first round and -8% to +2.4% in the second, the 256-float cell at width 4 at 15.13 then 11.55 us against 13.05 and 12.57.
-- **Left:** the landing gates; depends on fix/sums-launch-before-record (PR 654) and fix/sums-device-streams (PR 653), which land first. README: none.
+- **Left:** none; it lands with the landing stack land-20261135, whose gates are recorded there (Landing stack land-20261135, below). README: none.
 - **Gotchas:** a test of the stale read needs sums small enough that the lines stay cached; far larger sums pass on the unfixed kernel and prove nothing.
 
 ## A device's sum streams belong to its backend (2026-11-26, SUMS55 to SUMS58, branch fix/sums-device-streams on main 2b77837fe; lands as two commits, the failing test and then the change)
@@ -162,12 +162,13 @@ The readback's gap after the last kernel is in the plain run's trace too, so `--
 - **Goal:** every collective a GPU backend joins sends its lane sums and its copies on one beside stream and one copy stream of that backend, so a device holds at most four hardware queues however many collectives are open.
 - **Done:** `GpuBackend::sum_stream` makes and owns both streams, collectives borrow them and only drain them on release, and the backend drains and destroys them; `sentinel_sums` runs its three arms on the same backends. `backend-rocm-queues` (five collectives on a pair at eight hardware queues) fails on main with 10 streams.
 - **Measured:** four MI50 (renderD132-135), `GPU_MAX_HW_QUEUES=8`: `queues` main+test 0/5, branch 5/5; `collective` x10 main 63657ff2 9/10 (one held-push check), branch 8/10 (two give-ups at width 4, the hang fix/sums-launch-before-record removes). Sums timing, branch against main 63657ff2 and RCCL, widths 2 to 4, 5 cycles, `llmx.timing=1`: PASS, llmx at least as fast as the reference at every size and width (sums55/out/r1.log).
-- **Left:** landing gates.
+- **Left:** none; it lands with the landing stack land-20261135, whose gates are recorded there (Landing stack land-20261135, below).
 - **Gotchas:** the streams outlive every collective that borrows them, so a collective's release syncs them and never destroys them.
 ## KV fit beside a server's passes (2026-11-26, CUDA173, branch fix/kv-fit-headroom on main 2b77837fe; lands as two commits, the failing test and then the change)
 - **Goal:** on an RTX 3090 holding 20 MiB at start, `serve` fitted 202752 KV tokens and then died `cuda: malloc failed CUDA_ERROR_OUT_OF_MEMORY` once serving (S166, results/20261126-1846-S166): the server's passes were made after the fit returned, so memory the runtime took beside them was never read, and a GPU out-of-memory was a `runtime_error` the recut does not catch.
 - **Done:** `build_fitted` makes a caller's passes once inside its build and drops them, so a device they run short is built again with fewer KV tokens; `GpuBuffer` throws `DeviceOutOfMemory`, a `std::bad_alloc`, for CUDA's and HIP's out-of-memory. Test `fit_cut_server_passes` in `placement`, failing first on 2b77837fe. `server-passes-cpu`'s metered device now keeps the most bytes held at once, giving a freed buffer's bytes back, since it summed every allocation and counted the fit's dropped passes twice (3 of 3 failures with the fix, 3 of 3 passes on the base).
 - **Left:** the CUDA card check (S168 without `--kv-tokens`) that the automatic fit serves. pve1 CPU CTest at the head is 91/91 (offload/out/20261126-195428-CUDA175-14212), and the GPU card-free CTest (cuda-sass, gpu-core, gpu-port, cuda-driver) is 4/4 on 12c953d3, whose GPU inputs the head keeps.
+- **Landing:** it lands with the landing stack land-20261135, whose gates are recorded there (Landing stack land-20261135, below).
 - **Gotchas:** which buffer the 3090 runtime took unstated is not known (Fable read every pass-time buffer as priced); CUDA lazy module loading and driver heaps at first launch are candidates, and `memory_kept` on CUDA does not measure them.
 ## Per-row attention over the decode rows alone (2026-11-25, CUDA151, branch perf/vec-attention-decode-rows on main 63657ff21)
 
@@ -175,7 +176,7 @@ The readback's gap after the last kernel is in the plain run's trace too, so `--
 - **Done:** `GpuBackend::attend` lists the rows that are not tiled and passes the list beside the ends; the per-row kernels (`attention_vec`, its windowed builds) and `attention_vec_merge` index blocks and partials by the list (`rows[c]` for q, O, the twin, ends, firsts and starts), the sparse builds by their own index; the sparse merge drops its unused ends. Vulkan already built its table over the narrow views (`vulkan_attention.hpp`). gpu-core's mixed-round check (decode rows 0 and 41 around a 40-row tiled prompt) failed on main (vec 672 blocks, merge 168) and passes here (32 and 8).
 - **Measured:** Qwen3-0.6B BF16, `serve --dtype bf16 --max-seqs 16`, 512 in / 128 out greedy, one RTX 3090 (i9-11900K host, PCIe gen4 x16), main 63657ff21 (M) against this branch (V), interleaved twice (S151, `cuda151/s/results/20261125-1727-S151`): c16 out tok/s M 1224.1 / 1197.1, V 1303.1 / 1266.3 (+6.1%); c1 M 351.6 / 348.8, V 352.0 / 337.0 (level, device bound); texts M = V; the CUDA backend test of V passed. In the nsys trace of V a prompt round's decode attention takes 1710 us, against 8348 us in S150's trace of PR 641 on main (another host, an EPYC 7702 on gen4 x8, so the pair is indicative, not matched). One MI50 (renderD136, ROCm gfx906), `rates attention` M V M V: a mixed round's attention 1074.0 / 1070.6 us against 638.7 / 627.9, the focused `attention` checks pass on both and the bits are identical. CUDA card-free CTest at every architecture 4/4 (cuda-sass included).
 - **Landing gates** (cuda154/gates.sh, `cuda154/out/gates.log`, 2d1ea9d71 against main 63657ff21, 2026-11-25): ROCm build (all targets) and CTest 96/96 on one MI50 (renderD136); ROCm byte identity against main SAME (generate auto and f32, server mix); CPU CTest rc 0 and CPU identity SAME (generate, mix) on pve1; the CPU suite passed every component but `docs`, whose one finding was this branch's 157-character CHANGELOG line, shortened in this commit; timing round on the MI50 at host load 31, Qwen3-0.6B Q8_0, `llmx bench` V/M interleaved three times: pp512 8954/8965/8840 against 8964/8953/8943 tok/s, tg128 344/384/381 against 386/374/372 tok/s (spread 3-16 tok/s a run); the CUDA card-free CTest 4/4 carried from cuda151/cVA (same source). The ROCm suite on one MI50 at 20f30c30b (cuda154/suite2.sh, after the 5400 s run timed out on the loaded host) passed every component but `drafters`, whose only output was "No module named 'numpy'" in the build image; `drafters` alone with numpy installed passed on renderD134 (cuda154/dr3.sh, `out/dr3-rocm.log`).
-- **Left:** the ROCm suite timed out at its 5400 s limit on the loaded host (no failing component before it; `docs` failed there on the same CHANGELOG line); rerun at this head with a longer limit before READY.
+- **Left:** none; it lands with the landing stack land-20261135, whose gates are recorded there (Landing stack land-20261135, below), where the ROCm suite's `server` component runs to its end.
 - **Gotchas:** the twin is written only when no row is tiled, so wherever a twin exists the list is the identity; rocm-isa reads the changed code objects.
 ## Vulkan MoE decode step per slot (2026-11-25, GENQ4, branch gq/vk-moe-build on main 63657ff21)
 
@@ -185,7 +186,7 @@ The readback's gap after the last kernel is in the plain run's trace too, so `--
 - Decode, vulkan:0 device time per token from `bench --profile` (tg32), normalised by `delta_rule_short` and dispatches sampled, main -> branch: Qwen3.6-35B-A3B Q4_K_M 12.35 -> 11.89 (-3.7%, 10208 -> 7968 dispatches), UD-Q4_K_XL 12.88 -> 12.65 (-1.8%, 12832 -> 8352), Q8_0 13.35 -> 13.04 (-2.3%, 12352 -> 8512), Q5_K_M 13.86 -> 13.64 (-1.6%, 12448 -> 9248), Qwen3.5-35B-A3B UD-Q8_K_XL 18.99 -> 17.47 (-8.0%, 12352 -> 9152); main's step fused on Q4_K_M only.
 - Wall decode (`bench --p 16 --n 64 --r 3`, order t b b t, host load 54 to 70, so per-cell spread 8 to 35 tok/s and no cell is decisive), mean tok/s main / branch at seqs 1 and 4: Q4_K_M 80.6 / 76.0 and 158.4 / 204.0, UD-Q4_K_XL 74.3 / 72.8 and 194.2 / 199.0, Q8_0 66.9 / 74.2 and 193.3 / 170.1, Q5_K_M 64.9 / 68.2 and 157.1 / 158.8, UD-Q8_K_XL 57.7 / 58.2 and 133.4 / 143.1. Logs `/opt/claude-work/genq4/out` on the rig.
 - **Radeon VII scratch (FIXDROP2, 2026-11-26):** the Windows driver grows the code heap 16, 32, then 64 MiB, and main's builds sit just under 32 MiB, so the new down builds sent `vulkan-scratch` to 64 MiB, past the 48 MiB kept. No build uses scratch; variant 2, which no fused step dispatches, is declared absent for the step kernels (`build_cols`), and the test then grows 16 + 16 MiB and passes. The test does not build the one-row and two-step builds (7, 8) that the Q8_0 step kernels do dispatch; counting them is a change of the test, left to its own branch.
-- **Left:** a quiet-host timing round at the landing head (Q4_K_M and Q8_0 at seqs 1 and 4 first); the Radeon VII check; the landing gates.
+- **Left:** the Radeon VII check through COORD; it lands with the landing stack land-20261135, whose gates are recorded there (Landing stack land-20261135, below), with its timing round.
 - **Gotchas:** a build decodes one family and branches on the type push only inside it, so a slot matched by type rather than kernel decodes garbage silently. A step fuses only when the routed down has a build; DeepSeek MXFP4 (no MXFP4 down build, sqrt_softplus, ungated shared) and MiniMax NVFP4 still take the base.
 
 ## Docs set to the architecture audits (2026-11-24, DOCFIX1, branch docs/arch-audit-fixes on main d8bd8735e)
@@ -294,7 +295,7 @@ Reports: rig `/opt/claude-work/conffix1/arms7a/r-{vd1,vtw2,rd1}/report.json`.
 
   The generated text is identical across all 8 files (`cuda143/tm/ids-*.txt`). The c16 fed count is not a low share: a c16 decode pass carries about 12 rows, so a c16 run has about 700 decode-only passes against 2286 at c1, and 607 to 637 of them are fed (91%), where c1 feeds all but the first decode pass of each request. The unfed rest is about one pass a request, the first decode pass after a prompt or mixed pass. About 200 of the c16 run's 890 to 930 rounds carry prompt chunks, about 80% of its time, and their host-embedded rows cannot be fed, so c16 gains little; feeding the rest (a subset of a pass's requests, or the decode rows of a mixed pass) is worth at most 0.1% and 0.3% and was not built (ideas.md).
 - **Gates so far:** `server-passes` (round_steps fed cases) and the whole `server-passes-cpu` (`fed_chain`, `device_ids` with void rows on every pass) pass at e64b5380f on one CPU; `fed_chain` failed on the model half before one stage reserved two passes; Vulkan ordering of an argmax write before a fed `embed_ids` read checked on an MI50 (64 pairs exact); `docs` and `dead-code`.
-- **Left:** the 3090 arm (lserve, beside S145); landing gates once PR 631 lands (CTest, CPU suite, `server` component on an MI50 with `--device vulkan:0 --only server`, 0.6B byte identity CPU and device, hosted run, Radeon VII for the Vulkan embed path).
+- **Left:** the 3090 arm (lserve, beside S145); it lands with the landing stack land-20261135, whose gates are recorded there (Landing stack land-20261135, below).
 - **Gotchas:** on CPU the fed chain cannot show host uploads of pass N+1 sharing a buffer with pass N still running; the MI50 ids identity covers it, and a differing id points at the backend upload rings first. A cancel or a natural end landing mid-chain has no unit check of its own; the MI50 ids run covers end and stop.
 
 ## CUDA BF16 prompt tile (2026-11-21, CUDA105, branch cuda/bf16-prompt-tile on main c494eea6f)
@@ -671,7 +672,7 @@ Images are pushed by digest alone and tagged only by the run that publishes them
 - **Goal:** a selection of a few picks from a long row stops running one block a row, which left 52 of an MI50's 60 CUs idle for the DSpine drafter's 16 picks of 248320 logits (2.3-2.5 ms a draft block).
 - **Done:** where the device profile gives `topk_chunk` (MI50 HIP 4096), `topk_select` runs a mode-0 row as chunks a block (`llmx_topk_rows` mode 2) and a merge over their picks in position order (mode 3), the same ids at any chunk. The candidates sit in scratch slot 16, priced by the fit from the widths' `topk_picks` and `topk_items` (the DSpine drafter's vocabulary) or the context over `topk_compression` (DeepSeek-V4's indexer, 512 picks at its least ratio). `backend-rocm-test` deepseek4 checks every selection at chunk 128 against the CPU, its launches and the slot's price.
 - Measured (Qwen3.8-27B-Q8_0 with its DSpine-b16 Q8_0 sidecar, `--dtype int8 --tensor-width 4`, four MI50s on ROCm, `--draft-max 7`, against perf/dspine-prefix 1b7eed7d): `llmx_topk_rows` 2.45 -> 0.19 ms a draft block (rocprofv3, median of 8 blocks), member 0's draft kernel time 12.07 -> 10.07 ms; standalone at 248320 scores and 16 picks 1.9-4.7 -> 0.18-0.29 ms at 8 to 16 rows; generated ids equal to drafting off; decode tok/s within the host's noise (medians of 3, 111.0 -> 108.4 at 7, 93.0 -> 101.0 at 10).
-- **Left:** a DeepSeek-V4.1 ROCm timing round against main on nine cards (its 512-pick index selections take the chunked form from 8192 scores on), owed as this branch's landing gate; then the landing gates, after perf/dspine-prefix.
+- **Left:** none; it lands with the landing stack land-20261135, whose gates are recorded there (Landing stack land-20261135, below), where a Qwen3.6-27B DSpine timing round on four MI50s stands in for the nine-card DeepSeek-V4.1 round, which does not fit on the cards in service.
 - **Gotchas:** the merge of one block over chunks x picks candidates may be latency-bound again at DeepSeek's sizes (64 chunks x 512 at a 1M context); time it before claiming a DeepSeek gain.
 
 ## DSpine block cut to the chain (2026-11-25, DSPINE18, branch perf/dspine-prefix on perf/dspine-group dad387a33)
@@ -719,6 +720,7 @@ Images are pushed by digest alone and tagged only by the run that publishes them
   The drafter's head, norm and argmax run over the drafts the chain reads (`DraftStep::drafts`), not all 15 block rows: k7 int8 197.5 to 208.4 tok/s, k4 int8 175.0 to 186.9, k7 default 153.5 to 159.3, k4 default 136.9 to 151.1 (medians of 3, ids equal in every arm), and the chain at k7 int8 from 4.66 to 3.62 ms.
   Vulkan's unwindowed non-causal views over f16 sides take the window builds under window UINT32_MAX (`vulkan_attention.hpp`), refused above kFullRowProducts; `llmx-backend-vulkan-test --dspine` throws on the test commit and passes with the change on one MI50 (renderD130).
 - **Left:** the host gap of about 2.4 ms per k7 int8 cycle (cycle 29.0 ms, chain 3.62, verify 23.0) is two blocking round trips per cycle, the draft ids before the verify and the argmax ids after it (traced idle p50 375 and 221 us), and the retract's rerun of 60 state kernels in a partly kept cycle; closing it needs device-side draft ids into the verify or an optimistic next chain, recorded in ideas.md, not this branch. The verify's fused MoE step is DSPINE24's. The Radeon VII check.
+- **Landing:** it lands with the landing stack land-20261135, whose gates are recorded there (Landing stack land-20261135, below).
 - **Gotchas:** z-lab's code changed in August 2026 to make a config without `is_causal` causal on its sliding layers; the checkpoint shipped in June with code that ran every layer non-causal and ignored the window (`/opt/claude-work/dflash3/hf/`).
 
 ## DFlash2 drafters for qwen35 (2026-11-24, DFLASH2A, branch feat/spec-dflash2)
@@ -1883,6 +1885,87 @@ The delta from 1a7d333a to a7a9ab93 is that comment line, so the Radeon VII's bu
 | Radeon VII identity, Qwen3.5-0.8B from copied exes in the order main, stack, main, stack, at 98f5f903 | 0 files differ |
 | docs, dead-code | pass at a7a9ab93 and at this record's commit |
 | Hosted | 45916531481 at 7ffd3974 and 45925598503 at e07cbec3: every job but macos-15-intel's `backend-group`, folded above; the run of the head that lands proves the fold; the workflow run of this commit on GitHub |
+
+## Landing stack land-20261135 (2026-11-27, LAND139 to LAND143, on DFly2 head 6e1f8b9d, lands by fast-forward)
+
+**What lands.** Seventeen commits on 6e1f8b9d, by fast-forward, in order: fix/sums-device-streams (PR 653) 23a75696 (the failing test) and 6c2209e7, fix/sums-launch-before-record (PR 654) a7b2b65c and 4ea6e9dd, sums/draws-form (PR 596) 1f8c2ce6 and 9f9d4585, fix/kv-fit-headroom (PR 655) 7dcfb46c and eb63409e, perf/vec-attention-decode-rows (PR 645) 65fef600 and bfc6d45c, perf/dspine-topk2 (PR 632) 4e102980, feat/spec-dflash-noncausal (PR 635) f700ad7c and b28439b4, perf/device-fed-decode (PR 639) 4d123811 and b9f4333d, gq/vk-moe-build (PR 646) 96800c4c and 3f6a513d.
+Each branch's own block or commit gives its change and measurements; this record gives the gates of the stack.
+The gates ran on the tree 8549ce88 (land128/stack2); the landing head differs from it by the two folds below, a moved comment and a test's key set, neither of which reaches a binary's code.
+The stack was first built and gated on a7a9ab93, landing-127 as it stood; landing-127 ended at 1f61bf22, then da500e81, which adds only this file to 1f61bf22, and the DFly2 branch's two commits (6e1f8b9d) now precede this stack; the delta of 1f61bf22 from a7a9ab93 is the CPU backend (cpu_backend.hpp, tests/backend_group.cpp, docs/src/backends-cpu.md) and this file, so the rows below that name a7a9ab93 are measured against it and the rebased head is built and checked again (Rebased head, below).
+
+**Fixes folded in.** Each was found by a gate whose test already existed and is fixed in the commit that caused it.
+FakeApi in the GPU port test had no `flush_word`, which sums/draws-form's change calls, so the CPU build failed; the stub is in that change.
+fix/kv-fit-headroom put `DeviceOutOfMemory` between `GpuBuffer`'s comment and its class in `backend_core.hpp`, which `docs` read as one comment block of more than two sentences; the comment is back above its class.
+perf/device-fed-decode adds `fed` to `/v1/health`'s `passes.since_start`, and the suite's `server` component holds that object to its exact key set, so `server` failed on the CPU, ROCm and Vulkan; the key is in the set in its test commit.
+
+**Checks rescored.** The 27B drafting round first scored its text as differing: its drafted runs pass `--verbose`, whose `kv`, `ids` and `drafts kept` lines its filter kept, and with those lines dropped all 20 outputs, drafted and not, stack and main, are one text.
+The pve1 part's waiter timed out behind the offload queue; the job itself finished, and its outputs are scored below.
+
+| Check | Result |
+|---|---|
+| Builds at 8549ce88: ROCm gfx906, ROCm with the full target list, Vulkan, CUDA | build |
+| CTest, CPU build on pve1 | 91/91 |
+| Suite, CPU build, all components (pve1) | pass but `docs` and `server`, both folded above |
+| Identity against a7a9ab93 on the CPU: DeepSeek-V4.1 tiny fixture by token ids (`cpu:auto`, `cpu:f32`, f32 cache), Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M at `cpu:auto` and `cpu:f32` | 30 of 30 output files equal |
+| CTest, ROCm build, four MI50s | 97/97 |
+| Identity against a7a9ab93, Qwen3.6-27B Q8_0 on four MI50s at `--tensor-width 4`, int8 and f16, ROCm | 6 of 6 output files equal |
+| Identity against a7a9ab93 on one MI50, ROCm: Qwen3-0.6B Q8_0 at f16, int8 and f32, Qwen3.5-0.8B Q4_K_M at auto, int8 and f32, Qwen3.6-35B-A3B Q4_K_M at auto and int8 and with `--cpu-moe` | 57 of 57 output files equal |
+| Suite on one MI50, `--device rocm:0` | pass but `docs` and `server`, both folded above; `server` no longer times out with PR 645 |
+| CTest, Vulkan build, one MI50 | 112/112 |
+| Identity against a7a9ab93 on Vulkan, one MI50: Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M at auto and f32, Qwen3.6-35B-A3B Q4_K_M at auto and with `--cpu-moe` | 37 of 37 output files equal |
+| Suite on one MI50, `--device vulkan:0` | pass but `docs` and `server`, both folded above |
+| `server`, `docs` and `dead-code` at the landing head, CPU | pass |
+| CTest, CUDA build (card-free) | 4/4 |
+| Timing round against a7a9ab93, Qwen3.6-35B-A3B Q4_K_M on one MI50, 18 interleaved runs of stack, main and a main control, cores 12 to 15 | ROCm tg128 104.22 against 104.19 tok/s (+0.03%), pp512 1464.78 against 1463.98 (+0.05%), control +0.20%; Vulkan tg128 130.02 against 122.90 (+5.80%), pp512 1330.33 against 1330.17 (+0.01%), control -0.07%; both pass |
+| Lane sums against a7a9ab93 and RCCL `all_reduce_perf`, four MI50s, widths 4 and 2 (`tools/sums_vs_reference.py`) | at least as fast as the reference at every size and width |
+| Qwen3.6-27B Q8_0 with the DSpine-b16 Q8_0 drafter, four MI50s at `--tensor-width 4`, int8, `--draft-max 7`, six interleaved stack, main and control triplets | tg 120.40 against 118.92 tok/s (+1.24%), control -1.23%; the drafted text equals drafting off on both arms |
+| Qwen3.6-35B-A3B Q4_K_M with the DFlash Q8_0 drafter, one MI50, `--draft-max 7` | ids equal to drafting off at ROCm auto and int8 and Vulkan auto; tg 132.98 and 195.50 against 93.90 and 92.29 tok/s on ROCm, 97.58 against 97.74 on Vulkan |
+| Radeon VII (Windows, Vulkan) | through COORD at this head |
+| docs, dead-code | pass at the landing head |
+| Hosted | the workflow run of this commit on GitHub |
+
+### Rebased head
+
+The stack was rebased a second time, with `git rebase --onto 6e1f8b9d da500e81`, onto DFly2's two commits (the failing test 7108b45b and 6e1f8b9d); the first rebase onto da500e81 is below.
+Two conflicts, both resolved by keeping both sides: `tests/backend_rocm.cpp` (perf/dspine-topk2's chunked-selection check and DFly2's SinkTerms line, both in `deepseek4`, the selection check's count line kept) and `docs/SPECULATIVE.md` (feat/spec-dflash-noncausal's DFlash paragraph ends section 11, before DFly2's section 12).
+Builds R6 (ROCm gfx906), V6 (Vulkan) and the CPU build of the stack and MR6, MV6 and the CPU build of 6e1f8b9d as the main arm were made at the rebased sources; every cell below ran on them.
+
+| Check at the second rebased head | Result |
+|---|---|
+| CTest, CPU build on pve1 | 91/91 |
+| Suite, CPU build, all components (pve1) | pass |
+| Identity against 6e1f8b9d on the CPU: DeepSeek tiny fixture by ids, Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M at `cpu:auto` and `cpu:f32` | 26 SAME, 0 DIFF |
+| CTest, ROCm build, one MI50 | 97/97 |
+| Suite `server` on `rocm:0`, one MI50 | pass |
+| CTest, Vulkan build, one MI50 | 112/112 |
+| Suite `server` on `vulkan:0`, one MI50 | pass |
+| Identity against 6e1f8b9d on one MI50: Qwen3-0.6B Q8_0 at f16, int8 and f32 and Qwen3.5-0.8B Q4_K_M at auto, int8 and f32 on ROCm; both at auto and f32 on Vulkan | 80 SAME, 0 DIFF |
+| docs, dead-code | pass |
+| Carried forward from the first stack gates (a7a9ab93 and 1f61bf22 bases) | 27B and 35B identity, the sums and drafting timing rounds, CUDA: the rebase's delta is DFly2's commits (DeepSeek-V4.1 DFly2 drafter, SinkTerms, `f32.gpu` and Vulkan sparse shaders), the cells that reach them were rerun above on one MI50 and the CPU, not the 27B four-card cells |
+| Hosted | the workflow run of the head that lands |
+
+The first rebase onto da500e81 follows.
+
+Radeon VII (COORD, Windows, Vulkan) at the first rebased head fbcf55a8: build, CTest and suite pass; the identity run differs only on Qwen3.5-0.8B Q4_K_M f16 and int8 logits rows 939 to 954, and the head's values equal DFly2's own control exactly (main plus one unused inline function, `C:/mxh/landdf3/ctl-f16.txt`), so the difference is the Windows build's code layout in main's own binary and not this stack.
+Hosted run 45993435328 on fbcf55a8 passed.
+
+The stack was rebased with `git rebase --onto da500e81 1f61bf22` without a conflict; the delta of da500e81 from 1f61bf22 is `docs/STATUS.md` only, so every result at 1f61bf22 or on a build of the stack carries forward, with the revision it ran at.
+Builds R5 (ROCm gfx906) and V5 (Vulkan) were made at 93db02999 (the stack on 1f61bf22, version 0.2.1+g93db02999cfe).
+
+| Check at the rebased head | Result |
+|---|---|
+| CTest, CPU build on pve1, at 93db02999 | 91/91 |
+| Identity against 1f61bf22 on the CPU | 26 SAME, 0 DIFF |
+| CTest, Vulkan build, one MI50, at 93db02999 | 112/112 |
+| Suite `server`, Vulkan, one MI50 | 1 failure in the first run, then 3 of 3 pass |
+| CTest `server-resume` and suite `server` on `rocm:0`, at 93db02999 | void: both failed with "rocm: the HIP runtime did not initialise" in the rig-wide HIP outage that began at 12:19 |
+| Rerun after the rig rebooted (13:20), one MI50, ROCm build R5 (93db02999) | `ctest -R server` 8/8 including `server-resume`, suite `server` on `rocm:0` 3 of 3 pass |
+| Every other ROCm cell run after 12:19 | void for the same reason; the results at 93db02999 or earlier carry forward |
+| docs, dead-code | at the landing head |
+
+`check_idle` (`tests/server.py`, the wait after the cancelled stream) is a shared intermittent: it failed once and did not recur in 22 reruns.
+The `server` component on `rocm:0` passed 11 of 11 runs on the stack and 10 of 11 on main, main's one failure being in the real-model check after the shift test and not in `check_idle`.
+PR 639 is not shown to cause it, and no failing test is written for it.
 
 ## Landing stack land-20261133 (2026-11-25, LAND126 to LAND131, on main 63657ff21, lands by fast-forward)
 

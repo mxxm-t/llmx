@@ -59,8 +59,7 @@ Generalize to an architecture registry keyed by `general.architecture` (done: `m
   Every drafter of that system is measured on one set of three prompts, hard, medium and easy, under one rule: drafting does not lower prefill, and a prefill change does not lower drafting decode ([SPECULATIVE](SPECULATIVE.md), section 10).
   A recurrent state exists only at the end of what it has read, so reuse and pause work from checkpoints of it, and every reused state is one the CLI would have computed the same way.
   The gate is HF: tiny random-weight fixtures, the small released models, and HF's own layers run one at a time for the larger ones.
-- Llama (GQA + RoPE, close to Qwen3)
-- Mistral, Gemma (rotary/context differences), Phi
+- Hy4 (Tencent Hy4-flash) and GLM-5.3
 - DeepSeek V4-class: hybrid compressed sparse attention, mixture of experts, lookup-table memory, residual mixing.
   What each needs from the execution model, and the assumptions the model layer must not make so they stay additive, is in `docs/EXECUTION.md`, "Beyond dense Qwen".
   Their released sizes exceed the hardware here; the gate is a tiny random-weight model of the real architecture built by DeepSeek's own inference code, and a layered reference on the real file's weights (the owner's gate revision of 2026-09-26).

@@ -1193,7 +1193,7 @@ def self_test(tree, found, listed):
         (test_name_findings, removed, [
             ("a removed CTest docs/TESTS.md opens a line with", ("test-name", TESTS_DOC, "sampler")),
             ("a removed CTest docs/TESTS.md names after CTest", ("test-name", TESTS_DOC, "kv-cache"))]),
-        (readme_findings, planted(tree, [(README, "| Llama, Mistral", "| `planted` | | Planned | Planned | Planned | Planned |\n"),
+        (readme_findings, planted(tree, [(README, "| Hy4, GLM-5.3", "| `planted` | | Planned | Planned | Planned | Planned |\n"),
                                          (README, "| `TQ1_0`, `TQ2_0`", "| `Q8_0` | Supported | Supported | Planned | No |\n| `Q8_1` | Planned | Planned | Supported | No |\n"),
                                          (README, "| `bf16` |", "| `f16` | | | | Native: 16-bit integer blocks for `Q8_0`, F32 products elsewhere |\n"),
                                          (README, "\n## Documentation", "\nRun it with `--planted-flag`.\n"),

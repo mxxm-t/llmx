@@ -48,7 +48,7 @@ Without curl 8.4, download a GGUF file yourself and pass its path.
 | `qwen4exp` ([details](docs/QWEN38-FLASH.md)) | Qwen3.8-Flash-Next | In development | Supported | Supported | Supported |
 | `deepseek41` ([details](docs/DEEPSEEK4.md)) | DeepSeek-V4.1-Flash-1017 | In development | Supported | Supported | Supported |
 | `inkling2_loop` ([details](docs/INKLING2.md)) | Inkling-2-Mini | Supported | In development | In development | In development |
-| Llama, Mistral, Gemma, Phi | | Planned | Planned | Planned | Planned |
+| Hy4, GLM-5.3 | | Planned | Planned | Planned | Planned |
 
 - `llmx serve` reuses the shared beginning of follow-up turns on every architecture.
 - Image input (`--mmproj`) works with `qwen35`, `qwen35moe` and `qwen4exp` on the CPU, Vulkan and ROCm, with Inkling-2-Mini on the CPU, and with DeepSeek-V4.1-Flash's `-vl` files on Vulkan and ROCm ([VISION](docs/VISION.md)).

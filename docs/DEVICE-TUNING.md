@@ -531,3 +531,18 @@ Hypotheses, ranked by stated payoff:
 6. Planes ported to prepare_matrix and routed MoE: nin 2304 73 to 60-65 us estimated (keff36).
 7. Vulkan range-based hazard tracking for a barrier a dispatch: about 1 ms a token estimated.
 8. Pre-enqueue token N+1 with a device argmax: 0.5-1.5 ms a token (bypass27).
+
+## Vision encoder encode time, Inkling-2-Mini mmproj on one MI50 (2026-11-27, INKVIS22, land/inkling6 8dcf6260)
+
+Measured with `llmx-encode-image` `--repeat 4` on the same MI50 under the timing lock, each cell the median of four repeats after the first encode.
+
+| Image (tokens) | ROCm gfx906 | Vulkan RADV | Source |
+|---|---|---|---|
+| 300x200 (40) | 62.7 ms | 51.4 ms | inkvis22/out/r-rocm, r-vk |
+| 800x600 (300) | 978 ms | 196 ms | same |
+| 1920x1080 (1296) | 12301 ms | 978 ms | same |
+
+On ROCm, rocprofv3 (kernel trace, 827 dispatches, 12.28 s of kernels) puts 10.80 s in `llmx_attention_chunk` (23 calls, 470 ms each, about 0.23 TFLOPS against about 110 GFLOP a layer) and 1.38 s in `llmx_matmul_rows_bf16`; everything else is under 35 ms.
+The non-causal call has 64-wide heads, so it misses the tile route (causal, head_dim 128 or 256) and the vector route and takes the one-row-per-block chunk kernel, which reads K and V from global memory once per query row with a quarter of its threads live in the value sum (src/backends/gpu/backend_core.hpp attend, kernels/f32.gpu attention_chunk; Fable read-through, not built).
+The candidate is `attention_tile` for head_dim 64 with a non-causal flag and a 256-key fold, which changes ROCm and CUDA vision sums within the 4e-6 rule of docs/PRECISION.md and needs its own failing test (`vision::dominant_key` at 1296 and 4096 keys) and the CUDA vision check; it is not done.
+Vulkan 1080p is within its bound at 8.53e-6 of 9.37e-6, ROCm 4.38e-6, CPU 4.03e-6.

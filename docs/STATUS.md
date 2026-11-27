@@ -25,6 +25,65 @@
   Radeon VII, Qwen3.5-0.8B Q4_K_M f16 and int8 on Vulkan: logits rows 939-954 differ from main by up to about 1e-3 with the same top tokens, each arm stable over two runs; the same command on an MI50, the CPU on Windows and Vulkan f32 on Windows are identical, 0.6B is identical, and every generated Vulkan shader is byte identical for qwen35.
   A control, main plus one unused inline function in `src/model/runtime.hpp`, built on Windows, equals the head and differs from main, so the difference is the Windows build's code layout and not a DFly2 path; the head's HF error was not re-measured since no executed path of qwen35 changed.
 
+## Landing stack land-20261127-inkling (2026-11-28, LANDINK1 to LANDINK25, on main b3e1b74c1, lands by fast-forward)
+
+**What lands.** Seven commits on main b3e1b74c1, by fast-forward, in order: Inkling-2-Mini on the CPU with Vulkan, ROCm and `llmx serve` in development, its image input, the README support line, the reference-generator and qwen35 suite components, the README model table and roadmap, the vision suite component, and this record.
+The Inkling blocks below give each change and its measurements; this record gives the gates of the head and the fixes folded into it.
+The model, device and timing gates ran on 4381ee72, the stack on main 6adeee63d, which differs from this head's stack in one CHANGELOG.md line dropped from the feature commit (the fed-decode line main already has) and in this record.
+Main then moved to b3e1b74c1 (ROCm on Windows); the rebase conflicted only in CHANGELOG.md's Added list, where both lines are kept. Both sides change `collective_core.hpp`, `tests/backend_rocm.cpp`, `moe_checks.hpp` and CMakeLists.txt, so the builds, CTest and the full backend tests were rerun on this head (the "on this head" entries below); the delta main brings is Windows-only code and a CI job.
+
+**Dropped from the stack.** Decode with its sums inside graph runs (be43107a) and its failing gpu-core test of held-argument bytes (7aa32a0f) do not land: with them, the full ROCm backend test on four MI50s failed 4 runs of 4 with "a tensor group's sum on rocm:0 gave up waiting for its peers", and failed again in 4 of 4 runs interleaved in one hold with main, which passed 4 of 4 on the same cards, and with the stack without them, which passed 2 of 2.
+The follow-up is in the Inkling-2-Mini decode speed block's Left.
+README: Inkling-2-Mini is listed as supported on the CPU and in development on Vulkan, ROCm and `llmx serve`, with image input on the CPU, and the model table plans Hy4 and GLM-5.3.
+
+**cuda-sass.** The card-free CUDA CTest failed `cuda-sass` on the stack, while main passes it: Inkling's new kernels spilled (`llmx_attention_rel_sink` on sm_70 and sm_90, the `llmx_conv_ring` family on sm_70, sm_100 and sm_120, `llmx_query_mix_norm` on sm_100, `llmx_matmul_normed_f32` on sm_70), the held norm's twin builds kept a 16-byte local object on sm_80, and `llmx_q5_k_tile8_tall` took two spill stores in its loop on sm_120.
+The fixes, folded into the feature commit, change CUDA code and the check alone: the held norm takes its mix by a type that is a pointer in a plain build and reads its part at its two uses, the conv ring and query mix helpers are always inlined on CUDA (`LLMX_FLAT`, empty on HIP), `attention_rel_sink` loads its keys two float4 and its table eight values at a time on a wave of 32 in the same order, the 16-bit twin's half staging is gated on a 64-lane wave, `tile_proj` takes main's select chain on a wave of 32, and the conv ring's sum and mix kernels read their parameter in place through `LLMX_GRID_CONST`.
+The check compares a stack frame with the spill stores rounded up to the frame's 16-byte alignment, since the twin norm builds on sm_80 and `attention_rel_sink` on sm_86, sm_89 and sm_90 hold frames of 16 bytes over 4 and 12 bytes of spills and no local object.
+The spills ptxas keeps are listed with their bytes, targets and reason, as no card of those targets has run them: `llmx_attention_rel_sink` 12 bytes on sm_86, sm_89 and sm_90 and 36 on sm_70, the `llmx_conv_ring` family 4 to 52 bytes on sm_100, 16 on sm_70 and 132 in the query-mix build on sm_120, `llmx_query_mix_norm` 4 on sm_100 and `llmx_matmul_normed_f32` 24 on sm_70; `llmx_q4_k_tile8_tall` keeps main's line, as it still spills 4 bytes on sm_90.
+`cuda-sass` on the kernels of the head, built on pve1 at toolkit 12.9 for sm_70 to sm_120, passes its 92 checks.
+The first table batch changed `attention_rel_sink`'s gfx906 code, so a wave of 64 keeps the one batch of 32.
+gfx942 is a wave-64 target and takes the same source; gfx1151 takes the wave-32 forms, which no card here runs; both compile (`f32.gpu` and `int16.gpu` for gfx942 and gfx1151, exit 0).
+
+**Windows names.** The Radeon VII's MSVC build of b480ed62 failed on a local named `near` in the CPU backend's `add_terms`, a macro of windef.h; it is renamed `close_n`, and `small` in tests/inkling2_checks.hpp, a macro of rpcndr.h, is renamed `tiny`, both folded into the feature commit.
+No other identifier in the stack's host code is a Windows macro.
+
+**Builds** (rig, ROCm image 7.2.1): ROCm gfx906 `llmx 0.2.1+g4381ee725448` numerics 4619c4080311d100 (sha256 98254b203548), Vulkan the same version (sha256 e93a2cb21ab8); CUDA on pve1 from the same tree (llmx-cuda-dev 12.9.1, sha256 ed18c0cc6cf4, main's 7acd1e52e169).
+Main's arm is main 6adeee63's builds: ROCm `llmx 0.2.1+g6adeee63dc4a` numerics f8360af6fbc99fd4 (sha256 0a17567da014), Vulkan the same version (sha256 d1f12eb4f866).
+This head: ROCm gfx906 and Vulkan `llmx 0.2.1+g7d10e7ff1861` numerics 74abb9dd3358bdf9 (sha256 a3de1c14ff93 and e9d403e1aafd), the CPU build on pve1 at the same numerics, and the CUDA build on pve1 from the same tree.
+
+| Check | Result |
+|---|---|
+| docs, dead-code | pass on 4381ee72 and on this head |
+| CTest, CPU build (pve1) | 93/93 on 4381ee72; 93/93 on this head |
+| Suite, CPU build (pve1) | all components pass |
+| Identity against main on the CPU (pve1): Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M, auto and f32 | 16 same, 0 different |
+| CTest, ROCm build, four MI50s, and the full `llmx-backend-rocm-test` | 99/99 and the backend test with 0 failures on 4381ee72; 99/99 and 0 failures on this head |
+| Suite on one MI50, `--device rocm:0` | all components pass |
+| Identity against main on one MI50, ROCm: Qwen3-0.6B, Qwen3.5-0.8B at three cache types, Qwen3.6-35B-A3B at auto and int8, and with `--cpu-moe` | 57 same, 0 different |
+| Identity against main, Qwen3.6-27B Q8_0 on four MI50s, `--tensor-width` 2 (int8) and 4 (int8, f16) | 9 same, 0 different |
+| Inkling-2-Mini Q8_0 against the stack's earlier head 3c1c838f (with decode sums in graph runs), ROCm, one MI50 and tensor width 2 and 4 | 19 same; the 2 others are runs of 3c1c838f that stopped on the sum give-up of Dropped from the stack, above, while this head completed them |
+| Inkling-2-Mini Q8_0 int8 at tensor width 4, logits of the last 64 rows twice per arm | byte-identical between runs and arms (4 runs, 260 lines) |
+| Inkling-2-Mini Q8_0 against spd/dense 1ab4b1d57, ROCm (carried from the stack's earlier heads, whose Inkling ids this head equals) | generated ids the same; f32 logits byte-identical (3/3: logits, per-token, generate); auto max abs logit difference 1.9e-4, f16 at tensor width 2 1.3e-4, int8 0.075 on one MI50 and 0.133 at width 2, top-20 ids and top-1 the same |
+| Inkling-2-Mini int8 against HF f32 (carried the same way), 16k rows, last 512 (max / median abs logit difference on llmx's top 20, top-1 agreement) | raw: dense 2.34 / 0.257, 505/512; stack 1.68 / 0.249, 507/512. Chat template: dense 17.4 / 0.800, 483/512; stack 18.0 / 0.781, 485/512. Auto: raw 2.87 / 0.139, 506 against 2.86 / 0.139, 505; chat 9.58 / 0.375, 497 against 9.60 / 0.374, 496. Equal error, the sums' order alone |
+| Suite per component on four MI50s at `--tensor-width` 2, main 6adeee63 and 4381ee72 side by side, 900 s a component to `iq3-xxs` and 180 s after it (COORD) | every component gives the same result in both arms. Passing in both: dead-code, docs, arch-boundary, version, reference-generator, reference-consumer, device-reference, roundtrip, raw-blocks, perf, tokenizer, half-weights, vision, split, tensor-split, decode-probe, server, server-load, threads, baseline; the rest skip in both, except these, the same as main (pre-existing): `cli` fails in both on a fixture shape a group refuses (main at the tiny fixture's 257 vocabulary rows, this head, which splits a vocabulary a width does not divide, at its 19 feed-forward rows), and q5-0, q2-k, q3-k, q5-1, iq4-nl, iq4-xs, iq3-s, iq2-s, iq2-xxs, iq2-xs, iq3-xxs, iq1, low-bits, tq1-0, tq2-0, nvfp4, deepseek4 and chat reach their timeout in both |
+| Suite per component on four MI50s at `--tensor-width` 4, 4381ee72, 180 s a component | pass: dead-code, docs, arch-boundary, version, reference-generator, reference-consumer, device-reference, roundtrip, raw-blocks, perf, tokenizer, vision, split, tensor-split, decode-probe, server, server-load, threads, baseline; `cli` fails as at width 2; the quant components q5-0 to nvfp4 reach the timeout as at width 2; half-weights and chat, which reached it too, rerun at 900 s on main and this stack in one hold: half-weights passes in both, chat fails in both with rc 1 on the group's sum lines in its output, the same as main (pre-existing) |
+| Full `llmx-backend-rocm-test` on four MI50s, main and stacks interleaved in one hold, four holds | main 4 of 4 pass, 4381ee72 2 of 2 pass, the stack with be43107a 0 of 4 (each "a tensor group's sum on rocm:0 gave up waiting for its peers") |
+| CTest, Vulkan build, one MI50 | 114/114 and the backend test with 0 failures on 4381ee72; the same on this head |
+| Suite and server component on one MI50, `--device vulkan:0` | all components pass |
+| Identity against main on one MI50, Vulkan: Qwen3-0.6B, Qwen3.5-0.8B, Qwen3.6-35B-A3B and with `--cpu-moe`, Inkling-2-Mini | 43 same, 0 different |
+| CTest, CUDA build, card-free (`cuda-sass`, `gpu-core`, `gpu-port`, `cuda-driver`), pve1 | 4/4 on 4381ee72; 4/4 on this head |
+| CUDA on a rented RTX 3090, 4381ee72 against main | `llmx-backend-cuda-test` 119938 pass, 0 fail (main 117942, 0 fail); compute-sanitizer memcheck of the MoE checks 0 reports, 4/4 pass (main the same), while the test binary without the feature commit's fix of misaligned reads gives 20 invalid reads in `llmx_q8_0_routed_thin16` and 5 fails; `llmx serve` 16 greedy requests, texts identical to main (sha256 99bacff124647758), 0 errors |
+| Timing against main 6adeee63, Qwen3.6-35B-A3B Q4_K_M on one MI50, `bench --p 512 --n 128 --r 3`, six interleaved triples of stack, main and main's copy, cores 12 to 15 | ROCm, main to stack, upper quartile tok/s: pp512 1471.87 to 1478.79 (+0.47%), tg128 103.75 to 101.99 (-1.70%, paired median -1.68%, every stack run below every main run), control +0.14%, slow runs 0 of 6; inside the rule (-2%). Vulkan: pp512 1331.96 to 1331.68 (-0.02%), tg128 131.88 to 131.64 (-0.18%), control -0.04%, slow runs 0 of 6 |
+| Timing against main 6adeee63, Qwen3.6-27B Q8_0, `--dtype int8`, ROCm on four MI50s, tensor width 2 and 4, five rounds | main to stack, median tok/s: width 2 pp512 723.44 to 723.81 (+0.05%), tg128 46.07 to 46.04 (-0.07%); width 4 pp512 1218.71 to 1209.81 (-0.73%), tg128 72.13 to 72.88 (+1.04%) |
+| `sums_vs_reference`, widths 2, 3 and 4, against RCCL | llmx slower in 0 of the 22 timed cells; the 11 width 4 cells are untimed because RCCL's `all_reduce_perf` at width 4 exited 3 (a test failure of rccl-tests) in all three cycles |
+| Radeon VII (Windows, Vulkan) | the MSVC build of b480ed62 (Windows names, above); READY-FOR-RVII for this head posted to COORD |
+| Hosted | the workflow run of this commit on GitHub |
+
+The 35B ROCm decode loss of 1.70% is inside the rule but systematic. A read of the diff names one executed change, `twin_out` in `src/backends/gpu/backend_core.hpp`, where a flat map now takes the half sums that main skipped; a build of 4381ee72 with main's line is timed against 4381ee72 to test it, and the width 4 prompt loss of 0.73% stands beside the width 4 decode gain of 1.04% (AGENTS.md, Principles, Assess performance tradeoffs).
+The width 4 decode gain of 4.9% recorded before came with be43107a, dropped above.
+
+The int8 budget 0.0790 of docs/PRECISION.md is the tiny-fixture class budget, not a real-file bound; the stack and spd/dense meet HF with the same error.
+
 ## Inkling-2-Mini (`inkling2_loop`)
 
 - **Goal:** run Inkling-2-Mini (unsloth's `Mainline_Support` GGUFs, UD-Q8_K_XL and UD-Q4_K_XL, the main target and the HF-exact gate's file) on the CPU, Vulkan, ROCm and CUDA, held to HF's `Inkling2LoopForCausalLM`; then its DSpark drafter, then vision. ggml-org's Q8_0 file brings up ROCm before the GPU core reads NVFP4. Design in `docs/INKLING2.md`.
@@ -107,6 +166,7 @@
   Generated ids are equal across B, F, F2 and H at int8 and f16, width 1 and 2 (inkland2/s/ids.txt), and held_sums and the full llmx-backend-rocm-test pass on H.
   INKPROD2: `route_step` prefetches its own code into L2 at entry (`GPU_CODE_PREFETCH`, as `delta_step`); arms with code and weights cold go 18.72 to 13.12 us a call, warm 12.16 to 12.64. Inkling-2-Mini Q8_0, `--dtype int8`, tw2 on two MI50s (renderD132+133), hard prompt tg128, 22 shuffled runs an arm against H spd/dense 74e6c24a: UQ 81.34 to 83.16 tok/s, median 79.00 to 81.44, slow fraction 0.23 to 0.18, ids equal; Qwen3.6-35B-A3B Q4_K_M on one MI50 (softmax router, not this path) 8 runs an arm: UQ 86.19 and 85.64, ids equal. Full llmx-backend-rocm-test passed on renderD136; rocm-isa fails on H and passes here.
 - **Left:** the walk rotation (null, 39.0 to 42.2 us) and the quarter-wave short pass; the DEVICE-TUNING rows and the rocm-isa patch after the rebase onto main.
+  Decode with its sums inside graph runs (be43107a, with its gpu-core test 7aa32a0f) was dropped from land-20261127-inkling: the full ROCm backend test on four MI50s failed 4 of 4 runs in `collective()` ("a tensor group's sum on rocm:0 gave up waiting for its peers") after `records_behind_sums`, and 4 of 4 more interleaved in one hold with main, which passed 4 of 4, and with the stack without it, which passed 2 of 2; it returns on its own branch once the held sums wait for their peers correctly.
 - **Gotchas:** the combine launch takes up to eight entries a token row and only calls the walk build would take, so other routed downs keep their two launches; the CUDA kernels are compile-checked only.
 
 ## Inkling prompt speed (INKSPD3, branch spd/dense, which carries spd/prompt since INKSPD3o)

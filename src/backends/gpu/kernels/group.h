@@ -68,4 +68,95 @@ __device__ inline void group_failed(const GroupPeers* p, int members, int rank) 
     atomic_store_relaxed_system(&p->status[rank], 1u);
     atomic_store_relaxed_system(p->fault, 1u);
 }
+
+// Floats [i, i + count) of a slot armed again, count at most 4; the group kernels keep their tails rolled loops, so cuda-sass reads no unrolled tail as a split store.
+__device__ inline void group_arm_unit(float* slot, unsigned long long i, unsigned long long n) {
+    if (i + 4 <= n) {
+        store_vector((GroupWord4*)(slot + i), GroupWord4{kGroupArmed, kGroupArmed, kGroupArmed, kGroupArmed});
+        return;
+    }
+#pragma unroll 1
+    for (unsigned long long k = i; k < n && k < i + 4; ++k) ((unsigned*)slot)[k] = kGroupArmed;
+}
+
+// Unit i of n floats (i a multiple of 4) from 16-byte aligned rows, the floats past n zero; and stored to them, the floats past n left alone.
+__device__ inline float4 group_load(const float* src, unsigned long long i, unsigned long long n) {
+    if (i + 4 <= n) return *(const float4*)(src + i);
+    float v[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    for (unsigned long long k = i; k < n; ++k) v[k - i] = src[k];
+    return make_float4(v[0], v[1], v[2], v[3]);
+}
+__device__ inline void group_store(float* dst, unsigned long long i, unsigned long long n, float4 v) {
+    if (i + 4 <= n) {
+        store_vector((gpu_vector<4>*)(dst + i), gpu_vector<4>{__float_as_uint(v.x), __float_as_uint(v.y), __float_as_uint(v.z), __float_as_uint(v.w)});
+        return;
+    }
+    const float w[4] = {v.x, v.y, v.z, v.w};
+#pragma unroll 1
+    for (unsigned long long k = i; k < n && k < i + 4; ++k) dst[k] = w[k - i];
+}
+// out at unit i = t (replace) or out + t, as the one-shot writes it.
+__device__ inline void group_out(float* out, unsigned long long i, unsigned long long n, float4 t, bool replace, bool aligned) {
+    if (i + 4 <= n && aligned) {
+        float4* o = (float4*)(out + i);
+        if (replace) {
+            *o = t;
+        } else {
+            float4 r = *o;
+            r.x += t.x;
+            r.y += t.y;
+            r.z += t.z;
+            r.w += t.w;
+            *o = r;
+        }
+        return;
+    }
+    const float w[4] = {t.x, t.y, t.z, t.w};
+#pragma unroll 1
+    for (unsigned long long k = i; k < n && k < i + 4; ++k) {
+        if (replace) out[k] = w[k - i];
+        else out[k] += w[k - i];
+    }
+}
+// Waits until no float below n of unit i of a peer's slot is armed, giving up as group_stop says or once a thread of the block has, then takes the unit and arms it again.
+__device__ inline bool group_take(const GroupPeers* p, GroupSignal* self, float* slot, unsigned long long i, unsigned long long n, unsigned long long deadline, unsigned long long tick,
+                                  unsigned long long* next, int* failed, float4* got) {
+    GroupWord4 w;
+    for (unsigned s = 1;; ++s) {
+        if (i + 4 <= n) {
+            w = load_volatile((const GroupWord4*)(slot + i));
+        } else {
+            unsigned v[4] = {0u, 0u, 0u, 0u};
+            for (unsigned long long k = i; k < n; ++k) v[k - i] = ((const volatile unsigned*)slot)[k];
+            w = GroupWord4{v[0], v[1], v[2], v[3]};
+        }
+        if (w.x != kGroupArmed && w.y != kGroupArmed && w.z != kGroupArmed && w.w != kGroupArmed) break;
+        if (s % kGroupSpinChecks == 0 && (atomic_load_relaxed_block(failed) || group_stop(p, self, deadline, tick, next, failed))) return false;
+    }
+    *got = make_float4(__uint_as_float(w.x), __uint_as_float(w.y), __uint_as_float(w.z), __uint_as_float(w.w));
+    group_arm_unit(slot, i, n);
+    return true;
+}
+
+// The one-shot's take of unit i: the members' rows added in member order into out, each peer's unit armed again once read; false when a wait gave up.
+__device__ __forceinline__ bool group_take_unit(const GroupPeers* p, GroupSignal* self, const float* own, float* mine, float* out, unsigned long long i, unsigned long long n, unsigned long long cap, int members,
+                                       int rank, bool replace, bool aligned, unsigned long long deadline, unsigned long long tick, unsigned long long* next, int* failed) {
+    float4 t = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+    bool met = true;
+    for (int j = 0; j < members && met; ++j) {
+        float4 v;
+        if (j == rank) v = group_load(own, i, n);
+        else met = group_take(p, self, mine + j * cap, i, n, deadline, tick, next, failed, &v);
+        if (!j) {
+            t = v;
+        } else {
+            t.x += v.x;
+            t.y += v.y;
+            t.z += v.z;
+            t.w += v.w;
+        }
+    }
+    if (met) group_out(out, i, n, t, replace, aligned);
+    return met;
+}
 } // namespace

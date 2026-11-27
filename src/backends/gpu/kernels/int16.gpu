@@ -521,14 +521,63 @@ __device__ void q8_0_half_one(const RowCall& rc, const signed char* q, const flo
     }
 }
 
+// A held row's weight words, a step each, loaded before any product.
+template <int NS>
+struct HeldLoads {
+    gpu_words<4> t4[NS];
+    unsigned t5[NS];
+};
+// Steps past the row's blocks load its last block and add nothing, so no step branches and every load issues before the first wait.
+template <int NS>
+__device__ inline void held_loads(HeldLoads<NS>& l, const unsigned* w, unsigned blocks, int lane) {
+    const unsigned hl = lane & 1, span = warpSize / 2, b0 = lane >> 1;
+#pragma unroll
+    for (int d = 0; d < NS; ++d) {
+        const unsigned bd = b0 + d * span, bc = bd < blocks ? bd : blocks - 1, start = bc * kQ8 + 18 * hl, sh = start & 2, wi = start >> 2;
+        l.t4[d] = *(const gpu_words<4>*)(w + wi);
+        l.t5[d] = w[wi + 3 + (hl == 0 || sh ? 1 : 0)];
+    }
+}
+// The lane's part of the row's product against the twin in LDS; every step's twin and scale leave LDS before the first product, so the reads issue together.
+template <int NS>
+__device__ inline float held_dot(const HeldLoads<NS>& l, const int4* sq, const float* sd, unsigned blocks, int lane) {
+    const unsigned hl = lane & 1, span = warpSize / 2, b0 = lane >> 1;
+    int4 xs[NS];
+    float xd[NS];
+#pragma unroll
+    for (int d = 0; d < NS; ++d) {
+        const unsigned bd = b0 + d * span, bc = bd < blocks ? bd : blocks - 1;
+        xs[d] = sq[2 * bc + hl];
+        xd[d] = sd[bc];
+    }
+    float acc = 0.0f;
+#pragma unroll
+    for (int d = 0; d < NS; ++d) {
+        const unsigned bd = b0 + d * span, bc = bd < blocks ? bd : blocks - 1, start = bc * kQ8 + 18 * hl, sh = start & 2, s0 = sh + 2 * (1 - hl);
+        const int4 xq = xs[d];
+        const bool next = s0 == 4;
+        const unsigned t0 = l.t4[d].x, t1 = l.t4[d].y, t2 = l.t4[d].z, t3 = l.t4[d].w, t5d = l.t5[d];
+        const unsigned u0 = next ? t1 : t0, u1 = next ? t2 : t1, u2 = next ? t3 : t2, u3 = next ? t5d : t3, n = s0 & 3;
+        int s = word_dot((int)byte_align(u1, u0, n), xq.x, 0, (signed char)0);
+        s = word_dot((int)byte_align(u2, u1, n), xq.y, s, (signed char)0);
+        s = word_dot((int)byte_align(u3, u2, n), xq.z, s, (signed char)0);
+        s = word_dot((int)byte_align(t5d, u3, n), xq.w, s, (signed char)0);
+        const int own = (int)(t0 >> (8 * sh)) & 0xffff;
+        const int partner = pair_lane(own);
+        const float dw = __half2float(__ushort_as_half((unsigned short)(hl ? partner : own)));
+        const float next_acc = fmaf(dw * xd[d], (float)s, acc);
+        acc = bd < blocks ? next_acc : acc;
+    }
+    return acc;
+}
+
 // One row a wave, a row of at most NS spans of blocks: all of its steps' loads issue before any product, in one pass, so it gives the one-row build's bits.
 // A wave whose lanes all take the row's steps together measured 3 to 15 percent faster than the builds it replaces on an MI50 (docs/STATUS.md, Held one-column Q8_0 rows).
 template <int NS>
 __device__ void q8_0_half_held(const RowCall& rc, const signed char* q, const float* dx, unsigned long long nin, int add, unsigned bx) {
     const int lanes = warpSize, lane = threadIdx.x % lanes;
-    const unsigned blocks = (unsigned)(nin / 32), hl = lane & 1;
+    const unsigned blocks = (unsigned)(nin / 32);
     const unsigned long long o = (unsigned long long)bx * (kThreads / lanes) + threadIdx.x / lanes;
-    const unsigned span = lanes / 2, b0 = lane >> 1;
     // The twin goes into LDS once a block, so a wave loads only its row's weights; every wave meets the barrier, a wave past the call's rows loading the last row.
     constexpr int XQ = NS * 64, XF = (XQ + kThreads - 1) / kThreads;
     static_assert(NS * 32 <= kThreads, "a thread stages at most one block scale");
@@ -545,15 +594,8 @@ __device__ void q8_0_half_held(const RowCall& rc, const signed char* q, const fl
     const unsigned long long oc = o < rc.total ? o : rc.total - 1;
     // The weight base is the wave's, in scalar registers; the output pointer stays per lane, since both in scalar form took 48 us against 8 at 2048 rows of 2048 on an MI50.
     const unsigned* w = (const unsigned*)row_of(rc, first_lane((unsigned)oc), blocks * kQ8).w;
-    gpu_words<4> t4[NS];
-    unsigned t5[NS];
-    // Steps past the row's blocks load its last block and add nothing, so no step branches and every load issues before the first wait.
-#pragma unroll
-    for (int d = 0; d < NS; ++d) {
-        const unsigned bd = b0 + d * span, bc = bd < blocks ? bd : blocks - 1, start = bc * kQ8 + 18 * hl, sh = start & 2, wi = start >> 2;
-        t4[d] = *(const gpu_words<4>*)(w + wi);
-        t5[d] = w[wi + 3 + (hl == 0 || sh ? 1 : 0)];
-    }
+    HeldLoads<NS> l;
+    held_loads(l, w, blocks, lane);
     schedule_barrier();
 #pragma unroll
     for (int i = 0; i < XF; ++i) {
@@ -563,34 +605,7 @@ __device__ void q8_0_half_held(const RowCall& rc, const signed char* q, const fl
     if (threadIdx.x < blocks) sd[threadIdx.x] = fd;
     __syncthreads();
     if (o >= rc.total) return;
-    // Every step's twin and scale leave LDS before the first product, so the reads issue together.
-    int4 xs[NS];
-    float xd[NS];
-#pragma unroll
-    for (int d = 0; d < NS; ++d) {
-        const unsigned bd = b0 + d * span, bc = bd < blocks ? bd : blocks - 1;
-        xs[d] = sq[2 * bc + hl];
-        xd[d] = sd[bc];
-    }
-    float acc = 0.0f;
-#pragma unroll
-    for (int d = 0; d < NS; ++d) {
-        const unsigned bd = b0 + d * span, bc = bd < blocks ? bd : blocks - 1, start = bc * kQ8 + 18 * hl, sh = start & 2, s0 = sh + 2 * (1 - hl);
-        const int4 xq = xs[d];
-        const bool next = s0 == 4;
-        const unsigned t0 = t4[d].x, t1 = t4[d].y, t2 = t4[d].z, t3 = t4[d].w, t5d = t5[d];
-        const unsigned u0 = next ? t1 : t0, u1 = next ? t2 : t1, u2 = next ? t3 : t2, u3 = next ? t5d : t3, n = s0 & 3;
-        int s = word_dot((int)byte_align(u1, u0, n), xq.x, 0, (signed char)0);
-        s = word_dot((int)byte_align(u2, u1, n), xq.y, s, (signed char)0);
-        s = word_dot((int)byte_align(u3, u2, n), xq.z, s, (signed char)0);
-        s = word_dot((int)byte_align(t5d, u3, n), xq.w, s, (signed char)0);
-        const int own = (int)(t0 >> (8 * sh)) & 0xffff;
-        const int partner = pair_lane(own);
-        const float dw = __half2float(__ushort_as_half((unsigned short)(hl ? partner : own)));
-        const float next_acc = fmaf(dw * xd[d], (float)s, acc);
-        acc = bd < blocks ? next_acc : acc;
-    }
-    const float v = wave_sum(acc);
+    const float v = wave_sum(held_dot(l, sq, sd, blocks, lane));
     if (lane == 0) {
         float* y = row_of(rc, o, blocks * kQ8).y;
         *y = add ? *y + v : v;
@@ -604,12 +619,19 @@ struct GroupTail {
     unsigned long long half_at, cap;
     int members, rank;
     unsigned tile;   // blocks a tile
+    unsigned epoch;   // this push's count, which a pushed tile's flag takes; 0 when the build does not take
+    unsigned* pushed;   // a flag per tile, its epoch once the tile's rows are out
+    float* out;
+    unsigned long long timeout, tick;
+    unsigned takers;   // the walk's first blocks, which only take the sum
+    int replace;
 };
-// The block that finishes a tile's last row sends the tile's rows to each peer as one store a wave, quiet NaNs escaped; the take then waits only for the tiles still on their way.
-// Waves past the call's rows return from the held row before this, so every wave of a block meets its barriers.
-__device__ inline void held_push(const RowCall& rc, const GroupTail& t) {
+// Block b's rows are done: the block that finishes a tile's last row sends the tile's rows to each peer as one store a wave, quiet NaNs escaped, and flags the tile out when the build takes.
+// Every wave of the block calls it, so every wave meets its barriers.
+__device__ inline void held_push_tile(const RowCall& rc, const GroupTail& t, unsigned b, unsigned nb) {
     __shared__ unsigned last;
-    const unsigned k = blockIdx.x / t.tile, left = gridDim.x - k * t.tile, want = left < t.tile ? left : t.tile;
+    const unsigned per = kThreads / warpSize, lane = threadIdx.x % warpSize;
+    const unsigned k = b / t.tile, left = nb - k * t.tile, want = left < t.tile ? left : t.tile;
     __syncthreads();
     if (threadIdx.x == 0) {
         __threadfence();
@@ -619,7 +641,6 @@ __device__ inline void held_push(const RowCall& rc, const GroupTail& t) {
     if (!last) return;
     if (threadIdx.x == 0) t.tiles[k] = 0;
     __threadfence();
-    const unsigned per = kThreads / warpSize, lane = threadIdx.x % warpSize;
     const unsigned long long base = (unsigned long long)k * t.tile * per, span = (unsigned long long)t.tile * per, rows = rc.total - base < span ? rc.total - base : span;
     // The fence above invalidates this CU's L1, so plain loads read the other blocks' rows from L2 and a 16-byte word is one load.
     const float* own = rc.y[0] + base;
@@ -634,6 +655,52 @@ __device__ inline void held_push(const RowCall& rc, const GroupTail& t) {
                 for (unsigned long long u = r; u < rows; ++u) ((unsigned*)dst)[u] = group_sane(own[u]);
             }
         }
+    }
+    if (!t.epoch) return;
+    __syncthreads();
+    if (threadIdx.x == 0) atomic_store_release_system(&t.pushed[k], t.epoch);
+}
+
+// The pushing build of one block's rows, which needs nothing but its own block (GpuCollective::push_rows without an epoch).
+__device__ inline void held_push(const RowCall& rc, const GroupTail& t) {
+    const unsigned per = kThreads / warpSize, nb = (unsigned)((rc.total + per - 1) / per);
+    if (blockIdx.x < nb) held_push_tile(rc, t, blockIdx.x, nb);
+}
+
+// The walking held build, which also takes the sum (GpuCollective::push_rows with an epoch): blocks past the first t.takers are the held build's blocks and push each tile as it completes.
+// The first t.takers blocks only take the sum, striding over its chunks of kThreads units in order, so a take waits only on pushed tiles and never holds a slot a row block needs (docs/DEVICE-TUNING.md).
+template <int NS>
+__device__ void q8_0_half_walk(const RowCall& rc, const signed char* q, const float* dx, unsigned long long nin, int add, const GroupTail& t) {
+    const unsigned per = kThreads / warpSize, T = t.takers;
+    const unsigned long long n = rc.total, units = (n + 3) / 4;
+    const unsigned nb = (unsigned)((n + per - 1) / per);
+    if (blockIdx.x >= T) {
+        q8_0_half_held<NS>(rc, q, dx, nin, add, blockIdx.x - T);
+        held_push_tile(rc, t, blockIdx.x - T, nb);
+        return;
+    }
+    __shared__ int failed;
+    if (!threadIdx.x) failed = 0;
+    __syncthreads();
+    unsigned long long u = (unsigned long long)blockIdx.x * kThreads + threadIdx.x;
+    for (; u - threadIdx.x < units; u += (unsigned long long)T * kThreads) {
+        if (u < units) {
+            const unsigned k = (unsigned)(u * 4 / per / t.tile);
+            while (atomic_load_acquire_device(&t.pushed[k]) != t.epoch) {}
+            unsigned long long next = (unsigned long long)wall_clock() + t.tick;
+            const unsigned long long deadline = t.timeout ? (unsigned long long)wall_clock() + t.timeout : ~0ull;
+            if (!group_take_unit(t.p, (GroupSignal*)t.p->signal[t.rank], rc.y[0], t.p->stage[t.rank] + t.half_at, t.out, u * 4, n, t.cap, t.members, t.rank, t.replace,
+                                 ((unsigned long long)t.out & 15) == 0, deadline, t.tick, &next, &failed))
+                atomic_store_relaxed_block(&failed, 1);
+        }
+        __syncthreads();
+        if (failed) break;
+    }
+    if (failed) {
+        if (u < units)
+#pragma unroll 1
+            for (unsigned long long r = u * 4; r < n && r < u * 4 + 4; ++r) t.out[r] = __builtin_nanf("");
+        group_failed(t.p, t.members, t.rank);
     }
 }
 
@@ -3527,6 +3594,12 @@ LLMX_HELD_LIST(llmx_q8_0_half8_1h2_list, 2)
 LLMX_HELD_LIST(llmx_q8_0_half8_1h3_list, 3)
 LLMX_HELD_LIST(llmx_q8_0_half8_1h4_list, 4)
 LLMX_HELD_LIST(llmx_q8_0_half8_1h5_list, 5)
+// The walking held builds that also take the sum (q8_0_half_walk).
+#define LLMX_HELD_WALK(name, NS) extern "C" __global__ void LLMX_TILE8_BOUNDS(4) name(RowCall c, const signed char* q, const float* dx, unsigned long long nin, int ncols, int add, GroupTail t) { q8_0_half_walk<NS>(c, q, dx, nin, add, t); }
+LLMX_HELD_WALK(llmx_q8_0_half8_1h2w, 2)
+LLMX_HELD_WALK(llmx_q8_0_half8_1h3w, 3)
+LLMX_HELD_WALK(llmx_q8_0_half8_1h4w, 4)
+LLMX_HELD_WALK(llmx_q8_0_half8_1h5w, 5)
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_half8_1r2s4(RowCall c, const signed char* q, const float* dx, unsigned long long nin, int ncols, int add) {
     q8_0_half_one<2, kSteps>(c, q, dx, nin, add);
 }

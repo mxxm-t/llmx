@@ -185,7 +185,7 @@ public:
             const uint32_t push = members[0]->dev_.profile.held_push_members;
             if (push && W >= push && std::any_of(sets_.begin(), sets_.end(), [](const Areas& s) { return s.fast() && !s.host(); }))
                 for (GpuBackend<Api>* b : members) {
-                    const size_t bytes = (cap_ + 63) / 64 * sizeof(unsigned);
+                    const size_t bytes = 2 * ((cap_ + 63) / 64) * sizeof(unsigned);   // the tile counters, then the tiles' pushed flags
                     tile_bufs_.push_back(b->alloc(bytes, Memory::device));
                     tiles_.push_back((unsigned*)as_gpu<Api>(*tile_bufs_.back()).data());
                     b->hold_fill(tiles_.back(), bytes);
@@ -622,9 +622,15 @@ private:
         std::vector<char> sent(W, 0);
         if (n && p.form == GpuSumForm::one_shot && tiles_.size() == W && !areas(p.transport).host() && !(replace && ((fold == Fold::entry && W == 2) || fold == Fold::whole))) {
             const Areas& s = areas(p.transport);
+            // On a member's own stream the build walks its rows and takes the sum too, so the take's re-arm stays ordered before the next push into those slots.
+            const bool take = lane < 0 && from == 0;
+            epoch_.resize(W);
             for (size_t m = 0; m < W; ++m) {
-                const typename GpuBackend<Api>::GroupTail t{s.table[m], tiles_[m], (unsigned long long)s.half * W * cap_, cap_, (int)W, (int)m, kPushTile};
-                sent[m] = members_[m]->push_rows(GpuBackend<Api>::f32(CSlice(partial(m))), n, t);
+                unsigned epoch = 0;
+                if (take && !(epoch = ++epoch_[m])) epoch = epoch_[m] = 1;
+                const typename GpuBackend<Api>::GroupTail t{s.table[m], tiles_[m], (unsigned long long)s.half * W * cap_, cap_, (int)W, (int)m, kPushTile, epoch, tiles_[m] + (cap_ + 63) / 64,
+                                                            GpuBackend<Api>::f32(residual[m]), timeout_[m], tick_[m], GpuBackend<Api>::kWalkTakers, replace ? 1 : 0};
+                sent[m] = (char)members_[m]->push_rows(GpuBackend<Api>::f32(CSlice(partial(m))), n, t);
             }
         }
         // A sum whose launch throws is still the last sum, so a wait for it covers the members' kernels that did launch.
@@ -719,8 +725,10 @@ private:
     void pushed(const std::vector<Slice>& residual, size_t n, bool replace, Areas& s, GpuSumPick pick, std::vector<typename GpuBackend<Api>::TakeDesc>* takes, const std::vector<char>& sent, size_t from = 0, int lane = -1, bool whole = false) {
         // Draws alternate their own two slots the same way, as a peer may still read the last draws' totals when a member starts the next.
         const bool draws = pick.form == GpuSumForm::draws;
-        for (size_t m = 0; lane < 0 && m < members_.size(); ++m)
+        for (size_t m = 0; lane < 0 && m < members_.size(); ++m) {
+            if (sent[m] == 2) continue;   // the pushing build took the sum too
             launch(m, residual[m], n, replace, true, pick, s, draws ? s.draw_half : s.half, pick.form == GpuSumForm::one_shot ? takes : nullptr, sent[m], from, nullptr, whole);
+        }
         for (size_t m = 0; lane >= 0 && m < members_.size(); ++m) {
             GpuBackend<Api>& b = *members_[m];
             Api::check(Api::set_device(b.dev_.index), "set_device");
@@ -917,6 +925,7 @@ private:
     std::vector<Areas> sets_;   // per staged transport, in the order given; the first is the conservative path's
     std::vector<BufferPtr> tile_bufs_;   // per member, the pushing held build's tile counters, or none where its held builds do not push
     std::vector<unsigned*> tiles_;
+    std::vector<unsigned> epoch_;   // each member's pushes that take in the build, the epoch its pushed flags carry
     std::vector<BufferPtr> partial_;
     std::vector<typename Api::Event> ready_;   // per member, the event behind its pulls' copies
     std::vector<unsigned long long> timeout_, tick_;   // per member in its wall-clock ticks: a probe's kProbeTimeoutMs, else kSumTimeoutMs, and a millisecond

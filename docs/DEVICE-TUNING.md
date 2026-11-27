@@ -730,3 +730,44 @@ On ROCm, rocprofv3 (kernel trace, 827 dispatches, 12.28 s of kernels) puts 10.80
 The non-causal call has 64-wide heads, so it misses the tile route (causal, head_dim 128 or 256) and the vector route and takes the one-row-per-block chunk kernel, which reads K and V from global memory once per query row with a quarter of its threads live in the value sum (src/backends/gpu/backend_core.hpp attend, kernels/f32.gpu attention_chunk; Fable read-through, not built).
 The candidate is `attention_tile` for head_dim 64 with a non-causal flag and a 256-key fold, which changes ROCm and CUDA vision sums within the 4e-6 rule of docs/PRECISION.md and needs its own failing test (`vision::dominant_key` at 1296 and 4096 keys) and the CUDA vision check; it is not done.
 Vulkan 1080p is within its bound at 8.53e-6 of 9.37e-6, ROCm 4.38e-6, CPU 4.03e-6.
+## Walking held build with dedicated takers (2026-11-27, SUMS77 to SUMS100, branch sums83-take on main 6adeee63)
+
+The pushing held Q8_0 build at four MI50s also takes the sum (`q8_0_half_walk`, docs/src/backends-gpu.md), so a decode sum in place launches nothing after the product.
+Its first `kWalkTakers` blocks only take; the blocks after them are the held build's and push each tile as it completes.
+The cause it removes is waiting: a member that arrives late at the take holds the whole group behind a separate take launch.
+A skew arm (member 3 spins before each pushing build, test-only tree) shows it, Qwen3.6-27B Q8_0 `--dtype int8` tg128 tok/s at tw4 on renderD132-135:
+
+| skew | main da500e81 | walk (claim counter) |
+|---|---|---|
+| 0 us | 70.53 | 68.75 |
+| 25 us | 35.75 | 41.43 |
+| 50 us | 23.66 | 29.68 |
+| 100 us | 14.08 | 18.96 |
+
+The first walk claimed row blocks and then take chunks from one counter, so a take block could hold a slot a row block needed and lost 2.5% with no skew.
+Dedicated takers keep row blocks and take blocks apart; sweep of the taker count, 3 rounds tw4: main 69.66, T=1 67.17, T=2 72.23, T=4 72.21, T=8 70.69.
+Two is chosen: four measured alike, one is too few to keep up with the tiles, eight takes slots from the rows.
+Six interleaved rounds on the base da500e81: tw4 69.93 to 71.95 tok/s (+2.9%), tw2 45.88 to 45.79 (-0.2%, ranges overlap; tw2 is below `held_push_members` and runs main's path).
+Generated ids are the same as main's at tw2 and tw4 (short and long prompt, n=128).
+On main 6adeee63 (renderD132-135, 6 interleaved rounds, tg128 mean, gfx906 builds on pve1 from detached worktrees):
+
+| width | main 6adeee63 | walk 771dfde8 | change |
+|---|---|---|---|
+| tw4 | 70.83 (67.40-72.64) | 72.65 (69.92-73.91) | +2.6% |
+| tw2 | 45.81 (45.49-45.95) | 45.65 (45.29-45.82) | -0.35% |
+
+A layout control at tw2 (main plus an unused function appended to `collective_core.hpp`, 4 rounds) measured 45.93 against main's 45.92, so that file's band is under 0.1% and does not cover the tw2 delta; the change also adds four kernels to the int16 module, which the control does not perturb.
+
+The f32 module, whose `llmx_group_sum` and `llmx_group_take` tw2 runs, was not layout-only: with `group_take_unit` a called function with an early return, the take loop gained a call and SGPR use rose from 88 to 90 on gfx906.
+Forcing it inline with main's loop shape (a met flag, no early return) gives main's instructions modulo register renaming (SGPR 88, VGPR 48 against 47).
+A layout control for the int16 module (main plus eight unused push-sized kernels in `int16.gpu`) measures the band the four added kernels can move.
+Interleaved on main 6adeee63, renderD132-135, tg128 mean tok/s, gfx906 builds on pve1 from detached worktrees (SUMS96):
+
+| arm | tw2 (12 rounds) | tw4 (6 rounds) |
+|---|---|---|
+| main 6adeee63 | 45.917 | 72.05-72.68 |
+| main plus unused kernels (layout control) | 46.043 (+0.27%) | not run |
+| walk, called take (c0115d07) | 45.803 (-0.25%) | 72.69-73.79 (about +1.5%) |
+| walk, inline take (landed) | 45.832 (-0.19%) | 73.07-74.27 (about +2.0%) |
+
+The control moves tw2 by +0.27% with no executed change, so the band is at least that wide and the -0.19% dip of the landed form is layout; ids are the same as main's for both walk arms at tw2 and tw4 (n=128).

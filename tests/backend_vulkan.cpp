@@ -186,6 +186,27 @@ size_t check_q5_embedding(backend::Backend& vk, uint32_t type) {
     return expected.size() * (symmetric ? 2 : 1);
 }
 
+// sparse_attention_sink with a tail refuses kv or tail rows of 2^31 words or more, whose first word's top bit marks a tail row, before reading any operand; just below, the same call fails only for want of its operands.
+size_t check_sparse_tail_words(backend::Backend& vk) {
+    const size_t dim = 64, big = (size_t(1) << 31) / dim;
+    backend::BufferPtr buf = vk.alloc(4096 * sizeof(float));
+    const backend::Slice out{buf.get(), 0};
+    const backend::CSlice in{buf.get(), 1024}, tail{buf.get(), 2048};
+    const auto refusal = [&](size_t kv_rows, size_t tail_rows) {
+        const backend::Backend::SinkTerms terms{{}, {}, tail, tail_rows, backend::Backend::GateForm::identity};
+        try {
+            vk.sparse_attention_sink(out, in, in, in, in, 1, 1, dim, kv_rows, 1, 1.0f, 0, nullptr, 0, {}, 0, backend::ModelFormat::f32, backend::ModelFormat::f32, terms);
+        } catch (const std::runtime_error& e) { return std::string(e.what()); }
+        return std::string();
+    };
+    const auto names = [](const std::string& what, const char* part) { return what.find(part) != std::string::npos; };
+    require(names(refusal(big, 6), "31-bit word offsets"), "sparse attention kv rows of 2^31 words with a tail not refused");
+    require(names(refusal(6, big), "31-bit word offsets"), "sparse attention tail rows of 2^31 words not refused");
+    require(names(refusal(big - 1, 6), "outside its allocation"), "sparse attention kv rows below 2^31 words refused as past them");
+    require(names(refusal(6, big - 1), "outside its allocation"), "sparse attention tail rows below 2^31 words refused as past them");
+    return 4;
+}
+
 // A table past 4 GiB, as Qwen3.8-Flash-Next's per-layer table is (table_views, shaders/embed.comp): F32, Q8_0 and IQ4_NL rows written at the start, either side of 2^32 bytes and at the end of a zeroed table.
 // They must read back, bit for bit, as the same rows of a small table on the CPU, through host and device ids, with an id past the table a zero row; a device that cannot hold the table says so and checks nothing.
 size_t check_large_table(backend::Backend& vk) {
@@ -5707,6 +5728,8 @@ int main(int argc, char** argv) {
             Pair p(*b);
             std::cout << "backend-vulkan: " << backend::vulkan_device_name(*b) << "\n";
             std::cout << "backend-vulkan: " << ds4::check_ops(p) << " deepseek4 op values against the CPU\n";
+            std::cout << "backend-vulkan: deepseek4 sparse attention with SinkTerms: " << ds4::check_sparse_shapes(p, {}, true) << " values against the CPU\n";
+            std::cout << "backend-vulkan: " << check_sparse_tail_words(*b) << " sparse attention tail word bounds refused past 31 bits or held to their operands\n";
             return 0;
         }
         if (routed_only) {
@@ -5899,13 +5922,14 @@ int main(int argc, char** argv) {
         std::cout << "backend-vulkan: " << check_q5_embedding(*b, quant::GGML_TYPE_Q5_1) << " exact Q5_1 embedding values passed\n";
         std::cout << "backend-vulkan: " << check_q5_embedding(*b, quant::GGML_TYPE_Q5_0) << " exact Q5_0 embedding values passed\n";
         std::cout << "backend-vulkan: " << check_large_table(*b) << " embedding values of tables past 4 GiB passed\n";
+        std::cout << "backend-vulkan: " << check_sparse_tail_words(*b) << " sparse attention tail word bounds refused past 31 bits or held to their operands\n";
         std::cout << "backend-vulkan: " << check_matrix_witness(*b) << " matrix-path witnesses match arithmetic\n";
         const size_t int8_values = check_int8(*b);
         std::cout << "backend-vulkan: " << int8_values << " int8 outputs against the CPU on 8-bit activations, sliced prompts, and types without an 8-bit build as f16\n";
         std::cout << "backend-vulkan: " << check_int8_twin_width() << " int8 outputs unchanged when the input row width changes\n";
         std::cout << "backend-vulkan: " << check_write_sets() << " kernel bindings written or read as their shaders declare them\n";
         std::cout << "backend-vulkan: " << check_twin_table() << " products from kept twins equal to products from fresh copies\n";
-        const size_t values = check_kernels(*b) + check_qwen35(*b) + vkvision::check_ops(*b) + [&] { Pair p(*b); return ds4::check_ops(p); }();
+        const size_t values = check_kernels(*b) + check_qwen35(*b) + vkvision::check_ops(*b) + [&] { Pair p(*b); return ds4::check_ops(p) + ds4::check_sparse_shapes(p, {}, true); }();
         std::cout << "backend-vulkan: " << checks << " storage and submission checks; "
                   << values << " kernel outputs against the CPU backend\n";
         std::cout << "backend-vulkan: " << check_float_workspace(*b) << " exact products across bounded float workspace slices\n";

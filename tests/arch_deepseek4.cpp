@@ -8,6 +8,7 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <memory>
 #include <numeric>
@@ -76,12 +77,16 @@ struct Golden {
 
 Golden golden;
 
-void read_golden(const std::string& path) {
+jmini::Value parse_file(const std::string& path) {
     std::ifstream file(path, std::ios::binary);
     if (!file) throw std::runtime_error("cannot open " + path);
     std::stringstream text;
     text << file.rdbuf();
-    const jmini::Value root = jmini::parse(text.str());
+    return jmini::parse(text.str());
+}
+
+void read_golden(const std::string& path) {
+    const jmini::Value root = parse_file(path);
     const jmini::Value& args = field(root, "args");
     for (const char* k : {"vocab_size", "dim", "moe_inter_dim", "n_layers", "n_heads", "n_routed_experts", "n_shared_experts",
                           "n_activated_experts", "route_scale", "swiglu_limit", "q_lora_rank", "head_dim", "rope_head_dim", "norm_eps",
@@ -2304,12 +2309,204 @@ void dspark(const std::string& trunk, const std::string& sidecar) {
     dspark_cut(joined);
 }
 
+// DFly2 on two CPUs with layers 0-5 on the first: stage 0 runs there beside target layer 5, stages 1 and 2 and the correction on the head's beside layers 6 and 7.
+void dfly2_split(const std::string& trunk, const std::string& sidecar) {
+    const std::vector<uint64_t> wide = wholes(field(golden.root, "sequence"));
+    const std::vector<uint32_t> sequence(wide.begin(), wide.end());
+    const size_t V = golden["vocab_size"], B = 5, prefill = 40;
+    std::vector<std::unique_ptr<infer::LoadedModel>> loaded;
+    // The third run puts every routed layer's experts on a CPU placed before two devices (--cpu-moe), which moves each device's index up one, the stages' too.
+    for (int run = 0; run < 3; ++run) {
+        const std::vector<int> cut = run ? std::vector<int>{6, 2} : std::vector<int>{};
+        infer::PlacementRequest request;
+        request.dtype = backend::Dtype::f32;
+        request.shares = cut;
+        if (!cut.empty()) request.names = {"cpu", "cpu"};
+        if (run == 2) request.cpu_moe = -1;
+        infer::ModelOptions options;
+        options.dtype = backend::Dtype::f32;
+        options.kv_k = options.kv_v = backend::KVType::f32;
+        std::vector<backend::BackendPtr> devices;
+        for (size_t i = 0; i < std::max<size_t>(1, cut.size()); ++i) {
+            if (run == 2) devices.push_back(std::make_shared<ThreadedCpu>());
+            else devices.push_back(backend::make_cpu_backend());
+            devices.back()->set_threads(1);
+        }
+        loaded.push_back(infer::load_model(trunk, std::move(devices), request, options, {}, infer::LoadMode::mapped, sidecar));
+        loaded.back()->model->set_ubatch(int(prefill));
+        loaded.back()->model->prefill(std::vector<uint32_t>(sequence.begin(), sequence.begin() + std::ptrdiff_t(prefill)));
+    }
+    for (size_t k = 1; k < loaded.size(); ++k) {
+        const std::string& plan = loaded[k]->plan;
+        require(plan.find("layers 0-5 and drafter stages 0, ") != std::string::npos && plan.find("layers 6-7 and drafter stages 1,2, ") != std::string::npos,
+                "DFly2's stage 0 goes beside target layer 5 on the first CPU and stages 1 and 2 to the head's: " + plan);
+    }
+    infer::Model &one = *loaded[0]->model, &two = *loaded[1]->model, &moe = *loaded[2]->model;
+    size_t rows = 0;
+    for (size_t position = prefill; position < prefill + 12 && position + 1 < sequence.size(); ++position) {
+        std::vector<uint32_t> want, got, host;
+        one.step(&sequence[position], 1);
+        two.step(&sequence[position], 1);
+        moe.step(&sequence[position], 1);
+        one.draft(sequence[position + 1], B, want);
+        two.draft(sequence[position + 1], B, got);
+        moe.draft(sequence[position + 1], B, host);
+        require(want.size() == B && got == want, "DFly2 on two CPUs drafts the one CPU's ids at position " + std::to_string(position));
+        require(host == want, "DFly2 on two devices with the experts on the CPU drafts the one CPU's ids at position " + std::to_string(position));
+        for (size_t j = 0; j < B; ++j) {
+            require(std::memcmp(two.draft_logits(j), one.draft_logits(j), V * sizeof(float)) == 0, "DFly2 on two CPUs gives the one CPU's draft logits at position " + std::to_string(position));
+            require(std::memcmp(moe.draft_logits(j), one.draft_logits(j), V * sizeof(float)) == 0,
+                    "DFly2 on two devices with the experts on the CPU gives the one CPU's draft logits at position " + std::to_string(position));
+        }
+        rows += B;
+    }
+    std::cout << "arch-deepseek4: DFly2 on two CPUs with stage 0 beside layer 5 on the first, and on two devices with the experts on the CPU, gave the one CPU's drafts and " << rows
+              << " draft rows' logits bit for bit\n";
+}
+
+// tools/dfly2_reference.py's filled(): exact F32 values from an integer hash, so the paired cases' state is written here as the reference reads it.
+float filled(uint64_t salt, uint64_t k, int shift) {
+    return float(std::ldexp(double((k + salt * 1000003) * 2654435761ull % 2001), -shift) - std::ldexp(1000.0, -shift));
+}
+
+// DFly2's draft logits against the reference's runtime-shaped cases (tests/data/deepseek41_dfly2.json, paired): 128 tokens on one CPU, saved to the host, the drafter's inputs written over the copy, restored and drafted.
+// The copy's layout is the tiny trunk's (docs/SPECULATIVE.md, section 12): layer 5's pool in the third block range, and in the state layers 5 to 7's rings of 2 x window rows, then the carried row and its picks.
+void dfly2(const std::string& path, const std::string& trunk, const std::string& sidecar) {
+    const jmini::Value root = parse_file(path);
+    const jmini::Value& a = field(root, "args");
+    const size_t D = whole(field(a, "head_dim")), E = whole(field(a, "hidden")), V = whole(field(a, "vocab")), A = whole(field(a, "block")), B = A - 1;
+    const size_t T = whole(field(a, "picks")), stages = whole(field(a, "layers")), H = whole(field(a, "hc")), W = 128, P = 128, ring = 2 * W;
+    // Layers 0 to 4's state precedes layer 5's ring; three u32 of Engram's token tail follow the carried picks.
+    const size_t before = 57600, carry = before + stages * ring * D, state_floats = carry + H * E + stages * T + 3;
+    infer::PlacementRequest request;
+    request.dtype = backend::Dtype::f32;
+    infer::ModelOptions options;
+    options.dtype = backend::Dtype::f32;
+    options.kv_k = options.kv_v = backend::KVType::f32;
+    options.kv_k_given = options.kv_v_given = true;
+    options.checkpoint_slots = 2;
+    // The live copy's block, the restored copy's and the one its draft block reads into.
+    options.kv_tokens = 3 * W;
+    std::vector<backend::BackendPtr> devices;
+    devices.push_back(backend::make_cpu_backend());
+    devices.back()->set_threads(1);
+    std::unique_ptr<infer::LoadedModel> loaded = infer::load_model(trunk, std::move(devices), request, options, {}, infer::LoadMode::mapped, sidecar);
+    require(loaded->drafter == infer::spec::DrafterKind::mtp, "the DFly2 sidecar pairs as the trunk's drafter stages");
+    infer::Model& model = *loaded->model;
+    std::vector<uint32_t> ids(W);
+    for (size_t i = 0; i < W; ++i) ids[i] = uint32_t((i * 37 + 11) % 97 + 1);
+    model.set_ubatch(int(W));
+    infer::Sequence seq = model.make_sequence();
+    infer::ExecContext ctx;
+    infer::BatchEntry keep{&seq, ids.data(), ids.size(), false};
+    keep.extent = ids.size();
+    keep.keep = true;
+    model.forward(ctx, &keep, 1);
+    double most = 0;
+    std::string where;
+    size_t drafts = 0, rows = 0, ties = 0;
+    const auto& cases = field(root, "paired").asArray();
+    for (const jmini::Value& c : cases) {
+        const uint64_t salt = whole(field(c, "salt"));
+        const int shift = int(whole(field(c, "shift")));
+        const std::string name = "paired case of salt " + std::to_string(salt);
+        infer::HostHistory h;
+        model.save_host(seq, W, h, std::numeric_limits<size_t>::max());
+        const std::vector<infer::HostRange> blocks = model.host_ranges(h, 0, W), state = model.host_state_ranges(h);
+        std::string sizes;
+        for (const infer::HostRange& r : blocks) sizes += " " + std::to_string(r.bytes);
+        require(blocks.size() == 3 && blocks[2].device == 0 && blocks[2].bytes == P * 2 * D * sizeof(float), "the copy's third block range is layer 5's pool of 128 rows of 2 x head_dim, not" + sizes);
+        require(state.size() == 1 && state[0].device == 0 && state[0].bytes == state_floats * sizeof(float),
+                "the copy's state is layers 0 to 7's, the carried row and picks and the token tail, " + std::to_string(state_floats * sizeof(float)) + " bytes, not " +
+                    std::to_string(state.empty() ? 0 : state[0].bytes));
+        // The CPU backend's copy is done when save_host returns, so its slabs (Model::kHostSlab apart) are read and written in place.
+        const size_t slab = size_t(64) << 20;
+        const auto byte = [&](size_t at) { return (uint8_t*)const_cast<void*>(h.slabs[0][at / slab]->host_ptr()) + at % slab; };
+        const auto put = [&](size_t at, const void* from) {
+            for (size_t i = 0; i < sizeof(float); ++i) *byte(at + i) = ((const uint8_t*)from)[i];
+        };
+        const auto get = [&](size_t at) {
+            uint32_t v = 0;
+            for (size_t i = 0; i < sizeof(v); ++i) ((uint8_t*)&v)[i] = *byte(at + i);
+            return v;
+        };
+        // What the forward carried: the normed row in each of its H copies, and each stage's 16 picks of row 127 distinct and inside the 128 entries.
+        for (size_t q = E; q < H * E; ++q)
+            require(get(state[0].offset + (carry + q) * sizeof(float)) == get(state[0].offset + (carry + q % E) * sizeof(float)), "the carried row's copies are equal");
+        for (size_t st = 0; st < stages; ++st) {
+            std::set<uint32_t> seen;
+            for (size_t j = 0; j < T; ++j) seen.insert(get(state[0].offset + (carry + H * E + st * T + j) * sizeof(float)));
+            require(seen.size() == T && *seen.rbegin() < P, "stage " + std::to_string(st) + "'s carried picks are 16 distinct entries of the 128");
+        }
+        const auto value = [&](size_t at, uint64_t s, uint64_t k) {
+            const float v = filled(s, k, shift);
+            put(at, &v);
+        };
+        for (size_t p = 0; p < P; ++p)
+            for (size_t k = 0; k < 2 * D; ++k) value(blocks[2].offset + (p * 2 * D + k) * sizeof(float), salt + 3, p * 2 * D + k);
+        for (size_t st = 0; st < stages; ++st)
+            for (size_t p = 0; p < W; ++p)
+                for (size_t k = 0; k < D; ++k) value(state[0].offset + (before + st * ring * D + (p % ring) * D + k) * sizeof(float), salt + st, p * D + k);
+        for (size_t q = 0; q < H * E; ++q) value(state[0].offset + (carry + q) * sizeof(float), salt + 4, q % E);
+        const auto& picks = field(c, "picks").asArray();
+        for (size_t st = 0; st < stages; ++st)
+            for (size_t j = 0; j < T; ++j) {
+                const double v = picks[st].asArray()[j].num;
+                const uint32_t id = v < 0 ? UINT32_MAX : uint32_t(v);
+                put(state[0].offset + (carry + H * E + st * T + j) * sizeof(float), &id);
+            }
+        infer::Sequence r = model.restore_host(h);
+        std::vector<uint32_t> out;
+        model.draft(r, uint32_t(whole(field(c, "anchor"))), B, out);
+        require(out.size() == B, "a DFly2 block of " + std::to_string(B) + " drafts in the " + name);
+        const std::vector<uint64_t> want = wholes(field(c, "drafts"));
+        const auto& margins = field(c, "margins").asArray();
+        const auto& logits = field(c, "logits").asArray();
+        for (size_t j = 0; j < B; ++j) {
+            const float* got = model.draft_logits(j);
+            for (size_t v = 0; v < V; ++v) {
+                const double e = std::fabs(double(got[v]) - logits[j + 1].asArray()[v].num);
+                if (e > most || std::isnan(e)) most = e, where = "draft " + std::to_string(j) + " of the " + name;
+            }
+            ++rows;
+        }
+        for (size_t j = 0; j < B; ++j) {
+            if (margins[j].num < 4e-5) {
+                ++ties;
+                break;
+            }
+            require(out[j] == want[j], "DFly2 draft " + std::to_string(j) + " of the " + name + " is the reference's");
+            ++drafts;
+        }
+        model.reset(r);
+        model.release_host(h);
+    }
+    std::cout << "arch-deepseek4: DFly2 gave the reference's " << drafts << " drafts in " << cases.size() << " runtime-shaped cases (" << ties << " cut at a tie under 4e-5), "
+              << rows << " draft rows' logits within " << most << " (bound 2e-5, headroom " << 2e-5 / std::max(most, 1e-300) << "x)\n";
+    require(most <= 2e-5, "the DFly2 draft logits within 2e-5 of the reference's, " + std::to_string(most) + " at " + where);
+}
+
+// A target and a sidecar paired from their headers alone, the real DeepSeek-V4.1-Flash and its DFly2 sidecar where the suite names them (tests/deepseek4.py, real_pair).
+void pair_files(const std::string& target, const std::string& sidecar) {
+    gguf::GGUFModel model = gguf::read_gguf(target), side = gguf::read_gguf(sidecar);
+    require(infer::spec::pair(model, target, side, sidecar) == infer::spec::DrafterKind::mtp, "the sidecar pairs as the target's drafter stages");
+    std::cout << "arch-deepseek4: " << sidecar << " pairs with " << target << " as its drafter stages\n";
+}
+
 int main(int argc, char** argv) {
     try {
-        if (argc != 2 && !(argc == 4 && (std::string(argv[2]) == "--gguf" || std::string(argv[2]) == "--groups")) && !(argc == 5 && std::string(argv[2]) == "--dspark"))
-            throw std::runtime_error("usage: llmx-arch-deepseek4-test tests/data/deepseek41_reference.json [--gguf FILE | --groups FILE], or DSPARK.json --dspark TRUNK SIDECAR");
-        read_golden(argv[1]);
-        if (argc == 5) {
+        const std::string mode = argc == 5 ? argv[2] : "";
+        const bool fly = mode == "--dfly2";
+        if (argc != 2 && !(argc == 4 && (std::string(argv[2]) == "--gguf" || std::string(argv[2]) == "--groups")) && !(argc == 5 && (mode == "--dspark" || mode == "--dfly2-split" || mode == "--pair" || fly)))
+            throw std::runtime_error("usage: llmx-arch-deepseek4-test tests/data/deepseek41_reference.json [--gguf FILE | --groups FILE | --dfly2-split TRUNK SIDECAR | --pair TARGET SIDECAR], DSPARK.json --dspark TRUNK SIDECAR, or DFLY2.json --dfly2 TRUNK SIDECAR");
+        if (!fly) read_golden(argv[1]);
+        if (fly) {
+            dfly2(argv[1], argv[3], argv[4]);
+        } else if (mode == "--pair") {
+            pair_files(argv[3], argv[4]);
+        } else if (mode == "--dfly2-split") {
+            dfly2_split(argv[3], argv[4]);
+        } else if (argc == 5) {
             dspark(argv[3], argv[4]);
         } else if (argc == 4 && std::string(argv[2]) == "--groups") {
             groups(argv[3], 2);

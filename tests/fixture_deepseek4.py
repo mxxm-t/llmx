@@ -491,6 +491,45 @@ def write_dflash(path, args, state, engram):
     return write_whole(path, *map_dflash(args, state, engram))
 
 
+# The trunk's keys DFly2's converter (DeepseekV41DFly2Model) writes as they are; it writes the stages' expert width again as feed_forward_length, the compressed rope's base as rope.freq_base and three fixed flags.
+_DFLY2_SHARED = ("context_length", "embedding_length", "attention.head_count", "attention.head_count_kv", "attention.key_length", "attention.value_length",
+                 "rope.dimension_count", "rope.scaling.type", "rope.scaling.factor", "rope.scaling.original_context_length", "rope.scaling.yarn_beta_fast",
+                 "rope.scaling.yarn_beta_slow", "attention.layer_norm_rms_epsilon", "attention.q_lora_rank", "attention.sliding_window", "attention.indexer.top_k",
+                 "expert_feed_forward_length", "expert_shared_count", "expert_weights_scale", "expert_weights_norm", "expert_gating_func",
+                 "attention.output_group_count", "attention.output_lora_rank", "hyper_connection.count", "hyper_connection.sinkhorn_iterations",
+                 "hyper_connection.epsilon")
+
+
+def map_dfly2(args, engram, dargs, weights):
+    """Return `(metadata, tensors)` of the tiny DFly2 sidecar beside the trunk of `args`: `weights` are tools/dfly2_reference.py's arrays by their GGUF names, the embedding and head left to the target."""
+    trunk = _metadata(args, engram, "fork")
+    stages, taps = dargs["layers"], list(dargs["target_layers"])
+    meta = {key: value for key, value in trunk.items() if key.startswith("tokenizer.")}
+    meta.update({"dflash." + key: trunk["deepseek41." + key] for key in _DFLY2_SHARED})
+    meta.update({
+        "general.architecture": (STRING, "dflash"),
+        "dflash.kind": (STRING, "dfly2"),
+        "dflash.feed_forward_length": trunk["deepseek41.expert_feed_forward_length"],
+        "dflash.rope.freq_base": trunk["deepseek41.attention.compress_rope_freq_base"],
+        "dflash.hyper_connection.single_pass": (GGUF_BOOL, True),
+        "dflash.sample_from_anchor": (GGUF_BOOL, False),
+        "dflash.has_confidence_head": (GGUF_BOOL, False),
+        "dflash.block_count": (GGUF_UINT32, stages),
+        "dflash.expert_count": (GGUF_UINT32, dargs["experts"]),
+        "dflash.expert_used_count": (GGUF_UINT32, dargs["experts_used"]),
+        "dflash.swiglu_clamp_exp": (ARRAY, (GGUF_FLOAT32, [dargs["swiglu_limit"]] * stages)),
+        "dflash.swiglu_clamp_shexp": (ARRAY, (GGUF_FLOAT32, [dargs["swiglu_limit"]] * stages)),
+        "dflash.attention.compress_ratios": (ARRAY, (GGUF_INT32, [0] * stages)),
+        "dflash.attention.causal": (GGUF_BOOL, False),
+        "dflash.block_size": (GGUF_UINT32, dargs["block"]),
+        "dflash.target_kv_layers": (ARRAY, (GGUF_INT32, taps)),
+        "dflash.target_index_layers": (ARRAY, (GGUF_INT32, taps)),
+        "tokenizer.ggml.mask_token_id": (GGUF_UINT32, dargs["mask_id"]),
+    })
+    tensors = [_f32_tensor(name, value.shape, value.ravel().tolist()) for name, value in sorted(weights.items()) if name not in ("token_embd.weight", "output.weight")]
+    return meta, tensors
+
+
 def fixture_from_document(document, **overrides):
     """The args, state and Engram constants a committed golden names, rebuilt from its seed; `overrides` replace args, as the group-legal shape's four output groups do."""
     args = dict(document["args"], **overrides)

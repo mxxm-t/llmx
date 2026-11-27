@@ -600,7 +600,7 @@ size_t check_packed(Pair& p) {
 
 // sparse_attention_sink at the shapes a device's kernels branch on: four-block runs and a tail in every format, 64 heads, 256 named rows, rows past one scratch chunk.
 // Calls of 7 and 8 rows sit each side of the wide prompt kernels, the 8-row ones over 65 heads and over heads 640 wide, and 8 to 12 rows over 32, 16 and 8 heads take the wide kernel's 2, 4 and 8 lanes a head.
-size_t check_sparse_shapes(Pair& p, const Exact& exact) {
+size_t check_sparse_shapes(Pair& p, const Exact& exact, bool terms = false) {
     using backend::ModelFormat;
     struct Case {
         size_t heads, dim, k, entry_k, rows;
@@ -615,11 +615,21 @@ size_t check_sparse_shapes(Pair& p, const Exact& exact) {
                           {2, 640, 20, 24, 8, ModelFormat::fp8_power, ModelFormat::fp4_power},
                           {32, 128, 64, 64, 8, ModelFormat::fp8_power, ModelFormat::fp4_e4m3},
                           {16, 192, 40, 48, 12, ModelFormat::fp4_power, ModelFormat::fp4_e4m3},
-                          {8, 64, 30, 30, 9, ModelFormat::fp8_power, ModelFormat::f32}};
-    const size_t ratio = 4, length = 2048, kv_rows = 600;
+                          {8, 64, 30, 30, 9, ModelFormat::fp8_power, ModelFormat::f32},
+                          // DeepSeek-V4.1's decode call: one row at 64 heads of 512 over 128 and 512 names.
+                          {64, 512, 128, 512, 1, ModelFormat::fp8_power, ModelFormat::fp4_e4m3},
+                          // F32 kv rows beside the tail, which with terms takes the tail alone.
+                          {4, 96, 24, 16, 5, ModelFormat::f32, ModelFormat::fp4_e4m3}};
+    const size_t ratio = 4, length = 2048, kv_rows = 600, tail_rows = terms ? 6 : 0;
     size_t values = 0;
     uint32_t seed = 101;
+    // With terms the calls take in turn the tail alone (as DFly2's context read passes it), SinkTerms whole with the tanh gate, the bias alone, SinkTerms whole, the tanh gate alone and the tail alone.
+    // Whole means a bias by place, a gate adding into a filled out and six F32 tail rows that about one id in four names.
+    size_t call = 0;
     for (const Case& c : cases) {
+        const size_t form = call++ % 6;
+        const bool with_bias = terms && (form == 1 || form == 2 || form == 3), with_gate = terms && (form == 1 || form == 3 || form == 4);
+        const bool with_tail = terms && form != 2 && form != 4, tanh_gate = form == 1 || form == 4;
         const size_t kw = backend::format_words(c.kv_format, c.dim), ew = backend::format_words(c.entry_format, c.dim), positions = length + c.rows, groups = positions / ratio;
         // Rows of a format on both backends, each backend packing them itself.
         const auto rows_of = [&](ModelFormat f, size_t n, size_t words) {
@@ -653,7 +663,7 @@ size_t check_sparse_shapes(Pair& p, const Exact& exact) {
         const auto draw = [&] { return s = s * 1664525u + 1013904223u, s >> 8; };
         for (size_t r = 0; r < c.rows; ++r) {
             for (size_t t = 0; t < c.k; ++t)
-                if (draw() % 5) ids[r * c.k + t] = draw() % kv_rows;
+                if (draw() % 5) ids[r * c.k + t] = with_tail && draw() % 4 == 0 ? uint32_t(kv_rows + draw() % tail_rows) : draw() % kv_rows;
             for (size_t t = 0; t < c.entry_k; ++t)
                 if (draw() % 5) entries[r * c.entry_k + t] = uint32_t(draw() % ((length + r + 1) / ratio));
         }
@@ -661,14 +671,56 @@ size_t check_sparse_shapes(Pair& p, const Exact& exact) {
         Pair::In si = held(p, uniform(c.heads, seed++, -1.0f, 1.0f));
         const float scale = 1.0f / std::sqrt(float(c.dim));
         Pair::Out o = p.out(c.rows * c.heads * c.dim);
+        backend::Backend::SinkTerms ct{}, vt{};
+        if (terms) {
+            const std::vector<float> filled = uniform(c.rows * c.heads * c.dim, seed++);
+            p.cpu.write(*o.c, 0, filled.data(), filled.size() * 4);
+            p.dev.write(*o.v, 0, filled.data(), filled.size() * 4);
+        }
+        Pair::In bi = held(p, terms ? uniform(c.heads * c.k, seed++, -2.0f, 2.0f) : std::vector<float>{0.0f});
+        Pair::In gi = held(p, terms ? uniform(c.rows * c.heads, seed++, -1.5f, 1.5f) : std::vector<float>{0.0f});
+        Pair::In ti = held(p, terms ? uniform(tail_rows * c.dim, seed++, -2.0f, 2.0f) : std::vector<float>{0.0f});
+        if (terms) {
+            const auto gf = with_gate && tanh_gate ? backend::Backend::GateForm::tanh : backend::Backend::GateForm::identity;
+            const size_t tr = with_tail ? tail_rows : 0;
+            ct = {with_bias ? bi.cs() : backend::CSlice{}, with_gate ? gi.cs() : backend::CSlice{}, with_tail ? ti.cs() : backend::CSlice{}, tr, gf};
+            vt = {with_bias ? bi.vs() : backend::CSlice{}, with_gate ? gi.vs() : backend::CSlice{}, with_tail ? ti.vs() : backend::CSlice{}, tr, gf};
+        }
         p.cpu.sparse_attention_sink(o.cs(), qi.cs(), kv.cs(), ii.cs(), si.cs(), c.rows, c.heads, c.dim, kv_rows, c.k, scale, 0, &cr, 1, ei.cs(), c.entry_k, c.kv_format,
-                                    c.entry_format);
+                                    c.entry_format, ct);
         p.dev.sparse_attention_sink(o.vs(), qi.vs(), kv.vs(), ii.vs(), si.vs(), c.rows, c.heads, c.dim, kv_rows, c.k, scale, 0, &vr, 1, ei.vs(), c.entry_k, c.kv_format,
-                                    c.entry_format);
+                                    c.entry_format, vt);
         auto r = p.results(o);
         values += meet(exact, "sparse_attention_sink", r.first, r.second, 1e-5,
-                       "sparse_attention_sink differs beyond 1e-5 at " + std::to_string(c.heads) + " heads of " + std::to_string(c.dim) + ", " +
+                       std::string(terms ? "sparse_attention_sink with SinkTerms" : "sparse_attention_sink") + " differs beyond 1e-5 at " + std::to_string(c.heads) + " heads of " + std::to_string(c.dim) + ", " +
                            std::to_string(c.k + c.entry_k) + " named rows and " + std::to_string(c.rows) + " rows");
+    }
+    if (!terms) return values;
+    // The paired window's call: no views or entries, packed FP8 kv rows and SinkTerms whole, the tail named by about one id in three.
+    {
+        const size_t heads = 8, dim = 64, k = 40, rows = 4, kw = backend::format_words(ModelFormat::fp8_power, dim);
+        Pair::In xi = held(p, uniform(kv_rows * dim, seed++, -2.0f, 2.0f));
+        Pair::Out kv = p.out(kv_rows * kw);
+        p.cpu.model_format_pack(kv.cs(), kw, xi.cs(), kv_rows, dim, ModelFormat::fp8_power);
+        p.dev.model_format_pack(kv.vs(), kw, xi.vs(), kv_rows, dim, ModelFormat::fp8_power);
+        std::vector<uint32_t> ids(rows * k, kNone);
+        uint32_t s = seed++;
+        const auto draw = [&] { return s = s * 1664525u + 1013904223u, s >> 8; };
+        for (uint32_t& id : ids)
+            if (draw() % 5) id = draw() % 3 == 0 ? uint32_t(kv_rows + draw() % tail_rows) : draw() % kv_rows;
+        Pair::In qi = held(p, uniform(rows * heads * dim, seed++)), ii = held(p, as_floats(ids)), si = held(p, uniform(heads, seed++, -1.0f, 1.0f));
+        Pair::In bi = held(p, uniform(heads * k, seed++, -2.0f, 2.0f)), gi = held(p, uniform(rows * heads, seed++, -1.5f, 1.5f)), ti = held(p, uniform(tail_rows * dim, seed++, -2.0f, 2.0f));
+        Pair::Out o = p.out(rows * heads * dim);
+        const std::vector<float> filled = uniform(rows * heads * dim, seed++);
+        p.cpu.write(*o.c, 0, filled.data(), filled.size() * 4);
+        p.dev.write(*o.v, 0, filled.data(), filled.size() * 4);
+        const backend::Backend::SinkTerms ct{bi.cs(), gi.cs(), ti.cs(), tail_rows, backend::Backend::GateForm::identity};
+        const backend::Backend::SinkTerms vt{bi.vs(), gi.vs(), ti.vs(), tail_rows, backend::Backend::GateForm::identity};
+        const float scale = 1.0f / std::sqrt(float(dim));
+        p.cpu.sparse_attention_sink(o.cs(), qi.cs(), kv.cs(), ii.cs(), si.cs(), rows, heads, dim, kv_rows, k, scale, 0, nullptr, 0, {}, 0, ModelFormat::fp8_power, ModelFormat::f32, ct);
+        p.dev.sparse_attention_sink(o.vs(), qi.vs(), kv.vs(), ii.vs(), si.vs(), rows, heads, dim, kv_rows, k, scale, 0, nullptr, 0, {}, 0, ModelFormat::fp8_power, ModelFormat::f32, vt);
+        auto r = p.results(o);
+        values += meet(exact, "sparse_attention_sink", r.first, r.second, 1e-5, "sparse_attention_sink with SinkTerms and no views differs beyond 1e-5");
     }
     return values;
 }

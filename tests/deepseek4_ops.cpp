@@ -709,6 +709,109 @@ void sink_attention() {
     for (float v : download(cpu, *po, heads * pdim)) require(bits(v) == 0, "sparse_attention_sink naming nothing under a packed format is +0");
 }
 
+// sparse_attention_sink's terms against a gated block read in double: row j reads block keys j down to 0, nearest first, a bias by place, its own sink, and adds its read scaled by its gate, or by its gate's tanh, into out.
+void sink_terms() {
+    const size_t heads = 3, dim = 16, block = 6, k = 8;
+    std::vector<uint32_t> ids(block * k, kNone);
+    for (size_t j = 0; j < block; ++j)
+        for (size_t t = 0; t <= j; ++t) ids[j * k + t] = uint32_t(j - t);
+    const std::vector<float> q = uniform(block * heads * dim, -1.0f, 1.0f), kv = uniform(block * dim, -1.0f, 1.0f), sink = {-0.5f, 0.0f, 3.0f};
+    const std::vector<float> bias = uniform(heads * k, -2.0f, 2.0f), gate = uniform(block * heads, -1.0f, 1.0f), base = uniform(block * heads * dim, -1.0f, 1.0f);
+    const float scale = 1.0f / std::sqrt(float(dim));
+    CpuBackend cpu;
+    BufferPtr qb = upload(cpu, q), kb = upload(cpu, kv), ib = upload(cpu, as_floats(ids)), sb = upload(cpu, sink), bb = upload(cpu, bias), gb = upload(cpu, gate);
+    using Form = backend::Backend::GateForm;
+    auto run = [&](bool gated, Form form = Form::identity) {
+        BufferPtr ob = upload(cpu, base);
+        const backend::Backend::SinkTerms terms{{bb.get(), 0}, gated ? backend::CSlice{gb.get(), 0} : backend::CSlice{}, {}, 0, form};
+        cpu.sparse_attention_sink({ob.get(), 0}, {qb.get(), 0}, {kb.get(), 0}, {ib.get(), 0}, {sb.get(), 0}, block, heads, dim, block, k, scale, 0, nullptr, 0, {}, 0,
+                                  backend::ModelFormat::f32, backend::ModelFormat::f32, terms);
+        return download(cpu, *ob, block * heads * dim);
+    };
+    cpu.set_threads(1);
+    const std::vector<float> got = run(true), plain = run(false), tanh_got = run(true, Form::tanh);
+    for (size_t j = 0; j < block; ++j)
+        for (size_t h = 0; h < heads; ++h) {
+            std::vector<double> s;
+            double peak = sink[h];
+            for (size_t t = 0; t <= j; ++t) {
+                double dot = 0.0;
+                for (size_t d = 0; d < dim; ++d) dot += double(q[(j * heads + h) * dim + d]) * kv[(j - t) * dim + d];
+                s.push_back(dot * scale + bias[h * k + t]);
+                peak = std::max(peak, s.back());
+            }
+            double denominator = std::exp(double(sink[h]) - peak);
+            for (double v : s) denominator += std::exp(v - peak);
+            for (size_t d = 0; d < dim; ++d) {
+                double read = 0.0, size = 0.0;
+                for (size_t t = 0; t <= j; ++t) {
+                    read += std::exp(s[t] - peak) * kv[(j - t) * dim + d] / denominator;
+                    size += std::exp(s[t] - peak) * std::fabs(kv[(j - t) * dim + d]) / denominator;
+                }
+                const size_t i = (j * heads + h) * dim + d;
+                const std::string at = " slot " + std::to_string(j) + " head " + std::to_string(h) + " value " + std::to_string(d);
+                require(std::fabs(plain[i] - read) <= 1e-5 * size + 1e-7, "sparse_attention_sink place bias" + at);
+                require(std::fabs(got[i] - (base[i] + gate[j * heads + h] * read)) <= 1e-5 * (size + std::fabs(base[i])) + 1e-7, "sparse_attention_sink gated read" + at);
+                const double tg = std::tanh(double(gate[j * heads + h]));
+                require(std::fabs(tanh_got[i] - (base[i] + tg * read)) <= 1e-5 * (size + std::fabs(base[i])) + 1e-7, "sparse_attention_sink tanh gated read" + at);
+            }
+        }
+    for (int t : kThreads) {
+        cpu.set_threads(t);
+        require(same_bits(run(true), got), "sparse_attention_sink terms at " + std::to_string(t) + " threads");
+        require(same_bits(run(true, Form::tanh), tanh_got), "sparse_attention_sink tanh terms at " + std::to_string(t) + " threads");
+    }
+    BufferPtr ob = cpu.alloc(block * heads * dim * 4, backend::Memory::device);
+    refused([&] { cpu.sparse_attention_sink({ob.get(), 0}, {qb.get(), 0}, {kb.get(), 0}, {ib.get(), 0}, {sb.get(), 0}, block, heads, dim, block, k, scale, 0, nullptr, 0, {}, 0,
+                                            backend::ModelFormat::f32, backend::ModelFormat::f32, {{}, {ob.get(), 0}}); }, "sparse_attention_sink gated into its gate");
+    refused([&] { cpu.sparse_attention_sink({ob.get(), 0}, {qb.get(), 0}, {kb.get(), 0}, {ib.get(), 0}, {sb.get(), 0}, block, heads, dim, block, k, scale, 0, nullptr, 0, {}, 0,
+                                            backend::ModelFormat::f32, backend::ModelFormat::f32, {{}, {}, {}, 0, Form::tanh}); }, "sparse_attention_sink tanh gate form without a gate");
+}
+
+// sparse_attention_sink's F32 tail, the DFly2 draft's block keys beside its target's ring: a packed ring and an F32 tail read bit for bit what one F32 buffer of the decoded ring and the tail reads.
+void sink_tail() {
+    const size_t heads = 2, dim = 128, ctx = 10, block = 4, k = 7;
+    std::vector<uint32_t> ids(block * k, kNone);
+    for (size_t j = 0; j < block; ++j) {
+        for (size_t t = 0; t < 3; ++t) ids[j * k + t] = uint32_t((j * 3 + t * 5) % ctx);
+        for (size_t t = 0; t < block; ++t) ids[j * k + 3 + t] = uint32_t(ctx + t);
+    }
+    ids[2 * k + 1] = kNone;
+    const std::vector<float> q = uniform(block * heads * dim, -1.0f, 1.0f), keys = uniform(ctx * dim, -1.0f, 1.0f), tail = uniform(block * dim, -1.0f, 1.0f);
+    const std::vector<float> sink = {0.25f, -1.0f};
+    const float scale = 1.0f / std::sqrt(float(dim));
+    const size_t words = backend::format_words(backend::ModelFormat::fp8_power, dim);
+    CpuBackend cpu;
+    BufferPtr qb = upload(cpu, q), cb = upload(cpu, keys), tb = upload(cpu, tail), ib = upload(cpu, as_floats(ids)), sb = upload(cpu, sink);
+    BufferPtr pb = cpu.alloc(ctx * words * 4, backend::Memory::device);
+    cpu.model_format_pack({pb.get(), 0}, words, {cb.get(), 0}, ctx, dim, backend::ModelFormat::fp8_power);
+    cpu.model_format_qdq({cb.get(), 0}, ctx * dim, backend::ModelFormat::fp8_power);
+    std::vector<float> joined = download(cpu, *cb, ctx * dim);
+    joined.insert(joined.end(), tail.begin(), tail.end());
+    BufferPtr jb = upload(cpu, joined);
+    const auto run = [&](const BufferPtr& kv, size_t kv_rows, backend::ModelFormat format, bool tailed) {
+        BufferPtr ob = cpu.alloc(block * heads * dim * 4, backend::Memory::device);
+        backend::Backend::SinkTerms terms{};
+        if (tailed) terms.tail = {tb.get(), 0}, terms.tail_rows = block;
+        cpu.sparse_attention_sink({ob.get(), 0}, {qb.get(), 0}, {kv.get(), 0}, {ib.get(), 0}, {sb.get(), 0}, block, heads, dim, kv_rows, k, scale, 0, nullptr, 0, {}, 0,
+                                  format, backend::ModelFormat::f32, terms);
+        return download(cpu, *ob, block * heads * dim);
+    };
+    cpu.set_threads(1);
+    const std::vector<float> want = run(jb, ctx + block, backend::ModelFormat::f32, false);
+    require(same_bits(run(cb, ctx, backend::ModelFormat::f32, true), want), "sparse_attention_sink F32 tail beside an F32 kv");
+    for (int t : kThreads) {
+        cpu.set_threads(t);
+        require(same_bits(run(pb, ctx, backend::ModelFormat::fp8_power, true), want), "sparse_attention_sink F32 tail beside a packed kv at " + std::to_string(t) + " threads");
+    }
+    refused([&] { run(cb, ctx, backend::ModelFormat::f32, false); }, "sparse_attention_sink of a tail id without its tail");
+    BufferPtr ob = cpu.alloc(block * heads * dim * 4, backend::Memory::device);
+    backend::Backend::SinkTerms into{};
+    into.tail = {ob.get(), 0}, into.tail_rows = block;
+    refused([&] { cpu.sparse_attention_sink({ob.get(), 0}, {qb.get(), 0}, {cb.get(), 0}, {ib.get(), 0}, {sb.get(), 0}, block, heads, dim, ctx, k, scale, 0, nullptr, 0, {}, 0,
+                                            backend::ModelFormat::f32, backend::ModelFormat::f32, into); }, "sparse_attention_sink into its tail");
+}
+
 // compress_pool against model.py:473-482 in double: a softmax per channel over each group's rows, the weighted sum, then the compressor's RMSNorm.
 void pooling() {
     const size_t dim = 40;
@@ -1200,6 +1303,8 @@ int main(int argc, char** argv) {
         mhc();
         selections();
         sink_attention();
+        sink_terms();
+        sink_tail();
         pooling();
         {
             Pooled pooled;

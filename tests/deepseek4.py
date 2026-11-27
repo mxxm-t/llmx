@@ -25,6 +25,7 @@ import fixture_deepseek4
 
 GOLDEN = os.path.join(common.ROOT, "tests", "data", "deepseek41_reference.json")
 DSPARK = os.path.join(common.ROOT, "tests", "data", "deepseek41_dspark.json")
+DFLY2 = os.path.join(common.ROOT, "tests", "data", "deepseek41_dfly2.json")
 VISION = os.path.join(common.ROOT, "tests", "data", "deepseek41_vision_reference.json")
 # The refusal of the image marker typed as text (chat::ChatFormat::refuse_image_text).
 MARKER = "which only an image part gives"
@@ -249,6 +250,94 @@ def dspark(fork, directory, args, state, engram):
     return sidecar, dargs, dstate
 
 
+def dfly2(fork, directory, args, state, engram, require=False):
+    """The DFly2 reference held to its committed golden, its tiny sidecar listed by info and drafting beside the trunk without changing generate's ids, and the sidecars whose target layers, block attention or window do not fit the trunk refused."""
+    try:
+        import numpy
+    except ImportError:
+        print("deepseek4: SKIP DFly2 - the numpy reference needs numpy")
+        return
+    import sys
+    sys.path.insert(0, os.path.join(common.ROOT, "tools"))
+    import dfly2_reference as ref
+    with open(DFLY2, encoding="utf-8") as f:
+        document = json.load(f)
+    a = document["args"]
+    assert a == ref.TINY, "deepseek4: the DFly2 golden's args are not the reference's"
+    weights = ref.tiny_state(a)
+    for case in document["cases"]:
+        t = ref.forward(weights, ref.tiny_inputs(a, case["case"]), a)
+        assert t["drafts"].tolist() == case["drafts"] and t["prev_tokens"].tolist() == case["prev_tokens"], "deepseek4: DFly2 case %d drafts differ" % case["case"]
+        worst = float(abs(t["logits"] - numpy.array(case["logits"])).max())
+        assert worst <= 1e-5, "deepseek4: DFly2 case %d logits differ from the golden by %.3g" % (case["case"], worst)
+    assert max(c["least_draft_margin"] for c in document["cases"]) >= 0.5, "deepseek4: the DFly2 golden has no case with a draft margin of 0.5"
+    print("deepseek4: the DFly2 reference gives its golden's drafts and logits in cases %s, least draft margins %s"
+          % ([c["case"] for c in document["cases"]], [c["least_draft_margin"] for c in document["cases"]]))
+    assert [{k: c[k] for k in ("salt", "anchor", "shift", "picks")} for c in document["paired"]] == ref.paired_cases(a), "deepseek4: the DFly2 golden's paired cases are not the reference's"
+    trunk = dict(weights, **ref.trunk_weights(state))
+    for case in document["paired"]:
+        t = ref.forward(trunk, ref.paired_inputs(a, case), a)
+        worst = float(abs(t["logits"] - numpy.array(case["logits"])).max())
+        assert t["drafts"].tolist() == case["drafts"] and worst <= 1e-6, "deepseek4: DFly2 paired case %d gives other drafts or logits %.3g away" % (case["salt"], worst)
+    assert max(min(c["margins"]) for c in document["paired"]) >= 0.5, "deepseek4: the DFly2 golden has no paired case with a draft margin of 0.5"
+    print("deepseek4: the DFly2 reference gives its golden's runtime-shaped cases through the trunk's embedding and head, least draft margins %s"
+          % [min(c["margins"]) for c in document["paired"]])
+    meta, tensors = fixture_deepseek4.map_dfly2(args, engram, a, weights)
+    sidecar = os.path.join(directory, "dfly2.gguf")
+    fixture_deepseek4.write_whole(sidecar, meta, tensors)
+    p = common.run_process(["info", sidecar], text=True)
+    assert p.returncode == 0 and "dflash.kind" in p.stdout, "deepseek4: info on the DFly2 sidecar failed: %s" % p.stderr
+    common.check_drafts("deepseek4", fork, n=40, drafter=sidecar)
+    print("deepseek4: info lists the DFly2 sidecar, and generate with it at --draft-max 1, 4, 8 and 16, greedy and seeded, gives the ids it gives with drafts off")
+    # Two devices with layers 0-5 on the first: stage 0 runs beside target layer 5 there, stages 1 and 2 and the correction with layers 6 and 7 on the head's.
+    listed = os.environ.get("LLMX_DEVICE", "cpu").split(",")
+    apart = os.environ.get("LLMX_TENSOR_WIDTH", "1") == "1"
+    if apart and len(listed) == 2:
+        split = ["generate", fork, "ababab", "-n", "24", "--ignore-eos", "--verbose", "--temp", "0", "--device", ",".join(listed), "--layer-shares", "6,2"]
+        off = common.run_process(split + ["--drafter", "off"])
+        on = common.run_process(split + ["--drafter", sidecar, "--draft-max", "5"])
+        assert off.returncode == 0 and on.returncode == 0, "deepseek4: generate on a DFly2 split failed: %s" % (off.stderr + on.stderr).decode("utf-8", "replace")
+        ids = lambda q: re.search(rb"^ids:.*$", common.cli_stdout(q.stdout), re.M)[0]
+        fed = re.search(rb"^drafts kept:((?: \d+/\d+)*)$", common.cli_stdout(on.stdout), re.M)
+        assert ids(on) == ids(off), "deepseek4: DFly2 with its stages apart changes generate's ids"
+        assert fed and sum(int(c.split(b"/")[1]) for c in fed[1].split()) > 0, "deepseek4: DFly2 with its stages apart fed no draft"
+        placed = on.stdout + on.stderr
+        assert b"layers 0-5 and drafter stages 0, " in placed and b"layers 6-7 and drafter stages 1,2, " in placed, "deepseek4: the split did not put DFly2's stage 0 beside target layer 5: %s" % placed.decode("utf-8", "replace")
+        print("deepseek4: DFly2 on %s with layers 0-5 on the first, stage 0 there and the rest on the head's, gives greedy generate's ids and feeds drafts" % ",".join(listed))
+    elif apart and listed == ["cpu"]:
+        # The command line lists a device once, so two CPUs split through the C++ tool.
+        tool = tool_path()
+        if not os.path.exists(tool):
+            assert not require, "deepseek4: %s not found beside the executable" % tool
+            print("deepseek4: DFly2 on two CPUs not checked - %s not found beside the executable" % tool)
+        else:
+            q = subprocess.run([tool, GOLDEN, "--dfly2-split", fork, sidecar], capture_output=True, encoding="utf-8", errors="replace", timeout=600)
+            assert q.returncode == 0, "deepseek4: DFly2 on two CPUs: %s%s" % (q.stdout, q.stderr)
+            print("\n".join("deepseek4: " + line.split(": ", 1)[1] for line in q.stdout.splitlines() if line.startswith("arch-deepseek4: DFly2")))
+    uint, i32 = fixture_deepseek4.GGUF_UINT32, fixture_deepseek4.GGUF_INT32
+    layers = lambda kv, index: dict(meta, **{"dflash.target_kv_layers": (fixture_deepseek4.ARRAY, (i32, kv)), "dflash.target_index_layers": (fixture_deepseek4.ARRAY, (i32, index))})
+    cases = [(layers([5, 6], [5, 6]), "a DFly2 drafter reads one target layer a stage"),
+             (layers([0, 6, 7], [0, 6, 7]), "DFly2 target layer 0 keeps no compressed latents for the drafter to read"),
+             (layers([5, 6, 7], [4, 6, 7]), "DFly2 sidecar must read each stage's latents and picks from one target layer"),
+             (dict(meta, **{"dflash.attention.causal": (fixture_deepseek4.GGUF_BOOL, True)}), "DFly2 sidecar must attend over its block non-causally"),
+             (dict(meta, **{"dflash.attention.sliding_window": (uint, args["window_size"] // 2)}), "DFly2 sidecar metadata dflash.attention.sliding_window differs from the target's"),
+             (dict(meta, **{"dflash.rope.freq_base": (fixture_deepseek4.GGUF_FLOAT32, args["rope_theta"])}),
+              "DFly2 sidecar metadata dflash.rope.freq_base differs from the target's deepseek41.attention.compress_rope_freq_base"),
+             (dict(meta, **{"dflash.feed_forward_length": (uint, 2 * args["moe_inter_dim"])}),
+              "DFly2 sidecar metadata dflash.feed_forward_length differs from the target's deepseek41.expert_feed_forward_length"),
+             (dict(meta, **{"dflash.hyper_connection.single_pass": (fixture_deepseek4.GGUF_BOOL, False)}), "DFly2 sidecar must mix its hyper-connections in one pass"),
+             (dict(meta, **{"dflash.sample_from_anchor": (fixture_deepseek4.GGUF_BOOL, True)}), "DFly2 sidecar must draft past its anchor"),
+             (dict(meta, **{"dflash.has_confidence_head": (fixture_deepseek4.GGUF_BOOL, True)}), "DFly2 sidecar carries a confidence head")]
+    for i, (m, text) in enumerate(cases):
+        bad = os.path.join(directory, "dfly2-bad%d.gguf" % i)
+        fixture_deepseek4.write_gguf(bad, m, tensors)
+        p = common.run_process(["generate", fork, "ab", "-n", "1", "--drafter", bad], text=True)
+        assert p.returncode != 0 and text in p.stderr, "deepseek4: the DFly2 sidecar %d was not refused with %r: %s" % (i, text, p.stderr)
+    print("deepseek4: a DFly2 sidecar with a target layer short, without compressed latents or apart from its picks, causal, of another window, rope base or"
+          " expert width, without the single-pass mix, sampling its anchor or with a confidence head is refused")
+    return sidecar
+
+
 def dspark_serve(model, side):
     """Section 5.6 with DSpark beside the server: a prompt's first token and its log-probabilities are the plain server's, and replies greedy and seeded, alone and four at once, at --draft-max 1, 3 and 5, give the plain server's ids."""
     import server
@@ -361,12 +450,29 @@ def vision(directory, fork, document):
           " --mmproj, and by the raw and chat routes with 400, and an image part by a server without --mmproj")
 
 
+def real_pair(require):
+    """The real DeepSeek-V4.1-Flash first shard and its DFly2 sidecar that LLMX_DFLY2_PAIR names as TARGET,SIDECAR, paired from their headers alone by the tool."""
+    files = [f for f in os.environ.get("LLMX_DFLY2_PAIR", "").split(",") if f]
+    if len(files) != 2 or not all(os.path.exists(f) for f in files):
+        print("deepseek4: the real DFly2 pair not checked - LLMX_DFLY2_PAIR names no TARGET,SIDECAR that exist")
+        return
+    tool = tool_path()
+    if not os.path.exists(tool):
+        assert not require, "deepseek4: %s not found beside the executable" % tool
+        print("deepseek4: the real DFly2 pair not checked - %s not found beside the executable" % tool)
+        return
+    q = subprocess.run([tool, GOLDEN, "--pair"] + files, capture_output=True, encoding="utf-8", errors="replace", timeout=600)
+    assert q.returncode == 0, "deepseek4: the real DFly2 pair: %s%s" % (q.stdout, q.stderr)
+    print("\n".join("deepseek4: " + line.split(": ", 1)[1] for line in q.stdout.splitlines() if line.startswith("arch-deepseek4: ")))
+
+
 def run(require=False):
     # The golden's two output groups split at width 2 alone; the group-legal file below holds widths 2 and 4.
     if os.environ.get("LLMX_TENSOR_WIDTH", "1") not in ("1", "2") and common.tensor_width_skip("deepseek4"):
         return common.SKIPPED
     with open(GOLDEN, encoding="utf-8") as f:
         document = json.load(f)
+    real_pair(require)
     args, state, engram = fixture_deepseek4.fixture_from_document(document)
     with tempfile.TemporaryDirectory(prefix="llmx_deepseek4_") as directory:
         paths = {layout: fixture_deepseek4.write_deepseek41(os.path.join(directory, layout + ".gguf"), args, state, engram, layout)
@@ -395,6 +501,7 @@ def run(require=False):
         sidecar, dspark_args, dspark_state = dspark(fork, directory, args, state, engram)
         served_side = str(fixture_deepseek4.write_dflash(os.path.join(directory, "serve-dflash.gguf"), dict(dspark_args, max_seq_len=1024), dspark_state, engram))
         dspark_serve(served, served_side)
+        dfly2_side = dfly2(fork, directory, args, state, engram, require)
         check_serve(served, "f32", False, ["--drafter", served_side, "--draft-max", "5"])
         print("deepseek4: with the DSpark sidecar, forks of donors and of a checkpoint brought back from the host and pauses give the CLI's ids without drafts")
         metadata, tensors = fixture_deepseek4.map_deepseek41(args, state, engram, "fork")
@@ -416,6 +523,10 @@ def run(require=False):
         q = subprocess.run([tool, DSPARK, "--dspark", fork, sidecar], capture_output=True, encoding="utf-8", errors="replace", timeout=600)
         assert q.returncode == 0, "deepseek4: DSpark's drafts are not the reference's: %s%s" % (q.stdout, q.stderr)
         print("\n".join("deepseek4: " + line.split(": ", 1)[1] for line in q.stdout.splitlines() if line.startswith("arch-deepseek4: DSpark")))
+        if dfly2_side:
+            q = subprocess.run([tool, DFLY2, "--dfly2", fork, dfly2_side], capture_output=True, encoding="utf-8", errors="replace", timeout=600)
+            assert q.returncode == 0, "deepseek4: DFly2's draft logits are not the reference's: %s%s" % (q.stdout, q.stderr)
+            print("\n".join("deepseek4: " + line.split(": ", 1)[1] for line in q.stdout.splitlines() if line.startswith("arch-deepseek4: DFly2")))
         # Four output groups make every split role divide at widths 2 and 4 (docs/DEEPSEEK4.md, section 7).
         gargs, gstate, gengram = fixture_deepseek4.fixture_from_document(document, o_groups=4)
         grouped = str(fixture_deepseek4.write_deepseek41(os.path.join(directory, "groups.gguf"), gargs, gstate, gengram, "fork"))

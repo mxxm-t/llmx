@@ -3583,6 +3583,8 @@ void deepseek4(Backend& g) {
     // The FP4 keys 128 wide reach the integer index tile wherever the 8-bit dot is built.
     if (rocm_device(0).caps.integer_dot) require(rocm_take_launches(g).count("llmx_indexer_scores_int") == 1, "deepseek4's index checks take llmx_indexer_scores_int");
     std::cout << "backend-rocm: deepseek4 ops: " << values << " values against the CPU, the formats, selections, routing picks, collapse, expansion, index scores, rope forms and taps bit for bit\n";
+    // SinkTerms (a bias by place, a gate into out, F32 tail rows beside packed ones) through every sparse build the plain shapes reach.
+    std::cout << "backend-rocm: deepseek4 sparse attention with SinkTerms: " << ds4::check_sparse_shapes(p, {}, true) << " values against the CPU\n";
 }
 
 // The vision encoder's ops against the CPU (vision_checks.hpp), each kernel the core adds for it reached.

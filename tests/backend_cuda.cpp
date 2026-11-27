@@ -365,6 +365,10 @@ void deepseek4(Backend& g) {
         // Every CUDA target builds the 8-bit dot, so the FP4 keys 128 wide reach the integer index tile.
         require(cuda_take_launches(g).count("llmx_indexer_scores_int") == 1, "deepseek4's index checks take llmx_indexer_scores_int");
     });
+    guarded("deepseek4 sparse attention with SinkTerms", [&] {
+        q35::Pair p(g);
+        require(ds4::check_sparse_shapes(p, {}, true) > 0, "deepseek4 sparse attention with SinkTerms against the CPU");
+    });
     guarded("sparse_tile_pair", [&] { ds4::sparse_tile_pair(g, cuda_caps, cuda_take_launches, require); });
     guarded("sparse_grouped", [&] { ds4::sparse_grouped(g, cuda_caps, cuda_take_launches, require); });
     guarded("router", [&] { ds4::router(g, cuda_caps, cuda_take_launches, require); });

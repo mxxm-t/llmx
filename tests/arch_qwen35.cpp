@@ -2212,6 +2212,108 @@ void drafter_layers() {
     }
 }
 
+// A drafter paired with target layers (ModelPlan::draft_pairs), keeping no cache of its own, whose draft calls are recorded; with no pairs it is the tiny MTP drafter as it is.
+struct PairedDrafter final : infer::Architecture {
+    struct Call {
+        int phase;
+        size_t kv_layer, state_layer, n_views;
+        backend::KVView view;
+        backend::StateView state;
+    };
+    PairedDrafter(std::shared_ptr<const infer::Architecture> base, std::vector<size_t> pairs) : base(std::move(base)), pairs(std::move(pairs)) {}
+    infer::ModelPlan plan(const infer::TensorIndex& t) const override { return base->plan(t); }
+    void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<infer::TensorView>& sources) const override { base->fill_tables(tables, sources); }
+    const infer::rope::Policy& rope_policy() const override { return base->rope_policy(); }
+    void embed(const infer::Step& s, const uint32_t* ids) const override { base->embed(s, ids); }
+    void mixer(const infer::Step& s) const override { base->mixer(s); }
+    void recur(const infer::Step& s) const override { base->recur(s); }
+    void ffn(const infer::Step& s) const override { base->ffn(s); }
+    void head(const infer::HeadStep& s) const override { base->head(s); }
+    void plan_drafter(const infer::TensorIndex& t, infer::ModelPlan& p) const override {
+        base->plan_drafter(t, p);
+        if (pairs.empty()) return;
+        p.drafter->cache = infer::Cache::none;
+        p.draft_pairs = pairs;
+    }
+    void draft_rows(const infer::DraftRowsStep& s) const override {
+        if (pairs.empty()) base->draft_rows(s);
+    }
+    void draft(const infer::DraftStep& s) const override {
+        calls->push_back({s.phase, s.kv_layer, s.state_layer, s.n_views, s.views ? s.views[0] : backend::KVView{}, s.states ? s.states[0] : backend::StateView{}});
+        if (pairs.empty()) base->draft(s);
+    }
+    std::shared_ptr<const infer::Architecture> base;
+    std::vector<size_t> pairs;
+    std::shared_ptr<std::vector<Call>> calls = std::make_shared<std::vector<Call>>();
+};
+
+// A paired drafter's parts read each stage's target layer's KV and state views of the history, as docs/TESTS.md lists under arch-qwen35; without pairs the drafts are the plain drafter's.
+void drafter_pairs() {
+    const gguf::GGUFModel file = tiny_mtp();
+    infer::ModelOptions options;
+    options.state_slots = 3;
+    std::vector<uint32_t> prompt(40);
+    for (size_t i = 0; i < prompt.size(); ++i) prompt[i] = (uint32_t)((i * 7 + 3) % VOCAB);
+    infer::ExecContext ctx;
+    const auto run = [&](const std::vector<size_t>& pairs, std::vector<PairedDrafter::Call>& calls, infer::ModelPlan& planned) {
+        infer::ModelWeights w = infer::gguf_weights(file);
+        auto arch = std::make_shared<const PairedDrafter>(w.arch, pairs);
+        w.arch = arch;
+        planned = infer::plan_model(w, true);
+        infer::Model model(w, planned, {backend::make_cpu_backend()}, infer::Placement{}, options);
+        infer::Sequence s = model.make_sequence();
+        infer::BatchEntry e{&s, prompt.data(), prompt.size(), false};
+        e.extent = prompt.size();
+        model.forward(ctx, &e, 1);
+        const Drafted d = drafted(model, s, 5, 1);
+        calls = *arch->calls;
+        return d;
+    };
+    infer::ModelPlan plan;
+    std::vector<PairedDrafter::Call> calls;
+    const Drafted plain = run({}, calls, plan);
+    require(!calls.empty() && std::all_of(calls.begin(), calls.end(), [](const PairedDrafter::Call& c) { return c.phase == -1; }), "a drafter without pairs ran in parts");
+    {
+        infer::ModelWeights w = infer::gguf_weights(file);
+        infer::Model model(w, infer::plan_model(w, true), {backend::make_cpu_backend()}, infer::Placement{}, options);
+        infer::Sequence s = model.make_sequence();
+        infer::BatchEntry e{&s, prompt.data(), prompt.size(), false};
+        e.extent = prompt.size();
+        model.forward(ctx, &e, 1);
+        require(drafted(model, s, 5, 1) == plain, "a drafter without pairs drafts otherwise");
+    }
+    // One stage on an attention layer, one on a state layer, each found at its place among the head's KV and state layers.
+    size_t kv_l = SIZE_MAX, state_l = SIZE_MAX;
+    for (size_t l = 0; l < plan.layers.size(); ++l) {
+        if (infer::keeps_kv(plan.layers[l]) && kv_l == SIZE_MAX) kv_l = l;
+        if (infer::keeps_slot(plan.layers[l]) && state_l == SIZE_MAX) state_l = l;
+    }
+    require(kv_l != SIZE_MAX && state_l != SIZE_MAX, "the tiny model lacks an attention or a state layer");
+    const auto local = [&](size_t l, bool kv) {
+        size_t n = 0;
+        for (size_t i = 0; i < l; ++i) n += kv ? infer::keeps_kv(plan.layers[i]) : infer::keeps_slot(plan.layers[i]);
+        return n;
+    };
+    run({kv_l, state_l}, calls, plan);
+    require(calls.size() == plan.draft_sums + std::max<size_t>(plan.draft_block, 1), "a paired drafter did not run each part once");
+    const size_t per = plan.draft_sums / 2;
+    for (const PairedDrafter::Call& c : calls) {
+        require(c.phase >= 0 && c.n_views == 1, "a paired drafter's part ran whole or over other rows");
+        const bool first = size_t(c.phase) / per == 0;
+        if (first) require(c.kv_layer == local(kv_l, true), "the attention stage read another KV layer");
+        else require(c.state_layer == local(state_l, false), "the state stage read another state layer");
+        require(c.view.storage && c.view.length == prompt.size() && c.view.nq == infer::draft_call_rows(plan), "a paired view is not the history at its length");
+        require(c.state.storage && c.state.length == prompt.size() && c.state.nq == infer::draft_call_rows(plan), "a paired state view is not the history's");
+    }
+    {
+        infer::ModelWeights w = infer::gguf_weights(file);
+        w.arch = std::make_shared<const PairedDrafter>(w.arch, std::vector<size_t>{plan.layers.size()});
+        const infer::ModelPlan bad = infer::plan_model(w, true);
+        refuses("a pair past the layers", "a paired drafter's target layer " + std::to_string(plan.layers.size()) + " is not on the device of the stage reading it",
+                [&] { infer::Model refused(w, bad, {backend::make_cpu_backend()}, infer::Placement{}, options); });
+    }
+}
+
 // The tiny model with a DSpine drafter joined as dflash::normalize_beside leaves it: 2 layers of 2 query heads and 1 KV head 4 wide, a block of 4 rows, 3 candidates a row and a window of 3.
 gguf::GGUFModel tiny_dspine() {
     return tiny([](gguf::GGUFModel& m) {
@@ -2817,6 +2919,7 @@ int main(int argc, char** argv) {
             marks();
             drafts();
             drafter_layers();
+            drafter_pairs();
             dspine_yarn();
             dspine_block();
             slices(tiny());

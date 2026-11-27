@@ -618,7 +618,7 @@ def check_streams(directory, spec, model, require):
     passes = {}
     for ubatch in (3, len(sequence)):
         prefix = os.path.join(directory, "streams-%d" % ubatch)
-        p = subprocess.run([tool, model, ids, prefix, str(len(sequence)), str(ubatch), "cpu", "0,1,3"], capture_output=True, encoding="utf-8", errors="replace", timeout=300)
+        p = subprocess.run([tool, model, ids, prefix, str(len(sequence)), str(ubatch), "cpu", "1", "0,1,3"], capture_output=True, encoding="utf-8", errors="replace", timeout=300)
         assert p.returncode == 0, "qwen35: llmx-route-probe gave exit %d: %s" % (p.returncode, p.stderr[-400:])
         records = read_streams(prefix + ".streams")
         rows = [min(ubatch, len(sequence) - start) for start in range(0, len(sequence), ubatch)]

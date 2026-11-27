@@ -860,7 +860,7 @@ class ReferenceGenerator(unittest.TestCase):
         import baseline
         import baseline_qwen35
         pinned = baseline.PINNED
-        self.assertEqual(len({spec["file"] for spec in pinned}), len(pinned))
+        self.assertEqual(len({(spec["repo"], spec["file"]) for spec in pinned}), len(pinned))
         for spec in pinned:
             with self.subTest(file=spec["file"]):
                 self.assertEqual(set(spec), {"family", "repo", "file", "revision", "sha256", "size", "gate", "hosted"})
@@ -869,7 +869,7 @@ class ReferenceGenerator(unittest.TestCase):
                 self.assertRegex(spec["sha256"], r"^[0-9a-f]{64}$")
                 self.assertTrue(type(spec["size"]) is int and spec["size"] > 0)
                 self.assertTrue(type(spec["gate"]) is bool and type(spec["hosted"]) is bool)
-                self.assertEqual(baseline.pinned_fixture(spec["file"]), spec)
+                self.assertEqual(baseline.pinned_fixture(spec["file"], spec["repo"]), spec)
         # The gate is the models with bounds, in the file's order, each family's by its own: Qwen3's in tests/baseline.py, the qwen35 files' hosted ones in tests/baseline_qwen35.py.
         self.assertEqual([spec["file"] for spec in baseline.BASELINE_MODELS], [spec["file"] for spec in pinned if spec["gate"] and spec["family"] == "qwen3"])
         self.assertEqual([spec["file"] for spec in pinned if spec["gate"] and spec["family"] == "qwen35"],
@@ -890,9 +890,10 @@ class ReferenceGenerator(unittest.TestCase):
         self.assertEqual(sorted(spec["file"] for spec in qwen35 if not spec["hosted"]), ["Qwen3.5-4B-Q4_K_M.gguf"])
         self.assertEqual(sorted(spec["file"] for spec in qwen35),
                          sorted(file for model in generator.QWEN35_MODELS.values() for file in model["gguf_files"]))
-        # The vision family: the 0.8B mmproj, hosted and in the gate, whose file-exact goldens tests/vision.py names.
+        # The vision family: the 0.8B mmproj, hosted and in the gate, whose file-exact goldens tests/vision.py names, and the Inkling-2-Mini mmproj, checked by hand.
         vision = [spec for spec in pinned if spec["family"] == "vision"]
-        self.assertEqual([(spec["file"], spec["gate"], spec["hosted"]) for spec in vision], [("mmproj-BF16.gguf", True, True)])
+        self.assertEqual([(spec["repo"], spec["file"], spec["gate"], spec["hosted"]) for spec in vision],
+                         [("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-BF16.gguf", True, True), ("unsloth/Inkling-2-Mini-GGUF", "mmproj-BF16.gguf", False, False)])
 
     def test_qwen35_selection(self):
         args = generator.parse_args(["qwen35", "--model", "Qwen3.5-4B", "--threads", "3"])

@@ -359,7 +359,7 @@ public:
         p.pass = {{token_embd, Part::embed, RoleKind::gather, "token_embd.weight", "", E, p.vocab},
                   {output, Part::head, RoleKind::matrix, "output.weight", "token_embd.weight", E, p.vocab},
                   {output_norm, Part::head, RoleKind::norm, "output_norm.weight", "", E}};
-        blocks::shard(p.pass, output, Axis::rows, {{p.vocab, 1, 1, "vocabulary rows"}});
+        blocks::shard_vocab(p.pass, output, p.vocab);
         p.layers.resize((size_t)c.n_layer);
         for (int l = 0; l < c.n_layer; ++l) {
             const std::string pre = "blk." + std::to_string(l) + ".";
@@ -488,7 +488,7 @@ public:
         ffn_roles(d, tensors, pre, Part::draft);
         for (infer::Role& r : d.roles) r.stream = Stream::none;
         d.routed = false;
-        blocks::shard(d.roles, output, Axis::rows, {{p.vocab, 1, 1, "vocabulary rows"}});
+        blocks::shard_vocab(d.roles, output, p.vocab);
         d.ops.push_back({Part::draft, backend::Op::argmax_rows});
         d.ops.push_back({Part::draft, backend::Op::embed_ids});
         p.role_ids = nextn_shared_head_norm + 1;
@@ -858,7 +858,7 @@ private:
             b.matmul(lw(l, df_ffn_conv).operand(), h, dyn, E, CW, n, x.runs, s.dtype);
             b.tap_weighted_rows(cv, h, E, taps, n, CK, side(lw(l, df_ffn_conv_base), 0), coeff_in, CW, group, false);
             b.matmul_group({blocks::projection(lw(l, df_gate), s.slot(7)), blocks::projection(lw(l, df_up), s.slot(8))}, cv, E, n, x.runs, s.dtype);
-            b.silu_mul(s.slot(9), s.slot(7), s.slot(8), n * F, 0.0f, x.runs, backend::GluForm::silu);
+            b.silu_mul(s.slot(9), s.slot(7), s.slot(8), n * F, {}, x.runs);
             b.matmul(lw(l, df_down).operand(), s.slot(9), h, F, E, n, x.runs, s.dtype);
             b.tap_weighted_rows(s.x, h, E, taps, n, CK, side(lw(l, df_ffn_conv_base), 1), coeff_out, CW, group, true);
         }

@@ -12,6 +12,7 @@
 #include <set>
 
 #include "server_harness.hpp"
+#include "inference/generate.hpp"
 
 namespace {
 
@@ -1065,10 +1066,17 @@ struct DeviceIds : backend::CpuBackend {
     uint32_t end;
     DeviceIds(std::shared_ptr<std::atomic<uint64_t>> c, std::shared_ptr<std::atomic<uint64_t>> u, int64_t f, uint32_t e)
         : calls(std::move(c)), unusable(std::move(u)), forced(f), end(e) { set_threads(1); }
-    bool is_cpu() const override { return false; }
+    // Not the CPU but while a tensor group joins, as NoCpu.
+    bool is_cpu() const override { return NoCpu::joining; }
     std::optional<size_t> memory_available() const override { return std::nullopt; }
-    void argmax_rows(backend::Slice ids, backend::CSlice logits, size_t rows, size_t n, backend::CSlice after = {}) override {
-        CpuBackend::argmax_rows(ids, logits, rows, n, after);
+    std::unique_ptr<backend::Collective> join(const std::vector<backend::Backend*>& members, size_t rows, size_t width) override {
+        NoCpu::joining = true;
+        std::unique_ptr<backend::Collective> c = CpuBackend::join(members, rows, width);
+        NoCpu::joining = false;
+        return c;
+    }
+    void argmax_rows(backend::Slice ids, backend::CSlice logits, size_t rows, size_t n, backend::CSlice after = {}, size_t skip = SIZE_MAX) override {
+        CpuBackend::argmax_rows(ids, logits, rows, n, after, skip);
         ++*calls;
         float* out = const_cast<float*>((const float*)ids.buffer->host_ptr()) + ids.offset;
         for (size_t r = 0; r < rows; ++r) {
@@ -1159,6 +1167,74 @@ void device_ids(const gguf::GGUFModel& file, uint32_t vocab) {
         }
 }
 
+// Under ignore_eos the device's argmax passes over the end token, so a draw whose row's largest logit is the end token takes the id beside it with no row read back and its fed row stays live.
+// The end token is the one the plain greedy replies give most, so many rows have it as their largest.
+void masked_end(const gguf::GGUFModel& file, uint32_t vocab) {
+    const size_t pool = 16 * kBlock;
+    std::vector<std::vector<uint32_t>> prompts;
+    for (uint32_t i = 0; i < 4; ++i) prompts.push_back(prompt_of(43 + 3 * i, 5 + i, vocab));
+    const auto replies = [&](const gguf::GGUFModel& weights, bool device, server::Scheduler::Stats* stats) {
+        const bpe::Tokenizer tok(weights);
+        auto calls = std::make_shared<std::atomic<uint64_t>>(0), unusable = std::make_shared<std::atomic<uint64_t>>(0);
+        std::unique_ptr<infer::Model> model;
+        if (device) {
+            infer::ModelOptions options;
+            options.kv_tokens = pool;
+            options.argmax_rows = 64;
+            infer::PlacementRequest request;
+            request.names = {"device 0"};
+            request.ubatch = kUbatch;
+            model = infer::place_model(infer::gguf_weights(weights), {std::make_shared<DeviceIds>(calls, unusable, -1, (uint32_t)std::max(tok.eos_id, 0))}, request, options).model;
+        } else {
+            model = on(weights, [] { return cpus(1); })(pool, kUbatch);
+        }
+        server::Scheduler sched(*model, tok, kSeqs, 64, 0);
+        std::vector<std::shared_ptr<server::Request>> handles;
+        for (const auto& p : prompts) {
+            server::SampleParams s;
+            s.temp = 0.0f;
+            s.max_tokens = 24;
+            s.ignore_eos = true;
+            handles.push_back(sched.submit(p, s));
+        }
+        std::thread runner([&] { sched.run(); });
+        std::vector<std::vector<uint32_t>> got;
+        try {
+            for (auto& h : handles) {
+                std::vector<uint32_t> ids;
+                for (const auto& t : drain(*h)) ids.push_back(t.id);
+                got.push_back(ids);
+            }
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        if (stats) *stats = sched.stats();
+        sched.stop();
+        runner.join();
+        return got;
+    };
+    std::map<uint32_t, size_t> seen;
+    for (const auto& reply : replies(file, true, nullptr))
+        for (uint32_t id : reply) ++seen[id];
+    const uint32_t end = std::max_element(seen.begin(), seen.end(), [](const auto& a, const auto& b) { return a.second < b.second; })->first;
+    gguf::GGUFModel weights = file;
+    gguf::MetaValue meta;
+    meta.vtype = gguf::V_UINT32;
+    meta.u = end;
+    weights.kv.push_back({"tokenizer.ggml.eos_token_id", meta});
+    const std::vector<std::vector<uint32_t>> want = replies(weights, false, nullptr);
+    server::Scheduler::Stats stats;
+    const std::vector<std::vector<uint32_t>> got = replies(weights, true, &stats);
+    const std::string where = "masked end token " + std::to_string(end) + ", the largest in " + std::to_string(seen[end]) + " plain rows";
+    require(seen[end] > 4, where + ": too few rows to hold the end token largest");
+    require(got == want, where + ": a reply differs from the CPU's");
+    require(stats.fed > 0, where + ": no pass fed its ids on the device");
+    require(stats.argmax_reads == 0 && stats.argmax_ids == stats.argmax_rows, where + ": " + std::to_string(stats.argmax_reads) + " rows read back of " + std::to_string(stats.argmax_rows));
+    ++checks;
+}
+
 // A chain of one-token argmax passes on one device, each recorded while the one before is in flight and fed its ids on the device by that pass's argmax (BatchEntry::fed_slot), gives the ids of the same chain fed from the host.
 // Aborting a pass in the chain abandons the fed pass after it too, and leaves each history where the aborted pass found it.
 void fed_chain(const gguf::GGUFModel& weights, uint32_t vocab) {
@@ -1230,6 +1306,55 @@ void fed_chain(const gguf::GGUFModel& weights, uint32_t vocab) {
     require(got == want, "fed chain: ids fed on the device differ from ids fed from the host");
     chain(true, 5);
     checks += 2;
+}
+
+// infer::generate's greedy decode a pass ahead (Model::step_ahead) on one device and on a tensor group of two gives the ids, the history and the end of the same decode on CPUs read from the host.
+// Under ignore_eos the device passes over the end token, on a group in the member whose slice holds it; a pass ahead abandoned leaves the history where it found it.
+void ahead_chain(const gguf::GGUFModel& weights, uint32_t vocab) {
+    const bpe::Tokenizer tok(weights);
+    const std::vector<uint32_t> prompt = prompt_of(41, 6, vocab);
+    for (size_t width : {1, 2})
+        for (bool ignore_eos : {false, true}) {
+            const auto decode = [&](bool device, infer::Model::Ahead& ahead, size_t& length) {
+                auto calls = std::make_shared<std::atomic<uint64_t>>(0), unusable = std::make_shared<std::atomic<uint64_t>>(0);
+                std::vector<backend::BackendPtr> b;
+                for (size_t m = 0; m < width; ++m)
+                    b.push_back(device ? backend::BackendPtr(std::make_shared<DeviceIds>(calls, unusable, -1, (uint32_t)tok.eos_id)) : cpus(1)[0]);
+                infer::ModelOptions options;
+                options.kv_tokens = 8 * kBlock;
+                options.argmax_rows = 2;
+                infer::PlacementRequest request;
+                for (size_t m = 0; m < width; ++m) request.names.push_back("device " + std::to_string(m));
+                request.width = width;
+                request.ubatch = kUbatch;
+                auto model = infer::place_model(infer::gguf_weights(weights), std::move(b), request, options).model;
+                require(model->feeds() == device, "ahead chain: a model takes fed passes where its devices give no argmax, or none where they do");
+                infer::GenParams gp;
+                gp.temp = 0;
+                gp.max_tokens = 24;
+                gp.ignore_eos = ignore_eos;
+                bpe::Tokenizer t(weights);
+                infer::RNG rng;
+                const std::vector<uint32_t> gen = infer::generate(*model, t, gp, rng, model->prefill(prompt));
+                ahead = model->ahead_passes();
+                length = (size_t)model->n_tokens();
+                if (device) {
+                    // A pass ahead abandoned undoes its row and keeps the one fed before it.
+                    const float* row = nullptr;
+                    model->step_ahead(gen.back(), UINT32_MAX, &row);
+                    require(model->end_ahead(false) == !row && (size_t)model->n_tokens() == length + 1, "ahead chain: an abandoned pass ahead left the history off its last fed row");
+                }
+                return gen;
+            };
+            infer::Model::Ahead host, dev;
+            size_t host_length = 0, dev_length = 0;
+            const std::vector<uint32_t> want = decode(false, host, host_length), got = decode(true, dev, dev_length);
+            const std::string at = " at width " + std::to_string(width) + (ignore_eos ? " under ignore_eos" : "");
+            require(got == want, "ahead chain: ids a pass ahead differ from the host's" + at);
+            require(dev_length == host_length, "ahead chain: the history after the decode differs from the host's" + at);
+            require(!host.recorded && dev.recorded + 1 >= want.size() && dev.abandoned <= 1, "ahead chain: passes ahead " + std::to_string(dev.recorded) + " for " + std::to_string(want.size()) + " ids" + at);
+            checks += 3;
+        }
 }
 
 // The room rule at its owner: the scheduler refuses, without a route before it, a prompt that leaves its reply less than the room, and admits one at the edge.
@@ -1892,7 +2017,9 @@ int main() {
                 "the logits rows of a pass with and without drafts");
         reply_room(served(kSplit), (uint32_t)kSplit.vocab);
         device_ids(served(kSplit), (uint32_t)kSplit.vocab);
+        masked_end(served(kSplit), (uint32_t)kSplit.vocab);
         fed_chain(served(kSplit), (uint32_t)kSplit.vocab);
+        ahead_chain(served(kSplit), (uint32_t)kSplit.vocab);
         grouped(served(kSplit), (uint32_t)kSplit.vocab);
         routed_groups(served_routed(kSplit), (uint32_t)kSplit.vocab);
         grouped(served_hybrid(kHybridEven), (uint32_t)kHybridEven.vocab);

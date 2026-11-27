@@ -132,16 +132,25 @@ struct WeightView {
     CSlice scales = {};
     size_t scale_count = 0;
     unsigned scale_shift = 0;
+    // An F32 matrix whose prompt rows outside the F32 class may take a GPU backend's wide tile (F32 sums split by the run's extent) in place of the exact order; a model's plan asks for it per weight.
+    bool wide = false;
 };
 
 struct Projection {
     WeightView weight;
     Slice out;
     size_t rows;
+    // A routed projection may take a window of each expert's matrix: rows from `first` in a matrix of `pitch` rows, 0 for `rows` (Op::expert_window).
+    size_t first = 0, pitch = 0;
+    // A matmul_group item may read its own input rows in place of the call's X (Backend::matmul_group); none reads X.
+    CSlice in{};
     Projection() = default;
     // Keep the weight operand grouped: the old flat layout would fill its scale fields.
     Projection(WeightView w, Slice y, size_t n) : weight(w), out(y), rows(n) {}
 };
+
+// The input a group's projection reads: its own, or the call's X.
+inline CSlice input_of(const Projection& p, CSlice X) { return p.in.buffer ? p.in : X; }
 
 // The rows of a matmul grouped by the prompt they belong to, so a device picks a row's kernel by `extent` rather than by the call's width and a prompt computes the same however its rows are batched (docs/VULKAN.md, batch invariance).
 // `end` is one past the run's last row and `extent` the position one past the prompt's last token, 1 for a generated token; without runs a backend chooses by the call's width.
@@ -163,18 +172,120 @@ struct RouteRule {
     CSlice bias;
     float scale;
     size_t bias_stride = 0;
-    static RouteRule softmax(bool normalize) { return {Score::softmax, normalize, {}, 1.0f}; }
-    static RouteRule sqrt_softplus(CSlice bias, float scale, bool normalize) { return {Score::sqrt_softplus, normalize, bias, scale}; }
-    static RouteRule sigmoid(CSlice bias, float scale, bool normalize) { return {Score::sigmoid, normalize, bias, scale}; }
+    // eps joins the sum of the picks' weights before a normalizing rule divides by it; every factory sets it.
+    float eps = 0.0f;
+    static RouteRule softmax(bool normalize) { return {Score::softmax, normalize, {}, 1.0f, 0, 0.0f}; }
+    static RouteRule sqrt_softplus(CSlice bias, float scale, bool normalize) { return {Score::sqrt_softplus, normalize, bias, scale, 0, 1e-20f}; }
+    static RouteRule sigmoid(CSlice bias, float scale, bool normalize, float eps = 0.0f) { return {Score::sigmoid, normalize, bias, scale, 0, eps}; }
+    // A device kernel builds in its score factory's eps, 0 for softmax and 1e-20 for sqrt_softplus, and refuses another.
+    void factory_eps(const std::string& backend) const {
+        if (eps != (score == Score::sqrt_softplus ? 1e-20f : 0.0f)) throw std::runtime_error(backend + ": route_experts has no routing eps but its rule's default");
+    }
     // The normalize flag of a softmax rule, for a backend that refuses the other scores by name.
     bool softmax_only(const char* backend) const {
         if (score != Score::softmax || bias.buffer || scale != 1.0f) throw std::runtime_error(std::string(backend) + ": route_experts has no " + (score == Score::sigmoid ? "sigmoid" : "sqrt_softplus") + " scores");
+        factory_eps(backend);
         return normalize;
     }
 };
 
 // The GLU silu_mul applies after its clamps: silu(g) * u, or quick_gelu, MiniMax-M3.1's g * sigmoid(1.702 g) * (u + 1) (docs/MINIMAX.md, The forward pass).
-enum class GluForm : uint8_t { silu, quick_gelu };
+// softcap is L tanh(g / L) * sigmoid(g) * U tanh(u / U), L the limit and U the up limit, which clamp nothing in this form.
+enum class GluForm : uint8_t { silu, quick_gelu, softcap };
+// A GLU's form and caps: `limit` clamps silu and quick_gelu (0 for none) and caps the gate in softcap, `up_limit` caps up, in softcap only.
+struct Glu {
+    float limit = 0.0f;
+    GluForm form = GluForm::silu;
+    float up_limit = 0.0f;
+};
+
+// Backend::depthwise_conv's activation, residual and history layout: tail keeps the last (taps - 1) * dilation raw rows, oldest first, after the slot's common state prefix.
+// ring keeps raw rows at position mod ring_rows from ring_offset floats into the slot, the pass's last ring_rows rows written, so a rewind inside the headroom still finds its history.
+enum class ConvAct : uint8_t { none, silu };
+enum class ConvResidual : uint8_t { none, input, given };
+enum class ConvHistory : uint8_t { tail, ring };
+// A per-head step on the finished output rows, as the op it names takes them: l2_clip at threshold post_limit, or group_rms_norm against post_w with eps post_limit.
+enum class ConvPost : uint8_t { none, l2_clip, rms_norm };
+// Weights w are [channel][tap], the last tap current; dyn, when given, adds dyn[row][c / (channels / dyn_heads)][taps - 1 - k] to tap k, rows dyn_stride floats apart.
+struct DepthwiseConv {
+    CSlice w;
+    size_t channels = 0, taps = 0, dilation = 1;
+    ConvAct act = ConvAct::none;
+    ConvResidual residual_from = ConvResidual::none;
+    CSlice residual;
+    float divisor = 1.0f;
+    CSlice dyn;
+    size_t dyn_heads = 0, dyn_stride = 0;
+    ConvHistory history = ConvHistory::tail;
+    size_t ring_offset = 0, ring_rows = 0;
+    // Output row g at g * out_stride floats (0: channels); accumulate adds the finished value to the output's own with one f32 add, so a residual add needs no launch of its own.
+    size_t out_stride = 0;
+    bool accumulate = false;
+    // The output's post step over post_heads heads of channels / post_heads; a norm's rows are contiguous (out_stride 0 or channels).
+    ConvPost post = ConvPost::none;
+    size_t post_heads = 0;
+    float post_limit = 0.0f;
+    CSlice post_w;
+};
+struct MoeStep;
+// A product that forms a convolution's input first, y = weight times x as matmul(weight, x, y, nin, channels, rows, runs, dtype), or with a `step` moe_step(*step, h, y, nin, rows, runs, dtype); the item's x is then y.
+// A device may run the convolution in the product's store, so y is the only other thing it writes; with no weight data and no step the item has no product (docs/src/backends-backend.md).
+struct ConvProduct {
+    WeightView weight;
+    CSlice x;
+    Slice y;
+    size_t nin = 0;
+    RowRuns runs;
+    Dtype dtype = Dtype::f16;
+    const MoeStep* step = nullptr;
+    Slice h;
+};
+// One convolution of Backend::depthwise_conv's list form, out and x as the single call takes them, and the product that forms x.
+struct ConvRows {
+    Slice out;
+    CSlice x;
+    DepthwiseConv conv;
+    ConvProduct from;
+};
+struct KVView;
+// A convolution list whose items k and v are a KV layer's new rows: after the list (and its post steps) they are written as kv_write(layer, views, n_views, k's out, v's out).
+// The KV views name the state views' sequences in the same order.
+struct ConvKv {
+    size_t layer = 0;
+    const KVView* views = nullptr;
+    size_t n_views = 0, k = 0, v = 1;
+};
+// What a device's depthwise_conv_items took beyond the convolutions: nothing, every item's post step, or the post steps and the ConvKv write too.
+enum class ConvDone : uint8_t { none, posts, posts_kv };
+
+// One tensor of Backend::l2_clip: rows `stride` floats apart holding heads * dim floats from their start, scale[h][d] and row_scale[r] applied where they have data.
+struct ClipRows {
+    Slice x;
+    CSlice scale, row_scale;
+    size_t heads = 0, dim = 0, stride = 0;
+    float threshold = 0.0f;
+};
+// The most tensors one l2_clip call takes.
+inline constexpr size_t kClipItems = 4;
+// One mix of Backend::query_mix: n items of a src row mixed by each of nq queries into out, nq * dim floats a row.
+// Where norm[0] has data every query q (nq at most kQueryMixNorms, all set) is RMS-normed against norm[q] with norm_eps, as rms_norm_rows gives it over rows nq * dim apart, and out holds the normed rows.
+inline constexpr size_t kQueryMixNorms = 3;
+struct QueryMixRows {
+    Slice out;
+    CSlice src, queries;
+    size_t n = 0, nq = 0;
+    CSlice norm[kQueryMixNorms] = {};
+    float norm_eps = 0.0f;
+};
+// The most mixes one query_mix call takes.
+inline constexpr size_t kQueryMixItems = 2;
+// attention_rel_sink's q (heads of dim) and rel (heads of R) clipped first as l2_clip clips them, each times its scale, then both times row_scale, over `rows` rows; a q_limit of 0 is no clip.
+// With a clip, q and rel hold unspecified values after the call.
+struct RelClip {
+    CSlice q_scale, rel_scale, row_scale;
+    size_t rows = 0;
+    float q_limit = 0.0f, rel_limit = 0.0f;
+};
 
 // The scores indexer_scores writes: deepseek41's weighted ReLU sum over heads per pooled row, or MiniMax-M3.1's raw per-head block maxima (docs/MINIMAX.md, The forward pass).
 // raw_blocks writes out[r][h][b] for b below n, the largest F32 dot of q[r][h] with key t, t's auxiliary row, over block b's positions up to the row's own, -inf past them, and takes no w, blocks or key format but f32.
@@ -187,8 +298,7 @@ struct MoeShared {
     WeightView down;
     Slice act;
     Projection row_gate;
-    float limit = 0.0f;  // silu_mul's clamp, 0 for none
-    GluForm form = GluForm::silu;
+    Glu glu;
 };
 // A layer's device expert cache (MoeStep::slots, Placement::expert_slots): `slots` experts of each stack in device memory, the state choosing them, and each stack's host source.
 // A step pulls its missing experts into slots through the device's ring in waves and runs its entries in rounds of what the slots hold (docs/src/backends-backend.md, moe_step).
@@ -221,7 +331,12 @@ struct ExpertSlots {
     static constexpr size_t kPiece = size_t(2) << 20;
 };
 // The F32 router's n_expert scores into router.out, a row's k picks and weights, each stack's n_expert matrices of gate.rows rows writing k rows a token, and the slot the SiLU writes.
-// `rule` picks and weighs the experts, `limit` clamps their GLU (0 for none) and `form` is the GLU's, `zero` clears y first and `scratch` holds the GLU's entry runs.
+// moe_step's input formed in the step (MoeStep::input): src RMS-normed against norm into h, as rms_norm_rows gives it.
+struct MoeInput {
+    CSlice src, norm;
+    float eps;
+};
+// `rule` picks and weighs the experts, `glu` is their GLU, `zero` clears y first, `scratch` holds the GLU's entry runs and `input`, where set, forms h first.
 struct MoeStep {
     Projection router;
     size_t k;
@@ -233,8 +348,8 @@ struct MoeStep {
     const MoeShared* shared;
     const Buffer* zero;
     std::vector<RowRun>* scratch;
-    float limit = 0.0f;
-    GluForm form = GluForm::silu;
+    Glu glu;
+    const MoeInput* input = nullptr;
     const ExpertSlots* slots = nullptr;  // the layer's device expert cache, or none
 };
 
@@ -271,6 +386,17 @@ void for_each_run(size_t n, RowRuns runs, const Key& key, const Each& each) {
         start = stop;
         i = j;
     }
+}
+
+// The extent of the run holding row `row` of a call of `n` rows, or `fallback` for a call without runs.
+inline size_t run_extent(RowRuns runs, size_t n, size_t row, size_t fallback) {
+    if (!runs.n) return fallback;
+    if (!runs.runs || runs.runs[runs.n - 1].end != n) throw std::runtime_error("backend: row runs do not cover the batch");
+    for (size_t i = 1; i < runs.n; ++i)
+        if (runs.runs[i].end < runs.runs[i - 1].end) throw std::runtime_error("backend: row runs out of order");
+    for (size_t i = 0; i < runs.n; ++i)
+        if (row < runs.runs[i].end) return runs.runs[i].extent;
+    throw std::runtime_error("backend: row runs do not cover the batch");
 }
 
 // The backend owns KV storage and its block layout; models keep logical views (docs/KV-CACHE.md).
@@ -333,6 +459,26 @@ struct KVView {
     // A row at position p attends only positions above p - window, 0 for all, a sliding window (Op::attention_window, docs/SPECULATIVE.md, section 11); a non-causal row still sees the view's later rows.
     size_t window = 0;
 };
+
+// Extra terms of a causal attention's scores by query row and head: a relative bias, rel by table, and a per-head sink (docs/src/backends-backend.md, AttentionTerms).
+struct AttentionTerms {
+    CSlice rel;     // [rows][n_head][rank]
+    CSlice table;   // [rank][extent]
+    size_t rank = 0, extent = 0;
+    CSlice sink;    // [rows][n_head]
+};
+
+// The query rows of a call with terms, after refusing a non-causal view and a bias without its rank, extent or slices.
+inline size_t attention_terms_rows(const AttentionTerms& terms, const KVView* views, size_t n_views) {
+    if (bool(terms.rank) != bool(terms.rel.buffer) || (terms.rank && (!terms.extent || !terms.table.buffer)))
+        throw std::runtime_error("backend: attention terms with a bias missing its rank, extent or table");
+    size_t rows = 0;
+    for (size_t i = 0; i < n_views; ++i) {
+        if (!views[i].causal) throw std::runtime_error("backend: attention terms on a non-causal view");
+        rows = size_add(rows, views[i].nq);
+    }
+    return rows;
+}
 
 
 // DeepSeek-V4.1's storage formats as model math (quant/model_formats.hpp): the window's FP8 under a power-of-two scale per 32, the index keys' FP4 under one per 32, the entries' FP4 under an E4M3 scale per 16.
@@ -468,13 +614,14 @@ inline size_t check_state_views(const StateView* views, size_t n_views, size_t l
 // The sign signed_sqrt_gate gives a dot of zero: none, the three-way sign (0 at +0 and -0, a gate of 0.5), or kept, the zero's own sign bit as copysign takes it.
 enum class ZeroSign : uint8_t { none, kept };
 // The ops some backends lack, which a model's plan names for each part that issues one, so a backend without one refuses the model at load rather than in a pass (Backend::implements).
-// The last seven are modes of other calls, each named in docs/src/backends-backend.md beside the call it changes.
+// sqrt_softplus_routing to sparse_attention_blocks and glu_softcap are modes of other calls, each named in docs/src/backends-backend.md beside the call it changes.
 enum class Op : uint8_t { causal_conv_silu, gated_delta_rule, gated_rms_norm, norm_rope_partial, sigmoid_mul, routed_experts, mixed_experts, argmax_rows, embed_ids,
-                          group_rms_norm, silu_scaled, mix_streams, inject_streams, signed_sqrt_gate, dilated_conv_silu_add, select_kv, sparse_attention,
+                          group_rms_norm, silu_scaled, mix_streams, inject_streams, signed_sqrt_gate, depthwise_conv, select_kv, sparse_attention,
                           layer_norm, gelu, add_bias, mix_rows, rope_streams, attention_full, hc_coeffs, hc_collapse_norm, hc_expand,
                           sparse_attention_sink, topk_rows, candidate_blocks, compress_pool, indexer_scores, model_format_qdq, model_format_pack, pool_write,
                           sqrt_softplus_routing, silu_mul_clamp, rope_forms, sigmoid_routing, glu_quick_gelu, raw_index_scores, sparse_attention_blocks, attention_window,
-                          unit_rows, sigmoid_gate_rows, matmul_at_ids, chain_pick, tap_weighted_rows };
+                          unit_rows, sigmoid_gate_rows, matmul_at_ids, chain_pick, tap_weighted_rows,
+                          l2_clip, query_mix, tanh_gate_mix, depthwise_conv_ring, attention_rel_sink, glu_softcap, softcap, expert_window, copy_rows };
 inline const char* op_name(Op op) {
     switch (op) {
         case Op::causal_conv_silu: return "causal_conv_silu";
@@ -491,7 +638,7 @@ inline const char* op_name(Op op) {
         case Op::mix_streams: return "mix_streams";
         case Op::inject_streams: return "inject_streams";
         case Op::signed_sqrt_gate: return "signed_sqrt_gate";
-        case Op::dilated_conv_silu_add: return "dilated_conv_silu_add";
+        case Op::depthwise_conv: return "depthwise_conv";
         case Op::select_kv: return "select_kv";
         case Op::sparse_attention: return "sparse_attention";
         case Op::layer_norm: return "layer_norm";
@@ -518,6 +665,15 @@ inline const char* op_name(Op op) {
         case Op::glu_quick_gelu: return "glu_quick_gelu";
         case Op::raw_index_scores: return "raw_index_scores";
         case Op::sparse_attention_blocks: return "sparse_attention_blocks";
+        case Op::l2_clip: return "l2_clip";
+        case Op::query_mix: return "query_mix";
+        case Op::tanh_gate_mix: return "tanh_gate_mix";
+        case Op::depthwise_conv_ring: return "depthwise_conv_ring";
+        case Op::attention_rel_sink: return "attention_rel_sink";
+        case Op::glu_softcap: return "glu_softcap";
+        case Op::softcap: return "softcap";
+        case Op::expert_window: return "expert_window";
+        case Op::copy_rows: return "copy_rows";
         case Op::attention_window: return "attention_window";
         case Op::unit_rows: return "unit_rows";
         case Op::sigmoid_gate_rows: return "sigmoid_gate_rows";
@@ -588,6 +744,7 @@ struct PassWidths {
     size_t rows = 0;                    // a pass's rows: a prompt's batch, decode and draft rows together
     size_t heads = 0, head_dim = 0;     // the widest attention: query heads (a member's share) and their width
     bool dense_attention = false;       // some layer runs the dense attention kernel, beside any sparse or sink one
+    bool relative_attention = false;    // some layer runs attention_rel_sink, whose rows split their keys into parts
     size_t context = 0;                 // the longest view a pass reads, in positions
     size_t sparse_ids = 0;              // a sparse attention row's ids (its id stride), 0 without one
     size_t sparse_named = 0;            // a sink attention row's named entries, 0 without one
@@ -604,6 +761,126 @@ struct PassWidths {
     size_t logit_rows = 0, vocab = 0;   // on the head's device, the logits rows a pass keeps in host memory and their width (a member's share)
     size_t topk_picks = 0, topk_items = 0, topk_compression = 0;   // a topk_rows row's picks and its most scores, or the context's positions over topk_compression where that is set
 };
+
+// Where a grouped norm reads its rows: groups [0, split) from src with rows stride floats apart, the rest from `rest` with rows rest_stride apart.
+// The default reads every group from contiguous rows of src; resolve fills in what a caller left out.
+struct NormSource {
+    CSlice rest;
+    size_t split = 0, stride = 0, rest_stride = 0;
+    NormSource resolve(CSlice src, size_t groups, size_t width) const {
+        NormSource r = *this;
+        if (!r.rest.buffer) r = {src, groups, stride, 0};
+        if (!r.stride) r.stride = width;
+        if (!r.rest_stride) r.rest_stride = width;
+        return r;
+    }
+    bool contiguous(CSlice src, size_t groups, size_t width) const {
+        return split == groups && stride == width && rest.buffer == src.buffer && rest.offset == src.offset;
+    }
+};
+// A product of a grouped norm's rows, y = weight times each normed row, as matmul(weight, dst, y, groups * dim, nout, rows, runs, dtype) after the norm; no weight data, none.
+// With one, the norm's dst is scratch: a backend may form the product from the sources and leave dst unwritten.
+struct NormProduct {
+    WeightView weight;
+    Slice y;
+    size_t nout = 0;
+    Dtype dtype = Dtype::f16;
+};
+// One grouped norm of a list (group_rms_norm's items): its output, source, split source and product.
+struct NormRows {
+    Slice dst;
+    CSlice src;
+    NormSource from;
+    NormProduct into;
+};
+// An item of tanh_gate_mix: its out, h and m rows, its packed f and g, and the norm its out then takes, if any.
+// Where forget names a weight, the call computes f and g first as forget's and gain's outputs, each of its own input of `rank` values a row in `dtype`, that input being down's grouped norm product where down is set (Backend::gate_downs).
+struct GateMixItem {
+    Slice out;
+    CSlice h, m, f, g;
+    CSlice norm = {};
+    Projection forget = {}, gain = {};
+    size_t rank = 0;
+    Dtype dtype = Dtype::f16;
+    NormRows down = {};
+    CSlice down_w = {};
+};
+
+// A product's input formed and its output stored by one descriptor each (Backend::rows_product, docs/src/backends-backend.md, Row products).
+// A ring convolution with its residual, as one item of depthwise_conv's list over the slots of `layer`; a sink's convolution reads its item's rows in place of x.
+struct RowConv {
+    Slice out;
+    CSlice x;
+    DepthwiseConv conv;
+    size_t layer = 0;
+    const StateView* views = nullptr;
+    size_t n_views = 0;
+};
+// A query mix (QueryMixRows) over src rows `stride` floats apart of dim-wide items, with `eps`; `before`, where set, is a mix that feeds no product, run first in the same call.
+struct RowMix {
+    QueryMixRows mix;
+    size_t dim = 0, stride = 0;
+    float eps = 0.0f;
+    const QueryMixRows* before = nullptr;
+};
+// A tanh gate, out = (1 - tanh(f)) * h + tanh(g) * m, as tanh_gate_mix takes it.
+struct RowGate {
+    Slice out;
+    CSlice h, m, f, g;
+    size_t width = 0, out_stride = 0, h_stride = 0, m_stride = 0;
+};
+// An RMS norm of rows `stride` floats apart, as rms_norm_rows gives it, or with groups above 1 or a split source (`from`) as group_rms_norm over groups of width / groups.
+struct RowNorm {
+    Slice dst;
+    CSlice src, w;
+    size_t width = 0, stride = 0;
+    float eps = 0.0f;
+    size_t groups = 1;
+    NormSource from = {};
+};
+// A tensor group member's handle on a sum its products push and its next source takes, which the collective that opens it defines (docs/src/backends-backend.md, Row products).
+struct RowSum;
+// The most planes one source forms, each gated and normed on its own from the shared stages.
+inline constexpr size_t kRowPlanes = 3;
+// The stages that form the rows a product reads, in this order, each optional and naming its own operands: take, conv, mix, then per plane gate and norm, then twin.
+// row[j] is what items of plane j read, plane j's last stage's output; `runs` are the runs the stages take, as their own calls would.
+struct RowSource {
+    CSlice row[kRowPlanes] = {};
+    size_t planes = 1;
+    // Where set, the first stage's input is a member's partial rows, whose sum a device may take here; the base reads it as the collective left it.
+    const RowSum* take = nullptr;
+    const RowConv* conv = nullptr;
+    const RowMix* mix = nullptr;
+    const RowGate* gate[kRowPlanes] = {};
+    const RowNorm* norm[kRowPlanes] = {};
+    // The formed rows feed integer products, so a device may write their twins as it forms them; the base leaves the twins to the products.
+    bool twin = false;
+    RowRuns runs = {};
+};
+// What a product's store does with an item's rows: plain, glu (the pair's GLU), conv (a convolution's input), push (a member's partial) or logits (the head's product).
+enum class RowStore : uint8_t { plain, glu, conv, push, logits };
+// glu: this item is the gate and the next its up, act = silu_mul of the pair with `glu`, and `twin` as RowSource's; conv: `conv` reads the item's rows.
+// push: the rows are a member's partial (Collective::partial) under `sum`, which a device may send to its peers as it stores them; logits: matmul_logits softcapped by `cap`, 0 for none.
+struct RowSink {
+    RowStore store = RowStore::plain;
+    Slice act;
+    Glu glu;
+    bool twin = false;
+    const RowConv* conv = nullptr;
+    const RowSum* sum = nullptr;
+    float cap = 0.0f;
+};
+// One projection of a row product, reading plane `plane` of the source unless it names its own input, and its store.
+// With a `step` the item is that routed step (moe_step) of the row into p.out through `h`, alone in its call, and p's weight is unused.
+struct RowItem {
+    Projection p;
+    RowSink sink;
+    size_t plane = 0;
+    const MoeStep* step = nullptr;
+    Slice h;
+};
+// The most items one row product takes.
+inline constexpr size_t kRowItems = 6;
 
 class Backend {
 public:
@@ -699,6 +976,9 @@ public:
     // Whether this backend is the CPU itself, so experts placed on the CPU beside it are already where they run; a device may read in place and still not be the CPU.
     virtual bool is_cpu() const { return false; }
 
+    // Prompt rows a pass takes on this backend where the caller names none and the fit leaves room for them (plan_placement); 0 leaves the model's default.
+    virtual size_t prompt_rows() const { return 0; }
+
     // What makes this backend's arithmetic its own, as text: with the same build, two backends of one identity give the same bits for the same work at the same row classes (docs/DISK-TIER.md, The entry file).
     // A backend that cannot say gives an identity no other backend shares.
     virtual std::string identity() const { return "unknown " + std::to_string((uintptr_t)this); }
@@ -714,6 +994,7 @@ public:
     // A backend that computes as it records never waits, and one not made to time its work reports nothing.
     struct HostTimes {
         double ticket_ms = 0, slot_ms = 0, staging_ms = 0, write_ms = 0;
+        double launch_ms = 0;   // in the runtime's calls that issue held work to the device, where a backend holds work (the GPU core)
     };
     virtual HostTimes host_times() const { return {}; }
     // Device time per kernel since the last reading, on a backend made to time its work, which waits for its queue to read it; empty where the backend keeps none.
@@ -809,9 +1090,11 @@ public:
                         Slice Y, size_t nin, size_t nout, size_t nbatch, RowRuns runs = {}, Dtype dtype = Dtype::f16) = 0;
 
     // The output head: its results are the logits a caller reads directly, so a backend may keep more precise activations for it than for the projections inside the layers.
+    // A cap above 0 softcaps the logits as softcap does, which a device may apply before its logits leave device memory.
     virtual void matmul_logits(WeightView weight, CSlice X, Slice Y, size_t nin, size_t nout, size_t nbatch,
-                               RowRuns runs = {}, Dtype dtype = Dtype::f16) {
+                               RowRuns runs = {}, Dtype dtype = Dtype::f16, float cap = 0.0f) {
         matmul(weight, X, Y, nin, nout, nbatch, runs, dtype);
+        if (cap != 0.0f) softcap(Y, size_mul(nout, nbatch), cap);
     }
 
     // Y += W X, the projection whose output joins the residual stream: the model asks for the sum and each backend produces it its own way.
@@ -832,31 +1115,45 @@ public:
     }
 
     // For each of `rows` rows of `n` logits, the id of the largest, ties to the lowest, as a 32-bit integer in a float-sized slot of `ids`.
-    // It is `n` where the largest is not finite or a logit is NaN, and for a row whose id in `after`, when given, is `n` or more, so a chain of drafts ends at its first invalid one.
-    virtual void argmax_rows(Slice ids, CSlice logits, size_t rows, size_t n, CSlice after = {}) {
-        (void)ids; (void)logits; (void)rows; (void)n; (void)after;
+    // It is `n` where the largest is not finite or a logit is NaN, or where the row's id in `after`, when given, is `n` or more; `skip`, where below `n`, is passed over as if the row lacked it (detail::argmax in inference/sampler.hpp).
+    virtual void argmax_rows(Slice ids, CSlice logits, size_t rows, size_t n, CSlice after = {}, size_t skip = SIZE_MAX) {
+        (void)ids; (void)logits; (void)rows; (void)n; (void)after; (void)skip;
         lacks(Op::argmax_rows);
     }
     // argmax_rows over a vocabulary split into slices on several devices, around a sum of the candidates (docs/src/backends-backend.md).
-    // argmax_part writes a row's (largest, its id as a float value, NaN or +inf flag) at slot `slot` of `slots` and zeros in the others.
-    virtual void argmax_part(Slice cands, CSlice logits, size_t rows, size_t n, size_t first, size_t slot, size_t slots) {
-        (void)cands; (void)logits; (void)rows; (void)n; (void)first; (void)slot; (void)slots;
+    // argmax_part writes a row's (largest, its id as a float value, NaN or +inf flag) at slot `slot` of `slots` and zeros in the others; the row's id `skip` is passed over where the slice holds it.
+    virtual void argmax_part(Slice cands, CSlice logits, size_t rows, size_t n, size_t first, size_t slot, size_t slots, size_t skip = SIZE_MAX) {
+        (void)cands; (void)logits; (void)rows; (void)n; (void)first; (void)slot; (void)slots; (void)skip;
         lacks(Op::argmax_rows);
     }
+    // The slice's own id that argmax_part passes over for the row's id `skip`, `n` where the slice of `n` ids from `first` does not hold it.
+    static size_t part_skip(size_t skip, size_t first, size_t n) { return skip >= first && skip - first < n ? skip - first : n; }
     // argmax_pick gives each row's id from its summed candidates as argmax_rows gives it over the whole row of `n`.
     virtual void argmax_pick(Slice ids, CSlice cands, size_t rows, size_t slots, size_t n, CSlice after = {}) {
         (void)ids; (void)cands; (void)rows; (void)slots; (void)n; (void)after;
         lacks(Op::argmax_rows);
     }
 
-    // Independent projections of the same X; outputs must not overlap each other, X, or any weights.
+    // Independent projections of the same X, or of an item's own input of the same shape (Projection::in); outputs must not overlap each other, any input, or any weights.
     // Outputs are observable after wait(), sync() or read(), as for matmul.
     virtual void matmul_group(std::initializer_list<Projection> projections,
                               CSlice X, size_t nin, size_t nbatch, RowRuns runs = {}, Dtype dtype = Dtype::f16) {
         for (const auto& p : projections) {
             if (!p.weight.data.buffer) throw std::runtime_error("backend: projection without storage");
-            matmul(p.weight, X, p.out, nin, p.rows, nbatch, runs, dtype);
+            matmul(p.weight, input_of(p, X), p.out, nin, p.rows, nbatch, runs, dtype);
         }
+    }
+    // True where an item reads its own input (Projection::in): a backend without a grouped build for it takes the base's call per projection.
+    static bool own_inputs(std::initializer_list<Projection> projections) {
+        for (const auto& p : projections)
+            if (p.in.buffer) return true;
+        return false;
+    }
+
+    // Up to kRowItems projections of the rows `src` forms, each stored as its sink says (RowSource, RowSink); outputs as matmul_group's, and nin the formed rows' width.
+    // The base runs the stages, the products and the stores as today's separate calls, and a device may fuse any of them where it gives the same bits; no pointer is kept past the call.
+    void rows_product(const RowSource& src, std::initializer_list<RowItem> items, size_t nin, size_t rows, RowRuns runs = {}, Dtype dtype = Dtype::f16) {
+        rows_product_items(src, items.begin(), items.size(), nin, rows, runs, dtype);
     }
 
     virtual KVLayout kv_layout() const = 0;
@@ -876,19 +1173,20 @@ public:
                           CSlice k, CSlice v, CSlice auxiliary = {}) = 0;
 
     // Causal GQA: Q/out are [rows, n_head, head_dim] in the same view order, and row b of view v attends through views[v].length + b.
-    // A device backend gets every sequence of the pass in one launch.
+    // A device backend gets every sequence of the pass in one launch; `terms`, where given, adds AttentionTerms to the causal softmax.
     virtual void attention(CSlice Q, size_t layer, const KVView* views,
                            size_t n_views, Slice out,
-                           int n_head, int n_head_kv, int head_dim) = 0;
+                           int n_head, int n_head_kv, int head_dim, const AttentionTerms* terms = nullptr) = 0;
     // Attention whose output is then gated in place by sigmoid_mul over `rows` rows, the gate read at its strides as sigmoid_mul reads it; a backend may skip what only the ungated output needed.
     struct OutputGate {
         CSlice gate;
         size_t rows, stride, head_stride;
         RowRuns runs;
     };
-    virtual void gated_attention(CSlice Q, size_t layer, const KVView* views, size_t n_views, Slice out, int n_head, int n_head_kv, int head_dim, const OutputGate& g) {
-        attention(Q, layer, views, n_views, out, n_head, n_head_kv, head_dim);
-        sigmoid_mul(out, out, g.gate, g.rows, (size_t)n_head, (size_t)head_dim, g.stride, g.head_stride, g.runs);
+    virtual void gated_attention(CSlice Q, size_t layer, const KVView* views, size_t n_views, Slice out, int n_head, int n_head_kv, int head_dim, const OutputGate& g,
+                                 const AttentionTerms* terms = nullptr) {
+        attention(Q, layer, views, n_views, out, n_head, n_head_kv, head_dim, terms);
+        output_gate(out, (size_t)n_head, (size_t)head_dim, g);
     }
 
     // A gated attention layer from its projections: q and k normed per head and rotated over rope_dim, k and v written to the cache, then gated_attention (docs/QWEN35.md).
@@ -996,9 +1294,15 @@ public:
         lacks(Op::mix_rows);
     }
 
-    // dst[i] = silu(gate[i]) * up[i], the SwiGLU elementwise stage, or with a limit L > 0 silu(min(gate[i], L)) * clamp(up[i], -L, L) (docs/DEEPSEEK4.md, section 4.2), 0 clamping nothing, then `form`'s GLU.
+    // dst[i] = silu(gate[i]) * up[i], the SwiGLU elementwise stage, or with a limit L > 0 silu(min(gate[i], L)) * clamp(up[i], -L, L) (docs/DEEPSEEK4.md, section 4.2), 0 clamping nothing, then `glu.form`'s GLU (Glu).
     // `runs`, when given, group dst's rows of n / rows floats, `rows` being the last run's end, by prompt as matmul's runs do, for the matmul that reads dst next, as for rms_norm_rows.
-    virtual void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, float limit, RowRuns runs = {}, GluForm form = GluForm::silu) = 0;
+    virtual void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, Glu glu, RowRuns runs = {}) = 0;
+
+    // x[i] = cap tanh(x[i] / cap) over n floats, a model's final logit softcap.
+    virtual void softcap(Slice x, size_t n, float cap) {
+        (void)x; (void)n; (void)cap;
+        lacks(Op::softcap);
+    }
 
     // dst[i] += src[i], the residual add.
     virtual void add(Slice dst, CSlice src, size_t n) = 0;
@@ -1035,9 +1339,10 @@ public:
     }
 
     // The routed projection whose output joins the residual stream: Y row r += sum over j in order of weights[e] * dot(expert ids[e], X row e), e = r*k + j, an entry of kNoExpert adding nothing.
-    // The weighted sum is formed first and then added, so a row's result does not depend on how its slots were computed.
+    // The weighted sum is formed first and then added, so a row's result does not depend on how its slots were computed; with `from`, each row of Y is first its first nout floats (repeat_row), which a device may read in the sum's launch.
     virtual void matmul_experts_add(WeightView /*weight*/, CSlice /*X*/, Slice /*Y*/, size_t /*nin*/, size_t /*nout*/,
-                                    size_t /*nrows*/, const Routing& /*routing*/, RowRuns /*runs*/ = {}, Dtype /*dtype*/ = Dtype::f16) {
+                                    size_t /*nrows*/, const Routing& /*routing*/, RowRuns /*runs*/ = {}, Dtype /*dtype*/ = Dtype::f16,
+                                    const Buffer* /*from*/ = nullptr) {
         lacks(Op::routed_experts);
     }
 
@@ -1049,29 +1354,41 @@ public:
         matmul_experts({p}, X, nin, rows * groups, Routing{group_ids, {}, 1, groups}, {scratch.data(), scratch.size()}, dtype);
     }
 
-    // moe_step's routing: the router's F32 scores of each row, then the rule's picks and weights from them; a device may form both in one launch where it gives the same bits.
-    virtual void moe_router(const MoeStep& m, CSlice h, size_t nin, size_t rows, RowRuns runs) {
+    // moe_step's input h formed from m.input where it is set; every moe_step path forms it before reading h, here or fused into its routing launch.
+    void moe_input(const MoeStep& m, Slice h, size_t nin, size_t rows, RowRuns runs) {
+        if (m.input) rms_norm_rows(h, m.input->src, m.input->norm, rows, nin, nin, m.input->eps, runs);
+    }
+    // moe_step's routing (after its input, moe_input): the router's F32 scores of each row, then the rule's picks and weights from them; a device may form both in one launch where it gives the same bits.
+    virtual void moe_router(const MoeStep& m, Slice h, size_t nin, size_t rows, RowRuns runs) {
+        moe_input(m, h, nin, rows, runs);
         matmul(m.router.weight, h, m.router.out, nin, m.router.rows, rows, runs, Dtype::f32);
         route_experts(m.router.out, rows, m.router.rows, m.k, m.rule, m.ids, m.weights);
     }
     // Whether moe_step runs a step under a device expert cache (MoeStep::slots), which a placement with --expert-cache asks of its device before it is built.
     virtual bool caches_experts() const { return false; }
 
+    // The GLU of two products of X's rows into act, the dense form of moe_act: gate and up as matmul_group gives them, then silu_mul's GLU; a device may form act in one launch where it gives the same bits, leaving gate.out and up.out unwritten.
+    virtual void glu_products(const Projection& gate, const Projection& up, Slice act, Glu glu, CSlice X, size_t nin, size_t rows, RowRuns runs, Dtype dtype) {
+        matmul_group({gate, up}, X, nin, rows, runs, dtype);
+        silu_mul(act, gate.out, up.out, rows * gate.rows, glu, runs);
+    }
+
+    // moe_step's routed act (after its routing, moe_router): the experts' gate and up products of h, then their GLU into m.act; a device may form the act in one launch where it gives the same bits, leaving m.gate.out and m.up.out unwritten.
+    virtual void moe_act(const MoeStep& m, CSlice h, size_t nin, size_t rows, const Routing& routing, RowRuns runs, Dtype dtype) {
+        matmul_experts({m.gate, m.up}, h, nin, rows, routing, runs, dtype);
+        // The routed down projection reads the SiLU's output as entries row after row, so its twin lies flat.
+        silu_mul(m.act, m.gate.out, m.up.out, rows * m.k * m.gate.rows, m.glu);
+    }
+
     // A routed feed-forward step over the normed rows h (MoeStep): routing, the experts' SwiGLU and weighted down sum, then a shared expert's SwiGLU under its row gate, joining y.
     // The base runs those ops in that order; a device may fuse them where it gives the same bits.
-    virtual void moe_step(const MoeStep& m, CSlice h, Slice y, size_t nin, size_t rows, RowRuns runs = {}, Dtype dtype = Dtype::f16) {
+    virtual void moe_step(const MoeStep& m, Slice h, Slice y, size_t nin, size_t rows, RowRuns runs = {}, Dtype dtype = Dtype::f16) {
         if (m.slots) throw std::runtime_error("backend: no device expert cache on this backend");
-        if (m.zero) repeat_row(y, *m.zero, rows, nin);
         const size_t n_expert = m.router.rows, ff = m.gate.rows;
         moe_router(m, h, nin, rows, runs);
         const Routing routing{m.ids, m.weights, m.k, n_expert};
-        matmul_experts({m.gate, m.up}, h, nin, rows, routing, runs, dtype);
-        // The routed down projection reads the SiLU's output as k entries a token row, each of its token's prompt.
-        std::vector<RowRun>& entry_runs = *m.scratch;
-        entry_runs.clear();
-        for (size_t i = 0; i < runs.n; ++i) entry_runs.push_back(RowRun{runs.runs[i].end * m.k, runs.runs[i].extent});
-        silu_mul(m.act, m.gate.out, m.up.out, rows * m.k * ff, m.limit, {entry_runs.data(), entry_runs.size()}, m.form);
-        matmul_experts_add(m.down, m.act, y, ff, nin, rows, routing, runs, dtype);
+        moe_act(m, h, nin, rows, routing, runs, dtype);
+        matmul_experts_add(m.down, m.act, y, ff, nin, rows, routing, runs, dtype, m.zero);
         moe_shared(m, h, y, nin, rows, runs, dtype);
     }
     // A step's shared expert, its SwiGLU under its row gate joining y, where it has one.
@@ -1080,8 +1397,7 @@ public:
         const MoeShared& s = *m.shared;
         const bool gated = s.row_gate.weight.data.buffer != nullptr;
         if (gated) matmul(s.row_gate.weight, h, s.row_gate.out, nin, 1, rows, runs, dtype);
-        matmul_group({s.gate, s.up}, h, nin, rows, runs, dtype);
-        silu_mul(s.act, s.gate.out, s.up.out, rows * s.gate.rows, s.limit, runs, s.form);
+        glu_products(s.gate, s.up, s.act, s.glu, h, nin, rows, runs, dtype);
         if (gated) sigmoid_mul(s.act, s.act, s.row_gate.out, rows, s.gate.rows, 1, 1, 0, runs);
         matmul_add(s.down, s.act, y, s.gate.rows, nin, rows, runs, dtype);
     }
@@ -1165,10 +1481,100 @@ public:
         lacks(Op::sigmoid_mul);
     }
 
-    // Normalize each dim-wide group separately with its own weight slice in each row of groups * dim floats; dst may equal src.
-    virtual void group_rms_norm(Slice /*dst*/, CSlice /*src*/, CSlice /*w*/, size_t /*rows*/, size_t /*groups*/, size_t /*dim*/, float /*eps*/,
-                                RowRuns /*runs*/ = {}) {
-        lacks(Op::group_rms_norm);
+    // A per-head L2 clip in place of each item's `rows` rows (ClipRows): each head of dim floats times scale[h][d] where scale has data, then times min(1, threshold / (norm + 1e-6)), then times row_scale[r] where that has data.
+    // Items must not overlap; more than kClipItems are refused.
+    virtual void l2_clip(std::initializer_list<ClipRows> /*items*/, size_t /*rows*/, RowRuns /*runs*/ = {}) {
+        lacks(Op::l2_clip);
+    }
+
+    // Each item's attention-residual mix (QueryMixRows): n_i, the unweighted RMS norm with `eps` of item i of a row's n items of dim floats, mixed by each of nq queries as sum_i softmax_i(dot(q, n_i) / sqrt(dim)) n_i.
+    // A src row holds its items dim floats apart, rows `stride` apart, and out holds nq * dim floats a row, query by query; a normed item has nq at most kQueryMixNorms, and n above 16 or more than kQueryMixItems items are refused.
+    virtual void query_mix(std::initializer_list<QueryMixRows> /*items*/, size_t /*rows*/, size_t /*dim*/, size_t /*stride*/, float /*eps*/, RowRuns /*runs*/ = {}) {
+        lacks(Op::query_mix);
+    }
+
+    // dst row r = src row r, or dst row r + src row r when `add`, over `rows` rows of width floats, rows dst_stride and src_stride floats apart; a dst row overlaps no other row of src.
+    virtual void copy_rows(Slice /*dst*/, size_t /*dst_stride*/, CSlice /*src*/, size_t /*src_stride*/, size_t /*rows*/, size_t /*width*/, bool /*add*/) {
+        lacks(Op::copy_rows);
+    }
+
+    // Tanh-gated mixes, each item out = (1 - tanh(f)) * h + tanh(g) * m over width floats a row, rows of out, h and m their own stride apart and f and g packed; out may be h or m of the same stride.
+    // With a norm, an item's out is then rms_norm_rows of itself against it, as that call in place with these runs gives it; no item's out meets another item's operands.
+    virtual void tanh_gate_mix(std::initializer_list<GateMixItem> /*items*/, size_t /*rows*/, size_t /*width*/, size_t /*out_stride*/, size_t /*h_stride*/, size_t /*m_stride*/,
+                               RowRuns /*runs*/ = {}, float /*eps*/ = 0.0f) {
+        lacks(Op::tanh_gate_mix);
+    }
+    // The forget and gain products of tanh_gate_mix's items that name them, one matmul_group call for up to two items, before any mix.
+    void gate_products(std::initializer_list<GateMixItem> items, size_t rows, RowRuns runs) {
+        const GateMixItem* it = items.begin();
+        const size_t n = items.size();
+        for (size_t i = 0; i < n; ++i)
+            if (!it[i].forget.weight.data.buffer != !it[0].forget.weight.data.buffer || (it[i].forget.weight.data.buffer && (!it[i].gain.weight.data.buffer || it[i].rank != it[0].rank)))
+                throw std::runtime_error("backend: a gate mix's items name their products alike");
+        if (!n || !it[0].forget.weight.data.buffer) return;
+        if (n == 2) return matmul_group({it[0].forget, it[0].gain, it[1].forget, it[1].gain}, {}, it[0].rank, rows, runs, it[0].dtype);
+        if (n == 3)
+            return matmul_group({it[0].forget, it[0].gain, it[1].forget, it[1].gain, it[2].forget, it[2].gain}, {}, it[0].rank, rows, runs, it[0].dtype);
+        for (size_t i = 0; i < n; ++i) matmul_group({it[i].forget, it[i].gain}, {}, it[i].rank, rows, runs, it[i].dtype);
+    }
+    // The down steps of tanh_gate_mix's items that name them, one group_rms_norm call of all of them, before any product.
+    void gate_downs(std::initializer_list<GateMixItem> items, size_t rows, size_t width, float eps, RowRuns runs) {
+        const GateMixItem* it = items.begin();
+        const size_t n = items.size();
+        if (!n || !it[0].down.into.weight.data.buffer) return;
+        NormRows d[3];
+        if (n > 3) throw std::runtime_error("backend: a gate mix's down steps are at most three");
+        for (size_t i = 0; i < n; ++i) {
+            if (!it[i].down.into.weight.data.buffer || it[i].down_w.buffer != it[0].down_w.buffer || it[i].down_w.offset != it[0].down_w.offset)
+                throw std::runtime_error("backend: a gate mix's items name their down steps alike");
+            d[i] = it[i].down;
+        }
+        group_rms_norm(d, n, it[0].down_w, rows, 2, width, eps, runs);
+    }
+
+    // A causal depthwise convolution (DepthwiseConv): out = (residual + act(acc)) / divisor, acc = sum over taps k of w_k(c) x(pos - (taps - 1 - k) dilation), x zero before 0.
+    // Earlier rows come from the slot's history and out may be exactly x or the residual; Op::depthwise_conv_ring names every use but a tail, SiLU, a given residual, divisor 1 and out apart from x.
+    void depthwise_conv(Slice out, CSlice x, const DepthwiseConv& conv, size_t layer, const StateView* views, size_t n_views) {
+        const ConvRows one{out, x, conv};
+        conv_items(&one, 1, layer, views, n_views, nullptr);
+    }
+    // Several convolutions over one layer's state, as the single calls in order, then each item's post step and the `kv` write; a device runs items that touch no other's writes in one launch.
+    void depthwise_conv(std::initializer_list<ConvRows> items, size_t layer, const StateView* views, size_t n_views, const ConvKv* kv = nullptr) {
+        conv_items(items.begin(), items.size(), layer, views, n_views, kv);
+    }
+    // As that call, then `then`'s query mix over the views' rows, which reads what the convolutions wrote; a device may run both in one launch.
+    void depthwise_conv(std::initializer_list<ConvRows> items, size_t layer, const StateView* views, size_t n_views, const RowMix& then) {
+        if (depthwise_conv_mix(items.begin(), items.size(), layer, views, n_views, then)) return;
+        conv_items(items.begin(), items.size(), layer, views, n_views);
+        const size_t rows = check_state_views(views, n_views, layer);
+        if (then.before) query_mix({*then.before, then.mix}, rows, then.dim, then.stride, then.eps);
+        else query_mix({then.mix}, rows, then.dim, then.stride, then.eps);
+    }
+
+    // softmax(scale q.k + bias, plus a per-row, per-head sink logit of zero value) over keys at distance d below window (0 for all), bias = sum_r rel[row][h][r] table[r][d] for d below extent.
+    // Keys before a view's length come from the ring ([k|v] rows at ring_offset, position mod ring_rows) or the pooled [k|v] rows, later ones from k_new and v_new, which the op then stores in the ring's last ring_rows rows or the pool.
+    virtual void attention_rel_sink(Slice /*out*/, Slice /*q*/, CSlice /*k_new*/, CSlice /*v_new*/, Slice /*rel*/, CSlice /*table*/, CSlice /*sink*/, size_t /*heads*/,
+                                    size_t /*kv_heads*/, size_t /*dim*/, size_t /*R*/, size_t /*extent*/, size_t /*window*/, float /*scale*/, size_t /*layer*/,
+                                    const StateView* /*rings*/, const KVView* /*pool*/, size_t /*n_views*/, size_t /*ring_offset*/, size_t /*ring_rows*/,
+                                    RowRuns /*runs*/ = {}, const OutputGate& /*gate*/ = {}, const RelClip& /*clip*/ = {}) {
+        lacks(Op::attention_rel_sink);
+    }
+    // attention_rel_sink's clip as its own l2_clip, for a backend that does not take it in the attention.
+    void clip_rel(Slice q, Slice rel, size_t heads, size_t dim, size_t R, const RelClip& c) {
+        if (c.q_limit > 0.0f)
+            l2_clip({{q, c.q_scale, c.row_scale, heads, dim, heads * dim, c.q_limit}, {rel, c.rel_scale, c.row_scale, heads, R, heads * R, c.rel_limit}}, c.rows);
+    }
+
+    // Normalize each dim-wide group separately with its own weight slice into each row of groups * dim floats; dst may equal src when the source is contiguous.
+    // `into` names a product of the normed rows the call also runs (NormProduct).
+    void group_rms_norm(Slice dst, CSlice src, CSlice w, size_t rows, size_t groups, size_t dim, float eps, RowRuns runs = {}, const NormSource& from = {},
+                        const NormProduct& into = {}) {
+        const NormRows one{dst, src, from, into};
+        group_rms_norm_items(&one, 1, w, rows, groups, dim, eps, runs);
+    }
+    // Several grouped norms of one shape and weight, as the single calls in order, so their dsts may be one scratch row where each names a product; a device may run the products in one launch.
+    void group_rms_norm(const NormRows* items, size_t n, CSlice w, size_t rows, size_t groups, size_t dim, float eps, RowRuns runs = {}) {
+        group_rms_norm_items(items, n, w, rows, groups, dim, eps, runs);
     }
 
     // dst = silu(src * scale) for rows of width floats; dst may equal src.
@@ -1216,13 +1622,6 @@ public:
     virtual void signed_sqrt_gate(Slice /*dst*/, CSlice /*key*/, CSlice /*query*/, CSlice /*value*/, size_t /*rows*/, size_t /*groups*/, size_t /*dim*/,
                                   RowRuns /*runs*/ = {}, ZeroSign /*zero*/ = ZeroSign::none) {
         lacks(Op::signed_sqrt_gate);
-    }
-
-    // Add SiLU of a causal depthwise convolution of x to residual, using weights [channel][tap], last tap current, and taps spaced by dilation.
-    // Carries (taps - 1) * dilation raw x rows in the layer's F32 tail after its common state prefix; exact out=residual is allowed, but out may not overlap x or weights.
-    virtual void dilated_conv_silu_add(Slice /*out*/, CSlice /*x*/, CSlice /*residual*/, CSlice /*w*/, size_t /*channels*/, size_t /*taps*/, size_t /*dilation*/,
-                                       size_t /*layer*/, const StateView* /*views*/, size_t /*n_views*/) {
-        lacks(Op::dilated_conv_silu_add);
     }
 
     // The mHC coefficients pre, post and the hc x hc comb of each row of hc streams of dim floats, from its (2 + hc) * hc mixes in the reference's order (docs/DEEPSEEK4.md, section 4.2).
@@ -1329,8 +1728,178 @@ public:
     virtual void pool_write(size_t /*layer*/, const KVView* /*views*/, size_t /*n_views*/, CSlice /*rows*/) { lacks(Op::pool_write); }
 protected:
     void record_matrix_path(MatrixPath path) { matrix_paths_.record(path); }
+    // group_rms_norm's product of its normed rows, for a backend that runs it as its own call.
+    void norm_product(CSlice normed, const NormProduct& into, size_t rows, size_t width, RowRuns runs) {
+        if (into.weight.data.buffer) matmul(into.weight, normed, into.y, width, into.nout, rows, runs, into.dtype);
+    }
+    // rows_product's one implementation, its n items in order.
+    virtual void rows_product_items(const RowSource& src, const RowItem* it, size_t n, size_t nin, size_t rows, RowRuns runs, Dtype dtype) {
+        const size_t convs = check_row_items(src, it, n);
+        // A lone plain item read from the formed row is the product a grouped norm may run (NormProduct).
+        NormProduct into;
+        if (n == 1 && !it->step && (it->sink.store == RowStore::plain || it->sink.store == RowStore::push) && !it->p.in.buffer && !it->plane)
+            into = {it->p.weight, it->p.out, it->p.rows, dtype};
+        if (source_calls(src, rows, nin, into)) return;
+        if (it->step) {
+            const RowConv* c = it->sink.conv;
+            if (!c) return moe_step(*it->step, it->h, it->p.out, nin, rows, runs, dtype);
+            ConvProduct from;
+            from.y = it->p.out, from.nin = nin, from.runs = runs, from.dtype = dtype, from.step = it->step, from.h = it->h;
+            const ConvRows one{c->out, it->p.out, c->conv, from};
+            return conv_items(&one, 1, c->layer, c->views, c->n_views);
+        }
+        Projection p[kRowItems];
+        for (size_t i = 0; i < n; ++i) {
+            p[i] = it[i].p;
+            if (!p[i].in.buffer && it[i].plane) p[i].in = src.row[it[i].plane];
+        }
+        const CSlice X = src.row[0];
+        if (n == 1 && it->sink.store == RowStore::conv) {
+            // A lone convolution's product forms its input (ConvProduct), as one device runs the convolution in the product's store.
+            const RowConv& c = *it->sink.conv;
+            const ConvRows one{c.out, p->out, c.conv, {p->weight, input_of(*p, X), p->out, nin, runs, dtype}};
+            return conv_items(&one, 1, c.layer, c.views, c.n_views);
+        }
+        if (n == 1 && it->sink.store == RowStore::logits) return matmul_logits(p->weight, input_of(*p, X), p->out, nin, p->rows, rows, runs, dtype, it->sink.cap);
+        row_projections(p, n, X, nin, rows, runs, dtype);
+        for (size_t i = 0; i < n; ++i)
+            if (it[i].sink.store == RowStore::glu) silu_mul(it[i].sink.act, p[i].out, p[i + 1].out, size_mul(rows, p[i].rows), it[i].sink.glu, runs);
+        if (!convs) return;
+        ConvRows list[kRowItems];
+        size_t m = 0;
+        const RowConv* first = nullptr;
+        for (size_t i = 0; i < n; ++i)
+            if (const RowConv* c = it[i].sink.conv) {
+                if (!first) first = c;
+                list[m++] = {c->out, p[i].out, c->conv, {}};
+            }
+        conv_items(list, m, first->layer, first->views, first->n_views);
+    }
+    // A row product's refusals, its count of convolution stores.
+    static size_t check_row_items(const RowSource& src, const RowItem* it, size_t n) {
+        if (!n || n > kRowItems) throw std::runtime_error("backend: a row product of no items or more than it takes");
+        if (!src.planes || src.planes > kRowPlanes) throw std::runtime_error("backend: a row source of no planes or more than it forms");
+        size_t convs = 0;
+        const RowConv* first = nullptr;
+        for (size_t i = 0; i < n; ++i) {
+            const RowSink& k = it[i].sink;
+            if (it[i].plane >= src.planes) throw std::runtime_error("backend: a row item of a plane its source does not form");
+            if ((k.store == RowStore::conv) != (k.conv != nullptr)) throw std::runtime_error("backend: a row store's convolution without its store, or the store without one");
+            if ((k.store == RowStore::push) != (k.sum != nullptr)) throw std::runtime_error("backend: a row store's sum without its push, or the push without one");
+            if (k.store == RowStore::glu && (i + 1 == n || it[i + 1].sink.store != RowStore::plain || it[i + 1].p.rows != it[i].p.rows))
+                throw std::runtime_error("backend: a GLU store without its up item");
+            if ((k.store == RowStore::logits || it[i].step) && n != 1) throw std::runtime_error("backend: a logits store or a routed step beside other items");
+            if (it[i].step && k.store != RowStore::plain && k.store != RowStore::push && k.store != RowStore::conv)
+                throw std::runtime_error("backend: a routed step's store is plain, push or conv");
+            if (k.conv && first && (k.conv->layer != first->layer || k.conv->views != first->views || k.conv->n_views != first->n_views))
+                throw std::runtime_error("backend: a row product's convolutions over different slots");
+            if (k.conv && !first) first = k.conv;
+            convs += k.conv != nullptr;
+        }
+        return convs;
+    }
+    // RowSource's stages as their own calls with the source's runs, a norm that renormalizes a one-query mix or a gate in place folded into that call.
+    // True where plane 0's grouped norm also ran `into` over its nin-wide rows.
+    bool source_calls(const RowSource& s, size_t rows, size_t nin, const NormProduct& into) {
+        if (s.conv) {
+            const ConvRows one{s.conv->out, s.conv->x, s.conv->conv, {}};
+            conv_items(&one, 1, s.conv->layer, s.conv->views, s.conv->n_views);
+        }
+        const RowNorm* norm[kRowPlanes] = {s.norm[0], s.norm[1], s.norm[2]};
+        const auto in_place = [](const RowNorm* n, Slice out, size_t width, size_t stride) {
+            return n && n->groups == 1 && !n->from.rest.buffer && same_rows(n->src, out) && same_rows(n->dst, out) && n->width == width && n->stride == stride;
+        };
+        if (s.mix) {
+            QueryMixRows m = s.mix->mix;
+            if (!s.gate[0] && s.planes == 1 && m.nq == 1 && !m.norm[0].buffer && in_place(norm[0], m.out, s.mix->dim, s.mix->dim))
+                m.norm[0] = norm[0]->w, m.norm_eps = norm[0]->eps, norm[0] = nullptr;
+            if (s.mix->before) query_mix({*s.mix->before, m}, rows, s.mix->dim, s.mix->stride, s.mix->eps, s.runs);
+            else query_mix({m}, rows, s.mix->dim, s.mix->stride, s.mix->eps, s.runs);
+        }
+        bool product = false;
+        for (size_t j = 0; j < s.planes; ++j) {
+            const RowNorm*& n = norm[j];
+            if (const RowGate* g = s.gate[j]) {
+                const bool fold = in_place(n, g->out, g->width, g->out_stride);
+                tanh_gate_mix({GateMixItem{g->out, g->h, g->m, g->f, g->g, fold ? n->w : CSlice{}}}, rows, g->width, g->out_stride, g->h_stride, g->m_stride, s.runs, fold ? n->eps : 0.0f);
+                if (fold) n = nullptr;
+            }
+            if (!n) continue;
+            if (n->groups > 1 || n->from.rest.buffer) {
+                if (!n->groups || n->width % n->groups) throw std::runtime_error("backend: a row norm's groups do not divide its width");
+                const bool with = !j && s.planes == 1 && into.weight.data.buffer && same_rows(s.row[0], n->dst) && nin == n->width;
+                group_rms_norm(n->dst, n->src, n->w, rows, n->groups, n->width / n->groups, n->eps, s.runs, n->from, with ? into : NormProduct{});
+                product = product || with;
+            } else {
+                rms_norm_rows(n->dst, n->src, n->w, rows, n->width, n->stride, n->eps, s.runs);
+            }
+        }
+        return product;
+    }
+    static bool same_rows(CSlice a, CSlice b) { return a.buffer == b.buffer && a.offset == b.offset; }
+    // A row product's projections, as matmul for one and matmul_group for several.
+    void row_projections(const Projection* p, size_t n, CSlice X, size_t nin, size_t rows, RowRuns runs, Dtype dtype) {
+        switch (n) {
+            case 1: matmul(p->weight, input_of(*p, X), p->out, nin, p->rows, rows, runs, dtype); return;
+            case 2: matmul_group({p[0], p[1]}, X, nin, rows, runs, dtype); return;
+            case 3: matmul_group({p[0], p[1], p[2]}, X, nin, rows, runs, dtype); return;
+            case 4: matmul_group({p[0], p[1], p[2], p[3]}, X, nin, rows, runs, dtype); return;
+            case 5: matmul_group({p[0], p[1], p[2], p[3], p[4]}, X, nin, rows, runs, dtype); return;
+            default: matmul_group({p[0], p[1], p[2], p[3], p[4], p[5]}, X, nin, rows, runs, dtype); return;
+        }
+    }
+    // An attention's output gate (OutputGate), for a backend that runs it as its own call.
+    void output_gate(Slice out, size_t heads, size_t dim, const OutputGate& g) {
+        if (g.gate.buffer) sigmoid_mul(out, out, g.gate, g.rows, heads, dim, g.stride, g.head_stride, g.runs);
+    }
+    // The products of a convolution list's items that carry one, for a backend that runs them as their own calls before the convolutions.
+    void conv_products(const ConvRows* items, size_t n, size_t rows) {
+        for (size_t i = 0; i < n; ++i) {
+            const ConvProduct& p = items[i].from;
+            if (p.step)
+                moe_step(*p.step, p.h, p.y, p.nin, rows, p.runs, p.dtype);
+            else if (p.weight.data.buffer)
+                matmul(p.weight, p.x, p.y, p.nin, items[i].conv.channels, rows, p.runs, p.dtype);
+        }
+    }
+    // depthwise_conv's one implementation: its n items in order, and what it took beyond them (ConvDone).
+    virtual ConvDone depthwise_conv_items(const ConvRows* /*items*/, size_t /*n*/, size_t /*layer*/, const StateView* /*views*/, size_t /*n_views*/, const ConvKv* /*kv*/) {
+        lacks(Op::depthwise_conv);
+    }
+    // depthwise_conv with a mix after it, both run by the device where it returns true; false leaves them to the two calls.
+    virtual bool depthwise_conv_mix(const ConvRows* /*items*/, size_t /*n*/, size_t /*layer*/, const StateView* /*views*/, size_t /*n_views*/, const RowMix& /*then*/) {
+        return false;
+    }
+    // group_rms_norm's one implementation: its n items in order.
+    virtual void group_rms_norm_items(const NormRows* /*items*/, size_t /*n*/, CSlice /*w*/, size_t /*rows*/, size_t /*groups*/, size_t /*dim*/, float /*eps*/,
+                                      RowRuns /*runs*/) {
+        lacks(Op::group_rms_norm);
+    }
 
 private:
+    // The convolutions, then the post steps and the KV write a device left to the ops they name.
+    void conv_items(const ConvRows* items, size_t n, size_t layer, const StateView* views, size_t n_views, const ConvKv* kv = nullptr) {
+        if (kv && (kv->k == kv->v || kv->k >= n || kv->v >= n)) throw std::runtime_error("backend: a convolution's KV write names items it does not have");
+        const ConvDone done = depthwise_conv_items(items, n, layer, views, n_views, kv);
+        if (done == ConvDone::posts_kv) return;
+        if (done == ConvDone::none) conv_posts(items, n, layer, views, n_views);
+        if (kv) kv_write(kv->layer, kv->views, kv->n_views, items[kv->k].out, items[kv->v].out);
+    }
+    void conv_posts(const ConvRows* items, size_t n, size_t layer, const StateView* views, size_t n_views) {
+        const size_t rows = check_state_views(views, n_views, layer);
+        for (size_t i = 0; i < n; ++i) {
+            const DepthwiseConv& a = items[i].conv;
+            if (a.post == ConvPost::none) continue;
+            const size_t C = a.channels, heads = a.post_heads, stride = a.out_stride ? a.out_stride : C;
+            if (!heads || C % heads) throw std::runtime_error("backend: a convolution's post step over heads that do not divide its channels");
+            if (a.post == ConvPost::l2_clip) {
+                l2_clip({{items[i].out, {}, {}, heads, C / heads, stride, a.post_limit}}, rows);
+            } else {
+                if (stride != C) throw std::runtime_error("backend: a convolution's norm over rows apart");
+                group_rms_norm(items[i].out, items[i].out, a.post_w, rows, heads, C / heads, a.post_limit);
+            }
+        }
+    }
     MatrixPaths matrix_paths_;
 };
 

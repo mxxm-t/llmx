@@ -49,6 +49,11 @@ constexpr double kTimedSpanMs = 0.5;   // a short timing's rounds each span abou
 constexpr size_t kDuelRounds = 5;      // interleaved timings of the wrap and the best other pick before the wrap is kept
 constexpr double kWrapMargin = 0.9;    // the wrap's median must be under this fraction of the other pick's
 constexpr size_t kDrawBlocks = 8, kDrawUnits = 64;   // the fewest blocks a draws sum takes, and the float4 units of a share a block aims for above them
+// The forms a pick keeps only by beating the best kernel form other than the wrap in a duel.
+constexpr double kHostMargin = 0.7;   // pulls' and copies' median against the best kernel form's, since in a pass they also wait on host events their timing does not see
+inline bool dueled(GpuSumForm f) { return f == GpuSumForm::wrap || f == GpuSumForm::pulls || f == GpuSumForm::copies; }
+// Whether a dueled form with this median keeps its pick against the best other form timed beside it.
+inline bool duel_keeps(GpuSumForm f, double own_ms, double other_ms) { return own_ms <= (f == GpuSumForm::wrap ? kWrapMargin : kHostMargin) * other_ms; }
 constexpr double kCapSpan = 8;   // how many times the best pick's time a kernel form may take at its own blocks and still have its cap timed, since fewer blocks summed up to 4.1x faster on a slow link
 // The forms a join times for each staged transport, in the order stderr lists their times; copies and pulls only where the rows go through host memory, and last.
 constexpr GpuSumForm kTimedForms[] = {GpuSumForm::one_shot, GpuSumForm::chain, GpuSumForm::wrap, GpuSumForm::shares, GpuSumForm::draws, GpuSumForm::copies, GpuSumForm::pulls};
@@ -199,6 +204,10 @@ public:
     // The members' submissions that hold the sum, made here where the caller has not yet submitted; a sum that gave up turns the collective conservative.
     // A member whose device reported an error cancels the sum, so its peers stop waiting for it now rather than at their deadline.
     void wait(size_t back) noexcept override {
+        // A member's held whole sum goes to its stream before any member is waited for, so no wait is on a peer's push the host still holds.
+        for (GpuBackend<Api>* b : members_) {
+            try { b->flush(); } catch (const std::exception&) {}
+        }
         const std::vector<Ticket>& sum = back ? before_ : last_;
         for (size_t m = 0; m < sum.size(); ++m) {
             GpuBackend<Api>& b = *members_[m];
@@ -226,7 +235,12 @@ public:
         std::vector<Slice> own;
         for (size_t m = 0; m < members_.size(); ++m) own.push_back(partial(m));
         const bool mixes = std::all_of(members_.begin(), members_.end(), [](const GpuBackend<Api>* b) { return b->entry_mixes_; });
-        summed(own, n, true, rows == 1 && width % GpuBackend<Api>::kEntryGroup == 0 && mixes);
+        // A convolution's grid is resident on its member's device alone, so members that share a device do not hold sums for it.
+        bool convs = std::all_of(members_.begin(), members_.end(), [](const GpuBackend<Api>* b) { return b->conv_sums_; });
+        for (size_t i = 0; convs && i < members_.size(); ++i)
+            for (size_t j = 0; convs && j < i; ++j) convs = members_[i]->dev_.index != members_[j]->dev_.index;
+        summed(own, n, true, rows == 1 && width % GpuBackend<Api>::kEntryGroup == 0 && mixes ? Fold::entry : convs ? Fold::whole : Fold::none);
+        for (size_t m = 0; m < members_.size(); ++m) members_[m]->summed_out_ = GpuBackend<Api>::f32(own[m]);
     }
 
     // A lane's sum crosses on a second stream of each member, behind an event of the member's work before it, in a kernel form with at most kBesideBlocks blocks; its finish holds each member's stream for it.
@@ -248,7 +262,7 @@ public:
             for (size_t m = 0; m < W; ++m) members_[m]->hold_wait_event(summed_[lane ^ 1][m]);
         lane_sent_[lane] = true;
         lane_beside_[lane] = beside;
-        summed(own, n, true, false, from, beside ? (int)lane : -1);
+        summed(own, n, true, Fold::none, from, beside ? (int)lane : -1);
     }
 
     // Each member's stream waits for the lane's sum on its device, then adds the summed rows to residual[m] where given, one add of the sum as sum_into makes it.
@@ -354,9 +368,9 @@ public:
             }
             if (!fast_) break;
             GpuSumPick best = all[won], other{};
-            double best_ms = ms[won], other_ms = 1e30;   // other: the best pick that is not the wrap, which the wrap has to beat by kWrapMargin
+            double best_ms = ms[won], other_ms = 1e30;   // other: the best pick that is neither the wrap nor host copies, which they have to beat by kWrapMargin
             for (size_t p = 0; p < all.size(); ++p)
-                if (all[p].form != GpuSumForm::wrap && ms[p] < other_ms) {
+                if (!dueled(all[p].form) && ms[p] < other_ms) {
                     other = all[p];
                     other_ms = ms[p];
                 }
@@ -390,13 +404,14 @@ public:
                     best = capped;
                     best_ms = capped_ms;
                 }
-                if (capped.form != GpuSumForm::wrap && capped_ms < other_ms) {
+                if (!dueled(capped.form) && capped_ms < other_ms) {
                     other = capped;
                     other_ms = capped_ms;
                 }
             }
-            // The wrap is kept only where the median of kDuelRounds timings, each beside one of the best other pick, is under kWrapMargin of that pick's median, so noise does not swap two forms whose links load differently.
-            if (fast_ && best.form == GpuSumForm::wrap && other_ms < 1e30) {
+            // The wrap, pulls and copies are kept only where the median of kDuelRounds timings, each beside one of the best other pick, is under kWrapMargin of that pick's median, so noise does not swap two forms whose links load differently.
+            // Pulls and copies also wait on the host's events in a pass, which their timing alone does not see.
+            if (fast_ && dueled(best.form) && other_ms < 1e30) {
                 std::vector<double> w, o;
                 for (size_t duel = 0; fast_ && duel < kDuelRounds; ++duel) {
                     const bool first = duel % 2 == 0;   // alternated, so neither pick always runs after the other
@@ -407,7 +422,7 @@ public:
                 if (!fast_) break;
                 std::sort(w.begin(), w.end());
                 std::sort(o.begin(), o.end());
-                if (w[w.size() / 2] <= kWrapMargin * o[o.size() / 2]) {
+                if (duel_keeps(best.form, w[w.size() / 2], o[o.size() / 2])) {
                     best_ms = w[w.size() / 2];
                 } else {
                     best = other;
@@ -417,9 +432,9 @@ public:
             if (!fast_) break;
             forms[n] = best;
             // Between two timed sizes whose winners differ, the larger size's winner takes over where the two winners' times, each taken as linear in n between the sizes, cross, and just past n where it ties n's winner at n.
-            // A wrap on either side takes over only at the timed size, since the single timings of the crossing would carry it past its duel's margin.
+            // A dueled form on either side takes over only at the timed size, since the single timings of the crossing would carry it past its duel's margin.
             size_t from = 0;
-            if (above && best.form != GpuSumForm::wrap && above_pick.form != GpuSumForm::wrap && (best.transport != above_pick.transport || best.form != above_pick.form || best.blocks != above_pick.blocks)) {
+            if (above && !dueled(best.form) && !dueled(above_pick.form) && (best.transport != above_pick.transport || best.form != above_pick.form || best.blocks != above_pick.blocks)) {
                 const double gap = best_ms - timed(above_pick, n), gap_above = timed(best, above) - above_ms;
                 if (!fast_) break;
                 if (gap >= 0) from = n + 1;
@@ -592,9 +607,11 @@ private:
         throw std::logic_error(std::string("backend: a sum by ") + transport_name(t) + ", which its collective does not stage");
     }
 
-    // fold: a generated row's sum in place whose take each member holds as its pending join, which the mix after its inject may take into one launch (GpuBackend::entry).
+    // How a one-shot sum in place is held: entry, a generated row's take each member holds as its pending join, which the mix after its inject may take into one launch (GpuBackend::entry).
+    // whole, its push and take each member holds, which a ring convolution of the rows takes into its launch (GpuBackend::conv_ring), else they launch as the one-shot at the member's next operation.
+    enum class Fold { none, entry, whole };
     // from: the float of the partial rows the sum starts at; lane: a lane's sum beside the members' streams (send), -1 for one on them.
-    void summed(const std::vector<Slice>& residual, size_t n, bool replace, bool fold = false, size_t from = 0, int lane = -1) {
+    void summed(const std::vector<Slice>& residual, size_t n, bool replace, Fold fold = Fold::none, size_t from = 0, int lane = -1) {
         const size_t W = members_.size();
         for (size_t m = 0; m < W; ++m) span(*residual[m].buffer, residual[m].offset * sizeof(float), size_mul(n, sizeof(float)));
         settle();
@@ -603,15 +620,13 @@ private:
         const GpuSumPick p = !fast_ ? GpuSumPick{sets_[0].transport, GpuSumForm::pulls} : lane >= 0 ? lane_pick(n) : form_of(n);
         // A one-shot's rows over peer writes that a member's held row launch still holds go out from that launch, which leaves the member's sum its take (GpuBackend::push_rows).
         std::vector<char> sent(W, 0);
-        if (n && p.form == GpuSumForm::one_shot && tiles_.size() == W && !areas(p.transport).host() && !(fold && replace && W == 2)) {
+        if (n && p.form == GpuSumForm::one_shot && tiles_.size() == W && !areas(p.transport).host() && !(replace && ((fold == Fold::entry && W == 2) || fold == Fold::whole))) {
             const Areas& s = areas(p.transport);
             for (size_t m = 0; m < W; ++m) {
                 const typename GpuBackend<Api>::GroupTail t{s.table[m], tiles_[m], (unsigned long long)s.half * W * cap_, cap_, (int)W, (int)m, kPushTile};
                 sent[m] = members_[m]->push_rows(GpuBackend<Api>::f32(CSlice(partial(m))), n, t);
             }
         }
-        // Every member's held work goes to its stream before the sum and the sum's launches go together, so no member's sum waits on a peer whose launch the host still holds, and the pulls' events follow what they cover.
-        for (GpuBackend<Api>* b : members_) b->flush();
         // A sum whose launch throws is still the last sum, so a wait for it covers the members' kernels that did launch.
         // A lane's sum beside is the last sum only at its finish, which holds the members' streams for it.
         const auto issued = [&] {
@@ -620,10 +635,13 @@ private:
             for (size_t m = 0; m < W; ++m) last_[m] = members_[m]->tickets_.last() + 1;
         };
         try {
+            // Every member's held work goes to its stream before the sum and the sum's launches go together, so no member's sum waits on a peer whose launch the host still holds, and the pulls' events follow what they cover.
+            // A flush that throws after a member's product pushed cancels the sum like any failed launch, since the parity half it wrote is not advanced.
+            for (GpuBackend<Api>* b : members_) b->flush();
             std::vector<typename GpuBackend<Api>::TakeDesc> takes;
             if (n) {
                 if (p.form == GpuSumForm::copies) copied(residual, n, replace, areas(p.transport), p, from);
-                else if (p.form != GpuSumForm::pulls) pushed(residual, n, replace, areas(p.transport), p, fold && replace && members_.size() == 2 ? &takes : nullptr, sent, from, lane);
+                else if (p.form != GpuSumForm::pulls) pushed(residual, n, replace, areas(p.transport), p, replace && ((fold == Fold::entry && members_.size() == 2) || fold == Fold::whole) ? &takes : nullptr, sent, from, lane, fold == Fold::whole);
                 else pulled(residual, n, replace, fast_ ? areas(p.transport) : sets_[0], from);
             }
             for (GpuBackend<Api>* b : members_) b->flush();
@@ -674,9 +692,9 @@ private:
     }
 
     // The blocks of every member's launch follow from n and the form alone, so every member's block b meets its peers' block b.
-    // takes, where given, gets the one-shot's take and the member launches its push alone; sent, its rows already pushed by their product, launches the take alone; beside is the stream to launch on, its blocks capped at kBesideBlocks.
+    // takes gets the one-shot's take (the push then launches alone), sent (rows pushed by their product) launches the take alone, beside is the stream (kBesideBlocks at most) and whole launches nothing.
     void launch(size_t m, const Slice& out, size_t n, bool replace, bool fast, GpuSumPick pick, const Areas& s, unsigned half, std::vector<typename GpuBackend<Api>::TakeDesc>* takes = nullptr, bool sent = false,
-                size_t from = 0, typename Api::Stream beside = nullptr) {
+                size_t from = 0, typename Api::Stream beside = nullptr, bool whole = false) {
         GpuBackend<Api>& b = *members_[m];
         const float* own = GpuBackend<Api>::f32(CSlice(partial(m))) + from;
         float* o = GpuBackend<Api>::f32(out);
@@ -689,8 +707,8 @@ private:
         int members = (int)W, rank = (int)m, flags = (replace ? 1 : 0) | (fast ? 2 : 0) | (int)half << 2 | (form == GpuSumForm::wrap ? 8 : 0) | (form == GpuSumForm::draws ? 16 : 0);
         const Args args(fast || !s.host() ? s.table[m] : s.pull_table[m], own, o, nn, cap, members, rank, flags, timeout, tick);
         if (takes && form == GpuSumForm::one_shot) {
-            b.group_push((unsigned)blocks, args);
-            takes->push_back({s.table[m], own, o, nn, cap, (unsigned long long)half * W * cap_, timeout, tick, members, rank, flags, (unsigned)blocks, &status_[m]});
+            if (!whole) b.group_push((unsigned)blocks, args);
+            takes->push_back({s.table[m], own, o, nn, cap, (unsigned long long)half * W * cap_, timeout, tick, members, rank, flags, (unsigned)blocks, &status_[m], whole});
             return;
         }
         b.group_launch(form, (unsigned)blocks, args, sent && fast && form == GpuSumForm::one_shot, beside);
@@ -698,11 +716,11 @@ private:
 
     // Every fast sum takes the half its transport's next one-shot takes, which every peer finished reading at that transport's one-shot before the last (docs/src/backends-gpu.md, the collective).
     // A lane's sum beside waits for its member's work recorded before it and records the lane's event behind it; no record sits between two members' launches, as a record may wait for its stream (docs/src/backends-gpu.md, the collective).
-    void pushed(const std::vector<Slice>& residual, size_t n, bool replace, Areas& s, GpuSumPick pick, std::vector<typename GpuBackend<Api>::TakeDesc>* takes, const std::vector<char>& sent, size_t from = 0, int lane = -1) {
+    void pushed(const std::vector<Slice>& residual, size_t n, bool replace, Areas& s, GpuSumPick pick, std::vector<typename GpuBackend<Api>::TakeDesc>* takes, const std::vector<char>& sent, size_t from = 0, int lane = -1, bool whole = false) {
         // Draws alternate their own two slots the same way, as a peer may still read the last draws' totals when a member starts the next.
         const bool draws = pick.form == GpuSumForm::draws;
         for (size_t m = 0; lane < 0 && m < members_.size(); ++m)
-            launch(m, residual[m], n, replace, true, pick, s, draws ? s.draw_half : s.half, pick.form == GpuSumForm::one_shot ? takes : nullptr, sent[m], from);
+            launch(m, residual[m], n, replace, true, pick, s, draws ? s.draw_half : s.half, pick.form == GpuSumForm::one_shot ? takes : nullptr, sent[m], from, nullptr, whole);
         for (size_t m = 0; lane >= 0 && m < members_.size(); ++m) {
             GpuBackend<Api>& b = *members_[m];
             Api::check(Api::set_device(b.dev_.index), "set_device");

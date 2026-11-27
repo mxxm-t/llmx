@@ -42,14 +42,14 @@ struct Views {
     }
 };
 
-// A dense qwen3 of two layers whose every split falls on whole 256-value blocks at widths 2 and 4, KV heads replicated at 4: 8 heads of 128 over 2 KV heads, a hidden width of 1024 and a vocabulary of 64.
-infer::ModelWeights qwen3_model(uint32_t type, Views& v, bool tied) {
+// A dense qwen3 of two layers whose every split falls on whole 256-value blocks at widths 2 and 4, KV heads replicated at 4: 8 heads of 128 over 2 KV heads, a hidden width of 1024 and a vocabulary of 64, or of `vocab`.
+infer::ModelWeights qwen3_model(uint32_t type, Views& v, bool tied, uint64_t vocab = 64) {
     infer::qwen3::Config c;
     c.n_layer = 2, c.n_embd = 256, c.n_ff = 1024, c.n_head = 8, c.n_head_kv = 2, c.head_dim = 128, c.context_length = 256;
     std::mt19937 rng(7 + type);
     const uint64_t E = 256, Q = 1024, KV = 256, F = 1024;
-    v.add("token_embd.weight", {E, 64}, type, rng);
-    if (!tied) v.add("output.weight", {E, 64}, type, rng);
+    v.add("token_embd.weight", {E, vocab}, type, rng);
+    if (!tied) v.add("output.weight", {E, vocab}, type, rng);
     v.add("output_norm.weight", {E}, quant::GGML_TYPE_F32, rng);
     for (int l = 0; l < c.n_layer; ++l) {
         const std::string pre = "blk." + std::to_string(l) + ".";
@@ -139,7 +139,11 @@ std::vector<size_t> owners(const infer::Role& role, uint64_t i, size_t width) {
         const uint64_t unit = (i % tile) / s.unit;
         std::vector<size_t> out;
         if (s.units % width == 0) out.push_back(size_t(unit / (s.units / width)));
-        else
+        else if (!s.replicate) {
+            // A width that does not divide a section it splits gives the first units % width members one unit more than the rest.
+            const uint64_t base = s.units / width, extra = s.units % width, long_units = extra * (base + 1);
+            out.push_back(size_t(unit < long_units ? unit / (base + 1) : extra + (unit - long_units) / base));
+        } else
             for (size_t m = 0; m < width; ++m)
                 if (m / (width / s.units) == unit) out.push_back(m);
         return out;
@@ -187,7 +191,7 @@ void reassemble(const infer::ModelPlan& plan, const std::vector<infer::TensorVie
         const infer::TensorView& t = views[*role.tensor];
         size_t total = 0;
         bool replicated = false;
-        for (const infer::ShardSection& s : role.shard.sections) replicated = replicated || s.units % width != 0;
+        for (const infer::ShardSection& s : role.shard.sections) replicated = replicated || (s.replicate && s.units % width != 0);
         for (size_t m = 0; m < width; ++m) {
             const infer::shard::Held held = infer::shard::held(role, t, width, m);
             const std::vector<infer::shard::Run> runs = file_runs(held);
@@ -253,6 +257,20 @@ void spans_by_hand() {
     require(spans_text(infer::shard::spans(role_named(dense, "output.weight"), 4, 3)) == "[48+16]", "the head's vocabulary rows at width 4");
     require(spans_text(infer::shard::spans(role_named(dense, "blk.0.ffn_down.weight"), 2, 0)) == "[0+512]", "ffn_down's columns at width 2");
     require(spans_text(infer::shard::spans(role_named(dense, "blk.0.ffn_down.weight"), 1, 0)) == "[0+1024]", "the whole axis at width 1");
+}
+
+// A vocabulary of 67 rows, which neither 2 nor 4 divides: the head's rows split unevenly, the first members one row more, tied or not, and every member's bytes its rows.
+void uneven_vocab() {
+    for (const bool tied : {false, true}) {
+        Views v;
+        const infer::ModelPlan plan = infer::plan_model(qwen3_model(quant::GGML_TYPE_Q8_0, v, tied, 67));
+        const std::string label = tied ? "a tied head of 67 rows" : "a head of 67 rows";
+        std::string text;
+        for (size_t m = 0; m < 4; ++m) text += spans_text(infer::shard::spans(role_named(plan, "output.weight"), 4, m));
+        require(text == "[0+17][17+17][34+17][51+16]", label + "'s vocabulary rows at width 4: " + text);
+        require(spans_text(infer::shard::spans(role_named(plan, "output.weight"), 2, 1)) == "[34+33]", label + "'s vocabulary rows at width 2");
+        for (size_t width : {2, 4}) reassemble(plan, v.views, width, label + " at width " + std::to_string(width));
+    }
 }
 
 // A routed qwen3 layer whose experts' hidden width is three 256-value blocks, 768, as Qwen3-30B-A3B's is: 4 experts, the stacks in `type` and the rest F32.
@@ -480,6 +498,7 @@ void footprints() {
 int main() {
     try {
         spans_by_hand();
+        uneven_vocab();
         every_type();
         footprints();
         covers();

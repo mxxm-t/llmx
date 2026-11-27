@@ -251,6 +251,12 @@ inline const Pass& Model::retired_pass(ExecContext& ctx, size_t slot, size_t i) 
 // Row i of the pass's wanting rows, in entry order, read in place; after an argmax pass the output device first copies the row into its place in the host-visible rows.
 inline const float* Model::pass_logits(ExecContext& ctx, size_t slot, size_t i) {
     const Pass& p = retired_pass(ctx, slot, i);
+    if (p.argmax && width_ > 1) {
+        // A group's row comes back into its own place in the host rows, which the argmax pass does not write.
+        float* host = (float*)ctx.logits_host.data() + (p.logits_base + i) * ctx.width;
+        ctx.argmax_row(p.logits_base + i, host);
+        return host;
+    }
     if (p.argmax) {
         backend::Backend& b = *devices_[(size_t)place_.output_device]->b;
         const size_t at = (p.logits_base + i) * ctx.width * sizeof(float);
@@ -319,6 +325,60 @@ inline std::vector<size_t> Model::abort_pass(ExecContext& ctx, size_t slot) {
     release(p);
     later.insert(later.end(), fed.begin(), fed.end());
     return later;
+}
+
+// The pass after `y` is in flight (recorded here, or ahead by the call before); the pass after it is recorded fed its argmax on the device before that id is read.
+// A failure abandons the pass after `y` and the pass it feeds, so the history ends where the call found it.
+inline uint32_t Model::step_ahead(uint32_t y, uint32_t skip, const float** row) {
+    if (!feeds()) throw std::logic_error("inference: a decode a pass ahead on a model that takes no fed passes");
+    ExecContext& ctx = ahead_ctx_;
+    if (!ctx.slots) reserve_passes(ctx, 2, 1, 2);
+    *row = nullptr;
+    BatchEntry e{&seq_, &y, 1, true};
+    e.argmax = true;
+    e.skip = skip;
+    size_t cur = std::exchange(ahead_, SIZE_MAX);
+    if (cur == SIZE_MAX) {
+        cur = 0;
+        begin_pass(ctx, cur, &e, 1, cur);
+        run_pass_stage(ctx, cur, 0);
+    }
+    try {
+        // The pass ahead takes a position past the pass in flight, where the context has one.
+        const bool argmax = argmax_pass(ctx, cur);
+        if (argmax && history(seq_) < positions_) {
+            e.fed_slot = cur;
+            begin_pass(ctx, 1 - cur, &e, 1, 1 - cur);
+            run_pass_stage(ctx, 1 - cur, 0);
+            ahead_ = 1 - cur;
+            ++ahead_count_.recorded;
+        }
+        const uint32_t id = argmax ? pass_argmax_id(ctx, cur, 0) : uint32_t(plan_.vocab);
+        if (id >= plan_.vocab) {
+            // The pass ahead embedded no token: it goes, and the row is drawn on the host.
+            end_ahead(false);
+            *row = pass_logits(ctx, cur, 0);
+        }
+        end_pass(ctx, cur);
+        return id;
+    } catch (...) {
+        ahead_ = SIZE_MAX;
+        if (ctx.passes[cur].in_flight) abort_pass(ctx, cur);
+        throw;
+    }
+}
+
+inline bool Model::end_ahead(bool keep) {
+    const size_t a = std::exchange(ahead_, SIZE_MAX);
+    if (a == SIZE_MAX) return false;
+    if (!keep) {
+        abort_pass(ahead_ctx_, a);
+        ++ahead_count_.abandoned;
+        return true;
+    }
+    pass_argmax_id(ahead_ctx_, a, 0);
+    end_pass(ahead_ctx_, a);
+    return true;
 }
 
 // A pass's plan: its rows in entry order, their positions after each history, and the rows the head reads, from logits row `logits_base` on, with nothing reserved yet, since each stage reserves the blocks of the storage it writes.
@@ -409,7 +469,11 @@ inline void Model::begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, s
         if (!p.fed.empty() && p.fed.back().row + p.fed.back().count == r && p.fed.back().ids.offset + p.fed.back().count == at) ++p.fed.back().count;
         else p.fed.push_back({r, 1, {ctx.argmax_ids.get(), at}});
     }
-    p.argmax = want && width_ == 1 && std::all_of(entries, entries + n_entries, [](const BatchEntry& en) { return !en.want_logits || en.argmax; }) && argmax_buffers(ctx, logits_base + want);
+    p.argmax = want && std::all_of(entries, entries + n_entries, [](const BatchEntry& en) { return !en.want_logits || en.argmax; }) && argmax_buffers(ctx, logits_base + want);
+    p.skips.clear();
+    if (p.argmax)
+        for (size_t e = 0; e < n_entries; ++e)
+            if (entries[e].want_logits) p.skips.insert(p.skips.end(), entries[e].every_logits ? entries[e].n : 1, entries[e].skip);
     p.handoff = 0;
     p.logits_base = logits_base;
     p.ran = p.committed = 0;
@@ -865,9 +929,9 @@ inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s, size_t lay
     for (int l = p.layer; l < end; l++) {
         if (st.device != cur) { cross(ctx, p, cur, st.device, 0, p.rows, l); cur = st.device; }
         finish_lookup(ctx, p, cur, 1, l);
-        const Step step = mixer_part(ctx, p, cur, l);
-        stream_rows(step);
-        arch_->mixer(step);
+        const Step mixed = mixer_part(ctx, p, cur, l);
+        stream_rows(mixed);
+        arch_->mixer(mixed);
         if (plan_.layers[(size_t)l].cache == Cache::state) save(ctx, p, cur, l);
         if (p.long_runs && stream_device_[(size_t)l] == (int)cur) {
             ffn_split(ctx, p, cur, l);
@@ -883,7 +947,9 @@ inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s, size_t lay
         }
         const size_t f = (size_t)place_.ffn_device[(size_t)l];
         if (f != cur) { cross(ctx, p, cur, f, 0, p.rows, l + 1); cur = f; }
-        arch_->ffn(part(ctx, p, cur, home_[(size_t)l].data(), plan_.layers[(size_t)l].kind, 0, p.rows, all, l));
+        Step step = part(ctx, p, cur, home_[(size_t)l].data(), plan_.layers[(size_t)l].kind, 0, p.rows, all, l);
+        if (plan_.layers[(size_t)l].ffn_reads_state) state_views(step, p, cur, l);
+        arch_->ffn(step);
     }
     p.layer = end;
     p.cur = cur;
@@ -902,8 +968,11 @@ inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s, size_t lay
             arch_->head(HeadStep{part(ctx, p, cur, pass_.data(), 0, 0, p.rows, all), p.pick.data(), p.want,
                                  backend::RowRuns{p.head_runs.data(), p.head_runs.size()},
                                  {rows, p.logits_base * plan_.vocab}});
-            if (p.argmax)
-                devices_[cur]->b->argmax_rows({ctx.argmax_ids.get(), p.logits_base}, {rows, p.logits_base * plan_.vocab}, p.want, plan_.vocab);
+            // One argmax over each run of rows that pass over the same id.
+            for (size_t i = 0, j = 0; p.argmax && i < p.want; i = j) {
+                for (j = i + 1; j < p.want && p.skips[j] == p.skips[i];) ++j;
+                devices_[cur]->b->argmax_rows({ctx.argmax_ids.get(), p.logits_base + i}, {rows, (p.logits_base + i) * plan_.vocab}, j - i, plan_.vocab, {}, p.skips[i]);
+            }
         }
     }
     stage_submit(ctx, p, s, cur);
@@ -950,9 +1019,18 @@ inline void Model::group_embed(ExecContext& ctx, Pass& p, size_t g, backend::Col
     const backend::RowRuns all{p.runs.data(), p.runs.size()};
     const size_t W = width_;
     if (!embedding_split(plan_)) {
-        for (size_t m = 0; m < W; ++m) arch_->embed(part(ctx, p, g + m, pass_row(m), 0, 0, p.rows, all), p.ids.data());
+        // Fed rows read each member's own copy of the ids (ExecContext::member_ids).
+        std::vector<FedRun> fed = p.fed;
+        for (size_t m = 0; m < W; ++m) {
+            for (FedRun& f : fed) f.ids.buffer = ctx.member_ids[m].get();
+            Step step = part(ctx, p, g + m, pass_row(m), 0, 0, p.rows, all);
+            step.fed = fed.data();
+            step.n_fed = fed.size();
+            arch_->embed(step, p.ids.data());
+        }
         return;
     }
+    if (!p.fed.empty()) throw std::logic_error("inference: fed rows of a split embedding");
     const Role& role = embedding_role(plan_);
     std::vector<uint32_t> ids(p.rows);
     for (size_t m = 0; m < W; ++m) {
@@ -1030,15 +1108,17 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s, size_t laye
             if (plan_.layers[(size_t)l].cache == Cache::state) save(ctx, p, g + m, l);
         }
         const auto layer_row = [&](size_t m) { return home_row(m, (size_t)l); };
-        summed([&] { group_sum(ctx, p, g, x, p.rows, all, plan_.layers[(size_t)l].kind, layer_row); });
+        // A mixer that splits no role ran whole on every member, so there is nothing to sum.
+        if (part_split(plan_.layers[(size_t)l], Part::mixer)) summed([&] { group_sum(ctx, p, g, x, p.rows, all, plan_.layers[(size_t)l].kind, layer_row, l, Part::mixer); });
         for (size_t m = 0; m < W; ++m) {
             Step step = part(ctx, p, g + m, home_row(m, (size_t)l), plan_.layers[(size_t)l].kind, 0, p.rows, all, l);
             step.width = W;
             step.partial = sum.partial(m);
             step.zero = ctx.zeros[g + m].get();
+            if (plan_.layers[(size_t)l].ffn_reads_state) state_views(step, p, g + m, l);
             arch_->ffn(step);
         }
-        summed([&] { group_sum(ctx, p, g, x, p.rows, all, plan_.layers[(size_t)l].kind, layer_row); });
+        summed([&] { group_sum(ctx, p, g, x, p.rows, all, plan_.layers[(size_t)l].kind, layer_row, l); });
     }
     p.layer = end;
     if (end < st.end) return stage_submit(ctx, p, s, g);
@@ -1049,16 +1129,28 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s, size_t laye
         p.at = g;
     } else if (p.want) {
         // Each member's vocabulary rows of every row that wants logits, each copied by its member into its slice of the rows in host memory the members import, behind no wait; the pass's logits wait for every member's submission.
+        // A member's rows sit from the pass's logits row on, so passes in flight keep apart; an argmax pass keeps them on the members, and every member picks the ids from the candidates of all, as Model::draft_record does.
         const size_t V = plan_.vocab;
         for (size_t m = 0, at = 0; m < W; ++m) {
+            const size_t n = head_rows(m), base = p.logits_base * n;
             HeadStep head{part(ctx, p, g + m, pass_row(m), 0, 0, p.rows, all), p.pick.data(), p.want,
-                          backend::RowRuns{p.head_runs.data(), p.head_runs.size()}, {ctx.member_logits[g + m].get(), 0}};
+                          backend::RowRuns{p.head_runs.data(), p.head_runs.size()}, {ctx.member_logits[g + m].get(), base}};
             arch_->head(head);
-            const size_t n = head_rows(m);
-            for (size_t r = 0; r < p.want; ++r)
+            // One candidate over each run of rows that pass over the same id, as the single device's head takes its argmax.
+            for (size_t i = 0, j = 0; p.argmax && i < p.want; i = j) {
+                for (j = i + 1; j < p.want && p.skips[j] == p.skips[i];) ++j;
+                const backend::Slice cands = sum.partial(m);
+                devices_[g + m]->b->argmax_part({cands.buffer, cands.offset + i * 3 * W}, {ctx.member_logits[g + m].get(), base + i * n}, j - i, n, at, m, W,
+                                                p.skips[i] == UINT32_MAX ? SIZE_MAX : p.skips[i]);
+            }
+            for (size_t r = 0; !p.argmax && r < p.want; ++r)
                 devices_[g + m]->b->copy(*ctx.member_rows[g + m], ((p.logits_base + r) * V + at) * sizeof(float), *ctx.member_logits[g + m],
-                                         r * n * sizeof(float), n * sizeof(float));
+                                         (base + r * n) * sizeof(float), n * sizeof(float));
             at += n;
+        }
+        if (p.argmax) {
+            summed([&] { sum.sum_in_place(p.want, 3 * W); });
+            for (size_t m = 0; m < W; ++m) devices_[g + m]->b->argmax_pick({ctx.member_ids[m].get(), p.logits_base}, sum.partial(m), p.want, W, V);
         }
     }
     stage_submit(ctx, p, s, g);
@@ -1175,6 +1267,7 @@ inline void Model::cut_record(ExecContext& ctx, Pass& p, size_t s, size_t cut, i
     cut_parts(ctx, p, g, cut, parts);
     if (!cut_said_.exchange(true)) std::fprintf(stderr, "inference: a tensor group cuts a pass of %zu rows in two parts of %zu and %zu rows, each part's sums copied beside the other's work\n", p.rows, cut, p.rows - cut);
     int sent[2] = {-1, -1};   // per part, the layer whose sum it sent and has not finished
+    Part closes[2] = {Part::ffn, Part::ffn};   // per part, the part of that layer the sum closes (Step::joins)
     const auto finish = [&](size_t h) {
         if (sent[h] < 0) return;
         const int l = sent[h];
@@ -1191,10 +1284,13 @@ inline void Model::cut_record(ExecContext& ctx, Pass& p, size_t s, size_t cut, i
         } else {
             sum.finish(h, q.base, q.rows, wide, nullptr);
             for (size_t m = 0; m < W; ++m) {
-                Step step = narrow(part(ctx, p, g + m, home_row(m, (size_t)l), plan_.layers[(size_t)l].kind, 0, p.rows, all), q, m, l);
+                Step whole = part(ctx, p, g + m, home_row(m, (size_t)l), plan_.layers[(size_t)l].kind, 0, p.rows, all, l);
+                if (keeps_slot(plan_.layers[(size_t)l])) state_views(whole, p, g + m, l);
+                Step step = narrow(whole, q, m, l);
                 step.width = W;
                 step.partial = sum.partial(m);
                 step.partial.offset += q.base * wide;
+                step.joins = closes[h];
                 arch_->join(step);
             }
         }
@@ -1209,7 +1305,9 @@ inline void Model::cut_record(ExecContext& ctx, Pass& p, size_t s, size_t cut, i
                     finish(h);
                     PassPart& q = parts[h];
                     for (size_t m = 0; m < W; ++m) {
-                        Step step = narrow(phase ? part(ctx, p, g + m, home_row(m, (size_t)l), layer.kind, 0, p.rows, all, l) : mixer_part(ctx, p, g + m, l), q, m, l);
+                        Step whole = phase ? part(ctx, p, g + m, home_row(m, (size_t)l), layer.kind, 0, p.rows, all, l) : mixer_part(ctx, p, g + m, l);
+                        if (phase && layer.ffn_reads_state) state_views(whole, p, g + m, l);
+                        Step step = narrow(whole, q, m, l);
                         step.width = W;
                         step.partial = sum.partial(m);
                         step.partial.offset += q.base * wide;
@@ -1220,10 +1318,13 @@ inline void Model::cut_record(ExecContext& ctx, Pass& p, size_t s, size_t cut, i
                         step.zero = ctx.zeros[g + m].get();
                         arch_->ffn(step);
                     }
+                    // A mixer that splits no role ran whole on every member, so there is nothing to sum.
+                    if (!phase && !part_split(layer, Part::mixer)) continue;
                     const auto from = std::chrono::steady_clock::now();
                     sum.send(h, q.base, q.rows, wide);
                     p.sum_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - from).count();
                     sent[h] = l;
+                    closes[h] = phase ? Part::ffn : Part::mixer;
                 }
         }
     } catch (...) {
@@ -1236,16 +1337,20 @@ inline void Model::cut_record(ExecContext& ctx, Pass& p, size_t s, size_t cut, i
 }
 
 // Group g's sum after a part: added to each member's residual x[m], or summed in place and joined into x[m] by each member (Architecture::join) where ModelPlan::partial says so.
+// A pass's layer gives the join its layer and, where the layer keeps a slot, its state views; `joins` is the part whose rows the sum closes (Step::joins).
 template <class Weights>
-inline void Model::group_sum(ExecContext& ctx, size_t g, const std::vector<backend::Slice>& x, size_t rows, backend::RowRuns runs, uint8_t kind, const Weights& w, size_t set) {
+inline void Model::group_sum(ExecContext& ctx, size_t g, const std::vector<backend::Slice>& x, size_t rows, backend::RowRuns runs, uint8_t kind, const Weights& w, size_t set, const Pass* p,
+                             int layer, Part joins) {
     backend::Collective& sum = *ctx.collectives[g];
     if (!plan_.partial) return sum.sum_into(x, rows, plan_.residual);
     sum.sum_in_place(rows, plan_.partial);
     for (size_t m = 0; m < width_; ++m) {
-        Step step = part(ctx, g + m, w(m), kind, 0, rows, runs, -1, set);
+        Step step = part(ctx, g + m, w(m), kind, 0, rows, runs, layer, set);
+        if (p && layer >= 0 && keeps_slot(plan_.layers[(size_t)layer])) state_views(step, *p, g + m, layer);
         step.x = x[m];
         step.width = width_;
         step.partial = sum.partial(m);
+        step.joins = joins;
         arch_->join(step);
     }
 }
@@ -1414,27 +1519,45 @@ inline backend::BufferPtr Model::alloc_arena(backend::Backend& b, const std::vec
 }
 
 inline bool Model::feeds() const {
-    if (!arch_->embeds_fed() || width_ != 1 || stages_.size() != 1 || place_.embed_device != place_.output_device || keeps_state() || token_width_ || plan_.drafter ||
-        plan_.text_position_images || !options_.argmax_rows)
+    // A state model feeds where every layer keeping a slot keeps rings a fed pass's abort undoes by length (rewind_by_length).
+    if (!arch_->embeds_fed() || (width_ > 1 && embedding_split(plan_)) || stages_.size() != 1 || place_.embed_device != place_.output_device ||
+        (keeps_state() && !entries_headroom_) || token_width_ || plan_.drafter || plan_.text_position_images || !options_.argmax_rows || !argmax_devices())
         return false;
     return std::none_of(plan_.layers.begin(), plan_.layers.end(), [](const LayerPlan& l) { return l.lookup || l.token_history; });
 }
 
-// The output device's logits rows and ids for argmax passes, ModelOptions::argmax_rows at most; false where the device cannot take them, for good, or the pass ends past them (`end`).
-// The CPU keeps its rows, already in host memory, which a draw reads only up to its first miss.
+// Whether every device of the output group takes an argmax on the device: not the CPU, which keeps its rows in host memory already.
+inline bool Model::argmax_devices() const {
+    for (size_t m = 0; m < width_; ++m) {
+        const backend::Backend& b = *devices_[(size_t)place_.output_device + m]->b;
+        if (b.is_cpu() || !b.implements(backend::Op::argmax_rows)) return false;
+    }
+    return true;
+}
+
+// On a tensor group the members' own logits rows (member_logits) serve, and each member holds a copy of the ids, the first's host visible.
 inline bool Model::argmax_buffers(ExecContext& ctx, size_t end) {
     const size_t o = (size_t)place_.output_device;
     backend::Backend& b = *devices_[o]->b;
-    if (ctx.argmax_refused || b.is_cpu() || !b.implements(backend::Op::argmax_rows)) return false;
+    // The members' rows are the context's, which a larger pass may have grown since.
+    ctx.argmax_slices.clear();
+    if (ctx.argmax_refused || !argmax_devices()) return false;
     const size_t rows = std::min(ctx.logit_rows, options_.argmax_rows);
     if (end > rows) return false;
-    if (ctx.argmax_logits && ctx.argmax_rows >= rows) return true;
-    if (ctx.argmax_logits) b.wait(ctx.tickets[o]);
+    for (size_t m = 0, at = 0; width_ > 1 && m < width_; at += head_rows(m++))
+        ctx.argmax_slices.push_back({devices_[o + m]->b.get(), ctx.member_logits[o + m].get(), head_rows(m), at});
+    if (ctx.argmax_ids && ctx.argmax_rows >= rows) return true;
+    for (size_t m = 0; ctx.argmax_ids && m < width_; ++m) devices_[o + m]->b->wait(ctx.tickets[o + m]);
     try {
-        ctx.argmax_logits = b.alloc(backend::size_mul(backend::size_mul(rows, plan_.vocab), sizeof(float)), backend::Memory::device);
+        ctx.member_ids.assign(width_, nullptr);
+        if (width_ == 1) ctx.argmax_logits = b.alloc(backend::size_mul(backend::size_mul(rows, plan_.vocab), sizeof(float)), backend::Memory::device);
         ctx.argmax_ids = b.alloc(backend::size_mul(rows, sizeof(float)), backend::Memory::host_visible);
+        ctx.member_ids[0] = ctx.argmax_ids;
+        for (size_t m = 1; m < width_; ++m) ctx.member_ids[m] = devices_[o + m]->b->alloc(backend::size_mul(rows, sizeof(float)));
     } catch (const std::bad_alloc&) {
         ctx.argmax_logits = ctx.argmax_ids = nullptr;
+        ctx.member_ids.clear();
+        ctx.argmax_slices.clear();
         ctx.argmax_rows = 0;
         ctx.argmax_refused = true;
         return false;
@@ -1552,8 +1675,8 @@ inline void Model::ensure(ExecContext& ctx, size_t rows, size_t want, size_t buf
             members.push_back(devices_[m]->b.get());
             devices_[m]->b->wait(ctx.tickets[m]);
         }
-        // A drafter's chain sums 3 floats a member a row in the same partials (Model::draft_record), more than a tiny model's row holds.
-        const size_t sw = sum_width(plan_), cands = plan_.drafter && !drafts_whole(plan_) ? 3 * width_ : 0;
+        // An argmax pass and a drafter's chain sum 3 floats a member a row in the same partials (Model::draft_record), more than a tiny model's row holds.
+        const size_t sw = sum_width(plan_), cands = 3 * width_;
         ctx.collectives[g] = devices_[g]->b->join(members, cands > sw ? (rows * cands + sw - 1) / sw : rows, sw);
         if (!ctx.collectives[g]) throw std::runtime_error("inference: the backends of a tensor group have no cross-device sum");
         // An allocation is zero-filled, and nothing writes this row.
@@ -1562,12 +1685,13 @@ inline void Model::ensure(ExecContext& ctx, size_t rows, size_t want, size_t buf
     }
     ctx.collective_rows = std::max(ctx.collective_rows, rows);
     const size_t o = (size_t)place_.output_device;
+    // A member's own rows are device memory: the head writes them at device speed, and the copy into the imported host rows is a device-to-host transfer, not a kernel reading and writing host memory.
     for (size_t m = 0; want && m < width_; ++m) {
         backend::BufferPtr& b = ctx.member_logits[o + m];
         const size_t bytes = mul(mul(want, head_rows(m)), sizeof(float));
         if (b && b->size() >= bytes) continue;
         devices_[o + m]->b->wait(ctx.tickets[o + m]);
-        b = devices_[o + m]->b->alloc(bytes, backend::Memory::host_visible);
+        b = devices_[o + m]->b->alloc(bytes);
     }
 }
 
@@ -1712,8 +1836,16 @@ inline Step Model::part(ExecContext& ctx, size_t dev, const Weight* w, uint8_t k
     step.indices_size = sc.indices.size();
     step.layer = layer;
     step.native = plan_.native;
-    if (options_.routes) step.routes = &options_.routes;
+    // Every member of a tensor group runs the whole router (blocks::shard_experts splits only the experts), so the first member's picks are the group's.
+    if (options_.routes && d.member == 0) step.routes = &options_.routes;
     return step;
+}
+
+// Hands a part of layer l on device `dev` the layer's state views, as its mixer takes them and a feed-forward part that reads the slot (LayerPlan::ffn_reads_state).
+inline void Model::state_views(Step& s, const Pass& p, size_t dev, int l) const {
+    s.states = p.states[dev].data();
+    s.n_views = p.entries.size();
+    s.state_layer = (size_t)devices_[dev]->state_local[(size_t)l];
 }
 
 // The residual entering a layer's mixer, read back for ModelOptions::streams where a caller gave it.
@@ -1735,11 +1867,7 @@ inline Step Model::mixer_part(ExecContext& ctx, const Pass& p, size_t dev, int l
         s.kv_layer = (size_t)d.kv_local[(size_t)l];
         s.appends = appends_[(size_t)l];
     }
-    if (keeps_slot(layer)) {
-        s.states = p.states[dev].data();
-        s.n_views = p.entries.size();
-        s.state_layer = (size_t)d.state_local[(size_t)l];
-    }
+    if (keeps_slot(layer)) state_views(s, p, dev, l);
     s.pos = p.pos.data();
     if (p.image_rows && !plan_.image_streams.empty()) s.streams = backend::RopeStreams{3, plan_.image_streams.data()};
     for (const auto& [c, gp] : p.group_pos)

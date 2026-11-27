@@ -121,7 +121,7 @@ inline void DeepSeek41::plan_drafter(const TensorIndex& tensors, ModelPlan& p) c
     add(draft_role(c, markov_embed), RoleKind::gather, last + "markov_embed.weight", K, p.vocab);
     add(draft_role(c, markov_head), RoleKind::matrix, last + "markov_head.weight", K, p.vocab);
     // A group's member computes its vocabulary rows of the head and the Markov bias, and the members' candidates pick each draft (Model::draft_record).
-    for (uint16_t id : {uint16_t(output), draft_role(c, markov_head)}) blocks::shard(d.roles, id, Axis::rows, {{p.vocab, 1, 1, "vocabulary rows"}});
+    for (uint16_t id : {uint16_t(output), draft_role(c, markov_head)}) blocks::shard_vocab(d.roles, id, p.vocab);
     // A tap layer's mixer writes its plane, which crosses with the residual from the first tap on (ModelPlan::Carried).
     for (int t : c.taps) {
         p.layers[size_t(t)].kind |= writes_tap;

@@ -164,6 +164,23 @@ void check_group_rms_norm(std::mt19937& rng) {
     cpu.group_rms_norm({inplace.get(), 0}, {inplace.get(), 0}, {wb.get(), 0}, rows, groups, dim, eps);
     require(same_bits(download(cpu, *inplace, count), first), "group RMSNorm exact in-place differs");
 
+    // Two row-strided sources, groups below the split from one and the rest from the other, must give the contiguous rows bits; the second shape takes the four-wide path.
+    const auto split_sources = [&](size_t n_rows, size_t n_groups, size_t n_dim, size_t split, size_t pad_a, size_t pad_b) {
+        const size_t wd = n_groups * n_dim, sa = split * n_dim + pad_a, sb = (n_groups - split) * n_dim + pad_b;
+        const auto xs = random_values(rng, n_rows * wd, -1.4f, 1.4f), ws = random_values(rng, wd, 0.6f, 1.4f);
+        std::vector<float> a(n_rows * sa, 55.0f), bv(n_rows * sb, 66.0f);
+        for (size_t r = 0; r < n_rows; ++r)
+            for (size_t i = 0; i < wd; ++i) (i < split * n_dim ? a[r * sa + i] : bv[r * sb + i - split * n_dim]) = xs[r * wd + i];
+        auto xb2 = upload(cpu, xs), wb2 = upload(cpu, ws), ab = upload(cpu, a), bb = upload(cpu, bv);
+        auto flat = zeros(cpu, n_rows * wd), two = zeros(cpu, n_rows * wd);
+        cpu.group_rms_norm({flat.get(), 0}, {xb2.get(), 0}, {wb2.get(), 0}, n_rows, n_groups, n_dim, eps);
+        cpu.group_rms_norm({two.get(), 0}, {ab.get(), 0}, {wb2.get(), 0}, n_rows, n_groups, n_dim, eps, {}, {{bb.get(), 0}, split, sa, sb});
+        require(same_bits(download(cpu, *two, n_rows * wd), download(cpu, *flat, n_rows * wd)), "group RMSNorm of split sources differs from contiguous rows");
+    };
+    split_sources(rows, groups, dim, 1, 5, 3);
+    split_sources(rows, groups, dim, 0, 0, 7);
+    split_sources(3, 2, 2304, 1, 4 * 2304 - 2304, 3 * 2304);
+
     auto short_src = upload(cpu, x), protected_dst = upload(cpu, std::vector<float>(count, 37.0f));
     refuses("group RMSNorm accepted a short source span", [&] {
         cpu.group_rms_norm({protected_dst.get(), 0}, {short_src.get(), 1}, {wb.get(), 0}, rows, groups, dim, eps);
@@ -727,10 +744,70 @@ void rates() {
         const backend::RowRuns runs{&run, 1};
         time("group_rms_norm", "4 x 2560", rows, [&] { device.group_rms_norm({out.get(), 0}, {xb.get(), 0}, {wb.get(), 0}, rows, H, E, 1e-6f, runs); });
         time("group_rms_norm in place", "4 x 2560", rows, [&] { device.group_rms_norm({res.get(), 0}, {res.get(), 0}, {wb.get(), 0}, rows, H, E, 1e-6f, runs); });
+        {
+            // The Inkling message gate's norm: two rows of 2304 from strided sources, as one launch and as the two copies and contiguous norm it replaces.
+            const size_t G = 2304;
+            auto h = zeros(device, rows * 3 * G), m = zeros(device, rows * 4 * G), pair = zeros(device, rows * 2 * G), gw = upload(device, std::vector<float>(2 * G, 1.0f));
+            auto gout = zeros(device, rows * 2 * G);
+            time("group_rms_norm two sources", "2 x 2304", rows, [&] {
+                device.group_rms_norm({gout.get(), 0}, {h.get(), 0}, {gw.get(), 0}, rows, 2, G, 1e-6f, runs, {{m.get(), 0}, 1, 3 * G, 4 * G});
+            });
+            time("copies + group_rms_norm", "2 x 2304", rows, [&] {
+                device.copy_rows({pair.get(), 0}, 2 * G, {h.get(), 0}, 3 * G, rows, G, false);
+                device.copy_rows({pair.get(), G}, 2 * G, {m.get(), 0}, 4 * G, rows, G, false);
+                device.group_rms_norm({gout.get(), 0}, {pair.get(), 0}, {gw.get(), 0}, rows, 2, G, 1e-6f, runs);
+            });
+        }
         time("silu_scaled", "320", rows, [&] { device.silu_scaled({out.get(), 0}, {xb.get(), 0}, rows, L, 0.25f, runs); });
         time("mix_streams", "4 x 2560", rows, [&] { device.mix_streams({out.get(), 0}, {xb.get(), 0}, {yb.get(), 0}, rows, H, E, runs); });
         time("inject_streams", "4 x 2560", rows, [&] { device.inject_streams({res.get(), 0}, {zb.get(), 0}, {yb.get(), 0}, rows, H, E); });
         time("signed_sqrt_gate", "4 x 2560", rows, [&] { device.signed_sqrt_gate({out.get(), 0}, {xb.get(), 0}, {yb.get(), 0}, {zb.get(), 0}, rows, H, E, runs); });
+    }
+}
+
+// A group of more projections than one launch takes (six, as Inkling's mixer sends) must give each projection the bits of its own matmul.
+void check_matmul_group_six(std::mt19937& rng) {
+    Backend& device = *active_backend;
+    std::uniform_int_distribution<int> code(-127, 127);
+    // A prompt of 512 rows at Inkling's width takes the split tiles, where each projection keeps the split and part order of its own call.
+    struct Case {
+        size_t nin, nbatch, rows[6];
+    };
+    const Case cases[2] = {{256, 0, {64, 32, 48, 64, 16, 32}}, {2304, 512, {1024, 16, 64, 1024, 256, 256}}};
+    for (const Case& k : cases) {
+        const size_t nin = k.nin, blocks = nin / quant::Q8_0_BLOCK, row_bytes = blocks * quant::Q8_0_TYPESIZE;
+        const size_t* rows = k.rows;
+        std::vector<BufferPtr> weights, outs, alone;
+        for (size_t p = 0; p < 6; ++p) {
+            std::vector<uint8_t> q(rows[p] * row_bytes);
+            for (size_t b = 0; b < rows[p] * blocks; ++b) {
+                const uint16_t s = f32_to_f16(0.002f + 0.0001f * float(b % 17));
+                q[b * 34] = uint8_t(s), q[b * 34 + 1] = uint8_t(s >> 8);
+                for (size_t i = 0; i < 32; ++i) q[b * 34 + 2 + i] = uint8_t(int8_t(code(rng)));
+            }
+            weights.push_back(upload_bytes(device, q));
+        }
+        const std::vector<size_t> batches = k.nbatch ? std::vector<size_t>{k.nbatch} : std::vector<size_t>{1, 3};
+        for (size_t nbatch : batches) {
+            const backend::RowRun run[1] = {{nbatch, nbatch}};
+            const backend::RowRuns runs = k.nbatch ? backend::RowRuns{run, 1} : backend::RowRuns{};
+            auto x = upload(device, random_values(rng, nbatch * nin, -1.0f, 1.0f));
+            for (backend::Dtype dtype : device.native_dtypes()) {
+                if (dtype == backend::Dtype::f32) continue;
+                outs.clear(), alone.clear();
+                for (size_t p = 0; p < 6; ++p) outs.push_back(zeros(device, nbatch * rows[p])), alone.push_back(zeros(device, nbatch * rows[p]));
+                const auto proj = [&](size_t p, std::vector<BufferPtr>& o) {
+                    return backend::Projection{{quant::GGML_TYPE_Q8_0, {weights[p].get(), 0}}, {o[p].get(), 0}, rows[p]};
+                };
+                device.matmul_group({proj(0, outs), proj(1, outs), proj(2, outs), proj(3, outs), proj(4, outs), proj(5, outs)}, {x.get(), 0}, nin, nbatch, runs, dtype);
+                for (size_t p = 0; p < 6; ++p)
+                    device.matmul({quant::GGML_TYPE_Q8_0, {weights[p].get(), 0}}, {x.get(), 0}, {alone[p].get(), 0}, nin, rows[p], nbatch, runs, dtype);
+                for (size_t p = 0; p < 6; ++p)
+                    require(same_bits(download(device, *outs[p], nbatch * rows[p]), download(device, *alone[p], nbatch * rows[p])),
+                            "matmul_group of six projections differs from its matmuls at projection " + std::to_string(p) + ", nin " + std::to_string(nin) + ", batch " +
+                                std::to_string(nbatch) + ", dtype " + std::to_string(int(dtype)));
+            }
+        }
     }
 }
 
@@ -752,6 +829,7 @@ int main(int argc, char** argv) {
         }
         std::mt19937 rng(3802027);
         check_group_rms_norm(rng);
+        check_matmul_group_six(rng);
         check_silu_scaled(rng);
         check_mix_streams(rng);
         check_inject_streams(rng);

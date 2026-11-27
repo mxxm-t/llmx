@@ -281,7 +281,7 @@ public:
         }
     }
 
-    void argmax_rows(Slice ids_s, CSlice logits_s, size_t rows, size_t n, CSlice after = {}) override {
+    void argmax_rows(Slice ids_s, CSlice logits_s, size_t rows, size_t n, CSlice after = {}, size_t skip = SIZE_MAX) override {
         if (!rows) return;
         if (n > UINT32_MAX) throw std::runtime_error("backend: argmax over more ids than 32 bits hold");
         span(*logits_s.buffer, logits_s.offset * sizeof(float), size_mul(size_mul(rows, n), sizeof(float)));
@@ -292,13 +292,15 @@ public:
         float* ids = at(ids_s);
         for (size_t r = 0; r < rows; ++r) {
             const float* row = logits + r * n;
-            uint32_t best = 0;
-            bool nan = n && std::isnan(row[0]);
-            for (size_t i = 1; i < n; ++i) {
+            const size_t first = skip == 0 ? 1 : 0;
+            uint32_t best = (uint32_t)first;
+            bool nan = first < n && std::isnan(row[first]);
+            for (size_t i = first + 1; i < n; ++i) {
+                if (i == skip) continue;
                 nan = nan || std::isnan(row[i]);
                 if (row[i] > row[best]) best = (uint32_t)i;
             }
-            if (!n || nan || !std::isfinite(row[best])) best = (uint32_t)n;
+            if (first >= n || nan || !std::isfinite(row[best])) best = (uint32_t)n;
             if (prior) {
                 uint32_t before;
                 std::memcpy(&before, prior + r, sizeof(before));
@@ -307,18 +309,21 @@ public:
             std::memcpy(ids + r, &best, sizeof(best));
         }
     }
-    void argmax_part(Slice cands_s, CSlice logits_s, size_t rows, size_t n, size_t first, size_t slot, size_t slots) override {
+    void argmax_part(Slice cands_s, CSlice logits_s, size_t rows, size_t n, size_t first, size_t slot, size_t slots, size_t skip = SIZE_MAX) override {
         if (!rows) return;
-        if (!n || slot >= slots || first + n > kExactIds) throw std::runtime_error("backend: argmax_part over no ids, ids a float does not hold, or a slot past its row");
+        const size_t own = part_skip(skip, first, n);
+        if (!n || slot >= slots || first + n > kExactIds || (n == 1 && own == 0))
+            throw std::runtime_error("backend: argmax_part over no ids, ids a float does not hold, or a slot past its row");
         span(*logits_s.buffer, logits_s.offset * sizeof(float), size_mul(size_mul(rows, n), sizeof(float)));
         span(*cands_s.buffer, cands_s.offset * sizeof(float), size_mul(size_mul(rows, slots), 3 * sizeof(float)));
         const float* logits = at(logits_s);
         float* cands = at(cands_s);
         for (size_t r = 0; r < rows; ++r) {
             const float* row = logits + r * n;
-            size_t best = 0;
-            bool bad = std::isnan(row[0]);
-            for (size_t i = 1; i < n; ++i) {
+            size_t best = own == 0 ? 1 : 0;
+            bool bad = std::isnan(row[best]);
+            for (size_t i = best + 1; i < n; ++i) {
+                if (i == own) continue;
                 bad = bad || std::isnan(row[i]);
                 if (row[i] > row[best]) best = i;
             }
@@ -653,7 +658,7 @@ public:
         }
         bool decode = nbatch > 0;
         each_run(nbatch, runs, [&](size_t, size_t, bool d) { decode = decode && d; });
-        bool q8 = decode && projections.size() > 1;
+        bool q8 = decode && projections.size() > 1 && !own_inputs(projections);
         for (const auto& p : projections) q8 = q8 && !p.weight.scales.buffer && quantized_dots(p.weight.type, nin, dtype);
         if (!q8) { Backend::matmul_group(projections, X_s, nin, nbatch, runs, dtype); return; }
         // One quantized X for every projection, and one pool dispatch over all their rows.
@@ -913,6 +918,16 @@ public:
             _mm_storeu_si128((__m128i*)(d + i), _mm256_cvtps_ph(_mm256_loadu_ps(src + i), _MM_FROUND_TO_NEAREST_INT));
         for (; i < n; ++i) d[i] = f32_to_f16(src[i]);
     }
+    // Replaces w[t - begin] by exp(w[t - begin] - top) over [begin, end) and returns their sum, each KV_BLOCK_TOKENS block of absolute positions summed from zero first (docs/PRECISION.md, Attention value sums).
+    static float block_exp_sum(float* w, size_t begin, size_t end, float top) {
+        float sum = 0.0f;
+        for (size_t t0 = begin - begin % KV_BLOCK_TOKENS; t0 < end; t0 += KV_BLOCK_TOKENS) {
+            float part = 0.0f;
+            for (size_t t = std::max(t0, begin); t < std::min(t0 + KV_BLOCK_TOKENS, end); ++t) part += w[t - begin] = std::exp(w[t - begin] - top);
+            sum += part;
+        }
+        return sum;
+    }
     // dot(q, k) over an f16 key row.
     float dot_f32_f16(const float* q, const uint16_t* k, size_t n) const {
         float sum = 0.0f;
@@ -987,11 +1002,41 @@ public:
         }
     }
 
+    // The terms of call row `row`, head h added to its scaled scores over [begin, end), the last at distance 0, and max_score taken again over them; the sink's exp(sink - max_score) for the denominator, or 0.
+    float add_terms(const AttentionTerms& terms, float* scores, size_t row, size_t h, size_t heads, size_t begin, size_t end, float& max_score) {
+        if (terms.rank) {
+            const float* rh = at(terms.rel) + (row * heads + h) * terms.rank;
+            const float* table = at(terms.table);
+            const size_t close_n = std::min(terms.extent, end - begin);
+            thread_local std::vector<float> bias;
+            bias.assign(close_n, 0.0f);
+            for (size_t i = 0; i < terms.rank; ++i)
+                for (size_t d = 0; d < close_n; ++d) bias[d] = std::fma(rh[i], table[i * terms.extent + d], bias[d]);
+            for (size_t d = 0; d < close_n; ++d) scores[end - 1 - d] += bias[d];
+            max_score = -std::numeric_limits<float>::infinity();
+            for (size_t t = begin; t < end; ++t) max_score = std::max(max_score, scores[t]);
+        }
+        if (!terms.sink.buffer) return 0.0f;
+        const float sink = at(terms.sink)[row * heads + h];
+        max_score = std::max(max_score, sink);
+        return std::exp(sink - max_score);
+    }
+
+    void check_terms(const AttentionTerms& terms, const KVView* views, size_t n_views, size_t heads) {
+        const size_t rows = attention_terms_rows(terms, views, n_views);
+        if (terms.rank) {
+            validate_float_slice(terms.rel, size_mul(rows, size_mul(heads, terms.rank)));
+            validate_float_slice(terms.table, size_mul(terms.rank, terms.extent));
+        }
+        if (terms.sink.buffer) validate_float_slice(terms.sink, size_mul(rows, heads));
+    }
+
     // Blocks are walked in table order and every reduction keeps token order: one global softmax over the scores and per-lane value accumulation across block edges, so the arithmetic is that of a contiguous history.
-    // Views are independent, so batching preserves each sequence's arithmetic.
+    // Views are independent, so batching preserves each sequence's arithmetic; terms, where given, add their bias to the scores and their sink to the denominator before the sums.
     void attention(CSlice Q_s, size_t layer, const KVView* views, size_t n_views,
-                   Slice out_s, int n_head, int n_head_kv, int head_dim) override {
+                   Slice out_s, int n_head, int n_head_kv, int head_dim, const AttentionTerms* terms = nullptr) override {
         if (n_views && !views) throw std::runtime_error("backend: attention without views");
+        if (terms) check_terms(*terms, views, n_views, (size_t)n_head);
         const float* Q_all = at(Q_s);
         float* out_all = at(out_s);
         if (n_head <= 0 || n_head_kv <= 0 || n_head % n_head_kv != 0 || head_dim <= 0)
@@ -1039,16 +1084,10 @@ public:
                             max_score = std::max(max_score, scores[t0 + j]);
                         }
                     }
+                    float sink = 0.0f;
+                    if (terms) sink = add_terms(*terms, scores, row0 + (size_t)b, (size_t)h, (size_t)n_head, begin, end, max_score);
                     // Each sum below adds a cache block's terms from zero, then that partial to the total, so a small term meets at most its block's sum (docs/PRECISION.md, Attention value sums).
-                    float sum = 0.0f;
-                    for (size_t t0 = begin - begin % bt; t0 < end; t0 += bt) {
-                        float part = 0.0f;
-                        for (size_t t = std::max(t0, begin); t < std::min(t0 + bt, end); ++t) {
-                            scores[t] = std::exp(scores[t] - max_score);
-                            part += scores[t];
-                        }
-                        sum += part;
-                    }
+                    const float sum = block_exp_sum(scores + begin, begin, end, max_score) + sink;
                     float* dst = out + (size_t)b * q_stride + (size_t)h * hd;
                     // Normalize once; each lane then keeps sequence order while its partial sum stays in a register across KV rows.
                     for (size_t t = begin; t < end; ++t) scores[t] /= sum;
@@ -1693,20 +1732,30 @@ public:
         });
     }
 
-    void silu_mul(Slice dst_s, CSlice gate_s, CSlice up_s, size_t n, float limit, RowRuns = {}, GluForm form = GluForm::silu) override {
-        if (!(limit >= 0.0f) || !std::isfinite(limit)) throw std::runtime_error("backend: a SwiGLU limit that is negative or not finite");
+    void silu_mul(Slice dst_s, CSlice gate_s, CSlice up_s, size_t n, Glu glu, RowRuns = {}) override {
+        check_glu(glu);
         float* dst = at(dst_s);
         const float* gate = at(gate_s);
         const float* up = at(up_s);
-        if (limit > 0.0f) {
+        if (glu.limit > 0.0f) {
             for (const CSlice& s : {CSlice(dst_s), gate_s, up_s}) span(*s.buffer, s.offset * sizeof(float), size_mul(n, sizeof(float)));
             chunk(n, [&](size_t begin, size_t end) {
-                for (size_t i = begin; i < end; i++) dst[i] = swiglu(gate[i], up[i], limit, form);
+                for (size_t i = begin; i < end; i++) dst[i] = swiglu(gate[i], up[i], glu);
             });
             return;
         }
+        const Glu plain{0.0f, glu.form, 0.0f};
         chunk(n, [&](size_t begin, size_t end) {
-            for (size_t i = begin; i < end; i++) dst[i] = swiglu(gate[i], up[i], 0.0f, form);
+            for (size_t i = begin; i < end; i++) dst[i] = swiglu(gate[i], up[i], plain);
+        });
+    }
+
+    void softcap(Slice x_s, size_t n, float cap) override {
+        if (!(cap > 0.0f) || !std::isfinite(cap)) throw std::runtime_error("backend: a softcap that is not positive and finite");
+        span(*x_s.buffer, x_s.offset * sizeof(float), size_mul(n, sizeof(float)));
+        float* x = at(x_s);
+        chunk(n, [&](size_t begin, size_t end) {
+            for (size_t i = begin; i < end; i++) x[i] = std::tanh(x[i] / cap) * cap;
         });
     }
 
@@ -1729,29 +1778,42 @@ public:
         return d < std::numeric_limits<float>::min() ? 0.0f : d;
     }
 
-    void group_rms_norm(Slice dst_s, CSlice src_s, CSlice w_s, size_t rows, size_t groups, size_t dim, float eps,
-                        RowRuns = {}) override {
+    void group_rms_norm_items(const NormRows* items, size_t n, CSlice w, size_t rows, size_t groups, size_t dim, float eps, RowRuns runs) override {
+        for (size_t i = 0; i < n; ++i) norm_one(items[i].dst, items[i].src, w, rows, groups, dim, eps, runs, items[i].from, items[i].into);
+    }
+    void norm_one(Slice dst_s, CSlice src_s, CSlice w_s, size_t rows, size_t groups, size_t dim, float eps, RowRuns runs, const NormSource& from,
+                  const NormProduct& into) {
         if (!groups || !dim || !std::isfinite(eps) || eps <= 0.0f)
             throw std::runtime_error("backend: invalid grouped RMS norm dimensions or epsilon");
         if (!rows) return;
         const size_t width = size_mul(groups, dim), count = size_mul(rows, width);
+        const NormSource f = from.resolve(src_s, groups, width);
+        if (f.split > groups || f.stride < size_mul(f.split, dim) || f.rest_stride < size_mul(groups - f.split, dim))
+            throw std::runtime_error("backend: invalid grouped RMS norm sources");
+        const bool flat = f.contiguous(src_s, groups, width);
+        // Each source's extent, rows stride floats apart, and whether dst is exactly it.
+        const size_t an = f.split ? size_mul(rows - 1, f.stride) + f.split * dim : 0;
+        const size_t bn = f.split < groups ? size_mul(rows - 1, f.rest_stride) + (groups - f.split) * dim : 0;
         validate_float_slice(dst_s, count);
-        validate_float_slice(src_s, count);
+        if (an) validate_float_slice(src_s, an);
+        if (bn) validate_float_slice(f.rest, bn);
         validate_float_slice(w_s, width);
         const CSlice dst = dst_s;
-        if (overlaps(dst, count, src_s, count) && !same_slice(dst, count, src_s, count))
+        if ((an && overlaps(dst, count, src_s, an) && !(flat && same_slice(dst, count, src_s, count))) || (bn && !flat && overlaps(dst, count, f.rest, bn)))
             throw std::runtime_error("backend: grouped RMS norm output must be disjoint or exactly in place");
         if (overlaps(dst, count, w_s, width))
             throw std::runtime_error("backend: grouped RMS norm output overlaps its weights");
         float* out = at(dst_s);
-        const float* x = at(src_s);
+        const float* x = an ? at(src_s) : nullptr;
+        const float* y = bn ? at(f.rest) : nullptr;
         const float* w = at(w_s);
         spread(rows, [&](size_t r) {
             for (size_t g = 0; g < groups; ++g) {
-                const size_t offset = r * width + g * dim;
-                rms_norm_raw(out + offset, x + offset, w + g * dim, dim, eps);
+                const float* in = g < f.split ? x + r * f.stride + g * dim : y + r * f.rest_stride + (g - f.split) * dim;
+                rms_norm_raw(out + r * width + g * dim, in, w + g * dim, dim, eps);
             }
         });
+        norm_product(dst, into, rows, width, runs);
     }
 
     void silu_scaled(Slice dst_s, CSlice src_s, size_t rows, size_t width, float scale, RowRuns = {}) override {
@@ -2610,6 +2672,352 @@ public:
         });
     }
 
+    // Norms and dots in double; each product rounds to float in the reference's order, scale, then the clip, then the row's scale.
+    void l2_clip(std::initializer_list<ClipRows> items, size_t rows, RowRuns = {}) override {
+        if (items.size() > kClipItems) throw std::runtime_error("backend: invalid l2 clip dimensions");
+        for (const ClipRows& item : items) {
+            const size_t width = size_mul(item.heads, item.dim);
+            if (!item.heads || !item.dim || item.stride < width) throw std::runtime_error("backend: invalid l2 clip dimensions");
+        }
+        if (!rows) return;
+        for (const ClipRows& item : items) clip_rows(item, rows);
+    }
+    void clip_rows(const ClipRows& item, size_t rows) {
+        const size_t heads = item.heads, dim = item.dim, stride = item.stride, width = size_mul(heads, dim);
+        const float threshold = item.threshold;
+        span(*item.x.buffer, item.x.offset * sizeof(float), size_mul(size_add(size_mul(rows - 1, stride), width), sizeof(float)));
+        if (item.scale.buffer) span(*item.scale.buffer, item.scale.offset * sizeof(float), size_mul(width, sizeof(float)));
+        if (item.row_scale.buffer) span(*item.row_scale.buffer, item.row_scale.offset * sizeof(float), size_mul(rows, sizeof(float)));
+        float* x = at(item.x);
+        const float* scale = item.scale.buffer ? at(item.scale) : nullptr;
+        const float* row_scale = item.row_scale.buffer ? at(item.row_scale) : nullptr;
+        spread(rows, [&](size_t r) {
+            for (size_t h = 0; h < heads; ++h) {
+                float* v = x + r * stride + h * dim;
+                if (scale)
+                    for (size_t d = 0; d < dim; ++d) v[d] *= scale[h * dim + d];
+                double ss = 0.0;
+                for (size_t d = 0; d < dim; ++d) ss += double(v[d]) * double(v[d]);
+                const float c = std::min(1.0f, threshold / (float(std::sqrt(ss)) + 1e-6f));
+                for (size_t d = 0; d < dim; ++d) v[d] *= c;
+                if (row_scale)
+                    for (size_t d = 0; d < dim; ++d) v[d] *= row_scale[r];
+            }
+        });
+    }
+
+    // Each mix in turn, per row: each item's inverse RMS, then per query the softmax over the items' scaled dots and the weighted sum of the normed items, in double.
+    void query_mix(std::initializer_list<QueryMixRows> items, size_t rows, size_t dim, size_t stride, float eps, RowRuns = {}) override {
+        if (!items.size() || items.size() > kQueryMixItems) throw std::runtime_error("backend: invalid query mix dimensions");
+        for (const QueryMixRows& it : items) {
+            if (it.norm[0].buffer && (it.nq > kQueryMixNorms || !it.norm[it.nq - 1].buffer)) throw std::runtime_error("backend: a normed query mix without a norm for each query");
+            mix_queries(it.out, it.src, it.queries, rows, it.n, it.nq, dim, stride, eps);
+            for (size_t q = 0; it.norm[0].buffer && q < it.nq; ++q)
+                rms_norm_rows(Slice{it.out.buffer, it.out.offset + q * dim}, Slice{it.out.buffer, it.out.offset + q * dim}, it.norm[q], rows, dim, it.nq * dim, it.norm_eps, {});
+        }
+    }
+    void mix_queries(Slice out_s, CSlice src_s, CSlice q_s, size_t rows, size_t n, size_t nq, size_t dim, size_t stride, float eps) {
+        constexpr size_t kItems = 16;
+        if (!n || n > kItems || !nq || !dim || stride < size_mul(n, dim)) throw std::runtime_error("backend: invalid query mix dimensions");
+        if (!rows) return;
+        span(*out_s.buffer, out_s.offset * sizeof(float), size_mul(size_mul(rows, size_mul(nq, dim)), sizeof(float)));
+        span(*src_s.buffer, src_s.offset * sizeof(float), size_mul(size_add(size_mul(rows - 1, stride), size_mul(n, dim)), sizeof(float)));
+        span(*q_s.buffer, q_s.offset * sizeof(float), size_mul(size_mul(nq, dim), sizeof(float)));
+        float* out = at(out_s);
+        const float* src = at(src_s);
+        const float* queries = at(q_s);
+        const double root = std::sqrt(double(dim));
+        spread(rows, [&](size_t r) {
+            const float* row = src + r * stride;
+            float inv[kItems];
+            for (size_t i = 0; i < n; ++i) {
+                double ss = 0.0;
+                for (size_t d = 0; d < dim; ++d) ss += double(row[i * dim + d]) * double(row[i * dim + d]);
+                inv[i] = float(1.0 / std::sqrt(ss / double(dim) + double(eps)));
+            }
+            for (size_t q = 0; q < nq; ++q) {
+                const float* qv = queries + q * dim;
+                double p[kItems], top = -std::numeric_limits<double>::infinity(), total = 0.0;
+                for (size_t i = 0; i < n; ++i) {
+                    double dot = 0.0;
+                    for (size_t d = 0; d < dim; ++d) dot += double(qv[d]) * double(row[i * dim + d] * inv[i]);
+                    p[i] = dot / root;
+                    top = std::max(top, p[i]);
+                }
+                for (size_t i = 0; i < n; ++i) total += (p[i] = std::exp(p[i] - top));
+                float* o = out + (r * nq + q) * dim;
+                for (size_t d = 0; d < dim; ++d) {
+                    double acc = 0.0;
+                    for (size_t i = 0; i < n; ++i) acc += p[i] * double(row[i * dim + d] * inv[i]);
+                    o[d] = float(acc / total);
+                }
+            }
+        });
+    }
+
+    void tanh_gate_mix(std::initializer_list<GateMixItem> items, size_t rows, size_t width, size_t out_stride, size_t h_stride, size_t m_stride, RowRuns runs = {},
+                       float eps = 0.0f) override {
+        if (!width || out_stride < width || h_stride < width || m_stride < width) throw std::runtime_error("backend: invalid gate mix dimensions");
+        if (!rows) return;
+        gate_downs(items, rows, width, eps, runs);
+        gate_products(items, rows, runs);
+        for (const GateMixItem& it : items) gate_mix(it.out, it.h, it.m, it.f, it.g, rows, width, out_stride, h_stride, m_stride, runs, it.norm, eps);
+    }
+    void gate_mix(Slice out_s, CSlice h_s, CSlice m_s, CSlice f_s, CSlice g_s, size_t rows, size_t width, size_t out_stride, size_t h_stride, size_t m_stride, RowRuns runs,
+                  CSlice norm, float eps) {
+        const auto strided = [&](size_t stride) { return size_mul(size_add(size_mul(rows - 1, stride), width), sizeof(float)); };
+        const size_t packed = size_mul(size_mul(rows, width), sizeof(float));
+        span(*out_s.buffer, out_s.offset * sizeof(float), strided(out_stride));
+        span(*h_s.buffer, h_s.offset * sizeof(float), strided(h_stride));
+        span(*m_s.buffer, m_s.offset * sizeof(float), strided(m_stride));
+        span(*f_s.buffer, f_s.offset * sizeof(float), packed);
+        span(*g_s.buffer, g_s.offset * sizeof(float), packed);
+        float* out = at(out_s);
+        const float *h = at(h_s), *m = at(m_s), *f = at(f_s), *g = at(g_s);
+        spread(rows, [&](size_t r) {
+            for (size_t d = 0; d < width; ++d) {
+                const size_t i = r * width + d;
+                out[r * out_stride + d] = (1.0f - std::tanh(f[i])) * h[r * h_stride + d] + std::tanh(g[i]) * m[r * m_stride + d];
+            }
+        });
+        if (norm.buffer) rms_norm_rows(out_s, out_s, norm, rows, width, out_stride, eps, runs);
+    }
+
+    void copy_rows(Slice dst_s, size_t dst_stride, CSlice src_s, size_t src_stride, size_t rows, size_t width, bool add) override {
+        if (!width || dst_stride < width || src_stride < width) throw std::runtime_error("backend: invalid row copy dimensions");
+        if (!rows) return;
+        span(*dst_s.buffer, dst_s.offset * sizeof(float), size_mul(size_add(size_mul(rows - 1, dst_stride), width), sizeof(float)));
+        span(*src_s.buffer, src_s.offset * sizeof(float), size_mul(size_add(size_mul(rows - 1, src_stride), width), sizeof(float)));
+        float* dst = at(dst_s);
+        const float* src = at(src_s);
+        spread(rows, [&](size_t r) {
+            float* d = dst + r * dst_stride;
+            const float* s = src + r * src_stride;
+            if (add)
+                for (size_t i = 0; i < width; ++i) d[i] += s[i];
+            else
+                std::memmove(d, s, width * sizeof(float));
+        });
+    }
+
+    ConvDone depthwise_conv_items(const ConvRows* items, size_t n, size_t layer, const StateView* views, size_t n_views, const ConvKv*) override {
+        conv_products(items, n, check_state_views(views, n_views, layer));
+        for (size_t i = 0; i < n; ++i) conv_one(items[i].out, items[i].x, items[i].conv, layer, views, n_views);
+        return ConvDone::none;
+    }
+    // One task per view and block of channels: a ring carried to dst, the (taps - 1) * dilation history rows loaded into a local window before any write, then the rows in order, so out may be x.
+    // A tap's product order is the oldest tap first and an fma toward the current one, zero samples included.
+    void conv_one(Slice out_s, CSlice x_s, const DepthwiseConv& a, size_t layer, const StateView* views, size_t n_views) {
+        const size_t C = a.channels, T = a.taps;
+        const bool dynamic = a.dyn.buffer != nullptr, ring = a.history == ConvHistory::ring, given = a.residual_from == ConvResidual::given;
+        if (!C || !T || !a.dilation || !(a.divisor > 0.0f) || !std::isfinite(a.divisor) || given != (a.residual.buffer != nullptr) ||
+            (dynamic && (!a.dyn_heads || C % a.dyn_heads || a.dyn_stride < size_mul(a.dyn_heads, T))))
+            throw std::runtime_error("backend: invalid depthwise convolution dimensions");
+        const size_t H = size_mul(T - 1, a.dilation);
+        if (ring && (!a.ring_rows || a.ring_rows < H)) throw std::runtime_error("backend: depthwise convolution ring shorter than its history");
+        const size_t rows = check_state_views(views, n_views, layer);
+        if (!rows) return;
+        const size_t count = size_mul(rows, C), wcount = size_mul(C, T);
+        const size_t dcount = dynamic ? size_add(size_mul(rows - 1, a.dyn_stride), size_mul(a.dyn_heads, T)) : 0;
+        const size_t os = a.out_stride ? a.out_stride : C, oext = size_add(size_mul(rows - 1, os), C);
+        const bool strided = os != C || a.accumulate;
+        if (os < C) throw std::runtime_error("backend: depthwise convolution output rows overlap");
+        validate_float_slice(out_s, oext);
+        validate_float_slice(x_s, count);
+        validate_float_slice(a.w, wcount);
+        if (given) validate_float_slice(a.residual, count);
+        if (dynamic) validate_float_slice(a.dyn, dcount);
+        const CSlice outc = out_s;
+        if ((overlaps(outc, oext, x_s, count) && (strided || !same_slice(outc, count, x_s, count))) ||
+            (given && overlaps(outc, oext, a.residual, count) && (strided || !same_slice(outc, count, a.residual, count))))
+            throw std::runtime_error("backend: depthwise convolution output must be disjoint or exactly its input or residual");
+        if (overlaps(outc, oext, a.w, wcount) || (dynamic && overlaps(outc, oext, a.dyn, dcount)))
+            throw std::runtime_error("backend: depthwise convolution output overlaps its taps");
+        std::vector<size_t> first(n_views);
+        for (size_t i = 0; i < n_views; ++i) {
+            if (i) first[i] = first[i - 1] + views[i - 1].nq;
+            StateStorage& storage = *views[i].storage;
+            const size_t base = ring ? a.ring_offset : storage.shape().slot_floats();
+            if (storage.slot_floats(layer) < size_add(base, size_mul(ring ? a.ring_rows : H, C)))
+                throw std::runtime_error("backend: depthwise convolution history outside the state slot");
+            Buffer& state = storage.layer(layer);
+            if (!dynamic_cast<CpuBuffer*>(&state)) throw std::runtime_error("backend: state storage does not belong to the CPU backend");
+            span(state, 0, size_mul(storage.slots(), storage.slot_bytes(layer)));
+            const CSlice state_slice{&state, 0};
+            const size_t state_count = state.size() / sizeof(float);
+            if (overlaps(state_slice, state_count, outc, oext) || overlaps(state_slice, state_count, x_s, count) || overlaps(state_slice, state_count, a.w, wcount) ||
+                (given && overlaps(state_slice, state_count, a.residual, count)) || (dynamic && overlaps(state_slice, state_count, a.dyn, dcount)))
+                throw std::runtime_error("backend: depthwise convolution operands overlap the state layer");
+        }
+        const float* x = at(x_s);
+        const float* w = at(a.w);
+        const float* dyn = dynamic ? at(a.dyn) : nullptr;
+        const float* residual = given ? at(a.residual) : nullptr;
+        float* out = at(out_s);
+        const size_t block = 64, blocks = (C + block - 1) / block, group = dynamic ? C / a.dyn_heads : C, R = a.ring_rows, dil = a.dilation;
+        spread(size_mul(n_views, blocks), [&](size_t t) {
+            const StateView& v = views[t / blocks];
+            const size_t c0 = (t % blocks) * block, B = std::min(block, C - c0);
+            const size_t base = ring ? a.ring_offset : v.storage->shape().slot_floats();
+            const float* src = state_slot(*v.storage, layer, v.src) + base;
+            float* dst = state_slot(*v.storage, layer, v.dst) + base;
+            if (ring && v.src != v.dst)
+                for (size_t r = 0; r < R; ++r) std::copy(src + r * C + c0, src + r * C + c0 + B, dst + r * C + c0);
+            // win holds position p's raw row at p % H; positions before 0 are never read.
+            std::vector<float> win(size_mul(H, B)), zero(B);
+            std::vector<const float*> tap_rows(T);
+            for (size_t j = 1; j <= H && j <= v.length; ++j) {
+                const size_t p = v.length - j;
+                const float* row = ring ? dst + (p % R) * C : src + (H - j) * C;
+                std::copy(row + c0, row + c0 + B, win.begin() + (p % H) * B);
+            }
+            for (size_t b = 0; b < v.nq; ++b) {
+                const size_t g = first[t / blocks] + b, pos = v.length + b;
+                const float* dr = dynamic ? dyn + g * a.dyn_stride : nullptr;
+                const bool keep = ring && b + R >= v.nq;
+                // Each tap's samples for the block: the current row, a window row, or zeros before position 0.
+                for (size_t k = 0; k < T; ++k) {
+                    const size_t lag = (T - 1 - k) * dil;
+                    tap_rows[k] = !lag ? x + g * C + c0 : pos >= lag ? win.data() + ((pos - lag) % H) * B : zero.data();
+                }
+                for (size_t cc = 0; cc < B; ++cc) {
+                    const size_t c = c0 + cc, index = g * C + c;
+                    const float now = x[index];
+                    const float* wc = w + c * T;
+                    const float* dc = dynamic ? dr + (c / group) * T : nullptr;
+                    float acc = 0.0f;
+                    for (size_t k = 0; k < T; ++k) {
+                        const float sample = tap_rows[k][cc];
+                        const float wk = dynamic ? wc[k] + dc[T - 1 - k] : wc[k];
+                        acc = k ? std::fma(wk, sample, acc) : wk * sample;
+                    }
+                    if (H) win[(pos % H) * B + cc] = now;
+                    if (keep) dst[(pos % R) * C + c] = now;
+                    const float y = a.act == ConvAct::silu ? silu_of(acc) : acc;
+                    const float sum = a.residual_from == ConvResidual::input ? now + y : given ? residual[index] + y : y;
+                    const float v = a.divisor == 1.0f ? sum : sum / a.divisor;
+                    float& ov = out[g * os + c];
+                    ov = a.accumulate ? ov + v : v;
+                }
+            }
+            // A tail keeps the last H positions, oldest first, zero before position 0.
+            if (!ring)
+                for (size_t j = 0; j < H; ++j) {
+                    const size_t total = v.length + v.nq;
+                    float* row = dst + j * C + c0;
+                    if (total >= H - j) std::copy(win.begin() + ((total - (H - j)) % H) * B, win.begin() + ((total - (H - j)) % H) * B + B, row);
+                    else std::fill(row, row + B, 0.0f);
+                }
+        });
+    }
+
+    // One task per row and key-value head: its query heads' bias rows built from the table (R axpys), scores, a two-pass softmax with the sink, then the values; new rows are stored once every task is done.
+    void attention_rel_sink(Slice out_s, Slice q_s, CSlice k_s, CSlice v_s, Slice rel_s, CSlice table_s, CSlice sink_s, size_t heads, size_t kv_heads, size_t D,
+                            size_t R, size_t extent, size_t window, float scale, size_t layer, const StateView* rings, const KVView* pool, size_t n_views,
+                            size_t ring_offset, size_t ring_rows, RowRuns = {}, const OutputGate& gate = {}, const RelClip& clip = {}) override {
+        clip_rel(q_s, rel_s, heads, D, R, clip);
+        if (!heads || !kv_heads || heads % kv_heads || !D || !R || !extent || !std::isfinite(scale) || bool(rings) == bool(pool) ||
+            (rings && (!ring_rows || (window && ring_rows + 1 < window) || !window)))
+            throw std::runtime_error("backend: invalid relative attention dimensions");
+        const size_t KD = size_mul(kv_heads, D), HD = size_mul(heads, D), row_w = 2 * KD, rep = heads / kv_heads;
+        size_t rows = 0;
+        std::vector<size_t> first(n_views);
+        if (rings) {
+            rows = check_state_views(rings, n_views, layer);
+            if (rows && rings[0].storage->slot_floats(layer) < size_add(ring_offset, size_mul(ring_rows, row_w)))
+                throw std::runtime_error("backend: relative attention ring outside the state slot");
+        } else {
+            for (size_t i = 0; i < n_views; ++i) {
+                CpuKVStorage& storage = storage_of(pool[i]);
+                storage.check_view(pool[i], layer, true);
+                if (storage.auxiliary_pool(layer) != 1 || storage.auxiliary_pool_width(layer) != row_w)
+                    throw std::runtime_error("backend: relative attention over a pool that is not one [k|v] row a position");
+                rows = size_add(rows, pool[i].nq);
+            }
+        }
+        for (size_t i = 1; i < n_views; ++i) first[i] = first[i - 1] + (rings ? rings[i - 1].nq : pool[i - 1].nq);
+        if (!rows) return;
+        validate_float_slice(out_s, size_mul(rows, HD));
+        validate_float_slice(q_s, size_mul(rows, HD));
+        validate_float_slice(k_s, size_mul(rows, KD));
+        validate_float_slice(v_s, size_mul(rows, KD));
+        validate_float_slice(rel_s, size_mul(rows, size_mul(heads, R)));
+        validate_float_slice(table_s, size_mul(R, extent));
+        validate_float_slice(sink_s, size_mul(rows, heads));
+        const CSlice outc = out_s;
+        for (const auto& [in, n] : std::initializer_list<std::pair<CSlice, size_t>>{{q_s, HD}, {k_s, KD}, {v_s, KD}, {rel_s, heads * R}, {sink_s, heads}})
+            if (overlaps(outc, size_mul(rows, HD), in, size_mul(rows, n))) throw std::runtime_error("backend: relative attention output overlaps an input");
+        const float *q = at(q_s), *kn = at(k_s), *vn = at(v_s), *rel = at(rel_s), *table = at(table_s), *sink = at(sink_s);
+        float* out = at(out_s);
+        std::vector<size_t> view_of(rows);
+        for (size_t i = 0, r = 0; i < n_views; ++i)
+            for (size_t b = 0; b < (rings ? rings[i].nq : pool[i].nq); ++b) view_of[r++] = i;
+        // A stored [k|v] row of a position before its view's length.
+        const auto stored = [&](size_t vi, size_t p) -> const float* {
+            if (rings) return state_slot(*rings[vi].storage, layer, rings[vi].src) + ring_offset + (p % ring_rows) * row_w;
+            return storage_of(pool[vi]).pooled_row(layer, pool[vi], p);
+        };
+        spread(size_mul(rows, kv_heads), [&](size_t t) {
+            const size_t g = t / kv_heads, kh = t % kv_heads, vi = view_of[g];
+            const size_t length = rings ? rings[vi].length : pool[vi].length, pos = length + (g - first[vi]);
+            const size_t lo = window && pos + 1 > window ? pos + 1 - window : 0, n = pos + 1 - lo, bias_count = std::min(extent, n);
+            thread_local std::vector<float> scores, bias, acc, part;
+            scores.resize(n);
+            bias.resize(bias_count);
+            acc.resize(D);
+            part.resize(D);
+            const auto key = [&](size_t p, bool value) -> const float* {
+                if (p >= length) return (value ? vn : kn) + (first[vi] + p - length) * KD + kh * D;
+                return stored(vi, p) + (value ? KD : 0) + kh * D;
+            };
+            for (size_t h = kh * rep; h < (kh + 1) * rep; ++h) {
+                const float* qh = q + g * HD + h * D;
+                const float* rh = rel + (g * heads + h) * R;
+                std::fill(bias.begin(), bias.end(), 0.0f);
+                for (size_t r = 0; r < R; ++r)
+                    for (size_t d = 0; d < bias_count; ++d) bias[d] = std::fma(rh[r], table[r * extent + d], bias[d]);
+                float top = sink[g * heads + h];
+                for (size_t i = 0; i < n; ++i) {
+                    const float* k = key(lo + i, false);
+                    float dot = 0.0f;
+                    for (size_t e = 0; e < D; ++e) dot = std::fma(qh[e], k[e], dot);
+                    const size_t d = pos - (lo + i);
+                    scores[i] = dot * scale + (d < extent ? bias[d] : 0.0f);
+                    top = std::max(top, scores[i]);
+                }
+                // Both sums over positions run by KV_BLOCK_TOKENS blocks of absolute positions, as attention() does (docs/PRECISION.md, Attention value sums).
+                const float total = block_exp_sum(scores.data(), lo, lo + n, top) + std::exp(sink[g * heads + h] - top);
+                std::fill(acc.begin(), acc.end(), 0.0f);
+                for (size_t t0 = lo - lo % KV_BLOCK_TOKENS; t0 < lo + n; t0 += KV_BLOCK_TOKENS) {
+                    std::fill(part.begin(), part.end(), 0.0f);
+                    for (size_t p = std::max(t0, lo); p < std::min(t0 + KV_BLOCK_TOKENS, lo + n); ++p) {
+                        const float* v = key(p, true);
+                        const float w = scores[p - lo] / total;
+                        for (size_t e = 0; e < D; ++e) part[e] = std::fma(w, v[e], part[e]);
+                    }
+                    for (size_t e = 0; e < D; ++e) acc[e] += part[e];
+                }
+                std::copy(acc.begin(), acc.end(), out + g * HD + h * D);
+            }
+        });
+        for (size_t vi = 0; vi < n_views; ++vi) {
+            const size_t length = rings ? rings[vi].length : pool[vi].length, nq = rings ? rings[vi].nq : pool[vi].nq;
+            float* ring = nullptr;
+            if (rings) {
+                const StateView& v = rings[vi];
+                ring = state_slot(*v.storage, layer, v.dst) + ring_offset;
+                if (v.src != v.dst) std::copy_n(state_slot(*v.storage, layer, v.src) + ring_offset, ring_rows * row_w, ring);
+            }
+            for (size_t b = rings && nq > ring_rows ? nq - ring_rows : 0; b < nq; ++b) {
+                const size_t g = first[vi] + b, p = length + b;
+                float* to = rings ? ring + (p % ring_rows) * row_w : storage_of(pool[vi]).pooled_row(layer, pool[vi], p);
+                std::copy_n(kn + g * KD, KD, to);
+                std::copy_n(vn + g * KD, KD, to + KD);
+            }
+        }
+        output_gate(out_s, heads, D, gate);
+    }
+
     // One invocation per (view, channel): the channel's carried rows, then its rows in order through a window of the last kConvTaps - 1 raw values, which it leaves in slot dst.
     void causal_conv_silu(Slice out_s, CSlice x_s, CSlice w_s, size_t layer, const StateView* views, size_t n_views) override {
         const size_t rows = check_state_views(views, n_views, layer);
@@ -2662,108 +3070,6 @@ public:
         run_parallel([&](int wk) {
             for (size_t t = (size_t)wk * per, e = std::min(tasks, t + per); t < e; ++t) task(t);
         });
-    }
-
-    // A dilated depthwise causal conv adds its SiLU result to the residual and keeps the raw input history in the layer's extra state tail.
-    void dilated_conv_silu_add(Slice out_s, CSlice x_s, CSlice residual_s, CSlice w_s, size_t channels,
-                               size_t taps, size_t dilation, size_t layer, const StateView* views,
-                               size_t n_views) override {
-        if (!channels || !taps || !dilation)
-            throw std::runtime_error("backend: invalid dilated convolution dimensions");
-        const size_t history = size_mul(taps - 1, dilation);
-        const size_t tail_floats = size_mul(history, channels);
-        const size_t rows = check_state_views(views, n_views, layer);
-        if (!rows) return;
-        const size_t count = size_mul(rows, channels);
-        const size_t weight_count = size_mul(channels, taps);
-        const size_t tasks = size_mul(n_views, channels);
-        std::vector<size_t> first(n_views), totals(n_views);
-        for (size_t i = 0; i < n_views; ++i) {
-            if (i) first[i] = size_add(first[i - 1], views[i - 1].nq);
-            totals[i] = size_add(views[i].length, views[i].nq);
-        }
-
-        validate_float_slice(out_s, count);
-        validate_float_slice(x_s, count);
-        validate_float_slice(residual_s, count);
-        validate_float_slice(w_s, weight_count);
-        const CSlice outc = out_s;
-        if (overlaps(outc, count, residual_s, count) && !same_slice(outc, count, residual_s, count))
-            throw std::runtime_error("backend: dilated convolution output must be disjoint or exactly residual in place");
-        if (overlaps(outc, count, x_s, count) || overlaps(outc, count, w_s, weight_count))
-            throw std::runtime_error("backend: dilated convolution output overlaps an input");
-
-        std::vector<const float*> src_tails(n_views);
-        std::vector<float*> dst_tails(n_views);
-        for (size_t i = 0; i < n_views; ++i) {
-            const StateView& view = views[i];
-            StateStorage& storage = *view.storage;
-            const size_t core = storage.shape().slot_floats();
-            const size_t stride = storage.slot_floats(layer);
-            if (stride < size_add(core, tail_floats))
-                throw std::runtime_error("backend: dilated convolution history does not fit the state tail");
-            Buffer& state = storage.layer(layer);
-            if (!dynamic_cast<CpuBuffer*>(&state))
-                throw std::runtime_error("backend: state storage does not belong to the CPU backend");
-            span(state, 0, size_mul(storage.slots(), storage.slot_bytes(layer)));
-            const CSlice state_slice{&state, 0};
-            const size_t state_count = state.size() / sizeof(float);
-            if (overlaps(state_slice, state_count, CSlice(out_s), count) ||
-                overlaps(state_slice, state_count, x_s, count) ||
-                overlaps(state_slice, state_count, residual_s, count) ||
-                overlaps(state_slice, state_count, w_s, weight_count))
-                throw std::runtime_error("backend: dilated convolution operands overlap the state layer");
-            float* base = state_slot(storage, layer, view.src);
-            float* dst = state_slot(storage, layer, view.dst);
-            src_tails[i] = base + core;
-            dst_tails[i] = dst + core;
-        }
-
-        const float* x = at(x_s);
-        const float* residual = at(residual_s);
-        const float* w = at(w_s);
-        float* out = at(out_s);
-        const auto task = [&](size_t t) {
-            const size_t vi = t / channels, c = t % channels;
-            const StateView& view = views[vi];
-            const float* history_src = src_tails[vi];
-            for (size_t row = 0; row < view.nq; ++row) {
-                const auto sample_at = [&](size_t tap) {
-                    const size_t lag = size_mul(taps - 1 - tap, dilation);
-                    float sample = 0.0f;
-                    if (row >= lag) sample = x[(first[vi] + row - lag) * channels + c];
-                    else {
-                        const size_t before = lag - row;
-                        if (before <= view.length) sample = history_src[(history - before) * channels + c];
-                    }
-                    return sample;
-                };
-                float acc = w[c * taps] * sample_at(0);
-                for (size_t tap = 1; tap < taps; ++tap) {
-                    acc = std::fma(w[c * taps + tap], sample_at(tap), acc);
-                }
-                const size_t index = (first[vi] + row) * channels + c;
-                out[index] = residual[index] + silu_of(acc);
-            }
-            for (size_t j = 0; j < history; ++j) {
-                float value = 0.0f;
-                if (totals[vi] >= history - j) {
-                    const size_t position = totals[vi] - (history - j);
-                    if (position >= view.length) value = x[(first[vi] + position - view.length) * channels + c];
-                    else {
-                        const size_t before = view.length - position;
-                        value = history_src[(history - before) * channels + c];
-                    }
-                }
-                dst_tails[vi][j * channels + c] = value;
-            }
-        };
-        size_t begin = 0;
-        while (begin < tasks) {
-            const size_t n = std::min(tasks - begin, size_t(std::numeric_limits<int>::max()));
-            parallel_for((int)n, [&](int i) { task(begin + (size_t)i); });
-            begin += n;
-        }
     }
 
     // A prologue over the rows (the normed q and k of every K head, each V head's beta and decay), then one task per (view, V head), each on one thread, so no thread count or grouping of rows changes a bit.
@@ -2962,7 +3268,7 @@ public:
                 std::memcpy(ids + r * k + j, &id, sizeof(id));
                 p[best] = -1.0f;
             }
-            for (size_t j = 0; j < k; ++j) weights[r * k + j] = normalize ? chosen[j] / total : chosen[j];
+            for (size_t j = 0; j < k; ++j) weights[r * k + j] = normalize ? chosen[j] / (total + rule.eps) : chosen[j];
         });
     }
 
@@ -3009,14 +3315,17 @@ public:
                 std::memcpy(ids + r * k + j, &id, sizeof(id));
             }
             const bool divide = rule.normalize && (sigmoid || k > 1);
-            const float sum = sigmoid ? total : total + 1e-20f;
+            const float sum = total + rule.eps;
             for (size_t j = 0; j < k; ++j) weights[r * k + j] = (divide ? chosen[j] / sum : chosen[j]) * rule.scale;
         });
     }
 
     void matmul_experts(std::initializer_list<Projection> projections, CSlice X_s, size_t nin,
                         size_t nrows, const Routing& routing, RowRuns runs = {}, Dtype dtype = Dtype::f16) override {
-        for (const Projection& p : projections) weight_scales(p.weight, routing.n_expert);
+        for (const Projection& p : projections) {
+            weight_scales(p.weight, routing.n_expert);
+            check_window(p.first, p.rows, p.pitch, p.weight.type == quant::GGML_TYPE_F8_E4M3);
+        }
         const size_t entries = size_mul(nrows, routing.k);
         if (!entries) return;
         const Grouping g = group_by_expert(routing, entries);
@@ -3028,13 +3337,14 @@ public:
         for (const Projection& p : projections) {
             if (!p.weight.data.buffer) throw std::runtime_error("backend: projection without storage");
             span(*p.out.buffer, p.out.offset * sizeof(float), size_mul(entries, p.rows) * sizeof(float));
-            expert_products(p.weight, routing.n_expert, X, nrows, routing.k, routing.k, at(p.out), nin, p.rows, g, decode, dtype);
+            expert_products(p.weight, routing.n_expert, X, nrows, routing.k, routing.k, at(p.out), nin, p.rows, g, decode, dtype, p.first, p.pitch);
         }
     }
 
     // The slots' products land in scratch; each row's weighted sum is then formed in slot order and added, the order the interface fixes.
     void matmul_experts_add(WeightView weight, CSlice X_s, Slice Y_s, size_t nin, size_t nout,
-                            size_t nrows, const Routing& routing, RowRuns runs = {}, Dtype dtype = Dtype::f16) override {
+                            size_t nrows, const Routing& routing, RowRuns runs = {}, Dtype dtype = Dtype::f16, const Buffer* from = nullptr) override {
+        if (from) repeat_row(Y_s, *from, nrows, nout);
         weight_scales(weight, routing.n_expert);
         const size_t k = routing.k, entries = size_mul(nrows, k);
         if (!entries) return;
@@ -3064,11 +3374,13 @@ public:
 
     // A step of generated rows alone in three pool dispatches instead of six, keeping the base bits (docs/src/backends-cpu.md, moe_step).
     // A dense product whose op has no row dot runs that op itself, in its place in the order.
-    void moe_step(const MoeStep& m, CSlice h, Slice y, size_t nin, size_t rows, RowRuns runs = {}, Dtype dtype = Dtype::f16) override {
+    void moe_step(const MoeStep& m, Slice h, Slice y, size_t nin, size_t rows, RowRuns runs = {}, Dtype dtype = Dtype::f16) override {
         if (!decode_step(m, nin, rows, runs, dtype)) return Backend::moe_step(m, h, y, nin, rows, runs, dtype);
+        moe_input(m, h, nin, rows, runs);
         const MoeShared* s = m.shared;
-        for (float limit : {m.limit, s ? s->limit : 0.0f})
-            if (!(limit >= 0.0f) || !std::isfinite(limit)) throw std::runtime_error("backend: a SwiGLU limit that is negative or not finite");
+        check_glu(m.glu);
+        if (s) check_glu(s->glu);
+        for (const Projection* p : {&m.gate, &m.up}) check_window(p->first, p->rows, p->pitch, p->weight.type == quant::GGML_TYPE_F8_E4M3);
         const size_t E = m.router.rows, k = m.k, ff = m.gate.rows, entries = size_mul(rows, k), sff = s ? s->gate.rows : 0;
         const bool gated = s && s->row_gate.weight.data.buffer;
         validate_float_slice(h, size_mul(rows, nin));
@@ -3145,7 +3457,7 @@ public:
             step_entries_.push_back((uint32_t)i);
         }
         // (2) the routed gate and up rows of every entry with their SiLU, and the shared expert's SiLU under its row gate.
-        Mat gate = mat(m.gate.weight, nin, ff, E), up = mat(m.up.weight, nin, ff, E), down = mat(m.down, ff, nin, E);
+        Mat gate = mat(m.gate.weight, nin, ff, E, m.gate.first, m.gate.pitch), up = mat(m.up.weight, nin, ff, E, m.up.first, m.up.pitch), down = mat(m.down, ff, nin, E);
         {
             std::vector<char> used(E, 0);
             for (uint32_t i : step_entries_) used[ids[i]] = 1;
@@ -3161,14 +3473,14 @@ public:
                     const size_t at_o = i * ff + o;
                     gout[at_o] = dot(gk, gate.type, gate.matrix(e) + o * gate.row_bytes, xq8_, X, nin, i / k, ge);
                     uout[at_o] = dot(uk, up.type, up.matrix(e) + o * up.row_bytes, xq8_, X, nin, i / k, ue);
-                    act[at_o] = swiglu(gout[at_o], uout[at_o], m.limit, m.form);
+                    act[at_o] = swiglu(gout[at_o], uout[at_o], m.glu);
                 }
                 return;
             }
             const size_t c = t - gate_tasks;
             for (size_t o = 0; o < sff; ++o) {
                 const size_t at_o = c * sff + o;
-                sact[at_o] = swiglu(sg[at_o], su[at_o], s->limit, s->form);
+                sact[at_o] = swiglu(sg[at_o], su[at_o], s->glu);
                 if (gated) sact[at_o] = sigmoid_gate(sact[at_o], rg[c]);
             }
         });
@@ -3210,21 +3522,30 @@ private:
         uint32_t type = 0;
         const uint8_t* data = nullptr;
         size_t row_bytes = 0, stride = 0;
+        size_t bytes = 0;   // a matrix's bytes read from the file: its window where it has one
         const format::FileReader* file = nullptr;   // the stack's file, read from at file_at, for a buffer adopted with it
         uint64_t file_at = 0;
         std::vector<const uint8_t*> read;           // each read expert's matrix, empty when the call reads in place
         const uint8_t* matrix(size_t e) const { return read.empty() ? data + e * stride : read[e]; }
     };
-    static Mat mat(const WeightView& w, size_t nin, size_t rows, size_t count) {
+    // `count` matrices of `rows` rows, or the window of `rows` rows from `first` in matrices of `pitch` rows.
+    static Mat mat(const WeightView& w, size_t nin, size_t rows, size_t count, size_t first = 0, size_t pitch = 0) {
         Mat m{w.type, nullptr, quant::row_bytes(w.type, nin), 0};
-        m.stride = size_mul(rows, m.row_bytes);
+        m.stride = size_mul(pitch ? pitch : rows, m.row_bytes);
+        m.bytes = size_mul(rows, m.row_bytes);
         span(*w.data.buffer, w.data.offset * sizeof(float), size_mul(count, m.stride));
-        m.data = (const uint8_t*)bytes_at(w.data);
+        m.data = (const uint8_t*)bytes_at(w.data) + first * m.row_bytes;
         if (const auto* b = dynamic_cast<const CpuBuffer*>(w.data.buffer); b && b->file()) {
             m.file = b->file();
-            m.file_at = b->file_offset() + w.data.offset * sizeof(float);
+            m.file_at = b->file_offset() + w.data.offset * sizeof(float) + first * m.row_bytes;
         }
         return m;
+    }
+
+    // A window of `rows` rows from `first` must lie inside a matrix of `pitch` rows, and an F8_E4M3 grid, laid out by whole matrices, takes none.
+    static void check_window(size_t first, size_t rows, size_t pitch, bool fp8) {
+        if (!first && !pitch) return;
+        if (fp8 || first > pitch || rows > pitch - first) throw std::runtime_error("backend: an expert row window outside its matrix, or over an F8_E4M3 grid");
     }
 
     // The bytes a call reads into staging at most; a worker reads ExpertSlots::kPiece at a time.
@@ -3234,7 +3555,7 @@ private:
     void read_experts(std::initializer_list<Mat*> stacks, const std::vector<char>& used) {
         const size_t picked = (size_t)std::count(used.begin(), used.end(), char(1));
         size_t bytes = 0;
-        for (const Mat* m : stacks) if (m->file) bytes += size_mul(picked, m->stride);
+        for (const Mat* m : stacks) if (m->file) bytes += size_mul(picked, m->bytes);
         if (!bytes || bytes > kExpertsRead) return;
         struct Piece { const Mat* m; uint64_t from; uint8_t* to; size_t n; };
         std::vector<Piece> pieces;
@@ -3242,15 +3563,15 @@ private:
         for (Mat* m : stacks) {
             std::vector<uint8_t>& staging = staged_[k++];
             if (!m->file) continue;
-            if (staging.size() < picked * m->stride) staging.resize(picked * m->stride);
+            if (staging.size() < picked * m->bytes) staging.resize(picked * m->bytes);
             m->read.assign(used.size(), nullptr);
             uint8_t* to = staging.data();
             for (size_t e = 0; e < used.size(); ++e) {
                 if (!used[e]) continue;
                 m->read[e] = to;
-                for (size_t o = 0; o < m->stride; o += ExpertSlots::kPiece)
-                    pieces.push_back({m, m->file_at + e * m->stride + o, to + o, std::min(ExpertSlots::kPiece, m->stride - o)});
-                to += m->stride;
+                for (size_t o = 0; o < m->bytes; o += ExpertSlots::kPiece)
+                    pieces.push_back({m, m->file_at + e * m->stride + o, to + o, std::min(ExpertSlots::kPiece, m->bytes - o)});
+                to += m->bytes;
             }
         }
         tasks(pieces.size(), [&](size_t t) {
@@ -3273,8 +3594,21 @@ private:
         return s->up.rows == s->gate.rows && s->gate.weight.data.buffer && s->up.weight.data.buffer && s->down.data.buffer;
     }
 
+    // A GLU's limits: a clamp of 0 or more, or the softcap form's two positive caps.
+    static void check_glu(const Glu& glu) {
+        const float limit = glu.limit, up_limit = glu.up_limit;
+        const GluForm form = glu.form;
+        if (!(limit >= 0.0f) || !std::isfinite(limit)) throw std::runtime_error("backend: a SwiGLU limit that is negative or not finite");
+        if (form == GluForm::softcap ? !(limit > 0.0f) || !(up_limit > 0.0f) || !std::isfinite(up_limit) : up_limit != 0.0f)
+            throw std::runtime_error("backend: a GLU softcap needs two positive finite caps, and only that form takes an up limit");
+    }
+
     // The GLU of one element, the clamps in the reference's order (model.py:847-850 at e5decd76), a NaN passing through both; quick_gelu in docs/MINIMAX.md's order; silu_mul and moe_step take it.
-    static float swiglu(float g, float u, float limit, GluForm form) {
+    // The softcap form in HF's order, each cap tanh(x / cap) * cap (Inkling2LoopSoftcappedSwiGLU).
+    static float swiglu(float g, float u, const Glu& glu) {
+        const float limit = glu.limit, up_limit = glu.up_limit;
+        const GluForm form = glu.form;
+        if (form == GluForm::softcap) return std::tanh(g / limit) * limit * sigmoid_of(g) * (std::tanh(u / up_limit) * up_limit);
         if (limit > 0.0f) {
             u = u < -limit ? -limit : u > limit ? limit : u;
             g = g > limit ? limit : g;
@@ -3492,13 +3826,13 @@ private:
     // out[e*nout ..] = expert id(e)'s matrix times X row e / per, X having xrows rows and entry e belonging to token row e / k.
     // Decode entries share one pool dispatch and prompt entries share unpacked expert rows (one float matmul per expert without prompt dots), and each entry keeps its arithmetic regardless of the entries routed beside it.
     void expert_products(WeightView weight, size_t n_expert, const float* X, size_t xrows, size_t per, size_t k,
-                         float* out, size_t nin, size_t nout, const Grouping& g, const std::vector<char>& decode, Dtype dtype) {
+                         float* out, size_t nin, size_t nout, const Grouping& g, const std::vector<char>& decode, Dtype dtype, size_t window = 0, size_t pitch = 0) {
         const uint32_t type = weight.type;
         const bool fp8 = type == quant::GGML_TYPE_F8_E4M3;
         const float* scales = fp8 ? fp8_scales(weight, nin, nout, n_expert) : weight_scales(weight, n_expert);
         // Each expert's scales: its NVFP4 one, or its F8_E4M3 grid.
         const size_t scale_stride = fp8 ? weight.scale_count / n_expert : weight.scale_count == 1 ? 0 : 1;
-        Mat stack = mat(weight, nin, nout, n_expert);
+        Mat stack = mat(weight, nin, nout, n_expert, window, pitch);
         const size_t row_bytes = stack.row_bytes;
         if (stack.file) {
             std::vector<char> used(n_expert, 0);

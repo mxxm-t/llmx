@@ -122,10 +122,10 @@ struct FailingCpu : backend::CpuBackend {
         backend::CpuBackend::matmul(weight, x, y, nin, nout, nbatch, runs, dtype);
     }
     void attention(backend::CSlice q, size_t layer, const backend::KVView* views, size_t n_views, backend::Slice out,
-                   int n_head, int n_head_kv, int head_dim) override {
+                   int n_head, int n_head_kv, int head_dim, const backend::AttentionTerms* terms = nullptr) override {
         if (n_views) histories.push_back(views[0].length);
         if (fail_attention && --fail_attention == 0) throw std::runtime_error("injected");
-        backend::CpuBackend::attention(q, layer, views, n_views, out, n_head, n_head_kv, head_dim);
+        backend::CpuBackend::attention(q, layer, views, n_views, out, n_head, n_head_kv, head_dim, terms);
     }
     void sync() noexcept override { ++syncs; backend::CpuBackend::sync(); }
     backend::Ticket submit() override {

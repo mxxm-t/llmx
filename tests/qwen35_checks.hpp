@@ -481,6 +481,19 @@ size_t check_drafter_ops(Pair& p, size_t slice, std::vector<uint8_t> (*matrix)(u
             whole[with_prior] = c;
             values += rows;
         }
+        // An id passed over (skip), as a draw under ignore_eos masks the end token: at the first id, beside a tie, at a slice's end and at the last id, each the CPU's ids.
+        for (size_t skip : {size_t(0), size_t(3), std::min(slice, n) - 1, n - 1}) {
+            const backend::BufferPtr oc = p.cpu.alloc(rows * sizeof(float), backend::Memory::device), ov = p.dev.alloc(rows * sizeof(float), backend::Memory::device);
+            p.cpu.argmax_rows({oc.get(), 0}, {lc.get(), 0}, rows, n, {}, skip);
+            p.dev.argmax_rows({ov.get(), 0}, {lv.get(), 0}, rows, n, {}, skip);
+            p.dev.sync();
+            const std::vector<uint32_t> c = ids_of(p.cpu, *oc, rows), v = ids_of(p.dev, *ov, rows);
+            require(c == v, ("argmax_rows passing over id " + std::to_string(skip) + " differs from the CPU over " + std::to_string(n) + " ids").c_str());
+            if (skip == 0) require(c[3] == n - 1 && c[9] == n - 1, "argmax_rows passing over the first id skips its NaN and its tie");
+            if (skip == 3) require(c[1] == n - 2, "argmax_rows passing over the lower id of a tie takes the higher");
+            if (skip == n - 1) require(c[9] == 0 && c[10] < n && c[15] == n, "argmax_rows passing over the last id skips its infinity and NaN, and a row left with -inf alone has none");
+            values += rows;
+        }
         // The row split into a tensor group's 2 to 4 vocabulary slices: argmax_part on each, the candidates summed as Collective::sum_in_place sums them, and argmax_pick give argmax_rows' ids on both sides.
         for (size_t W : {size_t(2), size_t(3), size_t(4)}) {
             for (backend::Backend* b : std::initializer_list<backend::Backend*>{&p.cpu, &p.dev}) {

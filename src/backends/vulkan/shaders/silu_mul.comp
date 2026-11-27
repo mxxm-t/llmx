@@ -4,9 +4,10 @@
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;
-// LLMX_CLAMP takes min(g, L) and clamp(u, -L, L) under a limit L > 0, NaN passing through both (docs/DEEPSEEK4.md, section 4.2), and the GLU `form`, 0 silu and 1 quick_gelu.
+// LLMX_CLAMP takes min(g, L) and clamp(u, -L, L) under a limit L > 0, NaN passing through both (docs/DEEPSEEK4.md, section 4.2), and the GLU `form`, 0 silu, 1 quick_gelu and 2 softcap.
+// The softcap form clamps nothing and gives L tanh(g / L) sigmoid(g) U tanh(u / U), U being up_limit, in the CPU order.
 #ifdef LLMX_CLAMP
-layout(push_constant) uniform P { uint n; uint quant; uint major; float limit; uint form; } p;
+layout(push_constant) uniform P { uint n; uint quant; uint major; float limit; uint form; float up_limit; } p;
 #else
 layout(push_constant) uniform P { uint n; uint quant; uint major; } p;
 #endif
@@ -21,12 +22,17 @@ layout(set = 0, binding = 2) readonly buffer U4 { vec4 up4[]; };
 #include "xquant.glsl"
 #include "silu_mul.glsl"
 #ifdef LLMX_CLAMP
-float up_of(float u) { return p.limit == 0.0 ? u : u < -p.limit ? -p.limit : (u > p.limit ? p.limit : u); }
-float gate_of(float g) { return p.limit == 0.0 ? g : g > p.limit ? p.limit : g; }
+float up_of(float u) { return p.limit == 0.0 || p.form == 2u ? u : u < -p.limit ? -p.limit : (u > p.limit ? p.limit : u); }
+float gate_of(float g) { return p.limit == 0.0 || p.form == 2u ? g : g > p.limit ? p.limit : g; }
 vec4 up_of(vec4 u) { return vec4(up_of(u.x), up_of(u.y), up_of(u.z), up_of(u.w)); }
 vec4 gate_of(vec4 g) { return vec4(gate_of(g.x), gate_of(g.y), gate_of(g.z), gate_of(g.w)); }
-float glu_value(float g, float u) { return p.form == 1u ? quick_gelu_value(g, u) : silu_mul_value(g, u); }
-vec4 glu_value(vec4 g, vec4 u) { return p.form == 1u ? quick_gelu_value(g, u) : silu_mul_value(g, u); }
+#include "tanh.glsl"
+float softcap_value(float g, float u) { return tanh_of(g / p.limit) * p.limit * (1.0 / (1.0 + exp(-g))) * (tanh_of(u / p.up_limit) * p.up_limit); }
+float glu_value(float g, float u) { return p.form == 2u ? softcap_value(g, u) : p.form == 1u ? quick_gelu_value(g, u) : silu_mul_value(g, u); }
+vec4 glu_value(vec4 g, vec4 u) {
+    if (p.form == 2u) return vec4(softcap_value(g.x, u.x), softcap_value(g.y, u.y), softcap_value(g.z, u.z), softcap_value(g.w, u.w));
+    return p.form == 1u ? quick_gelu_value(g, u) : silu_mul_value(g, u);
+}
 #else
 #define up_of(u) (u)
 #define gate_of(g) (g)

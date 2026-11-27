@@ -706,6 +706,11 @@ list(APPEND LLMX_TARGETS llmx-ngram-hash-test)
 add_test(NAME ngram-hash COMMAND llmx-ngram-hash-test ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/deepseek41_reference.json)
 set_tests_properties(ngram-hash PROPERTIES TIMEOUT 30)
 
+add_executable(llmx-arch-inkling2-test tests/arch_inkling2.cpp)
+target_include_directories(llmx-arch-inkling2-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+list(APPEND LLMX_TARGETS llmx-arch-inkling2-test)
+add_test(NAME arch-inkling2 COMMAND llmx-arch-inkling2-test)
+
 add_executable(llmx-arch-deepseek4-test tests/arch_deepseek4.cpp)
 target_include_directories(llmx-arch-deepseek4-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 list(APPEND LLMX_TARGETS llmx-arch-deepseek4-test)
@@ -723,6 +728,12 @@ target_include_directories(llmx-minimax-ops-test PRIVATE ${CMAKE_CURRENT_SOURCE_
 list(APPEND LLMX_TARGETS llmx-minimax-ops-test)
 add_test(NAME minimax-ops COMMAND llmx-minimax-ops-test)
 set_tests_properties(minimax-ops PROPERTIES TIMEOUT 30)
+
+add_executable(llmx-inkling2-ops-test tests/inkling2_ops.cpp)
+target_include_directories(llmx-inkling2-ops-test PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated ${CMAKE_CURRENT_SOURCE_DIR}/src)
+list(APPEND LLMX_TARGETS llmx-inkling2-ops-test)
+add_test(NAME inkling2-ops COMMAND llmx-inkling2-ops-test)
+set_tests_properties(inkling2-ops PROPERTIES TIMEOUT 30)
 
 add_executable(llmx-deepseek4-ops-test tests/deepseek4_ops.cpp)
 target_include_directories(llmx-deepseek4-ops-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)

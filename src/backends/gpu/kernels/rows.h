@@ -8,6 +8,9 @@ namespace {
 constexpr unsigned kQ8 = rq::Q8_0::bytes;   // a Q8_0 block's bytes, whose layout the word loads below take: the f16 scale, then 32 int8 values
 static_assert(kQ8 == 34 && rq::Q8_0::values == 32, "the Q8_0 word loads assume 34-byte blocks of 32 values");
 
+// The tanh gate mix of one value, (1 - tanh f) h + tanh(g) m, written once so the mix kernel, the held norm and the F32 tile's mix build give it the same bits.
+__device__ __forceinline__ float tanh_gate(float f, float g, float h, float m) { return (1.0f - gpu_tanhf(f)) * h + gpu_tanhf(g) * m; }
+
 // The sum tree of N threads' values in lds[0, N), left in lds[0]: wave 0 folds the levels above a wave in registers, each adding the pair a shared-memory level of barriers would, then the rest by shuffles.
 // The caller's barriers come before and after it, so the tree takes two where a barrier a level took two more on a 64-lane wave and three more on a 32-lane one (docs/src/backends-gpu.md).
 template <int N>

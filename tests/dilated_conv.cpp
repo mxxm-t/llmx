@@ -33,6 +33,20 @@ void refuses(const std::string& message, const std::function<void()>& fn) {
     throw std::runtime_error(message);
 }
 
+// The PLE form of depthwise_conv: SiLU of the dilated taps added to a given residual, history in the slot's tail.
+void dilated(Backend& device, Slice out, CSlice x, CSlice residual, CSlice w, size_t channels, size_t taps, size_t dilation, size_t layer, const StateView* views,
+             size_t n_views) {
+    backend::DepthwiseConv d;
+    d.w = w;
+    d.channels = channels;
+    d.taps = taps;
+    d.dilation = dilation;
+    d.act = backend::ConvAct::silu;
+    d.residual_from = backend::ConvResidual::given;
+    d.residual = residual;
+    device.depthwise_conv(out, x, d, layer, views, n_views);
+}
+
 bool same_bits(const std::vector<float>& a, const std::vector<float>& b) {
     return a.size() == b.size() && (a.empty() || std::memcmp(a.data(), b.data(), a.size() * sizeof(float)) == 0);
 }
@@ -172,7 +186,7 @@ void run_case(Backend& device, std::mt19937& rng, size_t channels, size_t taps, 
         for (const Sequence& sequence : sequences) {
             views.push_back({state.get(), sequence.src, sequence.dst, sequence.length, sequence.rows});
         }
-        device.dilated_conv_silu_add({guarded.get(), 1}, {xb.get(), 0}, {rb.get(), 0}, {wb.get(), 0},
+        dilated(device, {guarded.get(), 1}, {xb.get(), 0}, {rb.get(), 0}, {wb.get(), 0},
                                      channels, taps, dilation, 0, views.data(), views.size());
         const auto guarded_result = read_floats(device, *guarded, count + 2);
         require(guarded_result.front() == 91.0f && guarded_result.back() == 91.0f, "dilated conv changed an output guard");
@@ -229,7 +243,7 @@ void check_in_place_residual(Backend& device) {
     const auto weights = std::vector<float>{0.2f, -0.4f, 0.7f, -0.1f, 0.3f, 0.8f, 0.6f, -0.2f, 0.1f};
     auto xb = floats_on(device, x), rb = floats_on(device, residual), wb = floats_on(device, weights);
     const StateView view{state.get(), 0, 1, 1, rows};
-    device.dilated_conv_silu_add({rb.get(), 0}, {xb.get(), 0}, {rb.get(), 0}, {wb.get(), 0},
+    dilated(device, {rb.get(), 0}, {xb.get(), 0}, {rb.get(), 0}, {wb.get(), 0},
                                  channels, taps, dilation, 0, &view, 1);
     const auto got = read_floats(device, *rb, rows * channels);
     for (size_t r = 0; r < rows; ++r)
@@ -275,7 +289,7 @@ void check_long_slices(Backend& device, size_t channels, std::mt19937& rng) {
         device.write(state->layer(0), 0, initial.data(), initial.size() * sizeof(float));
         auto out = floats_on(device, std::vector<float>(count, 99.0f));
         const StateView view{state.get(), 0, 1, initial_length, rows};
-        device.dilated_conv_silu_add({out.get(), 0}, {xb.get(), 0}, {rb.get(), 0}, {wb.get(), 0},
+        dilated(device, {out.get(), 0}, {xb.get(), 0}, {rb.get(), 0}, {wb.get(), 0},
                                      channels, taps, dilation, 0, &view, 1);
         whole_output = read_floats(device, *out, count);
         whole_state = read_floats(device, state->layer(0), 2 * stride);
@@ -300,7 +314,7 @@ void check_long_slices(Backend& device, size_t channels, std::mt19937& rng) {
             const size_t nq = std::min(chunk, rows - first);
             const size_t src = first ? 1 : 0;
             const StateView view{state.get(), src, 1, initial_length + first, nq};
-            device.dilated_conv_silu_add({out.get(), first * channels}, {xb.get(), first * channels},
+            dilated(device, {out.get(), first * channels}, {xb.get(), first * channels},
                                          {rb.get(), first * channels}, {wb.get(), 0},
                                          channels, taps, dilation, 0, &view, 1);
             first += nq;
@@ -331,7 +345,7 @@ void check_oldest_tap(Backend& device) {
     auto w = floats_on(device, weights);
     auto out = floats_on(device, std::vector<float>(channels, -1.0f));
     const StateView view{state.get(), 0, 1, history, 1};
-    device.dilated_conv_silu_add({out.get(), 0}, {x.get(), 0}, {residual.get(), 0}, {w.get(), 0},
+    dilated(device, {out.get(), 0}, {x.get(), 0}, {residual.get(), 0}, {w.get(), 0},
                                  channels, taps, dilation, 0, &view, 1);
     const auto got = read_floats(device, *out, channels);
     const double expected = 1.0 / (1.0 + std::exp(-1.0));
@@ -374,7 +388,7 @@ void check_view_order(Backend& device, std::mt19937& rng) {
         }
         auto xb = floats_on(device, x), rb = floats_on(device, residual);
         auto out = floats_on(device, std::vector<float>(x.size(), -17.0f));
-        device.dilated_conv_silu_add({out.get(), 0}, {xb.get(), 0}, {rb.get(), 0}, {wb.get(), 0},
+        dilated(device, {out.get(), 0}, {xb.get(), 0}, {rb.get(), 0}, {wb.get(), 0},
                                      channels, taps, dilation, 0, views.data(), views.size());
         const auto grouped = read_floats(device, *out, x.size());
         size_t offset = 0;
@@ -408,7 +422,7 @@ void check_refusals(Backend& device) {
     auto protected_output = floats_on(device, std::vector<float>(count, 91.0f));
     const auto call = [&](backend::Slice out, backend::CSlice input, backend::CSlice res, backend::CSlice weight,
                           size_t n_taps, size_t n_dilation, size_t layer, const StateView* views, size_t n_views) {
-        device.dilated_conv_silu_add(out, input, res, weight, channels, n_taps, n_dilation, layer, views, n_views);
+        dilated(device, out, input, res, weight, channels, n_taps, n_dilation, layer, views, n_views);
     };
     const auto check_unchanged = [&](const std::string& name) {
         const auto output = read_floats(device, *protected_output, count);
@@ -445,11 +459,11 @@ void check_refusals(Backend& device) {
     const auto partial_values = read_floats(device, *partial, count + 1);
     require(std::all_of(partial_values.begin(), partial_values.end(),
                         [](float value) { return value == 91.0f; }), "partial-overlap refusal wrote before refusing");
-    auto alias = floats_on(device, std::vector<float>(count, 91.0f));
-    refuses("dilated conv accepted output/input overlap", [&] {
-        call({alias.get(), 0}, {alias.get(), 0}, {rb.get(), 0}, {wb.get(), 0}, taps, dilation, 0, &view, 1);
+    auto alias = floats_on(device, std::vector<float>(count + 1, 91.0f));
+    refuses("dilated conv accepted partial output/input overlap", [&] {
+        call({alias.get(), 1}, {alias.get(), 0}, {rb.get(), 0}, {wb.get(), 0}, taps, dilation, 0, &view, 1);
     });
-    const auto alias_values = read_floats(device, *alias, count);
+    const auto alias_values = read_floats(device, *alias, count + 1);
     require(std::all_of(alias_values.begin(), alias_values.end(),
                         [](float value) { return value == 91.0f; }), "input-overlap refusal wrote before refusing");
     auto weight_alias = floats_on(device, std::vector<float>(std::max(count, channels * taps), 91.0f));
@@ -469,6 +483,18 @@ void check_refusals(Backend& device) {
         call({&state->layer(0), 0}, {xb.get(), 0}, {rb.get(), 0}, {wb.get(), 0}, taps, dilation, 0, &view, 1);
     });
     check_unchanged("state-output-overlap refusal");
+    if (device.implements(backend::Op::depthwise_conv_ring)) return;
+    backend::DepthwiseConv ring;
+    ring.w = {wb.get(), 0};
+    ring.channels = channels;
+    ring.taps = taps;
+    ring.residual_from = backend::ConvResidual::input;
+    ring.history = backend::ConvHistory::ring;
+    ring.ring_rows = taps;
+    refuses("a backend without depthwise_conv_ring accepted a ring", [&] {
+        device.depthwise_conv({protected_output.get(), 0}, {xb.get(), 0}, ring, 0, &view, 1);
+    });
+    check_unchanged("ring refusal");
 }
 
 } // namespace

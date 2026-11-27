@@ -195,7 +195,7 @@ public:
         p.pass = {{token_embd, Part::embed, RoleKind::gather, "token_embd.weight", "", E, p.vocab},
                   {output, Part::head, RoleKind::matrix, "output.weight", "token_embd.weight", E, p.vocab},
                   {output_norm, Part::head, RoleKind::norm, "output_norm.weight", "", E}};
-        blocks::shard(p.pass, output, Axis::rows, {{p.vocab, 1, 1, "vocabulary rows"}});
+        blocks::shard_vocab(p.pass, output, p.vocab);
         // A tensor group splits attention by heads, each member's q heads reading its KV heads, and the dense block by its hidden rows.
         const ShardSection heads{(uint64_t)cfg.n_head, D, 1, "heads"}, kv_heads{(uint64_t)cfg.n_head_kv, D, 1, "KV heads", true};
         p.layers.resize((size_t)cfg.n_layer);

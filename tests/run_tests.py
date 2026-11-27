@@ -39,6 +39,7 @@ import nvfp4
 import qwen35
 import deepseek4
 import minimax
+import inkling2
 import split
 import tensor_split
 import decode_probe
@@ -155,6 +156,7 @@ def main():
                   ("qwen35", lambda: qwen35.run(require=args.require_tools)),
                   ("deepseek4", lambda: deepseek4.run(require=args.require_tools)),
                   ("minimax", lambda: minimax.run(require=args.require_tools)),
+                  ("inkling2", lambda: inkling2.run(require=args.require_tools)),
                   ("vision", lambda: vision.run(require=args.require_tools)),
                   ("image", image.run),
                   ("split", lambda: split.run(require=args.require_tools)),

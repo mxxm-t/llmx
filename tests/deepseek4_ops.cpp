@@ -1123,7 +1123,7 @@ void swiglu_clamp() {
     for (float limit : {0.0f, 1.0f, 10.0f}) {
         auto run = [&](size_t first, size_t m) {
             BufferPtr ob = cpu.alloc(m * width * 4, backend::Memory::device);
-            cpu.silu_mul({ob.get(), 0}, {gb.get(), first * width}, {ub.get(), first * width}, m * width, limit);
+            cpu.silu_mul({ob.get(), 0}, {gb.get(), first * width}, {ub.get(), first * width}, m * width, {limit});
             return download(cpu, *ob, m * width);
         };
         cpu.set_threads(1);
@@ -1151,7 +1151,7 @@ void swiglu_clamp() {
     }
     BufferPtr ob = cpu.alloc(n * 4, backend::Memory::device);
     for (float limit : {-1.0f, nan, inf})
-        refused([&] { cpu.silu_mul({ob.get(), 0}, {gb.get(), 0}, {ub.get(), 0}, n, limit); }, "silu_mul at limit " + std::to_string(limit));
+        refused([&] { cpu.silu_mul({ob.get(), 0}, {gb.get(), 0}, {ub.get(), 0}, n, {limit}); }, "silu_mul at limit " + std::to_string(limit));
 }
 
 // norm_rope_partial's forms against model.py:392-406 in double: the head's RMSNorm, then pairs from the offset, adjacent as complex numbers or split in halves, turned by the angle or by minus it.

@@ -52,6 +52,9 @@ inline std::vector<uint32_t> generate(infer::Model& model, bpe::Tokenizer& tok,
     };
     static const spec::Acceptance fresh;
     const bool argmax = infer::plain_argmax(gp);
+    // Plain argmax decode without a drafter runs a pass ahead where the model feeds; under ignore_eos the device passes over the end token.
+    const bool ahead = argmax && !drafting && model.feeds();
+    const uint32_t skip = gp.ignore_eos && tok.eos_id >= 0 ? uint32_t(tok.eos_id) : UINT32_MAX;
     while (going) {
         // y is the last pick, not yet fed.
         size_t k = 0;
@@ -94,6 +97,20 @@ inline std::vector<uint32_t> generate(infer::Model& model, bpe::Tokenizer& tok,
                 chain_end();
                 rest.clear();
                 drafting->record.stepped();
+            }
+            if (ahead) {
+                // The pass after y's id is recorded before that id comes back, so the devices run on while the host takes it (Model::step_ahead).
+                const float* back = nullptr;
+                const uint32_t id = model.step_ahead(y, skip, &back);
+                y = back ? infer::sample(back, n_vocab, gp, tok.eos_id, gen, rng) : id;
+                try {
+                    going = take(y);
+                } catch (...) {
+                    model.end_ahead(false);
+                    throw;
+                }
+                if (!going && !model.end_ahead(end == End::fed) && end == End::fed) model.step((int)y);
+                continue;
             }
             row = model.step((int)y);   // predict the token after y
             y = infer::sample(row, n_vocab, gp, tok.eos_id, gen, rng);

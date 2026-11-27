@@ -1146,11 +1146,13 @@ public:
             case Op::model_format_qdq: case Op::model_format_pack: return dev_->preserve_float32;
             case Op::causal_conv_silu: case Op::gated_delta_rule: case Op::gated_rms_norm: case Op::norm_rope_partial: case Op::sigmoid_mul: case Op::routed_experts:
             case Op::argmax_rows: case Op::embed_ids: case Op::group_rms_norm: case Op::silu_scaled: case Op::mix_streams: case Op::inject_streams: case Op::signed_sqrt_gate:
-            case Op::dilated_conv_silu_add: case Op::select_kv: case Op::sparse_attention: case Op::layer_norm: case Op::gelu: case Op::add_bias: case Op::mix_rows:
+            case Op::depthwise_conv: case Op::select_kv: case Op::sparse_attention: case Op::layer_norm: case Op::gelu: case Op::add_bias: case Op::mix_rows:
             case Op::rope_streams: case Op::attention_full: case Op::hc_coeffs: case Op::hc_collapse_norm: case Op::hc_expand: case Op::sparse_attention_sink:
             case Op::topk_rows: case Op::candidate_blocks: case Op::compress_pool: case Op::indexer_scores: case Op::pool_write: case Op::sqrt_softplus_routing: case Op::sigmoid_routing:
             case Op::silu_mul_clamp: case Op::rope_forms: case Op::glu_quick_gelu: case Op::raw_index_scores: case Op::sparse_attention_blocks: case Op::attention_window:
-            case Op::chain_pick: case Op::tap_weighted_rows: return true;
+            case Op::chain_pick: case Op::tap_weighted_rows:
+            case Op::l2_clip: case Op::query_mix: case Op::tanh_gate_mix: case Op::depthwise_conv_ring: case Op::attention_rel_sink:
+            case Op::glu_softcap: case Op::softcap: case Op::expert_window: case Op::copy_rows: return true;
             default: return false;
         }
     }
@@ -1824,17 +1826,99 @@ public:
 
     void sum_rows(Slice residual, const CSlice* sources, size_t members, size_t n, const Slice* kept, bool replace = false);
 
-    void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, float limit, RowRuns runs = {}, GluForm form = GluForm::silu) override {
+    void copy_rows(Slice dst, size_t dst_stride, CSlice src, size_t src_stride, size_t rows, size_t width, bool add) override {
+        if (!width || dst_stride < width || src_stride < width) throw std::runtime_error("backend: invalid row copy dimensions");
+        if (!rows) return;
+        if (floats_from(dst) < size_add(size_mul(rows - 1, dst_stride), width) || floats_from(src) < size_add(size_mul(rows - 1, src_stride), width))
+            throw std::runtime_error("vulkan: row copy operand outside its allocation");
+        const uint32_t pc[5] = {u32(rows), u32(width), u32(dst_stride), u32(src_stride), add ? 1u : 0u};
+        dispatch(K_COPY_ROWS, {bind(dst), bind(src)}, pc, sizeof(pc), groups(size_mul(rows, width), 256), 1, 0,
+                 {size_add(size_mul(rows - 1, dst_stride), width)});
+    }
+
+    // A dispatch an item; the items are disjoint, so no item waits for another.
+    void l2_clip(std::initializer_list<ClipRows> items, size_t rows, RowRuns = {}) override {
+        if (items.size() > kClipItems) throw std::runtime_error("backend: invalid l2 clip dimensions");
+        for (const ClipRows& it : items) {
+            const size_t width = size_mul(it.heads, it.dim);
+            if (!it.heads || !it.dim || it.stride < width) throw std::runtime_error("backend: invalid l2 clip dimensions");
+            if (rows && (floats_from(it.x) < size_add(size_mul(rows - 1, it.stride), width) || (it.scale.buffer && floats_from(it.scale) < width) ||
+                         (it.row_scale.buffer && floats_from(it.row_scale) < rows)))
+                throw std::runtime_error("vulkan: l2 clip operand outside its allocation");
+        }
+        if (!rows) return;
+        for (const ClipRows& it : items) {
+            struct { uint32_t dim, stride; float threshold; uint32_t has_scale, has_row; } pc{u32(it.dim), u32(it.stride), it.threshold, it.scale.buffer ? 1u : 0u, it.row_scale.buffer ? 1u : 0u};
+            dispatch(K_L2_CLIP, {bind(it.x), it.scale.buffer ? bind(it.scale) : bind(it.x), it.row_scale.buffer ? bind(it.row_scale) : bind(it.x)}, &pc, sizeof(pc), u32(it.heads), u32(rows), 0,
+                     {size_add(size_mul(rows - 1, it.stride), size_mul(it.heads, it.dim))});
+        }
+    }
+
+    // A dispatch a mix.
+    void query_mix(std::initializer_list<QueryMixRows> items, size_t rows, size_t dim, size_t stride, float eps, RowRuns = {}) override {
+        if (!items.size() || items.size() > kQueryMixItems) throw std::runtime_error("backend: invalid query mix dimensions");
+        for (const QueryMixRows& it : items) {
+            const size_t n = it.n, nq = it.nq;
+            if (!n || n > 16 || !nq || !dim || stride < size_mul(n, dim)) throw std::runtime_error("backend: invalid query mix dimensions");
+            if (!rows) continue;
+            const size_t written = size_mul(rows, size_mul(nq, dim));
+            if (floats_from(it.out) < written || floats_from(it.src) < size_add(size_mul(rows - 1, stride), size_mul(n, dim)) || floats_from(it.queries) < size_mul(nq, dim))
+                throw std::runtime_error("vulkan: query mix operand outside its allocation");
+            struct { uint32_t n, nq, dim, stride; float eps; } pc{u32(n), u32(nq), u32(dim), u32(stride), eps};
+            dispatch(K_QUERY_MIX, {bind(it.out), bind(it.src), bind(it.queries)}, &pc, sizeof(pc), u32(rows), u32(nq), 0, {written});
+        }
+        // A normed mix's norm follows the mixes, so no item's norm writes a row another item reads.
+        for (const QueryMixRows& it : items)
+            if (it.norm[0].buffer) {
+                if (it.nq > kQueryMixNorms || !it.norm[it.nq - 1].buffer) throw std::runtime_error("backend: a normed query mix without a norm for each query");
+                for (size_t q = 0; rows && q < it.nq; ++q)
+                    rms_norm_rows(Slice{it.out.buffer, it.out.offset + q * dim}, Slice{it.out.buffer, it.out.offset + q * dim}, it.norm[q], rows, dim, it.nq * dim, it.norm_eps, {});
+            }
+    }
+
+    void tanh_gate_mix(std::initializer_list<GateMixItem> items, size_t rows, size_t width, size_t out_stride, size_t h_stride, size_t m_stride, RowRuns runs = {},
+                       float eps = 0.0f) override {
+        if (!width || out_stride < width || h_stride < width || m_stride < width) throw std::runtime_error("backend: invalid gate mix dimensions");
+        if (!rows) return;
+        gate_downs(items, rows, width, eps, runs);
+        gate_products(items, rows, runs);
+        for (const GateMixItem& it : items) gate_mix(it.out, it.h, it.m, it.f, it.g, rows, width, out_stride, h_stride, m_stride, runs, it.norm, eps);
+    }
+    void gate_mix(Slice out, CSlice h, CSlice m, CSlice f, CSlice g, size_t rows, size_t width, size_t out_stride, size_t h_stride, size_t m_stride, RowRuns runs, CSlice norm,
+                  float eps) {
+        const auto strided = [&](size_t stride) { return size_add(size_mul(rows - 1, stride), width); };
+        const size_t packed = size_mul(rows, width);
+        if (floats_from(out) < strided(out_stride) || floats_from(h) < strided(h_stride) || floats_from(m) < strided(m_stride) || floats_from(f) < packed || floats_from(g) < packed)
+            throw std::runtime_error("vulkan: gate mix operand outside its allocation");
+        const uint32_t pc[5] = {u32(rows), u32(width), u32(out_stride), u32(h_stride), u32(m_stride)};
+        dispatch(K_TANH_GATE_MIX, {bind(out), bind(h), bind(m), bind(f), bind(g)}, pc, sizeof(pc), groups(packed, 256), 1, 0, {strided(out_stride)});
+        if (norm.buffer) rms_norm_rows(out, out, norm, rows, width, out_stride, eps, runs);
+    }
+
+    void softcap(Slice x, size_t n, float cap) override {
+        if (!(cap > 0.0f) || !std::isfinite(cap)) throw std::runtime_error("backend: a softcap that is not positive and finite");
+        if (!n) return;
+        if (floats_from(x) < n) throw std::runtime_error("vulkan: softcap operand outside its allocation");
+        struct { uint32_t n; float cap; } pc{u32(n), cap};
+        dispatch(K_SOFTCAP, {bind(x)}, &pc, sizeof(pc), striding_groups(n), 1, 0, {n});
+    }
+
+    void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, Glu glu, RowRuns runs = {}) override {
+        const float limit = glu.limit, up_limit = glu.up_limit;
+        const GluForm form = glu.form;
         if (!(limit >= 0.0f) || !std::isfinite(limit)) throw std::runtime_error("vulkan: a SwiGLU limit that is negative or not finite");
+        if (form == GluForm::softcap ? !(limit > 0.0f) || !(up_limit > 0.0f) || !std::isfinite(up_limit) : up_limit != 0.0f)
+            throw std::runtime_error("vulkan: a softcap GLU needs positive finite caps, and only it takes an up cap");
         if (!n) return;
         const bool quant = n % 32 == 0;
         // Where the integer-dot tile reads dst next, the twin written four values a lane (shaders/silu_mul.comp).
         const size_t rows = runs.n ? runs.runs[runs.n - 1].end : 0;
         const bool tile = quant && rows && n % rows == 0 && tile_reads(n / rows, rows, runs);
         const uint32_t major = tile ? x8_major(n / rows, rows) : 0;
-        // A limit or the quick_gelu form takes the clamped build, whose push constants carry both (shaders/silu_mul.comp, LLMX_CLAMP).
+        // A limit or another form takes the clamped build, whose push constants carry them (shaders/silu_mul.comp, LLMX_CLAMP).
         const bool clamped = limit > 0.0f || form != GluForm::silu;
-        struct { uint32_t n, quant, major; float limit; uint32_t form; } pc{u32(n), tile ? 2u : quant ? 1u : 0u, major, limit, form == GluForm::quick_gelu ? 1u : 0u};
+        const uint32_t form_id = form == GluForm::softcap ? 2u : form == GluForm::quick_gelu ? 1u : 0u;
+        struct { uint32_t n, quant, major; float limit; uint32_t form; float up_limit; } pc{u32(n), tile ? 2u : quant ? 1u : 0u, major, limit, form_id, up_limit};
         const size_t slot = quant ? take_twin(n) : 0;
         dispatch(clamped ? K_SILU_MUL_CLAMP : K_SILU_MUL, {bind(dst), bind(gate), bind(up), quant ? twin_binding(slot) : bind(dst)}, &pc,
                  clamped ? sizeof(pc) : 3 * sizeof(uint32_t), groups(tile ? n / 4 : n, 256), 1, quant ? twin_variant() : 0, {n, 0, 0, n});
@@ -1922,13 +2006,25 @@ public:
         if (quant) keep_twin(slot, bind(dst), n, major);
     }
 
-    void group_rms_norm(Slice dst, CSlice src, CSlice w, size_t rows, size_t group_count, size_t dim, float eps,
-                        RowRuns runs = {}) override {
+    void group_rms_norm_items(const NormRows* items, size_t n, CSlice w, size_t rows, size_t group_count, size_t dim, float eps, RowRuns runs) override {
+        for (size_t i = 0; i < n; ++i) norm_one(items[i].dst, items[i].src, w, rows, group_count, dim, eps, runs, items[i].from, items[i].into);
+    }
+    void norm_one(Slice dst, CSlice src, CSlice w, size_t rows, size_t group_count, size_t dim, float eps, RowRuns runs, const NormSource& from,
+                  const NormProduct& into) {
         if (!group_count || !dim || !std::isfinite(eps) || eps <= 0.0f)
             throw std::runtime_error("vulkan: invalid grouped norm dimensions or epsilon");
         if (!rows) return;
         validate_runs(rows, runs);
         const size_t width = size_mul(group_count, dim), n = size_mul(rows, width);
+        const NormSource f = from.resolve(src, group_count, width);
+        if (!f.contiguous(src, group_count, width)) {
+            // Strided or split sources are gathered into dst and normalized in place, the same values as one pass.
+            if (f.split > group_count) throw std::runtime_error("vulkan: invalid grouped norm sources");
+            if (f.split) copy_rows(dst, width, src, f.stride, rows, f.split * dim, false);
+            if (f.split < group_count) copy_rows({dst.buffer, dst.offset + f.split * dim}, width, f.rest, f.rest_stride, rows, (group_count - f.split) * dim, false);
+            norm_one(dst, dst, w, rows, group_count, dim, eps, runs, {}, into);
+            return;
+        }
         if (floats_from(dst) < n || floats_from(src) < n || floats_from(w) < width)
             throw std::runtime_error("vulkan: grouped norm operand outside its allocation");
         if (overlaps(CSlice(dst), n, src, n) && !(dst.buffer == src.buffer && dst.offset == src.offset))
@@ -1950,6 +2046,7 @@ public:
         dispatch(K_GROUP_RMS_NORM, {bind(dst), bind(src), bind(w), quant ? twin_binding(slot) : bind(dst)},
                  &pc, sizeof(pc), groups(size_mul(rows, group_count), 1), u32(slices), quant ? twin_variant() : 0, {n, 0, 0, n});
         if (quant) keep_twin(slot, bind(dst), n, major);
+        norm_product(dst, into, rows, width, runs);
     }
 
     void silu_scaled(Slice dst, CSlice src, size_t rows, size_t width, float scale, RowRuns runs = {}) override {
@@ -2272,9 +2369,170 @@ public:
                  &pc, sizeof(pc), groups(C, 256), u32(chunks));
     }
 
-    // A dilated causal conv reads recurrent raw-row tails only in its first chunk; all later chunks begin past the full history window.
-    void dilated_conv_silu_add(Slice out, CSlice x, CSlice residual, CSlice w, size_t channels, size_t taps, size_t dilation,
-                               size_t layer, const StateView* views, size_t n_views) override {
+    // The ring form: a workgroup per (256 / chunks channels, view), each thread over one chunk of the view's rows in order (shaders/depthwise_ring.comp).
+    void depthwise_ring(Slice out, CSlice x, const DepthwiseConv& a, size_t layer, const StateView* views, size_t n_views) {
+        const size_t C = a.channels, T = a.taps;
+        const bool dynamic = a.dyn.buffer != nullptr, given = a.residual_from == ConvResidual::given;
+        if (!C || !T || !a.dilation || !(a.divisor > 0.0f) || !std::isfinite(a.divisor) || given != (a.residual.buffer != nullptr) || !a.w.buffer ||
+            (dynamic && (!a.dyn_heads || C % a.dyn_heads || a.dyn_stride < size_mul(a.dyn_heads, T))))
+            throw std::runtime_error("backend: invalid depthwise convolution dimensions");
+        const size_t H = size_mul(T - 1, a.dilation);
+        if (!a.ring_rows || a.ring_rows < H) throw std::runtime_error("backend: depthwise convolution ring shorter than its history");
+        if (H > 8) throw std::runtime_error("vulkan: a ring convolution history above 8 rows");
+        const size_t rows = check_state_views(views, n_views, layer);
+        if (!rows) return;
+        StateTable t = state_table(views, n_views, layer);
+        if (t.storage->slot_floats(layer) < size_add(a.ring_offset, size_mul(a.ring_rows, C)))
+            throw std::runtime_error("backend: depthwise convolution history outside the state slot");
+        const size_t count = size_mul(rows, C), os = a.out_stride ? a.out_stride : C, oext = size_add(size_mul(rows - 1, os), C);
+        const bool strided = os != C || a.accumulate;
+        if (os < C) throw std::runtime_error("backend: depthwise convolution output rows overlap");
+        if (floats_from(out) < oext || floats_from(x) < count || floats_from(a.w) < size_mul(C, T) || (given && floats_from(a.residual) < count) ||
+            (dynamic && floats_from(a.dyn) < size_add(size_mul(rows - 1, a.dyn_stride), size_mul(a.dyn_heads, T))))
+            throw std::runtime_error("vulkan: depthwise convolution operand outside its allocation");
+        const CSlice outc(out);
+        if ((overlaps(outc, oext, x, count) && (strided || !(out.buffer == x.buffer && out.offset == x.offset))) ||
+            (given && overlaps(outc, oext, a.residual, count) && (strided || !(out.buffer == a.residual.buffer && out.offset == a.residual.offset))))
+            throw std::runtime_error("backend: depthwise convolution output must be disjoint or exactly its input or residual");
+        (void)u32(size_mul(t.storage->slots(), t.storage->slot_floats(layer)));
+        (void)u32(oext);
+        // Row chunks per view: a power of two up to 16, at least 32 rows a chunk for the longest view.
+        size_t most = 0;
+        for (size_t i = 0; i < n_views; ++i) most = std::max(most, views[i].nq);
+        uint32_t chunks = 1;
+        while (chunks < 16 && size_t(chunks) * 64 <= most) chunks *= 2;
+        const struct { uint32_t C, taps, dilation, slot, ring_offset, ring_rows, act, residual; float divisor; uint32_t dyn_heads, dyn_stride, chunks, out_stride, accumulate; }
+            pc{u32(C), u32(T), u32(a.dilation), u32(t.storage->slot_floats(layer)), u32(a.ring_offset), u32(a.ring_rows), a.act == ConvAct::silu ? 1u : 0u,
+               a.residual_from == ConvResidual::input ? 1u : given ? 2u : 0u, a.divisor, dynamic ? u32(a.dyn_heads) : 0u, u32(a.dyn_stride), chunks, u32(os), a.accumulate ? 1u : 0u};
+        dispatch(K_DEPTHWISE_RING,
+                 {bind(out), bind(x), given ? bind(a.residual) : bind(x), bind(a.w), dynamic ? bind(a.dyn) : bind(x), bind(CSlice{&t.storage->layer(layer), 0}),
+                  args(t.words.data(), t.words.size() * sizeof(uint32_t))},
+                 &pc, sizeof(pc), groups(C, 256 / chunks), u32(n_views), 0, {oext});
+    }
+
+    // A workgroup per (key-value head, row), which stores a pooled layer's new rows itself; a ring's new rows follow in their own dispatch, since other rows of the call read the ring rows they replace.
+    // Outside the tile a row's keys always split into parts of kRelSinkSplitKeys and merge, so its bits do not depend on the call (docs/INKLING2.md, Row classes); a call runs in slices under kRelSinkSliceBytes of split scratch.
+    static constexpr size_t kRelSinkSplitKeys = 64, kRelSinkSliceBytes = size_t(64) << 20;
+    void attention_rel_sink(Slice out, Slice q, CSlice k_new, CSlice v_new, Slice rel, CSlice table, CSlice sink, size_t heads, size_t kv_heads, size_t D, size_t R,
+                            size_t extent, size_t window, float scale, size_t layer, const StateView* rings, const KVView* pool, size_t n_views, size_t ring_offset,
+                            size_t ring_rows, RowRuns runs = {}, const OutputGate& gate = {}, const RelClip& clip = {}) override {
+        clip_rel(q, rel, heads, D, R, clip);
+        if (!heads || !kv_heads || heads % kv_heads || !D || !R || !extent || !std::isfinite(scale) || bool(rings) == bool(pool) ||
+            (rings && (!ring_rows || (window && ring_rows + 1 < window) || !window)))
+            throw std::runtime_error("backend: invalid relative attention dimensions");
+        if (D > 256 || R > 32) throw std::runtime_error("vulkan: relative attention past 256 dims a head or 32 relative rows");
+        const size_t KD = size_mul(kv_heads, D), HD = size_mul(heads, D), row_w = 2 * KD;
+        size_t rows = 0;
+        StateTable st;
+        PooledPlane pooled;
+        VkDescriptorBufferInfo keys{}, tab{};
+        if (rings) {
+            rows = check_state_views(rings, n_views, layer);
+            if (!rows) return;
+            st = state_table(rings, n_views, layer);
+            if (st.storage->slot_floats(layer) < size_add(ring_offset, size_mul(ring_rows, row_w)))
+                throw std::runtime_error("backend: relative attention ring outside the state slot");
+            keys = bind(CSlice{&st.storage->layer(layer), 0});
+            tab = args(st.words.data(), st.words.size() * sizeof(uint32_t));
+        } else {
+            for (size_t i = 0; i < n_views; ++i) rows = size_add(rows, pool[i].nq);
+            if (!rows) return;
+            pooled = pooled_plane(layer, pool, n_views, row_w, true, "relative attention");
+            if (pooled.tokens != 1 || pooled.width != row_w)
+                throw std::runtime_error("backend: relative attention over a pool that is not one [k|v] row a position");
+            if (pooled.table.rows != rows) throw std::runtime_error("vulkan: relative attention views do not cover its rows");
+            keys = pooled.aux;
+            tab = args(pooled.table.words.data(), pooled.table.words.size() * sizeof(uint32_t));
+        }
+        if (floats_from(out) < size_mul(rows, HD) || floats_from(q) < size_mul(rows, HD) || floats_from(k_new) < size_mul(rows, KD) ||
+            floats_from(v_new) < size_mul(rows, KD) || floats_from(rel) < size_mul(rows, size_mul(heads, R)) || floats_from(table) < size_mul(R, extent) ||
+            floats_from(sink) < size_mul(rows, heads))
+            throw std::runtime_error("vulkan: relative attention operand outside its allocation");
+        const CSlice outc(out);
+        for (const auto& [in, n] : std::initializer_list<std::pair<CSlice, size_t>>{{q, HD}, {k_new, KD}, {v_new, KD}, {rel, heads * R}, {sink, heads}})
+            if (overlaps(outc, size_mul(rows, HD), in, size_mul(rows, n))) throw std::runtime_error("backend: relative attention output overlaps an input");
+        // A view whose prompt's extent reaches the profile's attention_tile_rows takes the tile (shaders/attention_rel_sink_tile.glsl), with 128-wide heads and at most 16 relative values.
+        // The prompt's extent, not the call's views, picks the build, so a row has the same bits however its prompt is batched or sliced (docs/VULKAN.md, batch invariance).
+        std::vector<char> tile(n_views);
+        bool narrow = false;
+        for (size_t i = 0, first = 0; i < n_views; ++i) {
+            const size_t nq = rings ? rings[i].nq : pool[i].nq, own = rings ? nq : (pool[i].extent ? pool[i].extent : nq);
+            tile[i] = nq && D == 128 && R <= 16 && run_extent(runs, rows, first, own) >= dev_->profile.attention_tile_rows;
+            narrow = narrow || (nq && !tile[i]);
+            first += nq;
+        }
+        const bool tiled = !narrow;
+        // The longest narrow row bounds the parts; a shorter row's extra parts are empty and the merge skips them exactly.
+        size_t longest = 0;
+        for (size_t i = 0; i < n_views; ++i)
+            if (!tile[i]) longest = std::max(longest, rings ? std::min(window, rings[i].length + rings[i].nq) : pool[i].length + pool[i].nq);
+        const size_t nsplit = tiled ? 1 : std::max<size_t>(1, (longest + kRelSinkSplitKeys - 1) / kRelSinkSplitKeys);
+        (void)u32(size_mul(rows, HD));
+        const size_t row_floats = tiled ? 0 : size_mul(heads, size_mul(nsplit, D + 2));
+        const size_t limit_rows = dev_->props.limits.maxComputeWorkGroupCount[1] / nsplit;
+        const size_t slice = tiled ? rows : std::max<size_t>(1, std::min({rows, limit_rows, kRelSinkSliceBytes / (row_floats * sizeof(float))}));
+        if (!slice || (!tiled && !limit_rows)) throw std::runtime_error("vulkan: relative attention of more keys than a dispatch holds");
+        const size_t scratch_floats = size_mul(slice, row_floats);
+        if (scratch_floats && (!scratch_ || scratch_->size() < scratch_floats * sizeof(float))) grow(scratch_, scratch_floats * sizeof(float));
+        const VkDescriptorBufferInfo scratch = scratch_floats ? VkDescriptorBufferInfo{scratch_->handle(), 0, VK_WHOLE_SIZE} : bind(out);
+        const OpSteps steps(*this);
+        const uint32_t slot = rings ? u32(st.storage->slot_floats(layer)) : 0u;
+        struct { uint32_t heads, kv_heads, dim, R, extent, window; float scale; uint32_t ring, slot, ring_offset, ring_rows, bt, block_floats, rows_floats, width, nsplit, split_keys, rows, row0; }
+            pc{u32(heads), u32(kv_heads), u32(D), u32(R), u32(extent), u32(window), scale, rings ? 1u : 0u, slot, u32(ring_offset), u32(ring_rows),
+               pooled.plane.bt, pooled.plane.block_floats, pooled.plane.rows_floats, pooled.width, u32(nsplit), u32(kRelSinkSplitKeys), u32(rows), 0u};
+        // The tile takes a view a dispatch, row0 naming the view; the row build takes each stretch of adjacent narrow views in slices.
+        for (size_t i = 0, first = 0, stretch = 0; i <= n_views; ++i) {
+            const size_t nq = i < n_views ? (rings ? rings[i].nq : pool[i].nq) : 0;
+            if (i < n_views && !tile[i]) {
+                first += nq;
+                continue;
+            }
+            for (size_t r0 = stretch; r0 < first; r0 += slice) {
+                const size_t n = std::min(slice, first - r0);
+                pc.row0 = u32(r0);
+                dispatch(K_ATTENTION_REL_SINK, {bind(out), bind(q), bind(k_new), bind(v_new), bind(rel), bind(table), bind(sink), keys, tab, scratch}, &pc, sizeof(pc),
+                         u32(kv_heads), u32(n * nsplit), 0, {size_mul(rows, HD)});
+                // The merge finds the slice's rows through a table of one view of them in order.
+                const uint32_t one[7] = {1u, 0u, 0u, u32(n), 0u, 0u, 0u};
+                const uint32_t mc[7] = {u32(n), u32(heads), u32(D), u32(nsplit), 0u, u32(n), 0u};
+                const Slice part{out.buffer, out.offset + size_mul(r0, HD)};
+                dispatch(K_ATTENTION_MERGE, {bind(part), scratch, args(one, sizeof(one)), bind(part)}, mc, sizeof(mc), u32(size_mul(n, heads)), 1, 0, {size_mul(n, HD), 0, 0, 0});
+            }
+            if (i == n_views) break;
+            if (nq) {
+                pc.row0 = u32(i), pc.rows = u32(nq);
+                dispatch(K_ATTENTION_REL_SINK_TILE, {bind(out), bind(q), bind(k_new), bind(v_new), bind(rel), bind(table), bind(sink), keys, tab, scratch}, &pc, sizeof(pc),
+                         u32(heads), u32((nq + 63) / 64), 0, {size_mul(rows, HD)});
+            }
+            first += nq;
+            stretch = first;
+        }
+        if (rings) {
+            size_t kept = 0;
+            bool forks = false;
+            for (size_t i = 0; i < n_views; ++i) kept = std::max(kept, std::min(rings[i].nq, ring_rows)), forks = forks || rings[i].src != rings[i].dst;
+            uint32_t sp[5] = {u32(KD), slot, u32(ring_offset), u32(ring_rows), 1u};
+            if (forks) dispatch(K_RING_STORE, {keys, bind(k_new), bind(v_new), tab}, sp, sizeof(sp), groups(size_mul(ring_rows, row_w), 256), u32(n_views));
+            sp[4] = 0u;
+            dispatch(K_RING_STORE, {keys, bind(k_new), bind(v_new), tab}, sp, sizeof(sp), groups(size_mul(kept, row_w), 256), u32(n_views));
+        }
+        output_gate(out, heads, D, gate);
+    }
+
+    ConvDone depthwise_conv_items(const ConvRows* items, size_t n, size_t layer, const StateView* views, size_t n_views, const ConvKv*) override {
+        conv_products(items, n, check_state_views(views, n_views, layer));
+        for (size_t i = 0; i < n; ++i) conv_one(items[i].out, items[i].x, items[i].conv, layer, views, n_views);
+        return ConvDone::none;
+    }
+    // The depthwise conv's tail, SiLU and given-residual subset; its first chunk alone reads recurrent raw-row tails, all later chunks beginning past the full history window.
+    void conv_one(Slice out, CSlice x, const DepthwiseConv& a, size_t layer, const StateView* views, size_t n_views) {
+        if (a.history == ConvHistory::ring) return depthwise_ring(out, x, a, layer, views, n_views);
+        if (a.history != ConvHistory::tail || a.act != ConvAct::silu || a.residual_from != ConvResidual::given || a.divisor != 1.0f || a.dyn.buffer ||
+            (out.buffer == x.buffer && out.offset == x.offset))
+            lacks(Op::depthwise_conv_ring);
+        if (!a.residual.buffer || !a.w.buffer) throw std::runtime_error("backend: depthwise_conv without its residual or weights");
+        const CSlice residual = a.residual, w = a.w;
+        const size_t channels = a.channels, taps = a.taps, dilation = a.dilation;
         if (!channels || !taps || !dilation) throw std::runtime_error("vulkan: invalid dilated conv dimensions");
         const size_t rows = check_state_views(views, n_views, layer);
         if (!rows) return;
@@ -2482,19 +2740,21 @@ public:
 
     // A row past one slice is reduced by a workgroup a slice into partials, then a workgroup a row over them (shaders/argmax_rows.comp); a shorter row, or work recorded without barriers, takes one workgroup a row.
     // Without prior ids the logits are bound in their place and not read.
-    void argmax_rows(Slice ids, CSlice logits, size_t rows, size_t n, CSlice after = {}) override {
+    void argmax_rows(Slice ids, CSlice logits, size_t rows, size_t n, CSlice after = {}, size_t skip = SIZE_MAX) override {
         if (!rows) return;
         if (!n || n >= UINT32_MAX) throw std::runtime_error("vulkan: argmax over no ids or more than 32 bits name");
         if (floats_from(ids) < rows || floats_from(logits) < size_mul(rows, n) || (after.buffer && floats_from(after) < rows))
             throw std::runtime_error("vulkan: argmax_rows operand outside its allocation");
-        argmax(ids, logits, rows, n, after.buffer ? bind(after) : bind(logits), {u32(n), after.buffer ? 1u : 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u});
+        argmax(ids, logits, rows, n, after.buffer ? bind(after) : bind(logits), {u32(n), after.buffer ? 1u : 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, u32(std::min(skip, n))});
     }
-    void argmax_part(Slice cands, CSlice logits, size_t rows, size_t n, size_t first, size_t slot, size_t slots) override {
+    void argmax_part(Slice cands, CSlice logits, size_t rows, size_t n, size_t first, size_t slot, size_t slots, size_t skip = SIZE_MAX) override {
         if (!rows) return;
-        if (!n || slot >= slots || first + n > kExactIds) throw std::runtime_error("vulkan: argmax_part over no ids, ids a float does not hold, or a slot past its row");
+        const size_t own = part_skip(skip, first, n);
+        if (!n || slot >= slots || first + n > kExactIds || (n == 1 && own == 0))
+            throw std::runtime_error("vulkan: argmax_part over no ids, ids a float does not hold, or a slot past its row");
         if (floats_from(cands) < size_mul(size_mul(rows, slots), 3) || floats_from(logits) < size_mul(rows, n))
             throw std::runtime_error("vulkan: argmax_part operand outside its allocation");
-        argmax(cands, logits, rows, n, bind(logits), {u32(n), 0u, 0u, 0u, 0u, u32(first), u32(slot), u32(slots), 1u});
+        argmax(cands, logits, rows, n, bind(logits), {u32(n), 0u, 0u, 0u, 0u, u32(first), u32(slot), u32(slots), 1u, u32(own)});
     }
     // One workgroup a row reads its candidates (mode 3); without prior ids the candidates are bound in their place and not read.
     void argmax_pick(Slice ids, CSlice cands, size_t rows, size_t slots, size_t n, CSlice after = {}) override {
@@ -2502,12 +2762,12 @@ public:
         if (!slots || n > kExactIds) throw std::runtime_error("vulkan: argmax_pick over no candidates or ids a float does not hold");
         if (floats_from(ids) < rows || floats_from(cands) < size_mul(size_mul(rows, slots), 3) || (after.buffer && floats_from(after) < rows))
             throw std::runtime_error("vulkan: argmax_pick operand outside its allocation");
-        const uint32_t pc[9] = {u32(n), after.buffer ? 1u : 0u, 3u, 0u, 0u, 0u, 0u, u32(slots), 0u};
+        const uint32_t pc[10] = {u32(n), after.buffer ? 1u : 0u, 3u, 0u, 0u, 0u, 0u, u32(slots), 0u, u32(n)};
         const VkDescriptorBufferInfo prior = after.buffer ? bind(after) : bind(cands);
         dispatch(K_ARGMAX_ROWS, {bind(ids), bind(cands), prior, bind(ids)}, pc, sizeof(pc), u32(rows));
     }
     // argmax_rows and argmax_part over rows of `n` logits, writing ids or candidates into `out` as pc[8] says.
-    void argmax(Slice out, CSlice logits, size_t rows, size_t n, VkDescriptorBufferInfo prior, std::array<uint32_t, 9> pc) {
+    void argmax(Slice out, CSlice logits, size_t rows, size_t n, VkDescriptorBufferInfo prior, std::array<uint32_t, 10> pc) {
         const size_t slices = (n + kVulkanArgmaxSlice - 1) / kVulkanArgmaxSlice;
         pc[3] = u32(slices);
         pc[4] = u32(kVulkanArgmaxSlice);
@@ -2526,7 +2786,7 @@ public:
     void matmul(WeightView weight, CSlice X, Slice Y, size_t nin, size_t nout,
                 size_t nbatch, RowRuns runs = {}, Dtype dtype = Dtype::f16) override;
     void matmul_logits(WeightView weight, CSlice X, Slice Y, size_t nin, size_t nout, size_t nbatch, RowRuns runs = {},
-                       Dtype dtype = Dtype::f16) override;
+                       Dtype dtype = Dtype::f16, float cap = 0.0f) override;
     void matmul_add(WeightView weight, CSlice X, Slice Y, size_t nin, size_t nout,
                     size_t nbatch, RowRuns runs = {}, Dtype dtype = Dtype::f16) override;
     void matmul_group(std::initializer_list<Projection> projections, CSlice X,
@@ -2539,7 +2799,7 @@ public:
                    size_t nin, size_t rows, size_t nbatch);
     void check_group(const Projection* projections, size_t count, CSlice X, size_t nin, size_t nbatch) const;
     void matmul_group_impl(const Projection* projections, size_t count, CSlice X,
-                           size_t nin, size_t nbatch, bool accumulate, Dtype dtype, int kernel_choice = -1, size_t split_tiles = 0);
+                           size_t nin, size_t nbatch, bool accumulate, Dtype dtype, int kernel_choice = -1, size_t split_tiles = 0, bool own = false);
     size_t column_builds(KernelId id, size_t nin, size_t rows, uint32_t cluster, int (&out)[kVariants]) const;
     int one_column_build(size_t nin, size_t rows, bool x8) const;
     bool paired_build(KernelId id, size_t nin) const;
@@ -2576,10 +2836,10 @@ public:
     void matmul_experts(std::initializer_list<Projection> projections, CSlice X, size_t nin, size_t nrows,
                         const Routing& routing, RowRuns runs, Dtype dtype = Dtype::f16) override;
     void matmul_experts_add(WeightView weight, CSlice X, Slice Y, size_t nin, size_t nout, size_t nrows,
-                            const Routing& routing, RowRuns runs, Dtype dtype = Dtype::f16) override;
+                            const Routing& routing, RowRuns runs, Dtype dtype = Dtype::f16, const Buffer* from = nullptr) override;
     void routed_call(const std::vector<const Projection*>& live, CSlice X, size_t nin, size_t xcols, size_t nrows, size_t k,
                      CSlice ids, size_t n_expert, bool tile, Dtype dtype, size_t per = 0);
-    void moe_step(const MoeStep& m, CSlice h, Slice y, size_t nin, size_t rows, RowRuns runs = {}, Dtype dtype = Dtype::f16) override;
+    void moe_step(const MoeStep& m, Slice h, Slice y, size_t nin, size_t rows, RowRuns runs = {}, Dtype dtype = Dtype::f16) override;
     void routed_parts(WeightView weight, CSlice X, size_t nin, size_t nout, size_t nrows, const Routing& routing, RowRuns runs, Dtype dtype);
     void combine_parts(Slice Y, size_t nout, size_t nrows, const Routing& routing);
     void moe_route_step(const MoeStep& m, CSlice h, size_t nin, size_t rows, bool normalize);
@@ -2588,7 +2848,7 @@ public:
     bool caches_experts() const override {
         return dev_->device_clock && dev_->uncached_memory && dev_->props.limits.minStorageBufferOffsetAlignment <= ExpertRing::kAlign * sizeof(uint32_t);
     }
-    void cached_step(const MoeStep& m, CSlice h, Slice y, size_t nin, size_t rows, RowRuns runs, Dtype dtype);
+    void cached_step(const MoeStep& m, Slice h, Slice y, size_t nin, size_t rows, RowRuns runs, Dtype dtype);
     bool moe_build(const MoeStep& m, size_t nin, size_t rows, RowRuns runs, Dtype dtype, MoePlan& plan) const;
     // The decode rows a fused routed step takes at most, the columns the decode-column checks reach.
     static constexpr size_t kMoeStepRows = 64;
@@ -2634,7 +2894,7 @@ public:
     void kv_write(size_t layer, const KVView* views, size_t n_views, CSlice k,
                   CSlice v, CSlice auxiliary = {}) override;
     void attention(CSlice Q, size_t layer, const KVView* views, size_t n_views, Slice out,
-                   int n_head, int n_head_kv, int head_dim) override;
+                   int n_head, int n_head_kv, int head_dim, const AttentionTerms* terms = nullptr) override;
     void sparse_attention(CSlice query, size_t layer, const KVView* views, size_t n_views,
                           CSlice ids, size_t id_stride, Slice out, int n_head, int n_head_kv, int head_dim, size_t groups, size_t block_size) override;
     // An auxiliary plane's blocks as the indexer's kernels address them (views.glsl, pooled_row): their tokens, their floats and the floats of their tokens' rows before the pooled rows.
@@ -2953,7 +3213,7 @@ private:
     std::shared_ptr<VulkanBuffer> parts_;     // a split integer-dot tile call's partial sums
     std::shared_ptr<VulkanBuffer> argmax_parts_;   // an argmax's partials, a slice of a row each; likewise
     std::shared_ptr<VulkanBuffer> dot_rows_;   // matmul_at_ids's gathered head rows, grown as calls need
-    std::shared_ptr<VulkanBuffer> moe_out_;   // a routed down projection's slots before they are combined
+    std::shared_ptr<VulkanBuffer> moe_out_;   // a routed down projection's slots before they are combined, or a windowed stack's whole rows
     std::shared_ptr<VulkanBuffer> moe_tab_;   // a routed tile call's grouping (shaders/moe_group.comp)
     std::shared_ptr<VulkanBuffer> moe_count_; // the fused routed step's finished workgroups, zero between calls (shaders/moe_step_route.comp)
     std::shared_ptr<VulkanBuffer> expert_ids_;  // a cached step's round: each entry's slot, or none

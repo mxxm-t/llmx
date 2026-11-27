@@ -947,6 +947,19 @@ size_t check_drafter_ops(std::mt19937& g) {
     // Without a prior id the valid row of a prior invalid one is its own argmax.
     cpu.argmax_rows({out.get(), 0}, {logits.get(), 5 * n}, 1, n);
     require(id_at(cpu, *out, 0) == 2, "argmax_rows without prior ids");
+    // An id passed over (skip) is as if the row lacked it: the higher id of a tie, a row's infinity and its NaN.
+    cpu.argmax_rows({out.get(), 0}, {logits.get(), 1 * n}, 1, n, {}, 5);
+    require(id_at(cpu, *out, 0) == 20, "argmax_rows passing over the lower id of a tie");
+    const auto without = [&](const std::vector<float>& row, size_t skip) {
+        size_t best = skip == 0 ? 1 : 0;
+        for (size_t i = best + 1; i < n; ++i)
+            if (i != skip && row[i] > row[best]) best = i;
+        return (uint32_t)best;
+    };
+    cpu.argmax_rows({out.get(), 0}, {logits.get(), 2 * n}, 1, n, {}, 11);
+    require(id_at(cpu, *out, 0) == without(rows[2], 11), "argmax_rows passing over an infinity");
+    cpu.argmax_rows({out.get(), 0}, {logits.get(), 6 * n}, 1, n, {}, 0);
+    require(id_at(cpu, *out, 0) == without(rows[6], 0), "argmax_rows passing over a NaN at the first id");
     // The rows split into 2 to 4 vocabulary slices, the tie at 5 and 20 across a slice's end: argmax_part's candidates summed in member order and argmax_pick give the same ids.
     for (size_t W = 2; W <= 4; ++W) {
         std::vector<float> total(rows.size() * 3 * W);

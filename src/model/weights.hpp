@@ -114,6 +114,8 @@ struct Weight {
     backend::BufferPtr scales = {};
     size_t scale_count = 0;
     unsigned scale_shift = 0;
+    // An expert stack's run of rows (Role::first_row, tensor_rows): nout rows from `first` of each matrix of `pitch` rows, 0 for the whole matrix.
+    size_t first = 0, pitch = 0;
     backend::WeightView operand() const { return {type, slice(), {scales.get(), 0}, scale_count, scale_shift}; }
 };
 

@@ -74,6 +74,11 @@ inline VulkanBackend::ScratchSizes VulkanBackend::scratch_sizes(const PassWidths
             scratch = std::max(scratch, size_mul(std::min(R, cap_rows), per_row));
         }
     }
+    if (w.relative_attention && H) {
+        // attention_rel_sinks parts: a slice of rows whose parts fit kRelSinkSliceBytes, each rows keys in parts of kRelSinkSplitKeys.
+        const size_t row_bytes = size_mul(size_mul(H, std::max<size_t>(1, (w.context + kRelSinkSplitKeys - 1) / kRelSinkSplitKeys)), stride * sizeof(float));
+        scratch = std::max(scratch, size_mul(std::max<size_t>(1, std::min(R, kRelSinkSliceBytes / row_bytes)), row_bytes));
+    }
     if (w.index_compression) scratch = std::max(scratch, size_mul(size_mul(std::min<size_t>(R, 16), w.context / w.index_compression), sizeof(float)));
     if (w.sparse_named && H) {
         const size_t named = w.sparse_named, row_words = size_add(size_add(size_mul(named, H), H), size_add(named, 2));

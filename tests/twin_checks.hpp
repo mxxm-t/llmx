@@ -41,6 +41,7 @@ using backend::DeviceCaps;
 using backend::DeviceProfile;
 using backend::BufferPtr;
 using backend::Dtype;
+using backend::GateMixItem;
 using backend::MatrixPaths;
 using backend::Projection;
 using backend::NormGate;
@@ -1061,6 +1062,50 @@ struct Bits {
             }
     }
 
+    // F32 weights' prompt tile (half_product, the wide kind): outputs within the F32 bound of the double sum over the unrounded inputs, past every tile edge and on inner widths the call splits.
+    // A row keeps its bits in a call of one row more where the split stays the same, and added outputs are within the F32 bound of the plain outputs added.
+    void wide_tile(Backend& g) {
+        const size_t R = 130;
+        for (size_t nin : {size_t(32), size_t(96), size_t(4608)})
+            for (size_t nout : {size_t(1), size_t(63), size_t(64), size_t(65), size_t(130)}) {
+                const std::string shape = "F32 " + std::to_string(nin) + "->" + std::to_string(nout);
+                std::vector<float> wf = row_classes::values(nin * nout, uint32_t(nin + nout), 0.05f);
+                for (size_t i = 3; i < wf.size(); i += 89) wf[i] = i % 2 ? -0.0f : 1e-40f;   // signed zeros and subnormal weights
+                std::vector<float> x = row_classes::values(nin * R, uint32_t(nin + 3 * nout));
+                const DoubleSums want = double_sums(wf, x, nin, nout);
+                auto wb = g.adopt(wf.data(), wf.size() * 4), xb = g.adopt(x.data(), x.size() * 4), yb = g.alloc(nout * R * 4), y1 = g.alloc(nout * R * 4);
+                WeightView wt{quant::GGML_TYPE_F32, {wb.get(), 0}};
+                wt.wide = true;
+                const WeightView plain{quant::GGML_TYPE_F32, {wb.get(), 0}};
+                for (size_t rows : {size_t(2), size_t(63), size_t(64), size_t(65), size_t(R - 3)}) {
+                    const std::string at = shape + " over " + std::to_string(rows) + " rows";
+                    // A weight that does not ask for the tile keeps the F32 class's exact bits at f16, as every model but the ones whose plan asks does.
+                    g.matmul(plain, {xb.get(), 0}, {y1.get(), 0}, nin, nout, rows, {}, Dtype::f32);
+                    launches(g);
+                    g.matmul(plain, {xb.get(), 0}, {yb.get(), 0}, nin, nout, rows, {}, Dtype::f16);
+                    require(!launches(g).count("llmx_f32_tile"), "a " + at + " prompt of a plain F32 weight takes no wide tile");
+                    require(std::memcmp(read(g, *yb, nout * rows).data(), read(g, *y1, nout * rows).data(), nout * rows * 4) == 0, "a " + at + " plain F32 prompt has the F32 class's bits");
+                    launches(g);
+                    g.matmul(wt, {xb.get(), 0}, {yb.get(), 0}, nin, nout, rows, {}, Dtype::f16);
+                    require(launches(g).count("llmx_f32_tile") == 1, "a " + at + " prompt takes the wide tile");
+                    const std::vector<float> all = read(g, *yb, nout * rows);
+                    const DoubleSums part{std::vector<double>(want.sum.begin(), want.sum.begin() + std::ptrdiff_t(nout * rows)),
+                                          std::vector<double>(want.mag.begin(), want.mag.begin() + std::ptrdiff_t(nout * rows))};
+                    exact_close(all, part, "a " + at + " wide tile against the double sum");
+                    if ((rows + 63) / 64 == (rows + 64) / 64) {
+                        g.matmul(wt, {xb.get(), 0}, {y1.get(), 0}, nin, nout, rows + 1, {}, Dtype::f16);
+                        require(std::memcmp(read(g, *y1, nout * rows).data(), all.data(), nout * rows * 4) == 0, "a " + at + " wide tile row keeps its bits in a call of one row more");
+                    }
+                    const std::vector<float> y0 = row_classes::values(nout * rows, uint32_t(rows + nout));
+                    DoubleSums added = part;
+                    for (size_t i = 0; i < y0.size(); ++i) added.sum[i] += y0[i], added.mag[i] += std::fabs(y0[i]);
+                    g.write(*y1, 0, y0.data(), y0.size() * 4);
+                    g.matmul_add(wt, {xb.get(), 0}, {y1.get(), 0}, nin, nout, rows, {}, Dtype::f16);
+                    exact_close(read(g, *y1, nout * rows), added, "a " + at + " added wide tile against the double sum");
+                }
+            }
+    }
+
     // The exact product of F16 or BF16 rows that skip the tile: the column build where the device profile puts the count on the columns (DeviceProfile::exact_on_columns, which the backend asks too), else the row block.
     std::string exact_kernel_name(Backend& g, bool bf16, size_t rows) {
         const std::string type = bf16 ? "bf16" : "f16";
@@ -1812,7 +1857,7 @@ inline void producer_twins(Backend& g, Dtype dt, const Require& require) {
         g.rms_norm_rows({cb.get(), 0}, {cb.get(), 0}, {wb.get(), 0}, rows, n, n, 1e-6f, {run, 1});
         g.matmul(wv, {cb.get(), 0}, {yc.get(), 0}, n, nout, rows, {run, 1}, dt);
         parts = parts && same(read(g, *ob, rows * n), read(g, *cb, rows * n)) && same(read(g, *y, nout * rows), read(g, *yc, nout * rows));
-        g.silu_mul({ob.get(), 0}, {xb.get(), 0}, {ub.get(), 0}, rows * n, 0.0f, {run, 1});
+        g.silu_mul({ob.get(), 0}, {xb.get(), 0}, {ub.get(), 0}, rows * n, {}, {run, 1});
         g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, n, nout, rows, {run, 1}, dt);
         g.copy(*cb, 0, *ob, 0, rows * n * 4);
         g.matmul(wv, {cb.get(), 0}, {yc.get(), 0}, n, nout, rows, {run, 1}, dt);
@@ -1851,7 +1896,7 @@ inline void producer_twins(Backend& g, Dtype dt, const Require& require) {
             g.copy(*cb, 0, *ob, 0, rows * n * 4);
             g.matmul(wv, {cb.get(), 0}, {yc.get(), 0}, n, nout, rows, read_as, dt);
             norms = norms && same(read(g, *y, nout * rows), read(g, *yc, nout * rows));
-            g.silu_mul({ob.get(), 0}, {xb.get(), 0}, {ub.get(), 0}, rows * n, 0.0f, produced);
+            g.silu_mul({ob.get(), 0}, {xb.get(), 0}, {ub.get(), 0}, rows * n, {}, produced);
             g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, n, nout, rows, read_as, dt);
             g.copy(*cb, 0, *ob, 0, rows * n * 4);
             g.matmul(wv, {cb.get(), 0}, {yc.get(), 0}, n, nout, rows, read_as, dt);
@@ -1935,6 +1980,25 @@ inline void stream_twins(Backend& g, Dtype dt, const Launches& launches, const R
         product_of(runs, rows, true, "a product of silu_scaled's output, " + at);
         g.mix_streams({ob.get(), 0}, {ab.get(), 0}, {bb.get(), 0}, rows, 4, nin, runs);
         product_of(runs, rows, true, "a product of mix_streams' output, " + at);
+        g.tanh_gate_mix({{{ob.get(), 0}, {ab.get(), 0}, {ab.get(), nin}, {bb.get(), 0}, {bb.get(), rows * nin}, {wb.get(), 0}}}, rows, nin, nin, 2 * nin, 2 * nin, runs, 1e-6f);
+        product_of(runs, rows, true, "a product of tanh_gate_mix's normed output, " + at);
+    }
+    // Over a prompt run, a mix computing F32 products that ask for the wide tile takes f32_tile's mix build, one launch for both products and the mix.
+    {
+        const RowRun prompt[1] = {{rows, rows}};
+        const std::vector<float> gwv = row_classes::values(nin * 32, 136), gxv = row_classes::values(rows * 32, 137);
+        auto gw = g.adopt(gwv.data(), gwv.size() * 4), gx = g.adopt(gxv.data(), gxv.size() * 4), gfg = g.alloc(2 * rows * nin * 4);
+        GateMixItem it{{ob.get(), 0}, {ab.get(), 0}, {ab.get(), nin}, {gfg.get(), 0}, {gfg.get(), rows * nin}, {wb.get(), 0}};
+        it.forget = Projection{{quant::GGML_TYPE_F32, {gw.get(), 0}}, {gfg.get(), 0}, nin}, it.forget.in = {gx.get(), 0};
+        it.gain = Projection{{quant::GGML_TYPE_F32, {gw.get(), 0}}, {gfg.get(), rows * nin}, nin}, it.gain.in = {gx.get(), 0};
+        it.rank = 32;
+        launches(g);
+        g.tanh_gate_mix({it}, rows, nin, nin, 2 * nin, 2 * nin, {prompt, 1}, 1e-6f);
+        require(!launches(g).count("llmx_f32_tile_mix"), form + ": a gate mix whose F32 products ask for no wide tile takes no llmx_f32_tile_mix");
+        it.forget.weight.wide = it.gain.weight.wide = true;
+        launches(g);
+        g.tanh_gate_mix({it}, rows, nin, nin, 2 * nin, 2 * nin, {prompt, 1}, 1e-6f);
+        require(launches(g).count("llmx_f32_tile_mix") == 1, form + ": a gate mix computing its F32 products over a prompt run takes llmx_f32_tile_mix");
     }
     // A product's own twin is kept beside an exact product of the same input, and dropped by an exact product into it, a write into it or a grown twin buffer.
     const std::vector<float> wf = row_classes::values(nin * 8, 135);
@@ -1959,7 +2023,7 @@ inline void stream_twins(Backend& g, Dtype dt, const Launches& launches, const R
     g.matmul(wv, {big.get(), 0}, {fy.get(), 0}, nin, 1, rows * 4, {}, dt);
     product_of(one, rows, true, "a product after a larger twin grew the other slot");
     g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, nin, nout, rows, one, dt);
-    g.silu_mul({sb.get(), 0}, {ab.get(), 0}, {bb.get(), 0}, rows * nin, 0.0f, one);
+    g.silu_mul({sb.get(), 0}, {ab.get(), 0}, {bb.get(), 0}, rows * nin, {}, one);
     product_of(one, rows, true, "a product after another producer's twin");
     g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, nin, nout, rows, one, dt);
     g.matmul(wv, {ab.get(), 0}, {fy.get(), 0}, nin, 1, 1, {}, dt);
@@ -1973,7 +2037,7 @@ inline void stream_twins(Backend& g, Dtype dt, const Launches& launches, const R
     product_of(one, rows, false, "a product after a copy into its input");
     g.matmul(wv, {ab.get(), 0}, {fy.get(), 0}, nin, 1, 1, {}, dt);
     g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, nin, nout, rows, one, dt);
-    g.silu_mul({sb.get(), 0}, {ab.get(), 0}, {bb.get(), 0}, rows * nin, 0.0f, one);
+    g.silu_mul({sb.get(), 0}, {ab.get(), 0}, {bb.get(), 0}, rows * nin, {}, one);
     g.matmul(fv, {ab.get(), 0}, {ob.get(), 0}, nin, 8, 1, {}, dt);
     product_of(one, rows, false, "a product after an exact product into the older twin's input");
     group_norm_four(g, dt, require);

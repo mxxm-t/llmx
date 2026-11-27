@@ -358,6 +358,8 @@ class ReferenceGenerator(unittest.TestCase):
             ["file-exact"],
             ["tokenizer-deepseek41"], ["tokenizer-deepseek41", "--checkpoint", str(SCRIPT.parent)],
             ["tokenizer-deepseek41", "--checkpoint", str(SCRIPT.parent), "--weights-gguf", str(SCRIPT), "--threads", "2"],
+            ["tokenizer-inkling2"], ["tokenizer-inkling2", "--checkpoint", str(SCRIPT.parent)],
+            ["tokenizer-inkling2", "--checkpoint", str(SCRIPT.parent), "--weights-gguf", str(SCRIPT), "--model", "m"],
             ["tokenizer-minimax"], ["tokenizer-minimax", "--checkpoint", str(SCRIPT.parent), "--weights-gguf", str(SCRIPT), "--threads", "2"],
         ]
         with contextlib.redirect_stderr(io.StringIO()):
@@ -1255,7 +1257,12 @@ class ReferenceGenerator(unittest.TestCase):
             with self.subTest(family=family):
                 doc = json.loads((Path(generator.OUT_DIR) / ("baseline_tokenizer_%s.json" % family)).read_text(encoding="utf-8"))
                 added = [doc["tokens"][i] for i in sorted(doc["token_types"], key=int)]
-                self.assertEqual([case["text"] for case in doc["cases"]], generator.file_tokenizer_cases(pin["cases"], added))
+                # A whole-piece golden's witnesses, each one piece whose merges alone give other ids, follow its fixed texts.
+                witnesses = [case for case in doc["cases"] if "merges_only_ids" in case]
+                self.assertEqual(len(witnesses), generator.WHOLE_PIECE_WITNESSES if family == "inkling2" else 0)
+                self.assertTrue(all(len(case["pieces"]) == 1 and case["merges_only_ids"] != case["ids"] for case in witnesses))
+                fixed = pin["cases"] + [case["text"] for case in witnesses]
+                self.assertEqual([case["text"] for case in doc["cases"]], generator.file_tokenizer_cases(fixed, added))
                 self.assertEqual((doc["tokenizer_repo"], doc["tokenizer_revision"], doc["tokenizer_json_sha256"]),
                                  (pin["repo"], pin["revision"], pin["sha256"]))
 

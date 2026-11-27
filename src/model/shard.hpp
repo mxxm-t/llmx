@@ -38,20 +38,26 @@ struct Part {
 // The length of a role's axis: its rows, an expert stack's over every expert, or its columns, a vector's elements.
 inline uint64_t extent(const Role& role) { return role.shard.axis == Axis::columns ? role.in : role.out * (role.experts ? role.experts : 1); }
 
-// The units of `section` member `member` of `width` takes, the first and the count, or nothing where the width neither divides the units nor, where the section allows it, is a multiple of them.
+// The units of `section` member `member` of `width` takes, the first and the count, or nothing where the width neither divides the units nor, where the section allows it, is a multiple of them or leaves every member one.
 inline std::optional<Span> take(const ShardSection& section, size_t width, size_t member) {
     if (section.units % width == 0) {
         const uint64_t count = section.units / width;
         return Span{member * count, count};
     }
     if (section.replicate && section.units && width % section.units == 0) return Span{member / (width / section.units), 1};
+    if (section.uneven && section.units > width) {
+        const uint64_t base = section.units / width, extra = section.units % width;
+        return Span{member * base + std::min<uint64_t>(member, extra), base + (member < extra ? 1 : 0)};
+    }
     return std::nullopt;
 }
 
 // The refusal of a width that does not split a section of `role`.
 inline std::runtime_error indivisible(const Role& role, const ShardSection& section, size_t width) {
-    return std::runtime_error("inference: a tensor width of " + std::to_string(width) + " does not divide the " + std::to_string(section.units) + " " +
-                              section.what + " of " + role.name + (section.replicate ? ", nor is a multiple of them" : ""));
+    const std::string at = "inference: a tensor width of " + std::to_string(width);
+    if (section.uneven) return std::runtime_error(at + " is more than the " + std::to_string(section.units) + " " + section.what + " of " + role.name);
+    return std::runtime_error(at + " does not divide the " + std::to_string(section.units) + " " + section.what + " of " + role.name +
+                              (section.replicate ? ", nor is a multiple of them" : ""));
 }
 
 // Member `member`'s parts of `role` at `width`, one a tile of each section in order along the axis: what it owns and the run it holds, the two the same but under an alignment, where the run is widened to whole runs of `align` inside its tile.
@@ -141,9 +147,13 @@ inline Held held(const Role& role, const TensorView& t, size_t width, size_t mem
     h.row = quant::row_bytes(t.type, nin);
     if (h.axis == Axis::rows) {
         h.parts = parts(role, width, member);
+        // A part's rows count the run's `out` rows of each expert one after another; in the tensor expert e's run starts at row e * tensor_rows + first_row.
+        const auto at = [&](uint64_t r) { return role.tensor_rows ? r / role.out * role.tensor_rows + role.first_row + r % role.out : r; };
         for (Part& p : h.parts) {
-            p.own.begin += role.first_row;
-            p.cover.begin += role.first_row;
+            if (role.tensor_rows && (p.cover.begin % role.out + p.cover.count > role.out || p.own.begin % role.out + p.own.count > role.out))
+                throw std::logic_error("shard: a part of " + role.name + " crosses an expert's run");
+            p.own.begin = at(p.own.begin);
+            p.cover.begin = at(p.cover.begin);
         }
         for (const Part& p : h.parts) h.bytes = backend::size_add(h.bytes, backend::size_mul(size_t(p.cover.count), h.row));
         return h;
@@ -258,7 +268,7 @@ inline uint64_t share(const Role& role, size_t width, size_t member) {
 // The shape of a member's copy of `role`'s tensor `t`, the fastest dimension first.
 inline std::vector<uint64_t> shape(const Role& role, const TensorView& t, size_t width, size_t member) {
     std::vector<uint64_t> out = t.shape;
-    if (role.tensor_rows && out.size() >= 2) out[1] = role.out;
+    if (role.tensor_rows && role.kind != RoleKind::experts && out.size() >= 2) out[1] = role.out;
     if (role.shard.axis == Axis::none || width == 1) return out;
     out.at(role.shard.axis == Axis::columns ? 0 : 1) = share(role, width, member);
     return out;
@@ -266,6 +276,12 @@ inline std::vector<uint64_t> shape(const Role& role, const TensorView& t, size_t
 
 // The KV heads a member of `width` keeps: its share, or one where KV heads are replicated over members.
 inline size_t kv_heads(const ModelPlan& plan, size_t width) { return kv_share(plan.kv_heads, width); }
+
+// The floats of a layer's pooled row a member of `width` keeps: its share of the row's KV heads, or the whole row where it names none.
+inline size_t pool_width(const LayerPlan& layer, size_t width) {
+    if (!layer.kv_pool_heads || width == 1) return layer.kv_pool_width;
+    return layer.kv_pool_width / layer.kv_pool_heads * kv_share(layer.kv_pool_heads, width);
+}
 
 // The recurrent state a member of `width` keeps: its share of the K and V heads, each head as wide as on one device.
 inline backend::StateShape state(const ModelPlan& plan, size_t width) {

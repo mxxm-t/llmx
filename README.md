@@ -47,6 +47,7 @@ Without curl 8.4, download a GGUF file yourself and pass its path.
 | `qwen35moe` | Qwen3.6-35B-A3B | Supported | Supported | Supported | Supported |
 | `qwen4exp` ([details](docs/QWEN38-FLASH.md)) | Qwen3.8-Flash-Next | In development | Supported | Supported | Supported |
 | `deepseek41` ([details](docs/DEEPSEEK4.md)) | DeepSeek-V4.1-Flash-1017 | In development | Supported | Supported | Supported |
+| `inkling2_loop` ([details](docs/INKLING2.md)) | Inkling-2-Mini | In development | Planned | Planned | Planned |
 | Llama, Mistral, Gemma, Phi | | Planned | Planned | Planned | Planned |
 
 - `llmx serve` reuses the shared beginning of follow-up turns on every architecture.
@@ -230,7 +231,7 @@ For users:
 - [ASSETS](docs/ASSETS.md): the models llmx is checked with.
 - [ROADMAP](docs/ROADMAP.md): what is planned.
 
-For contributors: [AGENTS](AGENTS.md), [ARCHITECTURE](docs/ARCHITECTURE.md), [ADDING-AN-ARCHITECTURE](docs/ADDING-AN-ARCHITECTURE.md), [EXECUTION](docs/EXECUTION.md), [DEVICE-EXECUTION](docs/DEVICE-EXECUTION.md), [DEVICE-TUNING](docs/DEVICE-TUNING.md), [KV-CACHE](docs/KV-CACHE.md), [CACHE-PLAN](docs/CACHE-PLAN.md), [TESTS](docs/TESTS.md), [CI](docs/CI.md) and [STATUS](docs/STATUS.md); the design plans [DEEPSEEK4](docs/DEEPSEEK4.md), [CUDA](docs/CUDA.md) and [DISK-TIER](docs/DISK-TIER.md).
+For contributors: [AGENTS](AGENTS.md), [ARCHITECTURE](docs/ARCHITECTURE.md), [ADDING-AN-ARCHITECTURE](docs/ADDING-AN-ARCHITECTURE.md), [EXECUTION](docs/EXECUTION.md), [DEVICE-EXECUTION](docs/DEVICE-EXECUTION.md), [DEVICE-TUNING](docs/DEVICE-TUNING.md), [KV-CACHE](docs/KV-CACHE.md), [CACHE-PLAN](docs/CACHE-PLAN.md), [TESTS](docs/TESTS.md), [CI](docs/CI.md) and [STATUS](docs/STATUS.md); the design plans [DEEPSEEK4](docs/DEEPSEEK4.md), [INKLING2](docs/INKLING2.md), [CUDA](docs/CUDA.md) and [DISK-TIER](docs/DISK-TIER.md).
 
 ## License
 

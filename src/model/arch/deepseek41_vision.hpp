@@ -279,7 +279,7 @@ public:
         b.rms_norm_rows(s.slot(s_h), s.slot(s_x), lw[ln2_w].slice(), n, D, D, c_.eps);
         const backend::Slice gate = s.slot(s_mlp), up = at(gate, n * F);
         b.matmul_group({{lw[gate_w].operand(), gate, F}, {lw[up_w].operand(), up, F}}, s.slot(s_h), D, n, runs, s.dtype);
-        b.silu_mul(gate, gate, up, n * F, 0.0f, runs);
+        b.silu_mul(gate, gate, up, n * F, {}, runs);
         b.matmul_add(lw[down_w].operand(), gate, s.slot(s_x), F, D, n, runs, s.dtype);
     }
 

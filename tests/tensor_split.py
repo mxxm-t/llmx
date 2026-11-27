@@ -29,6 +29,8 @@ CONFIG = {"block_count": 2, "embedding_length": 40, "feed_forward_length": 32,
           "attention.head_count": 4, "attention.head_count_kv": 2,
           "attention.key_length": 16, "context_length": 16}
 VOCAB = 260
+# A vocabulary neither 2 nor 4 divides, whose head's rows a group splits unevenly (check_uneven).
+UNEVEN_VOCAB = 261
 TOKENS = build_byte_vocab() + ["<|endoftext|>"] + ["<|reserved_%d|>" % i for i in range(VOCAB - 257)]
 QWEN35 = {"name": "split", "v_heads": 12, "tied": False, "mtp": False, "v_head": 8, "vocab": VOCAB,
           "config": {"embedding_length": 40, "feed_forward_length": 32, "attention.head_count": 4, "attention.head_count_kv": 2,
@@ -117,13 +119,13 @@ def tool_path():
     return os.path.join(os.path.dirname(common.exe_path()), "llmx-model-logits" + (".exe" if os.name == "nt" else ""))
 
 
-def capture(tool, model, ids, prefix, devices, width):
+def capture(tool, model, ids, prefix, devices, width, vocab=VOCAB):
     """Every row of the batched and per-token passes and 64 greedy steps of `model` over `devices` as groups of `width`, and the capture's metadata."""
     cmd = [tool, model, ids, prefix, devices, "f32", "3", "0", "-", str(width)]
     result = subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=600)
     assert result.returncode == 0, "tensor-split: capture failed: %s\n%s" % (" ".join(cmd), result.stderr)
     meta = json.loads(result.stdout)
-    rows = {phase: [list(r) for r in check_device.captured_rows(prefix, phase, 64 if phase == "greedy" else len(meta["tokens"]), VOCAB)]
+    rows = {phase: [list(r) for r in check_device.captured_rows(prefix, phase, 64 if phase == "greedy" else len(meta["tokens"]), vocab)]
             for phase in ("batched", "decode", "greedy")}
     return meta, rows
 
@@ -192,6 +194,20 @@ def check_drafter(directory, single, widths, require):
     return worst
 
 
+def check_uneven(tool, directory, ids, single, widths):
+    """The untied qwen3 fixture with a vocabulary of UNEVEN_VOCAB rows, which neither 2 nor 4 divides, so a group splits the head's rows unevenly; every group held to one device by the device-reference criterion."""
+    tokens = build_byte_vocab() + ["<|endoftext|>"] + ["<|reserved_%d|>" % i for i in range(UNEVEN_VOCAB - 257)]
+    model = f32.write_model(os.path.join(directory, "qwen3-uneven.gguf"), f32.tensors(False, config=CONFIG, vocab=UNEVEN_VOCAB),
+                            config=dict(CONFIG, context_length=128), tokens=tokens)
+    prefix = os.path.join(directory, "qwen3-uneven")
+    one_meta, one = capture(tool, model, ids, prefix + "-1", single, 1, UNEVEN_VOCAB)
+    for width, devices in widths:
+        meta, rows = capture(tool, model, ids, "%s-%d-%d" % (prefix, width, devices.count(",") + 1), devices, width, UNEVEN_VOCAB)
+        for phase in ("batched", "decode"):
+            common.check_device_rows(one[phase], rows[phase], list(f32.TEXTS[-1].encode("ascii")))
+        common.check_device_greedy(one["greedy"], rows["greedy"], one_meta["greedy"], meta["greedy"])
+
+
 def run(require=False):
     tool = tool_path()
     if not os.path.exists(tool):
@@ -217,9 +233,10 @@ def run(require=False):
                 for phase in ("batched", "decode"):
                     common.check_device_rows(one[phase], rows[phase], list(f32.TEXTS[-1].encode("ascii")))
                 common.check_device_greedy(one["greedy"], rows["greedy"], one_meta["greedy"], meta["greedy"])
+        check_uneven(tool, directory, ids, single, widths)
         drafted = check_drafter(directory, single, widths, require)
-    print("tensor-split: the qwen3 fixtures, tied and untied, the qwen3moe one in F32 and in Q8_0 with covering blocks, and the qwen35 and qwen35moe fixtures on %s against HF, max logit error %.8f and NLL error %.8f, and against %s by the device-reference criterion%s  [ok]"
-          % (" and ".join("%s as width %d" % (devices, width) for width, devices in widths), worst_logit, worst_nll, single,
+    print("tensor-split: the qwen3 fixtures, tied and untied, the qwen3moe one in F32 and in Q8_0 with covering blocks, and the qwen35 and qwen35moe fixtures on %s against HF, max logit error %.8f and NLL error %.8f, and against %s by the device-reference criterion, as is a qwen3 head of %d vocabulary rows split unevenly%s  [ok]"
+          % (" and ".join("%s as width %d" % (devices, width) for width, devices in widths), worst_logit, worst_nll, single, UNEVEN_VOCAB,
              "" if drafted is None else "; the embedded drafter's picks and drafts those of %s, draft logits within %.8f" % (single, drafted)))
     return True
 

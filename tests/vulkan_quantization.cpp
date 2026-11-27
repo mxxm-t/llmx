@@ -598,7 +598,7 @@ size_t check_activation_range(backend::Backend& b, size_t width, bool preserves_
             if (producer == 1) {
                 for (size_t j = 0; j < width; ++j) source[j] = input[j] / 32;
                 const auto up = b.adopt(source.data(), source.size() * sizeof(float));
-                b.silu_mul({produced.get(), 0}, {a.get(), 0}, {up.get(), 0}, width, 0.0f);
+                b.silu_mul({produced.get(), 0}, {a.get(), 0}, {up.get(), 0}, width, {});
                 b.sync();
             } else if (producer == 3) {
                 b.silu_scaled({produced.get(), 0}, {x.get(), 0}, 1, width, 1.0f);

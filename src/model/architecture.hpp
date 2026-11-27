@@ -44,6 +44,8 @@ struct ShardSection {
     const char* what = "rows";
     bool replicate = false;
     uint64_t align = 1;
+    // A width that does not divide the units splits them anyway, the first units % width members one unit more, as a head's vocabulary rows are.
+    bool uneven = false;
 };
 
 // How a role splits: its axis and the sections that cover it, in order (model/shard.hpp).
@@ -61,7 +63,7 @@ struct Role {
     std::string name, alias;
     uint64_t in = 0, out = 1, experts = 0;
     Stream stream = Stream::none;
-    // A role over a run of its tensor's output rows reads `out` rows from `first_row` of the tensor's `tensor_rows`; 0 reads the whole tensor.
+    // A role over a run of its tensor's output rows reads `out` rows from `first_row` of the tensor's `tensor_rows`, of each expert's matrix for a stack; 0 reads the whole tensor.
     uint64_t first_row = 0, tensor_rows = 0;
     std::optional<size_t> tensor = std::nullopt;   // the view it reads, its name's or else its alias's, absent when the file has neither
     bool aliased = false;                          // that view is its alias's
@@ -72,7 +74,10 @@ struct Role {
 // Whether a tensor of `shape` and `type` fits `role` by its kind: a stack's or a sided table's exact three axes, or `in` first, F32 for a norm or a table, `out` second for the rest, or rows inside `tensor_rows`, and every further axis one.
 // A norm and a source of one column are vectors, whose second axis may be absent.
 inline bool role_fits(const Role& role, const std::vector<uint64_t>& shape, uint32_t type) {
-    if (role.kind == RoleKind::experts) return shape.size() == 3 && shape[0] == role.in && shape[1] == role.out && shape[2] == role.experts;
+    if (role.kind == RoleKind::experts) {
+        const bool run = !role.tensor_rows || (role.first_row <= role.tensor_rows && role.out <= role.tensor_rows - role.first_row);
+        return run && shape.size() == 3 && shape[0] == role.in && shape[1] == (role.tensor_rows ? role.tensor_rows : role.out) && shape[2] == role.experts;
+    }
     if (role.kind == RoleKind::table && role.sides)
         return shape.size() == 3 && shape[0] == role.in && shape[2] == role.sides && shape[1] * role.sides == role.out && type == quant::GGML_TYPE_F32;
     const bool norm = role.kind == RoleKind::norm || (role.kind == RoleKind::source && role.out == 1);
@@ -131,12 +136,16 @@ struct LayerPlan {
     size_t kv_aux = 0;
     // The groups of this many positions whose pooled rows of kv_pool_width floats its blocks also keep (BlockKVStorage::auxiliary_pool), or 0.
     size_t kv_pool = 0, kv_pool_width = 0;
+    // The KV heads a pooled row holds, which a tensor group splits as it splits K and V heads (shard::pool_width); 0 keeps the row whole on every member.
+    size_t kv_pool_heads = 0;
     // The auxiliary floats a position takes, its row and its share of a pooled row rounded up, as the fit counts them.
     size_t kv_aux_floats() const { return kv_aux + (kv_pool ? (kv_pool_width + kv_pool - 1) / kv_pool : 0); }
     // An entries layer's rings hold this many positions beyond those its rows read, so a pass after a mark takes at most this many rows (docs/DEEPSEEK4.md, section 4.3).
     size_t headroom = 0;
     // An entries layer without pooled rows of its own may read an earlier layer's, or -1: on its source's device that storage layer, and on a later device a replica there, which the first such reader fills (Step::appends).
     int entry_source = -1;
+    // Whether the feed-forward part reads the layer's state slot too (Step::states), so it runs on the mixer's device and expert offload is refused.
+    bool ffn_reads_state = false;
     // The widths of the cache type native, the architecture's declared cache format (docs/DEEPSEEK4.md, section 4.3), in 32-bit words: its pooled row and its state tail; none where the layer declares no format.
     // A plan settled to native holds these in kv_pool_width and state_tail and the F32 widths here, so settling back restores them (settle_cache).
     struct Widths {
@@ -150,6 +159,9 @@ struct LayerPlan {
     // An embedded drafter's stages, each a range [first, end) of its role ids, which a split places on any device beside the layers (Footprint::drafter_stages); its other roles run with the head.
     std::vector<std::pair<uint16_t, uint16_t>> stages;
 };
+
+// The most rows one verify pass feeds (spec::kVerifyRows), which a ring's headroom holds so a rewind by length can undo a verify (LayerPlan::headroom).
+inline constexpr size_t kVerifyRows = 64;
 
 // Whether a layer holds a state slot for each sequence, as a state layer and an entries layer do.
 inline bool keeps_slot(const LayerPlan& layer) { return layer.cache == Cache::state || layer.cache == Cache::entries; }
@@ -294,6 +306,11 @@ inline size_t handoff_width(const ModelPlan& plan) {
     return n;
 }
 
+// Whether a layer splits a role of `part` over a tensor group; a part that splits none runs whole on every member.
+inline bool part_split(const LayerPlan& layer, Part part) {
+    return std::any_of(layer.roles.begin(), layer.roles.end(), [&](const Role& r) { return r.part == part && r.shard.axis != Axis::none; });
+}
+
 // Whether a layer's roles hold an expert stack, whose routed sum a tensor group's member adds to partial rows it is handed cleared (Step::partial).
 inline bool has_experts(const LayerPlan& layer) {
     for (const Role& role : layer.roles)
@@ -357,6 +374,8 @@ struct Step {
     size_t width = 1;
     backend::Slice partial{};
     const backend::Buffer* zero = nullptr;  // a row of zeros on the member
+    // On a tensor group's join, the part whose summed rows it closes: a split mixer's or the feed-forward's (Architecture::join).
+    Part joins = Part::ffn;
     // For the layer that keeps token history: the pass's token IDs and its entries' oldest-first preceding IDs, previous_count per entry.
     const uint32_t* tokens = nullptr;
     const uint32_t* previous_tokens = nullptr;
@@ -447,6 +466,7 @@ public:
     virtual void recur(const Step&) const {}
     virtual void ffn(const Step& s) const = 0;
     // On a tensor group whose partial rows are narrower than the residual (ModelPlan::partial), each member's part after the group's sum: Step::partial holds the summed rows, which it joins into Step::x as one device's part ends.
+    // Step::joins names the part the sum closes.
     virtual void join(const Step&) const {}
     virtual void head(const HeadStep& s) const = 0;
     // An embedded drafter (docs/SPECULATIVE.md, section 7), which a file may carry: its plan, added to `plan` when a caller asks for one, refused where the architecture or the file has none.

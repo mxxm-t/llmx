@@ -261,6 +261,8 @@ struct BatchEntry {
     // Its rows are read only as the id of their largest logit, as a greedy draw reads them (ExecContext::argmax_id): with want_logits.
     // A pass all of whose wanting entries say so keeps their logits on the output device and copies only the ids to the host.
     bool argmax = false;
+    // The id its argmax passes over, as a draw under ignore_eos masks the end token (Backend::argmax_rows); UINT32_MAX for none.
+    uint32_t skip = UINT32_MAX;
     // An embedded drafter computes the entry's context rows (Architecture::draft_rows); a prompt's slice that no later draft reads leaves them out, and a pass of such slices alone runs none (ModelPlan::draft_window).
     bool context = true;
     // A one-token entry whose id is the argmax of wanting row `fed_row` of the pass in flight in slot `fed_slot`, read on the device (Model::feeds), so the entry is recorded before that pass retires; `ids` holds a placeholder.
@@ -280,6 +282,7 @@ struct Pass {
     std::vector<uint32_t> ids, pos, pick;
     std::vector<FedRun> fed;                           // the rows whose ids an earlier pass's argmax gives on the device (BatchEntry::fed_slot), in runs
     bool argmax = false;                               // its logits rows stay on the output device and their ids come to the host (BatchEntry::argmax)
+    std::vector<uint32_t> skips;                       // of an argmax pass, the id each wanting row's argmax passes over (BatchEntry::skip)
     bool image_rows = false;                           // some row is an image's, so each row holds the plan's three position streams (ModelPlan::image_streams)
     std::vector<uint32_t> image_marks;                 // under ModelPlan::text_position_images, per row 1 where it holds the image id, empty where no row does (Step::image_marks)
     std::vector<std::pair<size_t, size_t>> image_runs; // the runs of those rows, (first, count)
@@ -340,9 +343,8 @@ struct ExecContext {
     const float* logits(size_t i) {
         ready(i);
         if (argmax) {
-            // A row of a pass that kept its logits on the device is read back.
             row.resize(width);
-            backend->read(*argmax_logits, i * width * sizeof(float), row.data(), width * sizeof(float));
+            argmax_row(i, row.data());
             return row.data();
         }
         const void* p = logits_host.data() ? logits_host.data() : logits_buf->host_ptr();
@@ -357,6 +359,11 @@ struct ExecContext {
         uint32_t id;
         std::memcpy(&id, (const float*)argmax_ids->host_ptr() + i, sizeof(id));
         return id;
+    }
+    // Logits row r of an argmax pass read back from the device, whole on one device or each member's slice of it on a tensor group (argmax_slices).
+    void argmax_row(size_t r, float* out) {
+        if (argmax_slices.empty()) backend->read(*argmax_logits, r * width * sizeof(float), out, width * sizeof(float));
+        for (const ArgmaxSlice& s : argmax_slices) s.backend->read(*s.logits, r * s.n * sizeof(float), out + s.first, s.n * sizeof(float));
     }
     void ready(size_t i) {
         if (!logits_buf || i >= n_logits)
@@ -380,6 +387,14 @@ struct ExecContext {
     bool argmax = false, argmax_refused = false;
     backend::BufferPtr argmax_logits, argmax_ids;
     size_t argmax_rows = 0;
+    // On a tensor group the head's members keep their own logits rows (member_logits) and each its copy of the ids, which the embedding of a fed pass reads on that member; member_ids[0] is argmax_ids.
+    struct ArgmaxSlice {
+        backend::Backend* backend;
+        backend::Buffer* logits;
+        size_t n, first;
+    };
+    std::vector<ArgmaxSlice> argmax_slices;
+    std::vector<backend::BufferPtr> member_ids;
     std::vector<float> row;
 
     struct Scratch {
@@ -581,7 +596,6 @@ public:
             throw std::runtime_error("inference: placement does not cover every layer");
         // A tensor group is named by its first member, its other members the backends after it (Placement::width).
         width_ = place_.width;
-        if (options_.routes && width_ > 1) throw std::runtime_error("inference: a route hook reads one device's picks, not a tensor group's");
         if (!width_ || backends.size() % width_)
             throw std::runtime_error("inference: a tensor width of " + std::to_string(width_) + " needs whole groups of devices, and " + std::to_string(backends.size()) + " were given");
         auto device_index = [&](int d) {
@@ -659,6 +673,7 @@ public:
         for (size_t l = 0; l < n_layer; ++l) {
             const LayerPlan& layer = plan_.layers[l];
             const size_t a = device_index(place_.mixer_device[l]), f = device_index(place_.ffn_device[l]);
+            if (layer.ffn_reads_state && a != f) throw std::logic_error("inference: a feed-forward part that reads its layer's state slot runs on its mixer's device");
             // Experts read in place on the host beside a mixer on a device that copies its weights.
             bool streamed = layer.routed && (place_.stream_from || !place_.expert_slots.empty()) && a != f && !backends[a]->reads_in_place() && backends[f]->reads_in_place();
             std::string lacks;
@@ -898,12 +913,12 @@ public:
                 for (size_t l = 0; l < plan_.layers.size(); ++l)
                     if (d.kv_local[l] >= 0 && plan_.layers[l].entry_source < 0) {
                         auxiliary[(size_t)d.kv_local[l]] = plan_.layers[l].kv_aux;
-                        pools[(size_t)d.kv_local[l]] = {plan_.layers[l].kv_pool, plan_.layers[l].kv_pool_width};
+                        pools[(size_t)d.kv_local[l]] = {plan_.layers[l].kv_pool, shard::pool_width(plan_.layers[l], width_)};
                     }
                 if (plan_.drafter && keeps_kv(*plan_.drafter) && (size_t)(&dp - devices_.data()) / width_ == (size_t)place_.output_device / width_) {
                     for (size_t k = drafter_kv_; k < drafter_kv_ + plan_.draft_kv_layers; ++k) {
                         auxiliary[k] = plan_.drafter->kv_aux;
-                        pools[k] = {plan_.drafter->kv_pool, plan_.drafter->kv_pool_width};
+                        pools[k] = {plan_.drafter->kv_pool, shard::pool_width(*plan_.drafter, width_)};
                     }
                 }
                 // A drafter whose KV layers have a shape of their own, or one that runs whole on a group's first member, gives each layer of the head's storage its shape.
@@ -1162,6 +1177,15 @@ public:
     }
     // The backend stage s runs on, which a caller timing the stages reads its host and device times from.
     backend::Backend& stage_backend(size_t s) { return *devices_[stages_.at(s).device]->b; }
+    // Where the devices' backends held the host, summed once a device however many stages it runs (Backend::host_times).
+    backend::Backend::HostTimes host_times() const {
+        backend::Backend::HostTimes t;
+        for (const auto& d : devices_) {
+            const backend::Backend::HostTimes b = d->b->host_times();
+            t.ticket_ms += b.ticket_ms, t.slot_ms += b.slot_ms, t.staging_ms += b.staging_ms, t.write_ms += b.write_ms, t.launch_ms += b.launch_ms;
+        }
+        return t;
+    }
 
     // Consume this model's completed matrix-path evidence, expert hosts included, in placement order.
     std::vector<std::vector<std::string>> take_matrix_paths() {
@@ -1227,7 +1251,8 @@ public:
     const float* pass_logits(ExecContext& ctx, size_t slot, size_t i);
     // Whether the pass in flight in the slot keeps its logits rows on the output device, all its wanting entries asking only their argmax (BatchEntry::argmax), so pass_argmax_id gives its rows' ids.
     bool argmax_pass(ExecContext& ctx, size_t slot) const { return in_flight(ctx, slot).argmax; }
-    // Whether a pass may take entries fed by an earlier pass's argmax ids on the device (BatchEntry::fed_slot): one stage, the embedding on the output device, no tensor group, and nothing else reading the pass's ids on the host.
+    // Whether a pass may take entries fed by an earlier pass's argmax ids on the device (BatchEntry::fed_slot).
+    // It needs one stage, the embedding on the output device and whole on each member of a tensor group, rings a fed pass's abort undoes by length, and nothing else reading the pass's ids on the host.
     bool feeds() const;
     uint32_t pass_argmax_id(ExecContext& ctx, size_t slot, size_t i);
     void end_pass(ExecContext& ctx, size_t slot);
@@ -1424,6 +1449,16 @@ public:
         forward(ctx_, &entry, 1);
         return ctx_.argmax ? nullptr : ctx_.logits(0);
     }
+    // A plain argmax decode one pass ahead (Model::feeds): the id after `y`, fed here unless the pass ahead fed it, with the pass after it already recorded and fed that id on the device.
+    // `skip` is the id the argmax passes over (BatchEntry::skip); where the device gives no id, the vocabulary size, `row` gets the row and no pass is ahead.
+    uint32_t step_ahead(uint32_t y, uint32_t skip, const float** row);
+    // The pass ahead, if any, ends: kept where `keep` (the reply ends on the id it fed), else abandoned and its row undone. False where no pass was ahead.
+    bool end_ahead(bool keep);
+    // The passes step_ahead recorded ahead since the model was made, and those of them abandoned (generate --verbose's ahead line).
+    struct Ahead {
+        size_t recorded = 0, abandoned = 0;
+    };
+    Ahead ahead_passes() const { return ahead_count_; }
     // Row i's argmax after step(ids, n, true), ties to the lowest id, or the vocabulary size where its largest logit is not finite, its row holds a NaN or the rows stayed on the host.
     uint32_t argmax_id(size_t i) { return ctx_.argmax ? ctx_.argmax_id(i) : (uint32_t)plan_.vocab; }
     // Row i of the last pass, read in place or, after an argmax pass, read back and valid until the next call.
@@ -1756,6 +1791,9 @@ private:
     size_t positions_ = 0;
     Sequence seq_;
     ExecContext ctx_;
+    ExecContext ahead_ctx_;          // step_ahead's two slots, reserved at its first call
+    size_t ahead_ = SIZE_MAX;        // the slot of the pass recorded ahead, SIZE_MAX for none
+    Ahead ahead_count_;
 
     // The weights member m of the group a part runs on reads: the pass's, and layer l's.
     const Weight* pass_row(size_t m) const { return m ? member_pass_[m - 1].data() : pass_.data(); }
@@ -1907,7 +1945,10 @@ private:
             if (t.row_source) return weight;
             backend::Backend& b = *devices_[device + member]->b;
             // A member of a tensor group takes its shard of a split role, a buffer of its own even where another role reads the whole tensor there, as a tied head beside the embedding does.
-            if (role.tensor_rows || (width_ > 1 && role.shard.axis != Axis::none)) {
+            // A stack's run of rows reads its whole tensor through the projection's window.
+            const bool stack_run = role.tensor_rows && role.kind == RoleKind::experts;
+            if (stack_run) weight.first = size_t(role.first_row), weight.pitch = size_t(role.tensor_rows);
+            if ((role.tensor_rows && !stack_run) || (width_ > 1 && role.shard.axis != Axis::none)) {
                 // A member's copy of tensor `k`'s bytes that `h` holds: adopted by the hook, in place, or packed.
                 const auto hold = [&](size_t k, const shard::Held& h) {
                     const TensorView& v = weights.tensors[k];
@@ -1932,12 +1973,15 @@ private:
                     copy = copies.insert(copies.end(), std::move(made));
                 }
                 const size_t n = (size_t)shard::share(role, width_, member);
-                const bool rows = role.shard.axis == Axis::rows;
+                // A run of rows whole on every member is split by rows as far as its widths go.
+                const bool rows = role.shard.axis != Axis::columns;
                 weight.data = copy->data;
                 weight.scales = copy->scales;
                 weight.scale_count = copy->scale_count;
                 weight.nin = rows ? size_t(role.in) : n;
                 weight.nout = rows ? n : size_t(role.out);
+                // A member's copy of a stack's run holds its rows of each expert one after another.
+                if (stack_run) weight.first = 0, weight.pitch = 0;
             } else {
                 weight.data = take(i, device + member);
             }
@@ -2093,7 +2137,8 @@ private:
     void group_prepare(Pass& p, size_t s);
     void group_record(ExecContext& ctx, Pass& p, size_t s, size_t layers);
     template <class Weights>
-    void group_sum(ExecContext& ctx, size_t g, const std::vector<backend::Slice>& x, size_t rows, backend::RowRuns runs, uint8_t kind, const Weights& w, size_t set = 0);
+    void group_sum(ExecContext& ctx, size_t g, const std::vector<backend::Slice>& x, size_t rows, backend::RowRuns runs, uint8_t kind, const Weights& w, size_t set = 0, const Pass* p = nullptr,
+                   int layer = -1, Part joins = Part::ffn);
     // The fewest rows of a prompt pass a tensor group cuts in two parts (cut_row), measured on a 2x2 group (docs/STATUS.md, perf/ts-copy-queue).
     static constexpr size_t kCutRows = 128;
     size_t cut_row(ExecContext& ctx, const Pass& p) const;
@@ -2101,8 +2146,9 @@ private:
     Step narrow(Step s, PassPart& q, size_t m, int l) const;
     void cut_record(ExecContext& ctx, Pass& p, size_t s, size_t cut, int end);
     template <class Weights>
-    void group_sum(ExecContext& ctx, const Pass& p, size_t g, const std::vector<backend::Slice>& x, size_t rows, backend::RowRuns runs, uint8_t kind, const Weights& w) {
-        group_sum(ctx, g, x, rows, runs, kind, w, p.scratch);
+    void group_sum(ExecContext& ctx, const Pass& p, size_t g, const std::vector<backend::Slice>& x, size_t rows, backend::RowRuns runs, uint8_t kind, const Weights& w, int layer = -1,
+                   Part joins = Part::ffn) {
+        group_sum(ctx, g, x, rows, runs, kind, w, p.scratch, &p, layer, joins);
     }
     void stage_submit(ExecContext& ctx, Pass& p, size_t s, size_t cur);
     void stage_commit(Pass& p, size_t s);
@@ -2114,6 +2160,7 @@ private:
     backend::BufferPtr alloc_arena(backend::Backend& b, const std::vector<size_t>& counts, std::vector<size_t>& offsets) const;
     void ensure(ExecContext& ctx, size_t rows, size_t want, size_t buffers, size_t reply_rows = 0);
     bool argmax_buffers(ExecContext& ctx, size_t end);
+    bool argmax_devices() const;
     const Pass& retired_pass(ExecContext& ctx, size_t slot, size_t i);
     void send(ExecContext& ctx, size_t set, size_t from, size_t handoff, size_t base, size_t rows, int before, const std::vector<ModelPlan::Carried>* slots = nullptr);
     std::pair<double, double> receive(ExecContext& ctx, size_t set, size_t from, size_t handoff, backend::Ticket sent, size_t to, size_t base, size_t rows, int before,
@@ -2150,6 +2197,7 @@ private:
         return s;
     }
     Step mixer_part(ExecContext& ctx, const Pass& p, size_t dev, int l) const;
+    void state_views(Step& s, const Pass& p, size_t dev, int l) const;
     void stream_rows(const Step& s) const;
     void positions(const Sequence& s, size_t first, size_t n, bool streams, uint32_t* out) const;
     void group_positions(const Sequence& s, size_t first, size_t n, size_t c, std::vector<uint32_t>& out) const;

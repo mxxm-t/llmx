@@ -399,7 +399,7 @@ split loading failure: injected adoption failure
 tensor width heads: inference: a tensor width of 3 does not divide the 8 heads of blk.0.attn_q.weight
 tensor width KV heads: inference: a tensor width of 6 does not divide the 4 KV heads of blk.0.attn_k.weight, nor is a multiple of them
 tensor width quant blocks: inference: a tensor width of 8 splits blk.0.ffn_down.weight off whole Q4_K blocks
-tensor width vocabulary: inference: a tensor width of 2 does not divide the 15 vocabulary rows of output.weight
+tensor width vocabulary: inference: a tensor width of 4 is more than the 3 vocabulary rows of output.weight
 an expert cache of 65536 experts a layer: --expert-cache: 65536 experts a layer, more than the 65535 the cache names
 tensor width K heads: inference: a tensor width of 4 does not divide the 2 K heads of blk.0.attn_qkv.weight
 tensor width saved row: inference: a tensor width of 2 does not divide the 513 floats layer 0 saves a row for a mark

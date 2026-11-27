@@ -73,10 +73,14 @@ struct DeviceProfile {
     // Waves per compute unit a decode row call must launch at four rows a cluster before it takes four (rows_a_cluster).
     // ROCm's two- to sixteen-column builds take it as is, Vulkan's one-column builds times their kernel's class (docs/VULKAN.md, Kernels).
     uint32_t row_four_waves_per_cu = 8;
+    // Waves per compute unit a one-column 16-bit Q8_0 call must keep at eight or four rows a wave before ROCm takes its walk build (kernels/int16.gpu, q8_0_walk); 32 was where the walk stopped winning at Inkling-2-Mini's expert shapes on an MI50.
+    uint32_t row_walk_waves_per_cu = 32;
     // Prompt extent from which attention takes its tiled kernel; the query rows a tile holds are the kernel's own.
     size_t attention_tile_rows = 32;
     // Tokens of history in one part of the tiled attention's split, a multiple of every build's key tile (16); 1024 was best or within 1 percent of 2048 and 4096 on two models (docs/STATUS.md).
     size_t attention_tile_part = 1024;
+    // Prompt rows a pass takes where the caller names none and the fit leaves room (Backend::prompt_rows), 0 for the model's default; 2048 measured 14-19 percent over 512 on an MI50 (docs/STATUS.md).
+    size_t prompt_rows = 0;
     // Batch rows from which a matmul takes the tile kernel rather than the row kernel, for 8-bit and other types, narrow and wide rows; the crossover moves with the row width, and the values are measured (docs/VULKAN.md).
     size_t tile_from_8bit = 32, tile_from_8bit_narrow = 64, tile_from_other = 64;
     size_t tile_from_other_narrow = 64;
@@ -153,6 +157,7 @@ inline const TunedDevice* tuned_devices(size_t& count) {
          }},
         {"MI60 / MI50", "HIP", [](DeviceProfile& p) {
              p.prompt_rows_below = 9;
+             p.prompt_rows = 2048;
              p.tile_tall_per_cu = 6;
              p.qtile_tall_from = 4096;
              p.qtile_tall_from_8bit = 4096;

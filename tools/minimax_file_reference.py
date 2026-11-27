@@ -66,6 +66,73 @@ def read_routes(path):
     return layers
 
 
+class RouteFollower:
+    """llmx's picks taken in a sigmoid router where HF cannot order the experts the two picks differ in, each within `margin_ulps` of HF's k-th score; any other differing pick stays HF's and is counted (docs/MINIMAX.md, Classes and checks).
+    `routes` is read_routes' {key: ...}; each router call names its key and takes the key's next rows, so chunked and looped forwards follow too. A followed row's weights are its sigmoid scores over their sum plus `eps`, times `scale`, the gate's own rule, held to HF's weights on the rows it keeps."""
+
+    def __init__(self, torch, routes, margin_ulps, eps=0.0, scale=1.0):
+        self.torch, self.routes, self.margin_ulps, self.eps, self.scale = torch, routes, margin_ulps, eps, scale
+        self.records, self.picks, self.at, self.weights_deviation = {}, [], {}, 0.0
+
+    def weigh(self, routing, ids):
+        taken = routing.gather(1, ids)
+        return taken / (taken.sum(dim=-1, keepdim=True) + self.eps) * self.scale
+
+    def follow(self, key, top_k, bias, output):
+        """HF's router `output` (logits, weights, picks) for call `key`, with llmx's picks taken where they are ties."""
+        import numpy as np
+        torch = self.torch
+        logits, weights, picks = output
+        if key not in self.routes:
+            raise ValueError("llmx wrote no routes for router call %s" % (key,))
+        ids, theirs, k, n = self.routes[key]
+        rows, start = logits.shape[0], self.at.get(key, 0)
+        if k != top_k or n != logits.shape[1] or len(ids) < (start + rows) * k:
+            raise ValueError("llmx's routes of router call %s are not these rows" % (key,))
+        self.at[key] = start + rows
+        llmx_ids = torch.from_numpy(np.frombuffer(ids, dtype=np.uint32)[start * k:(start + rows) * k].astype(np.int64).reshape(rows, k))
+        llmx_logits = torch.from_numpy(np.frombuffer(theirs, dtype=np.float32)[start * n:(start + rows) * n].reshape(rows, n).copy())
+        routing = torch.sigmoid(logits.float())
+        scores = routing + bias
+        deviation = (torch.sigmoid(llmx_logits) + bias - scores).abs()
+        kth = scores.topk(k, dim=-1).values[:, -1]
+        ulp = torch.nextafter(kth, torch.full_like(kth, math.inf)) - kth
+        mine, other = picks.sort(dim=-1).values, llmx_ids.sort(dim=-1).values
+        self.weights_deviation = max(self.weights_deviation, float((self.weigh(routing, picks) - weights.float()).abs().max()))
+        record = self.records.setdefault(key, {"layer": key, "followed": 0, "exact_ties": 0, "beyond": 0,
+                                               "max_score_deviation": 0.0, "max_score_deviation_ulps": 0.0,
+                                               "max_score_deviation_position": None, "max_logit_deviation": 0.0})
+        record["max_score_deviation"] = max(record["max_score_deviation"], float(deviation.max()))
+        in_ulps = (deviation / ulp[:, None]).amax(dim=-1)
+        worst = int(in_ulps.argmax())
+        if record["max_score_deviation_position"] is None or float(in_ulps[worst]) > record["max_score_deviation_ulps"]:
+            record["max_score_deviation_ulps"], record["max_score_deviation_position"] = float(in_ulps[worst]), start + worst
+        record["max_logit_deviation"] = max(record["max_logit_deviation"], float((llmx_logits - logits.float()).abs().max()))
+        out_weights, out_picks = weights.clone(), picks.clone()
+        for r in (mine != other).any(dim=-1).nonzero().flatten().tolist():
+            hf_only = sorted(set(mine[r].tolist()) - set(other[r].tolist()))
+            llmx_only = sorted(set(other[r].tolist()) - set(mine[r].tolist()))
+            distance = max(abs(float(scores[r, e] - kth[r])) for e in hf_only + llmx_only) / float(ulp[r])
+            near = distance <= self.margin_ulps
+            record["followed" if near else "beyond"] += 1
+            record["exact_ties"] += int(near and distance == 0)
+            self.picks.append({"layer": key, "position": start + r, "hf_only": hf_only, "llmx_only": llmx_only, "distance_ulps": distance, "followed": near})
+            if near:
+                out_weights[r], out_picks[r] = self.weigh(routing[r:r + 1], llmx_ids[r:r + 1])[0].to(weights.dtype), llmx_ids[r]
+        return logits, out_weights, out_picks
+
+    def summary(self):
+        """The per-call records, every differing pick and their totals, as the compare reports them; every key's rows must have been read whole."""
+        for key, (ids, _, k, _) in self.routes.items():
+            if self.at.get(key, 0) * k != len(ids):
+                raise ValueError("router call %s took %d of llmx's %d rows" % (key, self.at.get(key, 0), len(ids) // k))
+        records = [self.records[key] for key in sorted(self.records)]
+        return {"margin_ulps": self.margin_ulps, "layers": records, "picks": self.picks, "weights_deviation": self.weights_deviation,
+                "first_differing_position": min((p["position"] for p in self.picks), default=None),
+                **{key: sum(r[key] for r in records) for key in ("followed", "exact_ties", "beyond")},
+                **{key: max(r[key] for r in records) for key in ("max_score_deviation", "max_score_deviation_ulps", "max_logit_deviation")}}
+
+
 def rows(hf, output_dir):
     """Write rows.json and NAME.ids, each row's ids as HF's tokenizer gives them."""
     os.environ["HF_HUB_OFFLINE"] = "1"
@@ -174,9 +241,10 @@ class FileReference:
                 for kind in ("gate_up", "down"):
                     delattr(layer.mlp.experts, kind + "_proj")
                     setattr(layer.mlp.experts, kind + "_proj", ExpertView(experts, kind))
-        self.follow, self.routes, self.picks = None, {}, []
+        self.follow = None
         for i in self.experts:
-            text.layers[i].mlp.gate.register_forward_hook(self.followed(i))
+            text.layers[i].mlp.gate.register_forward_hook(
+                lambda module, args, output, i=i: None if self.follow is None else self.follow.follow(i, module.top_k, module.e_score_correction_bias, output))
         delattr(text.embed_tokens, "weight")
         text.embed_tokens.weight = self.torch.empty(0, c.hidden_size)
         self.modules = [("model.layers.%d" % i, layer) for i, layer in enumerate(text.layers)]
@@ -190,52 +258,6 @@ class FileReference:
             for name, shape in (("ffn_gate_exps", (e, f, x)), ("ffn_up_exps", (e, f, x)), ("ffn_down_exps", (f, e, x))):
                 self.check("blk.%d.%s.weight" % (i, name), shape)
         self.check("token_embd.weight", (c.hidden_size, c.vocab_size))
-
-    def followed(self, layer):
-        """A router hook taking llmx's pick where HF cannot order the experts the two picks differ in, each within MARGIN_ULPS of HF's k-th score; any other differing pick stays HF's and is counted."""
-        torch = self.torch
-
-        def hook(module, args, output):
-            if self.follow is None:
-                return None
-            import numpy as np
-            logits, weights, picks = output
-            ids, theirs, k, n = self.follow[layer]
-            rows = logits.shape[0]
-            if k != module.top_k or n != logits.shape[1] or len(ids) != rows * k:
-                raise ValueError("llmx's routes of layer %d are not this row's" % layer)
-            llmx_ids = torch.from_numpy(np.frombuffer(ids, dtype=np.uint32).astype(np.int64).reshape(rows, k))
-            llmx_logits = torch.from_numpy(np.frombuffer(theirs, dtype=np.float32).reshape(rows, n).copy())
-            routing = torch.sigmoid(logits.float())
-            scores = routing + module.e_score_correction_bias
-            deviation = (torch.sigmoid(llmx_logits) + module.e_score_correction_bias - scores).abs()
-            kth = scores.topk(k, dim=-1).values[:, -1]
-            ulp = torch.nextafter(kth, torch.full_like(kth, math.inf)) - kth
-            mine, other = picks.sort(dim=-1).values, llmx_ids.sort(dim=-1).values
-            record = self.routes.setdefault(layer, {"layer": layer, "followed": 0, "exact_ties": 0, "beyond": 0,
-                                                    "max_score_deviation": 0.0, "max_score_deviation_ulps": 0.0,
-                                                    "max_score_deviation_position": None, "max_logit_deviation": 0.0})
-            record["max_score_deviation"] = max(record["max_score_deviation"], float(deviation.max()))
-            in_ulps = (deviation / ulp[:, None]).amax(dim=-1)
-            worst = int(in_ulps.argmax())
-            if record["max_score_deviation_position"] is None or float(in_ulps[worst]) > record["max_score_deviation_ulps"]:
-                record["max_score_deviation_ulps"], record["max_score_deviation_position"] = float(in_ulps[worst]), worst
-            record["max_logit_deviation"] = max(record["max_logit_deviation"], float((llmx_logits - logits.float()).abs().max()))
-            out_weights, out_picks = weights.clone(), picks.clone()
-            for r in (mine != other).any(dim=-1).nonzero().flatten().tolist():
-                hf_only = sorted(set(mine[r].tolist()) - set(other[r].tolist()))
-                llmx_only = sorted(set(other[r].tolist()) - set(mine[r].tolist()))
-                distance = max(abs(float(scores[r, e] - kth[r])) for e in hf_only + llmx_only) / float(ulp[r])
-                near = distance <= MARGIN_ULPS
-                record["followed" if near else "beyond"] += 1
-                record["exact_ties"] += int(near and distance == 0)
-                self.picks.append({"layer": layer, "position": r, "hf_only": hf_only, "llmx_only": llmx_only, "distance_ulps": distance, "followed": near})
-                if near:
-                    taken = routing[r:r + 1].gather(1, llmx_ids[r:r + 1])
-                    taken /= taken.sum(dim=-1, keepdim=True)
-                    out_weights[r], out_picks[r] = taken[0], llmx_ids[r]
-            return logits, out_weights, out_picks
-        return hook
 
     def check(self, name, shape):
         if name not in self.source.tensors:
@@ -334,7 +356,7 @@ class FileReference:
         trace = pins._Trace(self.model, self.torch)
         if routes is not None and sorted(routes) != sorted(self.experts):
             raise ValueError("llmx's routes name layers %s, the model routes %s" % (sorted(routes), sorted(self.experts)))
-        self.follow, self.routes, self.picks = routes, {}, []
+        follower = self.follow = RouteFollower(self.torch, routes, MARGIN_ULPS) if routes is not None else None
         layers, marks = [], []
         for i, layer in enumerate(self.model.model.layers):
             marks.append(layer.register_forward_hook(lambda module, args, output, i=i: layers.append((i, len(trace.margins["router"]), len(trace.margins["index"])))))
@@ -354,12 +376,8 @@ class FileReference:
             start = (router, index)
         first = pins._first_sparse(trace.kept, self.config.index_block_size)
         result = {"layers": per_layer, "first_sparse_position": first}
-        if routes is not None:
-            routed = [self.routes[i] for i in sorted(self.routes)]
-            result["routes"] = {"margin_ulps": MARGIN_ULPS, "layers": routed, "picks": self.picks,
-                                "first_differing_position": min((p["position"] for p in self.picks), default=None),
-                                **{key: sum(r[key] for r in routed) for key in ("followed", "exact_ties", "beyond")},
-                                **{key: max(r[key] for r in routed) for key in ("max_score_deviation", "max_score_deviation_ulps", "max_logit_deviation")}}
+        if follower is not None:
+            result["routes"] = follower.summary()
         return logits, result
 
 

@@ -100,6 +100,12 @@ inline Policy unscaled(const Inputs& in) {
     return pol;
 }
 
+// The rope of a model that rotates nothing: a request to scale it is refused rather than ignored.
+inline Policy none(const Request& request) {
+    if (request.factor || request.original) throw std::runtime_error("inference: --yarn and --yarn-original-ctx scale a rope, and this model has none");
+    return unscaled(Inputs{});
+}
+
 // A file's rope keys under the prefix `p` and the request: the unscaled rope, or YaRN as the file declares it or the request sets it, every refusal made before anything is allocated.
 // With --yarn the context is floor(factor x original), the original being --yarn-original-ctx, else the file's declared one, else the file's context.
 inline Policy resolve(const gguf::GGUFModel& m, const std::string& p, const Inputs& in, const Request& request) {

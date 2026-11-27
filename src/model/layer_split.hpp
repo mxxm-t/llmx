@@ -46,6 +46,7 @@ struct Footprint {
     Matrix output;                             // the head's matrix, the embedding table itself when tied
     Matrix output_norm;                        // what runs with the head besides its matrix
     std::vector<Matrix> head_aux;               // additional head matrices or norms, counted on the output device
+    std::vector<Matrix> embed_aux;              // embedding-part norms beside the table, counted on the first device
     bool tied = false;                         // the head reads the embedding table, adopted once where both sit on one device
     std::vector<size_t> cache;                 // each layer's cache: a KV layer's for every position the budget allows, a state layer's for every slot; none for every layer when empty
     std::vector<std::vector<size_t>> cache_buffers;   // the buffers of each layer's cache a device allocates on its own (K, V and auxiliary planes, the state), which it rounds (DeviceBudget::allocated)
@@ -335,11 +336,13 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
             for (const Matrix& m : fp.drafter) drafter += resident(d, m);
             if (!S || paired) drafter += drafted_embedding(d, first, last);
         }
-        size_t encoder = 0;
-        if (first)
-            for (const Matrix& m : fp.encoder.weights) encoder = backend::size_add(encoder, resident(d, m));
-        if (first && last && fp.tied) return resident(d, fp.output) + resident(d, fp.output_norm) + head_aux + drafter + encoder;
-        return (first ? resident(d, fp.embedding) : 0) + (last ? resident(d, fp.output) + resident(d, fp.output_norm) + head_aux : 0) + drafter + encoder;
+        size_t embed_aux = 0, encoder = 0;
+        if (first) {
+                for (const Matrix& m : fp.embed_aux) embed_aux = backend::size_add(embed_aux, resident(d, m));
+                for (const Matrix& m : fp.encoder.weights) encoder = backend::size_add(encoder, resident(d, m));
+        }
+        if (first && last && fp.tied) return resident(d, fp.output) + resident(d, fp.output_norm) + head_aux + embed_aux + drafter + encoder;
+        return (first ? resident(d, fp.embedding) + embed_aux : 0) + (last ? resident(d, fp.output) + resident(d, fp.output_norm) + head_aux : 0) + drafter + encoder;
     };
 
     // What the host holds for a set of devices running layers, and the device that carries it: the set's first host device, or none.

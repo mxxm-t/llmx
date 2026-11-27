@@ -1,0 +1,150 @@
+#version 450
+// attention_rel_sink (Backend::attention_rel_sink): a workgroup per (key-value head, row) takes its query heads four at a time, so each key and value is read once for them.
+// Keys run in chunks of 1024 with an online max and sum starting from the sink, each dot and bias an fma chain in the CPU's order, and split_keys keys a workgroup leave their partial state in scratch for attention_merge.
+#ifdef LLMX_TILE
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
+#endif
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P {
+    uint heads; uint kv_heads; uint dim; uint R; uint extent; uint window; float scale; uint ring; uint slot; uint ring_offset; uint ring_rows;
+    uint bt; uint block_floats; uint rows_floats; uint width; uint nsplit; uint split_keys; uint rows; uint row0;
+} p;
+layout(set = 0, binding = 0) writeonly buffer O { float o[]; };
+layout(set = 0, binding = 1) readonly buffer Q { float q[]; };
+layout(set = 0, binding = 2) readonly buffer KN { float kn[]; };
+layout(set = 0, binding = 3) readonly buffer VN { float vn[]; };
+layout(set = 0, binding = 4) readonly buffer RL { float rel[]; };
+layout(set = 0, binding = 5) readonly buffer TB { float table[]; };
+layout(set = 0, binding = 6) readonly buffer SK { float sink[]; };
+layout(set = 0, binding = 7) buffer S { float st[]; };
+layout(set = 0, binding = 8) readonly buffer T { uint tab[]; };
+layout(set = 0, binding = 9) writeonly buffer SC { float scratch[]; };
+#include "views.glsl"
+// The position's first [k|v] float in the ring of state slot `src`, or in the view's pooled rows.
+uint stored(uint v, uint src, uint pos) {
+    if (p.ring != 0u) return src * p.slot + p.ring_offset + (pos % p.ring_rows) * 2u * p.kv_heads * p.dim;
+    return pooled_row(v, pos, 1u, p.bt, p.block_floats, p.rows_floats, p.width);
+}
+#ifdef LLMX_TILE
+#include "attention_rel_sink_tile.glsl"
+#else
+#define HB 4u
+#define CHUNK 1024u
+shared float qs[HB * 256u];
+shared float rs[HB * 32u];
+shared float sc[HB * CHUNK];
+shared float red[HB * 256u];
+shared float top[HB], total[HB], factor[HB];
+void main() {
+    const uint kh = gl_WorkGroupID.x, sg = gl_WorkGroupID.y / p.nsplit, g = p.row0 + sg, part = gl_WorkGroupID.y - sg * p.nsplit, lid = gl_LocalInvocationID.x;
+    const uint D = p.dim, KD = p.kv_heads * D, HD = p.heads * D, rep = p.heads / p.kv_heads;
+    uint v = 0u, b, len, src = 0u;
+    if (p.ring != 0u) {
+        for (uint i = 0u; i < tab[0]; ++i)
+            if (g >= tab[1u + 5u * i] && g < tab[1u + 5u * i] + tab[2u + 5u * i]) v = i;
+        b = g - tab[1u + 5u * v];
+        len = tab[3u + 5u * v];
+        src = tab[4u + 5u * v];
+    } else {
+        view_of_row(g, v, b);
+        len = view_hist(v);
+    }
+    const uint pos = len + b, lo = p.window != 0u && pos + 1u > p.window ? pos + 1u - p.window : 0u, n = pos + 1u - lo;
+    const uint first = g - b;   // the call row of the view's first new position
+    const uint k0 = min(n, part * p.split_keys), k1 = min(n, k0 + p.split_keys);
+    const uint G = 256u / D, grp = lid / D, e = lid - grp * D;
+    for (uint h0 = 0u; h0 < rep; h0 += HB) {
+        const uint nh = min(HB, rep - h0), hq = kh * rep + h0;
+        for (uint i = lid; i < nh * D; i += 256u) qs[i] = q[g * HD + hq * D + i];
+        for (uint i = lid; i < nh * p.R; i += 256u) rs[i / p.R * 32u + i % p.R] = rel[(g * p.heads + hq) * p.R + i];
+        if (lid < nh) top[lid] = part == 0u ? sink[g * p.heads + hq + lid] : uintBitsToFloat(0xff800000u), total[lid] = part == 0u ? 1.0 : 0.0;
+        float acc[HB];
+        for (uint hh = 0u; hh < HB; ++hh) acc[hh] = 0.0;
+        barrier();
+        for (uint c0 = k0; c0 < k1; c0 += CHUNK) {
+            const uint cn = min(CHUNK, k1 - c0);
+            float peak[HB];
+            for (uint hh = 0u; hh < HB; ++hh) peak[hh] = uintBitsToFloat(0xff800000u);
+            for (uint i = lid; i < cn; i += 256u) {
+                const uint kp = lo + c0 + i;
+                const uint at = kp >= len ? (first + kp - len) * KD + kh * D : stored(v, src, kp) + kh * D;
+                float dot[HB];
+                for (uint hh = 0u; hh < HB; ++hh) dot[hh] = 0.0;
+                for (uint x = 0u; x < D; ++x) {
+                    const float k = kp >= len ? kn[at + x] : st[at + x];
+                    for (uint hh = 0u; hh < HB; ++hh) if (hh < nh) dot[hh] = fma(qs[hh * D + x], k, dot[hh]);
+                }
+                const uint d = pos - kp;
+                for (uint hh = 0u; hh < HB; ++hh) if (hh < nh) {
+                    precise float bias = 0.0;
+                    if (d < p.extent)
+                        for (uint r = 0u; r < p.R; ++r) bias = fma(rs[hh * 32u + r], table[r * p.extent + d], bias);
+                    const precise float s = dot[hh] * p.scale + bias;
+                    sc[hh * CHUNK + i] = s;
+                    peak[hh] = max(peak[hh], s);
+                }
+            }
+            for (uint hh = 0u; hh < HB; ++hh) if (hh < nh) red[hh * 256u + lid] = peak[hh];
+            barrier();
+            for (uint s = 128u; s > 0u; s >>= 1u) {
+                if (lid < s)
+                    for (uint hh = 0u; hh < nh; ++hh) red[hh * 256u + lid] = max(red[hh * 256u + lid], red[hh * 256u + lid + s]);
+                barrier();
+            }
+            float now[HB];
+            for (uint hh = 0u; hh < HB; ++hh) now[hh] = hh >= nh ? 0.0 : max(top[hh], red[hh * 256u]);
+            precise float part[HB];
+            for (uint hh = 0u; hh < HB; ++hh) part[hh] = 0.0;
+            for (uint i = lid; i < cn; i += 256u)
+                for (uint hh = 0u; hh < HB; ++hh) if (hh < nh) {
+                    const float x = exp(sc[hh * CHUNK + i] - now[hh]);
+                    sc[hh * CHUNK + i] = x;
+                    part[hh] += x;
+                }
+            barrier();
+            for (uint hh = 0u; hh < HB; ++hh) if (hh < nh) red[hh * 256u + lid] = part[hh];
+            barrier();
+            for (uint s = 128u; s > 0u; s >>= 1u) {
+                if (lid < s)
+                    for (uint hh = 0u; hh < nh; ++hh) red[hh * 256u + lid] += red[hh * 256u + lid + s];
+                barrier();
+            }
+            if (lid < nh) {
+                const float f = exp(top[lid] - now[lid]);
+                factor[lid] = f;
+                total[lid] = fma(total[lid], f, red[lid * 256u]);
+                top[lid] = now[lid];
+            }
+            barrier();
+            if (grp < G) {
+                for (uint hh = 0u; hh < HB; ++hh) if (hh < nh) acc[hh] *= factor[hh];
+                for (uint i = grp; i < cn; i += G) {
+                    const uint kp = lo + c0 + i;
+                    const float val = kp >= len ? vn[(first + kp - len) * KD + kh * D + e] : st[stored(v, src, kp) + KD + kh * D + e];
+                    for (uint hh = 0u; hh < HB; ++hh) if (hh < nh) acc[hh] = fma(sc[hh * CHUNK + i], val, acc[hh]);
+                }
+            }
+            barrier();
+        }
+        if (grp < G)
+            for (uint hh = 0u; hh < HB; ++hh) if (hh < nh) red[(grp * HB + hh) * D + e] = acc[hh];
+        barrier();
+        if (grp == 0u)
+            for (uint hh = 0u; hh < nh; ++hh) {
+                precise float sum = red[hh * D + e];
+                for (uint j = 1u; j < G; ++j) sum += red[(j * HB + hh) * D + e];
+                const uint at = ((sg * p.heads + hq + hh) * p.nsplit + part) * (D + 2u);
+                scratch[at + 2u + e] = sum;
+                if (e == 0u) scratch[at] = top[hh], scratch[at + 1u] = total[hh];
+            }
+        barrier();
+    }
+    // A pooled layer's new row goes to its position, which no workgroup of this call reads from the pool.
+    if (p.ring == 0u && part == 0u && lid < D) {
+        const uint at = stored(v, 0u, pos) + kh * D + lid;
+        st[at] = kn[g * KD + kh * D + lid];
+        st[at + KD] = vn[g * KD + kh * D + lid];
+    }
+}
+#endif

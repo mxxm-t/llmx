@@ -8,7 +8,8 @@ import sys
 import tempfile
 
 TARGETS = ["gfx906", "gfx942", "gfx1151"]
-KERNEL = "llmx_delta_step"
+# The kernels that prefetch their own code into L2.
+KERNELS = ["llmx_delta_step", "llmx_attention_rel_lanes_g3", "llmx_attention_rel_lanes_g4", "llmx_route_step_f32", "llmx_route_step_bf16"]
 # The end label sits at the kernel's last statement, so only its epilogue lies past it.
 END_SLACK = 64
 # The draws flush the member's host data path after each of their two phases (docs/src/backends-gpu.md, the collective).
@@ -176,7 +177,8 @@ def main():
         co = os.path.join(tmp.name, t + ".co")
         subprocess.run([tool("clang-offload-bundler"), "--unbundle", "--type=o", "--input=" + bundle, "--targets=" + triple, "--output=" + co], check=True)
         sym = subprocess.run([tool("llvm-readelf"), "-s", co], capture_output=True, text=True, check=True).stdout
-        for kernel, check, good in ((KERNEL, prefetch_finding, "code prefetch inside the kernel"), (SHARES, lambda d, s, n: flush_finding(d), "%d flushes read back" % FLUSHES)):
+        prefetching = [(k, prefetch_finding, "code prefetch inside the kernel") for k in KERNELS]
+        for kernel, check, good in prefetching + [(SHARES, lambda d, s, n: flush_finding(d), "%d flushes read back" % FLUSHES)]:
             found = [l.split() for l in sym.splitlines() if l.split()[-1:] == [kernel]]
             # The symbol is listed in both .dynsym and .symtab.
             found = sorted({(f[1], f[2]) for f in found if len(f) >= 8 and f[3] == "FUNC"})

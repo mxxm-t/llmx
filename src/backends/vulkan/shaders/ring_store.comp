@@ -1,0 +1,22 @@
+#version 450
+// A call's new [k|v] rows into the ring of a state slot (Backend::attention_rel_sink over rings), an invocation a (float, view).
+// With `copy` it copies a forking view's whole ring from slot src to slot dst first; otherwise it stores the view's last new rows that fit the ring, position p at ring row p % ring_rows.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint width; uint slot; uint ring_offset; uint ring_rows; uint copy; } p;
+layout(set = 0, binding = 0) buffer S { float st[]; };
+layout(set = 0, binding = 1) readonly buffer KN { float kn[]; };
+layout(set = 0, binding = 2) readonly buffer VN { float vn[]; };
+layout(set = 0, binding = 3) readonly buffer T { uint tab[]; };
+void main() {
+    const uint idx = gl_GlobalInvocationID.x, v = gl_WorkGroupID.y, W = 2u * p.width;
+    const uint row0 = tab[1u + 5u * v], nq = tab[2u + 5u * v], len = tab[3u + 5u * v], src = tab[4u + 5u * v], dst = tab[5u + 5u * v];
+    const uint base = dst * p.slot + p.ring_offset;
+    if (p.copy != 0u) {
+        if (src != dst && idx < p.ring_rows * W) st[base + idx] = st[src * p.slot + p.ring_offset + idx];
+        return;
+    }
+    const uint kept = min(nq, p.ring_rows);
+    if (idx >= kept * W) return;
+    const uint b = nq - kept + idx / W, c = idx % W, r = row0 + b;
+    st[base + ((len + b) % p.ring_rows) * W + c] = c < p.width ? kn[r * p.width + c] : vn[r * p.width + c - p.width];
+}

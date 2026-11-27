@@ -166,7 +166,7 @@ Sparse attention compresses the indexer's view for selecting blocks; it still at
 The partial block at a causal boundary matters.
 N-grams need both integer token history and convolution state.
 `StateShape` remains the common GDN prefix; `LayerPlan::state_tail` supplies additional per-layer F32 rows after it, including the nine preceding raw rows needed by the PLE dilated convolution.
-`dilated_conv_silu_add` applies the causal depthwise convolution and SiLU, adds it to the residual, and updates that F32 tail, on the CPU and on Vulkan.
+`depthwise_conv`, with a tail, SiLU and the residual given (`backend.hpp`, `DepthwiseConv`), applies the causal depthwise convolution and SiLU, adds it to the residual, and updates that F32 tail, on the CPU and on Vulkan.
 
 For token IDs, `LayerPlan::token_history` declares a fixed-width preceding-ID tail and `LayerPlan::token_padding` its sequence-start value, the PLE EOS id.
 The runtime keeps one exact U32 array on the host, indexed by the existing state slot IDs, for the one recurrent layer that declares a tail; it does not store token IDs in F32 state or duplicate the ID array on tensor-group members.

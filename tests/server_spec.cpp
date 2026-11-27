@@ -36,12 +36,11 @@ struct FlashRerunFailingWide : Wide {
     bool unordered_on = false;
     FlashRerunFailingWide(std::shared_ptr<FlashRerunFault> f, bool member) : fault(std::move(f)), fail_member(member) {}
     void unordered(bool on) override { unordered_on = on; }
-    void dilated_conv_silu_add(backend::Slice out, backend::CSlice x, backend::CSlice residual, backend::CSlice w,
-                               size_t channels, size_t taps, size_t dilation, size_t layer,
-                               const backend::StateView* views, size_t n_views) override {
-        backend::CpuBackend::dilated_conv_silu_add(out, x, residual, w, channels, taps, dilation, layer, views, n_views);
+    backend::ConvDone depthwise_conv_items(const backend::ConvRows* items, size_t n, size_t layer, const backend::StateView* views, size_t n_views, const backend::ConvKv* kv) override {
+        const backend::ConvDone posts = backend::CpuBackend::depthwise_conv_items(items, n, layer, views, n_views, kv);
         if (fault->armed.load()) { ple_after_mark = true; ++fault->marked_ple_replays; }
         if (fault->retrying.load()) ++fault->retry_ple_replays;
+        return posts;
     }
     void gated_delta_rule(backend::Slice out, backend::CSlice qkv, backend::CSlice alpha, backend::CSlice b,
                           backend::CSlice a, backend::CSlice dt_bias, size_t layer,
@@ -929,9 +928,9 @@ struct ChainThrows : Wide {
         bool expected = true;
         if (armed->compare_exchange_strong(expected, false)) throw std::runtime_error("injected chain failure");
     }
-    void argmax_rows(backend::Slice ids, backend::CSlice logits, size_t rows, size_t n, backend::CSlice after = {}) override {
+    void argmax_rows(backend::Slice ids, backend::CSlice logits, size_t rows, size_t n, backend::CSlice after = {}, size_t skip = SIZE_MAX) override {
         fire();
-        backend::CpuBackend::argmax_rows(ids, logits, rows, n, after);
+        backend::CpuBackend::argmax_rows(ids, logits, rows, n, after, skip);
     }
     void argmax_pick(backend::Slice ids, backend::CSlice cands, size_t rows, size_t slots, size_t n, backend::CSlice after = {}) override {
         fire();

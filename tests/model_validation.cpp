@@ -264,7 +264,7 @@ void plan_checks() {
         edit(plan);
         infer::footprint(weights, plan, infer::ModelOptions{});
     };
-    wrong("a pass role the fit has no field for", [&] { fit([](infer::ModelPlan& p) { p.pass[0].kind = infer::RoleKind::norm; }); });
+    wrong("a pass role the fit has no field for", [&] { fit([](infer::ModelPlan& p) { p.pass[0].kind = infer::RoleKind::matrix; }); });
     wrong("a duplicate head role", [&] { fit([](infer::ModelPlan& p) { p.pass.push_back(p.pass[1]); }); });
     auto planned = [&](std::function<void(infer::ModelPlan&)> edit) {
         infer::ModelWeights edited = weights;
@@ -1179,10 +1179,11 @@ void shard_checks() {
         rejects("tensor width quant blocks", [&] { infer::shard::check_plan(plan, views, 8); });
     }
     {
+        // Vocabulary rows a width does not divide split unevenly; a width past them leaves a member none and is refused.
         const auto pv = dense(8, 2, 128, 1024, 15, f32, false);
-        const infer::ModelPlan& plan = pv.first;
-        const std::vector<infer::TensorView>& views = pv.second;
-        rejects("tensor width vocabulary", [&] { infer::shard::check_plan(plan, views, 2); });
+        infer::shard::check_plan(pv.first, pv.second, 2);
+        const auto few = dense(8, 2, 128, 1024, 3, f32, false);
+        rejects("tensor width vocabulary", [&] { infer::shard::check_plan(few.first, few.second, 4); });
     }
     {
         // A routed layer splits each expert's 64 hidden rows: whole at widths 2 and 4 in F32, and in Q8_0 at width 4, 16 columns a member, by the whole blocks that cover them.

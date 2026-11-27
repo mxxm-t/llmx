@@ -12,6 +12,7 @@
 #include <iostream>
 #include <limits>
 #include <map>
+#include <set>
 #include <random>
 #include <sstream>
 #include <stdexcept>
@@ -31,6 +32,7 @@
 #include "moe_step.hpp"
 #include "qwen35_checks.hpp"
 #include "deepseek4_checks.hpp"
+#include "inkling2_checks.hpp"
 #include "dspine_checks.hpp"
 #include "vision_checks.hpp"
 
@@ -684,7 +686,7 @@ size_t check_twin_table() {
                 quantizes_nothing("a routed sum into another region dropped a norm's twin", [&] { matmul(A, ys[1]); });
                 vk.copy(*arena, n * sizeof(float), *otherb, 0, bytes);
                 quantizes_nothing("a copy into another region dropped a norm's twin", [&] { matmul(A, ys[2]); });
-                vk.silu_mul(D, {gb.get(), 0}, {ub.get(), 0}, n, 0.0f, rr);
+                vk.silu_mul(D, {gb.get(), 0}, {ub.get(), 0}, n, {}, rr);
                 quantizes_nothing("a second producer's twin replaced the first", [&] {
                     matmul(A, ys[3]);
                     matmul(D, ys[4]);
@@ -693,7 +695,7 @@ size_t check_twin_table() {
                 // In place over part of a buffer and without a twin, a norm of rows narrower than their stride and a SiLU of a length off the blocks must drop the twins they overwrite.
                 vk.rms_norm_rows(D, D, {wnb.get(), 0}, rows, n_in - 24, n_in, 1e-6f, rr);
                 matmul(D, ys[5]);
-                vk.silu_mul(A, A, {ub.get(), 0}, n - 16, 0.0f, rr);
+                vk.silu_mul(A, A, {ub.get(), 0}, n - 16, {}, rr);
                 matmul(A, ys[6]);
                 const auto a1 = floats(arena, 0, n), d1 = floats(arena, 3 * n, n);
                 std::vector<std::vector<float>> got;
@@ -771,8 +773,11 @@ size_t check_write_sets() {
             const size_t b = std::stoul(text.substr(text.find('=', binding) + 1));
             (qualifiers.find("readonly") != std::string::npos ? declared[b].first : declared[b].second) = true;
         }
+        // Builds of one source share its layout, so a binding one build writes is declared written in the other: attention_rel_sink's row build leaves its output to attention_merge, and its tile build writes no split parts.
+        static const std::set<std::pair<std::string, size_t>> unwritten = {{"attention_rel_sink", 0}, {"attention_rel_sink_tile", 9}};
         for (size_t b = 0; b < kw.second.size(); ++b, ++bindings) {
-            const auto d = declared[b];
+            auto d = declared[b];
+            if (unwritten.count({kw.first, b})) d.second = false;
             // No shader declares one binding both ways in different builds; one that does is refused until the check gives it an expectation of its own.
             require(!(d.first && d.second), ("a binding declared both readonly and writable in " + kw.first).c_str());
             const bool written = d.second && !left_out(kw.first, sources[name], b);
@@ -876,6 +881,73 @@ size_t check_tile_split(Pair& p) {
     return values;
 }
 
+// In-place ops over an arena's rows, then readers of those rows, recorded with no read between: the readers (a copy, a gather, an add, a norm and a product through its activation twin) and a second in-place write see each write in order.
+size_t check_in_place(Pair& p) {
+    backend::Backend& vk = p.dev;
+    const auto native = vk.native_dtypes();
+    const size_t rows = 6, half = 256, width = 2 * half, n = rows * width, n_out = 64, bytes = n * sizeof(float);
+    std::vector<uint8_t> w8(n_out * (width / 32) * quant::Q8_0_TYPESIZE);
+    const auto wf = uniform(n_out * width, 1901);
+    for (size_t r = 0; r < n_out; ++r)
+        quant::quantize_row_q8_0(wf.data() + r * width, w8.data() + r * (width / 32) * quant::Q8_0_TYPESIZE, width / 32);
+    const auto x0 = uniform(n, 1902), s = uniform(n, 1903, -2.0f, 2.0f), nw = uniform(half, 1904, 0.5f, 1.5f);
+    const uint32_t pick[rows] = {5, 4, 3, 2, 1, 0};
+    size_t values = 0;
+    for (const backend::Dtype dtype : {backend::Dtype::f32, backend::Dtype::f16, backend::Dtype::int8}) {
+        if (dtype != backend::Dtype::f32 && std::find(native.begin(), native.end(), dtype) == native.end()) continue;
+        const auto wb = vk.adopt(w8.data(), w8.size());
+        const backend::WeightView W{quant::GGML_TYPE_Q8_0, {wb.get(), 0}};
+        Pair::In si = p.in(s), nwi = p.in(nw);
+        // x sits in the middle of an arena, as activations do, so its twin and its writes are ranges of a shared buffer.
+        Pair::Out arena = p.out(3 * n), c = p.out(n), g = p.out(n), z = p.out(n), nrm = p.out(n), c2 = p.out(n);
+        const auto y0 = vk.alloc(rows * n_out * sizeof(float), backend::Memory::device), y1 = vk.alloc(rows * n_out * sizeof(float), backend::Memory::device);
+        const std::vector<float> zeros(n, 0.0f);
+        for (backend::Backend* b : {static_cast<backend::Backend*>(&p.cpu), &vk}) {
+            const bool dev = b == &vk;
+            b->write(dev ? *arena.v : *arena.c, n * sizeof(float), x0.data(), bytes);
+            b->write(dev ? *z.v : *z.c, 0, zeros.data(), bytes);
+        }
+        auto steps = [&](backend::Backend& b, bool dev) {
+            backend::Buffer& ab = dev ? *arena.v : *arena.c;
+            const backend::Slice X{&ab, n}, Xh{&ab, n + half};
+            const backend::CSlice S = dev ? si.vs() : si.cs(), Sh{S.buffer, half}, NW = dev ? nwi.vs() : nwi.cs();
+            auto out = [dev](const Pair::Out& o) { return dev ? o.vs() : o.cs(); };
+            if (dev) vk.matmul(W, X, {y0.get(), 0}, width, n_out, rows, {}, dtype);
+            b.add(X, S, n);
+            b.rms_norm_rows(Xh, Xh, NW, rows, half, width, 1e-6f);
+            b.sigmoid_mul(X, X, Sh, rows, 1, half, width, 0);
+            b.copy(dev ? *c.v : *c.c, 0, ab, n * sizeof(float), bytes);
+            b.gather_rows(out(g), X, width, pick, rows);
+            b.add(out(z), X, n);
+            b.rms_norm_rows(out(nrm), X, NW, rows * 2, half, half, 1e-6f);
+            if (dev) vk.matmul(W, X, {y1.get(), 0}, width, n_out, rows, {}, dtype);
+            b.add(X, S, n);
+            b.copy(dev ? *c2.v : *c2.c, 0, ab, n * sizeof(float), bytes);
+        };
+        steps(p.cpu, false);
+        steps(vk, true);
+        // Elementwise steps against the CPU: the norm sums in another order and sigmoid takes the device's exp.
+        for (const Pair::Out* o : {&c, &g, &z, &nrm, &c2}) {
+            auto r = p.results(*o);
+            values += close(r.first, r.second, 2e-5, "a reader of rows written in place differs from the CPU");
+        }
+        const auto dc = q35::read_floats(vk, *c.v, n), dg = q35::read_floats(vk, *g.v, n), dz = q35::read_floats(vk, *z.v, n);
+        for (size_t r = 0; r < rows; ++r)
+            require(std::memcmp(dc.data() + r * width, dg.data() + pick[r] * width, width * sizeof(float)) == 0, "gather after an in-place write differs from the copy");
+        values += exact(dc, dz, "add after an in-place write differs from the copy");
+        // The products against fresh buffers of the same inputs, which no twin can stand in for.
+        auto fresh = [&](const std::vector<float>& x) {
+            const auto xb = vk.adopt(x.data(), bytes);
+            const auto yb = vk.alloc(rows * n_out * sizeof(float), backend::Memory::device);
+            vk.matmul(W, {xb.get(), 0}, {yb.get(), 0}, width, n_out, rows, {}, dtype);
+            return q35::read_floats(vk, *yb, rows * n_out);
+        };
+        values += exact(fresh(x0), q35::read_floats(vk, *y0, rows * n_out), "product before the in-place writes differs from a fresh one");
+        values += exact(fresh(dc), q35::read_floats(vk, *y1, rows * n_out), "product after in-place writes read a stale input");
+    }
+    return values;
+}
+
 size_t check_kernels(backend::Backend& vk) {
     Pair p(vk);
     const bool integer_dot = backend::vulkan_device_profile(p.dev).prefer_integer_dot;
@@ -902,8 +974,8 @@ size_t check_kernels(backend::Backend& vk) {
         const auto g = uniform(n, 3, -6.0f, 6.0f), u = uniform(n, 4);
         Pair::In gi = p.in(g), ui = p.in(u);
         Pair::Out d = p.out(n);
-        p.cpu.silu_mul(d.cs(), gi.cs(), ui.cs(), n, 0.0f);
-        p.dev.silu_mul(d.vs(), gi.vs(), ui.vs(), n, 0.0f);
+        p.cpu.silu_mul(d.cs(), gi.cs(), ui.cs(), n, {});
+        p.dev.silu_mul(d.vs(), gi.vs(), ui.vs(), n, {});
         auto r = p.results(d);
         values += close(r.first, r.second, 1e-6, "silu_mul differs beyond 1e-6");
     }
@@ -913,8 +985,8 @@ size_t check_kernels(backend::Backend& vk) {
             const auto g = uniform(n, 5, -12.0f, 12.0f), u = uniform(n, 6, -12.0f, 12.0f);
             Pair::In gi = p.in(g), ui = p.in(u);
             Pair::Out d = p.out(n);
-            p.cpu.silu_mul(d.cs(), gi.cs(), ui.cs(), n, limit, {}, backend::GluForm::quick_gelu);
-            p.dev.silu_mul(d.vs(), gi.vs(), ui.vs(), n, limit, {}, backend::GluForm::quick_gelu);
+            p.cpu.silu_mul(d.cs(), gi.cs(), ui.cs(), n, {limit, backend::GluForm::quick_gelu});
+            p.dev.silu_mul(d.vs(), gi.vs(), ui.vs(), n, {limit, backend::GluForm::quick_gelu});
             auto r = p.results(d);
             values += close(r.first, r.second, 1e-6, "silu_mul's quick_gelu differs beyond its budget");
         }
@@ -1714,7 +1786,7 @@ size_t check_kernels(backend::Backend& vk) {
             };
             auto silu = [&](bool told) {
                 auto f = vk.alloc(bytes, backend::Memory::device);
-                vk.silu_mul({f.get(), 0}, {gb.get(), 0}, {ub.get(), 0}, rows * n_in, 0.0f, told ? rr : backend::RowRuns{});
+                vk.silu_mul({f.get(), 0}, {gb.get(), 0}, {ub.get(), 0}, rows * n_in, {}, told ? rr : backend::RowRuns{});
                 return f;
             };
             // Eight heads of 128 over two KV heads, n_in wide, one prompt of `rows` rows, which takes the tiled kernel with or without its extent.
@@ -1764,7 +1836,7 @@ size_t check_kernels(backend::Backend& vk) {
                     auto routed = [&](bool told) {
                         const auto f = vk.alloc(ebytes, backend::Memory::device);
                         const auto yb = vk.alloc(rows * n_out * sizeof(float), backend::Memory::device);
-                        vk.silu_mul({f.get(), 0}, {geb.get(), 0}, {ueb.get(), 0}, entries * n_in, 0.0f,
+                        vk.silu_mul({f.get(), 0}, {geb.get(), 0}, {ueb.get(), 0}, entries * n_in, {},
                                     told ? backend::RowRuns{eruns.data(), eruns.size()} : backend::RowRuns{});
                         vk.matmul_experts_add({quant::GGML_TYPE_Q8_0, {eb.get(), 0}}, {f.get(), 0}, {yb.get(), 0}, n_in, n_out, rows, routing, rr, dtype);
                         std::vector<float> y(rows * n_out);
@@ -1811,8 +1883,8 @@ size_t check_kernels(backend::Backend& vk) {
                     vk.rms_norm_rows({h2.get(), 0}, {h2.get(), 0}, {wnb.get(), 0}, r2, n_in / 2, n_in, 1e-6f);
                     const auto after_norm = product(h2);
                     values += exact(after_norm, refresh(), "a matmul read a norm's twin after a norm without a twin wrote over it");
-                    vk.silu_mul({h2.get(), 0}, {gb.get(), 0}, {ub.get(), 0}, r2 * n_in, 0.0f);
-                    vk.silu_mul({h2.get(), 0}, {h2.get(), 0}, {ub.get(), 0}, r2 * n_in - 16, 0.0f);
+                    vk.silu_mul({h2.get(), 0}, {gb.get(), 0}, {ub.get(), 0}, r2 * n_in, {});
+                    vk.silu_mul({h2.get(), 0}, {h2.get(), 0}, {ub.get(), 0}, r2 * n_in - 16, {});
                     const auto after_silu = product(h2);
                     values += exact(after_silu, refresh(), "a matmul read a SiLU's twin after a SiLU without a twin wrote over it");
                 }
@@ -1971,10 +2043,10 @@ size_t check_kernels(backend::Backend& vk) {
             Pair::Out d1 = p.out(rows * nout), d2 = p.out(rows * nout);
             p.dev.rms_norm_rows(h.vs(), si.vs(), wni.vs(), rows, nin, nin, 1e-6f);
             p.dev.matmul({quant::GGML_TYPE_Q8_0, wqi.vs()}, h.vs(), d1.vs(), nin, nout, rows);
-            p.dev.silu_mul(f.vs(), gi.vs(), ui.vs(), rows * nin, 0.0f);
+            p.dev.silu_mul(f.vs(), gi.vs(), ui.vs(), rows * nin, {});
             p.dev.matmul({quant::GGML_TYPE_Q4_0, w4i.vs()}, f.vs(), d2.vs(), nin, nout, rows);
             p.cpu.rms_norm_rows(h.cs(), si.cs(), wni.cs(), rows, nin, nin, 1e-6f);
-            p.cpu.silu_mul(f.cs(), gi.cs(), ui.cs(), rows * nin, 0.0f);
+            p.cpu.silu_mul(f.cs(), gi.cs(), ui.cs(), rows * nin, {});
             std::vector<float> hc(rows * nin), fc(rows * nin);
             p.cpu.read(*h.c, 0, hc.data(), hc.size() * sizeof(float));
             p.cpu.read(*f.c, 0, fc.data(), fc.size() * sizeof(float));
@@ -2001,26 +2073,29 @@ size_t check_kernels(backend::Backend& vk) {
             catch (const std::runtime_error&) { rejected = true; }
             require(rejected, "row runs out of order accepted");
         }
-        // Three projections in one dispatch equal the same three one at a time, bit for bit, since each row's work is unchanged; rows are uneven so the workgroup ranges do not line up.
-        for (size_t nbatch : {size_t(1), size_t(3)}) {
-            const auto x = uniform(nbatch * nin, 30 + (uint32_t)nbatch);
-            Pair::In xi = p.in(x);
-            const size_t rows[3] = {nout, 5, 33};
-            Pair::Out sep[3] = {p.out(nbatch * rows[0]), p.out(nbatch * rows[1]), p.out(nbatch * rows[2])};
-            Pair::Out grp[3] = {p.out(nbatch * rows[0]), p.out(nbatch * rows[1]), p.out(nbatch * rows[2])};
-            for (int i = 0; i < 3; ++i)
-                p.dev.matmul({quant::GGML_TYPE_Q8_0, wqi.vs()}, xi.vs(), sep[i].vs(), nin, rows[i], nbatch);
-            p.dev.matmul_group({{{quant::GGML_TYPE_Q8_0, wqi.vs()}, grp[0].vs(), rows[0]},
-                               {{quant::GGML_TYPE_Q8_0, wqi.vs()}, grp[1].vs(), rows[1]},
-                               {{quant::GGML_TYPE_Q8_0, wqi.vs()}, grp[2].vs(), rows[2]}},
-                              xi.vs(), nin, nbatch);
-            for (int i = 0; i < 3; ++i) {
-                std::vector<float> a(sep[i].n), b(grp[i].n);
-                p.dev.read(*sep[i].v, 0, a.data(), a.size() * sizeof(float));
-                p.dev.read(*grp[i].v, 0, b.data(), b.size() * sizeof(float));
-                values += exact(a, b, "grouped projections differ from separate ones");
+        // Grouped projections equal the same ones one at a time, bit for bit, since each row's work is unchanged; rows are uneven so the workgroup ranges do not line up.
+        // Four projections, as Inkling-2 groups its query, gate, sink and rel rows, exceed the kernels' three and are dispatched in threes.
+        for (size_t count : {size_t(3), size_t(4)})
+            for (size_t nbatch : {size_t(1), size_t(3), size_t(64)}) {
+                const auto x = uniform(nbatch * nin, 30 + (uint32_t)nbatch);
+                Pair::In xi = p.in(x);
+                const size_t rows[4] = {nout, 5, 33, 7};
+                std::vector<Pair::Out> sep, grp;
+                for (size_t i = 0; i < count; ++i) {
+                    sep.push_back(p.out(nbatch * rows[i]));
+                    grp.push_back(p.out(nbatch * rows[i]));
+                    p.dev.matmul({quant::GGML_TYPE_Q8_0, wqi.vs()}, xi.vs(), sep[i].vs(), nin, rows[i], nbatch);
+                }
+                auto pr = [&](size_t i) { return backend::Projection{{quant::GGML_TYPE_Q8_0, wqi.vs()}, grp[i].vs(), rows[i]}; };
+                if (count == 3) p.dev.matmul_group({pr(0), pr(1), pr(2)}, xi.vs(), nin, nbatch);
+                else p.dev.matmul_group({pr(0), pr(1), pr(2), pr(3)}, xi.vs(), nin, nbatch);
+                for (size_t i = 0; i < count; ++i) {
+                    std::vector<float> a(sep[i].n), b(grp[i].n);
+                    p.dev.read(*sep[i].v, 0, a.data(), a.size() * sizeof(float));
+                    p.dev.read(*grp[i].v, 0, b.data(), b.size() * sizeof(float));
+                    values += exact(a, b, "grouped projections differ from separate ones");
+                }
             }
-        }
         // DeepSeek-V4.1's query and window projections, 1280 and 512 rows 5120 wide, in one decode call equal the two calls at 1 and 2 columns, in both activation types.
         {
             const size_t width = 5120, rows[2] = {1280, 512};
@@ -2315,7 +2390,7 @@ size_t check_kernels(backend::Backend& vk) {
         time("norm_rope_partial 1 row 16 heads", [&] {
             vk.norm_rope_partial({xb.get(), 0}, {xb.get(), 0}, 1, 16 * 128, 128, 16, 128, 128, {hwb.get(), 0}, 1e-6f, {cb.get(), 0}, {sb.get(), 0}, &pos0, backend::RopeForm{});
         });
-        time("silu_mul 3072", [&] { vk.silu_mul({xb.get(), 0}, {xb.get(), 0}, {xb.get(), 0}, 3072, 0.0f); });
+        time("silu_mul 3072", [&] { vk.silu_mul({xb.get(), 0}, {xb.get(), 0}, {xb.get(), 0}, 3072, {}); });
         time("kv_write 1 row", [&] { vk.kv_write(0, &view, 1, {Kb.get(), 0}, {Vb.get(), 0}); });
     }
     // Decode bandwidth of the row kernel on a Qwen3-8B-sized projection, reported and not asserted: 4096 x 4096 Q8_0 is 17 MiB per column.
@@ -3115,11 +3190,11 @@ size_t check_timing_coverage() {
     const auto xb = tb->adopt(x.data(), n * sizeof(float));
     const auto yb = tb->alloc(n * sizeof(float), backend::Memory::device);
     tb->kernel_times();
-    tb->silu_mul({yb.get(), 0}, {xb.get(), 0}, {xb.get(), 0}, n, 0.0f);
+    tb->silu_mul({yb.get(), 0}, {xb.get(), 0}, {xb.get(), 0}, n, {});
     const size_t per = tb->kernel_times().dispatches;
     require(per >= 1, "a timed dispatch was not timed");
     const size_t calls = 6000;
-    for (size_t i = 0; i < calls; ++i) tb->silu_mul({yb.get(), 0}, {xb.get(), 0}, {xb.get(), 0}, n, 0.0f);
+    for (size_t i = 0; i < calls; ++i) tb->silu_mul({yb.get(), 0}, {xb.get(), 0}, {xb.get(), 0}, n, {});
     const backend::Backend::KernelTimes reading = tb->kernel_times();
     double ms = 0;
     for (const auto& k : reading.kernels) ms += k.second;
@@ -3907,7 +3982,7 @@ size_t check_half_weights(backend::Backend& vk) {
 size_t check_refusals(backend::Backend& vk) {
     require(!vk.implements(backend::Op::mixed_experts), "Vulkan advertises unsupported mixed routed projections");
     // An op the backend does not list, as a new op is until it is, is refused.
-    require(!vk.implements(backend::Op(uint8_t(backend::Op::tap_weighted_rows) + 1)), "Vulkan advertises an op it does not list");
+    require(!vk.implements(backend::Op(uint8_t(backend::Op::copy_rows) + 1)), "Vulkan advertises an op it does not list");
     // DeepSeek-V4.1's ops and modes, which ds4::check_ops holds to the CPU.
     for (backend::Op op : {backend::Op::sqrt_softplus_routing, backend::Op::silu_mul_clamp, backend::Op::rope_forms, backend::Op::hc_coeffs, backend::Op::pool_write})
         require(vk.implements(op), (std::string("Vulkan lacks ") + backend::op_name(op)).c_str());
@@ -5748,9 +5823,9 @@ int main(int argc, char** argv) {
     const std::string mode = argc >= 2 ? argv[1] : "", arg = argc >= 3 ? argv[2] : "";
     const std::string isa_dir = argc == 3 && mode == "--isa" ? arg : "";
     const bool columns_only = mode == "--decode-columns", rates_only = mode == "--decode-rates", routed_only = mode == "--routed" && argc == 2;
-    const bool deepseek_only = mode == "--deepseek4" && argc == 2, dspine_only = mode == "--dspine" && argc == 2;
-    if (argc > 3 || (argc >= 2 && isa_dir.empty() && !columns_only && !rates_only && !routed_only && !deepseek_only && !dspine_only)) {
-        std::cerr << "usage: llmx-backend-vulkan-test [--isa DIR | --decode-columns [TYPES] | --decode-rates [TYPES] | --routed | --deepseek4 | --dspine]\n";
+    const bool deepseek_only = mode == "--deepseek4" && argc == 2, inkling_only = mode == "--inkling2" && argc == 2, dspine_only = mode == "--dspine" && argc == 2;
+    if (argc > 3 || (argc >= 2 && isa_dir.empty() && !columns_only && !rates_only && !routed_only && !deepseek_only && !inkling_only && !dspine_only)) {
+        std::cerr << "usage: llmx-backend-vulkan-test [--isa DIR | --decode-columns [TYPES] | --decode-rates [TYPES] | --routed | --deepseek4 | --inkling2 | --dspine]\n";
         return 2;
     }
     backend::BackendPtr b;
@@ -5763,6 +5838,12 @@ int main(int argc, char** argv) {
     try {
         if (rates_only) {
             report_decode_rates(named_types(*b, arg));
+            return 0;
+        }
+        if (inkling_only) {
+            ink2::device_ops(*b);
+            ink2::device_state_ops(*b);
+            std::cout << "backend-vulkan: " << ink2::checked << " inkling2 device checks passed\n";
             return 0;
         }
         if (dspine_only) {
@@ -5982,6 +6063,7 @@ int main(int argc, char** argv) {
         {
             Pair tp(*b);
             std::cout << "backend-vulkan: " << check_tile_split(tp) << " split tiled attention outputs against the CPU, and against themselves alone, in slices and cut over tiles\n";
+            std::cout << "backend-vulkan: " << check_in_place(tp) << " outputs of readers after in-place writes against the CPU and fresh products\n";
         }
         report_routed_occupancy();
         const size_t narrow_tiles = check_routed_narrow();
@@ -5994,6 +6076,9 @@ int main(int argc, char** argv) {
         std::cout << "backend-vulkan: " << check_timing_coverage() << " dispatches timed between two readings, past one query pool\n";
         print_argmax_after_head();
         std::cout << "backend-vulkan: " << check_bf16_batch_split(*b) << " BF16 outputs invariant across physical tile boundaries\n";
+        ink2::device_ops(*b);
+        ink2::device_state_ops(*b);
+        std::cout << "backend-vulkan: " << ink2::checked << " inkling2 device checks passed\n";
         const DecodeCells cells = default_decode_cells(*b);
         const size_t columns = check_decode_columns(*b, backend::Dtype::f16, cells);
         std::cout << "backend-vulkan: " << columns << " decode columns equal to the same columns alone\n";

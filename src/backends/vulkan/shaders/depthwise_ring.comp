@@ -1,0 +1,69 @@
+#version 450
+// depthwise_conv over a ring history (Backend::depthwise_conv, ConvHistory::ring): a workgroup holds 256 / chunks channels of one view, and each of its threads walks one chunk of that view's rows in order through a register window.
+// Position p's raw row sits at ring row p % ring_rows of the slot; every chunk's history is read into shared memory before any row is stored, so out may be exactly x, and only the view's last ring_rows rows are stored.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint C; uint taps; uint dilation; uint slot; uint ring_offset; uint ring_rows; uint act; uint residual; float divisor; uint dyn_heads; uint dyn_stride; uint chunks; uint out_stride; uint accumulate; } p;
+layout(set = 0, binding = 0) buffer O { float o[]; };
+layout(set = 0, binding = 1) readonly buffer X { float x[]; };
+layout(set = 0, binding = 2) readonly buffer RS { float residual[]; };
+layout(set = 0, binding = 3) readonly buffer W { float w[]; };
+layout(set = 0, binding = 4) readonly buffer DY { float dyn[]; };
+layout(set = 0, binding = 5) buffer S { float st[]; };
+layout(set = 0, binding = 6) readonly buffer T { uint tab[]; };
+const uint MAXH = 8u, MAXT = 9u;
+shared float hist[MAXH * 256u];
+void main() {
+    const uint lid = gl_LocalInvocationID.x, CH = 256u / p.chunks, chunk = lid / CH, c = gl_WorkGroupID.x * CH + lid % CH, v = gl_WorkGroupID.y;
+    const bool live = c < p.C;
+    const uint row0 = tab[1u + 5u * v], nq = tab[2u + 5u * v], len = tab[3u + 5u * v], src = tab[4u + 5u * v], dst = tab[5u + 5u * v];
+    const uint C = p.C, T = p.taps, H = (T - 1u) * p.dilation, R = p.ring_rows;
+    const uint sbase = src * p.slot + p.ring_offset, dbase = dst * p.slot + p.ring_offset;
+    const uint per = (nq + p.chunks - 1u) / p.chunks, b0 = min(nq, chunk * per), b1 = min(nq, b0 + per);
+    // Phase 1: the raw values at the H positions before the chunk, from the source ring or from x, and the source ring copied to the destination.
+    if (live) {
+        for (uint j = 0u; j < MAXH; ++j) {
+            float h = 0.0;
+            if (j < H && len + b0 >= H - j) {
+                const uint q = len + b0 - (H - j);
+                h = q < len ? st[sbase + (q % R) * C + c] : x[(row0 + q - len) * C + c];
+            }
+            hist[j * 256u + lid] = h;
+        }
+        if (src != dst)
+            for (uint r = chunk; r < R; r += p.chunks) st[dbase + r * C + c] = st[sbase + r * C + c];
+    }
+    memoryBarrierBuffer();
+    memoryBarrierShared();
+    barrier();
+    if (!live || b0 >= b1) return;
+    // win[MAXH - L] holds the raw value L positions back.
+    float win[MAXH], wt[MAXT];
+    for (uint j = 0u; j < MAXH; ++j) win[j] = j + H >= MAXH ? hist[(j + H - MAXH) * 256u + lid] : 0.0;
+    for (uint k = 0u; k < MAXT; ++k) wt[k] = k < T ? w[c * T + k] : 0.0;
+    const uint group = p.dyn_heads != 0u ? C / p.dyn_heads : C;
+    uint rr = (len + b0) % R;
+    for (uint b = b0; b < b1; ++b) {
+        const uint g = row0 + b, index = g * C + c;
+        const float now = x[index];
+        precise float acc = 0.0;
+        for (uint k = 0u; k < MAXT; ++k) {
+            if (k >= T) break;
+            const uint lag = (T - 1u - k) * p.dilation;
+            float tap = now;
+            for (uint i = 1u; i <= MAXH; ++i)
+                if (lag == i) tap = win[MAXH - i];
+            precise float wk = wt[k];
+            if (p.dyn_heads != 0u) wk = wk + dyn[g * p.dyn_stride + (c / group) * T + (T - 1u - k)];
+            acc = k == 0u ? wk * tap : fma(wk, tap, acc);
+        }
+        for (uint j = 0u; j + 1u < MAXH; ++j) win[j] = win[j + 1u];
+        win[MAXH - 1u] = now;
+        if (b + R >= nq) st[dbase + rr * C + c] = now;
+        rr = rr + 1u == R ? 0u : rr + 1u;
+        const float y = p.act != 0u ? acc / (1.0 + exp(-acc)) : acc;
+        precise float sum = p.residual == 1u ? now + y : p.residual == 2u ? residual[index] + y : y;
+        precise float value = p.divisor == 1.0 ? sum : sum / p.divisor;
+        const uint oi = g * p.out_stride + c;
+        o[oi] = p.accumulate != 0u ? o[oi] + value : value;
+    }
+}

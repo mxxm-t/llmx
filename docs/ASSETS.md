@@ -534,7 +534,7 @@ The Q8_0 file's goldens given the Q4_0 file are refused by SHA-256.
 | Reference family | Selectors |
 |---|---|
 | Default group | `all` |
-| Tokenizers | `tokenizer`, `tokenizer-qwen35`, `tokenizer-deepseek41` |
+| Tokenizers | `tokenizer`, `tokenizer-qwen35`, `tokenizer-deepseek41`, `tokenizer-inkling2` |
 | Released text models | `logits`, `perplexity`, `qwen35`, `file-exact` |
 | Synthetic graphs and activation policies | `f32`, `moe`, `moe-q8`, `int8`, `qwen35-tiny`, `qwen35-mtp`, `qwen4exp-tiny`, `tensor-split`, `tensor-split-moe` |
 | FP4 formats | `mxfp4`, `nvfp4` |
@@ -688,6 +688,7 @@ Every norm is stored as 1 + w; the reference takes the stored value less 1 and r
 The file's router biases sit near 20, where F32 steps by 1.9e-6, so two experts' biased scores often round to the same value at the cut, and HF's top-k, whose order at a tie is unspecified, takes either; there HF is no reference for the pick (docs/MINIMAX.md, Classes and checks).
 `run --routes DIR` reads `DIR/NAME.routes`, which llmx-route-probe writes beside its rows (docs/TESTS.md, Suite components), and a router hook compares llmx's pick of each position with HF's.
 Where they differ and every expert in which they differ scores within `MARGIN_ULPS` ulps of HF's k-th score, the pick is llmx's, weighted by HF's own formula; any other differing pick stays HF's and is counted beyond the margin.
+The hook is `RouteFollower`, which tools/inkling2_file_reference.py takes as well with its own margin (docs/INKLING2.md, 6. Correctness); it keys each router call by llmx's layer key and reads that key's rows in order, so chunked and looped forwards follow too.
 `MARGIN_ULPS`, 98, is a frozen budget sized from raw[:64] before the full rerun, the distance on HF's own scores within which its F32 cannot order the experts; since it is measured on HF's scores, a larger llmx deviation can only fail a row (docs/MINIMAX.md, Classes and checks).
 `hf.json` then gives each row's `routes`: the margin, each routed layer's followed, exact-tie and beyond counts with its largest score and router logit deviations from llmx's and the position of its largest score deviation, every differing pick with its distance in ulps, and the first position where a pick differs.
 `compare` adds those counts, fails a row with a pick beyond the margin, and prints `PASS with N tie picks followed`, so the claim names the picks HF could not order.
@@ -726,6 +727,15 @@ The first shard's header names `tokenizer.ggml.pre` `joyai-llm` and holds that f
 Every added token has type 3 (1278 of them) or 4 (5) there and every other token type 1, so llmx matches all of them before pretokenization, as `tokenizers` matches its added tokens; the golden takes these types from the header, not from a naming rule.
 `tokenizers` 0.23.2's regex engine reads Unicode 16.0, which the golden's version probes pin: letters of 15.0, 15.1 and 16.0 join a letter run and code points 16.0 leaves unassigned do not; its `\s` is White_Space, so U+001C to U+001F, U+180E, U+200B and U+FEFF are not spaces.
 
+#### The inkling2 tokenizer reference
+
+`tokenizer-inkling2` writes `tests/data/baseline_tokenizer_inkling2.json` from the `tokenizer.json` of Inkling-2-Mini (SHA-256 `7f332727f9a3f093dd452a39cc978e6757627e5dad1b0673aa4e75174f236dd6`), read with `tokenizers` 0.23.3, and the token types of the header of `unsloth/Inkling-2-Mini-GGUF`'s `Inkling-2-Mini-UD-Q8_K_XL.gguf`.
+On the test machine `--checkpoint` is `/zpool1/models/hf/Inkling-2-Mini-config` and `--weights-gguf` `/zpool1/models/Inkling-2-Mini-unsloth/Inkling-2-Mini-UD-Q8_K_XL.gguf`; it ran offline in the venv at `/opt/claude-work/ink5/job/venv` in the `python:3.12.13-slim` image.
+It refuses what the deepseek41 one refuses, with `inkling2` as the pretokenizer, and keeps the same parts of the vocabulary, with every piece of a text that the vocabulary holds whole, which `ignore_merges` reads.
+It also takes the first 8 vocabulary entries, by id, that are whole UTF-8, one piece of the split, and split by the merges alone, each with the ids BPE alone gives, so the test shows the whole-piece lookup ran.
+
+The `tokenizer.json` has no normalizer, a `Split` of the o200k_base pattern with `Isolated` behaviour and a `ByteLevel` step without its regex, and BPE with `ignore_merges` over 199998 tokens and 424413 merges, written as pairs, with 60 added tokens, all special.
+The header names `tokenizer.ggml.pre` `inkling2` and holds those 200058 tokens and the merges content for content; every added token has type 3 there and every other token type 1.
 #### The minimax tokenizer reference
 
 `tokenizer-minimax` writes `tests/data/baseline_tokenizer_minimax.json` through the same generator as `tokenizer-deepseek41`, from the `tokenizer.json` of `MiniMaxAI/MiniMax-M3.1-Flash` (SHA-256 `bb1f1626cf01448f1e3b6036d0a061ffc66c91d9046aada14ea23a5441b5ad6e`), and the token types of the first shard's header of `unsloth/MiniMax-M3.1-Flash-GGUF` UD-Q8_K_XL at revision `b17b7f5459c0b8f127ea12ee774409b282521d6a`.

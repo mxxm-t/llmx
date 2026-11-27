@@ -294,8 +294,8 @@ void models(bool routed) {
 struct FailingHead : backend::CpuBackend {
     bool fail = false;
     void matmul_logits(backend::WeightView weight, backend::CSlice x, backend::Slice y,
-                       size_t nin, size_t nout, size_t nbatch, backend::RowRuns runs, backend::Dtype dtype) override {
-        CpuBackend::matmul_logits(weight, x, y, nin, nout, nbatch, runs, dtype);
+                       size_t nin, size_t nout, size_t nbatch, backend::RowRuns runs, backend::Dtype dtype, float cap) override {
+        CpuBackend::matmul_logits(weight, x, y, nin, nout, nbatch, runs, dtype, cap);
         if (fail) throw std::runtime_error("injected head failure");
     }
 };

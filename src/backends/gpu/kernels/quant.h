@@ -342,6 +342,16 @@ struct F8_E4M3 {
 
 } // namespace rq
 
+// A GLU output from its gate and up values, form 0 SiLU, 1 quick GELU and 2 softcap, which every GLU producer in both modules takes (Backend::silu_mul).
+__device__ __forceinline__ float glu_value(float g, float u, float limit, int form, float up_limit) {
+    if (limit > 0.0f && form != 2) {
+        u = u < -limit ? -limit : u > limit ? limit : u;
+        g = g > limit ? limit : g;
+    }
+    return form == 2 ? gpu_tanhf(g / limit) * limit * (1.0f / (1.0f + expf(-g))) * (gpu_tanhf(u / up_limit) * up_limit)
+           : form ? (u + 1.0f) * (g * (1.0f / (1.0f + expf(-(1.702f * g))))) : g / (1.0f + expf(-g)) * u;
+}
+
 // The activation twin's rule, which every producer of a twin in both modules takes (docs/src/backends-gpu.md).
 // The largest magnitude of the 32 lanes of a twin block, a value a lane.
 __device__ inline float block_amax(float v) {

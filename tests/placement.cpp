@@ -1863,6 +1863,55 @@ void kv_fitted() {
     checked += 3;
 }
 
+// A device that prefers a prompt chunk above the default (Backend::prompt_rows).
+struct ChunkDevice : SizedDevice {
+    size_t prompt_rows() const override { return 2048; }
+};
+
+// A request naming no chunk takes the backends' preferred one only where the whole request fits at it, so it never costs KV; a named chunk, a server's request and a listing with a backend preferring none keep theirs.
+void preferred_chunk_fitted() {
+    const auto weights = fixture();
+    const auto chunked = [](size_t room) {
+        auto device = std::make_shared<ChunkDevice>();
+        device->room = room;
+        device->set_threads(1);
+        return device;
+    };
+    const auto place = [&](std::vector<backend::BackendPtr> backends, size_t budget, int ubatch, size_t slots = 0) {
+        infer::PlacementRequest request;
+        for (size_t i = 0; i < backends.size(); ++i) request.names.push_back("device " + std::to_string(i));
+        if (backends.size() > 1) request.shares.assign(backends.size(), 1);
+        request.ubatch = ubatch;
+        request.slots = slots;
+        infer::ModelOptions options;
+        options.kv_tokens = budget;
+        return infer::plan_placement(infer::gguf_weights(weights), std::move(backends), request, options);
+    };
+    const size_t roomy = size_t(1) << 30;
+    {
+        auto device = chunked(roomy);
+        infer::PlacementRequest request;
+        request.names = {"device"};
+        auto model = infer::place_model(infer::gguf_weights(weights), {device}, request, infer::ModelOptions{}).model;
+        require(model->prefill_batch() == 2048 && model->kv_tokens_total() == 256, "a device with room did not take its preferred chunk beside the whole budget");
+    }
+    require(place({chunked(roomy)}, 0, 512).ubatch == 512, "a named chunk gave way to the device's");
+    require(place({chunked(roomy)}, 0, 0, 2).ubatch == 0, "a server's request took the device's chunk");
+    auto plain = std::make_shared<SizedDevice>();
+    plain->room = roomy;
+    plain->set_threads(1);
+    require(place({chunked(roomy), plain}, 0, 0).ubatch == 0, "a listing with a backend preferring no chunk took one");
+    // At the most whole blocks 8 MiB holds beside the default chunk, the preferred chunk would cut the budget, so the default is kept with the budget whole.
+    const size_t cut = place_sized(8 << 20, size_t(1) << 20, weights)->kv_tokens_total();
+    require(infer::kv_tokens(place({chunked(8 << 20)}, cut, 2048).architecture, place({chunked(8 << 20)}, cut, 2048).options) < cut,
+            "the fixture's 2048-row chunk fits beside the budget the default chunk leaves, so the case below proves nothing");
+    const infer::PlannedModel tight = place({chunked(8 << 20)}, cut, 0);
+    require(tight.ubatch == 0 && infer::kv_tokens(tight.architecture, tight.options) == cut, "a preferred chunk was kept at the cost of KV tokens");
+    const infer::PlannedModel over = place({chunked(8 << 20)}, size_t(1) << 20, 0);
+    require(over.ubatch == 0 && infer::kv_tokens(over.architecture, over.options) == cut, "a budget the devices cut took the preferred chunk, or another budget");
+    checked += 7;
+}
+
 // A load that cannot hold the model, or one KV block beside it, is refused as such, and experts on the CPU leave their bytes off the device.
 void kv_refused() {
     const auto weights = fixture();
@@ -3694,7 +3743,7 @@ int main() {
     try {
         // A fit short of its devices' free memory waits five seconds for it to settle (model/place.hpp, settle), so the cases that make such fits run on threads of their own beside the rest.
         std::vector<std::future<void>> waiting;
-        for (void (*settling)() : {kv_fitted, kv_refused, kv_auto_fitted, kv_auto_overstated, kv_auto_allocation_limit, encoder_charged, fit_cut_first_pass, fit_cut_server_passes, experts_beside_split, replies_arena_fitted, lookup_storage_planned, layer_split_fits, rounded_buffers_fit})
+        for (void (*settling)() : {kv_fitted, preferred_chunk_fitted, kv_refused, kv_auto_fitted, kv_auto_overstated, kv_auto_allocation_limit, encoder_charged, fit_cut_first_pass, fit_cut_server_passes, experts_beside_split, replies_arena_fitted, lookup_storage_planned, layer_split_fits, rounded_buffers_fit})
             waiting.push_back(std::async(std::launch::async, settling));
         tensor_widths();
         pass_values_once_a_stage();

@@ -1,0 +1,9 @@
+#version 450
+// x[i] = tanh(x[i] / cap) * cap in place, in the CPU order.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint n; float cap; } p;
+layout(set = 0, binding = 0) buffer X { float x[]; };
+#include "tanh.glsl"
+void main() {
+    for (uint i = gl_GlobalInvocationID.x; i < p.n; i += gl_NumWorkGroups.x * 256u) x[i] = tanh_of(x[i] / p.cap) * p.cap;
+}

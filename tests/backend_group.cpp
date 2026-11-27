@@ -656,6 +656,61 @@ static size_t check_experts_from_file(const moe::Matrix& matrix) {
     return values;
 }
 
+// Expert row windows (Projection::first, pitch) of a Q8_0 stack adopted with its file and ending the file: each window, the last expert's at the matrix end included, reads only its rows.
+// Experts 0 and 3 of four are picked, so the read skips a gap, and every output has the bits of the same window over the stack in memory.
+static size_t check_expert_windows_from_file() {
+    const size_t nin = 64, pitch = 8, n_expert = 4, k = 2, rows = 2;
+    const uint32_t q8 = quant::GGML_TYPE_Q8_0;
+    const size_t rb = quant::row_bytes(q8, nin);
+    std::vector<uint8_t> w(n_expert * pitch * rb);
+    uint32_t seed = 11;
+    for (size_t i = 0; i < w.size(); ++i) { seed = seed * 1664525u + 1013904223u; w[i] = uint8_t(seed >> 24); }
+    for (size_t b = 0; b < w.size(); b += 34) { w[b] = 0x00; w[b + 1] = 0x20; }   // a finite half scale for every block
+    const std::filesystem::path path = std::filesystem::temp_directory_path() / ("llmx-expert-windows-" + std::to_string(std::hash<std::thread::id>{}(std::this_thread::get_id())) + ".bin");
+    {
+        std::ofstream out(path, std::ios::binary | std::ios::trunc);
+        out.write("0123456", 7);
+        out.write((const char*)w.data(), std::streamsize(w.size()));
+        require(bool(out), "the expert windows' file was not written");
+    }
+    backend::CpuBackend cpu;
+    size_t values = 0;
+    {
+        const auto file = std::make_shared<const format::FileReader>(path.string());
+        std::vector<uint8_t> zeros(w.size(), 0);
+        const auto held = cpu.adopt(w.data(), w.size()), read = cpu.adopt_file(zeros.data(), w.size(), file, 7);
+        std::vector<float> x(rows * nin), ids_f(rows * k), wts(rows * k, 1.0f);
+        for (size_t i = 0; i < x.size(); ++i) x[i] = float(int(i * 37 % 61) - 30) / 16.0f;
+        const uint32_t picks[4] = {0, 3, 3, 0};
+        for (size_t i = 0; i < rows * k; ++i) std::memcpy(&ids_f[i], &picks[i], 4);
+        const auto xb = cpu.adopt(x.data(), x.size() * sizeof(float)), ib = cpu.adopt(ids_f.data(), ids_f.size() * sizeof(float));
+        const auto wtb = cpu.adopt(wts.data(), wts.size() * sizeof(float));
+        const backend::Backend::Routing routing{{ib.get(), 0}, {wtb.get(), 0}, k, n_expert};
+        for (const auto& [first, nout] : {std::pair<size_t, size_t>{5, 3}, {2, 3}, {0, 8}})
+            for (int threads : {1, 4}) {
+                cpu.set_threads(threads);
+                const std::vector<backend::RowRun> prompt = {{rows, 512}}, decode = moe::decode_runs(rows);
+                for (const auto* runs : {&decode, &prompt})
+                    for (backend::Dtype dtype : {backend::Dtype::f32, backend::Dtype::f16}) {
+                        std::vector<float> y[2];
+                        for (size_t a = 0; a < 2; ++a) {
+                            y[a].assign(rows * k * nout, 0.0f);
+                            const auto yb = cpu.adopt(y[a].data(), y[a].size() * sizeof(float));
+                            backend::Projection p({q8, {(a ? read : held).get(), 0}}, {yb.get(), 0}, nout);
+                            p.first = first;
+                            p.pitch = pitch;
+                            cpu.matmul_experts({p}, {xb.get(), 0}, nin, rows, routing, {runs->data(), runs->size()}, dtype);
+                            cpu.sync();
+                        }
+                        require(std::memcmp(y[0].data(), y[1].data(), y[0].size() * sizeof(float)) == 0, "an expert row window read from its file differs from the window held in memory");
+                        values += y[0].size();
+                    }
+            }
+    }
+    std::filesystem::remove(path);
+    return values;
+}
+
 // Routed prompt entries of the types without packed prompt dots (MXFP4, Q5_1) take float products, and unit columns give each weight as the registry's decoder writes it over every finite scale byte.
 // Each entry has the bits of its expert's plain prompt product of that entry alone.
 static size_t check_float_routed_prompts(backend::CpuBackend& cpu) {
@@ -853,7 +908,7 @@ int main() {
         };
         const size_t steps = check_moe_step(cpu, matrix), step_classes = moe::check_row_classes(cpu, matrix);
         const size_t decode_steps = check_moe_decode_step(matrix);
-        const size_t from_file = check_experts_from_file(matrix);
+        const size_t from_file = check_experts_from_file(matrix), windows = check_expert_windows_from_file();
         size_t values = 0, cases = 0;
         for (int threads : {1, 2, 6}) {
             cpu.set_threads(threads);
@@ -900,7 +955,7 @@ int main() {
         std::cout << "grouped projections: " << cases << " cases, " << values
                   << " outputs checked against separate calls and double dots; "
                   << inputs << " Q8 products on original inputs; " << summed << " collective sums in member order; " << routed << " routing edge cases; " << float_routed << " float routed prompt rows and entries; " << busy << " busy times; "
-                  << steps << " routed step outputs equal to the calls it replaced; " << decode_steps << " CPU routed step outputs equal to the base step's; " << from_file << " routed outputs of experts read from their file equal to those held in memory; " << step_classes << " pairs of extents of one class with the same bits through the routed step; "
+                  << steps << " routed step outputs equal to the calls it replaced; " << decode_steps << " CPU routed step outputs equal to the base step's; " << from_file << " routed outputs of experts read from their file and " << windows << " of expert row windows read from it equal to those held in memory; " << step_classes << " pairs of extents of one class with the same bits through the routed step; "
                   << classes << " pairs of extents of one class with the same bits; "
                   << scales << " exact finite Q8 scale/weight cases; "
                   << reductions << " ordered prefill reductions; "

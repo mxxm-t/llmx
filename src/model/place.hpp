@@ -48,6 +48,7 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
             larger(fp.output, o.output);
             larger(fp.output_norm, o.output_norm);
             for (size_t i = 0; i < fp.head_aux.size(); ++i) larger(fp.head_aux[i], o.head_aux[i]);
+            for (size_t i = 0; i < fp.embed_aux.size(); ++i) larger(fp.embed_aux[i], o.embed_aux[i]);
             larger(fp.drafter_embedding, o.drafter_embedding);
             for (size_t i = 0; i < fp.drafter.size(); ++i) larger(fp.drafter[i], o.drafter[i]);
             for (size_t t = 0; t < fp.drafter_stages.size(); ++t)
@@ -78,6 +79,8 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
     // Each tensor is counted once, by the first layer that takes it, as the runtime adopts it once a device: owner[t] is that layer and its entry, last[t] the last layer that takes it.
     std::vector<std::pair<size_t, size_t>> owner(weights.tensors.size(), {SIZE_MAX, 0});
     std::vector<size_t> last(weights.tensors.size(), 0);
+    // At a width above one each distinct shard of a tensor is a copy of its own, as a stack's gate and up runs are (runtime resolve): helds[t] lists those counted.
+    std::vector<std::vector<shard::Held>> helds(weights.tensors.size());
     for (size_t l = 0; l < plan.layers.size(); ++l) {
         std::vector<std::pair<size_t, const Role*>> taken;
         const LayerPlan& layer = plan.layers[l];
@@ -101,6 +104,15 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
         for (const auto& [t, role] : taken) {
             const bool product = role->kind == RoleKind::matrix;
             last[t] = l;
+            if (width > 1 && role->shard.axis != Axis::none) {
+                shard::Held h = shard::held(*role, weights.tensors[t], width, member);
+                const bool fresh = std::none_of(helds[t].begin(), helds[t].end(), [&](const shard::Held& k) { return shard::same(k, h); });
+                if (fresh) helds[t].push_back(std::move(h));
+                if (fresh && owner[t].first != SIZE_MAX) {
+                    fp.layers[l].push_back(matrix(t, product, role));
+                    continue;
+                }
+            }
             if (owner[t].first != SIZE_MAX) {
                 Matrix& counted = fp.layers[owner[t].first][owner[t].second];
                 counted.product = counted.product || product;
@@ -124,6 +136,10 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
             if (plan.pass[j].id == role.id) throw std::logic_error("footprint: repeated pass role " + role.name);
         Matrix* field = nullptr;
         if (role.part == Part::embed && role.kind == RoleKind::gather) field = &fp.embedding;
+        else if (role.part == Part::embed && role.kind == RoleKind::norm) {
+            fp.embed_aux.push_back(role.tensor ? matrix(*role.tensor, false, &role) : Matrix{});
+            continue;
+        }
         else if (role.part == Part::head && role.kind == RoleKind::matrix && !head_output) {
             // Model::head_rows uses the first head matrix as the vocabulary logits weight.
             head_output = true;
@@ -525,6 +541,7 @@ struct PlannedModel {
     size_t checkpoint_kv_tokens = 0;
     std::string kv_kept_context;
     bool kv_cut = false;   // the fit cut the options' KV budget to the devices' memory, so a build that runs a device short is built again with fewer tokens (build_fitted)
+    int ubatch = 0;        // the prompt rows a pass takes, the request's or the backends' preferred chunk where it fits (plan_placement); 0 for kDefaultUbatch
 };
 
 // Whether the placement of `request` over `backends` adds a CPU backend for experts on the CPU, which it does before a device, or a layer split over devices, none of them the CPU.
@@ -747,7 +764,7 @@ inline size_t kv_search_bound(size_t context, std::optional<size_t> free, size_t
 inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan, const std::vector<backend::BackendPtr>& backends,
                               const PlacementRequest& request, ModelOptions options, size_t* given_up = nullptr,
                               std::vector<DeviceBudget>* read = nullptr, std::string* kept_context = nullptr,
-                              size_t host_bytes = 0, const ModelWeights* resident = nullptr, std::optional<size_t> host_room = core::host_memory_available()) {
+                              size_t host_bytes = 0, const ModelWeights* resident = nullptr, std::optional<size_t> host_room = core::host_memory_available(), int* chunk = nullptr) {
     size_t block = 1;
     for (const auto& b : backends) {
         if (!b) throw std::runtime_error("inference: missing backend");
@@ -764,7 +781,9 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
     std::vector<std::string> names = request.names;
     if (names.empty() && backends.size() == 1) names.push_back("device");
     std::vector<DeviceBudget> budgets = budgets_for(backends, names);
-    const size_t rows = fitted_rows(request);
+    size_t rows = fitted_rows(request);
+    // A preferred chunk (`chunk`) gives way to the default where the whole request does not fit at it, so the larger chunk never costs KV, checkpoints or marks.
+    const size_t chunk_rows = rows, default_rows = chunk && *chunk > kDefaultUbatch ? rows - size_t(*chunk) + kDefaultUbatch : rows;
     const std::optional<size_t> logits = request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt;
     std::string why;
     size_t kept = options.checkpoint_slots;
@@ -825,21 +844,28 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
     if (request.kv_auto && !fills && kept_context) *kept_context = host_memory ? "a device's free memory is the host's, which the host tier shares" : "a device reports no free memory";
     // Whether the devices hold the whole request: the options' budget beside every checkpoint and mark asked for and the embedded drafter.
     // Only then is there nothing a later reading could add, so a reading short of it waits for the free memory to settle, as a card giving back an ended process's memory may hold the budget alone and not what goes beside it.
-    const auto whole = [&] {
+    const auto whole_at = [&](size_t at) {
         // An automatic budget over devices asks for more than they hold, so its reading always waits for their free memory to stay level.
         if (fills) return false;
         const ModelPlan* was = fitting;
-        const size_t was_kept = kept, was_marks = options.mark_slots;
+        const size_t was_kept = kept, was_marks = options.mark_slots, was_rows = rows;
         fitting = &held;
         kept = most_kept;
         options.mark_slots = most_marks;
+        rows = at;
         const bool ok = fits(want);
         fitting = was;
         kept = was_kept;
         options.mark_slots = was_marks;
+        rows = was_rows;
         return ok;
     };
+    const auto whole = [&] { return whole_at(chunk_rows) || (default_rows < chunk_rows && whole_at(default_rows)); };
     settle(budgets, backends, names, whole, level_first(backends, request));
+    if (default_rows < chunk_rows && !whole_at(chunk_rows)) {
+        rows = default_rows;
+        *chunk = 0;
+    }
     // The automatic budget: searched up to what the settled free memory holds at a token's KV bytes, with the drafter and its first mark in the fit (docs/CACHE-PLAN.md, section 7), so it never leaves the drafter no room.
     if (fills) {
         if (drafter || most_marks) {
@@ -1037,11 +1063,22 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
     // A width the model's shards cannot take is refused by its name here, before the fit reads a member's shards, and so is a malformed split.
     shard::check_plan(plan, weights.tensors, request.width);
     check_split(backends.size() / request.width, request.shares);
+    // A caller other than a server that names no chunk takes the smallest the backends prefer (Backend::prompt_rows) above the default, kept by fitted_kv only where the whole request fits at it.
+    int preferred = 0;
+    if (request.ubatch <= 0 && !request.slots) {
+        size_t rows = SIZE_MAX;
+        for (const auto& b : backends) rows = std::min(rows, b ? b->prompt_rows() : 0);
+        if (rows > kDefaultUbatch && rows <= size_t(std::numeric_limits<int32_t>::max())) preferred = int(rows);
+    }
+    const bool prefers = preferred != 0;
+    if (prefers) request.ubatch = preferred;
     order_members(backends, request, sum_width(plan));
     // A model without routed layers has no experts to put on the CPU, so every placement refuses the flags, on the CPU as beside a device.
     const std::string experts_flag = request.cpu_moe < 0 ? "--cpu-moe" : "--n-cpu-moe";
     if (request.cpu_moe && std::none_of(plan.layers.begin(), plan.layers.end(), [](const LayerPlan& l) { return l.routed; }))
         throw std::runtime_error(experts_flag + ": the model has no expert layers");
+    if (request.cpu_moe && std::any_of(plan.layers.begin(), plan.layers.end(), [](const LayerPlan& l) { return l.ffn_reads_state; }))
+        throw std::runtime_error(experts_flag + ": the model's feed-forward parts read their layers' state slots, so they run beside their mixers");
     // The CPU alone already runs every expert, so the flags would move none.
     if (request.cpu_moe && backends.size() == 1 && backends[0] && backends[0]->is_cpu() && request.shares.empty())
         throw std::runtime_error(experts_flag + ": the experts already run on the CPU, the only device; list a Vulkan, ROCm or CUDA device");
@@ -1094,7 +1131,9 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
     std::vector<DeviceBudget> budgets;
     const size_t asked = kv_tokens(plan, options);
     options = fitted_kv(bounded ? *bounded : weights, plan, backends, request, options, &placed.checkpoint_kv_tokens, &budgets,
-                        &placed.kv_kept_context, host_experts, resident ? &*resident : nullptr, host_room);
+                        &placed.kv_kept_context, host_experts, resident ? &*resident : nullptr, host_room, preferred ? &preferred : nullptr);
+    if (prefers) request.ubatch = preferred;
+    placed.ubatch = request.ubatch;
     placed.kv_cut = kv_tokens(plan, options) < asked;
     backend::BackendPtr host;
     std::vector<backend::BackendPtr> all = backends;
@@ -1319,8 +1358,10 @@ inline std::vector<size_t> kv_block_bytes(const ModelWeights& weights, const Pla
 
 // The model `planned` built, `allocating` running before the first build and as each build is given up, so the readings after it see none of what it recorded.
 // With an automatic or fit-cut budget, a build that leaves a device short is built again with fewer KV tokens, and a caller without passes of its own gets its prompt arena here (docs/src/model-place.md).
-inline PlacedModel build_fitted(const ModelWeights& weights, PlannedModel planned, const PlacementRequest& request, const AdoptWeight& adopt = {},
+inline PlacedModel build_fitted(const ModelWeights& weights, PlannedModel planned, PlacementRequest request, const AdoptWeight& adopt = {},
                                 const std::function<void()>& allocating = {}) {
+    // The chunk the fit chose, which the model, its scratch and its prompt arena take.
+    request.ubatch = planned.ubatch;
     const std::vector<backend::BackendPtr> backends = planned.backends;
     const auto device = [](const backend::BackendPtr& b) { return b && !b->is_cpu() && !b->memory_is_host(); };
     size_t block = 1;

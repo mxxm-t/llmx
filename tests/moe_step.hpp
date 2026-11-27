@@ -21,7 +21,7 @@ struct CountingCpu : backend::CpuBackend {
     size_t steps = 0, outside = 0;
     bool inside = false;
     CountingCpu() { set_threads(1); }
-    void moe_step(const backend::MoeStep& m, backend::CSlice h, backend::Slice y, size_t nin, size_t rows, backend::RowRuns runs = {},
+    void moe_step(const backend::MoeStep& m, backend::Slice h, backend::Slice y, size_t nin, size_t rows, backend::RowRuns runs = {},
                   backend::Dtype dtype = backend::Dtype::f16) override {
         ++steps;
         inside = true;
@@ -43,9 +43,9 @@ struct CountingCpu : backend::CpuBackend {
         backend::CpuBackend::matmul_experts(projections, x, nin, rows, routing, runs, dtype);
     }
     void matmul_experts_add(backend::WeightView weight, backend::CSlice x, backend::Slice y, size_t nin, size_t nout, size_t rows,
-                            const Routing& routing, backend::RowRuns runs = {}, backend::Dtype dtype = backend::Dtype::f16) override {
+                            const Routing& routing, backend::RowRuns runs = {}, backend::Dtype dtype = backend::Dtype::f16, const backend::Buffer* from = nullptr) override {
         outside += inside ? 0 : 1;
-        backend::CpuBackend::matmul_experts_add(weight, x, y, nin, nout, rows, routing, runs, dtype);
+        backend::CpuBackend::matmul_experts_add(weight, x, y, nin, nout, rows, routing, runs, dtype, from);
     }
 };
 
@@ -154,14 +154,14 @@ inline Out run(backend::Backend& b, const Weights& w, const std::vector<float>& 
     const backend::MoeShared sh{{{s.t.sh_gate, {w.sh_gate.get(), 0}}, {g.get(), routed}, s.ff},
                                 {{s.t.sh_gate, {w.sh_up.get(), 0}}, {u.get(), routed}, s.ff},
                                 {s.t.sh_down, {w.sh_down.get(), 0}}, {act.get(), routed},
-                                {{s.row_gate, {w.row_gate.get(), 0}}, {sg.get(), 0}, 1}, s.limit, s.form};
+                                {{s.row_gate, {w.row_gate.get(), 0}}, {sg.get(), 0}, 1}, {s.limit, s.form}};
     const backend::RouteRule rule = s.score == backend::RouteRule::Score::sqrt_softplus ? backend::RouteRule::sqrt_softplus({w.bias.get(), 0}, 1.5f, true)
                                     : s.score == backend::RouteRule::Score::sigmoid       ? backend::RouteRule::sigmoid({w.bias.get(), 0}, 2.0f, true)
                                                                                           : backend::RouteRule::softmax(true);
     const backend::MoeStep m{{{s.router, {w.router.get(), 0}}, {scores.get(), 0}, s.n_expert}, s.k, rule,
                              {ids.get(), 0}, {wts.get(), 0}, {{s.t.gate, {w.gate.get(), 0}}, {g.get(), 0}, s.ff},
                              {{s.t.gate, {w.up.get(), 0}}, {u.get(), 0}, s.ff}, {s.t.down, {w.down.get(), 0}},
-                             {act.get(), 0}, shared ? &sh : nullptr, s.zero ? w.zero.get() : nullptr, &scratch, s.limit, s.form};
+                             {act.get(), 0}, shared ? &sh : nullptr, s.zero ? w.zero.get() : nullptr, &scratch, {s.limit, s.form}};
     const backend::RowRuns rr{runs.data(), runs.size()};
     if (how == How::base) b.Backend::moe_step(m, {hb.get(), 0}, {yb.get(), 0}, s.E, rows, rr, dtype);
     else if (how == How::op) b.moe_step(m, {hb.get(), 0}, {yb.get(), 0}, s.E, rows, rr, dtype);
@@ -181,14 +181,12 @@ inline Out run(backend::Backend& b, const Weights& w, const std::vector<float>& 
         b.route_experts(m.router.out, rows, s.n_expert, s.k, rule, m.ids, m.weights);
         const backend::Backend::Routing routing{m.ids, m.weights, s.k, s.n_expert};
         b.matmul_experts({m.gate, m.up}, h0, s.E, rows, routing, rr, dtype);
-        std::vector<backend::RowRun> entry_runs;
-        for (const backend::RowRun& r : runs) entry_runs.push_back({r.end * s.k, r.extent});
-        b.silu_mul(m.act, m.gate.out, m.up.out, routed, s.limit, {entry_runs.data(), entry_runs.size()}, s.form);
+        b.silu_mul(m.act, m.gate.out, m.up.out, routed, {s.limit, s.form});
         b.matmul_experts_add(m.down, m.act, y, s.ff, s.E, rows, routing, rr, dtype);
         if (shared) {
             if (w.row_gate) b.matmul(sh.row_gate.weight, h0, sh.row_gate.out, s.E, 1, rows, rr, dtype);
             b.matmul_group({sh.gate, sh.up}, h0, s.E, rows, rr, dtype);
-            b.silu_mul(sh.act, sh.gate.out, sh.up.out, rows * s.ff, s.limit, rr, s.form);
+            b.silu_mul(sh.act, sh.gate.out, sh.up.out, rows * s.ff, {s.limit, s.form}, rr);
             if (w.row_gate) b.sigmoid_mul(sh.act, sh.act, sh.row_gate.out, rows, s.ff, 1, 1, 0, rr);
             b.matmul_add(sh.down, sh.act, y, s.ff, s.E, rows, rr, dtype);
         }

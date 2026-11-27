@@ -19,7 +19,7 @@
 // GPT-2 style byte-level BPE tokenizer, implemented from scratch.
 // Reads tokenizer metadata from a GGUF model:
 //   tokenizer.ggml.model        = "gpt2"           (refused when present with another value)
-//   tokenizer.ggml.pre          = "qwen2"/"qwen35"/"joyai-llm"/"minimax-m2" (refused when present with another value)
+//   tokenizer.ggml.pre          = a name of kPres          (refused when present with another value)
 //   tokenizer.ggml.tokens       = array<string>    (token id -> byte-mapped token)
 //   tokenizer.ggml.token_type   = array<u32>       (per-token type)
 //   tokenizer.ggml.merges       = array<string>    ("s1 s2", rank = index)
@@ -47,6 +47,21 @@ struct SpecialToken {
     uint32_t id;
 };
 
+// The split regex a pretokenizer runs, named by the pattern rather than by a model.
+enum class Split : uint8_t { qwen2, joyai, o200k };
+
+// What a tokenizer.ggml.pre name selects: its split, whether HF's NFC normalizer runs first, and whether a piece the vocabulary holds whole is that token before BPE (HF's ignore_merges).
+struct Pre { const char* name; Split split; bool nfc; bool whole_pieces; };
+
+// qwen35 differs from qwen2 only in combining marks (see pretokenize); minimax-m2 and inkling2 files carry the o200k_base pattern, inkling2 with ignore_merges and without NFC.
+inline constexpr Pre kPres[] = {
+    {"qwen2", Split::qwen2, true, false},
+    {"qwen35", Split::qwen2, true, false},
+    {"joyai-llm", Split::joyai, false, false},
+    {"minimax-m2", Split::o200k, true, false},
+    {"inkling2", Split::o200k, false, true},
+};
+
 class Tokenizer {
 public:
     std::vector<std::string> vocab;
@@ -56,8 +71,7 @@ public:
     std::unordered_map<std::string, uint8_t> char_to_byte;
     std::vector<SpecialToken> specials;     // control / user-defined tokens, ordered by their first byte
     std::array<uint32_t, 257> special_at{}; // where the specials beginning with each byte start in `specials`, so a position visits only its candidates
-    enum class Pre : uint8_t { qwen2, joyai, minimax };
-    Pre pre = Pre::qwen2;                   // the file's pretokenizer: qwen2 (qwen35 too), joyai-llm or minimax-m2
+    Pre pre = kPres[0];                     // the file's pretokenizer; a file naming none is read as qwen2
     int32_t bos_id = -1;
     int32_t eos_id = -1;
 
@@ -68,23 +82,23 @@ public:
     Tokenizer(const gguf::GGUFModel& m) {
         // A file made for another tokenizer or pretokenizer would encode to valid-looking but wrong ids, so naming one is refused.
         // A key the file omits is not checked, which the synthetic test models rely on.
-        auto require = [&](const std::string& key, std::initializer_list<const char*> implemented) {
+        auto require = [&](const std::string& key, const auto& implemented, auto name_of) -> int {
             const gguf::MetaValue* v = m.find(key);
-            if (!v) return;
+            if (!v) return -1;
             std::string names;
-            for (const char* name : implemented) {
-                if (v->vtype == gguf::V_STRING && v->s == name) return;
-                names += (names.empty() ? "'" : ", '") + std::string(name) + "'";
+            int at = 0;
+            for (const auto& entry : implemented) {
+                if (v->vtype == gguf::V_STRING && v->s == name_of(entry)) return at;
+                names += (names.empty() ? "'" : ", '") + std::string(name_of(entry)) + "'";
+                at++;
             }
             throw std::runtime_error("tokenizer: unsupported " + key +
                                      (v->vtype == gguf::V_STRING ? " '" + v->s + "'" : std::string()) +
                                      "; implemented: " + names);
         };
-        require("tokenizer.ggml.model", {"gpt2"});
-        // qwen35 differs from qwen2 only in combining marks (see pretokenize); joyai-llm and minimax-m2 have their own splits (pretokenize_joyai, pretokenize_minimax).
-        require("tokenizer.ggml.pre", {"qwen2", "qwen35", "joyai-llm", "minimax-m2"});
-        if (const gguf::MetaValue* v = m.find("tokenizer.ggml.pre"))
-            pre = v->s == "joyai-llm" ? Pre::joyai : v->s == "minimax-m2" ? Pre::minimax : Pre::qwen2;
+        static constexpr const char* kModels[] = {"gpt2"};
+        require("tokenizer.ggml.model", kModels, [](const char* name) { return name; });
+        if (int at = require("tokenizer.ggml.pre", kPres, [](const Pre& p) { return p.name; }); at >= 0) pre = kPres[at];
 
         byte_to_char = build_byte_encoder();
         for (const auto& kv : byte_to_char) char_to_byte[kv.second] = kv.first;
@@ -230,11 +244,12 @@ public:
         return out;
     }
 
-    // joyai-llm: the file's three Isolated splits in turn, each on the previous one's pieces, over Unicode 16.0 classes (docs/src/tokenizer-tokenizer.md).
+    // The joyai-llm and o200k splits run over code points and their Unicode 16.0 classes (docs/src/tokenizer-tokenizer.md).
     // A byte that does not begin a valid UTF-8 sequence is read as one character of no class.
     struct CodePoint { uint32_t cp; uint32_t at; uint8_t bits; };
 
-    static size_t numbers_up_to_3(const std::vector<CodePoint>& t, size_t i, size_t end) {
+    // \p{N}{1,3}
+    static size_t numbers(const std::vector<CodePoint>& t, size_t i, size_t end) {
         size_t k = i;
         while (k < end && k - i < 3 && (t[k].bits & unicode_class::N)) k++;
         return k - i;
@@ -271,11 +286,11 @@ public:
                 return k - i;
             }
         }
-        return space_run(t, i, end);
+        return spaces(t, i, end);
     }
 
-    // \s*[\r\n]+ | \s+(?!\S) | \s+, the last alternatives of the joyai-llm and minimax-m2 splits: a whitespace run up to its last newline, else without its last character when a non-space follows.
-    static size_t space_run(const std::vector<CodePoint>& t, size_t i, size_t end) {
+    // \s*[\r\n]+|\s+(?!\S)|\s+
+    static size_t spaces(const std::vector<CodePoint>& t, size_t i, size_t end) {
         size_t k = i;
         while (k < end && (t[k].bits & unicode_class::W)) k++;
         for (size_t q = k; q > i; q--)
@@ -285,8 +300,61 @@ public:
         return k - i;
     }
 
-    // The text's characters with their classes and byte offsets.
-    static std::vector<CodePoint> code_points(const std::string& text) {
+    // (?i:'s|'t|'re|'ve|'m|'ll|'d), where the regex engine's case folding also takes U+017F, long s, for s.
+    static size_t contraction(const std::vector<CodePoint>& t, size_t i, size_t end) {
+        if (i >= end || t[i].cp != '\'') return 0;
+        const auto folded = [&](size_t k) -> uint32_t {
+            if (k >= end) return 0;
+            const uint32_t c = t[k].cp;
+            return c == 0x17F ? 's' : c >= 'A' && c <= 'Z' ? c + 32 : c;
+        };
+        const uint32_t a = folded(i + 1), b = folded(i + 2);
+        if (a == 's' || a == 't' || a == 'm' || a == 'd') return 2;
+        if (((a == 'r' || a == 'v') && b == 'e') || (a == 'l' && b == 'l')) return 3;
+        return 0;
+    }
+
+    // tiktoken's o200k_base split as one Isolated split, its pattern given in docs/src/tokenizer-tokenizer.md.
+    // The two letter classes overlap in Lm, Lo and M, so the first alternative backtracks its upper run to the last place a lower run can start.
+    static size_t o200k_words(const std::vector<CodePoint>& t, size_t i, size_t end) {
+        using namespace unicode_class;
+        const auto upper = [](uint8_t b) { return (b & M) || ((b & L) && !(b & LL)); };
+        const auto lower = [](uint8_t b) { return (b & M) || ((b & L) && !(b & LU)); };
+        const auto run = [&](size_t k, auto in) { while (k < end && in(t[k].bits)) k++; return k; };
+        // The optional first character is tried before it is left out, in each letter alternative in turn.
+        const bool lead = t[i].cp != '\r' && t[i].cp != '\n' && !(t[i].bits & (L | N));
+        for (size_t j = i + lead;; j = i) {
+            const size_t a = run(j, upper);
+            for (size_t k = a + 1; k-- > j;)
+                if (k < end && lower(t[k].bits)) {
+                    const size_t b = run(k, lower);
+                    return b + contraction(t, b, end) - i;
+                }
+            if (j == i) break;
+        }
+        for (size_t j = i + lead;; j = i) {
+            if (const size_t a = run(j, upper); a > j) {
+                const size_t b = run(a, lower);
+                return b + contraction(t, b, end) - i;
+            }
+            if (j == i) break;
+        }
+        if (size_t k = numbers(t, i, end)) return k;
+        {
+            const size_t j = i + (t[i].cp == ' ' ? 1 : 0);
+            size_t k = run(j, [](uint8_t b) { return !(b & (W | L | N)); });
+            if (k > j) {
+                while (k < end && (t[k].cp == '\r' || t[k].cp == '\n' || t[k].cp == '/')) k++;
+                return k - i;
+            }
+        }
+        return spaces(t, i, end);
+    }
+
+    using Match = size_t (*)(const std::vector<CodePoint>&, size_t, size_t);
+
+    // The Isolated splits `matches` in turn, each on the previous one's pieces: a match is a piece, and so is each gap between matches.
+    static std::vector<std::string> split(const std::string& text, std::initializer_list<Match> matches) {
         std::vector<CodePoint> t;
         for (size_t i = 0; i < text.size();) {
             size_t len = utf8::valid_length(text, i);
@@ -298,14 +366,8 @@ public:
             t.push_back({ cp, (uint32_t)i, len ? unicode_class::of(cp) : (uint8_t)0 });
             i += len ? len : 1;
         }
-        return t;
-    }
-
-    static std::vector<std::string> pretokenize_joyai(const std::string& text) {
-        const std::vector<CodePoint> t = code_points(text);
-        using Match = size_t (*)(const std::vector<CodePoint>&, size_t, size_t);
         std::vector<std::pair<size_t, size_t>> pieces{ { 0, t.size() } }, next;
-        for (Match match : { Match(numbers_up_to_3), Match(joyai_kana_han), Match(joyai_words) }) {
+        for (Match match : matches) {
             next.clear();
             for (auto [b, e] : pieces) {
                 size_t gap = b;
@@ -330,71 +392,10 @@ public:
         return out;
     }
 
-    // minimax-m2: the file's one Split, whose matches are the pieces, over Unicode 16.0 classes with letter case (docs/src/tokenizer-tokenizer.md).
-    // Upper holds Lu, Lt, Lm, Lo and marks, lower holds Ll, Lm, Lo and marks, and the optional lead is any character but CR, LF, a letter or a number.
-    static size_t minimax_letters(const std::vector<CodePoint>& t, size_t i) {
-        using namespace unicode_class;
-        const size_t end = t.size();
-        const auto upper = [&](size_t k) { return k < end && ((t[k].bits & (L | LL)) == L || (t[k].bits & M)); };
-        const auto lower = [&](size_t k) { return k < end && ((t[k].bits & (L | LU)) == L || (t[k].bits & M)); };
-        const bool lead = t[i].cp != '\r' && t[i].cp != '\n' && !(t[i].bits & (L | N));
-        const size_t starts[2] = { lead ? i + 1 : i, i };
-        const size_t tries = lead ? 2 : 1;
-        size_t e = 0;
-        // upper* lower+: the longest upper run and the lower run after it; with none after it, upper* gives back up to its last lower character.
-        for (size_t s = 0; s < tries && !e; s++) {
-            size_t a = starts[s], b;
-            while (upper(a)) a++;
-            for (b = a; lower(b); b++) {}
-            if (b > a) e = b;
-            else
-                for (size_t q = a; q > starts[s] && !e; q--)
-                    if (lower(q - 1)) e = q;
-        }
-        // upper+ lower*: once the first alternative failed, no lower character follows the upper run, and a lead it could skip is no letter or mark.
-        if (!e) {
-            size_t a = starts[0];
-            while (upper(a)) a++;
-            if (a > starts[0]) e = a;
-        }
-        if (!e) return 0;
-        // (?i:'s|'t|'re|'ve|'m|'ll|'d): the regex engine folds case by Unicode, under which U+017F is an s.
-        if (e < end && t[e].cp == '\'') {
-            const auto is = [&](size_t k, char c) { return k < end && ((t[k].cp | 0x20) == (uint32_t)c || (c == 's' && t[k].cp == 0x17F)); };
-            for (const char* q : { "s", "t", "re", "ve", "m", "ll", "d" }) {
-                size_t n = 0;
-                while (q[n] && is(e + 1 + n, q[n])) n++;
-                if (!q[n]) { e += 1 + n; break; }
-            }
-        }
-        return e - i;
-    }
+    // joyai-llm: the file's three Isolated splits.
+    static std::vector<std::string> pretokenize_joyai(const std::string& text) { return split(text, { numbers, joyai_kana_han, joyai_words }); }
 
-    static std::vector<std::string> pretokenize_minimax(const std::string& text) {
-        using namespace unicode_class;
-        const std::vector<CodePoint> t = code_points(text);
-        const size_t end = t.size();
-        std::vector<std::string> out;
-        for (size_t i = 0; i < end;) {
-            size_t m = minimax_letters(t, i);
-            if (!m) m = numbers_up_to_3(t, i, end);
-            if (!m) {
-                // " ?[^\s\p{L}\p{N}]+[\r\n/]*"
-                size_t j = i + (t[i].cp == ' ' ? 1 : 0), k = j;
-                while (k < end && !(t[k].bits & (W | L | N))) k++;
-                if (k > j) {
-                    while (k < end && (t[k].cp == '\r' || t[k].cp == '\n' || t[k].cp == '/')) k++;
-                    m = k - i;
-                }
-            }
-            // Every character matches one alternative: a letter the first two, a number the third, a space the last and any other the fourth.
-            if (!m) m = space_run(t, i, end);
-            const size_t e = i + m;
-            out.push_back(text.substr(t[i].at, (e < end ? t[e].at : text.size()) - t[i].at));
-            i = e;
-        }
-        return out;
-    }
+    static std::vector<std::string> pretokenize_o200k(const std::string& text) { return split(text, { o200k_words }); }
 
     std::string byte_encode(const std::string& raw) const {
         std::string s;
@@ -457,13 +458,18 @@ public:
         std::unordered_map<std::string, std::vector<uint32_t>> merged;
         auto flush = [&](size_t from, size_t to) {
             if (from == to) return;
-            // qwen2, qwen35 and minimax-m2 files name HF's NFC normalizer, which runs on the text between special tokens before the split; joyai-llm names none.
-            const std::string piece = pre == Pre::joyai ? text.substr(from, to - from) : unicode_nfc::normalize(text.substr(from, to - from));
-            for (const auto& tok : (pre == Pre::joyai ? pretokenize_joyai : pre == Pre::minimax ? pretokenize_minimax : pretokenize)(piece)) {
+            // HF's NFC normalizer, where the file names it, runs on the text between special tokens before the split.
+            const std::string piece = pre.nfc ? unicode_nfc::normalize(text.substr(from, to - from)) : text.substr(from, to - from);
+            const auto pretokenized = pre.split == Split::joyai ? pretokenize_joyai(piece) : pre.split == Split::o200k ? pretokenize_o200k(piece) : pretokenize(piece);
+            for (const auto& tok : pretokenized) {
                 auto known = merged.find(tok);
                 if (known == merged.end()) {
                     std::vector<uint32_t> word;
-                    for (const auto& sym : bpe(byte_encode(tok))) {
+                    const std::string mapped = byte_encode(tok);
+                    // A piece is never a special token's text, which the scan below takes first, so a whole piece is an ordinary token.
+                    if (const auto whole = pre.whole_pieces ? token_to_id.find(mapped) : token_to_id.end(); whole != token_to_id.end())
+                        word.push_back(whole->second);
+                    else for (const auto& sym : bpe(mapped)) {
                         auto it = token_to_id.find(sym);
                         if (it == token_to_id.end())
                             throw std::runtime_error("tokenizer: symbol not in vocab: " + sym);

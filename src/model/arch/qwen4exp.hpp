@@ -52,8 +52,15 @@ struct PleScratch {
 
 // Replay just the PLE state update from its saved normalized and gated values.
 inline void ple_recur(const Config& c, const Step& s, const Weight& conv, backend::Slice out, const PleScratch& tmp) {
-    s.b.dilated_conv_silu_add(out, tmp.normed, tmp.gated, conv.slice(), size_t(c.hc_count) * size_t(c.n_embd),
-                             size_t(c.ple_conv_kernel), size_t(c.ple_hash.ngram_size), s.state_layer, s.states, s.n_views);
+    backend::DepthwiseConv d;
+    d.w = conv.slice();
+    d.channels = size_t(c.hc_count) * size_t(c.n_embd);
+    d.taps = size_t(c.ple_conv_kernel);
+    d.dilation = size_t(c.ple_hash.ngram_size);
+    d.act = backend::ConvAct::silu;
+    d.residual_from = backend::ConvResidual::given;
+    d.residual = tmp.gated;
+    s.b.depthwise_conv(out, tmp.normed, d, s.state_layer, s.states, s.n_views);
 }
 
 // The PLE contribution before its caller adds it to the stream residual; embeddings are the ordered, concatenated n-gram rows.
@@ -525,7 +532,7 @@ public:
                   {output_hc_down, Part::head, RoleKind::matrix, "output_hc_down.weight", "", R, L},
                   {output_hc_up, Part::head, RoleKind::matrix, "output_hc_up.weight", "", L, R}};
         p.pass_ops = {{Part::head, backend::Op::group_rms_norm}, {Part::head, backend::Op::silu_scaled}, {Part::head, backend::Op::mix_streams}};
-        blocks::shard(p.pass, output, Axis::rows, {{p.vocab, 1, 1, "vocabulary rows"}});
+        blocks::shard_vocab(p.pass, output, p.vocab);
         p.layers.resize(size_t(c.n_layer));
         for (int l = 0; l < c.n_layer; ++l) {
             LayerPlan& layer = p.layers[size_t(l)];
@@ -686,7 +693,7 @@ public:
         expert_roles(d, tensors, pre);
         for (infer::Role& r : d.roles) { r.part = Part::draft; r.stream = Stream::none; }
         for (OpUse& op : d.ops) op.part = Part::draft;
-        blocks::shard(d.roles, output, Axis::rows, {{p.vocab, 1, 1, "vocabulary rows"}});
+        blocks::shard_vocab(d.roles, output, p.vocab);
         d.ops.push_back({Part::draft, backend::Op::argmax_rows});
         d.ops.push_back({Part::draft, backend::Op::embed_ids});
         p.draft_h = p.slots.size();
@@ -860,7 +867,7 @@ private:
             {ple_norm_conv, Part::mixer, RoleKind::norm, pre + "ple_norm_conv.weight", "", R},
             {ple_conv, Part::mixer, RoleKind::table, pre + "ple_conv1d.weight", "", uint64_t(cfg_.ple_conv_kernel), R}});
         layer.ops.push_back({Part::mixer, backend::Op::signed_sqrt_gate});
-        layer.ops.push_back({Part::mixer, backend::Op::dilated_conv_silu_add});
+        layer.ops.push_back({Part::mixer, backend::Op::depthwise_conv});
         layer.state_tail = backend::size_mul(backend::size_mul(size_t(cfg_.ple_conv_kernel - 1), size_t(cfg_.ple_hash.ngram_size)), size_t(R));
         layer.token_history = size_t(cfg_.ple_hash.ngram_size - 1);
         layer.token_padding = uint32_t(cfg_.ple_hash.fill_id);

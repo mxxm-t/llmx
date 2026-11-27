@@ -9,13 +9,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import run as cli, tokenize_failures
 
 # Tokenizer round-trip gate: builds a minimal GGUF with a tiny GPT-2-style BPE vocab and merges, written directly since going through the CLI's quantize path is overkill, then exercises encode/decode incl. unicode and specials.
-# It also requires a file naming another tokenizer or pretokenizer to be refused, and holds the qwen35, joyai-llm and minimax-m2 pretokenizers to HF's ids and the Unicode class table and NFC to unicodedata (docs/TESTS.md, Suite components).
+# It also refuses a file naming another tokenizer or pretokenizer, and holds the qwen35, joyai-llm, minimax-m2 and inkling2 pretokenizers to HF's ids and the Unicode class table and NFC to unicodedata (docs/TESTS.md, Suite components).
 
 ALIGN = 32
 QWEN35_GOLDEN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "baseline_tokenizer_qwen35.json")
 # The goldens of tokenizers GGUF files name, each with the pretokenizer its files name (tools/gen_baseline.py, FILE_TOKENIZERS).
 FILE_GOLDENS = {family: (os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "baseline_tokenizer_%s.json" % family), pre)
-                for family, pre in (("deepseek41", "joyai-llm"), ("minimax", "minimax-m2"))}
+                for family, pre in (("deepseek41", "joyai-llm"), ("minimax", "minimax-m2"), ("inkling2", "inkling2"))}
 UNICODE_CLASS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src", "core", "unicode_class.hpp")
 # The code points the White_Space property holds, which has not changed since Unicode 6.3.
 WHITE_SPACE = set(range(0x9, 0xE)) | {0x20, 0x85, 0xA0, 0x1680} | set(range(0x2000, 0x200B)) | {0x2028, 0x2029, 0x202F, 0x205F, 0x3000}
@@ -163,7 +163,7 @@ def nfc_items():
 
 def check_nfc(d, tokens):
     """NFC as the qwen2 and qwen35 pretokenizers apply it, against the running Python's unicodedata: a file holding the bytes alone gives back each text's bytes, so its ids are the normalized text.
-    Code points only 16.0 assigns are left out, as in the class check, and joyai-llm, whose tokenizer.json names no normalizer, must keep a decomposed accent as it is."""
+    Code points only 16.0 assigns are left out, as in the class check, and joyai-llm and inkling2, whose tokenizer.json files name no normalizer, must keep a decomposed accent as it is."""
     import unicodedata
     path = build_tokenizer_gguf(os.path.join(d, "nfc.gguf"), tokens[:256], [], [], [("tokenizer.ggml.pre", "qwen2")])
     items, chunks, chunk = nfc_items(), [], []
@@ -190,13 +190,15 @@ def check_nfc(d, tokens):
                 break
     assert not wrong, "nfc: texts differ from unicodedata %s, first %s" % (unicodedata.unidata_version,
                                                                        [x.encode("unicode_escape").decode("ascii") for x in wrong[:5]])
-    joyai = build_tokenizer_gguf(os.path.join(d, "nfc_joyai.gguf"), tokens[:256], [], [], [("tokenizer.ggml.pre", "joyai-llm")])
-    assert tokenized(joyai, "cafe\u0301") == "cafe\u0301".encode("utf-8"), "nfc: joyai-llm normalized a decomposed accent"
+    for pre in ("joyai-llm", "inkling2"):
+        plain = build_tokenizer_gguf(os.path.join(d, "nfc_%s.gguf" % pre), tokens[:256], [], [], [("tokenizer.ggml.pre", pre)])
+        assert tokenized(plain, "cafe\u0301") == "cafe\u0301".encode("utf-8"), "nfc: %s normalized a decomposed accent" % pre
     return len(items)
 
 
 def check_file_tokenizer(d, family):
-    """A family's golden texts through a file naming its pretokenizer, holding the part of the pinned vocabulary those texts reach and the GGUF file's token types: each must give HF's ids."""
+    """A family's golden texts through a file naming its pretokenizer, holding the part of the pinned vocabulary those texts reach and the GGUF file's token types: each must give HF's ids.
+    Texts whose merges alone would give other ids, as the inkling2 golden's whole-piece witnesses, show the whole-piece lookup ran; the count of them is returned."""
     golden, pre = FILE_GOLDENS[family]
     with io.open(golden, encoding="utf-8") as f:
         doc = json.load(f)
@@ -208,7 +210,9 @@ def check_file_tokenizer(d, family):
     pieces = {case["text"].encode("unicode_escape").decode("ascii"): case.get("pieces") for case in doc["cases"]}
     assert not failures, "%s: %d/%d texts differ from HF:" % (family, len(failures), len(doc["cases"])) + \
         "".join("\n  %s: want %s, got %s, HF pieces %s" % (f + (pieces[f[0]],)) for f in failures)
-    return len(doc["cases"])
+    witnesses = [case for case in doc["cases"] if "merges_only_ids" in case]
+    assert all(case["merges_only_ids"] != case["ids"] for case in witnesses), "%s: a whole-piece witness's merges give HF's ids" % family
+    return len(doc["cases"]), len(witnesses)
 
 
 def run():
@@ -259,7 +263,8 @@ def run():
         rc, out7 = cli(["tokenize", named, "hello"])
         assert rc == 0 and out7 == out, "named gpt2/qwen2 tokenizer: %r, unnamed %r" % (out7, out)
         # The refusal names the key and every implemented value.
-        for key, value, implemented in [("tokenizer.ggml.pre", "gpt-2", ("qwen2", "qwen35", "joyai-llm", "minimax-m2")), ("tokenizer.ggml.pre", "qwen3", ("qwen2", "qwen35", "joyai-llm", "minimax-m2")),
+        pres = ("qwen2", "qwen35", "joyai-llm", "minimax-m2", "inkling2")
+        for key, value, implemented in [("tokenizer.ggml.pre", "gpt-2", pres), ("tokenizer.ggml.pre", "qwen3", pres), ("tokenizer.ggml.pre", "gpt-4o", pres),
                                         ("tokenizer.ggml.model", "llama", ("gpt2",))]:
             other = os.path.join(d, "other.gguf")
             build_tokenizer_gguf(other, tokens, merges, specials, [(key, value)])
@@ -270,11 +275,15 @@ def run():
         n, controls = check_qwen35(d)
         nfc = check_nfc(d, tokens)
         version, runs = check_unicode_class()
-        n41 = check_file_tokenizer(d, "deepseek41")
-        nmm = check_file_tokenizer(d, "minimax")
+        n41, _ = check_file_tokenizer(d, "deepseek41")
+        nmm, _ = check_file_tokenizer(d, "minimax")
+        n_ink, whole = check_file_tokenizer(d, "inkling2")
+        assert whole, "inkling2: the golden has no whole-piece witness"
         print("tokenizer: encode->decode round-trip 'hello' -> %s, unicode and special token, other tokenizers refused, "
               "qwen35 %d/%d texts match HF and its %d file-only control tokens are one id each, "
-              "the Unicode class table's %d runs match Unicode %s, NFC of %d texts matches it, deepseek41 %d/%d and minimax %d/%d texts match HF  [ok]" % (out2.strip(), n, n, controls, runs, version, nfc, n41, n41, nmm, nmm))
+              "the Unicode class table's %d runs match Unicode %s, NFC of %d texts matches it, deepseek41 %d/%d and minimax %d/%d texts match HF, "
+              "inkling2 (o200k) %d/%d texts match HF, %d of them whole pieces the merges alone split  [ok]" % (
+                  out2.strip(), n, n, controls, runs, version, nfc, n41, n41, nmm, nmm, n_ink, n_ink, whole))
         return True
     finally:
         import shutil

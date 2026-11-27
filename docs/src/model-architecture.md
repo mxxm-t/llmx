@@ -11,7 +11,8 @@ never sees devices, placements, stages or caches beyond what a call hands it.
 - The plan: `Role` (the id a resolved weight is indexed by, its `Part` -
   `embed`, `mixer`, `ffn`, `head` or `draft` - its `RoleKind`, its tensor name and an
   alias taken when the name is absent, its expected `in`, `out` and
-  `experts`, and its `Stream`; then `tensor` and `aliased`, the view it
+  `experts`, its `Stream`, and `first_row` and `tensor_rows` for a run of its
+  tensor's output rows, of each expert's matrix for a stack; then `tensor` and `aliased`, the view it
   reads and whether that is the alias's, which `plan_model` sets and the
   architecture leaves alone), `LayerPlan` (the architecture's own kind for
   a layer, handed back on every call for that layer, whether its
@@ -36,9 +37,10 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   `headroom`, the positions an entries layer's rings hold beyond those its rows read, the most rows a pass after a mark may take;
   `native`, the layer's widths under the cache type `native`, its pooled row and its state tail in 32-bit words of its declared formats, which `settle_cache` swaps with `kv_pool_width` and `state_tail` while `ModelPlan::native` says they are in effect, and `Step::native` tells the parts;
   `entry_source`, an earlier entries layer whose pooled rows an entries layer without its own reads, or -1: its source's storage layer on the source's device, and on a later device a replica there, which the first such reader fills (`Step::appends`);
+  `ffn_reads_state`, whether the feed-forward part reads the layer's state slot too, as an Inkling-2-Mini layer's convolution ring after its experts does: the runtime requires it on the mixer's device and the placement refuses expert offload for the model;
   `lookup`, an optional `Lookup` naming a mixer gather role and its requested
   table rows per token; and
-  `Cache`, what a layer keeps between passes: `kv`, `state`, `entries` (a state slot of its `state_tail` floats over the plan's state and, with `kv_pool`, pooled rows in the KV blocks with no K or V, docs/DEEPSEEK4.md section 4.3) or `none`; `keeps_slot(layer)` is true of a state and an entries layer and `keeps_kv(layer)` of a KV layer and an entries layer with pooled rows;
+  `Cache`, what a layer keeps between passes: `kv`, `state`, `entries` (a state slot of its `state_tail` floats over the plan's state and, with `kv_pool`, pooled rows in the KV blocks with no K or V, docs/DEEPSEEK4.md section 4.3) or `none`; `keeps_slot(layer)` is true of a state and an entries layer, every part of which (mixer, feed-forward part and join) the pass hands the slot's state views on the device that holds it, and `keeps_kv(layer)` of a KV layer and an entries layer with pooled rows; `kVerifyRows`, the most rows one verify pass feeds, which `spec::kVerifyRows` names and a ring's `headroom` holds;
   `ModelPlan` (the size of a row of resolved weights, the vocabulary, the
   pass's roles and optional `pass_ops` (`OpUse`s issued by embedding or head
   parts beyond the common backend ops), each layer's roles and ops, the context
@@ -77,7 +79,8 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   - A `Shard` says how a role splits over a tensor group: its `Axis` (none,
     output rows, or input columns) and the `ShardSection`s that cover it,
     each tiles of units of rows or columns, a unit replicated over members
-    where the section allows; the architecture sets it after listing the
+    where the section allows, or the units split unevenly where it allows
+    that (the vocabulary rows); the architecture sets it after listing the
     role, and [shard](model-shard.md) turns it into each member's spans.
   - The context length bounds every pass and is the cache
     budget unless the options give one. The tables and the position slots cover `covered_positions`, the context capped at the budget: `table_floats` and `slot_floats` give their sizes at a number of positions, and `cover_positions` narrows the slots once a model knows its pool. The residual is the width of slot
@@ -86,7 +89,7 @@ never sees devices, placements, stages or caches beyond what a call hands it.
     role ids below `role_ids`, and the fit to one of its three pass fields
     for each pass role, a role of another part and kind needing a field of
     its own first; each is the architecture's error (`std::logic_error`).
-- `RouteHook`: what a routed step hands a caller that follows its picks (tools/route_probe.cpp): the model's layer, the step's rows, each row's k expert ids and its router scores, read back from the device after the step.
+- `RouteHook`: what a routed step hands a caller that follows its picks (tools/route_probe.cpp): the model's layer, the step's rows, each row's k expert ids and its router scores, read back from the device after the step (`blocks::report_routes`); on a tensor group only its first member's, since every member runs the whole router.
 - `StreamHook`: what a pass hands a caller that checks the stream a drafter taps (tools/route_probe.cpp): the model's layer, the pass's rows, the residual's floats a row and the residual entering the layer, read back from the device before the layer's mixer runs.
 - `Step`: one call of a part: the backend of the device it runs on and that
   device's arena with each slot's offset (`slot(i)`), and for a slot whose planes each hold the pass's rows one after another the step's rows of a plane (`plane(i, index, width)`), the same address in a cut part as over the whole pass, from the pass's offsets, its rows and the part's first row, which `Model::narrow` keeps (`pass_offsets`, `pass_rows`, `first_row`), the residual at the
@@ -167,4 +170,4 @@ On a tensor group each member of an embedded drafter's step computes the logits 
 A call of an embedded drafter on a tensor group runs in parts (`Step::phase`): the first `ModelPlan::draft_sums` each run a sublayer and end in the members' partial rows, which the group sums into the residual over the call's rows (`draft_block` rows a sequence), and each later part ends in each member's candidate of one draft, from which the group picks it; -1 runs all of it, as one device does.
 With stages apart from the head a call runs in the same parts on any width, `draft_sums` an equal number a stage (`LayerPlan::stages`), each stage's parts on its device, and a context call (`DraftRowsStep`) in parts too, 0 the head's and 1 + st stage st's; the plan names what crosses between them (`ModelPlan::draft_carried`, `draft_ids`, `draft_rows_x`, docs/SPECULATIVE.md, section 9).
 Qwen's MTP block takes two sum parts, its mixer and its feed-forward block, then one part for the final norm, the head and the argmax; DeepSeek-V4.1's DSpark takes two a stage, then a part a draft of its block, the first with the final norm and the head's logits, each with its Markov bias from the pick before it.
-`ModelPlan::partial` is the width of a member's partial rows, 0 for the residual's (`sum_width`, the residual's where `embedding_split` finds the embedding role split, whose members' rows the group sums as the pass begins), which the group's sum adds to the residual; an architecture that sets it narrower (qwen4exp, whose parts end in a block injected into several streams) has the group sum the partial rows in place, and `join(step)` then runs on each member with `Step::partial` holding the sum and adds it into `Step::x` as one device's part ends (`sum_width` gives the width summed, which sizes the collective and the fit's count of it).
+`ModelPlan::partial` is the width of a member's partial rows, 0 for the residual's (`sum_width`, the residual's where `embedding_split` finds the embedding role split, whose members' rows the group sums as the pass begins), which the group's sum adds to the residual; an architecture that sets it narrower (qwen4exp, whose parts end in a block injected into several streams) has the group sum the partial rows in place, and `join(step)` then runs on each member with `Step::partial` holding the sum and adds it into `Step::x` as one device's part ends, `Step::joins` naming the part the sum closes, a split mixer's or the feed-forward's (`sum_width` gives the width summed, which sizes the collective and the fit's count of it).

@@ -8,6 +8,7 @@
 #include "core/fp16.hpp"
 #include "core/host_memory.hpp"
 #include "deepseek4_checks.hpp"
+#include "inkling2_checks.hpp"
 #include "model/kv_cache.hpp"
 #include "quant/fp4.hpp"
 #include "quant/types.hpp"
@@ -323,7 +324,7 @@ void refusals(Backend& g) {
     require(throws([&] { g.matmul({quant::GGML_TYPE_Q8_0, {w.get(), 0}}, {x.get(), 0}, {y.get(), 0}, 48, 4, 1); }), "a Q8_0 row ending inside a block is refused");
     // The ops ROCm implements are its `implements`, which the kernel checks below reach one by one: every op but the ones it lacks.
     // The loop ends at Op's last enumerator (backend.hpp), so an Op appended there moves this end with it.
-    for (int i = 0; i <= int(Op::chain_pick); ++i) {
+    for (int i = 0; i <= int(Op::copy_rows); ++i) {
         const Op op = Op(i);
         const bool lacked = op == Op::mixed_experts;
         require(g.implements(op) != lacked, std::string("the backend reports ") + backend::op_name(op) + (lacked ? ", which it lacks" : " as it lacks it"));
@@ -478,6 +479,499 @@ twin_checks::Bits& bits() {
 moe_checks::Moe& moe() {
     static moe_checks::Moe m{rocm_device(0).caps.subgroup_size, rocm_take_launches, rocm_route_only, require};
     return m;
+}
+// Two and three F32 projections of one row take one launch, each output the bits of its own matmul, at a wide row and at the narrow rows that take 16 or 32 lanes an output.
+// Row 0 of the second projection has every product underflow to a signed zero, so a narrow output keeps the +0 the wave's zero lanes give it.
+void f32_group_bits(Backend& g, size_t nin);
+void f32_group_bits(Backend& g) {
+    for (size_t nin : {size_t(2 * 1152 + 3), size_t(64), size_t(63), size_t(100), size_t(128), size_t(129)})
+        f32_group_bits(g, nin);
+}
+void f32_group_bits(Backend& g, size_t nin) {
+    const size_t nouts[3] = {1152, 7, 1153};
+    const std::vector<float> x = row_classes::values(nin, 81);
+    auto xb = g.adopt(x.data(), x.size() * 4);
+    std::vector<std::vector<float>> w;
+    std::vector<std::shared_ptr<Buffer>> wb, yb, sb;
+    for (size_t p = 0; p < 3; ++p) {
+        w.push_back(row_classes::values(nin * nouts[p], 82 + uint32_t(p)));
+        if (p == 1)
+            for (size_t i = 0; i < nin; ++i) w[p][i] = x[i] > 0.0f ? -1e-45f : 1e-45f;
+        wb.push_back(g.adopt(w[p].data(), w[p].size() * 4));
+        yb.push_back(g.alloc(nouts[p] * 4));
+        sb.push_back(g.alloc(nouts[p] * 4));
+        g.matmul({quant::GGML_TYPE_F32, {wb[p].get(), 0}}, {xb.get(), 0}, {sb[p].get(), 0}, nin, nouts[p], 1, {}, Dtype::f16);
+    }
+    for (size_t n : {size_t(2), size_t(3)}) {
+        rocm_take_launches(g);
+        if (n == 2)
+            g.matmul_group({{{quant::GGML_TYPE_F32, {wb[0].get(), 0}}, {yb[0].get(), 0}, nouts[0]}, {{quant::GGML_TYPE_F32, {wb[1].get(), 0}}, {yb[1].get(), 0}, nouts[1]}},
+                           {xb.get(), 0}, nin, 1, {}, Dtype::f16);
+        else
+            g.matmul_group({{{quant::GGML_TYPE_F32, {wb[0].get(), 0}}, {yb[0].get(), 0}, nouts[0]}, {{quant::GGML_TYPE_F32, {wb[1].get(), 0}}, {yb[1].get(), 0}, nouts[1]},
+                            {{quant::GGML_TYPE_F32, {wb[2].get(), 0}}, {yb[2].get(), 0}, nouts[2]}},
+                           {xb.get(), 0}, nin, 1, {}, Dtype::f16);
+        const std::map<std::string, size_t> l = rocm_take_launches(g);
+        require(l.size() == 1 && l.count("llmx_matmul_group_f32") && l.at("llmx_matmul_group_f32") == 1, "a group of " + std::to_string(n) + " F32 projections takes one launch");
+        for (size_t p = 0; p < n; ++p) {
+            const std::vector<float> got = read(g, *yb[p], nouts[p]), want = read(g, *sb[p], nouts[p]);
+            require(std::memcmp(got.data(), want.data(), nouts[p] * 4) == 0, "grouped F32 projection " + std::to_string(p) + " of " + std::to_string(n) + " is its matmul's bits");
+        }
+    }
+    // Six projections, the last three reading their own second row (Projection::in), take one launch too.
+    const std::vector<float> x2 = row_classes::values(nin, 83);
+    auto xb2 = g.adopt(x2.data(), x2.size() * 4);
+    std::vector<std::shared_ptr<Buffer>> y2, s2;
+    for (size_t p = 0; p < 3; ++p) {
+        y2.push_back(g.alloc(nouts[p] * 4));
+        s2.push_back(g.alloc(nouts[p] * 4));
+        g.matmul({quant::GGML_TYPE_F32, {wb[p].get(), 0}}, {xb2.get(), 0}, {s2[p].get(), 0}, nin, nouts[p], 1, {}, Dtype::f16);
+    }
+    const auto own = [&](size_t p) {
+        Projection q{{quant::GGML_TYPE_F32, {wb[p].get(), 0}}, {y2[p].get(), 0}, nouts[p]};
+        q.in = {xb2.get(), 0};
+        return q;
+    };
+    rocm_take_launches(g);
+    g.matmul_group({{{quant::GGML_TYPE_F32, {wb[0].get(), 0}}, {yb[0].get(), 0}, nouts[0]}, own(0), {{quant::GGML_TYPE_F32, {wb[1].get(), 0}}, {yb[1].get(), 0}, nouts[1]}, own(1),
+                    {{quant::GGML_TYPE_F32, {wb[2].get(), 0}}, {yb[2].get(), 0}, nouts[2]}, own(2)},
+                   {xb.get(), 0}, nin, 1, {}, Dtype::f16);
+    const std::map<std::string, size_t> l = rocm_take_launches(g);
+    require(l.size() == 1 && l.count("llmx_matmul_group_f32") && l.at("llmx_matmul_group_f32") == 1, "a group of six F32 projections of two inputs takes one launch");
+    const auto bits = [&](Buffer& a, Buffer& b, size_t n) { return std::memcmp(read(g, a, n).data(), read(g, b, n).data(), n * 4) == 0; };
+    for (size_t p = 0; p < 3; ++p)
+        require(bits(*yb[p], *sb[p], nouts[p]) && bits(*y2[p], *s2[p], nouts[p]),
+                "grouped F32 projection " + std::to_string(p) + " of six, on either input, is its matmul's bits");
+}
+// A grouped norm of one row into an F32 product takes one launch, llmx_matmul_normed_f32, as do three in a list; inkling2_checks.hpp holds the bits. Two rows take the norm and then the product.
+void normed_product_launches(Backend& g) {
+    const size_t dim = 2304, width = 2 * dim, nout = 64;
+    const std::vector<float> x = row_classes::values(2 * width, 91), w = row_classes::values(width * nout, 92), ones(width, 1.0f);
+    auto xb = g.adopt(x.data(), x.size() * 4), wb = g.adopt(w.data(), w.size() * 4), nb = g.adopt(ones.data(), ones.size() * 4), normed = g.alloc(2 * width * 4), yb = g.alloc(2 * nout * 4);
+    for (size_t rows : {size_t(1), size_t(2)}) {
+        rocm_take_launches(g);
+        g.group_rms_norm({normed.get(), 0}, {xb.get(), 0}, {nb.get(), 0}, rows, 2, dim, 1e-6f, {}, {}, {{quant::GGML_TYPE_F32, {wb.get(), 0}}, {yb.get(), 0}, nout, Dtype::f16});
+        const std::map<std::string, size_t> l = rocm_take_launches(g);
+        if (rows == 1) require(l.size() == 1 && l.count("llmx_matmul_normed_f32") && l.at("llmx_matmul_normed_f32") == 1, "a grouped norm of one row into an F32 product takes one launch");
+        else require(l.count("llmx_group_rms_norm") && !l.count("llmx_matmul_normed_f32"), "a grouped norm of two rows into a product takes the norm and then the product");
+    }
+    // Three such norms of one list call take one launch.
+    auto y3 = g.alloc(3 * nout * 4);
+    rocm_take_launches(g);
+    const auto item = [&](size_t i) { return backend::NormRows{{normed.get(), 0}, {xb.get(), 0}, {}, {{quant::GGML_TYPE_F32, {wb.get(), 0}}, {y3.get(), i * nout}, nout, Dtype::f16}}; };
+    const backend::NormRows three[3] = {item(0), item(1), item(2)};
+    g.group_rms_norm(three, 3, {nb.get(), 0}, 1, 2, dim, 1e-6f);
+    const std::map<std::string, size_t> l = rocm_take_launches(g);
+    require(l.size() == 1 && l.count("llmx_matmul_normed_f32") && l.at("llmx_matmul_normed_f32") == 1, "three grouped norms of one row into F32 products, one list call, take one launch");
+}
+// A ring convolution of one row whose input is its Q8_0 product runs in the product's store, one launch of llmx_q8_0_rows16_1_conv, with the bits of the product and then the conv, the ring's included.
+// Two rows take the product and then llmx_conv_ring.
+void conv_store_launches(Backend& g) {
+    const size_t nin = 256, C = 128, K = 4, R = 5, off = 3;
+    const std::vector<uint8_t> w = q8_matrix(nin, C, 61);
+    const std::vector<float> taps = row_classes::values(C * K, 62), out0 = row_classes::values(2 * C, 63);
+    auto wb = g.adopt(w.data(), w.size()), tb = g.adopt(taps.data(), taps.size() * 4);
+    const WeightView wv{quant::GGML_TYPE_Q8_0, {wb.get(), 0}};
+    for (size_t rows : {size_t(1), size_t(2)})
+        for (bool acc : {true, false}) {
+            std::unique_ptr<backend::StateStorage> st0 = g.state_alloc(1, 1, backend::StateShape{}, {off + R * C}), st1 = g.state_alloc(1, 1, backend::StateShape{}, {off + R * C});
+            auto o0 = g.adopt(out0.data(), rows * C * 4), o1 = g.adopt(out0.data(), rows * C * 4), y0 = g.alloc(rows * C * 4), y1 = g.alloc(rows * C * 4);
+            backend::DepthwiseConv d;
+            d.w = {tb.get(), 0}, d.channels = C, d.taps = K, d.residual_from = backend::ConvResidual::input, d.divisor = std::sqrt(5.0f);
+            d.history = backend::ConvHistory::ring, d.ring_offset = off, d.ring_rows = R, d.accumulate = acc;
+            for (size_t len = 0; len < 7; len += rows) {
+                const std::vector<float> x = row_classes::values(rows * nin, 70 + len);
+                auto xb = g.adopt(x.data(), x.size() * 4);
+                const backend::StateView v0{st0.get(), 0, 0, len, rows}, v1{st1.get(), 0, 0, len, rows};
+                g.matmul(wv, {xb.get(), 0}, {y0.get(), 0}, nin, C, rows, {}, Dtype::f16);
+                g.depthwise_conv({o0.get(), 0}, {y0.get(), 0}, d, 0, &v0, 1);
+                rocm_take_launches(g);
+                g.depthwise_conv({{{o1.get(), 0}, {y1.get(), 0}, d, {wv, {xb.get(), 0}, {y1.get(), 0}, nin, {}, Dtype::f16}}}, 0, &v1, 1);
+                const std::map<std::string, size_t> l = rocm_take_launches(g);
+                const std::string at = " (rows " + std::to_string(rows) + ", length " + std::to_string(len) + (acc ? ", added)" : ")");
+                if (rows == 1) require(l.count("llmx_q8_0_rows16_1_conv") && l.at("llmx_q8_0_rows16_1_conv") == 1 && !l.count("llmx_conv_ring"), "a one-row conv of its product runs in the product's store" + at);
+                else require(l.count("llmx_conv_ring") && !l.count("llmx_q8_0_rows16_1_conv"), "a two-row conv of its product takes the product and then llmx_conv_ring" + at);
+                const std::vector<float> a = read(g, *o0, rows * C), b = read(g, *o1, rows * C), ya = read(g, *y0, rows * C), yb = read(g, *y1, rows * C);
+                require(std::memcmp(a.data(), b.data(), rows * C * 4) == 0 && std::memcmp(ya.data(), yb.data(), rows * C * 4) == 0, "a conv in its product's store keeps the product's and the conv's bits" + at);
+            }
+        }
+}
+// A ring convolution of one row whose input is a MoE step's output (ConvProduct::step) runs in the store of the step's routed down and combine, one llmx_q8_0_routed16_walk3_add_conv launch.
+// Its output, the step's and the ring's bits are the step's and then llmx_conv_ring's, plain and added, as the ring fills and wraps.
+void step_conv_store(Backend& g) {
+    if (rocm_device(0).caps.subgroup_size != 64) {
+        std::cout << "backend-rocm: step conv store skipped, waves of " << rocm_device(0).caps.subgroup_size << " lanes\n";
+        return;
+    }
+    const auto count = [&](const std::map<std::string, size_t>& m, const std::string& name) { return m.count(name) ? m.at(name) : size_t(0); };
+    const size_t E = 16, nin = 2304, ff = 1536, k = 8, K = 4, R = 5, off = 3;
+    const std::vector<uint8_t> gate = q8_matrix(nin, E * ff, 81), up = q8_matrix(nin, E * ff, 82), down = q8_matrix(ff, E * nin, 83);
+    const std::vector<float> router = row_classes::values(E * nin, 84), bias = row_classes::values(E, 85), taps = row_classes::values(nin * K, 86), out0 = row_classes::values(nin, 87),
+                             zero(nin, 0.0f);
+    auto gb = g.adopt(gate.data(), gate.size()), ub = g.adopt(up.data(), up.size()), db = g.adopt(down.data(), down.size()), rb = g.adopt(router.data(), router.size() * 4),
+         bb = g.adopt(bias.data(), bias.size() * 4), tb = g.adopt(taps.data(), taps.size() * 4), zb = g.adopt(zero.data(), zero.size() * 4);
+    auto scores = g.alloc(E * 4), ids = g.alloc(k * 4), wts = g.alloc(k * 4), go = g.alloc(k * ff * 4), uo = g.alloc(k * ff * 4), act = g.alloc(k * ff * 4);
+    std::vector<RowRun> scratch;
+    const RowRun one[1] = {{1, 1}};
+    const backend::MoeStep m{Projection{{quant::GGML_TYPE_F32, {rb.get(), 0}}, {scores.get(), 0}, E}, k, backend::RouteRule::sigmoid({bb.get(), 0}, 8.0f, true, 1e-20f), {ids.get(), 0},
+                             {wts.get(), 0}, Projection{{quant::GGML_TYPE_Q8_0, {gb.get(), 0}}, {go.get(), 0}, ff}, Projection{{quant::GGML_TYPE_Q8_0, {ub.get(), 0}}, {uo.get(), 0}, ff},
+                             {quant::GGML_TYPE_Q8_0, {db.get(), 0}}, {act.get(), 0}, nullptr, zb.get(), &scratch, {4.0f, backend::GluForm::softcap, 25.0f}};
+    for (bool acc : {true, false}) {
+        std::unique_ptr<backend::StateStorage> st0 = g.state_alloc(1, 1, backend::StateShape{}, {off + R * nin}), st1 = g.state_alloc(1, 1, backend::StateShape{}, {off + R * nin});
+        auto o0 = g.adopt(out0.data(), nin * 4), o1 = g.adopt(out0.data(), nin * 4), y0 = g.alloc(nin * 4), y1 = g.alloc(nin * 4);
+        backend::DepthwiseConv d;
+        d.w = {tb.get(), 0}, d.channels = nin, d.taps = K, d.residual_from = backend::ConvResidual::input, d.divisor = std::sqrt(5.0f);
+        d.history = backend::ConvHistory::ring, d.ring_offset = off, d.ring_rows = R, d.accumulate = acc;
+        for (size_t len = 0; len < 7; ++len) {
+            const std::vector<float> h = row_classes::values(nin, 90 + uint32_t(len));
+            auto hb = g.adopt(h.data(), h.size() * 4);
+            const backend::StateView v0{st0.get(), 0, 0, len, 1}, v1{st1.get(), 0, 0, len, 1};
+            rocm_take_launches(g);
+            g.moe_step(m, {hb.get(), 0}, {y0.get(), 0}, nin, 1, {one, 1}, Dtype::f16);
+            g.depthwise_conv({o0.get(), 0}, {y0.get(), 0}, d, 0, &v0, 1);
+            const std::map<std::string, size_t> apart = rocm_take_launches(g);
+            backend::ConvProduct p;
+            p.y = {y1.get(), 0}, p.nin = nin, p.runs = {one, 1}, p.step = &m, p.h = {hb.get(), 0};
+            g.depthwise_conv({{{o1.get(), 0}, {y1.get(), 0}, d, p}}, 0, &v1, 1);
+            const std::map<std::string, size_t> l = rocm_take_launches(g);
+            const std::string at = " (length " + std::to_string(len) + (acc ? ", added)" : ")");
+            require(count(apart, "llmx_q8_0_routed16_walk3_add") == 1 && count(apart, "llmx_conv_ring") == 1, "the step's routed down walks and its conv is llmx_conv_ring" + at);
+            require(count(l, "llmx_q8_0_routed16_walk3_add_conv") == 1 && !count(l, "llmx_q8_0_routed16_walk3_add") && !count(l, "llmx_conv_ring"),
+                    "a one-row conv of a step runs in the store of its routed down and combine" + at);
+            const std::vector<float> a = read(g, *o0, nin), b = read(g, *o1, nin), ya = read(g, *y0, nin), yb = read(g, *y1, nin);
+            require(std::memcmp(a.data(), b.data(), nin * 4) == 0 && std::memcmp(ya.data(), yb.data(), nin * 4) == 0, "a conv in its step's store keeps the step's and the conv's bits" + at);
+        }
+        const size_t n = st0->layer(0).size() / sizeof(float);
+        std::vector<float> ra(n), rb2(n);
+        g.read(st0->layer(0), 0, ra.data(), n * sizeof(float));
+        g.read(st1->layer(0), 0, rb2.data(), n * sizeof(float));
+        require(std::memcmp(ra.data(), rb2.data(), n * sizeof(float)) == 0, std::string("a conv in its step's store leaves the ring's bits") + (acc ? ", added" : ""));
+    }
+}
+// Three normed tanh gate mixes whose outputs lie one after another, as Inkling-2's loop mixer gates its q, k and v planes: one held norm launch, and products of each plane build no twin.
+// Each plane and each product have the bits of three separate mixes and their products, in 16-bit and 8-bit products, at one row and two.
+void held_gate_mix_twin(Backend& g) {
+    const auto count = [&](const std::map<std::string, size_t>& m, const std::string& name) { return m.count(name) ? m.at(name) : size_t(0); };
+    const size_t E = 2304, nout = 40;
+    const std::vector<uint8_t> w = q8_matrix(E, nout, 91);
+    auto wb = g.adopt(w.data(), w.size());
+    const WeightView wv{quant::GGML_TYPE_Q8_0, {wb.get(), 0}};
+    for (const Dtype dt : {Dtype::f16, Dtype::int8})
+        for (const size_t rows : {size_t(1), size_t(2)}) {
+            const size_t packed = rows * E;
+            const RowRun run[1] = {{rows, 1}};
+            BufferPtr in[3][5];
+            for (size_t i = 0; i < 3; ++i)
+                for (size_t j = 0; j < 5; ++j) {
+                    const std::vector<float> v = row_classes::values(j == 4 ? E : packed, uint32_t(100 + 10 * i + j));
+                    in[i][j] = g.adopt(v.data(), v.size() * 4);
+                }
+            const auto item = [&](BufferPtr& out, size_t i) {
+                return backend::GateMixItem{{out.get(), i * packed}, {in[i][0].get(), 0}, {in[i][1].get(), 0}, {in[i][2].get(), 0}, {in[i][3].get(), 0}, {in[i][4].get(), 0}};
+            };
+            BufferPtr a = g.alloc(3 * packed * 4), b = g.alloc(3 * packed * 4), ya[3] = {g.alloc(rows * nout * 4), g.alloc(rows * nout * 4), g.alloc(rows * nout * 4)},
+                      yb[3] = {g.alloc(rows * nout * 4), g.alloc(rows * nout * 4), g.alloc(rows * nout * 4)};
+            for (size_t i = 0; i < 3; ++i) g.tanh_gate_mix({item(a, i)}, rows, E, E, E, E, {run, 1}, 1e-6f);
+            for (size_t i = 0; i < 3; ++i) g.matmul(wv, {a.get(), i * packed}, {ya[i].get(), 0}, E, nout, rows, {run, 1}, dt);
+            rocm_take_launches(g);
+            g.tanh_gate_mix({item(b, 0), item(b, 1), item(b, 2)}, rows, E, E, E, E, {run, 1}, 1e-6f);
+            const std::map<std::string, size_t> mixed = rocm_take_launches(g);
+            for (size_t i = 0; i < 3; ++i) g.matmul(wv, {b.get(), i * packed}, {yb[i].get(), 0}, E, nout, rows, {run, 1}, dt);
+            const std::map<std::string, size_t> products = rocm_take_launches(g);
+            const std::string at = std::string(" (") + (dt == Dtype::int8 ? "8-bit" : "16-bit") + ", " + std::to_string(rows) + " rows)";
+            size_t total = 0;
+            for (const auto& [name, n] : mixed) total += n;
+            const std::string norm = dt == Dtype::int8 ? "llmx_tanh_norm_16_twin8" : "llmx_tanh_norm_16_twin16";
+            require(total == 1 && count(mixed, norm) == 1, "three gate mixes one after another are one " + norm + " launch" + at);
+            require(!count(products, "llmx_twin16") && !count(products, "llmx_twin8"), "products of each gated plane read the kept twin of all three" + at);
+            bool same = std::memcmp(read(g, *a, 3 * packed).data(), read(g, *b, 3 * packed).data(), 3 * packed * 4) == 0;
+            for (size_t i = 0; i < 3; ++i) same = same && std::memcmp(read(g, *ya[i], rows * nout).data(), read(g, *yb[i], rows * nout).data(), rows * nout * 4) == 0;
+            require(same, "one launch of three gate mixes keeps each plane's and each product's bits" + at);
+        }
+}
+// A one-row mix of three queries normed each against its own weight is one llmx_query_mix_norm launch, as Inkling-2 norms its q, k and v planes.
+// The planes and each product have the bits of the mix, three rms_norm_rows and each product's own matmul, in 16-bit and 8-bit products; seven items take the mix and the norms apart.
+void query_mix_norm_planes(Backend& g) {
+    const auto count = [&](const std::map<std::string, size_t>& m, const std::string& name) { return m.count(name) ? m.at(name) : size_t(0); };
+    const size_t E = 2304, rows3[5] = {3072, 24, 384, 1024, 1024}, plane_of[5] = {0, 0, 0, 1, 2};
+    for (const Dtype dtype : {Dtype::f16, Dtype::int8})
+        for (const size_t items : {size_t(1), size_t(6), size_t(7)}) {
+            const std::string at = std::to_string(items) + " items, " + (dtype == Dtype::int8 ? "int8" : "f16");
+            const std::vector<float> src = row_classes::values(items * E, uint32_t(500 + items)), qs = row_classes::values(3 * E, 510);
+            auto sb = g.adopt(src.data(), src.size() * 4), qb = g.adopt(qs.data(), qs.size() * 4);
+            BufferPtr nw[3], plane[2] = {g.alloc(3 * E * 4), g.alloc(3 * E * 4)};
+            for (size_t i = 0; i < 3; ++i) {
+                const std::vector<float> w = row_classes::values(E, uint32_t(520 + i));
+                nw[i] = g.adopt(w.data(), w.size() * 4);
+            }
+            std::vector<BufferPtr> ws, ya, yb;
+            for (size_t i = 0; i < 5; ++i) {
+                const std::vector<uint8_t> w = q8_matrix(E, rows3[i], uint32_t(E + 43 * i + rows3[i]));
+                ws.push_back(g.adopt(w.data(), w.size()));
+                ya.push_back(g.alloc(rows3[i] * 4));
+                yb.push_back(g.alloc(rows3[i] * 4));
+            }
+            const auto proj = [&](size_t i) {
+                Projection p{{quant::GGML_TYPE_Q8_0, {ws[i].get(), 0}}, {ya[i].get(), 0}, rows3[i]};
+                p.in = CSlice{plane[0].get(), plane_of[i] * E};
+                return p;
+            };
+            backend::QueryMixRows m{{plane[0].get(), 0}, {sb.get(), 0}, {qb.get(), 0}, items, 3};
+            for (size_t i = 0; i < 3; ++i) m.norm[i] = {nw[i].get(), 0};
+            m.norm_eps = 1e-5f;
+            // A product of the class first sets the level of the twin the mix writes.
+            g.matmul({quant::GGML_TYPE_Q8_0, {ws[3].get(), 0}}, {plane[0].get(), 0}, {yb[3].get(), 0}, E, rows3[3], 1, {}, dtype);
+            rocm_take_launches(g);
+            g.query_mix({m}, 1, E, items * E, 1e-6f);
+            const auto mixed = rocm_take_launches(g);
+            g.matmul_group({proj(0), proj(1), proj(2), proj(3), proj(4)}, {plane[0].get(), 0}, E, 1, {}, dtype);
+            const auto group = rocm_take_launches(g);
+            g.query_mix({{{plane[1].get(), 0}, {sb.get(), 0}, {qb.get(), 0}, items, 3}}, 1, E, items * E, 1e-6f);
+            for (size_t i = 0; i < 3; ++i) g.rms_norm_rows({plane[1].get(), i * E}, {plane[1].get(), i * E}, {nw[i].get(), 0}, 1, E, 3 * E, 1e-5f);
+            for (size_t i = 0; i < 5; ++i) g.matmul({quant::GGML_TYPE_Q8_0, {ws[i].get(), 0}}, {plane[1].get(), plane_of[i] * E}, {yb[i].get(), 0}, E, rows3[i], 1, {}, dtype);
+            rocm_take_launches(g);
+            size_t total = 0, launched = 0;
+            for (const auto& [name, times] : mixed) total += times;
+            for (const auto& [name, times] : group) launched += times;
+            const size_t lists = count(group, "llmx_q8_0_half8_1h2_list") + count(group, "llmx_q8_0_half8_1h3_list") + count(group, "llmx_q8_0_half8_1h4_list") + count(group, "llmx_q8_0_half8_1h5_list");
+            if (items <= 6) require(total == 1 && count(mixed, "llmx_query_mix_norm") == 1, "a normed mix of three queries is one llmx_query_mix_norm launch, " + at);
+            else require(count(mixed, "llmx_query_mix_norm") == 0 && total == 4, "seven items are the mix and three norms, " + at);
+            if (items <= 6 && dtype == Dtype::int8) require(lists == 1 && launched == 1, "the five products of the three planes are one held list launch and no twin, " + at);
+            else if (items <= 6) require(lists == 0, "a group of three inputs in f16 has no list build, " + at);
+            require(same(read(g, *plane[0], 3 * E), read(g, *plane[1], 3 * E)), "the three planes are the mix's and the norms', " + at);
+            for (size_t i = 0; i < 5; ++i) require(same(read(g, *ya[i], rows3[i]), read(g, *yb[i], rows3[i])), "product " + std::to_string(i) + " of the group is its own matmul's, " + at);
+        }
+}
+// Message-gate items with their down steps at one row, as Inkling-2's loop controllers run them: one llmx_normed_gate_mix launch in place of the down, product and mix launches.
+// Each out, low row and product of a normed out have the bits of group_rms_norm, the gate products and tanh_gate_mix apart, for one item mixed in place and three normed items, in 16-bit and 8-bit products.
+void normed_gate_mix_steps(Backend& g) {
+    if (rocm_device(0).caps.subgroup_size != 64) {
+        std::cout << "backend-rocm: normed gate mix skipped, waves of " << rocm_device(0).caps.subgroup_size << " lanes\n";
+        return;
+    }
+    const auto count = [&](const std::map<std::string, size_t>& m, const std::string& name) { return m.count(name) ? m.at(name) : size_t(0); };
+    const size_t R = 64, nout = 40;
+    // Each width has its own body, and one item launches 32 blocks an item where three launch 16 (kernels/f32.gpu).
+    for (const size_t E : {size_t(256), size_t(1280), size_t(2304)}) {
+        const std::vector<uint8_t> w = q8_matrix(E, nout, 91);
+        auto wb = g.adopt(w.data(), w.size());
+        const WeightView wv{quant::GGML_TYPE_Q8_0, {wb.get(), 0}};
+        const auto adopt = [&](size_t n, uint32_t seed, float scale) {
+            std::vector<float> v = row_classes::values(n, seed);
+            for (float& x : v) x *= scale;
+            return g.adopt(v.data(), v.size() * 4);
+        };
+        const std::vector<float> one(2 * E, 1.0f);
+        auto ones = g.adopt(one.data(), one.size() * 4), scratch = g.alloc(2 * E * 4);
+        const RowRun run[1] = {{1, 1}};
+        for (const Dtype dt : {Dtype::f16, Dtype::int8})
+            for (const size_t n : {size_t(1), size_t(3)}) {
+                const bool normed = n == 3;
+                BufferPtr h[2][3], m[3], down[3], fw[3], gw[3], norm[3], low[2] = {g.alloc(3 * R * 4), g.alloc(3 * R * 4)}, fg[2] = {g.alloc(6 * E * 4), g.alloc(6 * E * 4)},
+                                                                                out[2] = {g.alloc(3 * E * 4), g.alloc(3 * E * 4)}, y[2][3];
+                for (size_t i = 0; i < n; ++i) {
+                    h[0][i] = adopt(E, uint32_t(300 + 10 * i), 1.0f), h[1][i] = adopt(E, uint32_t(300 + 10 * i), 1.0f), m[i] = adopt(E, uint32_t(301 + 10 * i), 1.0f);
+                    down[i] = adopt(2 * E * R, uint32_t(302 + 10 * i), 0.01f), fw[i] = adopt(E * R, uint32_t(303 + 10 * i), 0.1f), gw[i] = adopt(E * R, uint32_t(304 + 10 * i), 0.1f);
+                    norm[i] = adopt(E, uint32_t(305 + 10 * i), 1.0f), y[0][i] = g.alloc(nout * 4), y[1][i] = g.alloc(nout * 4);
+                }
+                const auto item = [&](size_t k, size_t i) {
+                    const Slice o = normed ? Slice{out[k].get(), i * E} : Slice{h[k][i].get(), 0};
+                    const CSlice hs = normed ? CSlice{h[k][i].get(), 0} : CSlice(o);
+                    backend::GateMixItem it{o, hs, {m[i].get(), 0}, {fg[k].get(), 2 * i * E}, {fg[k].get(), (2 * i + 1) * E}, normed ? CSlice{norm[i].get(), 0} : CSlice{}};
+                    it.forget = Projection{{quant::GGML_TYPE_F32, {fw[i].get(), 0}}, {fg[k].get(), 2 * i * E}, E}, it.forget.in = {low[k].get(), i * R};
+                    it.gain = Projection{{quant::GGML_TYPE_F32, {gw[i].get(), 0}}, {fg[k].get(), (2 * i + 1) * E}, E}, it.gain.in = {low[k].get(), i * R};
+                    it.rank = R, it.dtype = dt;
+                    it.down = backend::NormRows{{scratch.get(), 0}, hs, {{m[i].get(), 0}, 1, E, E}, {{quant::GGML_TYPE_F32, {down[i].get(), 0}}, {low[k].get(), i * R}, R, dt}};
+                    it.down_w = {ones.get(), 0};
+                    return it;
+                };
+                const backend::GateMixItem a[3] = {item(0, 0), item(0, n > 1 ? 1 : 0), item(0, n > 2 ? 2 : 0)}, b[3] = {item(1, 0), item(1, n > 1 ? 1 : 0), item(1, n > 2 ? 2 : 0)};
+                // Apart: the downs as one grouped norm, then the mix of items without them.
+                backend::GateMixItem plain[3] = {a[0], a[1], a[2]};
+                for (backend::GateMixItem& it : plain) it.down = {}, it.down_w = {};
+                if (normed) {
+                    const backend::NormRows downs[3] = {a[0].down, a[1].down, a[2].down};
+                    g.group_rms_norm(downs, 3, {ones.get(), 0}, 1, 2, E, 1e-6f, {run, 1});
+                    g.tanh_gate_mix({plain[0], plain[1], plain[2]}, 1, E, E, E, E, {run, 1}, 1e-6f);
+                } else {
+                    g.group_rms_norm(&a[0].down, 1, {ones.get(), 0}, 1, 2, E, 1e-6f, {run, 1});
+                    g.tanh_gate_mix({plain[0]}, 1, E, E, E, E, {run, 1}, 1e-6f);
+                }
+                for (size_t i = 0; normed && i < n; ++i) g.matmul(wv, {out[0].get(), i * E}, {y[0][i].get(), 0}, E, nout, 1, {run, 1}, dt);
+                rocm_take_launches(g);
+                if (normed) g.tanh_gate_mix({b[0], b[1], b[2]}, 1, E, E, E, E, {run, 1}, 1e-6f);
+                else g.tanh_gate_mix({b[0]}, 1, E, E, E, E, {run, 1}, 1e-6f);
+                const std::map<std::string, size_t> mixed = rocm_take_launches(g);
+                for (size_t i = 0; normed && i < n; ++i) g.matmul(wv, {out[1].get(), i * E}, {y[1][i].get(), 0}, E, nout, 1, {run, 1}, dt);
+                const std::map<std::string, size_t> products = rocm_take_launches(g);
+                const std::string at = std::string(" (") + (dt == Dtype::int8 ? "8-bit" : "16-bit") + ", " + std::to_string(n) + " items of " + std::to_string(E) + ")";
+                size_t total = 0;
+                for (const auto& [name, c] : mixed) total += c;
+                const std::string k = !normed ? "llmx_normed_gate_mix" : dt == Dtype::int8 ? "llmx_normed_gate_mix_twin8" : "llmx_normed_gate_mix_twin16";
+                require(total == 1 && count(mixed, k) == 1, "gate mix items with down steps at one row are one " + k + " launch" + at);
+                require(!count(products, "llmx_twin16") && !count(products, "llmx_twin8"), "products of the normed outs read the kept twin" + at);
+                bool same = std::memcmp(read(g, *low[0], n * R).data(), read(g, *low[1], n * R).data(), n * R * 4) == 0;
+                for (size_t i = 0; i < n; ++i) {
+                    const Buffer& o0 = normed ? *out[0] : *h[0][i];
+                    const Buffer& o1 = normed ? *out[1] : *h[1][i];
+                    const size_t off = normed ? i * E : 0;
+                    same = same && std::memcmp(read(g, o0, off + E).data() + off, read(g, o1, off + E).data() + off, E * 4) == 0;
+                    if (normed) same = same && std::memcmp(read(g, *y[0][i], nout).data(), read(g, *y[1][i], nout).data(), nout * 4) == 0;
+                }
+                require(same, "one launch of a gate mix with its down steps keeps each low row's, out's and product's bits" + at);
+            }
+    }
+}
+// moe_step's routed act on a 64-lane wave where gate and up take the walk build: one llmx_q8_0_routed16_walk5_glu or walk3_glu launch (llmx_q8_0_routed_half8_walk3_glu in the int8 class) in place of the products and silu_mul.
+// Its act, the act's twin through the down that reads it, and the step's output have the bits of the products and silu_mul, for each GLU form, at 8 of 16 Q8_0 experts.
+void step_walk_glu(Backend& g) {
+    if (rocm_device(0).caps.subgroup_size != 64) {
+        std::cout << "backend-rocm: step walk glu skipped, waves of " << rocm_device(0).caps.subgroup_size << " lanes\n";
+        return;
+    }
+    const auto count = [&](const std::map<std::string, size_t>& m, const std::string& name) { return m.count(name) ? m.at(name) : size_t(0); };
+    const size_t E = 16, ff = 1152, k = 8;
+    const RowRun one[1] = {{1, 1}};
+    using Case = std::tuple<size_t, const char*, Dtype>;
+    for (const auto& [nin, walk, dtype] : {Case{2304, "walk5", Dtype::f16}, Case{1280, "walk3", Dtype::f16}, Case{2304, "walk5", Dtype::int8}, Case{1280, "walk3", Dtype::int8}}) {
+        const bool int8 = dtype == Dtype::int8;
+        const std::vector<uint8_t> gate = q8_matrix(nin, E * ff, 91), up = q8_matrix(nin, E * ff, 92), down = q8_matrix(ff, E * nin, 93);
+        const std::vector<float> router = row_classes::values(E * nin, 94), bias = row_classes::values(E, 95), h = row_classes::values(nin, 96), zero(nin, 0.0f);
+        auto gb = g.adopt(gate.data(), gate.size()), ub = g.adopt(up.data(), up.size()), db = g.adopt(down.data(), down.size()), rb = g.adopt(router.data(), router.size() * 4),
+             bb = g.adopt(bias.data(), bias.size() * 4), hb = g.adopt(h.data(), h.size() * 4), zb = g.adopt(zero.data(), zero.size() * 4);
+        auto scores = g.alloc(E * 4), ids = g.alloc(k * 4), wts = g.alloc(k * 4), go = g.alloc(k * ff * 4), uo = g.alloc(k * ff * 4);
+        for (const backend::Glu glu : {backend::Glu{4.0f, backend::GluForm::softcap, 25.0f}, backend::Glu{7.0f, backend::GluForm::silu, 0.0f}, backend::Glu{0.0f, backend::GluForm::quick_gelu, 0.0f}}) {
+            std::vector<RowRun> scratch;
+            BufferPtr act[2] = {g.alloc(k * ff * 4), g.alloc(k * ff * 4)}, y[2] = {g.alloc(nin * 4), g.alloc(nin * 4)};
+            const auto step = [&](int i) {
+                return backend::MoeStep{Projection{{quant::GGML_TYPE_F32, {rb.get(), 0}}, {scores.get(), 0}, E}, k, backend::RouteRule::sigmoid({bb.get(), 0}, 8.0f, true, 1e-20f), {ids.get(), 0},
+                                        {wts.get(), 0}, Projection{{quant::GGML_TYPE_Q8_0, {gb.get(), 0}}, {go.get(), 0}, ff}, Projection{{quant::GGML_TYPE_Q8_0, {ub.get(), 0}}, {uo.get(), 0}, ff},
+                                        {quant::GGML_TYPE_Q8_0, {db.get(), 0}}, {act[i].get(), 0}, nullptr, zb.get(), &scratch, glu};
+            };
+            const backend::MoeStep m0 = step(0), m1 = step(1);
+            const backend::Backend::Routing routing{m0.ids, m0.weights, k, E};
+            rocm_take_launches(g);
+            g.moe_router(m0, {hb.get(), 0}, nin, 1, {one, 1});
+            g.Backend::moe_act(m0, {hb.get(), 0}, nin, 1, routing, {one, 1}, dtype);
+            g.matmul_experts_add(m0.down, m0.act, {y[0].get(), 0}, ff, nin, 1, routing, {one, 1}, dtype, m0.zero);
+            const std::map<std::string, size_t> base = rocm_take_launches(g);
+            g.moe_step(m1, {hb.get(), 0}, {y[1].get(), 0}, nin, 1, {one, 1}, dtype);
+            const std::map<std::string, size_t> l = rocm_take_launches(g);
+            const std::string at = std::string(" (") + (int8 ? "int8" : walk) + ", GLU form " + std::to_string(int(glu.form)) + ")";
+            const std::string name = int8 ? "llmx_q8_0_routed_half8_walk3" : std::string("llmx_q8_0_routed16_") + walk, silu = int8 ? "llmx_silu_mul_twin8" : "llmx_silu_mul_twin16";
+            require((int8 || count(base, name) == 1) && count(base, silu) == 1, "the base's act takes its products and then silu_mul" + at);
+            require(count(l, name + "_glu") == 1 && !count(l, silu), "the step's act is one walk launch with its GLU" + at);
+            const std::vector<float> a = read(g, *act[0], k * ff), b = read(g, *act[1], k * ff), ya = read(g, *y[0], nin), yb = read(g, *y[1], nin);
+            require(std::memcmp(a.data(), b.data(), k * ff * 4) == 0 && std::memcmp(ya.data(), yb.data(), nin * 4) == 0, "the walk's GLU keeps the act's and the step's bits" + at);
+        }
+    }
+}
+// glu_products of one row on a 64-lane wave where gate and up take the walk at eight rows a wave: one routed walk GLU launch over expert 0 in place of the products and silu_mul.
+// At the widths where the walk takes four rows a wave the base runs; either way the act, its twin through the down that reads it, and the output keep the base's bits, for each GLU form.
+void dense_walk_glu(Backend& g) {
+    const auto& caps = rocm_device(0).caps;
+    if (caps.subgroup_size != 64) {
+        std::cout << "backend-rocm: dense walk glu skipped, waves of " << caps.subgroup_size << " lanes\n";
+        return;
+    }
+    const auto count = [&](const std::map<std::string, size_t>& m, const std::string& name) { return m.count(name) ? m.at(name) : size_t(0); };
+    const size_t fill = size_t(rocm_profile(g).row_walk_waves_per_cu) * caps.compute_units;
+    // The narrowest ff whose 2 ff rows walk at eight, and the widest below it, which walks at four.
+    const size_t ff8 = (4 * fill + 31) / 32 * 32, ff4 = ff8 - 32;
+    require(2 * ff4 / 8 < fill && 2 * ff4 / 4 >= fill, "the narrower feed-forward walks at four rows a wave");
+    const RowRun one[1] = {{1, 1}};
+    for (const auto& [nin, walk] : {std::pair<size_t, const char*>{2304, "walk5"}, {1280, "walk3"}})
+        for (const size_t ff : {ff8, ff4}) {
+            const std::vector<uint8_t> gate = q8_matrix(nin, ff, 81), up = q8_matrix(nin, ff, 82), down = q8_matrix(ff, nin, 83);
+            const std::vector<float> h = row_classes::values(nin, 84);
+            auto gb = g.adopt(gate.data(), gate.size()), ub = g.adopt(up.data(), up.size()), db = g.adopt(down.data(), down.size()), hb = g.adopt(h.data(), h.size() * 4);
+            auto go = g.alloc(ff * 4), uo = g.alloc(ff * 4);
+            for (const backend::Glu glu : {backend::Glu{4.0f, backend::GluForm::softcap, 25.0f}, backend::Glu{7.0f, backend::GluForm::silu, 0.0f}, backend::Glu{0.0f, backend::GluForm::quick_gelu, 0.0f}}) {
+                BufferPtr act[2] = {g.alloc(ff * 4), g.alloc(ff * 4)}, y[2] = {g.alloc(nin * 4), g.alloc(nin * 4)};
+                const Projection gp{{quant::GGML_TYPE_Q8_0, {gb.get(), 0}}, {go.get(), 0}, ff}, upp{{quant::GGML_TYPE_Q8_0, {ub.get(), 0}}, {uo.get(), 0}, ff};
+                const backend::WeightView dw{quant::GGML_TYPE_Q8_0, {db.get(), 0}};
+                rocm_take_launches(g);
+                g.Backend::glu_products(gp, upp, {act[0].get(), 0}, glu, {hb.get(), 0}, nin, 1, {one, 1}, Dtype::f16);
+                g.matmul(dw, {act[0].get(), 0}, {y[0].get(), 0}, ff, nin, 1, {one, 1}, Dtype::f16);
+                rocm_take_launches(g);
+                g.glu_products(gp, upp, {act[1].get(), 0}, glu, {hb.get(), 0}, nin, 1, {one, 1}, Dtype::f16);
+                const std::map<std::string, size_t> l = rocm_take_launches(g);
+                g.matmul(dw, {act[1].get(), 0}, {y[1].get(), 0}, ff, nin, 1, {one, 1}, Dtype::f16);
+                const std::string at = std::string(" (") + walk + ", ff " + std::to_string(ff) + ", GLU form " + std::to_string(int(glu.form)) + ")", name = std::string("llmx_q8_0_routed16_") + walk + "_glu";
+                if (ff == ff8) require(count(l, name) == 1 && !count(l, "llmx_silu_mul_twin16") && !count(l, std::string("llmx_q8_0_rows16_1_") + walk + "_pair"), "the act is one walk launch with its GLU" + at);
+                else require(!count(l, name) && count(l, "llmx_silu_mul_twin16") == 1, "a walk at four rows a wave leaves the act to the products and silu_mul" + at);
+                const std::vector<float> a = read(g, *act[0], ff), b = read(g, *act[1], ff), ya = read(g, *y[0], nin), yb = read(g, *y[1], nin);
+                require(std::memcmp(a.data(), b.data(), ff * 4) == 0 && std::memcmp(ya.data(), yb.data(), nin * 4) == 0, "the walk's GLU keeps the act's and the down's bits" + at);
+            }
+        }
+}
+// llmx_conv_ring stages several rows a view (a block 16 to kThreads channels) and keeps a thread a channel for one row; llmx_conv_ring_parts takes 128 rows or more not in place.
+// nq rows against nq one-row calls, outputs and state bit for bit: 1-3 stretches, R below and above nq, short history, src != dst, two items and views, in place, strided add, SiLU, dynamic taps.
+void conv_ring_paths(Backend& g) {
+    const size_t C1 = 130, C2 = 300, heads = 2, slots = 3;
+    size_t cases = 0;
+    for (size_t T = 1; T <= 4; ++T)
+        for (size_t nq : {size_t(2), size_t(3), size_t(5), size_t(16), size_t(17), size_t(127), size_t(128), size_t(129), size_t(255), size_t(256), size_t(257), size_t(258), size_t(260), size_t(512), size_t(513)})
+            for (int v = 0; v < 3; ++v) {
+                // v 0: one item, src = dst, SiLU, no history, R below nq; v 1: src != dst, two items (C2 dynamic), added at a stride, R above nq; v 2: two views, the second 3 rows, in place, one row of history.
+                const size_t R = v == 1 ? nq + 3 : std::max<size_t>(T > 1 ? T - 1 : 1, 2), len = v == 0 ? 0 : v == 1 ? 5 : 1, n_items = v == 1 ? 2 : 1, n_views = v == 2 ? 2 : 1;
+                const size_t nqs[2] = {nq, 3}, Cs[2] = {C1, C2}, stride = v == 1 ? C2 + 7 : C2, dyn_stride = heads * T + 3, off2 = 5 + R * C1 + 1;
+                size_t rows = 0;
+                for (size_t i = 0; i < n_views; ++i) rows += nqs[i];
+                const std::vector<float> taps = row_classes::values(C2 * T, uint32_t(200 + T)), x = row_classes::values(rows * C2, uint32_t(300 + nq + v)),
+                                         dyn = row_classes::values(rows * dyn_stride, uint32_t(400 + nq)), out0 = row_classes::values(2 * rows * stride, uint32_t(500 + v)),
+                                         seed = row_classes::values(slots * (off2 + R * C2), uint32_t(600 + T));
+                auto tb = g.adopt(taps.data(), taps.size() * 4), db = g.adopt(dyn.data(), dyn.size() * 4);
+                std::unique_ptr<backend::StateStorage> st[2];
+                decltype(g.alloc(4)) ob[2], xb[2];
+                for (int a = 0; a < 2; ++a) {
+                    st[a] = g.state_alloc(1, slots, backend::StateShape{}, {off2 + R * C2});
+                    g.write(st[a]->layer(0), 0, seed.data(), std::min(seed.size() * 4, st[a]->layer(0).size()));
+                    xb[a] = g.adopt(x.data(), x.size() * 4);
+                    ob[a] = v == 2 ? nullptr : g.adopt(out0.data(), out0.size() * 4);
+                }
+                const auto conv = [&](size_t i, size_t row) {
+                    backend::DepthwiseConv d;
+                    d.w = {tb.get(), 0}, d.channels = Cs[i], d.taps = T, d.residual_from = backend::ConvResidual::input, d.divisor = i ? 3.0f : std::sqrt(5.0f);
+                    d.history = backend::ConvHistory::ring, d.ring_offset = i ? off2 : 5, d.ring_rows = R, d.accumulate = v == 1, d.out_stride = v == 1 ? stride : 0;
+                    if (v == 0) d.act = backend::ConvAct::silu;
+                    if (i) d.dyn = {db.get(), row * dyn_stride}, d.dyn_heads = heads, d.dyn_stride = dyn_stride;
+                    return d;
+                };
+                const size_t src = v == 1 ? 0 : 1, dst = 1;
+                // Staged: every view's rows in one call.
+                std::vector<backend::StateView> views;
+                for (size_t i = 0; i < n_views; ++i) views.push_back({st[0].get(), i ? 2 : src, i ? 2 : dst, len, nqs[i]});
+                // v 2 writes its input (out == x, rows C1 apart).
+                const auto item = [&](int a, size_t i, size_t row) {
+                    const backend::Slice o = v == 2 ? backend::Slice{xb[a].get(), row * C1} : backend::Slice{ob[a].get(), i * rows * stride + row * (v == 1 ? stride : Cs[i])};
+                    return backend::ConvRows{o, {xb[a].get(), row * Cs[i]}, conv(i, row), {}};
+                };
+                rocm_take_launches(g);
+                if (n_items == 2) g.depthwise_conv({item(0, 0, 0), item(0, 1, 0)}, 0, views.data(), n_views);
+                else g.depthwise_conv({item(0, 0, 0)}, 0, views.data(), n_views);
+                const std::map<std::string, size_t> l = rocm_take_launches(g);
+                const bool parts = v != 2 && nq >= 128;
+                const std::string at = " (taps " + std::to_string(T) + ", rows " + std::to_string(nq) + ", ring " + std::to_string(R) + ", variant " + std::to_string(v) + ")";
+                require(l.count(parts ? "llmx_conv_ring_parts" : "llmx_conv_ring") && !l.count(parts ? "llmx_conv_ring" : "llmx_conv_ring_parts"),
+                        std::string(parts ? "a long view not in place runs in parts" : "a short or in-place call runs staged") + at);
+                // A thread a channel: one row a call, in order.
+                for (size_t i = 0, row = 0; i < n_views; row += nqs[i], ++i)
+                    for (size_t b = 0; b < nqs[i]; ++b) {
+                        const backend::StateView one{st[1].get(), i ? 2 : b ? dst : src, i ? 2 : dst, len + b, 1};
+                        if (n_items == 2) g.depthwise_conv({item(1, 0, row + b), item(1, 1, row + b)}, 0, &one, 1);
+                        else g.depthwise_conv({item(1, 0, row + b)}, 0, &one, 1);
+                    }
+                const std::vector<float> a = v == 2 ? read(g, *xb[0], x.size()) : read(g, *ob[0], out0.size()), b = v == 2 ? read(g, *xb[1], x.size()) : read(g, *ob[1], out0.size());
+                require(std::memcmp(a.data(), b.data(), a.size() * 4) == 0, "a staged ring conv has the one-row calls' output bits" + at);
+                const size_t n = st[0]->layer(0).size() / sizeof(float);
+                std::vector<float> ra(n), rb(n);
+                g.read(st[0]->layer(0), 0, ra.data(), n * sizeof(float));
+                g.read(st[1]->layer(0), 0, rb.data(), n * sizeof(float));
+                require(std::memcmp(ra.data(), rb.data(), n * sizeof(float)) == 0, "a staged ring conv leaves the one-row calls' ring bits" + at);
+                ++cases;
+            }
+    std::cout << "backend-rocm: conv ring paths, " << cases << " cases\n";
 }
 void exact_rows(Backend& g) {
     twin_checks::exact_rows(g, rocm_profile(g), rocm_device(0).caps.subgroup_size, {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0,
@@ -792,7 +1286,7 @@ void ops(Backend& g, Backend& c) {
             auto xb = b.adopt(x.data(), x.size() * 4), wb = b.adopt(w.data(), w.size() * 4), yb = b.adopt(y.data(), y.size() * 4), ob = b.alloc(x.size() * 4);
             b.rms_norm_rows({ob.get(), 0}, {xb.get(), 0}, {wb.get(), 0}, rows, n, stride, 1e-6f);
             norm[k] = read(b, *ob, rows * stride);
-            b.silu_mul({ob.get(), 0}, {xb.get(), 0}, {yb.get(), 0}, rows * stride, 0.0f);
+            b.silu_mul({ob.get(), 0}, {xb.get(), 0}, {yb.get(), 0}, rows * stride, {});
             sm[k] = read(b, *ob, rows * stride);
             b.add({ob.get(), 0}, {yb.get(), 0}, rows * stride);
             ad[k] = read(b, *ob, rows * stride);
@@ -817,10 +1311,10 @@ void ops(Backend& g, Backend& c) {
         for (int k = 0; k < 2; ++k) {
             Backend& b = *bs[k];
             auto gb = b.adopt(gv.data(), n * 4), ub = b.adopt(uv.data(), n * 4), sb = b.adopt(scaled.data(), n * 4), ob = b.adopt(one.data(), n * 4), out = b.alloc(n * 4);
-            b.silu_mul({out.get(), 0}, {sb.get(), 0}, {ob.get(), 0}, n, 0.0f);
+            b.silu_mul({out.get(), 0}, {sb.get(), 0}, {ob.get(), 0}, n, {});
             cal[k] = read(b, *out, n);
             for (int l = 0; l < 2; ++l) {
-                b.silu_mul({out.get(), 0}, {gb.get(), 0}, {ub.get(), 0}, n, l ? 7.0f : 0.0f, {}, backend::GluForm::quick_gelu);
+                b.silu_mul({out.get(), 0}, {gb.get(), 0}, {ub.get(), 0}, n, {l ? 7.0f : 0.0f, backend::GluForm::quick_gelu});
                 qg[l][k] = read(b, *out, n);
             }
         }
@@ -1035,6 +1529,9 @@ void moe_step_bits(Backend& g) {
                     const auto unkept = rocm_take_launches(g);
                     g.moe_step(st[3], {hhost.get(), 0}, {o[3].y.get(), 0}, nin, 1, {decode, 1}, Dtype::int8);
                     const auto host = rocm_take_launches(g);
+                    // A walk GLU launch forms the act without keeping the gate and up products, so the base's act then leaves them unwritten.
+                    bool glued = false;
+                    for (const auto& [name, n] : base) glued = glued || (name.size() > 4 && name.compare(name.size() - 4, 4, "_glu") == 0);
                     size_t base_steps = 0, twins = 0;
                     for (const auto& [name, n] : base) base_steps += name.rfind("llmx_moe_step", 0) == 0 ? n : 0;
                     for (const auto& [name, n] : unkept) twins += name.rfind("llmx_twin", 0) == 0 ? n : 0;
@@ -1062,7 +1559,7 @@ void moe_step_bits(Backend& g) {
                         require(same(read(g, *o[0].weights, k), read(g, *o[a].weights, k)), "the step's weights are the base's, " + of);
                         require(same(read(g, *o[0].scores, ne), read(g, *o[a].scores, ne)), "the step's router scores are the base's, " + of);
                         require(same(read(g, *o[0].rg, 1), read(g, *o[a].rg, 1)), "the step's row gate is the base's, " + of);
-                        require(same(read(g, *o[0].gate, k * ff), read(g, *o[a].gate, k * ff)) && same(read(g, *o[0].up, k * ff), read(g, *o[a].up, k * ff)),
+                        require(glued || (same(read(g, *o[0].gate, k * ff), read(g, *o[a].gate, k * ff)) && same(read(g, *o[0].up, k * ff), read(g, *o[a].up, k * ff))),
                                 "the step's routed gate and up are the base's, " + of);
                         require(same(read(g, *o[0].act, k * ff), read(g, *o[a].act, k * ff)), "the step's routed act is the base's, " + of);
                         require(same(read(g, *o[0].sact, ff), read(g, *o[a].sact, ff)), "the step's shared act is the base's, " + of);
@@ -1070,7 +1567,7 @@ void moe_step_bits(Backend& g) {
                     }
                     // A step the fused kernels do not compute, a clamped SiLU or another score, runs the base's ops, which ROCm implements, and launches no fused kernel.
                     MoeStep clamped = st[1], scored = st[1];
-                    clamped.limit = 7.0f;
+                    clamped.glu.limit = 7.0f;
                     scored.rule = backend::RouteRule::sqrt_softplus({}, 1.0f, true);
                     rocm_take_launches(g);
                     g.moe_step(clamped, {hb.get(), 0}, {o[1].y.get(), 0}, nin, 1, {decode, 1}, Dtype::int8);
@@ -1375,6 +1872,320 @@ void moe_rows_bits(Backend& g) {
     // One row at ff 320 is 110 workgroups, which the wide build holds resident on a 60-unit gfx906; the rows near the break-even are far past it.
     if (fused) require(wide_runs > 0 && lean_runs > 0, "the fused gate+up takes the wide build where its grid is resident and the lean one elsewhere");
     if (fused) require(routes_run.size() == 9, "each of the nine route builds ran, " + std::to_string(routes_run.size()) + " did");
+}
+
+// A one-column Q8_0 group of four to six projections in one pair launch (kernels/int16.gpu, LLMX_PAIR), each output the bits of its projection's own matmul: Inkling-2-Mini's attention groups at 2304 values and a small group at 512.
+// int8 takes the held pair build at 2304 values, and at 512, whose int8 build has no pair, a launch a three, with the same bits (`pair` and the full run).
+void pair_rows_bits(Backend& g) {
+    const size_t fill = size_t(rocm_profile(g).row_walk_waves_per_cu) * rocm_device(0).caps.compute_units;
+    const auto count = [&](const std::map<std::string, size_t>& m, const std::string& name) { return m.count(name) ? m.at(name) : size_t(0); };
+    const auto held_pairs = [&](const std::map<std::string, size_t>& m) {
+        return count(m, "llmx_q8_0_half8_1h2_pair") + count(m, "llmx_q8_0_half8_1h3_pair") + count(m, "llmx_q8_0_half8_1h4_pair") + count(m, "llmx_q8_0_half8_1h5_pair");
+    };
+    struct Case {
+        size_t nin;
+        std::vector<size_t> rows;
+    };
+    const Case cases[] = {{2304, {3072, 24, 1024, 3072, 384, 1024}}, {2304, {3072, 24, 384, 3072}}, {512, {64, 8, 32, 64, 40}}};
+    for (const Case& k : cases)
+        for (const Dtype dtype : {Dtype::f16, Dtype::int8}) {
+            const size_t nin = k.nin, n = k.rows.size();
+            const std::vector<float> x = row_classes::values(nin, 800 + uint32_t(nin));
+            auto xb = g.adopt(x.data(), x.size() * 4);
+            std::vector<BufferPtr> ws, ya, yb;
+            for (size_t i = 0; i < n; ++i) {
+                const std::vector<uint8_t> w = q8_matrix(nin, k.rows[i], uint32_t(nin + 31 * i + k.rows[i]));
+                ws.push_back(g.adopt(w.data(), w.size()));
+                ya.push_back(g.alloc(k.rows[i] * 4));
+                yb.push_back(g.alloc(k.rows[i] * 4));
+            }
+            const auto proj = [&](size_t i, std::vector<BufferPtr>& y) { return Projection{{quant::GGML_TYPE_Q8_0, {ws[i].get(), 0}}, {y[i].get(), 0}, k.rows[i]}; };
+            rocm_take_launches(g);
+            if (n == 6) g.matmul_group({proj(0, ya), proj(1, ya), proj(2, ya), proj(3, ya), proj(4, ya), proj(5, ya)}, {xb.get(), 0}, nin, 1, {}, dtype);
+            else if (n == 5) g.matmul_group({proj(0, ya), proj(1, ya), proj(2, ya), proj(3, ya), proj(4, ya)}, {xb.get(), 0}, nin, 1, {}, dtype);
+            else g.matmul_group({proj(0, ya), proj(1, ya), proj(2, ya), proj(3, ya)}, {xb.get(), 0}, nin, 1, {}, dtype);
+            const auto group = rocm_take_launches(g);
+            for (size_t i = 0; i < n; ++i) g.matmul({quant::GGML_TYPE_Q8_0, {ws[i].get(), 0}}, {xb.get(), 0}, {yb[i].get(), 0}, nin, k.rows[i], 1, {}, dtype);
+            rocm_take_launches(g);
+            const std::string at = std::to_string(n) + " projections of " + std::to_string(nin) + (dtype == Dtype::int8 ? ", int8" : ", f16");
+            const size_t pairs = count(group, "llmx_q8_0_rows16_1_pair") + count(group, "llmx_q8_0_rows16_1_walk3_pair") + count(group, "llmx_q8_0_rows16_1_walk5_pair");
+            if (dtype == Dtype::f16) {
+                require(pairs == 1, "a one-column f16 group of " + at + " is one pair launch");
+                // The summed rows choose the build, so 11592 rows walk on a 60-unit device and 6552 take the two-row build (block_rows).
+                size_t total = 0;
+                for (const size_t r : k.rows) total += r;
+                const bool walks = rocm_device(0).caps.subgroup_size == 64 && total / 4 >= fill;
+                if (nin == 2304) require(count(group, walks ? "llmx_q8_0_rows16_1_walk5_pair" : "llmx_q8_0_rows16_1_pair") == 1, "the 2304-wide group of " + at + " takes the build its summed rows give");
+                if (nin == 512) require(count(group, "llmx_q8_0_rows16_1_pair") == 1, "the 512-wide group of " + at + " takes the two-row build");
+            } else {
+                const size_t held = held_pairs(group);
+                require(pairs == 0 && held == (nin == 2304 ? 1u : 0u), "an int8 group of " + at + (nin == 2304 ? " is one held pair launch" : " takes no pair build"));
+            }
+            for (size_t i = 0; i < n; ++i) require(same(read(g, *ya[i], k.rows[i]), read(g, *yb[i], k.rows[i])), "projection " + std::to_string(i) + " of the group is its own matmul's, " + at);
+        }
+    // Groups of two inputs (Projection::in): Inkling-2-Mini's k and v alone and with their conv projections, and a small group at 512; one pair launch with no twin built past the two inputs', except int8 at 512, a matmul a projection.
+    // Four projections of one input and one of the other are three calls, at 2304 one int8 held list launch (LLMX_HELD_LIST); f16 has no list build, so the first input's four take a pair launch.
+    const Case split_cases[] = {{2304, {1024, 1024}}, {2304, {1024, 24, 1024, 24}}, {512, {64, 8, 32, 40}}, {2304, {3072, 24, 384, 3072, 1024}}};
+    const size_t splits[] = {1, 2, 3, 4};
+    const auto held_lists = [&](const std::map<std::string, size_t>& m) {
+        return count(m, "llmx_q8_0_half8_1h2_list") + count(m, "llmx_q8_0_half8_1h3_list") + count(m, "llmx_q8_0_half8_1h4_list") + count(m, "llmx_q8_0_half8_1h5_list");
+    };
+    for (size_t c = 0; c < 4; ++c)
+        for (const Dtype dtype : {Dtype::f16, Dtype::int8}) {
+            const Case& k = split_cases[c];
+            const size_t nin = k.nin, n = k.rows.size(), split = splits[c];
+            const std::vector<float> x0 = row_classes::values(nin, 900 + uint32_t(nin)), x1 = row_classes::values(nin, 950 + uint32_t(nin));
+            auto xb0 = g.adopt(x0.data(), x0.size() * 4), xb1 = g.adopt(x1.data(), x1.size() * 4);
+            std::vector<BufferPtr> ws, ya, yb;
+            for (size_t i = 0; i < n; ++i) {
+                const std::vector<uint8_t> w = q8_matrix(nin, k.rows[i], uint32_t(nin + 37 * i + k.rows[i]));
+                ws.push_back(g.adopt(w.data(), w.size()));
+                ya.push_back(g.alloc(k.rows[i] * 4));
+                yb.push_back(g.alloc(k.rows[i] * 4));
+            }
+            const auto in = [&](size_t i) { return CSlice{i < split ? xb0.get() : xb1.get(), 0}; };
+            const auto proj = [&](size_t i) {
+                Projection p{{quant::GGML_TYPE_Q8_0, {ws[i].get(), 0}}, {ya[i].get(), 0}, k.rows[i]};
+                p.in = in(i);
+                return p;
+            };
+            rocm_take_launches(g);
+            if (n == 2) g.matmul_group({proj(0), proj(1)}, {xb0.get(), 0}, nin, 1, {}, dtype);
+            else if (n == 5) g.matmul_group({proj(0), proj(1), proj(2), proj(3), proj(4)}, {xb0.get(), 0}, nin, 1, {}, dtype);
+            else g.matmul_group({proj(0), proj(1), proj(2), proj(3)}, {xb0.get(), 0}, nin, 1, {}, dtype);
+            const auto group = rocm_take_launches(g);
+            for (size_t i = 0; i < n; ++i) g.matmul({quant::GGML_TYPE_Q8_0, {ws[i].get(), 0}}, in(i), {yb[i].get(), 0}, nin, k.rows[i], 1, {}, dtype);
+            rocm_take_launches(g);
+            const std::string at = std::to_string(n) + " projections of two inputs at " + std::to_string(nin) + (dtype == Dtype::int8 ? ", int8" : ", f16");
+            const size_t pairs = count(group, "llmx_q8_0_rows16_1_pair") + count(group, "llmx_q8_0_rows16_1_walk3_pair") + count(group, "llmx_q8_0_rows16_1_walk5_pair");
+            size_t launches = 0;
+            for (const auto& [name, times] : group) launches += times;
+            if (n == 5) require(dtype == Dtype::f16 ? pairs == 1 && held_lists(group) == 0 : pairs == 0 && held_pairs(group) == 0 && held_lists(group) == 1 && launches == 3,
+                                dtype == Dtype::f16 ? "the first input's four projections of " + at + " are one pair launch" : "a one-column int8 group of " + at + " is two twins and one held list launch");
+            else if (dtype == Dtype::f16) require(pairs == 1 && launches == 3, "a one-column f16 group of " + at + " is two twins and one pair launch");
+            else if (nin == 2304) require(pairs == 0 && held_pairs(group) == 1 && launches == 3, "a one-column int8 group of " + at + " is two twins and one held pair launch");
+            else require(pairs == 0 && held_pairs(group) == 0, "an int8 group of " + at + " takes no pair build");
+            for (size_t i = 0; i < n; ++i) require(same(read(g, *ya[i], k.rows[i]), read(g, *yb[i], k.rows[i])), "projection " + std::to_string(i) + " of the two-input group is its own matmul's, " + at);
+        }
+    // Three distinct input planes, one after another in the kept twin of three gate mixes (as Inkling-2's later passes norm them): five projections of 3072, 24, 384, 1024 and 1024 rows on planes 0, 0, 0, 1 and 2.
+    // int8 is one held list launch with no twin built, f16 has no list build; each output has the bits of its own matmul, and with the twin not kept the group is its runs' calls.
+    const size_t E = 2304, rows3[5] = {3072, 24, 384, 1024, 1024}, plane_of[5] = {0, 0, 0, 1, 2};
+    for (const Dtype dtype : {Dtype::f16, Dtype::int8})
+        for (const bool kept : {true, false}) {
+            const std::string at = std::string("five projections of three input planes at 2304, ") + (dtype == Dtype::int8 ? "int8" : "f16") + (kept ? "" : ", twin not kept");
+            BufferPtr in[3][5];
+            for (size_t i = 0; i < 3; ++i)
+                for (size_t j = 0; j < 5; ++j) {
+                    const std::vector<float> v = row_classes::values(E, uint32_t(300 + 10 * i + j));
+                    in[i][j] = g.adopt(v.data(), v.size() * 4);
+                }
+            const RowRun run[1] = {{1, 1}};
+            const auto item = [&](BufferPtr& out, size_t i) {
+                return backend::GateMixItem{{out.get(), i * E}, {in[i][0].get(), 0}, {in[i][1].get(), 0}, {in[i][2].get(), 0}, {in[i][3].get(), 0}, {in[i][4].get(), 0}};
+            };
+            BufferPtr planes = g.alloc(3 * E * 4);
+            std::vector<BufferPtr> ws, ya, yb;
+            for (size_t i = 0; i < 5; ++i) {
+                const std::vector<uint8_t> w = q8_matrix(E, rows3[i], uint32_t(E + 41 * i + rows3[i]));
+                ws.push_back(g.adopt(w.data(), w.size()));
+                ya.push_back(g.alloc(rows3[i] * 4));
+                yb.push_back(g.alloc(rows3[i] * 4));
+            }
+            const auto proj = [&](size_t i) {
+                Projection p{{quant::GGML_TYPE_Q8_0, {ws[i].get(), 0}}, {ya[i].get(), 0}, rows3[i]};
+                p.in = CSlice{planes.get(), plane_of[i] * E};
+                return p;
+            };
+            // A product of the class first sets the level of the twin the mixes write.
+            g.matmul({quant::GGML_TYPE_Q8_0, {ws[3].get(), 0}}, {planes.get(), 0}, {yb[3].get(), 0}, E, rows3[3], 1, {}, dtype);
+            g.tanh_gate_mix({item(planes, 0), item(planes, 1), item(planes, 2)}, 1, E, E, E, E, {run, 1}, 1e-6f);
+            // A write to a plane forgets the kept twin, so the same planes are read back unkept.
+            if (!kept) {
+                const std::vector<float> back = read(g, *planes, 3 * E);
+                g.write(*planes, 0, back.data(), 3 * E * 4);
+            }
+            rocm_take_launches(g);
+            g.matmul_group({proj(0), proj(1), proj(2), proj(3), proj(4)}, {planes.get(), 0}, E, 1, {}, dtype);
+            const auto group = rocm_take_launches(g);
+            for (size_t i = 0; i < 5; ++i) g.matmul({quant::GGML_TYPE_Q8_0, {ws[i].get(), 0}}, {planes.get(), plane_of[i] * E}, {yb[i].get(), 0}, E, rows3[i], 1, {}, dtype);
+            rocm_take_launches(g);
+            size_t launches = 0;
+            for (const auto& [name, times] : group) launches += times;
+            if (dtype == Dtype::int8 && kept) require(held_lists(group) == 1 && launches == 1, "a kept three-plane int8 group is one held list launch and no twin, " + at);
+            else require(held_lists(group) == 0, "a group with no list build or no kept twins takes no list launch, " + at);
+            for (size_t i = 0; i < 5; ++i) require(same(read(g, *ya[i], rows3[i]), read(g, *yb[i], rows3[i])), "projection " + std::to_string(i) + " of the three-plane group is its own matmul's, " + at);
+        }
+}
+
+// The walk builds of one 16-bit Q8_0 column (kernels/int16.gpu, q8_0_walk) against the two-row build, bit for bit: dense calls and an 8-entry routed call large enough to walk four and eight rows a wave, against a call too small to walk.
+// Every width of build is reached, 768 for two passes, 1536 for three and 2304 for five, plain and adding into the output (backend-rocm, `moe`).
+void walk_rows_bits(Backend& g) {
+    const auto& caps = rocm_device(0).caps;
+    if (caps.subgroup_size != 64) {
+        std::cout << "backend-rocm: walk rows skipped, waves of " << caps.subgroup_size << " lanes\n";
+        return;
+    }
+    const size_t fill = size_t(rocm_profile(g).row_walk_waves_per_cu) * caps.compute_units, chunk = 1024;
+    require(chunk / 4 < fill, "a call of 1024 rows is too small to walk");
+    const auto count = [&](const std::map<std::string, size_t>& m, const std::string& name) { return m.count(name) ? m.at(name) : size_t(0); };
+    for (const size_t nin : {size_t(768), size_t(1536), size_t(2304)}) {
+        const std::string h = nin == 768 ? "2" : nin == 1536 ? "3" : "5", walk = "llmx_q8_0_rows16_1_walk" + h, routed_walk = "llmx_q8_0_routed16_walk" + h;
+        const std::vector<float> x = row_classes::values(nin, 700 + uint32_t(nin));
+        auto xb = g.adopt(x.data(), x.size() * 4);
+        for (const size_t walk_rows : {size_t(4), size_t(8)}) {
+            const size_t rows = (walk_rows * fill + chunk - 1) / chunk * chunk;
+            const std::string at = std::to_string(rows) + " rows of " + std::to_string(nin);
+            const std::vector<uint8_t> w = q8_matrix(nin, rows, uint32_t(nin + rows));
+            const std::vector<float> y0 = row_classes::values(rows, 701);
+            auto wb = g.adopt(w.data(), w.size());
+            auto yw = g.alloc(rows * 4), yr = g.alloc(rows * 4);
+            const size_t row_floats = quant::row_bytes(quant::GGML_TYPE_Q8_0, nin, chunk) / 4;
+            for (const bool add : {false, true}) {
+                g.write(*yw, 0, y0.data(), rows * 4);
+                g.write(*yr, 0, y0.data(), rows * 4);
+                rocm_take_launches(g);
+                if (add) g.matmul_add({quant::GGML_TYPE_Q8_0, {wb.get(), 0}}, {xb.get(), 0}, {yw.get(), 0}, nin, rows, 1, {}, Dtype::f16);
+                else g.matmul({quant::GGML_TYPE_Q8_0, {wb.get(), 0}}, {xb.get(), 0}, {yw.get(), 0}, nin, rows, 1, {}, Dtype::f16);
+                const auto big = rocm_take_launches(g);
+                for (size_t c = 0; c < rows / chunk; ++c) {
+                    if (add) g.matmul_add({quant::GGML_TYPE_Q8_0, {wb.get(), c * row_floats}}, {xb.get(), 0}, {yr.get(), c * chunk}, nin, chunk, 1, {}, Dtype::f16);
+                    else g.matmul({quant::GGML_TYPE_Q8_0, {wb.get(), c * row_floats}}, {xb.get(), 0}, {yr.get(), c * chunk}, nin, chunk, 1, {}, Dtype::f16);
+                }
+                const auto small = rocm_take_launches(g);
+                const std::string of = at + (add ? ", adding" : "");
+                require(count(big, walk) == 1, "a dense call of " + of + " is one " + walk + " launch");
+                require(count(small, "llmx_q8_0_rows16_1") == rows / chunk && count(small, walk) == 0, "calls of 1024 rows take llmx_q8_0_rows16_1, " + of);
+                require(same(read(g, *yw, rows), read(g, *yr, rows)), "the walk build's rows are the two-row build's, " + of);
+            }
+        }
+        // Eight entries of one row over 16 experts, gate and up for the five-pass width and one projection for the three-pass one; each entry alone is too small to walk.
+        const size_t n_expert = 16, k = 8, ff = 2304, nproj = nin == 2304 ? 2 : 1;
+        require(ff * nproj * k / 8 >= fill && ff * nproj / 4 < fill, "eight entries walk and one does not");
+        const std::vector<uint8_t> e = q8_matrix(nin, n_expert * ff, uint32_t(nin + 9));
+        auto ea = g.adopt(e.data(), e.size()), eb = g.alloc(e.size());
+        g.copy(*eb, 0, *ea, 0, e.size());
+        std::vector<uint32_t> idv(k);
+        for (size_t j = 0; j < k; ++j) idv[j] = uint32_t((j * 5 + 3) % n_expert);
+        const std::vector<float> wts(k, 0.125f);
+        auto ib = g.adopt(idv.data(), idv.size() * 4), tb = g.adopt(wts.data(), wts.size() * 4);
+        auto ga = g.alloc(k * ff * 4), gb = g.alloc(k * ff * 4), ra = g.alloc(k * ff * 4), rb = g.alloc(k * ff * 4);
+        const RowRun one[1] = {{1, 1}};
+        rocm_take_launches(g);
+        const Projection pa{{quant::GGML_TYPE_Q8_0, {ea.get(), 0}}, {ga.get(), 0}, ff}, pb{{quant::GGML_TYPE_Q8_0, {eb.get(), 0}}, {gb.get(), 0}, ff};
+        if (nproj == 2) g.matmul_experts({pa, pb}, {xb.get(), 0}, nin, 1, {{ib.get(), 0}, {tb.get(), 0}, k, n_expert}, {one, 1}, Dtype::f16);
+        else g.matmul_experts({pa}, {xb.get(), 0}, nin, 1, {{ib.get(), 0}, {tb.get(), 0}, k, n_expert}, {one, 1}, Dtype::f16);
+        const auto big = rocm_take_launches(g);
+        for (size_t j = 0; j < k; ++j) {
+            const Projection qa{{quant::GGML_TYPE_Q8_0, {ea.get(), 0}}, {ra.get(), j * ff}, ff}, qb{{quant::GGML_TYPE_Q8_0, {eb.get(), 0}}, {rb.get(), j * ff}, ff};
+            const Backend::Routing alone{{ib.get(), j}, {tb.get(), j}, 1, n_expert};
+            if (nproj == 2) g.matmul_experts({qa, qb}, {xb.get(), 0}, nin, 1, alone, {one, 1}, Dtype::f16);
+            else g.matmul_experts({qa}, {xb.get(), 0}, nin, 1, alone, {one, 1}, Dtype::f16);
+        }
+        const auto small = rocm_take_launches(g);
+        const std::string at = "8 entries of " + std::to_string(nproj) + " projections of " + std::to_string(ff) + " rows of " + std::to_string(nin);
+        require(count(big, routed_walk) == 1, "a routed call of " + at + " is one " + routed_walk + " launch");
+        require(count(small, "llmx_q8_0_routed16") == k && count(small, routed_walk) == 0, "an entry alone takes llmx_q8_0_routed16, " + at);
+        require(same(read(g, *ga, k * ff), read(g, *ra, k * ff)), "the routed walk build's first projection is the two-row build's, " + at);
+        if (nproj == 2) require(same(read(g, *gb, k * ff), read(g, *rb, k * ff)), "the routed walk build's second projection is the two-row build's, " + at);
+        // The routed down of one row's eight entries, each its own twin row, adds its weighted sum in the walk launch (q8_0_walk_combine): from a zero row and into y, all slots set and with slots 0 and 5 empty.
+        // Its rows are each entry's product alone, which takes llmx_q8_0_routed16, summed here in llmx_moe_combine's order.
+        const std::vector<float> xk = row_classes::values(k * nin, 900 + uint32_t(nin));
+        auto xkb = g.adopt(xk.data(), xk.size() * 4);
+        const std::vector<float> ones(k, 1.0f), zero(ff, 0.0f), wk = {0.31f, -0.2f, 0.13f, 0.1f, 0.09f, -0.08f, 0.07f, 0.02f}, ybase = row_classes::values(ff, 901);
+        auto ob = g.adopt(ones.data(), ones.size() * 4), zb = g.adopt(zero.data(), zero.size() * 4), wkb = g.adopt(wk.data(), wk.size() * 4);
+        for (const bool empty : {false, true})
+            for (const bool into : {false, true}) {
+                std::vector<uint32_t> ids = idv;
+                if (empty) ids[0] = ids[5] = 0xffffffffu;
+                auto idb = g.adopt(ids.data(), ids.size() * 4);
+                auto yd = g.alloc(ff * 4), parts = g.alloc(k * ff * 4);
+                g.write(*yd, 0, into ? ybase.data() : zero.data(), ff * 4);
+                rocm_take_launches(g);
+                g.matmul_experts_add({quant::GGML_TYPE_Q8_0, {ea.get(), 0}}, {xkb.get(), 0}, {yd.get(), 0}, nin, ff, 1, {{idb.get(), 0}, {wkb.get(), 0}, k, n_expert}, {one, 1}, Dtype::f16,
+                                     into ? nullptr : zb.get());
+                const auto fused = rocm_take_launches(g);
+                for (size_t j = 0; j < k; ++j)
+                    if (ids[j] != 0xffffffffu)
+                        g.matmul_experts_add({quant::GGML_TYPE_Q8_0, {ea.get(), 0}}, {xkb.get(), j * nin}, {parts.get(), j * ff}, nin, ff, 1, {{idb.get(), j}, {ob.get(), j}, 1, n_expert}, {one, 1},
+                                             Dtype::f16, zb.get());
+                const std::vector<float> p = read(g, *parts, k * ff);
+                std::vector<float> want(ff);
+                for (size_t o = 0; o < ff; ++o) {
+                    float s = 0.0f;
+                    for (size_t j = 0; j < k; ++j)
+                        if (ids[j] != 0xffffffffu) {
+                            volatile const float product = wk[j] * p[j * ff + o];
+                            s = j == 0 ? product : s + product;
+                        }
+                    want[o] = (into ? ybase[o] : 0.0f) + s;
+                }
+                const std::string down = std::string(nin == 768 ? "llmx_q8_0_routed16_walk2_add" : nin == 1536 ? "llmx_q8_0_routed16_walk3_add" : "llmx_q8_0_routed16_walk5_add"), of = std::string(empty ? "slots 0 and 5 empty, " : "") + (into ? "into y, " : "") + at;
+                require(fused.size() == 2 && count(fused, down) == 1 && count(fused, "llmx_twin16") == 1, "a routed down of eight entries is one " + down + " launch after its twin, " + of);
+                require(same(read(g, *yd, ff), want), "the walk launch's sum is each entry's product summed in llmx_moe_combine's order, " + of);
+            }
+    }
+}
+
+// The int8 routed down with its weighted sum in one launch (kernels/int16.gpu, q8_0_walk_combine's int8 build) against each entry's llmx_q8_0_routed_half8s1 product summed in llmx_moe_combine's order, bit for bit (backend-rocm, `moe`).
+// Rows of 18, 24 and 32 blocks walk; 17 blocks (odd) and 34 (past half a wave) keep the two launches; 2300 outputs leave a block's last rows past the matrix.
+void walk_half8_combine_bits(Backend& g) {
+    if (rocm_device(0).caps.subgroup_size != 64) {
+        std::cout << "backend-rocm: int8 walk combine skipped, waves of " << rocm_device(0).caps.subgroup_size << " lanes\n";
+        return;
+    }
+    const auto count = [&](const std::map<std::string, size_t>& m, const std::string& name) { return m.count(name) ? m.at(name) : size_t(0); };
+    const size_t n_expert = 16, k = 8;
+    const RowRun one[1] = {{1, 1}};
+    const std::vector<float> wk = {0.31f, -0.2f, 0.13f, 0.1f, 0.09f, -0.08f, 0.07f, 0.02f}, ones(k, 1.0f);
+    auto wkb = g.adopt(wk.data(), wk.size() * 4), ob = g.adopt(ones.data(), ones.size() * 4);
+    for (const size_t nin : {size_t(576), size_t(768), size_t(1024), size_t(544), size_t(1088)})
+        for (const size_t ff : {size_t(2304), size_t(2300)}) {
+            const bool walks = nin / 32 % 2 == 0 && nin / 32 <= 32;
+            const std::vector<uint8_t> e = q8_matrix(nin, n_expert * ff, uint32_t(nin + ff));
+            auto ea = g.adopt(e.data(), e.size());
+            const std::vector<float> xk = row_classes::values(k * nin, 950 + uint32_t(nin)), zero(ff, 0.0f), ybase = row_classes::values(ff, 951);
+            auto xkb = g.adopt(xk.data(), xk.size() * 4), zb = g.adopt(zero.data(), zero.size() * 4);
+            for (const bool empty : {false, true})
+                for (const bool into : {false, true}) {
+                    std::vector<uint32_t> ids(k);
+                    for (size_t j = 0; j < k; ++j) ids[j] = uint32_t((j * 5 + 3) % n_expert);
+                    if (empty) ids[0] = ids[5] = 0xffffffffu;
+                    auto idb = g.adopt(ids.data(), ids.size() * 4);
+                    auto yd = g.alloc(ff * 4), parts = g.alloc(k * ff * 4);
+                    g.write(*yd, 0, into ? ybase.data() : zero.data(), ff * 4);
+                    rocm_take_launches(g);
+                    g.matmul_experts_add({quant::GGML_TYPE_Q8_0, {ea.get(), 0}}, {xkb.get(), 0}, {yd.get(), 0}, nin, ff, 1, {{idb.get(), 0}, {wkb.get(), 0}, k, n_expert}, {one, 1}, Dtype::int8,
+                                         into ? nullptr : zb.get());
+                    const auto fused = rocm_take_launches(g);
+                    size_t used = 0;
+                    for (size_t j = 0; j < k; ++j)
+                        if (ids[j] != 0xffffffffu) {
+                            const Projection pj{{quant::GGML_TYPE_Q8_0, {ea.get(), 0}}, {parts.get(), j * ff}, ff};
+                            g.matmul_experts({pj}, {xkb.get(), j * nin}, nin, 1, {{idb.get(), j}, {ob.get(), j}, 1, n_expert}, {one, 1}, Dtype::int8);
+                            ++used;
+                        }
+                    const auto alone = rocm_take_launches(g);
+                    const std::vector<float> p = read(g, *parts, k * ff);
+                    std::vector<float> want(ff);
+                    for (size_t o = 0; o < ff; ++o) {
+                        float s = 0.0f;
+                        for (size_t j = 0; j < k; ++j)
+                            if (ids[j] != 0xffffffffu) {
+                                volatile const float product = wk[j] * p[j * ff + o];
+                                s = j == 0 ? product : s + product;
+                            }
+                        want[o] = (into ? ybase[o] : 0.0f) + s;
+                    }
+                    const std::string of = std::to_string(ff) + " outputs of " + std::to_string(nin) + (empty ? ", slots 0 and 5 empty" : "") + (into ? ", into y" : "");
+                    if (nin / 32 % 2 == 0) require(count(alone, "llmx_q8_0_routed_half8s1") == used, "an int8 entry alone takes llmx_q8_0_routed_half8s1, " + of);
+                    if (walks)
+                        require(fused.size() == 2 && count(fused, "llmx_q8_0_routed_half8_walk_add") == 1 && count(fused, "llmx_twin8") == 1,
+                                "an int8 routed down of eight entries is one llmx_q8_0_routed_half8_walk_add launch after its twin, " + of);
+                    else
+                        require(!count(fused, "llmx_q8_0_routed_half8_walk_add") && count(fused, "llmx_moe_combine") == 1, "an int8 routed down outside the walk keeps llmx_moe_combine, " + of);
+                    require(same(read(g, *yd, ff), want), "the int8 routed down's sum is each entry's product summed in llmx_moe_combine's order, " + of);
+                }
+        }
 }
 
 // The hyper-connection mix's launches (llmx_hc_mix and its column builds) against the chain of ops they replace (Backend::hyper_mix's own steps), bit for bit, over 1 to 16 generated rows (backend-rocm, `twins`).
@@ -3019,11 +3830,147 @@ void held_push() {
                 for (size_t m = 0; m < W; ++m)
                     require(same(got[m], want[0]), "a pushed sum has the bits of the sum llmx_group_sum gives, run " + std::to_string(r) + " at width " + std::to_string(W) + ", " + std::to_string(s.nout) + " rows, member " + std::to_string(m));
             }
+            if (&s != &shapes[0]) continue;
+            // A held product whose launch fails as the sum flushes it, after its peers' products pushed: the sum throws and cancels, and the group's later sums are conservative.
+            HipFn& f = hip();
+            const auto held = [&] {
+                for (size_t m = 0; m < W; ++m) {
+                    (void)rocm_take_launches(*d[m]);
+                    d[m]->matmul({quant::GGML_TYPE_Q8_0, {wb[m].get(), 0}}, {xb[m].get(), 0}, c->partial(m), s.nin, s.nout, 1, {}, Dtype::int8);
+                }
+            };
+            held();
+            group_calls.launches = 0;
+            f.hipModuleLaunchKernel = counted_launch;
+            c->sum_in_place(1, s.nout);
+            f.hipModuleLaunchKernel = real_launch;
+            // The takes launch after every member's flush, so the last member's product is the last launch before them.
+            int launches = group_calls.launches;
+            for (size_t m = 0; m < W; ++m) {
+                const std::map<std::string, size_t> k = rocm_take_launches(*d[m]);
+                require(k.count(s.kernel) == 1, std::string("the dry sum's ") + s.kernel + " pushes on member " + std::to_string(m));
+                launches -= k.count("llmx_group_take") ? (int)k.at("llmx_group_take") : 0;
+            }
+            for (size_t m = 0; m < W; ++m) d[m]->sync();
+            held();
+            group_calls.launches = 0;
+            group_calls.fail = launches;
+            f.hipModuleLaunchKernel = counted_launch;
+            require(throws([&] { c->sum_in_place(1, s.nout); }), "a sum whose last held product failed to launch did not throw");
+            f.hipModuleLaunchKernel = real_launch;
+            group_calls.fail = 0;
+            c->wait(0);
+            for (size_t m = 0; m < W; ++m) throws([&] { d[m]->raise(0); });
+            sum_calls(*c, W, false);
+            std::cout << "backend-rocm: a sum whose last held product failed to launch at width " << W << " was cancelled; later sums conservative\n";
         }
     std::cout << "backend-rocm: a sum after a held 8-bit product launches its take alone, with llmx_group_sum's bits, at both halves\n";
 }
 
 // The collective over 2 up to kMaxTensorWidth devices where they open, fast and conservative, a sum that gives up and the epochs' wrap (docs/TESTS.md, backend-rocm).
+// A sum in place whose rows a ring convolution reads next runs first as llmx_group_sum and llmx_conv_ring and later as one llmx_conv_ring_sum launch a member, both giving every member the same bits over one row and two (docs/TESTS.md).
+struct ConvSumCase {
+    size_t C, K;
+    backend::ConvResidual from;
+    backend::ConvPost post;
+    bool apart, reversed;
+};
+void conv_sums(const std::vector<BackendPtr>& all, size_t W) {
+    // A partial final block (1032) and a full one (1024); one tap, whose product is the whole sum, beside four; the residual given or none; both post steps; source and destination slots apart; the members in reverse.
+    using backend::ConvPost, backend::ConvResidual;
+    const ConvSumCase cases[] = {{1032, 4, ConvResidual::input, ConvPost::none, false, false}, {1032, 1, ConvResidual::none, ConvPost::none, false, false},
+                                 {1032, 4, ConvResidual::none, ConvPost::none, true, true}, {1024, 4, ConvResidual::given, ConvPost::l2_clip, true, false},
+                                 {1024, 1, ConvResidual::input, ConvPost::rms_norm, false, true}};
+    for (const ConvSumCase& k : cases) {
+    std::vector<Backend*> d = raw(all, W);
+    if (k.reversed) std::reverse(d.begin(), d.end());
+    const size_t C = k.C, K = k.K, R = 5, off = 3;
+    const std::vector<float> taps = row_classes::values(C * K, 81), out0 = row_classes::values(2 * C, 82), given = row_classes::values(2 * C, 83), norm_w = row_classes::values(C, 84);
+    for (size_t rows : {size_t(1), size_t(2)})
+        for (bool acc : {true, false}) {
+            if (acc && k.post != ConvPost::none) continue;
+            std::vector<std::vector<float>> got;
+            for (size_t round = 0; round < 2; ++round) {
+                std::unique_ptr<Collective> c = d[0]->join(d, 2, C);
+                require(c != nullptr, "ROCm devices joined no collective");
+                if (!c) return;
+                std::vector<std::unique_ptr<backend::StateStorage>> st;
+                std::vector<BufferPtr> tb, ob, gb, nb;
+                for (size_t m = 0; m < W; ++m) {
+                    st.push_back(d[m]->state_alloc(1, 2, backend::StateShape{}, {off + R * C}));
+                    gb.push_back(d[m]->adopt(given.data(), rows * C * 4));
+                    nb.push_back(d[m]->adopt(norm_w.data(), C * 4));
+                    tb.push_back(d[m]->adopt(taps.data(), taps.size() * 4));
+                    ob.push_back(d[m]->adopt(out0.data(), rows * C * 4));
+                }
+                // Round 1 is taught by a first convolution of summed rows, then starts its states again.
+                if (round) {
+                    for (size_t m = 0; m < W; ++m) d[m]->write(*c->partial(m).buffer, c->partial(m).offset * 4, out0.data(), rows * C * 4);
+                    c->sum_in_place(rows, C);
+                    for (size_t m = 0; m < W; ++m) {
+                        backend::DepthwiseConv a;
+                        a.w = {tb[m].get(), 0}, a.channels = C, a.taps = K, a.residual_from = backend::ConvResidual::input, a.divisor = std::sqrt(5.0f);
+                        a.history = backend::ConvHistory::ring, a.ring_offset = off, a.ring_rows = R;
+                        const backend::StateView v{st[m].get(), 0, 0, 0, rows};
+                        d[m]->depthwise_conv({ob[m].get(), 0}, CSlice(c->partial(m)), a, 0, &v, 1);
+                    }
+                    for (size_t m = 0; m < W; ++m) {
+                        d[m]->sync();
+                        st[m] = d[m]->state_alloc(1, 2, backend::StateShape{}, {off + R * C});
+                        d[m]->write(*ob[m], 0, out0.data(), rows * C * 4);
+                    }
+                }
+                for (size_t len = 0; len < 7; len += rows) {
+                    for (size_t m = 0; m < W; ++m) {
+                        std::vector<float> p = row_classes::values(rows * C, 90 + 7 * m + len);
+                        // Every member's -0 at these channels sums to -0, which one tap must keep as the product, not as +0 plus it.
+                        for (size_t i : {size_t(5), size_t(600), C - 2}) p[i] = -0.0f;
+                        d[m]->write(*c->partial(m).buffer, c->partial(m).offset * 4, p.data(), rows * C * 4);
+                        (void)rocm_take_launches(*d[m]);
+                    }
+                    c->sum_in_place(rows, C);
+                    // Round 0 issues each member's sum before its convolution is recorded, which keeps them apart whether or not the member was taught.
+                    if (!round)
+                        for (size_t m = 0; m < W; ++m) (void)d[m]->submit();
+                    for (size_t m = 0; m < W; ++m) {
+                        backend::DepthwiseConv a;
+                        a.w = {tb[m].get(), 0}, a.channels = C, a.taps = K, a.residual_from = backend::ConvResidual::input, a.divisor = std::sqrt(5.0f);
+                        a.history = backend::ConvHistory::ring, a.ring_offset = off, a.ring_rows = R, a.accumulate = acc;
+                        a.residual_from = k.from;
+                        if (k.from == ConvResidual::given) a.residual = {gb[m].get(), 0};
+                        if (k.post != ConvPost::none) a.post = k.post, a.post_heads = C / 128, a.post_limit = k.post == ConvPost::l2_clip ? 3.0f : 1e-6f;
+                        if (k.post == ConvPost::rms_norm) a.post_w = {nb[m].get(), 0};
+                        const backend::StateView v{st[m].get(), 0, k.apart ? 1u : 0u, len, rows};
+                        d[m]->depthwise_conv({ob[m].get(), 0}, CSlice(c->partial(m)), a, 0, &v, 1);
+                    }
+                    for (size_t m = 0; m < W; ++m) {
+                        const std::map<std::string, size_t> l = rocm_take_launches(*d[m]);
+                        const std::string at = " on member " + std::to_string(m) + " of " + std::to_string(W) + " (rows " + std::to_string(rows) + ", length " + std::to_string(len) + (acc ? ", added" : "") + ", case C " + std::to_string(C) + " K " + std::to_string(K) + ")";
+                        if (round) require(l.count("llmx_conv_ring_sum") && l.at("llmx_conv_ring_sum") == 1 && !l.count("llmx_group_sum") && !l.count("llmx_conv_ring"), "a taught sum runs in its convolution" + at);
+                        else require(l.count("llmx_group_sum") && l.count("llmx_conv_ring") && !l.count("llmx_conv_ring_sum"), "a first sum is its own launch before the convolution" + at);
+                        std::vector<float> all = read(*d[m], *c->partial(m).buffer, rows * C);
+                        const std::vector<float> o = read(*d[m], *ob[m], rows * C);
+                        all.insert(all.end(), o.begin(), o.end());
+                        if (round) require(std::memcmp(all.data(), got[len / rows * W + m].data(), all.size() * 4) == 0, "a sum in its convolution keeps the separate launches' bits" + at);
+                        else got.push_back(all);
+                    }
+                }
+                // A wait on the group with every member's sum held issues them all first, one llmx_group_sum a member.
+                if (round) {
+                    c->sum_in_place(rows, C);
+                    c->wait(0);
+                    for (size_t m = 0; m < W; ++m) {
+                        const std::map<std::string, size_t> l = rocm_take_launches(*d[m]);
+                        require(l.count("llmx_group_sum") && l.at("llmx_group_sum") == 1, "a wait issues every member's held sum on member " + std::to_string(m));
+                    }
+                }
+                for (size_t m = 0; m < W; ++m) d[m]->sync();
+            }
+        }
+    }
+    std::cout << "backend-rocm: a sum in place then a ring convolution at width " << W << " runs as llmx_conv_ring_sum once taught, with the separate launches' bits\n";
+}
+
 // A pass cut in two parts (Collective::send): lanes sent while the other crosses, finished in place and into residuals, sent step after step as Model::cut_record sends them, and dropped; each sum bit for bit the member-order sum.
 void lane_sums(const std::vector<Backend*>& group, Collective& c, size_t width, size_t a, size_t b, uint32_t& seed) {
     const size_t W = group.size(), n = (a + b) * width;
@@ -3146,6 +4093,69 @@ void lane_sums(const std::vector<Backend*>& group, Collective& c, size_t width, 
             require(std::memcmp(&got[i], &all, sizeof(float)) == 0, "a ROCm sum in one call after a dropped lane is not the member-order sum");
         }
     }
+}
+
+// `rates forms`, printed, never asserted: a prompt chunk's sum in place at width 2 (2048 rows of 2304, 18.9 MB) by each forced pick, each behind its rows' Q8_0 product as a pass queues them, in interleaved rounds.
+// A round also times the products alone, so a pick's cost is its product plus sum less that.
+void form_rates() {
+    std::vector<BackendPtr> d = rocm_devices(2);
+    if (d.size() < 2) {
+        std::cout << "backend-rocm: rates forms needs two devices\n";
+        return;
+    }
+    const size_t rows = 2048, width = 2304, nin = 2304, iters = 10;
+    const std::vector<Backend*> group = raw(d, 2);
+    struct Arm {
+        const char* name;
+        GpuSumForm form;
+        GroupTransport transport;
+    };
+    const Arm arms[] = {{"shares peer_writes", GpuSumForm::shares, GroupTransport::peer_writes}, {"pulls host_writes", GpuSumForm::pulls, GroupTransport::host_writes},
+                        {"one_shot peer_writes", GpuSumForm::one_shot, GroupTransport::peer_writes}};
+    std::vector<BufferPtr> wb, xb, yb;
+    for (size_t m = 0; m < 2; ++m) {
+        const std::vector<uint8_t> w = typed_matrix(quant::GGML_TYPE_Q8_0, nin, width, 61 + (uint32_t)m);
+        const std::vector<float> x = row_classes::values(nin * rows, 63 + (uint32_t)m);
+        wb.push_back(d[m]->adopt(w.data(), w.size()));
+        xb.push_back(d[m]->adopt(x.data(), x.size() * 4));
+        yb.push_back(d[m]->alloc(rows * width * 4));
+    }
+    const RowRun rr{rows, rows};
+    // c: the collective whose partials the products write and which sums them after each, or null for the products alone.
+    const auto run = [&](Collective* c) {
+        for (size_t i = 0; i < iters; ++i) {
+            for (size_t m = 0; m < 2; ++m) d[m]->matmul({quant::GGML_TYPE_Q8_0, {wb[m].get(), 0}}, {xb[m].get(), 0}, c ? c->partial(m) : Slice{yb[m].get(), 0}, nin, width, rows, {&rr, 1}, Dtype::int8);
+            if (c) c->sum_in_place(rows, width);
+        }
+        for (size_t m = 0; m < 2; ++m) d[m]->sync();
+        for (size_t m = 0; m < 2; ++m) d[m]->raise(0);
+    };
+    const auto ms = [&](Collective* c) {
+        const auto t0 = std::chrono::steady_clock::now();
+        run(c);
+        return 1e3 * std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count() / iters;
+    };
+    // rocm_collective is never probed, so the group's own join enables the peer access the forced peer_writes forms need, as a model's group would have.
+    const std::unique_ptr<Collective> joined = d[0]->join(group, 1, width);
+    require(joined != nullptr, "rates forms: the two devices joined no collective");
+    const auto arm_ms = [&](const Arm& a) {
+        std::unique_ptr<Collective> c = rocm_collective(group, rows, width, a.form, a.transport);
+        run(c.get());
+        return ms(c.get());
+    };
+    run(nullptr);
+    std::cout << "backend-rocm: rates forms; 2048 x 2304 sum in place at width 2 behind its Q8_0 product (int8, nin 2304): ms a product + sum, ms over the products alone\n";
+    const size_t n_arms = sizeof(arms) / sizeof(arms[0]);
+    for (int round = 0; round < 5; ++round) {
+        const double alone = ms(nullptr);
+        std::printf("backend-rocm: forms round %d products alone %.3f ms\n", round, alone);
+        for (size_t k = 0; k < n_arms; ++k) {
+            const size_t a = round % 2 ? n_arms - 1 - k : k;
+            const double t = arm_ms(arms[a]);
+            std::printf("backend-rocm: forms round %d %s %.3f ms, sum %.3f ms\n", round, arms[a].name, t, t - alone);
+        }
+    }
+    std::fflush(stdout);
 }
 
 // `rates beside` prints eight layers of a prompt pass on tensor groups at Qwen3.6-27B's width, two pairs at once where four devices open, each phase summed whole or cut in two parts (docs/TENSOR-SPLIT.md, section 4.3).
@@ -3806,6 +4816,22 @@ void deepseek4(Backend& g) {
     std::cout << "backend-rocm: deepseek4 sparse attention with SinkTerms: " << ds4::check_sparse_shapes(p, {}, true) << " values against the CPU\n";
 }
 
+// Inkling-2-Mini's ops against the CPU and against their own bits alone, beside others and sliced (inkling2_checks.hpp), a failure counted rather than ending the run.
+void inkling2(Backend& g) {
+    try {
+        ink2::device_ops(g);
+        ink2::device_state_ops(g);
+        rocm_take_launches(g);
+        ink2::device_attention_terms(g);
+        const auto ran = rocm_take_launches(g);
+        for (const char* k : {"llmx_attention_terms_g1", "llmx_attention_terms_g3", "llmx_attention_terms_g3_512"})
+            require(ran.count(k) == 1, std::string("inkling2's attention terms checks take ") + k);
+        std::cout << "backend-rocm: inkling2 ops: " << ink2::checked << " checks passed\n";
+    } catch (const std::exception& e) {
+        require(false, std::string("inkling2 ops: ") + e.what());
+    }
+}
+
 // The vision encoder's ops against the CPU (vision_checks.hpp), each kernel the core adds for it reached.
 void vision_ops(Backend& g) {
     q35::Pair p(g);
@@ -4176,7 +5202,7 @@ int main(int argc, char** argv) {
             return failures ? 1 : 0;
         }
         // `rates` prints the twin types' product times at Flash-Next's shapes, the exact products' times, attention's times and the routed products' times and break-evens, and checks nothing.
-        // `rates attention`, `rates argmax`, `rates routed`, `rates tile`, `rates exact` or `rates decode` prints one part; `rates delta` (the fused linear-attention step) and `rates beside` (beside_rates) run only when named.
+        // `rates attention`, `argmax`, `routed`, `tile`, `exact` or `decode` prints one part; `rates delta` (the fused linear-attention step), `rates forms` (form_rates) and `rates beside` (beside_rates) run only when named.
         if (argc > 1 && std::string(argv[1]) == "vsnccl") {
             vsnccl(argc > 2 && std::string(argv[2]) == "10", argc > 3 ? (size_t)std::atoi(argv[3]) : 2, argc > 4 ? (size_t)std::atoi(argv[4]) : 5120);
             return 0;
@@ -4191,6 +5217,7 @@ int main(int argc, char** argv) {
             if (part.empty() || part == "exact") exact_rates(*g);
             if (part.empty() || part == "decode") decode_rates(*g);
             if (part == "delta") delta_rates(*g);
+            if (part == "forms") form_rates();
             if (part == "moe") moe_rates(*g);
             // `rates beside FORM` forces every lane's sum to FORM (one-shot, chain, shares or wrap).
             if (part == "beside") {
@@ -4236,6 +5263,10 @@ int main(int argc, char** argv) {
             collective();
             held_push();
             sentinel_sums();
+            {
+                std::vector<BackendPtr> d = rocm_devices(kMaxTensorWidth);
+                for (size_t W = 2; W <= d.size(); ++W) conv_sums(d, W);
+            }
             std::cout << (failures ? "backend-rocm collective: FAIL\n" : "backend-rocm collective: PASS\n");
             return failures ? 1 : 0;
         }
@@ -4249,6 +5280,21 @@ int main(int argc, char** argv) {
         if (argc > 1 && std::string(argv[1]) == "vision") {
             vision_ops(*g);
             std::cout << (failures ? "backend-rocm vision: FAIL\n" : "backend-rocm vision: PASS\n");
+            return failures ? 1 : 0;
+        }
+        // `inkling2` runs only Inkling-2-Mini's ops against the CPU and their own bits alone, beside others and sliced (inkling2_checks.hpp).
+        if (argc > 1 && std::string(argv[1]) == "inkling2") {
+            inkling2(*g);
+            normed_product_launches(*g);
+            conv_store_launches(*g);
+            step_conv_store(*g);
+            step_walk_glu(*g);
+            dense_walk_glu(*g);
+            held_gate_mix_twin(*g);
+            query_mix_norm_planes(*g);
+            normed_gate_mix_steps(*g);
+            conv_ring_paths(*g);
+            std::cout << (failures ? "backend-rocm inkling2: FAIL\n" : "backend-rocm inkling2: PASS\n");
             return failures ? 1 : 0;
         }
         // `deepseek4` runs only DeepSeek-V4.1's ops against the CPU.
@@ -4268,7 +5314,17 @@ int main(int argc, char** argv) {
             moe().experts_quads(*g);
             moe().routed_builds_witness(*g);
             moe().experts_add(*g);
+            walk_rows_bits(*g);
+            walk_half8_combine_bits(*g);
+            step_walk_glu(*g);
+            dense_walk_glu(*g);
             std::cout << (failures ? "backend-rocm moe: FAIL\n" : "backend-rocm moe: PASS\n");
+            return failures ? 1 : 0;
+        }
+        // `pair` runs only the one-column group pair launch's check.
+        if (argc > 1 && std::string(argv[1]) == "pair") {
+            pair_rows_bits(*g);
+            std::cout << (failures ? "backend-rocm pair: FAIL\n" : "backend-rocm pair: PASS\n");
             return failures ? 1 : 0;
         }
         // `step` runs only the fused moe_step's bit checks against the base's ops.
@@ -4333,7 +5389,9 @@ int main(int argc, char** argv) {
         if (argc > 1 && std::string(argv[1]) == "types") {
             types(*g, *c);
             exact_rows(*g);
+            f32_group_bits(*g);
             bits().half_tile(*g, false);
+            bits().wide_tile(*g);
             twin_types(*g, *c);
             biased_edges(*g);
             bits().q8_decode_bits(*g);
@@ -4351,7 +5409,17 @@ int main(int argc, char** argv) {
         ops(*g, *c);
         types(*g, *c);
         exact_rows(*g);
+        f32_group_bits(*g);
+        normed_product_launches(*g);
+        conv_store_launches(*g);
+        step_conv_store(*g);
+        step_walk_glu(*g);
+        held_gate_mix_twin(*g);
+        query_mix_norm_planes(*g);
+        normed_gate_mix_steps(*g);
+        conv_ring_paths(*g);
         bits().half_tile(*g, false);
+        bits().wide_tile(*g);
         twin_types(*g, *c);
         biased_edges(*g);
         bits().q8_decode_bits(*g);
@@ -4373,6 +5441,9 @@ int main(int argc, char** argv) {
         moe_step_bits(*g);
         twin_checks::delta_step_bits(*g, rocm_device(0).caps, rocm_take_launches, require);
         moe_rows_bits(*g);
+        walk_rows_bits(*g);
+        walk_half8_combine_bits(*g);
+        pair_rows_bits(*g);
         fused_norm_rope_kv(*g);
         attention_twins(*g, Dtype::f16);
         attention_twins(*g, Dtype::int8);
@@ -4404,6 +5475,7 @@ int main(int argc, char** argv) {
         busy_times();
         qwen35(*g);
         vision_ops(*g);
+        inkling2(*g);
         deepseek4(*g);
         ds4::sparse_tile_pair(*g, rocm_caps, rocm_take_launches, require);
         ds4::router(*g, rocm_caps, rocm_take_launches, require);

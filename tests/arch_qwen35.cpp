@@ -276,12 +276,12 @@ struct Lacking : backend::CpuBackend {
 struct FailingHead : backend::CpuBackend {
     bool fail = false;
     void matmul_logits(backend::WeightView weight, backend::CSlice x, backend::Slice y, size_t nin, size_t nout, size_t nbatch,
-                       backend::RowRuns runs = {}, backend::Dtype dtype = backend::Dtype::f16) override {
+                       backend::RowRuns runs = {}, backend::Dtype dtype = backend::Dtype::f16, float cap = 0.0f) override {
         if (fail) {
             fail = false;
             throw std::runtime_error("injected");
         }
-        backend::CpuBackend::matmul_logits(weight, x, y, nin, nout, nbatch, runs, dtype);
+        backend::CpuBackend::matmul_logits(weight, x, y, nin, nout, nbatch, runs, dtype, cap);
     }
 };
 
@@ -1789,8 +1789,8 @@ Drafted drafted(infer::Model& model, infer::Sequence& s, uint32_t last, size_t k
 // A CPU backend whose drafter argmax marks its `invalid`-th row, counted over the backend's life, as an id past the vocabulary.
 struct InvalidDraft : backend::CpuBackend {
     size_t calls = 0, invalid = 2;
-    void argmax_rows(backend::Slice ids, backend::CSlice logits, size_t rows, size_t n, backend::CSlice after) override {
-        backend::CpuBackend::argmax_rows(ids, logits, rows, n, after);
+    void argmax_rows(backend::Slice ids, backend::CSlice logits, size_t rows, size_t n, backend::CSlice after, size_t skip) override {
+        backend::CpuBackend::argmax_rows(ids, logits, rows, n, after, skip);
         if (++calls != invalid) return;
         const uint32_t past = (uint32_t)n;
         std::memcpy((float*)const_cast<void*>(ids.buffer->host_ptr()) + ids.offset, &past, sizeof(past));
@@ -1818,10 +1818,10 @@ struct DtypeWitness : backend::CpuBackend {
         backend::CpuBackend::matmul_group(projections, x, nin, rows, runs, dtype);
     }
     void matmul_logits(backend::WeightView weight, backend::CSlice x, backend::Slice y, size_t nin, size_t nout, size_t rows, backend::RowRuns runs = {},
-                       backend::Dtype dtype = backend::Dtype::f16) override {
+                       backend::Dtype dtype = backend::Dtype::f16, float cap = 0.0f) override {
         seen(dtype, "a head's product");
         ++heads;
-        backend::CpuBackend::matmul_logits(weight, x, y, nin, nout, rows, runs, dtype);
+        backend::CpuBackend::matmul_logits(weight, x, y, nin, nout, rows, runs, dtype, cap);
     }
 };
 

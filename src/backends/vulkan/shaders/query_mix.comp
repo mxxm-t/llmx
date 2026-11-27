@@ -1,0 +1,84 @@
+#version 450
+// A workgroup a (row, query) (Backend::query_mix): one pass gathers each item's sum of squares and dot with the query, folded by subgroup sums and one shared-memory round.
+// Each thread then takes the softmax over the items of dot(q, item) / (rms(item) sqrt(dim)) and mixes the normed items, so the row takes one barrier instead of two an item a query.
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_arithmetic : require
+#extension GL_EXT_control_flow_attributes : require
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint n; uint nq; uint dim; uint stride; float eps; } p;
+layout(set = 0, binding = 0) writeonly buffer O { float o[]; };
+layout(set = 0, binding = 1) readonly buffer S { float src[]; };
+layout(set = 0, binding = 2) readonly buffer Q { float queries[]; };
+#define NI 16u
+#define JM 9u     // dims a thread holds: 2304 over 256 threads
+#define WAVES 8u   // 256 threads over the 32-lane minimum subgroup
+shared float lds[2u * NI * WAVES];
+void main() {
+    const uint r = gl_WorkGroupID.x, q = gl_WorkGroupID.y, t = gl_LocalInvocationID.x, base = r * p.stride, qb = q * p.dim;
+    const uint waves = gl_NumSubgroups, wave = gl_SubgroupID;
+    float ss[NI], dt[NI];
+    [[unroll]] for (uint i = 0u; i < NI; ++i) ss[i] = 0.0, dt[i] = 0.0;
+    // Up to 256 JM dims a row, every load is issued before the sums and the items stay in registers for the mix; the sums keep the strided order.
+    const bool held = p.dim <= 256u * JM;
+    float xs[NI][JM];
+    if (held) {
+        float a[JM];
+        [[unroll]] for (uint j = 0u; j < JM; ++j) a[j] = t + 256u * j < p.dim ? queries[qb + t + 256u * j] : 0.0;
+        [[unroll]] for (uint i = 0u; i < NI; ++i)
+            [[unroll]] for (uint j = 0u; j < JM; ++j) xs[i][j] = i < p.n && t + 256u * j < p.dim ? src[base + i * p.dim + t + 256u * j] : 0.0;
+        [[unroll]] for (uint j = 0u; j < JM; ++j)
+            if (t + 256u * j < p.dim)
+                [[unroll]] for (uint i = 0u; i < NI; ++i)
+                    if (i < p.n) {
+                        ss[i] = fma(xs[i][j], xs[i][j], ss[i]);
+                        dt[i] = fma(a[j], xs[i][j], dt[i]);
+                    }
+    } else {
+        for (uint d = t; d < p.dim; d += 256u) {
+            const float a = queries[qb + d];
+            [[unroll]] for (uint i = 0u; i < NI; ++i)
+                if (i < p.n) {
+                    const float x = src[base + i * p.dim + d];
+                    ss[i] = fma(x, x, ss[i]);
+                    dt[i] = fma(a, x, dt[i]);
+                }
+        }
+    }
+    [[unroll]] for (uint i = 0u; i < NI; ++i)
+        if (i < p.n) {
+            const float s = subgroupAdd(ss[i]), u = subgroupAdd(dt[i]);
+            if (subgroupElect()) lds[i * WAVES + wave] = s, lds[(NI + i) * WAVES + wave] = u;
+        }
+    barrier();
+    const float root = sqrt(float(p.dim));
+    float top = uintBitsToFloat(0xff800000u), total = 0.0;
+    [[unroll]] for (uint i = 0u; i < NI; ++i)
+        if (i < p.n) {
+            float s = 0.0, u = 0.0;
+            for (uint w = 0u; w < waves; ++w) s += lds[i * WAVES + w], u += lds[(NI + i) * WAVES + w];
+            ss[i] = 1.0 / sqrt(s / float(p.dim) + p.eps);
+            dt[i] = u * ss[i] / root;
+            top = max(top, dt[i]);
+        }
+    [[unroll]] for (uint i = 0u; i < NI; ++i)
+        if (i < p.n) dt[i] = exp(dt[i] - top), total += dt[i];
+    [[unroll]] for (uint i = 0u; i < NI; ++i)
+        if (i < p.n) dt[i] = dt[i] * ss[i] / total;
+    const uint ob = (r * p.nq + q) * p.dim;
+    if (held) {
+        [[unroll]] for (uint j = 0u; j < JM; ++j)
+            if (t + 256u * j < p.dim) {
+                float acc = 0.0;
+                [[unroll]] for (uint i = 0u; i < NI; ++i)
+                    if (i < p.n) acc = fma(dt[i], xs[i][j], acc);
+                o[ob + t + 256u * j] = acc;
+            }
+        return;
+    }
+    for (uint d = t; d < p.dim; d += 256u) {
+        float acc = 0.0;
+        [[unroll]] for (uint i = 0u; i < NI; ++i)
+            if (i < p.n) acc = fma(dt[i], src[base + i * p.dim + d], acc);
+        o[ob + d] = acc;
+    }
+}

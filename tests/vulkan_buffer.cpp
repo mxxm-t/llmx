@@ -2672,7 +2672,15 @@ int unordered_checks() {
              o.call = 1;
              b.causal_conv_silu({u.get(), 0}, {raw.get(), 0}, {w.get(), 0}, 0, views, 2);
              o.call = 2;
-             b.dilated_conv_silu_add({out.get(), 0}, {x.get(), 0}, {res.get(), 0}, {dw.get(), 0}, channels, taps, dilation, 0, views, 2);
+             backend::DepthwiseConv d;
+             d.w = {dw.get(), 0};
+             d.channels = channels;
+             d.taps = taps;
+             d.dilation = dilation;
+             d.act = backend::ConvAct::silu;
+             d.residual_from = backend::ConvResidual::given;
+             d.residual = {res.get(), 0};
+             b.depthwise_conv({out.get(), 0}, {x.get(), 0}, d, 0, views, 2);
              b.sync();
          }},
         {"attention: a decode row after a long history beside a prompt's rows, then the decode row alone", [&](OrderCalls& o, std::vector<VkBuffer>& callers) {

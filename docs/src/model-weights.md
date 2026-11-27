@@ -39,7 +39,9 @@ The part of the architecture contract that the loader and a file's reader use as
   is built.
 - `Weight`: a tensor resolved once at load - type, a buffer handle from the
   backend that hosts it and the role's two dimensions, one expert's for a
-  stack. The model keeps a row of them per layer indexed by role id, and one
+  stack, and for a stack role over a run of rows (`Role::first_row`) the run's
+  `first` row and the matrix `pitch`, which the whole adopted stack is read
+  through. The model keeps a row of them per layer indexed by role id, and one
   for the pass's roles, and hands a row to each part it calls.
   `Weight::slice()` names the weight's location; the model never
   dereferences it. The forward pass indexes a row by role id instead of

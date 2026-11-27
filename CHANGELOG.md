@@ -23,7 +23,12 @@ Each entry is one short line that links the doc explaining it; reasons, flags an
 ### Changed
 
 - ROCm tensor groups on MI50 sum prompt-sized parts up to a quarter faster by reading their peers' rows ([GPU backends](docs/src/backends-gpu.md)).
+- A tensor width that does not divide a model's vocabulary splits the head's rows unevenly instead of refusing ([TENSOR-SPLIT](docs/TENSOR-SPLIT.md)).
+- Inkling-2-Mini decodes faster on MI50s: the MoE router step loads its own code into L2 first ([delta_step](docs/src/backends-gpu.md)).
+- Inkling-2-Mini reads long prompts faster on MI50s: its ring convolutions run in parts of rows ([GPU backends](docs/src/backends-gpu.md)).
 - Greedy server requests, `ignore_eos` ones too, take their tokens from the device's argmax ([server](docs/SERVER.md#device-argmax)).
+- Greedy `generate` and a server on a tensor group queue the next decode step before reading the last one ([generate](docs/src/inference-generate.md)).
+- Greedy `ignore_eos` requests whose top token is the end token no longer read their logits back from the device ([server](docs/SERVER.md#device-argmax)).
 - Experts on the CPU decode in the three-dispatch MoE step whatever their weight types ([CPU backend](docs/src/backends-cpu.md)).
 - A server round mixing a prompt with decoding spends no attention launches on the prompt's rows on CUDA and ROCm ([GPU backends](docs/src/backends-gpu.md)).
 - A server on one device queues the next greedy decode step on the device before the host reads the last one ([server](docs/SERVER.md#fed-decode)).

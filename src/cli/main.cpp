@@ -85,7 +85,7 @@ struct ExecOptions {
     int tensor_width = 1;         // devices each layer is split across: the listed devices form groups of this many, the stages of the layer split (docs/TENSOR-SPLIT.md)
     int threads = 0;              // CPU workers, decode's where a command tells the phases apart; 0 selects automatically
     int threads_batch = 0;        // CPU workers for a prompt's batched passes; 0 takes the decode count
-    int ubatch = 0;               // prompt tokens a pass takes; 0 is infer::kDefaultUbatch
+    int ubatch = 0;               // prompt tokens a pass takes; 0 lets the placement choose (infer::plan_placement)
     std::string cache_type_k;     // each cache side's type as its flag gives it; empty keeps the model's default (ModelOptions)
     std::string cache_type_v;
     int kv_tokens = 0;            // the KV pool's total token budget, --kv-tokens; 0 is the model context, or for serve what the devices hold
@@ -608,8 +608,6 @@ std::vector<std::string> exec_specs(const ExecOptions& exec) {
     return specs;
 }
 
-// The logits rows a command's prompt passes keep when it scores every row of them, as `logits` and `perplexity` do: a pass's prompt tokens.
-size_t prompt_logit_rows(const ExecOptions& exec) { return (size_t)infer::pass_ubatch(exec.ubatch, (size_t)exec.expert_cache); }
 
 // A positive --threads or --threads-batch where no backend has CPU workers changes nothing, which is said once rather than left silent (docs/USAGE.md, Device selection).
 void note_unused_threads(int threads, int threads_batch, int available) {
@@ -661,7 +659,8 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
         request.history_tokens = history_tokens;
     }
     infer::ModelOptions options = model_options(exec);
-    options.argmax_rows = argmax_passes ? logit_rows : 0;
+    // At least the two rows of a decode run a pass ahead (Model::step_ahead).
+    options.argmax_rows = argmax_passes ? std::max<size_t>(2, logit_rows) : 0;
     if (!exec.chat_template_file.empty()) {
         options.chat_template = read_text_file(exec.chat_template_file, "--chat-template-file");
         if (options.chat_template.empty()) throw std::runtime_error("--chat-template-file: the file is empty: " + exec.chat_template_file);
@@ -924,6 +923,8 @@ int cmd_generate(const std::string& model_path, const std::string& prompt, bool 
         printf("\n");
         const infer::Model::LookupReads reads = model.lookup_reads();
         if (reads.kept + reads.restarted + reads.late) printf("lookup reads: kept %zu, restarted %zu, late %zu\n", reads.kept, reads.restarted, reads.late);
+        const infer::Model::Ahead ahead = model.ahead_passes();
+        printf("ahead: %zu passes recorded ahead, %zu abandoned\n", ahead.recorded, ahead.abandoned);
         // The generated ids, which `logits --then-ids` reads back as the tokens they were, where their text could tokenize otherwise (tools/long_context_check.py).
         printf("ids:");
         for (size_t i = 0; i < gen.size(); ++i) printf("%s%u", i ? "," : " ", gen[i]);
@@ -967,7 +968,7 @@ void show_pass_threads(const ExecOptions& exec, bool per_token, const infer::Mod
 int cmd_logits(const std::string& model_path, const std::string& text, bool as_chat,
                int topn, const ExecOptions& exec, const std::string& then_ids = "", size_t last = 0, bool per_token = false, const Images& images = {}) {
     const std::vector<std::string> image_bytes = images.read("logits");
-    const auto loaded = open_model(model_path, exec, false, exec.threads, prompt_logit_rows(exec), 0, exec.verbose, nullptr, 0, 0, false, 0, 0, false, {}, {}, std::nullopt, {},
+    const auto loaded = open_model(model_path, exec, false, exec.threads, 0, 0, exec.verbose, nullptr, 0, 0, false, 0, 0, false, {}, {}, std::nullopt, {},
                                    false, {}, image_bytes.empty() ? std::string() : images.mmproj, images.max_tokens);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
@@ -1018,7 +1019,7 @@ int cmd_logits(const std::string& model_path, const std::string& text, bool as_c
 int cmd_perplexity(const std::string& model_path, const std::string& text,
                    const ExecOptions& exec, int context_size, int chunks, bool per_token) {
     const int threads = exec.threads_batch > 0 ? exec.threads_batch : exec.threads;   // main refuses --threads-batch with --per-token
-    const auto loaded = open_model(model_path, exec, false, threads, prompt_logit_rows(exec), 0, exec.verbose);
+    const auto loaded = open_model(model_path, exec, false, threads, 0, 0, exec.verbose);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
     show_pass_threads(exec, per_token, model);
@@ -1468,8 +1469,13 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
         pp_from([&] { clear_times(); model.trace_stages(true); });
         print_times("pp", (size_t)P);
         print_stages("pp");
-        tg([&] { clear_times(); model.stage_times(); });
+        backend::Backend::HostTimes held;
+        tg([&] { clear_times(); model.stage_times(); held = model.host_times(); });
+        const backend::Backend::HostTimes now = model.host_times();
         print_times(seqs > 1 ? "batched tg" : "tg", (size_t)G * (size_t)std::max(seqs, 1));
+        printf("profile %s: host held per pass %.3f ms on tickets, %.3f for a command slot, %.3f for staging, %.3f writing, %.3f issuing held work\n", seqs > 1 ? "batched tg" : "tg",
+               (now.ticket_ms - held.ticket_ms) / G, (now.slot_ms - held.slot_ms) / G, (now.staging_ms - held.staging_ms) / G, (now.write_ms - held.write_ms) / G,
+               (now.launch_ms - held.launch_ms) / G);
         print_stages(seqs > 1 ? "batched tg" : "tg");
         model.trace_stages(false);
 #if LLMX_HAS_BACKEND_VULKAN
@@ -1736,7 +1742,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
         if (batch_threads) page
             << "  --threads-batch N, -tb  CPU prefill workers. Default follows --threads\n";
         page
-            << "  --ubatch N              Prompt tokens read in one pass. A longer prompt is read in slices (default: " << infer::kDefaultUbatch << ", " << infer::kCachedUbatch << " with --expert-cache)\n"
+            << "  --ubatch N              Prompt tokens read in one pass. A longer prompt is read in slices (default: the device's, where memory allows, else " << infer::kDefaultUbatch << ", " << infer::kCachedUbatch << " with --expert-cache)\n"
             << "  --kv-tokens N           Tokens of conversation memory (KV cache), in whole blocks, backed at load.\n"
             << "                          A server's requests share them (default: the model context; for serve,\n"
             << "                          what the devices' free memory holds)\n"

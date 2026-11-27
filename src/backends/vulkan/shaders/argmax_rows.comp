@@ -3,7 +3,7 @@
 // Mode 0 reduces a row in one workgroup; mode 1 reduces each slice of a row's ids to a partial (value, id, NaN seen), a workgroup a slice, and mode 2 a row's partials, in slice order by the same comparison, to its id.
 layout(local_size_x = 256) in;
 // With cand set, modes 0 and 2 write the row's candidate for argmax_pick instead of its id, and mode 3 picks a row's id from its candidates (backend.hpp, argmax_part).
-layout(push_constant) uniform P { uint n; uint has_after; uint mode; uint slices; uint slice; uint first; uint slot; uint slots; uint cand; } p;
+layout(push_constant) uniform P { uint n; uint has_after; uint mode; uint slices; uint slice; uint first; uint slot; uint slots; uint cand; uint skip; } p;
 layout(set = 0, binding = 0) writeonly buffer O { uint ids[]; };
 layout(set = 0, binding = 1) readonly buffer L { float logits[]; };
 layout(set = 0, binding = 2) readonly buffer A { uint after[]; };
@@ -38,6 +38,8 @@ void main() {
             id = uint(logits[at + 1u]);
             if (isnan(v)) continue;
         } else {
+            // The id skip is passed over as if the row lacked it (backend.hpp, argmax_rows); n where none is.
+            if (i == p.skip) continue;
             v = logits[base + i];
             if (isnan(v)) { nan = 1u; continue; }
         }

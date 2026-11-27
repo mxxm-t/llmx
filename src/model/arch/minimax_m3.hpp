@@ -280,13 +280,13 @@ public:
         const size_t E = size_t(cfg_.n_embd);
         s.b.rms_norm_rows(s.slot(h_rows), s.x, w[ffn_norm].slice(), s.rows, E, E, cfg_.rms_eps, s.runs);
         if (s.kind == dense) {
-            blocks::swiglu(s, w[ffn_gate], w[ffn_up], w[ffn_down], s.slot(h_rows), s.slot(gate_rows), s.slot(up_rows), s.slot(act_rows), glu_limit, backend::GluForm::quick_gelu);
+            blocks::swiglu(s, w[ffn_gate], w[ffn_up], w[ffn_down], s.slot(h_rows), s.slot(gate_rows), s.slot(up_rows), s.slot(act_rows), {glu_limit, backend::GluForm::quick_gelu});
             return;
         }
-        const blocks::SharedExpert shared{w[ffn_gate_shexp], w[ffn_up_shexp], w[ffn_down_shexp], nullptr, glu_limit, backend::GluForm::quick_gelu};
+        const blocks::SharedExpert shared{w[ffn_gate_shexp], w[ffn_up_shexp], w[ffn_down_shexp], nullptr, {glu_limit, backend::GluForm::quick_gelu}};
         blocks::moe_step(s, w[ffn_gate_inp], w[ffn_gate_exps], w[ffn_up_exps], w[ffn_down_exps], size_t(cfg_.n_expert_used),
                          backend::RouteRule::sigmoid(w[exp_probs_b].slice(), cfg_.expert_scale, true), s.slot(h_rows), s.slot(gate_rows), s.slot(up_rows), s.slot(act_rows),
-                         s.slot(router_scores), s.slot(expert_ids), s.slot(expert_weights), &shared, {}, nullptr, glu_limit, backend::GluForm::quick_gelu);
+                         s.slot(router_scores), s.slot(expert_ids), s.slot(expert_weights), &shared, {}, nullptr, {glu_limit, backend::GluForm::quick_gelu});
     }
 
     void head(const HeadStep& s) const override { blocks::head(s, s.w[output_norm], s.w[output], cfg_.rms_eps, s.slot(h_rows)); }

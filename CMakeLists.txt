@@ -85,13 +85,13 @@ if(LLMX_HAS_BACKEND_VULKAN)
     set(LLMX_VK_SHADERS copy_mxfp4 add sum_rows silu_mul gather_rows rms_norm_rows norm_rope_partial embed matmul_row
         kv_write attention attention_merge matmul_tile matmul_tile_wide norm_rope_kv attention_tile quantize_x
         quantize_xw matmul_tile_q matmul_reduce matmul_vec_q8 moe_route moe_combine moe_group moe_step_route moe_step_act expert_mark expert_wave expert_pull expert_round attention_vec
-        sigmoid_mul gated_rms_norm causal_conv_silu dilated_conv_silu_add delta_rule argmax_rows
+        sigmoid_mul gated_rms_norm causal_conv_silu dilated_conv_silu_add copy_rows softcap l2_clip query_mix tanh_gate_mix depthwise_ring attention_rel_sink ring_store delta_rule argmax_rows
         group_rms_norm silu_scaled mix_streams inject_streams signed_sqrt_gate
         kv_index_pool kv_index_scores_tile kv_index_select kv_index_select_wide add_bias gelu layer_norm_rows mix_rows hold flag_push flag_recv
         hc_coeffs hc_collapse_norm hc_expand sparse_softmax sparse_columns topk_rows compress_pool indexer_scores indexer_scores_tile raw_index_scores pool_write model_format_qdq route_biased
         unit_rows sigmoid_gate_rows matmul_at_ids chain_pick tap_weighted_rows)
     # A variant is the same source compiled with a define, "name=source=DEFINE"; the row kernel is one module per family of types, since one module for all of them raised every path's registers.
-    set(LLMX_VK_VARIANTS moe_route_s1=moe_route=LLMX_SLOTS1 moe_route_s2=moe_route=LLMX_SLOTS2 moe_route_s4=moe_route=LLMX_SLOTS4 moe_route_s8=moe_route=LLMX_SLOTS8
+    set(LLMX_VK_VARIANTS attention_rel_sink_tile=attention_rel_sink=LLMX_TILE moe_route_s1=moe_route=LLMX_SLOTS1 moe_route_s2=moe_route=LLMX_SLOTS2 moe_route_s4=moe_route=LLMX_SLOTS4 moe_route_s8=moe_route=LLMX_SLOTS8
         matmul_row_iq4_dot=matmul_row=LLMX_IQ4+LLMX_DOT+LLMX_PRESERVE_F32
         matmul_row_iq4_xs_dot=matmul_row=LLMX_IQ4+LLMX_IQ4_XS+LLMX_DOT+LLMX_PRESERVE_F32
         matmul_row_mxfp4=matmul_row=LLMX_MXFP4+LLMX_PRESERVE_F32

@@ -46,7 +46,7 @@ namespace spec {
 // The most drafts one draft holds; a longer draft than a pass takes is verified in passes, each taking the rest only where every draft before it was kept (generate).
 inline constexpr int kMaxDrafts = 1023;
 // The most rows one verify pass feeds, its last pick and 63 drafts: the rows a mark saves and the logits rows the pass holds, which the fit counts (docs/SPECULATIVE.md, section 3).
-inline constexpr size_t kVerifyRows = 64;
+using infer::kVerifyRows;
 // The rows a mark saves for verifies of up to `draft_max` drafts.
 inline size_t verify_rows(size_t draft_max) { return std::min(draft_max, kVerifyRows - 1) + 1; }
 

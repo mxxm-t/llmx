@@ -114,9 +114,9 @@ public:
                   {output_norm, Part::head, RoleKind::norm, "output_norm.weight", "", E},
                   {output, Part::head, RoleKind::matrix, "output.weight", "", E, p.vocab}};
         for (const infer::Role& role : p.pass) tensors.at(role.name);
-        blocks::shard(p.pass, output, Axis::rows, {{p.vocab, 1, 1, "vocabulary rows"}});
+        blocks::shard_vocab(p.pass, output, p.vocab);
         // The BF16 table is the first group's largest replicated tensor, so its rows split too, summed into the residual as the pass begins (docs/TENSOR-SPLIT.md, section 4.6).
-        blocks::shard(p.pass, token_embd, Axis::rows, {{p.vocab, 1, 1, "vocabulary rows"}});
+        blocks::shard_vocab(p.pass, token_embd, p.vocab);
         p.layers.resize(size_t(c.n_layer));
         for (int l = 0; l < c.n_layer; ++l) {
             const Layer& t = layers_[size_t(l)];
@@ -448,14 +448,14 @@ private:
     void ffn_body(const Step& s, const Weight* w, size_t used, float clamp_exp, float clamp_shexp, backend::RouteRule rule) const {
         hc_mix(s.b, cfg_, w[hc_ffn_fn], w[hc_ffn_scale], w[hc_ffn_base], s.x, s.slot(mixes), s.slot(pre_ffn), s.slot(post), s.slot(comb), s.slot(collapsed),
                s.slot(pre_attn), w[ffn_norm], s.rows, s.runs);
-        const blocks::SharedExpert shared{w[ffn_gate_shexp], w[ffn_up_shexp], w[ffn_down_shexp], nullptr, clamp_shexp};
+        const blocks::SharedExpert shared{w[ffn_gate_shexp], w[ffn_up_shexp], w[ffn_down_shexp], nullptr, {clamp_shexp}};
         // The routed and shared products accumulate from zero into the output, a member's partial rows on a group.
         Step out = s;
         out.x = s.width > 1 ? s.partial : s.slot(block_out);
         out.width = 1;
         blocks::moe_step(out, w[ffn_gate_inp], w[ffn_gate_exps], w[ffn_up_exps], w[ffn_down_exps], used,
                          rule, s.slot(collapsed), s.slot(gates), s.slot(ups),
-                         s.slot(acts), s.slot(scores), s.slot(picks), s.slot(pick_weights), &shared, {}, s.tables[zeros].get(), clamp_exp);
+                         s.slot(acts), s.slot(scores), s.slot(picks), s.slot(pick_weights), &shared, {}, s.tables[zeros].get(), {clamp_exp});
         if (s.width == 1) s.b.hc_expand(s.x, s.slot(block_out), s.x, s.slot(post), s.slot(comb), s.rows, size_t(cfg_.hc_count), size_t(cfg_.n_embd));
     }
 

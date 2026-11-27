@@ -34,7 +34,7 @@ SPILL_ALLOWED = {
     "llmx_iq4_nl_": "step 8, IQ4_NL",
     "llmx_q4_k_tile16": "staging 6, the 16-bit prompt K tile: 4 bytes on sm_90 at 80 registers since a row's lanes load their own step's scale and sums, one word stored before the main loop and reloaded a step, which no card has run (docs/STATUS.md, Prompt K tile staging 6)",
     "llmx_q5_k_tile16": "staging 6, the 16-bit prompt K tile: 4 bytes on sm_90 at 80 registers since a row's lanes load their own step's scale and sums, one word stored before the main loop and reloaded a step, which no card has run (docs/STATUS.md, Prompt K tile staging 6)",
-    "llmx_q4_k_tile8_tall":"change 3, the tall K tile: 4 bytes on sm_90 at two blocks an SM, one loop-invariant word reloaded a step, which the tall loop trim removes (docs/STATUS.md, CUDA prompt gap, change 3, second part, Left)",
+    "llmx_q4_k_tile8_tall": "change 3, the tall K tile: 4 bytes on sm_90 at two blocks an SM, one loop-invariant word reloaded a step, which the tall loop trim removes (docs/STATUS.md, CUDA prompt gap, change 3, second part, Left)",
     "llmx_q5_k_tile8_tall": "change 3, the tall K tile: 8 bytes on sm_90 at two blocks an SM, one loop-invariant pair reloaded a step, which the tall loop trim removes (docs/STATUS.md, CUDA prompt gap, change 3, second part, Left)",
     "llmx_q6_k_tile8_square": "the square K tile: 16 to 40 bytes at 255 registers, one block an SM, six loop-invariant words stored before the main loop and reloaded a step, which the square tile's trim removes (docs/STATUS.md, CUDA square K tile)",
     "llmx_q2_k_": "step 8, Q2_K's twin builds: up to 36 bytes, where the 256-thread bound lets ptxas trade them for a block an SM, and two blocks an SM spilled more and was not taken (docs/STATUS.md)",
@@ -54,6 +54,10 @@ SPILL_ALLOWED = {
     "llmx_matmul_rows_iq4_xs": "step 8, IQ4_XS's exact row build: 4 bytes on sm_120, where the 256-thread bound lets ptxas trade them for a block an SM, and two blocks an SM spilled more and was not taken (docs/STATUS.md)",
     "llmx_q8_0_half8_4": "step 4, first tuning on real shapes: the 4-column Q8_0 decode build spills 8 bytes on sm_70 at 80 registers under the 256-thread bound, which no card has timed (docs/STATUS.md)",
     "llmx_q8_0_half8_1r2s4": "step 4, first tuning on real shapes: the 1-column Q8_0 decode build with a 4-step split spills 8 bytes on sm_100 at 128 registers under the 256-thread bound, which no card has run (docs/STATUS.md)",
+    "llmx_attention_rel_sink": "Inkling-2-Mini's relative-position sink attention: 12 bytes on sm_86, sm_89 and sm_90 at 80 registers and 36 on sm_70, where ptxas trades them for a third block an SM; no card has run it, and its wave-32 head batch is tuned on the first (docs/INKLING2.md)",
+    "llmx_conv_ring": "Inkling-2-Mini's ring convolution builds: 4 to 52 bytes on sm_100, 16 on sm_70 and 132 in the query-mix build on sm_120, where ptxas holds 40 to 128 registers for blocks an SM; no card has run them (docs/INKLING2.md)",
+    "llmx_query_mix_norm": "Inkling-2-Mini's query mix: 4 bytes on sm_100 at 128 registers, where ptxas trades them for a second block an SM; no card has run it (docs/INKLING2.md)",
+    "llmx_matmul_normed_f32": "the normed F32 matmul's IEEE row scale: 24 bytes on sm_70 at 48 registers, where ptxas trades them for blocks an SM; no card of sm_70 has run it (docs/INKLING2.md)",
     "llmx_rms_norm_16_twin": "the held norm's 16-level twin builds: 8 bytes on sm_80 at its 32 registers since the norm's K reads issue before the first sum (docs/STATUS.md)",
 }
 
@@ -66,6 +70,8 @@ INT8_TILE_TYPES = ("q4_0", "q4_1", "q5_0", "q5_1", "iq4_nl", "mxfp4", "q4_k", "q
 # A type's 8-bit routed groups of up to 16 entries, and MXFP4's of up to 32, run in the stream (routed_stream), which is no tile and sums an entry's terms in block order on four-way dots.
 IMMA_KERNELS = ("llmx_q8_0_tile8", "llmx_q8_0_tile8_tall") + tuple(f"llmx_{t}_{b}8" for t in INT8_TILE_TYPES for b in ("tile", "routed_tile", "routed_mid") if (t, b) != ("mxfp4", "routed_mid")) + tuple(f"llmx_{t}_tile8_{b}" for t in ("q4_k", "q5_k", "q6_k") for b in ("tall", "square"))
 DP4A_KERNELS = ("llmx_q8_0_half8_1", "llmx_q4_k_rows8_1")
+# The F32 matmul kernels that take an RMS norm's 1 / sqrt of a row before their sums (kernels/f32.gpu).
+IEEE_SCALE = ("llmx_matmul_normed_f32",)
 # The tensor-core K tile's main loop at 128 outputs: most instructions per 4096 multiply-adds (one m16n8k32) from its back branch on every target, the most measured at toolkit 12.9 rounded up plus one (docs/CUDA.md, change 3).
 # Measured 26.7, 29.2 and 38.3 at 64 rows and 22.5, 23.3 and 33.2 in the square build over the fold's floors of about 18.5, 18.5 and 28.5, so a fold or staging regrowth fails; a ceiling drops with each trim.
 TALL_LOOP = {"llmx_q4_k_tile8_tall": 28, "llmx_q5_k_tile8_tall": 31, "llmx_q6_k_tile8_tall": 40, "llmx_q4_k_tile8_square": 24, "llmx_q5_k_tile8_square": 25, "llmx_q6_k_tile8_square": 35}
@@ -98,7 +104,7 @@ def spills(report):
 
 
 def local_objects(report):
-    """(kernel, target) pairs whose stack frame holds more than ptxas's spill stores: a local object, such as a copied parameter."""
+    """(kernel, target) pairs whose stack frame holds more than ptxas's spill stores rounded up to the frame's 16-byte alignment: a local object, such as a copied parameter."""
     out, arch, fn = set(), None, None
     for line in report.splitlines():
         m = re.search(r"Compiling entry function '(\w+)' for '(sm_\d+)'", line)
@@ -106,7 +112,7 @@ def local_objects(report):
             fn, arch = m.group(1), m.group(2)
             continue
         m = re.search(r"(\d+) bytes stack frame, (\d+) bytes spill stores", line)
-        if m and fn and int(m.group(1)) > int(m.group(2)):
+        if m and fn and int(m.group(1)) > -(-int(m.group(2)) // 16) * 16:
             out.add((fn, arch))
     return out
 
@@ -213,7 +219,8 @@ def main():
         matmul = [fn for fn in funcs if fn.startswith("llmx_matmul") and fn.endswith("_f32")]
         no_ffma = [fn for fn in matmul if not any("FFMA" in l for l in funcs[fn])]
         require(matmul and not no_ffma, f"{arch}: the {len(matmul)} F32 matmul kernels sum with FFMA" + (" (not " + ", ".join(no_ffma) + ")" if no_ffma else ""))
-        ftz = sorted(fn for fn in matmul if any(".FTZ" in l for l in funcs[fn]))
+        # ptxas lowers IEEE div.rn and sqrt.rn, in any form, with FADD, FMUL and FSETP .FTZ on operands it scaled into range, so IEEE_SCALE's row scales flush nothing; their FFMA sums stay held.
+        ftz = sorted(fn for fn in matmul if any(".FTZ" in l and (fn not in IEEE_SCALE or "FFMA" in l) for l in funcs[fn]))
         require(not ftz, f"{arch}: no F32 matmul kernel flushes subnormals" + (" (" + ", ".join(ftz[:8]) + ")" if ftz else ""))
         unheld = sorted(fn for fn in funcs if fn.endswith("_major") and fn not in takers)
         absent = sorted(takers - set(funcs))

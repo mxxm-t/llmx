@@ -1,0 +1,28 @@
+#version 450
+// A workgroup per (head, row): the head times its scale where has_scale, then times min(1, threshold / (norm + 1e-6)), then times row_scale[r] where has_row, in place.
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint dim; uint stride; float threshold; uint has_scale; uint has_row; } p;
+layout(set = 0, binding = 0) buffer X { float x[]; };
+layout(set = 0, binding = 1) readonly buffer S { float scale[]; };
+layout(set = 0, binding = 2) readonly buffer R { float row_scale[]; };
+shared float red[256];
+#include "tree_sum.glsl"
+void main() {
+    const uint h = gl_WorkGroupID.x, r = gl_WorkGroupID.y, t = gl_LocalInvocationID.x, base = r * p.stride + h * p.dim;
+    precise float ss = 0.0;
+    for (uint d = t; d < p.dim; d += 256u) {
+        float v = p.has_scale != 0u ? x[base + d] * scale[h * p.dim + d] : x[base + d];
+        ss = fma(v, v, ss);
+    }
+    red[t] = ss;
+    barrier();
+    const float c = min(1.0, p.threshold / (sqrt(tree_sum()) + 1e-6));
+    for (uint d = t; d < p.dim; d += 256u) {
+        float v = p.has_scale != 0u ? x[base + d] * scale[h * p.dim + d] : x[base + d];
+        v *= c;
+        if (p.has_row != 0u) v *= row_scale[r];
+        x[base + d] = v;
+    }
+}

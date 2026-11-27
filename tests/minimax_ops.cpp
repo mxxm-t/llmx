@@ -158,7 +158,7 @@ void quick_gelu() {
     for (float limit : {7.0f, 0.0f}) {
         const std::string name = "silu_mul quick_gelu at limit " + std::to_string(limit);
         cpu.set_threads(1);
-        cpu.silu_mul({ob.get(), 0}, {gb.get(), 0}, {ub.get(), 0}, n, limit, {}, backend::GluForm::quick_gelu);
+        cpu.silu_mul({ob.get(), 0}, {gb.get(), 0}, {ub.get(), 0}, n, {limit, backend::GluForm::quick_gelu});
         const std::vector<float> got = download(cpu, *ob, n);
         for (size_t i = 0; i < n; ++i) {
             double gd = g[i], ud = u[i];
@@ -175,7 +175,7 @@ void quick_gelu() {
         }
         for (int t : kThreads) {
             cpu.set_threads(t);
-            cpu.silu_mul({ob.get(), 0}, {gb.get(), 0}, {ub.get(), 0}, n, limit, {}, backend::GluForm::quick_gelu);
+            cpu.silu_mul({ob.get(), 0}, {gb.get(), 0}, {ub.get(), 0}, n, {limit, backend::GluForm::quick_gelu});
             require(same_or_nan(download(cpu, *ob, n), got), name + " at " + std::to_string(t) + " threads");
         }
     }

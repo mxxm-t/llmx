@@ -21,16 +21,22 @@
 #endif
 // 1 where the int8 class runs in one module on the four-way dot and the 8-bit integer tensor cores: never under HIP, whose dot module (LLMX_DOT16) and delta step rows (rows.h, dot8) take dot4_i8.
 #define GPU_IMMA8 0
+// 1 where a 32-bit word load needs a 4-byte aligned address: CUDA; HIP's global loads take 2-aligned words.
+#define GPU_WORD_ALIGN 0
 // 1 where the module has BF16 weights' TF32 and BF16 tensor-core prompt tiles (int16.gpu, bf16_tile): never under HIP, where BF16 prompts keep the exact F32 rows.
 #define GPU_FLOAT_MMA 0
 // The launch bounds of the dense int8 tiles, which HIP leaves at the block size so gfx9 keeps its code.
 #define LLMX_TILE8_BOUNDS(blocks) __launch_bounds__(kThreads)
 // The launch bounds of a block of `threads` held to `blocks` an SM, which HIP leaves at the block size (kernels/f32.gpu, LLMX_COLS).
 #define LLMX_BLOCK_BOUNDS(threads, blocks) __launch_bounds__(threads)
-// The one-shot group sum at five waves a SIMD, so the 16 blocks each of a 16-rank group stay resident together on one 60-compute-unit gfx906 (docs/src/backends-gpu.md).
-#define LLMX_ONE_SHOT_BOUNDS __launch_bounds__(kThreads) __attribute__((amdgpu_waves_per_eu(5)))
+// A block of `threads` held to the registers that keep `waves` waves a SIMD, 256 / waves on gfx9 (docs/src/backends-gpu.md).
+#define LLMX_WAVES_BOUNDS(threads, waves) __launch_bounds__(threads) LLMX_WAVES(waves)
+// A kernel held to the registers that keep `waves` waves a SIMD, beside launch bounds of its own; CUDA has no such bound.
+#define LLMX_WAVES(waves) __attribute__((amdgpu_waves_per_eu(waves)))
 // A kernel's by-value struct parameter, which HIP leaves as it is so gfx9 keeps its code.
 #define LLMX_GRID_CONST
+// A device helper CUDA must inline so its caller keeps no call frame; HIP inlines as it chooses, so gfx9 keeps its code.
+#define LLMX_FLAT
 
 // The value of lane (this lane xor m), or of lane (this lane + d), within groups of width lanes, the whole wave where no width is given.
 template <typename T> __device__ __forceinline__ auto shuffle_xor(T v, int m) { return __shfl_xor(v, m); }
@@ -60,11 +66,37 @@ template <int M, typename T> __device__ __forceinline__ auto lane_xor_swizzle(T 
     static_assert(__is_same(T, int) || __is_same(T, unsigned), "lane exchanges move a 32-bit integer's bits; a float goes through lane_xor");
     return __builtin_amdgcn_ds_swizzle(v, 0x1F | (M << 10));
 }
+// The value of lane (this lane xor M) for M = 7 or 8 by DPP within each row of 16 lanes: 0x141 is the half-row mirror (xor 7), 0x128 the row rotate by 8 (xor 8).
+template <int M, typename T> __device__ __forceinline__ auto lane_xor_row(T v) {
+    static_assert(M == 7 || M == 8, "row exchanges cover xor 7 and 8");
+    static_assert(__is_same(T, int) || __is_same(T, unsigned), "lane exchanges move a 32-bit integer's bits; a float goes through lane_xor");
+    return __builtin_amdgcn_mov_dpp(v, M == 7 ? 0x141 : 0x128, 0xF, 0xF, false);
+}
+// shuffle_down(v, H, 16) for lanes whose partner lies in their row of 16, by DPP row_shl:H with no LDS queue; a lane past its row keeps its own value, as the shuffle gives it.
+template <int H> __device__ __forceinline__ float row_down(float v) {
+    static_assert(H >= 1 && H <= 15, "row shifts cover 1 to 15 lanes");
+    return __int_as_float(__builtin_amdgcn_update_dpp(__float_as_int(v), __float_as_int(v), 0x100 | H, 0xF, 0xF, false));
+}
 
 // v of the first active lane, the same in every lane, so the compiler may keep it in a scalar register.
 template <typename T> __device__ __forceinline__ auto first_lane(T v) { return __builtin_amdgcn_readfirstlane(v); }
+// v of lane l, l the same in every lane (v_readlane_b32).
+__device__ __forceinline__ unsigned lane_at(unsigned v, unsigned l) { return (unsigned)__builtin_amdgcn_readlane((int)v, (int)l); }
+// The largest v over the wave: xor 1 and 2 by quad DPP, the half-row and row mirrors (0x141, 0x140), then each row of 16 lanes by readlane.
+__device__ __forceinline__ unsigned wave_umax(unsigned v) {
+    v = max(v, (unsigned)lane_xor_quad<1>(v));
+    v = max(v, (unsigned)lane_xor_quad<2>(v));
+    v = max(v, (unsigned)__builtin_amdgcn_mov_dpp((int)v, 0x141, 0xF, 0xF, false));
+    v = max(v, (unsigned)__builtin_amdgcn_mov_dpp((int)v, 0x140, 0xF, 0xF, false));
+    unsigned m = lane_at(v, 0);
+#pragma unroll
+    for (int r = 16; r < GPU_WAVE; r += 16) m = max(m, lane_at(v, r));
+    return m;
+}
 // A bit a lane of the wave, set where that lane's p is nonzero.
 __device__ __forceinline__ unsigned long long wave_ballot(int p) { return __ballot(p); }
+// Whether p is nonzero in every active lane of the wave.
+__device__ __forceinline__ bool wave_all(int p) { return __all(p); }
 
 // Bytes n to n + 3 of the 64-bit value hi:lo, lo the low word, n taken mod 4 (v_alignbyte).
 __device__ __forceinline__ unsigned byte_align(unsigned hi, unsigned lo, unsigned n) { return __builtin_amdgcn_alignbyte(hi, lo, n); }
@@ -102,11 +134,14 @@ template <typename P> __device__ __forceinline__ auto atomic_load_acquire_system
 template <typename P, typename V> __device__ __forceinline__ void atomic_store_relaxed_block(P p, V v) { __hip_atomic_store(p, v, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_WORKGROUP); }
 template <typename P, typename V> __device__ __forceinline__ void atomic_store_relaxed_system(P p, V v) { __hip_atomic_store(p, v, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_SYSTEM); }
 template <typename P, typename V> __device__ __forceinline__ void atomic_store_release_system(P p, V v) { __hip_atomic_store(p, v, __ATOMIC_RELEASE, __HIP_MEMORY_SCOPE_SYSTEM); }
+template <typename P, typename V> __device__ __forceinline__ auto atomic_add_acq_rel_block(P p, V v) { return __hip_atomic_fetch_add(p, v, __ATOMIC_ACQ_REL, __HIP_MEMORY_SCOPE_WORKGROUP); }
 // An acquire fence at device scope.
 __device__ __forceinline__ void fence_acquire_device() { __builtin_amdgcn_fence(__ATOMIC_ACQUIRE, "agent"); }
 // An acquire fence at system scope.
 __device__ __forceinline__ void fence_acquire_system() { __atomic_thread_fence(__ATOMIC_ACQUIRE); }
 __device__ __forceinline__ void wave_sync() { __syncthreads(); }   // a barrier where one wave is left, which on AMD is the block's
+// Shared memory one lane of a wave wrote, visible to the wave's other lanes: a wave runs its LDS operations in order, so only the compiler is held.
+__device__ __forceinline__ void lanes_sync() { __builtin_amdgcn_fence(__ATOMIC_RELEASE, "wavefront"); __builtin_amdgcn_wave_barrier(); __builtin_amdgcn_fence(__ATOMIC_ACQUIRE, "wavefront"); }
 // A grid barrier of resident blocks in three steps, each called by every thread: stores_sync before the arrive, grid_arrive and grid_wait by the whole first wave, acquire_sync after.
 // On gfx9 before gfx940 the barriers wait on LDS alone and the counter goes on the scalar path; elsewhere they are __syncthreads and device-scope atomics (docs/src/backends-gpu.md, port.h).
 #if defined(__GFX9__) && !defined(__gfx940__) && !defined(__gfx941__) && !defined(__gfx942__) && !defined(__gfx950__)
@@ -250,13 +285,29 @@ template <int M, typename T> __device__ __forceinline__ auto lane_xor_swizzle(T 
     static_assert(__is_same(T, int) || __is_same(T, unsigned), "lane exchanges move a 32-bit integer's bits; a float goes through lane_xor");
     return __shfl_xor_sync(LLMX_FULL_WARP, v, M);
 }
+template <int M, typename T> __device__ __forceinline__ auto lane_xor_row(T v) {
+    static_assert(M == 7 || M == 8, "row exchanges cover xor 7 and 8");
+    static_assert(__is_same(T, int) || __is_same(T, unsigned), "lane exchanges move a 32-bit integer's bits; a float goes through lane_xor");
+    return __shfl_xor_sync(LLMX_FULL_WARP, v, M);
+}
+template <int H> __device__ __forceinline__ float row_down(float v) { return __shfl_down_sync(segment_lanes(16), v, H, 16); }
 // The pair's exchange names the pair alone: the 8-bit rows hand a block's scale to the odd lane in a loop whose trip count differs between pairs, and a full-warp mask there is undefined.
 // It waits for every named lane, so lanes already past the loop met it from the wave sum's shuffles and both exchanged wrong values (docs/STATUS.md, CUDA backend step 4).
 template <typename T> __device__ __forceinline__ auto pair_lane(T v) { return __shfl_xor_sync(segment_lanes(2), v, 1); }
 // A group's exchange names the group alone: the delta rule sums a token's eight lanes in a branch the other tokens' lanes of the warp skip (docs/STATUS.md, CUDA backend step 5).
 template <int W, typename T> __device__ __forceinline__ auto group_xor(T v, int m) { return __shfl_xor_sync(segment_lanes(W), v, m, W); }
 template <typename T> __device__ __forceinline__ auto first_lane(T v) { return __shfl_sync(LLMX_FULL_WARP, v, 0); }
+__device__ __forceinline__ unsigned lane_at(unsigned v, unsigned l) { return __shfl_sync(LLMX_FULL_WARP, v, l); }
+__device__ __forceinline__ unsigned wave_umax(unsigned v) {
+#if __CUDA_ARCH__ >= 800
+    return __reduce_max_sync(LLMX_FULL_WARP, v);
+#else
+    for (int m = 16; m > 0; m /= 2) v = max(v, __shfl_xor_sync(LLMX_FULL_WARP, v, m));
+    return v;
+#endif
+}
 __device__ __forceinline__ unsigned long long wave_ballot(int p) { return __ballot_sync(LLMX_FULL_WARP, p); }
+__device__ __forceinline__ bool wave_all(int p) { return __all_sync(LLMX_FULL_WARP, p); }
 
 __device__ __forceinline__ unsigned byte_align(unsigned hi, unsigned lo, unsigned n) { return __funnelshift_r(lo, hi, (n & 3u) * 8u); }
 __device__ __forceinline__ unsigned bit_align(unsigned hi, unsigned lo, unsigned s) { return __funnelshift_r(lo, hi, s); }
@@ -277,6 +328,7 @@ __device__ __forceinline__ float dot2_f16(unsigned a, unsigned b, float s) {
 // Every CUDA target has the four-way dot (GPU_DOT4, above), and from sm_80 the 8-bit integer tensor cores, so the int8 class takes both in its one module.
 // Before sm_80 the tensor-core products below are four-way dots over exchanged fragments: the same wrapping int32 sums, slower.
 #define GPU_IMMA8 1
+#define GPU_WORD_ALIGN 1
 // From sm_80 the targets have TF32 and BF16 tensor cores: BF16 weights and binary16 activations both reach TF32 exactly, and BF16 weights are BF16 inputs as stored; older targets' modules lack the tiles.
 #define GPU_FLOAT_MMA (__CUDA_ARCH__ >= 800)
 // d = the 16 by 8 product of a (16 rows by 8 TF32 values) and b (8 values by 8 columns), summed from zero in F32 (mma m16n8k8 tf32).
@@ -295,10 +347,13 @@ __device__ __forceinline__ void mma_bf16(float (&d)[4], const unsigned (&a)[4], 
 }
 // The dense int8 tiles' blocks an SM: two hold a tile to 128 registers, which the tensor-core fragments pass otherwise (docs/STATUS.md, CUDA int8 tiles of every type on the tensor cores).
 #define LLMX_TILE8_BOUNDS(blocks) __launch_bounds__(kThreads, blocks)
+#define LLMX_WAVES_BOUNDS(threads, waves) __launch_bounds__(threads)
+#define LLMX_WAVES(waves)
 #define LLMX_BLOCK_BOUNDS(threads, blocks) __launch_bounds__(threads, blocks)
-#define LLMX_ONE_SHOT_BOUNDS __launch_bounds__(kThreads)
 // A kernel's by-value struct parameter read in place, since a kernel taking its address otherwise copies it to local memory (docs/STATUS.md, CUDA prompt gap).
 #define LLMX_GRID_CONST const __grid_constant__
+// A device helper inlined into its caller, whose call frame and argument copies otherwise spill a register-bound kernel.
+#define LLMX_FLAT __attribute__((always_inline))
 // d += the 16 by 8 product of a (16 rows by 32 signed bytes) and b (32 signed bytes by 8 columns), exact in wrapping int32 (mma m16n8k32 s8).
 // Lane l holds a's rows l / 4 and l / 4 + 8 at words l % 4 and l % 4 + 4, b's column l / 4 at the same words, and d's rows l / 4 and l / 4 + 8 at columns 2 * (l % 4) and the next.
 __device__ __forceinline__ void mma_s8(int (&d)[4], const int (&a)[4], const int (&b)[2]) {
@@ -393,6 +448,7 @@ __device__ __forceinline__ void fence_acquire_system() { asm volatile("fence.acq
 // The grid barrier's steps (the HIP section has their contract).
 __device__ __forceinline__ void lds_sync() { __syncthreads(); }
 __device__ __forceinline__ void wave_sync() { __syncwarp(); }   // a barrier where one warp is left; exited warps are no part of __syncthreads' contract
+__device__ __forceinline__ void lanes_sync() { __syncwarp(); }   // shared memory one lane of a warp wrote, visible to the warp's other lanes
 __device__ __forceinline__ void stores_sync() { __threadfence(); __syncthreads(); }
 __device__ __forceinline__ void grid_arrive(unsigned* bar) { if (threadIdx.x == 0) atomicAdd(bar, 1u); }
 __device__ __forceinline__ void grid_wait(unsigned* bar, unsigned target) {

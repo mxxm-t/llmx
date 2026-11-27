@@ -67,7 +67,7 @@ After 16384 tokens of context Qwen3.5-9B Q4_K_M chose another token than the HF 
 
 A file that declares YaRN (`rope.scaling.type` `yarn` with its factor and `rope.scaling.original_context_length` under the architecture's prefix) runs it as declared, at the context the file gives; a Hugging Face directory's `rope_scaling` of type `yarn` is read into the same keys, and its `attention_factor`, `mscale` and `mscale_all_dim` are refused by name.
 `--yarn F` makes the rope YaRN at factor F (a number above 1) on any model llmx runs, replacing a declared factor, and the model context becomes floor(F x L0), L0 being `--yarn-original-ctx N` (a token count, `32k` = 32768), else the file's declared original length, else the file's context; `--yarn-original-ctx` is refused without `--yarn`, and past the file's context.
-`--ctx-size` keeps its rule, at most the model context, and never changes the rope. `--yarn` applies to every model a command loads, a draft model beside it and a DFlash or DSpine sidecar's drafter included.
+`--ctx-size` keeps its rule, at most the model context, and never changes the rope. `--yarn` applies to every model a command loads, a draft model beside it and a DFlash or DSpine sidecar's drafter included. A model with no rope, Inkling-2, refuses both flags.
 YaRN changes only the rope tables: each pair's frequency is blended between the plain and the interpolated one along HF's ramp (`beta_fast` 32 and `beta_slow` 1, or the file's `rope.scaling.yarn_beta_fast` and `yarn_beta_slow`), and the tables are scaled by HF's attention factor 0.1 ln(F) + 1; no kernel changes, and the vision encoder's rope is not scaled.
 DeepSeek-V4.1 declares YaRN on its compressed layers only and scales no table by an attention factor, as its reference does; `--yarn` replaces those layers' factor and original length, and its window layers keep the unscaled rope.
 YaRN applies at every position, as in HF, so it changes outputs at short context too.
@@ -82,7 +82,7 @@ A file's `rope.scaling.attn_factor`, `yarn_ext_factor`, `yarn_attn_factor` and `
 - A model file is a GGUF v3 container (see `docs/src/format-gguf.md`).
   `generate`, `chat`, `logits`, `perplexity`, `bench --model`, `serve`, `info`, `tokenize` and `detokenize` also take a Hugging Face model directory (`config.json`, `*.safetensors` with or without `model.safetensors.index.json`, `tokenizer.json`, `tokenizer_config.json`), read as the GGUF file the converter writes from it would be; today dense Qwen3 and dense Qwen 3.5 and 3.6 (`Qwen3_5ForConditionalGeneration`, its text model only, the vision tower left unread) in F32, F16 or BF16 (`docs/src/inference-directory.md`).
   `quantize` and `dequantize`, a `--drafter` file and an `--mmproj` file stay GGUF only.
-- Every command that reads a model's tokenizer refuses a file that names a `tokenizer.ggml.model` other than `gpt2` or a `tokenizer.ggml.pre` other than `qwen2`, `qwen35`, `joyai-llm` or `minimax-m2`, the byte-level BPE with Qwen2, Qwen3.5, DeepSeek-V4.1 and MiniMax-M3.1 pretokenization that llmx implements.
+- Every command that reads a model's tokenizer refuses a file that names a `tokenizer.ggml.model` other than `gpt2` or a `tokenizer.ggml.pre` other than `qwen2`, `qwen35`, `joyai-llm`, `minimax-m2` or `inkling2`, the byte-level BPE with Qwen2, Qwen3.5, DeepSeek-V4.1, MiniMax-M3.1 and o200k (Inkling-2) pretokenization that llmx implements.
   A key the file omits is not checked.
 - Text arguments containing spaces must be quoted so they arrive as one argv
   element (`"The capital of France is"`).
@@ -359,7 +359,7 @@ Flags:
 | `--yarn-original-ctx N` | the trained length `--yarn` scales from (Rope scaling, above) |
 | `--threads N`   | worker thread count (0 = auto)                 |
 | `-tb`, `--threads-batch N` | threads for batched passes (omitted or 0: `--threads`); refused with `--per-token`, which scores on `--threads` |
-| `--ubatch N`    | tokens per batched pass (default 512, 2048 with `--expert-cache`) |
+| `--ubatch N`    | tokens per batched pass (default: the device's where memory allows, else 512, 2048 with `--expert-cache`; Physical batch, below) |
 | `--kv-tokens N` | KV cache tokens, in whole blocks, backed at load (default the model context; fitted as `llmx serve`, below, gives) |
 | `-ctk`, `--cache-type-k T` / `-ctv`, `--cache-type-v T` | KV cache storage per side, `f16` (default) or `f32`, or `native` where the model declares a format (its default there) |
 | `--device D`    | backend: `cpu`, or `vulkan:N`, `rocm:N` or `cuda:N` in a build with it |
@@ -476,7 +476,7 @@ A group runs the mixture-of-experts models too (`qwen3moe`, `qwen35moe`): every 
 Where an expert's hidden width over the group's width is not whole quant blocks of its down stack (256 values in a K-quant), each device holds the whole blocks that cover its even share, so every such file runs at widths 2 and 4 at the price of memory and of expert work: Qwen3-30B-A3B in a K-quant (768 an expert) holds two of an expert's three blocks on each device at width 2, 4/3 of the experts' bytes over the group, and Qwen3.6-35B-A3B in a K-quant at width 4 one of its two blocks on each, twice the bytes; the fit counts it.
 Expert offload (`--n-cpu-moe`, `--cpu-moe`) is refused with a tensor width.
 MiniMax-M3.1 is refused at any width above 1, as a model whose roles split none.
-Refused before a model file is read: a list that is not whole groups, a width above 16, a share count other than the groups and a group of devices of different kinds; refused once the model is read: a width that does not divide its heads, KV heads (or is not a multiple of them), K or V heads or vocabulary rows, and a dense block's column split off whole quant blocks. A group whose devices share no memory or semaphores on the platform, as on Windows, is refused there too, once the file's headers are read.
+Refused before a model file is read: a list that is not whole groups, a width above 16, a share count other than the groups and a group of devices of different kinds; refused once the model is read: a width that does not divide its heads, KV heads (or is not a multiple of them), or K or V heads, one above its vocabulary rows (a width that does not divide them splits them unevenly), and a dense block's column split off whole quant blocks. A group whose devices share no memory or semaphores on the platform, as on Windows, is refused there too, once the file's headers are read.
 A device is listed once, so the command line forms groups of Vulkan devices, whose sum crosses the cards through dma-buf and sync files on Linux, or of ROCm devices, whose sum each member's kernel pushes into its peers' memory; a backend without a sum across its devices on this build or platform, the Vulkan backend on Windows, is refused naming it.
 A group may span PCI root complexes, which cost its sums the same on the machines measured; where a command prints its placement (`serve`, `bench --model`, and any command with `--verbose`) each group's devices are printed with their roots, and where the listed devices allow every group under one root a line says which order gives that; a group whose devices cannot share memory or semaphores is refused, naming each device and its root.
 Measured figures for groups of MI50s, against the layer split and by user count and precision, are in docs/STATUS.md (Tensor groups serving, and Llmx against the reference in the same topology, which names each shape and the precision), which also lists the cells still open against the speed gate.
@@ -518,7 +518,7 @@ use nearly every expert, and the work grows with the prompt. The CPU meets
 a prompt's rows with each expert's weights unpacked once for all of them,
 which is usually fast enough. `--moe-stream-from N` (default 0, never) runs such a layer on the device
 instead for a prompt of at least `N` tokens, its experts copied there
-once per pass of up to `--ubatch` tokens, 512 by default. A layer whose streamed weights include a
+once per pass of up to `--ubatch` tokens (Physical batch, below). A layer whose streamed weights include a
 type or an op the device cannot execute stays on the CPU, and the load says so on stderr, as `streamed experts: the device lacks X, so these layers run their experts on the host: L, ...`; eligible layers still stream, and `--expert-cache` keeps such a layer home the same way.
 A weight type unsupported by its assigned home backend is refused at load,
 before weight adoption or model buffer allocation. A tensor no model role uses
@@ -597,6 +597,10 @@ in the CLI there is one sequence and no queue, so the prompt is the batch.
 `llmx serve` merges tokens from different sequences into one pass. Its
 `--ubatch` budgets prompt and replay work beside the selected decode rows,
 so a pass can hold up to `--ubatch` plus `--max-seqs` rows (`docs/SERVER.md`).
+
+Without `--ubatch`, a command other than `serve` takes the chunk its devices prefer where the whole request still fits at it, and 512 otherwise: 2048 on an MI50 under ROCm, where it read Inkling-2-Mini's prompts 14 to 19 percent faster than 512, and 512 on the CPU, Vulkan and other devices.
+The larger chunk never costs KV tokens, checkpoints or marks; where memory is short of the whole request at it, the command keeps 512.
+`serve` keeps 512 unless `--ubatch` is given.
 
 For a CLI prompt, scratch grows to the smaller of `--ubatch` and that prompt.
 The server reserves its pass capacity at startup, including decode rows.
@@ -1290,6 +1294,7 @@ The 4096 timed ops cover about 14 of the 0.6B's decode tokens and 6 of the 35B's
 Rank kernels by `--profile`, reading small decode kernels as a few microseconds high; the Vulkan profile, which times inside the command buffer, has no such cost and no cap.
 These figures are ROCm's; CUDA times its ops the same way and has not been measured against a trace.
 The driver's statistics after the sections are Vulkan's alone.
+The decode section then gives the time a pass held the host in the backends, summed over the devices: waiting on tickets, for a free command slot and for staging, and writing uploads (`profile tg: host held per pass`).
 Each stage then gets a line of its recordings in the run (`profile pp, stage 1`): how often one started, how many received the residual behind a device-side wait with no host wait or write (MULTI-DEVICE.md, Execution structure), and the host's time in each, apart its wait for the residual's sending stage, its write of the residual into its device and the rest, recording and submitting, with when the residual reached it after the pass's first stage began.
 
 After the `pp` line, `bench: ppN slices` gives the slices each timed prompt was read in, each with that prompt's rate; a pipelined layer split chooses them by the period it measured on its earlier prompts, so the first prompts may take other slices than later ones.

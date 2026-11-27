@@ -46,6 +46,29 @@ class Rows(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "cut short"):
                 reference.read_routes(path)
 
+    def test_follower_takes_ties_counts_the_rest_and_reads_calls_in_chunks(self):
+        try:
+            import torch
+        except ImportError:
+            self.skipTest("torch required by the route follower")
+        from array import array
+        import minimax_file_reference as reference
+        # Three experts, k 1; row 0 ties experts 0 and 1 exactly, row 1 differs by far more than the margin; the call comes in two chunks of one row.
+        logits = torch.tensor([[0.5, 0.5, -3.0], [2.0, 0.0, -3.0]])
+        routes = {7: (array("I", [1, 1]), array("f", logits.flatten().tolist()), 1, 3)}
+        follower = reference.RouteFollower(torch, routes, 4, eps=0.0, scale=2.0)
+        bias = torch.zeros(3)
+        for r in range(2):
+            row = logits[r:r + 1]
+            out = follower.follow(7, 1, bias, (row, follower.weigh(torch.sigmoid(row), torch.tensor([[0]])), torch.tensor([[0]])))
+            self.assertEqual(out[2].tolist(), [[1]] if r == 0 else [[0]])
+            self.assertEqual(out[1].tolist(), [[2.0]])
+        summary = follower.summary()
+        self.assertEqual((summary["followed"], summary["exact_ties"], summary["beyond"], summary["first_differing_position"]), (1, 1, 1, 0))
+        self.assertEqual(summary["weights_deviation"], 0.0)
+        with self.assertRaisesRegex(ValueError, "took 0"):
+            reference.RouteFollower(torch, routes, 4).summary()
+
 
 class PinnedHF(unittest.TestCase):
     @classmethod

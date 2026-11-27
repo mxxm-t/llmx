@@ -566,6 +566,11 @@ int main() {
         GpuBackend<FakeApi> first(0, false), second(1, false);
         require(second.identity() == first.identity(), "another index of the same device gives the same identity: " + second.identity());
     }
+    // The duel that keeps a wrap, pulls or copies: host copies need 0.7 of the best kernel form's median, the wrap 0.9, since a pass also makes host copies wait on host events their timing does not see.
+    require(!duel_keeps(GpuSumForm::pulls, 0.8, 1.0) && !duel_keeps(GpuSumForm::pulls, 1.0, 1.0) && !duel_keeps(GpuSumForm::copies, 0.75, 1.0), "pulls and copies that win a duel by less than the host margin are not kept");
+    require(duel_keeps(GpuSumForm::pulls, 0.6, 1.0) && duel_keeps(GpuSumForm::copies, 0.7, 1.0), "pulls and copies that win a duel by more than the host margin are kept");
+    require(duel_keeps(GpuSumForm::wrap, 0.85, 1.0) && !duel_keeps(GpuSumForm::wrap, 0.95, 1.0), "the wrap keeps its own margin");
+    require(dueled(GpuSumForm::pulls) && dueled(GpuSumForm::copies) && dueled(GpuSumForm::wrap) && !dueled(GpuSumForm::shares) && !dueled(GpuSumForm::one_shot) && !dueled(GpuSumForm::chain), "only the wrap, pulls and copies are dueled");
     // A device whose architecture the build left out is refused with its architecture and the build option that adds it.
     fake.no_binary = true;
     std::string refusal;

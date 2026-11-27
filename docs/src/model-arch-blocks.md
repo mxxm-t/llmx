@@ -13,20 +13,23 @@ run them.
 
 - `routed_ops(layer, tensors, gate, up)`: finds the two declared roles by id and adds, for the part the gate role runs in (the feed-forward part, or an embedded drafter's), the `routed_experts` requirement and, when both tensors exist with differing storage types, the `mixed_experts` one. The down projection is separate. Missing tensors stay with the runtime's existing resolution errors; this helper performs no schema validation.
 - `shard(roles, id, axis, sections)`: declares role `id`'s split over a tensor group (`Role::shard`, [shard](model-shard.md)); a role the list lacks is the plan's error.
+- `shard_vocab(roles, id, vocab)`: declares role `id` split by its vocabulary rows, unevenly where a width does not divide them; every head and DeepSeek-V4.1's split embedding take it.
   `shard_swiglu(roles, gate, up, down, ff)`: the SwiGLU block's split, the gate and up projections by their `ff` rows and the down projection by as many columns.
   `shard_experts(roles, tensors, gate, up, down, ff, experts)`: a routed layer's split, the gate and up stacks by the `ff` rows of each expert and the down stack by as many columns, the router whole; each section carries the down stack's block size as its alignment, read from the tensor, so a member holds the blocks that cover its share ([shard](model-shard.md)); a shared expert is split by the same call as one expert.
 - `join(step, weight, in)`: a part's last projection, whose output joins the residual: `matmul_add` into the residual on one device, and on a tensor group the member's partial rows into `Step::partial`, which the runtime sums into every member's residual; `swiglu`'s down projection and the modules' attention and `ssm_out` projections go through it.
 - `projection(weight, out)`: a weight's product into `out` for
-  `matmul_group` and `matmul_experts`, the buffer passed by raw pointer so
+  `matmul_group` and `matmul_experts`, a stack's run of rows as the
+  projection's `first` and `pitch` window, the buffer passed by raw pointer so
   building one copies no shared pointer on the per-token path.
 - `embed(step, table, ids[, x])`: the table's rows the ids name, into the
   residual or `x`; the step's fed runs (`Step::fed`) take their rows by the ids a device holds (`embed_ids`), and a step whose rows are all fed embeds no host ids.
-- `swiglu(step, gate, up, down, h, g, u, act, limit, form)`: the dense SwiGLU
+- `swiglu(step, gate, up, down, h, g, u, act, glu)`: the dense SwiGLU
   feed-forward block over the normed rows `h`: gate and up grouped through
   `matmul_group`, `silu_mul` with its clamp `limit` and GLU `form` (0 and `silu` by default, MiniMax-M3.1's quick_gelu under 7), and the down projection joining the residual
   through `join`, with the step's runs throughout.
-- `SharedExpert`: a routed layer's shared expert, its gate, up and down weights and the F32 vector gating its row, null for an ungated one, and its GLU's limit and form.
-- `moe_step(step, router, gate, up, down, k, rule, h, g, u, act, scores, ids, weights, shared, row_gate, zero, limit, form)`: a routed layer's feed-forward block as one backend op, `Backend::moe_step` ([backend](backends-backend.md)): the router's scores, each row's k experts picked and weighted by `rule` (`RouteRule`), their SwiGLU clamped at `limit` (0 for none, as `SharedExpert::limit` for the shared one) in GLU `form` (`silu` by default, as `SharedExpert::form`) and weighted down projections, then `shared`'s SwiGLU scaled by sigmoid of its row gate into `row_gate`, all joining the residual, or on a tensor group the member's partial rows, which the step clears from `zero`, or else from the step's own row of zeros (`Step::zero`), as it starts.
+- `SharedExpert`: a routed layer's shared expert, its gate, up and down weights and the F32 vector gating its row, null for an ungated one, and its GLU (`backend::Glu`).
+- `report_routes(step, k, ids, scores, n_expert)`: a routed step's picks and router scores read back and handed to the step's route hook (`ModelOptions::routes`), which only a probe sets; `moe_step` and the inkling2 module call it after their routed op.
+- `moe_step(step, router, gate, up, down, k, rule, h, g, u, act, scores, ids, weights, shared, row_gate, zero, glu)`: a routed layer's feed-forward block as one backend op, `Backend::moe_step` ([backend](backends-backend.md)): the router's scores, each row's k experts picked and weighted by `rule` (`RouteRule`), their GLU `glu` (`backend::Glu`, unclamped SiLU by default, as `SharedExpert::glu` for the shared one) and weighted down projections, then `shared`'s SwiGLU scaled by sigmoid of its row gate into `row_gate`, all joining the residual, or on a tensor group the member's partial rows, which the step clears from `zero`, or else from the step's own row of zeros (`Step::zero`), as it starts.
   With `Step::routes` set it then reads the step's expert ids and router scores back to the host and hands them to the hook, a wait in the pass that only a tool asks for.
   `g`, `u` and `act` hold a token's k routed rows and, past `rows * k` of them, the shared expert's rows, so the slots are as wide as both (the modules' slot widths); `zero`, a row of zeros the model keeps, has the step clear the residual first, as qwen4exp's expert block starts from zero.
   It builds the op's operands from the weights and the step's run list (`Step::scratch`, where the base op rebuilds the routed SiLU's runs) and calls the backend once; qwen3moe, qwen35moe and qwen4exp run it.

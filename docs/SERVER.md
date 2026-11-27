@@ -348,16 +348,17 @@ The mask changes the draw, not the logits row: whatever reads the row reads the 
 ### Device argmax
 
 A request whose draw is its row's argmax alone (`infer::plain_argmax`: greedy and no penalty, with or without `ignore_eos`) and that asks no log-probabilities marks its entry `BatchEntry::argmax`, and a pass all of whose wanting entries are marked keeps their logits rows on the output device, which finds each row's argmax id; only the ids cross to the host (`Model::argmax_pass`, `Model::pass_argmax_id`).
-The id is the draw wherever the draw can take it (`infer::argmax_drawn`); where it is the end token `ignore_eos` masks, or the device's sentinel for a row whose largest logit is not finite or that holds a NaN, the scheduler reads that row back (`Model::pass_logits`) and the sampler draws from it, so every pick is the host draw's.
+Under `ignore_eos` the entry names the end token as the id its argmax passes over (`BatchEntry::skip`, `Backend::argmax_rows`), so the device's id is the masked draw's and a fed pass behind it embeds that id; no row is read back for it.
+The id is the draw wherever the draw can take it (`infer::argmax_drawn`); where it is the device's sentinel for a row whose largest logit is not finite or that holds a NaN, the scheduler reads that row back (`Model::pass_logits`) and the sampler draws from it, so every pick is the host draw's.
 A pass with any other entry, a tensor group's head, a CPU head and a scheduler with an observer of the rows (`Scheduler::on_retire`) keep the rows on the host.
 `serve` places the model with room on the output device for every logits row its passes keep (`ModelOptions::argmax_rows`), and `/v1/health` counts the rows drawn as plain argmax, those drawn from the device's id and those read back (`passes.since_start.argmax_rows`, `.argmax_ids`, `.argmax_reads`).
 
 ### Fed decode
 
-On one stage whose model feeds (`Model::feeds`: one device, no tensor group, no drafter, no recurrent state), a scheduler started without `--passes` keeps a second slot, and `serve` keeps logits rows for two passes.
-A quiet round, in which every active request decodes by device argmax in the one pass in flight and nothing is queued, paused, stalled or chained, forms that pass's next decode pass at once (`Scheduler::form_fed`): each entry reads its id from the earlier pass's argmax on the device (`BatchEntry::fed_slot`), so the device has the next pass queued while the host waits for and draws the earlier one.
+On one stage whose model feeds (`Model::feeds`: one device or one tensor group whose members each hold the whole embedding, no drafter, no recurrent state but rings a rollback by length undoes), a scheduler started without `--passes` keeps a second slot, and `serve` keeps logits rows for two passes.
+A quiet round, in which every active request decodes by device argmax in the one pass in flight and nothing is queued, paused, stalled or chained and no cache work is due, forms that pass's next decode pass at once (`Scheduler::form_fed`): each entry reads its id from the earlier pass's argmax on the device (`BatchEntry::fed_slot`), so the device has the next pass queued while the host waits for and draws the earlier one.
 The fed pass retires a round after the pass that feeds it (`round_steps`); a request whose draw there kept another id than the device's, took none or ended has a void row in the fed pass, which is not drawn and leaves its history (`Model::retract`), so the request's next pass is formed on the host as before and every reply is the one an unfed pass gives.
-A request admitted, queued or with prompt rows ends the chain within a round, and `/v1/health` counts the fed passes (`passes.since_start.fed`).
+A request admitted, queued or with prompt rows ends the chain within a round, and so does cache work due, since a read-ahead job enters only while its source sequence is idle (`Cache::enter`), and `/v1/health` counts the fed passes (`passes.since_start.fed`).
 
 ### Drafts
 

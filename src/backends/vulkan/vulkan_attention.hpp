@@ -128,7 +128,8 @@ inline void VulkanBackend::kv_write(size_t layer, const KVView* views, size_t n_
 
 // Every view of the batch through the view table: one tiled dispatch at most, and a per-row dispatch for each grouping the views take, each with a merge when it splits histories.
 inline void VulkanBackend::attention(CSlice Q, size_t layer, const KVView* views, size_t n_views, Slice out,
-                                     int n_head, int n_head_kv, int head_dim) {
+                                     int n_head, int n_head_kv, int head_dim, const AttentionTerms* terms) {
+    if (terms) throw std::runtime_error("vulkan: attention terms (inkling-core step 3c)");
     if (n_head <= 0 || n_head_kv <= 0 || n_head % n_head_kv != 0 || head_dim <= 0 || !attention_head_fits((size_t)head_dim, dev_->caps.subgroup_size))
         throw std::runtime_error("vulkan: invalid attention dimensions");
     std::vector<Placed> placed = place_views(views, n_views);

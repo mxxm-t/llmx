@@ -60,6 +60,13 @@ inline void shard(std::vector<Role>& roles, uint16_t id, Axis axis, std::vector<
     throw std::logic_error("inference: no role to split with id " + std::to_string(id));
 }
 
+// Role `id` split by its `vocab` vocabulary rows, unevenly where a width does not divide them, as a head or a split embedding is.
+inline void shard_vocab(std::vector<Role>& roles, uint16_t id, uint64_t vocab) {
+    ShardSection rows{vocab, 1, 1, "vocabulary rows"};
+    rows.uneven = true;
+    shard(roles, id, Axis::rows, {rows});
+}
+
 // A routed layer's split: each expert's hidden rows, the gate and up stacks by the `ff` rows of each of their `experts` matrices and the down stack by as many columns, the shared expert likewise as one expert; the router stays whole.
 // The down stack splits on whole blocks of its type, so a member holds the blocks covering its share and its gate and up stacks a row for each covered column, zero where another member owns it (ShardSection::align).
 inline void shard_experts(std::vector<Role>& roles, const TensorIndex& tensors, uint16_t gate, uint16_t up, uint16_t down, uint64_t ff, uint64_t experts) {
@@ -82,7 +89,9 @@ inline void shard_swiglu(std::vector<Role>& roles, uint16_t gate, uint16_t up, u
 
 // A weight's product into `out`, the buffer passed by raw pointer, not by handle, so building one copies no shared pointer on the per-token path.
 inline backend::Projection projection(const Weight& w, backend::Slice out) {
-    return {w.operand(), out, w.nout};
+    backend::Projection p{w.operand(), out, w.nout};
+    p.first = w.first, p.pitch = w.pitch;
+    return p;
 }
 
 // A part's last projection, whose output joins the residual: added to it on one device, and on a tensor group written as the member's partial rows, which the runtime sums into every member's residual (Step::partial).
@@ -103,11 +112,10 @@ inline void embed(const Step& s, const Weight& table, const uint32_t* ids, backe
 inline void embed(const Step& s, const Weight& table, const uint32_t* ids) { embed(s, table, ids, s.x); }
 
 // The SwiGLU feed-forward block over the normed rows `h`: the residual gains down(silu(gate h) * up h), through the slots `g`, `u` and `act`, each as wide as the block.
-// `limit` and `form` are silu_mul's clamp and GLU form, SiLU or quick_gelu.
+// `glu` is silu_mul's GLU, SiLU or quick_gelu with its clamp.
 inline void swiglu(const Step& s, const Weight& gate, const Weight& up, const Weight& down, backend::Slice h, backend::Slice g, backend::Slice u, backend::Slice act,
-                   float limit = 0.0f, backend::GluForm form = backend::GluForm::silu) {
-    s.b.matmul_group({projection(gate, g), projection(up, u)}, h, gate.nin, s.rows, s.runs, s.dtype);
-    s.b.silu_mul(act, g, u, s.rows * gate.nout, limit, s.runs, form);
+                   backend::Glu glu = {}) {
+    s.b.glu_products(projection(gate, g), projection(up, u), act, glu, h, gate.nin, s.rows, s.runs, s.dtype);
     join(s, down, act);
 }
 
@@ -115,32 +123,34 @@ inline void swiglu(const Step& s, const Weight& gate, const Weight& up, const We
 struct SharedExpert {
     const Weight &gate, &up, &down;
     const Weight* row_gate;
-    float limit = 0.0f;  // the SwiGLU clamp, 0 for none
-    backend::GluForm form = backend::GluForm::silu;
+    backend::Glu glu = {};
 };
 
-// Routed experts over the normed rows `h` as one backend op (Backend::moe_step), picked by `rule`, clamped at `limit` in GLU `form`, then `shared` gated into `row_gate`, joining the residual or a member's partial rows.
+// A routed step's picks and router scores handed to the route hook (ModelOptions::routes), read back after the step; only a probe sets the hook, so the read's wait is never on a served pass.
+inline void report_routes(const Step& s, size_t k, backend::Slice ids, backend::Slice scores, size_t n_expert) {
+    if (!s.routes) return;
+    std::vector<uint32_t> picked(s.rows * k);
+    std::vector<float> logits(s.rows * n_expert);
+    s.b.read(*ids.buffer, ids.offset * sizeof(float), picked.data(), picked.size() * sizeof(uint32_t));
+    s.b.read(*scores.buffer, scores.offset * sizeof(float), logits.data(), logits.size() * sizeof(float));
+    (*s.routes)(s.layer, s.rows, k, picked.data(), n_expert, logits.data());
+}
+
+// Routed experts over the normed rows `h` as one backend op (Backend::moe_step), picked by `rule`, through the GLU `glu`, then `shared` gated into `row_gate`, joining the residual or a member's partial rows.
 // `g`, `u` and `act` hold k routed rows a token and the shared expert's after rows * k of them; `zero`, a row of zeros, clears the residual first, and a member's partial rows are cleared from the step's own.
 inline void moe_step(const Step& s, const Weight& router, const Weight& gate, const Weight& up, const Weight& down, size_t k, const backend::RouteRule& rule,
                      backend::Slice h, backend::Slice g, backend::Slice u, backend::Slice act, backend::Slice scores, backend::Slice ids, backend::Slice weights,
-                     const SharedExpert* shared = nullptr, backend::Slice row_gate = {}, const backend::Buffer* zero = nullptr, float limit = 0.0f,
-                     backend::GluForm form = backend::GluForm::silu) {
+                     const SharedExpert* shared = nullptr, backend::Slice row_gate = {}, const backend::Buffer* zero = nullptr, backend::Glu glu = {}) {
     const size_t routed = s.rows * k * gate.nout;
     const auto past = [&](backend::Slice slot) { return backend::Slice{slot.buffer, slot.offset + routed}; };
     backend::MoeShared sh{};
     if (shared)
         sh = {projection(shared->gate, past(g)), projection(shared->up, past(u)), shared->down.operand(), past(act),
-              shared->row_gate ? projection(*shared->row_gate, row_gate) : backend::Projection{}, shared->limit, shared->form};
+              shared->row_gate ? projection(*shared->row_gate, row_gate) : backend::Projection{}, shared->glu};
     const backend::MoeStep m{projection(router, scores), k, rule, ids, weights, projection(gate, g), projection(up, u), down.operand(), act,
-                             shared ? &sh : nullptr, zero ? zero : s.width > 1 ? s.zero : nullptr, s.scratch, limit, form, s.experts};
+                             shared ? &sh : nullptr, zero ? zero : s.width > 1 ? s.zero : nullptr, s.scratch, glu, nullptr, s.experts};
     s.b.moe_step(m, h, s.width > 1 ? s.partial : s.x, router.nin, s.rows, s.runs, s.dtype);
-    if (s.routes) {
-        std::vector<uint32_t> picked(s.rows * k);
-        std::vector<float> logits(s.rows * router.nout);
-        s.b.read(*ids.buffer, ids.offset * sizeof(float), picked.data(), picked.size() * sizeof(uint32_t));
-        s.b.read(*scores.buffer, scores.offset * sizeof(float), logits.data(), logits.size() * sizeof(float));
-        (*s.routes)(s.layer, s.rows, k, picked.data(), router.nout, logits.data());
-    }
+    report_routes(s, k, ids, scores, router.nout);
 }
 
 // An MTP block's input (docs/SPECULATIVE.md, section 7): `pair` holds 2 * rows rows of E, the tokens' rows then the target's before them, normed in place by `enorm` and `hnorm`, joined token first through `side` and projected by `eh_proj`.

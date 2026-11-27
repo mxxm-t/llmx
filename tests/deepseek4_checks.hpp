@@ -313,7 +313,7 @@ size_t check_routing(Pair& p, const Exact& exact) {
                 for (int mode : {0, 1, 2})
                     for (bool normalize : {false, true}) {
                         const bool sigmoid = score == backend::RouteRule::Score::sigmoid;
-                        const auto rule = sigmoid ? backend::RouteRule::sigmoid : backend::RouteRule::sqrt_softplus;
+                        const auto rule = [&](backend::CSlice b, float sc, bool nz) { return sigmoid ? backend::RouteRule::sigmoid(b, sc, nz) : backend::RouteRule::sqrt_softplus(b, sc, nz); };
                         // A lone expert scored -inf has sigmoid 0, so its normalized weight is 0 / 0 on every backend, which close refuses.
                         if (sigmoid && normalize && n_expert == 1 && rows > 2) continue;
                         // mode 0 has no bias, 1 one shared by every row, 2 one a row.
@@ -363,8 +363,8 @@ size_t check_pool_and_routing(Pair& p, const Exact& exact) {
         std::vector<float> g = uniform(n, 41, -12.0f, 12.0f), u = uniform(n, 42, -12.0f, 12.0f);
         Pair::In gi = held(p, g), ui = held(p, u);
         Pair::Out d = p.out(n);
-        p.cpu.silu_mul(d.cs(), gi.cs(), ui.cs(), n, 7.0f);
-        p.dev.silu_mul(d.vs(), gi.vs(), ui.vs(), n, 7.0f);
+        p.cpu.silu_mul(d.cs(), gi.cs(), ui.cs(), n, {7.0f});
+        p.dev.silu_mul(d.vs(), gi.vs(), ui.vs(), n, {7.0f});
         auto r = p.results(d);
         values += close(r.first, r.second, 1e-6, "silu_mul's clamp differs beyond 1e-6");
     }
@@ -1088,9 +1088,12 @@ void router(backend::Backend& g, const std::function<backend::DeviceCaps&(backen
                     }
                     auto wb = g.adopt(w.data(), w.size()), xb = g.adopt(x.data(), x.size() * 4), bb = g.adopt(bias.data(), bias.size() * 4);
                     std::vector<backend::RowRun> scratch;
+                    for (bool sig : {false, true})
                     for (bool biased : {false, true})
                         for (bool normalize : {false, true}) {
-                            const backend::RouteRule rule = backend::RouteRule::sqrt_softplus(biased ? backend::CSlice{bb.get(), 0} : backend::CSlice{}, normalize ? 1.5f : 1.0f, normalize);
+                            const backend::CSlice bs = biased ? backend::CSlice{bb.get(), 0} : backend::CSlice{};
+                            const backend::RouteRule rule = sig ? backend::RouteRule::sigmoid(bs, normalize ? 1.5f : 1.0f, normalize, normalize ? 1e-3f : 1e-20f)
+                                                                : backend::RouteRule::sqrt_softplus(bs, normalize ? 1.5f : 1.0f, normalize);
                             std::vector<float> got[2][3];
                             for (int base = 0; base < 2; ++base) {
                                 backend::BufferPtr sc = g.alloc(rows * ne * 4, backend::Memory::device), ids = g.alloc(rows * k * 4, backend::Memory::device), wt = g.alloc(rows * k * 4, backend::Memory::device);
@@ -1112,7 +1115,7 @@ void router(backend::Backend& g, const std::function<backend::DeviceCaps&(backen
                                 }
                             }
                             const std::string at = std::string(quant::storage_type(type)->name) + " experts " + std::to_string(ne) + " k " + std::to_string(k) +
-                                                   " rows " + std::to_string(rows) + (biased ? " biased" : "") + (normalize ? " normalized" : "");
+                                                   " rows " + std::to_string(rows) + (sig ? " sigmoid" : "") + (biased ? " biased" : "") + (normalize ? " normalized" : "");
                             values += same(got[1][0], got[0][0], "fused router scores differ from the base at " + at);
                             values += same(got[1][1], got[0][1], "fused router picks differ from the base at " + at);
                             values += same(got[1][2], got[0][2], "fused router weights differ from the base at " + at);

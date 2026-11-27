@@ -24,8 +24,8 @@ static size_t count(const char* value, const char* name) {
 }
 
 static int probe(int argc, const char* const* argv) {
-    if (argc < 6 || argc > 8) {
-        std::fprintf(stderr, "usage: llmx-route-probe MODEL IDS OUTPUT_PREFIX LAST UBATCH [DEVICES [STREAM_LAYERS]]\n"
+    if (argc < 6 || argc > 9) {
+        std::fprintf(stderr, "usage: llmx-route-probe MODEL IDS OUTPUT_PREFIX LAST UBATCH [DEVICES [TENSOR_WIDTH [STREAM_LAYERS]]]\n"
                              "  writes OUTPUT_PREFIX.txt, the logits rows of the last LAST positions, and OUTPUT_PREFIX.routes, every routed step's picks and router scores\n"
                              "  with STREAM_LAYERS, layers separated by commas, OUTPUT_PREFIX.streams, the residual entering each of those layers\n");
         return 2;
@@ -36,6 +36,8 @@ static int probe(int argc, const char* const* argv) {
         infer::PlacementRequest request;
         request.names = backend::device_specs(argc > 6 ? argv[6] : "cpu");
         request.ubatch = (int)count(argv[5], "UBATCH");
+        // On a tensor group the routes are its first member's, whose router every member runs whole.
+        request.width = argc > 7 ? count(argv[7], "TENSOR_WIDTH") : 1;
         request.logit_rows = (size_t)request.ubatch;
         request.dtype = backend::Dtype::f32;
         std::ifstream input(std::filesystem::u8path(argv[2]));
@@ -58,8 +60,8 @@ static int probe(int argc, const char* const* argv) {
         // Each record: the layer, rows and floats a row as int32 and uint32s, then rows of residual floats, little-endian; a layer's records come in position order.
         std::set<int> stream_layers;
         std::ofstream streams;
-        if (argc > 7) {
-            std::stringstream list(argv[7]);
+        if (argc > 8) {
+            std::stringstream list(argv[8]);
             for (std::string item; std::getline(list, item, ',');) stream_layers.insert(item == "0" ? 0 : (int)count(item.c_str(), "STREAM_LAYERS"));
             streams.open(std::filesystem::u8path(prefix + ".streams"), std::ios::binary);
             streams.exceptions(std::ios::badbit | std::ios::failbit);

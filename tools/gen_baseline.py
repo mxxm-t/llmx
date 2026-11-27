@@ -3,7 +3,7 @@
 Run this ONCE on a machine with the HF tooling, then commit the output.
 tests/baseline.py only reads the committed JSON, so running the test suite never needs torch, transformers, or network access -- llmx stays dependency-free at runtime and the suite stays self-contained.
 
-    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|int8|mxfp4|nvfp4|q1-0|q2-0|q2-k|q3-k|q5-0|q5-1|iq4-nl|iq4-xs|iq3-s|iq2-s|iq2-xxs|iq2-xs|iq3-xxs|tokenizer-qwen35|tokenizer-deepseek41|tokenizer-minimax|qwen35-tiny|qwen35-mtp|qwen4exp-tiny|minimax-tiny|deepseek41-tiny|deepseek41-vision|tensor-split|tensor-split-moe|image-decode|vision-tiny|image-tiny|image-qwen4exp]
+    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|int8|mxfp4|nvfp4|q1-0|q2-0|q2-k|q3-k|q5-0|q5-1|iq4-nl|iq4-xs|iq3-s|iq2-s|iq2-xxs|iq2-xs|iq3-xxs|tokenizer-qwen35|tokenizer-deepseek41|tokenizer-minimax|tokenizer-inkling2|qwen35-tiny|qwen35-mtp|qwen4exp-tiny|minimax-tiny|deepseek41-tiny|deepseek41-vision|tensor-split|tensor-split-moe|image-decode|vision-tiny|image-tiny|image-qwen4exp]
     python tools/gen_baseline.py qwen35 --model Qwen3.5-0.8B|Qwen3.5-4B [--output-dir DIR]
     python tools/gen_baseline.py file-exact --weights-gguf FILE.gguf --output-dir DIR [--round int8]
     python tools/gen_baseline.py vision-file-exact --weights-gguf MMPROJ.gguf --checkpoint DIR [--output-dir DIR]
@@ -296,6 +296,18 @@ DEEPSEEK41_CASES = [
 LONG_TEXT_CHARS = 6000
 
 
+# The inkling2 tokenizer golden reads Inkling-2-Mini's tokenizer.json, the o200k_base split with ignore_merges, whose GGUF files name pretokenizer inkling2.
+INKLING2_REPO = "unsloth/Inkling-2-Mini-GGUF"
+INKLING2_TOKENIZER_SHA256 = "7f332727f9a3f093dd452a39cc978e6757627e5dad1b0673aa4e75174f236dd6"
+# Texts where an o200k alternative or its backtracking decides the split: case runs and their overlap in Lm, Lo and M, contractions in each case and long s, numbers, the slash tail, and whitespace that \s holds or does not.
+O200K_PROBES = [
+    "́'s", "中A", "A中", "ʰʰA", "ǅaǅ", "HTTPServer", "aB", "DON'T", "I'm", "a'LL", "a'lL", "a're", "é'S",
+    "'S", "'s", "a'l", "a'r", "a'sb", "he'll've", "a't'T'D", "''s", "it’s", "it'ſ", "IT'ſ", "A'ſ", "k'K", "a'ﬅ",
+    "a'ı", "ß'ẞ", "12345²Ⅷ٣", " 1", "$hello", "\ta", "\ńa", " ́", "!\n/\n//x", "x//\n\n //",
+    "x \n \n  y", "  \r\n", "a   ", "�a", "a��b",
+] + ["a" + c + c + "b" for c in ("\u0085", "\x0b", "\xa0", " ", "　", "\x1c", "​", "᠎", "﻿")]
+# How many vocabulary entries the merges alone do not form whole the golden takes as texts, which only a whole-piece lookup gives HF's ids.
+WHOLE_PIECE_WITNESSES = 8
 # The minimax golden reads MiniMax-M3.1-Flash's tokenizer.json, whose pretokenizer its GGUF files name minimax-m2, pinned by digest, since the copy read records no revision.
 MINIMAX_TOKENIZER_SHA256 = "bb1f1626cf01448f1e3b6036d0a061ffc66c91d9046aada14ea23a5441b5ad6e"
 # The texts that tell the minimax-m2 split from the others (docs/ASSETS.md, The minimax tokenizer reference).
@@ -332,14 +344,18 @@ FILE_TOKENIZERS = {
                    "pre": "joyai-llm", "cases": DEEPSEEK41_CASES},
     "minimax": {"repo": "MiniMaxAI/MiniMax-M3.1-Flash", "revision": None, "sha256": MINIMAX_TOKENIZER_SHA256,
                 "pre": "minimax-m2", "cases": MINIMAX_CASES},
+    "inkling2": {"repo": INKLING2_REPO, "revision": None, "sha256": INKLING2_TOKENIZER_SHA256,
+                 "pre": "inkling2", "cases": DEEPSEEK41_CASES + O200K_PROBES},
 }
 
 
 def gen_tokenizer_file(family, output_dir, checkpoint, header_gguf):
     """HF's ids for a family's texts from its pinned tokenizer.json, with the part of its vocabulary those texts reach, so tests/tokenizer.py checks them without a model file.
-    The token types are the GGUF file's, read from the first shard's header, whose pretokenizer must be the family's and whose tokens and merges must equal tokenizer.json's; tokens past tokenizer.json's must be unused (type 5)."""
+    The token types are the GGUF file's, read from the first shard's header, whose pretokenizer must be the family's and whose tokens and merges must equal tokenizer.json's; tokens past tokenizer.json's must be unused (type 5).
+    A tokenizer with ignore_merges also gets texts the merges alone would split, each with the ids BPE alone gives, so the test shows the whole-piece lookup ran."""
     import tokenizers
     from tokenizers import Tokenizer
+    from tokenizers.models import BPE
     from tokenizers.pre_tokenizers import ByteLevel
     import spec_decode
 
@@ -358,38 +374,69 @@ def gen_tokenizer_file(family, output_dir, checkpoint, header_gguf):
     gguf_types = header.value("tokenizer.ggml.token_type")[1]
     gguf_merges = header.value("tokenizer.ggml.merges")[1]
     vocab = spec["model"]["vocab"]
+    # tokenizer.json writes a merge as one spaced string or, in newer files, as a pair.
+    spec_merges = [m if isinstance(m, str) else " ".join(m) for m in spec["model"]["merges"]]
     added = sorted(spec["added_tokens"], key=lambda a: a["id"])
     by_id = {i: t for t, i in vocab.items()}
     by_id.update((a["id"], a["content"]) for a in added)
-    if len(by_id) > len(gguf_tokens) or gguf_tokens[:len(by_id)] != [by_id.get(i) for i in range(len(by_id))] or \
-            any(int(t) != 5 for t in gguf_types[len(by_id):]):
+    if len(by_id) > len(gguf_tokens) or gguf_tokens[:len(by_id)] != [by_id.get(i) for i in range(len(by_id))] or             any(int(t) != 5 for t in gguf_types[len(by_id):]):
         raise SystemExit("%s: %s's tokens are not tokenizer.json's" % (family, header_gguf))
-    if gguf_merges != spec["model"]["merges"]:
+    if gguf_merges != spec_merges:
         raise SystemExit("%s: %s's merges are not tokenizer.json's" % (family, header_gguf))
+    whole = bool(spec["model"].get("ignore_merges"))
     tok = Tokenizer.from_file(path)
     byte_level = ByteLevel(add_prefix_space=False, use_regex=False)
-    cases = file_tokenizer_cases(pin["cases"], [a["content"] for a in added])
+    fixed = list(pin["cases"])
+    if whole:
+        # The vocabulary entries BPE alone splits, by id, decoded to text; entries that are not whole UTF-8 are left out, since a text cannot hold them alone.
+        merges_only = BPE({t: i for t, i in vocab.items()}, [tuple(m.split(" ")) for m in spec_merges], ignore_merges=False)
+        alphabet = byte_level_alphabet()
+        witnesses = []
+        for token, i in sorted(vocab.items(), key=lambda kv: kv[1]):
+            if len(witnesses) == WHOLE_PIECE_WITNESSES:
+                break
+            if len(merges_only.tokenize(token)) == 1:
+                continue
+            try:
+                text = bytes(alphabet[c] for c in token).decode("utf-8")
+            except UnicodeDecodeError:
+                continue
+            if [p for p, _ in tok.pre_tokenizer.pre_tokenize_str(text)] == [token]:
+                witnesses.append(text)
+        assert len(witnesses) == WHOLE_PIECE_WITNESSES, "%s: only %d vocabulary entries need the whole-piece lookup" % (family, len(witnesses))
+        fixed += witnesses
+    cases = file_tokenizer_cases(fixed, [a["content"] for a in added])
     # As for qwen35: the merges that form a substring of a text, in rank order with the tokens they form, give the ids the whole vocabulary gives.
     # No merge forms a token longer than the longest, so substrings are taken up to that length, of each text and of its normalized form, as for qwen35.
-    assert all(isinstance(m, str) and m.count(" ") == 1 for m in spec["model"]["merges"])
-    longest = max(len(m) - 1 for m in spec["model"]["merges"])
+    assert all(isinstance(m, str) and m.count(" ") == 1 for m in spec_merges)
+    longest = max(len(m) - 1 for m in spec_merges)
     norm = tok.normalizer.normalize_str if tok.normalizer else (lambda t: t)
     reach = set()
     for text in cases:
         for form in {text, norm(text)}:
             mapped = byte_level.pre_tokenize_str(form)[0][0]
             reach.update(mapped[i:j] for i in range(len(mapped)) for j in range(i + 2, min(len(mapped), i + longest) + 1))
-    merges = [m for m in spec["model"]["merges"] if m.replace(" ", "") in reach]
+    merges = [m for m in spec_merges if m.replace(" ", "") in reach]
     tokens = {vocab[t]: t for t in ByteLevel.alphabet()}
     tokens.update((vocab[m.replace(" ", "")], m.replace(" ", "")) for m in merges)
+    pre = tok.pre_tokenizer
+    if whole:
+        # A whole-piece lookup reads every piece the texts give that the vocabulary holds, and none it does not.
+        for text in cases:
+            for piece, _ in pre.pre_tokenize_str(text):
+                if piece in vocab:
+                    tokens[vocab[piece]] = piece
     tokens.update((a["id"], a["content"]) for a in added)
     types = {i: int(t) for i, t in enumerate(gguf_types[:len(by_id)]) if int(t) != 1}
     assert set(types) == {a["id"] for a in added} and set(types.values()) <= {3, 4}
-    pre = tok.pre_tokenizer
     # The fixed texts carry their pretokenized pieces, which tests/tokenizer.py prints beside a failing text; the added tokens' texts and the long one carry ids alone.
     golden = [dict({"text": t, "ids": tok.encode(t, add_special_tokens=False).ids},
-                   **({"pieces": [p for p, _ in pre.pre_tokenize_str(norm(t))]} if n < len(pin["cases"]) else {}))
+                   **({"pieces": [p for p, _ in pre.pre_tokenize_str(norm(t))]} if n < len(fixed) else {}))
               for n, t in enumerate(cases)]
+    if whole:
+        for case in golden[len(pin["cases"]):len(fixed)]:
+            case["merges_only_ids"] = [t.id for t in merges_only.tokenize(case["pieces"][0])]
+            assert case["merges_only_ids"] != case["ids"]
     assert all(i in tokens for case in golden for i in case["ids"])
     doc = {
         "_comment": "Generated by tools/gen_baseline.py tokenizer-%s. Do not hand-edit." % family,
@@ -406,6 +453,14 @@ def gen_tokenizer_file(family, output_dir, checkpoint, header_gguf):
     out = os.path.join(output_dir, "baseline_tokenizer_%s.json" % family)
     _write(out, doc)
     print("wrote %s (%d cases, %d tokens, %d merges, %d typed tokens)" % (out, len(golden), len(tokens), len(merges), len(types)))
+
+
+def byte_level_alphabet():
+    """GPT-2's bytes_to_unicode, read back: each mapped character to its byte."""
+    printable = list(range(33, 127)) + list(range(161, 173)) + list(range(174, 256))
+    chars = printable + [256 + n for n in range(256 - len(printable))]
+    order = printable + [b for b in range(256) if b not in printable]
+    return {chr(c): b for c, b in zip(chars, order)}
 
 
 def load_reference(args):
@@ -1938,17 +1993,17 @@ FIXED_KINDS = {
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Generate independent pinned HF reference fixtures on CPU.")
-    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "yarn", "moe", "moe-q8", "int8", "mxfp4", "nvfp4", "q1-0", "q2-0", "q2-k", "q3-k", "q5-0", "q5-1", "iq4-nl", "iq4-xs", "iq3-s", "iq2-s", "iq2-xxs", "iq2-xs", "iq3-xxs", "iq1", "tq", "tokenizer-qwen35", "tokenizer-deepseek41", "tokenizer-minimax", "qwen35-tiny", "qwen35-mtp", "qwen4exp-tiny", "bf16-tile", "minimax-tiny", "deepseek41-tiny", "deepseek41-vision", "tensor-split", "tensor-split-moe", "qwen35", "file-exact", "image-decode", "vision-tiny", "vision-file-exact", "image-tiny", "image-qwen4exp"))
+    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "yarn", "moe", "moe-q8", "int8", "mxfp4", "nvfp4", "q1-0", "q2-0", "q2-k", "q3-k", "q5-0", "q5-1", "iq4-nl", "iq4-xs", "iq3-s", "iq2-s", "iq2-xxs", "iq2-xs", "iq3-xxs", "iq1", "tq", "tokenizer-qwen35", "tokenizer-deepseek41", "tokenizer-minimax", "tokenizer-inkling2", "qwen35-tiny", "qwen35-mtp", "qwen4exp-tiny", "bf16-tile", "minimax-tiny", "deepseek41-tiny", "deepseek41-vision", "tensor-split", "tensor-split-moe", "qwen35", "file-exact", "image-decode", "vision-tiny", "vision-file-exact", "image-tiny", "image-qwen4exp"))
     parser.add_argument("--repo", default=TOKENIZER_REPO, help="HF model/tokenizer repository")
     parser.add_argument("--revision", help="full 40-character HF commit SHA (required for another repository)")
     parser.add_argument("--output-dir", help="fixture directory (required for another model/revision)")
     parser.add_argument("--gguf-repo", help="associated GGUF repository label; required with --gguf-file")
     parser.add_argument("--gguf-file", help="associated GGUF filename label; required for another model")
     parser.add_argument("--threads", type=int, help="HF CPU threads for real-model logits/PPL (default: 6)")
-    parser.add_argument("--weights-gguf", help="file-exact: the qwen3, qwen3moe or pinned qwen35 GGUF whose weights the reference model takes, which labels the goldens; tokenizer-deepseek41 and tokenizer-minimax: the GGUF shard whose header gives the token types")
+    parser.add_argument("--weights-gguf", help="file-exact: the qwen3, qwen3moe or pinned qwen35 GGUF whose weights the reference model takes, which labels the goldens; tokenizer-deepseek41 and tokenizer-inkling2: the GGUF file or shard whose header gives the token types")
     parser.add_argument("--round", choices=("int8",), help="file-exact: round every matrix product's input but the routers to this dtype, the HF-int8 control")
     parser.add_argument("--model", choices=sorted(QWEN35_MODELS), help="qwen35: the pinned checkpoint whose goldens to write")
-    parser.add_argument("--checkpoint", help="vision-file-exact: the HF checkpoint directory whose model.visual.* the mmproj must equal; deepseek41-tiny and deepseek41-vision: the directory of DeepSeek's files at the pinned revision; tokenizer-deepseek41 and tokenizer-minimax: the directory holding the pinned tokenizer.json")
+    parser.add_argument("--checkpoint", help="vision-file-exact: the HF checkpoint directory whose model.visual.* the mmproj must equal; deepseek41-tiny and deepseek41-vision: the directory of DeepSeek's files at the pinned revision; tokenizer-deepseek41 and tokenizer-inkling2: the directory holding the pinned tokenizer.json")
     args = parser.parse_args(argv)
     if args.round and args.kind != "file-exact":
         parser.error("--round applies to file-exact only")
@@ -1961,7 +2016,7 @@ def parse_args(argv=None):
         args.family = "deepseek41"
         args.chunked_calls = True
         return args
-    if args.kind in ("tokenizer-deepseek41", "tokenizer-minimax"):
+    if args.kind in ("tokenizer-deepseek41", "tokenizer-minimax", "tokenizer-inkling2"):
         if not args.weights_gguf or not args.checkpoint or not os.path.isfile(args.weights_gguf) or not os.path.isdir(args.checkpoint):
             parser.error(args.kind + " needs --checkpoint, the directory of the pinned tokenizer.json, and --weights-gguf, the GGUF shard whose header gives the token types")
         if args.repo != TOKENIZER_REPO or args.revision or args.gguf_repo or args.gguf_file or args.threads is not None or args.model:
@@ -1977,7 +2032,7 @@ def parse_args(argv=None):
         args.chunked_calls = True
         return args
     if args.checkpoint:
-        parser.error("--checkpoint applies to vision-file-exact, tokenizer-deepseek41 and tokenizer-minimax only")
+        parser.error("--checkpoint applies to vision-file-exact and the tokenizer-<family> goldens only")
     args.family = "qwen3"
     if os.path.isdir(args.repo):
         parser.error("--repo must identify a Hub repository, not a local directory that bypasses revision pinning")
@@ -2111,7 +2166,7 @@ def main(argv=None):
         gen_nvfp4(args.output_dir)
     if args.kind == "tokenizer-qwen35":
         gen_tokenizer_qwen35(args.output_dir)
-    if args.kind in ("tokenizer-deepseek41", "tokenizer-minimax"):
+    if args.kind in ("tokenizer-deepseek41", "tokenizer-minimax", "tokenizer-inkling2"):
         gen_tokenizer_file(args.family, args.output_dir, args.checkpoint, args.weights_gguf)
     if args.kind == "qwen35-tiny":
         gen_qwen35_tiny(args.output_dir)

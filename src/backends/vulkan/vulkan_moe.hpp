@@ -47,7 +47,7 @@ inline bool VulkanBackend::moe_build(const MoeStep& m, size_t nin, size_t rows, 
     const DeviceProfile& prof = dev_->profile;
     plan = MoePlan{};
     const MoeShared* s = m.shared;
-    if (m.limit != 0.0f || m.form != GluForm::silu || (s && (s->limit != 0.0f || s->form != GluForm::silu))) return false;
+    if (m.glu.limit != 0.0f || m.glu.form != GluForm::silu || (s && (s->glu.limit != 0.0f || s->glu.form != GluForm::silu))) return false;
     if (!dev_->workgroup_counter || !prof.prefer_integer_dot || unordered_) return false;
     if ((dtype != Dtype::f16 && dtype != Dtype::int8) || !rows || rows > kMoeStepRows || !runs.n || runs.runs[runs.n - 1].end != rows) return false;
     for (size_t i = 0; i < runs.n; ++i)
@@ -55,6 +55,8 @@ inline bool VulkanBackend::moe_build(const MoeStep& m, size_t nin, size_t rows, 
     const size_t n_expert = m.router.rows, k = m.k, ff = m.gate.rows;
     if (!k || k > n_expert || k > 256 || n_expert > 1024 || rows * k >= 2 * n_expert) return false;
     if (m.gate.weight.type != m.up.weight.type || m.up.rows != ff || ff % 32 || nin % 32) return false;
+    // The fused kernels read whole expert matrices, so row windows (Op::expert_window) take the base's ops, whose matmul_experts reads them before any run.
+    if (m.gate.first || m.gate.pitch || m.up.first || m.up.pitch) return false;
     // The activation kernel scales the shared expert's product by its row gate, so a shared expert without one takes the base.
     if (s && (!s->row_gate.weight.data.buffer || s->gate.weight.type != s->up.weight.type || s->gate.rows != ff || s->up.rows != ff)) return false;
     // A routed call takes its row kernel below its tile crossover, a plain call below its own.
@@ -120,7 +122,7 @@ inline void VulkanBackend::moe_route_step(const MoeStep& m, CSlice h, size_t nin
 
 // A cached step (ExpertSlots): route as the step without the cache would, mark the picks, then rounds of waves and products in ExpertRing::run's order.
 // Each round's down products stay parts in moe_out_ until one combine in j order, then the shared expert joins y as the base's ops add it.
-inline void VulkanBackend::cached_step(const MoeStep& m, CSlice h, Slice y, size_t nin, size_t rows, RowRuns runs, Dtype dtype) {
+inline void VulkanBackend::cached_step(const MoeStep& m, Slice h, Slice y, size_t nin, size_t rows, RowRuns runs, Dtype dtype) {
     const ExpertSlots& c = *m.slots;
     const size_t n_expert = m.router.rows, k = m.k, ff = m.gate.rows, entries = size_mul(rows, k);
     if (n_expert != c.n_expert || c.slots > 0xffff || n_expert > 0xffff || m.gate.weight.scales.buffer || m.up.weight.scales.buffer || m.down.scales.buffer)
@@ -148,6 +150,7 @@ inline void VulkanBackend::cached_step(const MoeStep& m, CSlice h, Slice y, size
     const bool fused = moe_build(m, nin, rows, runs, dtype, plan) && plan.route;
     if (m.zero) repeat_row(y, *m.zero, rows, nin);
     if (fused) {
+        moe_input(m, h, nin, rows, runs);
         moe_route_step(m, h, nin, rows, m.rule.softmax_only("vulkan"));
     } else {
         moe_router(m, h, nin, rows, runs);
@@ -189,7 +192,7 @@ inline void VulkanBackend::cached_step(const MoeStep& m, CSlice h, Slice y, size
     const auto products = [&] {
         const Routing routing{CSlice(expert_ids_.get(), 0), m.weights, k, c.slots};
         matmul_experts({m.gate, m.up}, h, nin, rows, routing, runs, dtype);
-        silu_mul(m.act, m.gate.out, m.up.out, entries * ff, m.limit, {entry_runs.data(), entry_runs.size()}, m.form);
+        silu_mul(m.act, m.gate.out, m.up.out, entries * ff, m.glu, {entry_runs.data(), entry_runs.size()});
         routed_parts(m.down, m.act, ff, nin, rows, routing, runs, dtype);
     };
     ExpertRing::run(ring.plan(entries, n_expert, c.slots), wave, pull, round, products);
@@ -197,7 +200,7 @@ inline void VulkanBackend::cached_step(const MoeStep& m, CSlice h, Slice y, size
     moe_shared(m, h, y, nin, rows, runs, dtype);
 }
 
-inline void VulkanBackend::moe_step(const MoeStep& m, CSlice h, Slice y, size_t nin, size_t rows, RowRuns runs, Dtype dtype) {
+inline void VulkanBackend::moe_step(const MoeStep& m, Slice h, Slice y, size_t nin, size_t rows, RowRuns runs, Dtype dtype) {
     if (m.slots) return cached_step(m, h, y, nin, rows, runs, dtype);
     const OpSteps steps(*this);
     MoePlan plan;
@@ -236,6 +239,7 @@ inline void VulkanBackend::moe_step(const MoeStep& m, CSlice h, Slice y, size_t 
     if (m.zero && bytes_from(CSlice(m.zero, 0)) < E * sizeof(float)) throw std::runtime_error("vulkan: routed step zero row outside its allocation");
     // D1: the router's and the row gate's rows and the routing in one launch, or the base's router and row gate where that launch does not take them.
     if (plan.route) {
+        moe_input(m, h, nin, rows, runs);
         moe_route_step(m, h, nin, rows, m.rule.softmax_only("vulkan"));
     } else {
         moe_router(m, h, nin, rows, runs);
@@ -249,7 +253,7 @@ inline void VulkanBackend::moe_step(const MoeStep& m, CSlice h, Slice y, size_t 
     if (!s) {
         // D2 and D2b: without a shared expert the routed row kernel and the SiLU run as the unfused step runs them.
         matmul_experts({m.gate, m.up}, h, nin, rows, routing, runs, dtype);
-        silu_mul(m.act, m.gate.out, m.up.out, entries * ff, 0.0f, {entry_runs.data(), entry_runs.size()});
+        silu_mul(m.act, m.gate.out, m.up.out, entries * ff, {}, {entry_runs.data(), entry_runs.size()});
     } else {
         if (plan.up == K_COUNT) {
             // D2 unfused: the routed calls and the shared expert's group call, as the base makes them.

@@ -1193,7 +1193,7 @@ private:
         }
     }
     // On one stage that feeds, a quiet round forms the next decode pass of the one in flight now, its ids fed on the device by that pass's argmax, so the device records it before the host has waited (docs/SERVER.md, Fed decode).
-    // Quiet: every active request decodes in that pass, by device argmax alone, with nothing queued, paused, stalled or chained, and each has room and tokens left for one more step past the one in flight.
+    // Quiet: every active request decodes in that pass by device argmax alone, nothing is queued, paused, stalled, chained or due cache work, and each has room and tokens for one more step.
     void form_fed(std::vector<std::shared_ptr<Request>>& active) {
         if (slots_.size() != 2 || passes_ != 1 || flights_live() != 1 || stalled_now_ || encoded_ || !chains_.empty()) return;
         const size_t s = slots_[0].live ? 0 : 1, k = 1 - s;
@@ -1203,7 +1203,7 @@ private:
             return;
         {
             std::lock_guard<std::mutex> lk(m_);
-            if (!queue_.empty() || !paused_.empty()) return;
+            if (!queue_.empty() || !paused_.empty() || cache_.due(active.size() < max_seqs_)) return;
         }
         for (size_t w = 0; w < o.wanting.size(); ++w) {
             const Request& r = *o.wanting[w];
@@ -1223,6 +1223,7 @@ private:
             Request& r = *o.wanting[w];
             infer::BatchEntry e{&r.seq_, &r.last_id_, 1, true};
             e.argmax = true;
+            e.skip = argmax_skip(r);
             e.fed_slot = s;
             e.fed_row = o.first_row[w];
             entries_.push_back(e);
@@ -1275,6 +1276,7 @@ private:
             f.rows.push_back(e.n);
             if (!e.want_logits) return;
             entries_.back().argmax = device_pick(*r);
+            entries_.back().skip = argmax_skip(*r);
             f.wanting.push_back(r);
             f.first_row.push_back(f.want);
             f.want += e.every_logits ? e.n : 1;
@@ -1558,17 +1560,7 @@ private:
     }
 
     // The host times of every stage's backend, summed.
-    backend::Backend::HostTimes host_times() {
-        backend::Backend::HostTimes t;
-        for (size_t s = 0; s < model_.stage_count(); ++s) {
-            const backend::Backend::HostTimes b = model_.stage_backend(s).host_times();
-            t.ticket_ms += b.ticket_ms;
-            t.slot_ms += b.slot_ms;
-            t.staging_ms += b.staging_ms;
-            t.write_ms += b.write_ms;
-        }
-        return t;
-    }
+    backend::Backend::HostTimes host_times() { return model_.host_times(); }
 
     // A timed round's end: its time, and every kReadRounds rounds each stage's device time since the last reading, which on a device waits for its queue, so the span a reading covers starts after it.
     // A reading is a call on the stage's devices, so it is taken on the stage's thread between its recordings (run_on).
@@ -2502,6 +2494,8 @@ private:
     static bool decoding(const Request& r) { return !r.gen_.empty() && r.seq_.length() + 1 == history_tokens(r); }
     // Whether r's rows are drawn as their argmax alone, which a pass may give as ids from the output device (BatchEntry::argmax): greedy, no penalty, no log-probabilities, and no observer reading the rows.
     bool device_pick(const Request& r) const { return !on_retire && !r.params_.logprobs && infer::plain_argmax(r.params_); }
+    // The id the device's argmax passes over for r (BatchEntry::skip): the end token its draw masks under ignore_eos, so that draw takes the device's id and reads no row back.
+    uint32_t argmax_skip(const Request& r) const { return r.params_.ignore_eos && tok_.eos_id >= 0 ? (uint32_t)tok_.eos_id : UINT32_MAX; }
     // Whether r has work for a pass: a request always, a job while its cache lacks some of its ids.
     static bool working(const Request& r) { return !r.job_ || r.seq_.length() < r.prompt_.size(); }
 

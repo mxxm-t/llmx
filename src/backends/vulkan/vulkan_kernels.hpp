@@ -938,6 +938,33 @@ const uint32_t kSpvGatedRmsNorm[] = {
 const uint32_t kSpvCausalConvSilu[] = {
 #include "vulkan/causal_conv_silu.inc"
 };
+const uint32_t kSpvCopyRows[] = {
+#include "vulkan/copy_rows.inc"
+};
+const uint32_t kSpvL2Clip[] = {
+#include "vulkan/l2_clip.inc"
+};
+const uint32_t kSpvQueryMix[] = {
+#include "vulkan/query_mix.inc"
+};
+const uint32_t kSpvTanhGateMix[] = {
+#include "vulkan/tanh_gate_mix.inc"
+};
+const uint32_t kSpvDepthwiseRing[] = {
+#include "vulkan/depthwise_ring.inc"
+};
+const uint32_t kSpvSoftcap[] = {
+#include "vulkan/softcap.inc"
+};
+const uint32_t kSpvAttentionRelSink[] = {
+#include "vulkan/attention_rel_sink.inc"
+};
+const uint32_t kSpvAttentionRelSinkTile[] = {
+#include "vulkan/attention_rel_sink_tile.inc"
+};
+const uint32_t kSpvRingStore[] = {
+#include "vulkan/ring_store.inc"
+};
 const uint32_t kSpvDilatedConvSiluAdd[] = {
 #include "vulkan/dilated_conv_silu_add.inc"
 };
@@ -1597,6 +1624,15 @@ const uint32_t kSpvFlagRecv[] = {
     X(K_INJECT_STREAMS, "inject_streams", kSpvInjectStreams, sizeof(kSpvInjectStreams), 3, nullptr, kSpvInjectStreamsPreserve, sizeof(kSpvInjectStreamsPreserve), 0, kPreserve32) \
     X(K_SIGNED_SQRT_GATE, "signed_sqrt_gate", kSpvSignedSqrtGate, sizeof(kSpvSignedSqrtGate), 5, nullptr) \
     X(K_DILATED_CONV_SILU_ADD, "dilated_conv_silu_add", kSpvDilatedConvSiluAdd, sizeof(kSpvDilatedConvSiluAdd), 6, nullptr) \
+    X(K_COPY_ROWS, "copy_rows", kSpvCopyRows, sizeof(kSpvCopyRows), 2, nullptr) \
+    X(K_SOFTCAP, "softcap", kSpvSoftcap, sizeof(kSpvSoftcap), 1, nullptr) \
+    X(K_DEPTHWISE_RING, "depthwise_ring", kSpvDepthwiseRing, sizeof(kSpvDepthwiseRing), 7, nullptr) \
+    X(K_L2_CLIP, "l2_clip", kSpvL2Clip, sizeof(kSpvL2Clip), 3, nullptr) \
+    X(K_QUERY_MIX, "query_mix", kSpvQueryMix, sizeof(kSpvQueryMix), 3, nullptr) \
+    X(K_TANH_GATE_MIX, "tanh_gate_mix", kSpvTanhGateMix, sizeof(kSpvTanhGateMix), 5, nullptr) \
+    X(K_ATTENTION_REL_SINK, "attention_rel_sink", kSpvAttentionRelSink, sizeof(kSpvAttentionRelSink), 10, nullptr) \
+    X(K_ATTENTION_REL_SINK_TILE, "attention_rel_sink_tile", kSpvAttentionRelSinkTile, sizeof(kSpvAttentionRelSinkTile), 10, nullptr) \
+    X(K_RING_STORE, "ring_store", kSpvRingStore, sizeof(kSpvRingStore), 4, nullptr) \
     X(K_EMBED_WF16, "embed_wf16", kSpvEmbedWf16, sizeof(kSpvEmbedWf16), 4, nullptr) \
     X(K_MATMUL_ROW_WF16, "matmul_row_wf16", kSpvMatmulRowWf16, sizeof(kSpvMatmulRowWf16), 12, kMatmulRowCounts) \
     X(K_MATMUL_TILE_WF32, "matmul_tile_wf32", kSpvMatmulTileWf32, sizeof(kSpvMatmulTileWf32), 6, nullptr, kSpvMatmulTileWf32Preserve, sizeof(kSpvMatmulTileWf32Preserve), 0, kPreserve32) \

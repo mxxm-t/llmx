@@ -4,6 +4,7 @@
 #include "backends/gpu/kernels/quant.h"
 #include "backends/gpu/kernels/group.h"
 #include "backends/gpu/kernels/rows.h"
+#include "backends/gpu/kernels/shapes.h"
 
 namespace {
 
@@ -89,22 +90,44 @@ __device__ void twin(const float* x, QT* q, float* d, void* s, unsigned long lon
 
 constexpr int kNormThreads = 1024;   // the held norm's block: four times kThreads, so each thread scales a quarter of the values
 
+// The tanh gate mix a held norm takes as its values where MIX is set (Backend::tanh_gate_mix with a norm), f and g packed; field for field the host's GateMix.
+struct GateMix {
+    const float* h;
+    const float* m;
+    const float* f;
+    const float* g;
+    unsigned long long h_stride, m_stride;
+};
+
+// A value of a held norm's row: x's, or the mix's in llmx_tanh_gate_mix's order so it has its bits; a plain build takes no GateMix, so it keeps no mix object.
+template <bool MIX> struct HeldMix { using type = const void*; };
+template <> struct HeldMix<true> { using type = GateMix; };
+template <bool MIX, typename M>
+__device__ __forceinline__ float held_value(const float* x, const M& mx, unsigned long long r, int n, int i) {
+    if constexpr (MIX) {
+        const unsigned long long p = r * (unsigned long long)n + i;
+        return tanh_gate(mx.f[p], mx.g[p], mx.h[r * mx.h_stride + i], mx.m[r * mx.m_stride + i]);
+    } else {
+        return x[i];
+    }
+}
+
 // A block a row of n <= K * kThreads values: dst = RMSNorm(src) against w, with its twin at L levels beside it when L is not 0.
 // The sum takes rms_norm_row's chains and block_sum's tree, so both give the same bits, and only the map-free builds (P) compile the 256-thread parts branch, whose registers spill the 1024-thread path of the map's builds.
-template <int K, typename QT, int L, bool P>
+template <int K, typename QT, int L, bool P, bool MIX = false>
 __device__ __forceinline__ void rms_norm_held(float* __restrict__ dst, const float* __restrict__ src, const float* __restrict__ w, int n, unsigned long long stride, float eps,
-                              unsigned parts, QT* __restrict__ q, float* __restrict__ d, void* __restrict__ ts, const TwinMap* m) {
+                              unsigned parts, QT* __restrict__ q, float* __restrict__ d, void* __restrict__ ts, const TwinMap* m, typename HeldMix<MIX>::type mx = {}) {
     constexpr int J = K * kThreads / kNormThreads;
     __shared__ float xs[K * kThreads];
     __shared__ float lds[kThreads];
     const int t = threadIdx.x;
     const unsigned long long r = blockIdx.x;
-    const float* x = src + r * stride;
+    const float* x = MIX ? nullptr : src + r * stride;
     if constexpr (P) if (parts > 1) {
         // Out of place a part runs kThreads threads, each holding its K values in registers for the same chain, and reads x and w again for its share only (docs/src/backends-gpu.md, kernels/f32.gpu).
         float xr[K];
 #pragma unroll
-        for (int k = 0; k < K; ++k) xr[k] = t + kThreads * k < n ? x[t + kThreads * k] : 0.0f;
+        for (int k = 0; k < K; ++k) xr[k] = t + kThreads * k < n ? held_value<MIX>(x, mx, r, n, t + kThreads * k) : 0.0f;
         float s = 0.0f;
 #pragma unroll
         for (int k = 0; k < K; ++k)
@@ -115,9 +138,9 @@ __device__ __forceinline__ void rms_norm_held(float* __restrict__ dst, const flo
         __syncthreads();
         const float rp = 1.0f / sqrtf(lds[0] / (float)n + eps);
         float* yp = dst + r * stride;
-        const int cp = (int)(((unsigned)(n + 31) / 32 + parts - 1) / parts) * 32, lp = cp * (int)blockIdx.y, hp = min(n, lp + cp);
+        const int cp = (int)(((unsigned)(n + 31) / 32 + parts - 1) / parts) * 32, lp = cp * (MIX ? 0 : (int)blockIdx.y), hp = min(n, lp + cp);
         for (int i = lp + t; i < hp; i += kThreads) {
-            const float o = x[i] * (rp * w[i]);
+            const float o = held_value<MIX>(x, mx, r, n, i) * (rp * w[i]);
             yp[i] = o;
             if (L) {
                 const float amax = block_amax(o);
@@ -131,7 +154,7 @@ __device__ __forceinline__ void rms_norm_held(float* __restrict__ dst, const flo
 #pragma unroll
     for (int j = 0; j < J; ++j) {
         const int i = t + kNormThreads * j;
-        v[j] = i < n ? x[i] : 0.0f;
+        v[j] = i < n ? held_value<MIX>(x, mx, r, n, i) : 0.0f;
         wv[j] = i < n ? w[i] : 0.0f;
         xs[i] = v[j];
     }
@@ -152,9 +175,9 @@ __device__ __forceinline__ void rms_norm_held(float* __restrict__ dst, const flo
     __syncthreads();
     const float rr = 1.0f / sqrtf(lds[0] / (float)n + eps);
     float* y = dst + r * stride;
-    // blockIdx.y's share of the row, in whole twin blocks: every part sums the whole row the same way and writes only its share.
+    // blockIdx.y's share of the row (part 0 in a mix build, whose blockIdx.y is its item), read here rather than held from the start, in whole twin blocks: every part sums the whole row the same way and writes only its share.
     // The part count is an argument rather than gridDim.y, which would read a hidden kernel argument and measured 1.4 to 2.9 us a call on an MI50 (docs/STATUS.md, Held norm rows in parts).
-    const int chunk = (int)(((unsigned)(n + 31) / 32 + parts - 1) / parts) * 32, lo = chunk * (int)blockIdx.y, hi = min(n, lo + chunk);
+    const int chunk = (int)(((unsigned)(n + 31) / 32 + parts - 1) / parts) * 32, lo = chunk * (MIX ? 0 : (int)blockIdx.y), hi = min(n, lo + chunk);
 #pragma unroll
     for (int j = 0; j < J; ++j) {
         const int i = t + kNormThreads * j;
@@ -418,7 +441,7 @@ __device__ inline void group_push_rows(const GroupPeers* p, const float* own, un
 }
 
 // The fast one-shot's take: the members' rows added in member order into out, each peer's unit armed again once read; a take that gave up leaves NaN and marks the group failed.
-// self is the member's signal, which the one-shot loads before its push, as that keeps its registers (port.h, LLMX_ONE_SHOT_BOUNDS).
+// self is the member's signal, which the one-shot loads before its push, as that keeps its registers at llmx_group_sum's five waves a SIMD.
 __device__ inline void group_take_rows(const GroupPeers* p, const float* own, float* out, unsigned long long n, unsigned long long cap, unsigned long long half_at, int members, int rank,
                                        bool replace, unsigned long long deadline, unsigned long long tick, int* failed, GroupSignal* self) {
     const unsigned long long units = (n + 3) / 4, step = (unsigned long long)gridDim.x * kThreads;
@@ -456,7 +479,7 @@ __device__ inline void group_take_rows(const GroupPeers* p, const float* own, fl
 
 // Member `rank`'s part of a group sum of n floats: out = the members' rows added in member order (flag 1), or out += them.
 // Fast (flag 2), it writes its rows into every peer's parity half (flag 4) and takes each peer's as they land, a sum that gave up leaving NaN; else the peers copied theirs into that half (docs/src/backends-gpu.md).
-extern "C" __global__ void LLMX_ONE_SHOT_BOUNDS llmx_group_sum(const GroupPeers* p, const float* own, float* out, unsigned long long n, unsigned long long cap,
+extern "C" __global__ void LLMX_WAVES_BOUNDS(kThreads, 5) llmx_group_sum(const GroupPeers* p, const float* own, float* out, unsigned long long n, unsigned long long cap,
                                                                int members, int rank, int flags, unsigned long long timeout, unsigned long long tick) {
     __shared__ int failed;
     const bool replace = flags & 1, fast = flags & 2;
@@ -792,19 +815,14 @@ extern "C" __global__ void llmx_group_add_check(const unsigned* patterns, int np
     }
 }
 
-// dst[i] = silu(gate[i]) * up[i], with its twin at L levels beside it when L is not 0, n then a multiple of 32.
-// A limit above 0 takes silu(min(g, limit)) * clamp(u, -limit, limit) and form 1 MiniMax-M3.1's quick_gelu, (u + 1) (g sigmoid(1.702 g)), each in the CPU's order with a NaN passing through (docs/DEEPSEEK4.md, docs/MINIMAX.md).
+// dst[i] = silu(gate[i]) * up[i], with its twin at L levels beside it when L is not 0, n then a multiple of 32; form 1 is MiniMax-M3.1's quick_gelu (u + 1) (g sigmoid(1.702 g)) and form 2 softcap.
+// A limit above 0 takes silu(min(g, limit)) * clamp(u, -limit, limit), each form in the CPU's order with a NaN passing through (docs/DEEPSEEK4.md, docs/MINIMAX.md, docs/src/backends-gpu.md).
 template <typename QT, int L>
-__device__ void silu_mul(float* dst, const float* gate, const float* up, unsigned long long n, float limit, int form, QT* q, float* d, void* s, const TwinMap* m) {
+__device__ void silu_mul(float* dst, const float* gate, const float* up, unsigned long long n, float limit, int form, float up_limit, QT* q, float* d, void* s, const TwinMap* m) {
     const unsigned long long i = (unsigned long long)blockIdx.x * kThreads + threadIdx.x;
     float o = 0.0f;
     if (i < n) {
-        float g = gate[i], u = up[i];
-        if (limit > 0.0f) {
-            u = u < -limit ? -limit : u > limit ? limit : u;
-            g = g > limit ? limit : g;
-        }
-        o = form ? (u + 1.0f) * (g * (1.0f / (1.0f + expf(-(1.702f * g))))) : g / (1.0f + expf(-g)) * u;
+        o = glu_value(gate[i], up[i], limit, form, up_limit);
         dst[i] = o;
     }
     if (L) {
@@ -815,20 +833,20 @@ __device__ void silu_mul(float* dst, const float* gate, const float* up, unsigne
         }
     }
 }
-extern "C" __global__ void llmx_silu_mul(float* dst, const float* gate, const float* up, unsigned long long n, float limit, int form, short* q, float* d, void* s) {
-    silu_mul<short, 0>(dst, gate, up, n, limit, form, q, d, s, nullptr);
+extern "C" __global__ void llmx_silu_mul(float* dst, const float* gate, const float* up, unsigned long long n, float limit, int form, float up_limit, short* q, float* d, void* s) {
+    silu_mul<short, 0>(dst, gate, up, n, limit, form, up_limit, q, d, s, nullptr);
 }
-extern "C" __global__ void llmx_silu_mul_twin16(float* dst, const float* gate, const float* up, unsigned long long n, float limit, int form, short* q, float* d, void* s) {
-    silu_mul<short, 32767>(dst, gate, up, n, limit, form, q, d, s, nullptr);
+extern "C" __global__ void llmx_silu_mul_twin16(float* dst, const float* gate, const float* up, unsigned long long n, float limit, int form, float up_limit, short* q, float* d, void* s) {
+    silu_mul<short, 32767>(dst, gate, up, n, limit, form, up_limit, q, d, s, nullptr);
 }
-extern "C" __global__ void llmx_silu_mul_twin8(float* dst, const float* gate, const float* up, unsigned long long n, float limit, int form, signed char* q, float* d, void* s) {
-    silu_mul<signed char, 127>(dst, gate, up, n, limit, form, q, d, s, nullptr);
+extern "C" __global__ void llmx_silu_mul_twin8(float* dst, const float* gate, const float* up, unsigned long long n, float limit, int form, float up_limit, signed char* q, float* d, void* s) {
+    silu_mul<signed char, 127>(dst, gate, up, n, limit, form, up_limit, q, d, s, nullptr);
 }
-extern "C" __global__ void llmx_silu_mul_twin16_major(float* dst, const float* gate, const float* up, unsigned long long n, float limit, int form, short* q, float* d, void* s, LLMX_GRID_CONST TwinMap m) {
-    silu_mul<short, 32767>(dst, gate, up, n, limit, form, q, d, s, &m);
+extern "C" __global__ void llmx_silu_mul_twin16_major(float* dst, const float* gate, const float* up, unsigned long long n, float limit, int form, float up_limit, short* q, float* d, void* s, LLMX_GRID_CONST TwinMap m) {
+    silu_mul<short, 32767>(dst, gate, up, n, limit, form, up_limit, q, d, s, &m);
 }
-extern "C" __global__ void llmx_silu_mul_twin8_major(float* dst, const float* gate, const float* up, unsigned long long n, float limit, int form, signed char* q, float* d, void* s, LLMX_GRID_CONST TwinMap m) {
-    silu_mul<signed char, 127>(dst, gate, up, n, limit, form, q, d, s, &m);
+extern "C" __global__ void llmx_silu_mul_twin8_major(float* dst, const float* gate, const float* up, unsigned long long n, float limit, int form, float up_limit, signed char* q, float* d, void* s, LLMX_GRID_CONST TwinMap m) {
+    silu_mul<signed char, 127>(dst, gate, up, n, limit, form, up_limit, q, d, s, &m);
 }
 
 // A block a row: dst row r = RMSNorm(src row r) against w, for any n.
@@ -859,6 +877,24 @@ LLMX_NORM_MAJOR(llmx_rms_norm_16_twin16_major, 16, short, 32767)
 LLMX_NORM_MAJOR(llmx_rms_norm_16_twin8_major, 16, signed char, 127)
 LLMX_NORM_MAJOR(llmx_rms_norm_32_twin16_major, 32, short, 32767)
 LLMX_NORM_MAJOR(llmx_rms_norm_32_twin8_major, 32, signed char, 127)
+// An item of the held norm over the tanh gate mix: its out, values, norm weight and twin; field for field the host's GateNorm.
+struct GateNorm {
+    float* dst;
+    GateMix mx;
+    const float* w;
+    void* q;
+    float* d;
+    void* s;
+};
+// The held norm over the tanh gate mix's values, map-free, for rows of up to 4096 values lying row after row, blockIdx.y the item (a, b or c) in one part.
+#define LLMX_NORM_MIX(name, QT, L)                                                                                                       \
+    extern "C" __global__ void __launch_bounds__(kNormThreads) name(GateNorm a, GateNorm b, GateNorm c, int n, float eps) {              \
+        const GateNorm& g = blockIdx.y == 0 ? a : blockIdx.y == 1 ? b : c;                                                               \
+        rms_norm_held<16, QT, L, true, true>(g.dst, nullptr, g.w, n, (unsigned long long)n, eps, 1, (QT*)g.q, g.d, g.s, nullptr, g.mx);   \
+    }
+LLMX_NORM_MIX(llmx_tanh_norm_16, short, 0)
+LLMX_NORM_MIX(llmx_tanh_norm_16_twin16, short, 32767)
+LLMX_NORM_MIX(llmx_tanh_norm_16_twin8, signed char, 127)
 
 // One head of up to kThreads values held a value a thread: its RMS norm when w is given, then pairs (i, i + half) rotated by the angles c and s, written to head and to out, the value of thread t at out[t].
 // The sum and every product are those of the wider form in llmx_norm_rope, so both give the same bits.
@@ -993,6 +1029,465 @@ extern "C" __global__ void llmx_gelu(float* dst, const float* src, unsigned long
 extern "C" __global__ void llmx_add_bias(float* dst, const float* bias, unsigned width) {
     float* y = dst + (unsigned long long)blockIdx.x * width;
     for (unsigned j = threadIdx.x; j < width; j += kThreads) y[j] += bias[j];
+}
+
+// A thread a float of `width` and blockIdx.y a row, stepping by the grid's height: dst row r = src row r, or dst row r + src row r with `add`.
+extern "C" __global__ void llmx_copy_rows(float* dst, const float* src, unsigned long long ds, unsigned long long ss, unsigned long long rows, unsigned width, int add) {
+    const unsigned j = blockIdx.x * kThreads + threadIdx.x;
+    if (j >= width) return;
+    for (unsigned long long r = blockIdx.y; r < rows; r += gridDim.y) {
+        const float v = src[r * ss + j];
+        float* d = dst + r * ds + j;
+        *d = add ? *d + v : v;
+    }
+}
+
+// x[i] = tanh(x[i] / cap) * cap in place.
+extern "C" __global__ void llmx_softcap(float* x, unsigned long long n, float cap) {
+    const unsigned long long i = (unsigned long long)blockIdx.x * kThreads + threadIdx.x;
+    if (i < n) x[i] = gpu_tanhf(x[i] / cap) * cap;
+}
+
+// llmx_l2_clip's items, field for field with the host's ClipArgs; the count is backend::kClipItems.
+struct ClipArgs {
+    struct Item {
+        float* x;
+        const float* scale;
+        const float* row_scale;
+        unsigned long long stride;
+        unsigned dim, heads;
+        float threshold;
+        unsigned pad;
+    } item[4];
+    unsigned n;
+};
+
+// A block a (row, head) of dim floats in place, the heads of n items in order: times scale[h][d] if given, then min(1, t / (norm + 1e-6)), then row_scale[r] if given.
+extern "C" __global__ void llmx_l2_clip(ClipArgs a) {
+    __shared__ float lds[kThreads];
+    // The item by constant indices, so the argument is read as scalars rather than copied to scratch.
+    unsigned h = blockIdx.y;
+    ClipArgs::Item it = a.item[0];
+#pragma unroll
+    for (unsigned i = 1; i < 4; ++i)
+        if (i < a.n && h >= it.heads) h -= it.heads, it = a.item[i];
+    const float *scale = it.scale, *row_scale = it.row_scale;
+    const unsigned dim = it.dim;
+    const unsigned long long stride = it.stride;
+    const float threshold = it.threshold;
+    float* v = it.x + blockIdx.x * stride + (unsigned long long)h * dim;
+    const float* sc = scale ? scale + (unsigned long long)h * dim : nullptr;
+    float ss = 0.0f;
+    for (unsigned d = threadIdx.x; d < dim; d += kThreads) {
+        const float a = sc ? v[d] * sc[d] : v[d];
+        ss = fmaf(a, a, ss);
+    }
+    const float c = fminf(1.0f, threshold / (sqrtf(block_sum<kThreads>(ss, lds)) + 1e-6f));
+    const float rs = row_scale ? row_scale[blockIdx.x] : 1.0f;
+    for (unsigned d = threadIdx.x; d < dim; d += kThreads) {
+        float a = (sc ? v[d] * sc[d] : v[d]) * c;
+        if (row_scale) a *= rs;
+        v[d] = a;
+    }
+}
+
+// l2_clip where every item's dim <= 128: a segment of `lanes` lanes a (row, head) of the items' heads in order, each lane `m` values lane + lanes * k, summed as block_sum's tree sums them, so the bits are the block build's.
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_l2_clip_lanes(ClipArgs a, unsigned heads, unsigned lanes, unsigned m, unsigned units) {
+    const unsigned lane = threadIdx.x % lanes, u = blockIdx.x * (kThreads / lanes) + threadIdx.x / lanes;
+    if (u >= units) return;   // a segment leaves whole, so no shuffle reads a lane that left
+    const unsigned r = u / heads;
+    unsigned h = u % heads;
+    ClipArgs::Item it = a.item[0];
+#pragma unroll
+    for (unsigned i = 1; i < 4; ++i)
+        if (i < a.n && h >= it.heads) h -= it.heads, it = a.item[i];
+    const unsigned dim = it.dim;
+    const float threshold = it.threshold;
+    float* v = it.x + r * it.stride + (unsigned long long)h * dim;
+    const float* sc = it.scale ? it.scale + (unsigned long long)h * dim : nullptr;
+    const float* row_scale = it.row_scale;
+    float x[4], s[4];
+#pragma unroll
+    for (unsigned k = 0; k < 4; ++k) {
+        const unsigned d = lane + lanes * k;
+        x[k] = k < m && d < dim ? (sc ? v[d] * sc[d] : v[d]) : 0.0f;
+        s[k] = fmaf(x[k], x[k], 0.0f);
+    }
+#pragma unroll
+    for (unsigned hh = 2; hh > 0; hh >>= 1)
+        if (hh < m)
+#pragma unroll
+            for (unsigned k = 0; k < hh; ++k) s[k] = s[k] + s[k + hh];
+    float t = s[0];
+    for (unsigned o = lanes / 2; o > 0; o >>= 1) t += shuffle_xor(t, (int)o, (int)lanes);
+    const float c = fminf(1.0f, threshold / (sqrtf(t) + 1e-6f));
+    const float rs = row_scale ? row_scale[r] : 1.0f;
+#pragma unroll
+    for (unsigned k = 0; k < 4; ++k) {
+        const unsigned d = lane + lanes * k;
+        if (k < m && d < dim) {
+            float b = x[k] * c;
+            if (row_scale) b *= rs;
+            v[d] = b;
+        }
+    }
+}
+
+// A (row r, query) block of query_mix over NI items, n of them where the count is not exact: one pass gathers each item's sum of squares and dot with the query, folded by wave sums and one shared-memory round.
+// A count known at compile time keeps every item's loads unconditional, so a thread issues them together rather than one behind each branch (docs/src/backends-gpu.md).
+template <unsigned NI, bool EXACT>
+__device__ inline void query_mix_items(float* out, const float* src, const float* queries, unsigned n, unsigned nq, unsigned q, unsigned dim, unsigned long long stride, float eps,
+                                       unsigned r) {
+    constexpr unsigned W = kThreads / GPU_WAVE;
+    __shared__ float lds[2 * NI * W];
+    const float* row = src + r * stride;
+    const unsigned wave = threadIdx.x / GPU_WAVE, lane = threadIdx.x % GPU_WAVE;
+    const float* qv = queries + (unsigned long long)q * dim;
+    float ss[NI], dt[NI], p[NI];
+#pragma unroll
+    for (unsigned i = 0; i < NI; ++i) ss[i] = dt[i] = 0.0f;
+    for (unsigned d = threadIdx.x; d < dim; d += kThreads) {
+        const float a = qv[d];
+#pragma unroll
+        for (unsigned i = 0; i < NI; ++i)
+            if (EXACT || i < n) {
+                const float x = row[i * dim + d];
+                ss[i] = fmaf(x, x, ss[i]);
+                dt[i] = fmaf(a, x, dt[i]);
+            }
+    }
+#pragma unroll
+    for (unsigned i = 0; i < NI; ++i)
+        if (EXACT || i < n) {
+            ss[i] = wave_sum(ss[i]);
+            dt[i] = wave_sum(dt[i]);
+            if (lane == 0) lds[i * W + wave] = ss[i], lds[(NI + i) * W + wave] = dt[i];
+        }
+    __syncthreads();
+    const float root = sqrtf((float)dim);
+    float top = -INFINITY, total = 0.0f;
+#pragma unroll
+    for (unsigned i = 0; i < NI; ++i)
+        if (EXACT || i < n) {
+            float s = 0.0f, t = 0.0f;
+            for (unsigned w = 0; w < W; ++w) s += lds[i * W + w], t += lds[(NI + i) * W + w];
+            ss[i] = 1.0f / sqrtf(s / (float)dim + eps);
+            p[i] = t * ss[i] / root;
+            top = fmaxf(top, p[i]);
+        }
+#pragma unroll
+    for (unsigned i = 0; i < NI; ++i)
+        if (EXACT || i < n) total += (p[i] = expf(p[i] - top));
+#pragma unroll
+    for (unsigned i = 0; i < NI; ++i)
+        if (EXACT || i < n) p[i] = p[i] * ss[i] / total;
+    float* o = out + ((unsigned long long)r * nq + q) * dim;
+    for (unsigned d = threadIdx.x; d < dim; d += kThreads) {
+        float acc = 0.0f;
+#pragma unroll
+        for (unsigned i = 0; i < NI; ++i)
+            if (EXACT || i < n) acc = fmaf(p[i], row[i * dim + d], acc);
+        o[d] = acc;
+    }
+}
+
+// A thread's J values, value j at element base + threadIdx.x + kThreads j of a row of n, written as their twin, twin_put's codes, for each j of part `part` of `parts` (j % parts); the maxima run as one shuffle tree.
+template <unsigned J, typename QT, int L>
+__device__ inline void twin_held(const float (&v)[J], unsigned long long base, unsigned n, QT* q, float* d, void* s, unsigned part, unsigned parts) {
+    float a[J];
+#pragma unroll
+    for (unsigned j = 0; j < J; ++j) a[j] = fabsf(v[j]);
+    for (int o = 16; o > 0; o >>= 1)
+#pragma unroll
+        for (unsigned j = 0; j < J; ++j)
+            if (j % parts == part) a[j] = fmaxf(a[j], shuffle_xor(a[j], o, 32));
+#pragma unroll
+    for (unsigned j = 0; j < J; ++j) {
+        if (threadIdx.x + j * kThreads >= n) break;
+        if (j % parts != part) continue;
+        const unsigned long long e = base + threadIdx.x + j * kThreads, b = e / 32;
+        twin_sums<QT, 32>(twin_value<QT, L>(v[j], a[j], q + b * 32 + e % 32, d + b, (int)(e % 32)), (int)(e % 32), s, b);
+    }
+}
+
+// The RMS norm a one-query mix writes in its place (QueryMixArgs::Item::w): against w with eps, its twin at `level` (0 none) beside it, rows lying row after row.
+// A row runs as `parts` blocks, each mixing and summing the whole row and writing the values j % parts of its own, as rms_norm_held's parts do.
+struct MixNorm {
+    const float* w;
+    float eps;
+    void* q;
+    float* d;
+    void* s;
+    int level;
+    unsigned parts;
+};
+
+// query_mix_items for a row of at most kQueryMixSteps * kThreads values: every item's loads issue before the first sum and the mix reads the held values, the same sums in the same order.
+// With NORM the mix is normed in the block: thread t holds values t + kThreads j, rms_norm_held's chain, and block_tree's sum, so the row has the separate norm's bits (docs/src/backends-gpu.md).
+constexpr unsigned kQueryMixSteps = 9;
+template <unsigned NI, bool NORM = false>
+__device__ inline LLMX_FLAT void query_mix_held(float* out, const float* src, const float* queries, unsigned nq, unsigned q, unsigned dim, unsigned long long stride, float eps,
+                                      unsigned r, unsigned part = 0, const MixNorm& nm = {}) {
+    constexpr unsigned W = kThreads / GPU_WAVE, J = kQueryMixSteps;
+    __shared__ float lds[2 * NI * W];
+    const float* row = src + r * stride;
+    const unsigned wave = threadIdx.x / GPU_WAVE, lane = threadIdx.x % GPU_WAVE;
+    const float* qv = queries + (unsigned long long)q * dim;
+    float x[NI][J], a[J], ss[NI], dt[NI], p[NI], wv[NORM ? J : 1];
+    // The items' rows as wave-uniform bases, so each load adds a lane's 32-bit offset to a scalar base.
+    const float* item[NI];
+#pragma unroll
+    for (unsigned i = 0; i < NI; ++i) item[i] = row + (unsigned long long)i * dim;
+#pragma unroll
+    for (unsigned j = 0; j < J; ++j) {
+        // A column past the row loads the row's last one, which no sum or store takes, so the loads carry no branch and issue as one batch (docs/DEVICE-TUNING.md).
+        const unsigned d = threadIdx.x + j * kThreads, c = d < dim ? d : dim - 1;
+        a[j] = qv[c];
+#pragma unroll
+        for (unsigned i = 0; i < NI; ++i) x[i][j] = item[i][c];
+    }
+#pragma unroll
+    for (unsigned i = 0; i < NI; ++i) ss[i] = dt[i] = 0.0f;
+#pragma unroll
+    for (unsigned j = 0; j < J; ++j) {
+        const bool in = threadIdx.x + j * kThreads < dim;
+#pragma unroll
+        for (unsigned i = 0; i < NI; ++i) {
+            const float s = fmaf(x[i][j], x[i][j], ss[i]), t = fmaf(a[j], x[i][j], dt[i]);
+            ss[i] = in ? s : ss[i];
+            dt[i] = in ? t : dt[i];
+        }
+    }
+#pragma unroll
+    for (unsigned i = 0; i < NI; ++i) {
+        ss[i] = wave_sum(ss[i]);
+        dt[i] = wave_sum(dt[i]);
+        if (lane == 0) lds[i * W + wave] = ss[i], lds[(NI + i) * W + wave] = dt[i];
+    }
+    // The norm's weights of the block's part load before any store, which could alias them and hold each load behind it, and after the row's, which fill the load counter.
+    if constexpr (NORM)
+#pragma unroll
+        for (unsigned j = 0; j < J; ++j) {
+            const unsigned d = threadIdx.x + j * kThreads;
+            wv[j] = d < dim && j % nm.parts == part ? nm.w[d] : 0.0f;
+        }
+    __syncthreads();
+    const float root = sqrtf((float)dim);
+    float top = -INFINITY, total = 0.0f;
+#pragma unroll
+    for (unsigned i = 0; i < NI; ++i) {
+        float s = 0.0f, t = 0.0f;
+        for (unsigned w = 0; w < W; ++w) s += lds[i * W + w], t += lds[(NI + i) * W + w];
+        ss[i] = 1.0f / sqrtf(s / (float)dim + eps);
+        p[i] = t * ss[i] / root;
+        top = fmaxf(top, p[i]);
+    }
+#pragma unroll
+    for (unsigned i = 0; i < NI; ++i) total += (p[i] = expf(p[i] - top));
+#pragma unroll
+    for (unsigned i = 0; i < NI; ++i) p[i] = p[i] * ss[i] / total;
+    float* o = out + ((unsigned long long)r * nq + q) * dim;
+    if constexpr (NORM) {
+        __shared__ float nl[kThreads];
+        float y[J], s = 0.0f;
+#pragma unroll
+        for (unsigned j = 0; j < J; ++j) {
+            float acc = 0.0f;
+#pragma unroll
+            for (unsigned i = 0; i < NI; ++i) acc = fmaf(p[i], x[i][j], acc);
+            y[j] = threadIdx.x + j * kThreads < dim ? acc : 0.0f;
+            if (threadIdx.x + j * kThreads < dim) s = fmaf(acc, acc, s);
+        }
+        nl[threadIdx.x] = s;
+        __syncthreads();
+        block_tree<kThreads>(nl);
+        __syncthreads();
+        const float rr = 1.0f / sqrtf(nl[0] / (float)dim + nm.eps);
+        const unsigned long long base = ((unsigned long long)r * nq + q) * dim;
+#pragma unroll
+        for (unsigned j = 0; j < J; ++j) {
+            const unsigned d = threadIdx.x + j * kThreads;
+            y[j] = y[j] * (rr * wv[j]);
+            if (d < dim && j % nm.parts == part) o[d] = y[j];
+        }
+        if (nm.level == 1) twin_held<J, short, 32767>(y, base, dim, (short*)nm.q, nm.d, nm.s, part, nm.parts);
+        else if (nm.level == 2) twin_held<J, signed char, 127>(y, base, dim, (signed char*)nm.q, nm.d, nm.s, part, nm.parts);
+        return;
+    }
+#pragma unroll
+    for (unsigned j = 0; j < J; ++j) {
+        const unsigned d = threadIdx.x + j * kThreads;
+        if (d >= dim) break;
+        float acc = 0.0f;
+#pragma unroll
+        for (unsigned i = 0; i < NI; ++i) acc = fmaf(p[i], x[i][j], acc);
+        o[d] = acc;
+    }
+}
+
+// llmx_query_mix's items, field for field with the host's QueryMixArgs; the count is backend::kQueryMixItems.
+struct QueryMixArgs {
+    struct Item {
+        float* out;
+        const float* src;
+        const float* queries;
+        unsigned n, nq;
+    } item[2];
+    unsigned long long stride;
+    unsigned dim, count;
+    float eps, norm_eps;
+    void* tq;
+    float* td;
+    void* ts;
+    int level;
+    unsigned parts;
+    const float* w[3];   // the weight of each query's norm where the mix is normed in place (MixNorm), else null
+};
+
+// A block a (row r, query q of the items' queries in order): each of the item's n inverse RMS (eps, no weight), the softmax over items of dot(q, n_i) / sqrt(dim) and the mix of the normed items into out row r's query slot.
+// A build holds counts up to MAXN alone, since a kernel takes the registers of its widest count; a HELD build takes rows of at most kQueryMixSteps * kThreads values alone.
+template <unsigned MAXN, bool HELD = false>
+__device__ inline void query_mix_build(const QueryMixArgs& a, unsigned r, unsigned q) {
+    // The item by constant indices, so the argument is read as scalars rather than copied to scratch.
+    QueryMixArgs::Item it = a.item[0];
+    if (a.count > 1 && q >= it.nq) q -= it.nq, it = a.item[1];
+    float* out = it.out;
+    const float *src = it.src, *queries = it.queries;
+    const unsigned n = it.n, nq = it.nq, dim = a.dim;
+    const unsigned long long stride = a.stride;
+    const float eps = a.eps;
+#define LLMX_MIX_HELD(N) \
+    case N:              \
+        if constexpr (N <= MAXN) return query_mix_held<N>(out, src, queries, nq, q, dim, stride, eps, r); \
+        break;
+#define LLMX_MIX_ITEMS(N) \
+    case N:               \
+        if constexpr (N <= MAXN) return query_mix_items<N, true>(out, src, queries, n, nq, q, dim, stride, eps, r); \
+        break;
+    if (dim <= kQueryMixSteps * kThreads) switch (n) {
+            LLMX_MIX_HELD(1) LLMX_MIX_HELD(2) LLMX_MIX_HELD(3) LLMX_MIX_HELD(4) LLMX_MIX_HELD(5) LLMX_MIX_HELD(6)
+            LLMX_MIX_HELD(7) LLMX_MIX_HELD(8) LLMX_MIX_HELD(9) LLMX_MIX_HELD(10) LLMX_MIX_HELD(11) LLMX_MIX_HELD(12)
+        default: break;
+        }
+    if constexpr (HELD) return;
+    switch (n) {
+        LLMX_MIX_ITEMS(1) LLMX_MIX_ITEMS(2) LLMX_MIX_ITEMS(3) LLMX_MIX_ITEMS(4) LLMX_MIX_ITEMS(5) LLMX_MIX_ITEMS(6)
+    default: break;
+    }
+#undef LLMX_MIX_HELD
+#undef LLMX_MIX_ITEMS
+    if constexpr (MAXN > 6) query_mix_items<16, false>(out, src, queries, n, nq, q, dim, stride, eps, r);
+}
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_query_mix(QueryMixArgs a) { query_mix_build<12>(a, blockIdx.x, blockIdx.y); }
+// The calls whose mixes take at most four items each (backend_core.hpp, kQueryMixFew): 64 VGPRs where the full build takes 188, 0.54-0.80 of its time at 2304 values and the same bits.
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_query_mix4(QueryMixArgs a) { query_mix_build<4>(a, blockIdx.x, blockIdx.y); }
+
+// A block a row of item 0's mix of N held items over all its queries: the row loads and its squares' sums once, then each query as query_mix_held sums it, the same bits.
+// One build a count, since a kernel takes the registers of its widest count; the row form takes a call's rows as its blocks, so the host sends it calls of at least a block a compute unit.
+template <unsigned N>
+__device__ inline void query_mix_rows(const QueryMixArgs& a) {
+    constexpr unsigned W = kThreads / GPU_WAVE, J = kQueryMixSteps;
+    __shared__ float lss[N * W], ldt[N * W];
+    const QueryMixArgs::Item& it = a.item[0];
+    const unsigned dim = a.dim, nq = it.nq;
+    const float* row = it.src + blockIdx.x * a.stride;
+    const unsigned wave = threadIdx.x / GPU_WAVE, lane = threadIdx.x % GPU_WAVE;
+    float x[N][J];
+#pragma unroll
+    for (unsigned j = 0; j < J; ++j) {
+        const unsigned d = threadIdx.x + j * kThreads;
+#pragma unroll
+        for (unsigned i = 0; i < N; ++i) x[i][j] = d < dim ? row[i * dim + d] : 0.0f;
+    }
+#pragma unroll
+    for (unsigned i = 0; i < N; ++i) {
+        float ss = 0.0f;
+#pragma unroll
+        for (unsigned j = 0; j < J; ++j)
+            if (threadIdx.x + j * kThreads < dim) ss = fmaf(x[i][j], x[i][j], ss);
+        ss = wave_sum(ss);
+        if (lane == 0) lss[i * W + wave] = ss;
+    }
+    const float root = sqrtf((float)dim);
+    for (unsigned q = 0; q < nq; ++q) {
+        const float* qv = it.queries + (unsigned long long)q * dim;
+        float v[J], dt[N], p[N], rs[N];
+#pragma unroll
+        for (unsigned j = 0; j < J; ++j) {
+            const unsigned d = threadIdx.x + j * kThreads;
+            v[j] = d < dim ? qv[d] : 0.0f;
+        }
+#pragma unroll
+        for (unsigned i = 0; i < N; ++i) dt[i] = 0.0f;
+#pragma unroll
+        for (unsigned j = 0; j < J; ++j)
+            if (threadIdx.x + j * kThreads < dim)
+#pragma unroll
+                for (unsigned i = 0; i < N; ++i) dt[i] = fmaf(v[j], x[i][j], dt[i]);
+#pragma unroll
+        for (unsigned i = 0; i < N; ++i) dt[i] = wave_sum(dt[i]);
+        // The previous query's sums are read before this one's overwrite them.
+        if (q) __syncthreads();
+        if (lane == 0)
+#pragma unroll
+            for (unsigned i = 0; i < N; ++i) ldt[i * W + wave] = dt[i];
+        __syncthreads();
+        float top = -INFINITY, total = 0.0f;
+#pragma unroll
+        for (unsigned i = 0; i < N; ++i) {
+            float s = 0.0f, t = 0.0f;
+            for (unsigned w = 0; w < W; ++w) s += lss[i * W + w], t += ldt[i * W + w];
+            rs[i] = 1.0f / sqrtf(s / (float)dim + a.eps);
+            p[i] = t * rs[i] / root;
+            top = fmaxf(top, p[i]);
+        }
+#pragma unroll
+        for (unsigned i = 0; i < N; ++i) total += (p[i] = expf(p[i] - top));
+#pragma unroll
+        for (unsigned i = 0; i < N; ++i) p[i] = p[i] * rs[i] / total;
+        float* o = it.out + ((unsigned long long)blockIdx.x * nq + q) * dim;
+#pragma unroll
+        for (unsigned j = 0; j < J; ++j) {
+            const unsigned d = threadIdx.x + j * kThreads;
+            float acc = 0.0f;
+#pragma unroll
+            for (unsigned i = 0; i < N; ++i) acc = fmaf(p[i], x[i][j], acc);
+            if (d < dim) o[d] = acc;
+        }
+    }
+}
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_query_mix_rows1(QueryMixArgs a) { query_mix_rows<1>(a); }
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_query_mix_rows2(QueryMixArgs a) { query_mix_rows<2>(a); }
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_query_mix_rows3(QueryMixArgs a) { query_mix_rows<3>(a); }
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_query_mix_rows4(QueryMixArgs a) { query_mix_rows<4>(a); }
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_query_mix_rows5(QueryMixArgs a) { query_mix_rows<5>(a); }
+
+// llmx_query_mix of one normed mix of a held row, each query normed against its own weight, in a build of its own so the plain mix keeps its registers.
+constexpr unsigned kQueryMixNormItems = 6;
+__device__ inline LLMX_FLAT void query_mix_norm(const QueryMixArgs& a, unsigned r, unsigned qp) {
+    const QueryMixArgs::Item it = a.item[0];
+    const unsigned q = qp / a.parts, part = qp % a.parts;
+    const MixNorm nm{q == 0 ? a.w[0] : q == 1 ? a.w[1] : a.w[2], a.norm_eps, a.tq, a.td, a.ts, a.level, a.parts};
+    switch (it.n) {
+    case 1: return query_mix_held<1, true>(it.out, it.src, it.queries, it.nq, q, a.dim, a.stride, a.eps, r, part, nm);
+    case 2: return query_mix_held<2, true>(it.out, it.src, it.queries, it.nq, q, a.dim, a.stride, a.eps, r, part, nm);
+    case 3: return query_mix_held<3, true>(it.out, it.src, it.queries, it.nq, q, a.dim, a.stride, a.eps, r, part, nm);
+    case 4: return query_mix_held<4, true>(it.out, it.src, it.queries, it.nq, q, a.dim, a.stride, a.eps, r, part, nm);
+    case 5: return query_mix_held<5, true>(it.out, it.src, it.queries, it.nq, q, a.dim, a.stride, a.eps, r, part, nm);
+    default: return query_mix_held<6, true>(it.out, it.src, it.queries, it.nq, q, a.dim, a.stride, a.eps, r, part, nm);
+    }
+}
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_query_mix_norm(QueryMixArgs a) { query_mix_norm(a, blockIdx.x, blockIdx.y); }
+
+// A thread a float of `width` and blockIdx.y a row, stepping by the grid's height: out = (1 - tanh f) h + tanh(g) m, out, h and m `stride` apart a row and f and g `width`.
+extern "C" __global__ void llmx_tanh_gate_mix(float* out, const float* h, const float* m, const float* f, const float* g, unsigned long long rows, unsigned width,
+                                              unsigned long long out_stride, unsigned long long h_stride, unsigned long long m_stride) {
+    const unsigned j = blockIdx.x * kThreads + threadIdx.x;
+    if (j >= width) return;
+    for (unsigned long long r = blockIdx.y; r < rows; r += gridDim.y) {
+        const unsigned long long i = r * width + j;
+        out[r * out_stride + j] = tanh_gate(f[i], g[i], h[r * h_stride + j], m[r * m_stride + j]);
+    }
 }
 
 // A DSpine drafter's ops (Backend::unit_rows, sigmoid_gate_rows, matmul_at_ids, chain_pick), each the CPU's arithmetic: sums of squares and dots in double, a block's sum a fixed tree.
@@ -1222,7 +1717,7 @@ __device__ inline void vector_run(const unsigned char* row, const float* X, unsi
 }
 // One row's outputs, a wave each, wave w of block b taking output b * (256 / the wave) + w: lane t holds chains J t to J t + J - 1 (J = 256 / the wave), each over its units in order.
 // The steps every lane fills go in batches with their loads ahead of their products (vector_run); block_sum's pairs then fold them, levels 128 to J by shuffles and those below J in registers.
-template <class D>
+template <class D, int B = kBatchBytes>
 __device__ inline float exact_sum(const unsigned char* W, const float* X, unsigned long long nin, unsigned long long o, D d = {}) {
     constexpr int J = kThreads / kWave;
     const int t = threadIdx.x % kWave;
@@ -1236,7 +1731,7 @@ __device__ inline float exact_sum(const unsigned char* W, const float* X, unsign
     if constexpr (D::vector)
         if (((unsigned long long)row % D::align | (unsigned long long)X % 16) == 0) {
             done = true;
-            vector_run<D, J, kBatchBytes / (J * D::weight_bytes)>(row, X, first, full, 0, s, e);
+            vector_run<D, J, B / (J * D::weight_bytes)>(row, X, first, full, 0, s, e);
         }
     if (!done) {
         for (unsigned long long m = 0; m < full; ++m)
@@ -1256,10 +1751,10 @@ __device__ inline float exact_sum(const unsigned char* W, const float* X, unsign
         for (int j = 0; j < h; ++j) s[j] += s[j + h];
     return s[0];
 }
-// exact_sum's output written by the wave's first lane.
-template <class D>
+// exact_sum's output written by the wave's first lane, its loads B bytes a lane a batch.
+template <class D, int B = kBatchBytes>
 __device__ inline void exact_row(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long o, int add, D d = {}) {
-    const float s = exact_sum<D>(W, X, nin, o, d);
+    const float s = exact_sum<D, B>(W, X, nin, o, d);
     if (threadIdx.x % kWave == 0) Y[o] = add ? Y[o] + s : s;
 }
 // A column call: up to three matrices of one input, blocks [start[m], start[m + 1]) of the grid's first dimension taking matrix m (backend_core.hpp, exact_columns).
@@ -1462,7 +1957,304 @@ template <class D> __device__ void routed_exact(const unsigned char* W, const fl
         exact_rows<__VA_ARGS__>(W, X, Y, nin, nout, nrows, add);                                                                                                \
     }
 LLMX_EXACT(f32, ExactF32)
+// One row's grouped RMS norm ahead of its F32 product, a wave an output as llmx_matmul_f32 takes them: every block forms the normed row in shared memory, llmx_group_rms_norm's chains, tree and x * (r * w) a group, and runs exact_wave over it.
+// The normed row is never stored, and each output keeps the bits of the norm and then the product; groups below split read src0, the rest src1, and the row is at most kNormWidth floats.
+struct NormIn {
+    const float *src0, *src1, *w;
+    unsigned groups, dim, split;
+    float eps;
+};
+constexpr unsigned kNormWidth = 8192;
+// The held form (G groups of SG * 256 floats, 64-lane waves): lane t holds x, w and weights at units 4t + 256 m, its exact_sum chains and the norm chains too, loaded at once and summed by block_sum pairs with no barrier.
+// The host launches it with fewer than kThreads threads a block on aligned rows (backend_core.hpp, kNormHeldSteps), output o the wave's unless llmx_normed_gate_mix gives its own; gain in docs/src/backends-gpu.md.
+template <int SG, int G>
+__device__ inline void normed_held(const unsigned char* W, float* Y, unsigned long long nout, const NormIn& n,
+                                   unsigned long long o = (unsigned long long)blockIdx.x * (blockDim.x / kWave) + threadIdx.x / kWave) {
+    constexpr int J = 4, S = SG * G;
+    if (o >= nout) return;
+    const unsigned first = J * (threadIdx.x % kWave);
+    const float* row = (const float*)(W + o * (unsigned long long)S * kThreads * sizeof(float)) + first;
+    float4 x[S], w[S], a[S];
+#pragma unroll
+    for (int g = 0; g < G; ++g) {
+        const float* src = ((unsigned)g < n.split ? n.src0 + (unsigned long long)g * n.dim : n.src1 + (unsigned long long)(g - n.split) * n.dim) + first;
+#pragma unroll
+        for (int k = 0; k < SG; ++k) x[g * SG + k] = *(const float4*)(src + k * kThreads);
+    }
+#pragma unroll
+    for (int m = 0; m < S; ++m) w[m] = *(const float4*)(n.w + (unsigned long long)m * kThreads + first);
+#pragma unroll
+    for (int m = 0; m < S; ++m) a[m] = *(const float4*)(row + (unsigned long long)m * kThreads);
+    schedule_barrier();
+    float q[G][J];
+#pragma unroll
+    for (int g = 0; g < G; ++g) {
+#pragma unroll
+        for (int j = 0; j < J; ++j) q[g][j] = 0.0f;
+#pragma unroll
+        for (int k = 0; k < SG; ++k) {
+            const float4 v = x[g * SG + k];
+            q[g][0] = fmaf(v.x, v.x, q[g][0]), q[g][1] = fmaf(v.y, v.y, q[g][1]), q[g][2] = fmaf(v.z, v.z, q[g][2]), q[g][3] = fmaf(v.w, v.w, q[g][3]);
+        }
+    }
+#pragma unroll
+    for (int h = kThreads / 2; h >= J; h >>= 1)
+#pragma unroll
+        for (int g = 0; g < G; ++g)
+#pragma unroll
+            for (int j = 0; j < J; ++j) q[g][j] += shuffle_down(q[g][j], h / J, kWave);
+#pragma unroll
+    for (int g = 0; g < G; ++g) {
+#pragma unroll
+        for (int h = J / 2; h > 0; h >>= 1)
+#pragma unroll
+            for (int j = 0; j < h; ++j) q[g][j] += q[g][j + h];
+        const float r = 1.0f / sqrtf(__uint_as_float(first_lane(__float_as_uint(q[g][0]))) / (float)n.dim + n.eps);
+#pragma unroll
+        for (int k = 0; k < SG; ++k) {
+            float4& v = x[g * SG + k];
+            const float4 c = w[g * SG + k];
+            v = make_float4(v.x * (r * c.x), v.y * (r * c.y), v.z * (r * c.z), v.w * (r * c.w));
+        }
+    }
+    float s[J] = {0.0f, 0.0f, 0.0f, 0.0f};
+#pragma unroll
+    for (int m = 0; m < S; ++m) s[0] = fmaf(a[m].x, x[m].x, s[0]), s[1] = fmaf(a[m].y, x[m].y, s[1]), s[2] = fmaf(a[m].z, x[m].z, s[2]), s[3] = fmaf(a[m].w, x[m].w, s[3]);
+#pragma unroll
+    for (int h = kThreads / 2; h >= J; h >>= 1)
+#pragma unroll
+        for (int j = 0; j < J; ++j) s[j] += shuffle_down(s[j], h / J, kWave);
+    if (threadIdx.x % kWave == 0) Y[o] = (s[0] + s[2]) + (s[1] + s[3]);
+}
+// Up to three products of one launch, blockIdx.y the item, each with its own matrix, output and sources and the rest shared (backend_core.hpp, NormItems).
+struct NormItems {
+    const unsigned char* W[3];
+    float* Y[3];
+    const float *src0[3], *src1[3], *w;
+    unsigned groups, dim, split;
+    float eps;
+};
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_matmul_normed_f32(unsigned long long nout, NormItems a) {
+    // The item by ternaries, which keep the argument loads scalar where an index would go through scratch.
+    const unsigned y = blockIdx.y;
+    const unsigned char* W = y == 0 ? a.W[0] : y == 1 ? a.W[1] : a.W[2];
+    float* Y = y == 0 ? a.Y[0] : y == 1 ? a.Y[1] : a.Y[2];
+    const NormIn n{y == 0 ? a.src0[0] : y == 1 ? a.src0[1] : a.src0[2], y == 0 ? a.src1[0] : y == 1 ? a.src1[1] : a.src1[2], a.w, a.groups, a.dim, a.split, a.eps};
+    if constexpr (kWave == 64)
+        if (blockDim.x < kThreads) switch (n.dim / kThreads) {
+            case 1: return n.groups == 1 ? normed_held<1, 1>(W, Y, nout, n) : normed_held<1, 2>(W, Y, nout, n);
+            case 2: return n.groups == 1 ? normed_held<2, 1>(W, Y, nout, n) : normed_held<2, 2>(W, Y, nout, n);
+            case 3: return n.groups == 1 ? normed_held<3, 1>(W, Y, nout, n) : normed_held<3, 2>(W, Y, nout, n);
+            case 4: return n.groups == 1 ? normed_held<4, 1>(W, Y, nout, n) : normed_held<4, 2>(W, Y, nout, n);
+            case 5: return n.groups == 1 ? normed_held<5, 1>(W, Y, nout, n) : normed_held<5, 2>(W, Y, nout, n);
+            case 6: return n.groups == 1 ? normed_held<6, 1>(W, Y, nout, n) : normed_held<6, 2>(W, Y, nout, n);
+            case 7: return n.groups == 1 ? normed_held<7, 1>(W, Y, nout, n) : normed_held<7, 2>(W, Y, nout, n);
+            case 8: return n.groups == 1 ? normed_held<8, 1>(W, Y, nout, n) : normed_held<8, 2>(W, Y, nout, n);
+            case 9: return n.groups == 1 ? normed_held<9, 1>(W, Y, nout, n) : normed_held<9, 2>(W, Y, nout, n);
+            default: return;
+            }
+    __shared__ float lds[kThreads];
+    // The row in the launch's dynamic shared memory, which the held forms do not take, so their blocks share a CU.
+    extern __shared__ float normed_row[];
+    float* x = normed_row;
+    for (unsigned g = 0; g < n.groups; ++g) {
+        const float* src = g < n.split ? n.src0 + (unsigned long long)g * n.dim : n.src1 + (unsigned long long)(g - n.split) * n.dim;
+        float* xg = x + g * n.dim;
+#pragma unroll 8
+        for (unsigned i = threadIdx.x; i < n.dim; i += kThreads) xg[i] = src[i];
+    }
+    __syncthreads();
+    for (unsigned g = 0; g < n.groups; ++g) {
+        float* xg = x + g * n.dim;
+        const float* wg = n.w + (unsigned long long)g * n.dim;
+        float s = 0.0f;
+        for (unsigned i = threadIdx.x; i < n.dim; i += kThreads) s = fmaf(xg[i], xg[i], s);
+        const float r = 1.0f / sqrtf(block_sum<kThreads>(s, lds) / (float)n.dim + n.eps);
+#pragma unroll 8
+        for (unsigned i = threadIdx.x; i < n.dim; i += kThreads) xg[i] = xg[i] * (r * wg[i]);
+    }
+    __syncthreads();
+    exact_wave<ExactF32>(W, x, Y, (unsigned long long)n.groups * n.dim, nout, 0);
+}
+// An item of llmx_normed_gate_mix, field for field the host's GateStep: its mix sources, the down norm's two sources, its down, forget and gain weights, low row, mix row (out without a norm), out, norm and twin.
+struct GateStep {
+    const float *h, *m, *d0, *d1;
+    const unsigned char *down, *forget, *gain;
+    float *low, *mix, *out;
+    const float* norm;
+    void* q;
+    float* d;
+    void* s;
+};
+// llmx_normed_gate_mix's call: up to three items, blockIdx.y the item, the down norm's weight and split, each item's barrier word (16 words apart), the width and the columns a block owns.
+struct GateSteps {
+    GateStep it[3];
+    const float* down_w;
+    unsigned* bar;
+    unsigned width, cols, split;
+    float eps;
+    int normed;
+};
+constexpr unsigned kGateRank = 64;    // the up phase's rank: exact_narrow's 16 lanes of four values
+constexpr unsigned kGatePasses = 18;  // the up phase's outputs a thread group takes, 16 groups a block, so a block owns up to 144 columns
+// One row of a message gate in one launch, a grid (B, items) of kThreads (Backend::tanh_gate_mix with down steps), its phases and their bits in docs/src/backends-gpu.md, Kernel notes.
+// SG is the width in blocks of kThreads and W the up passes' share of it: B 32 owns SG * 8 columns a block (W 1), B 16 twice that (W 2), so the passes are SG * W.
+template <typename QT, int L, int SG, int W>
+__device__ __forceinline__ void normed_gate_mix(const GateSteps& a, const GateStep& it, float* fg, float* lds) {
+    constexpr unsigned n = SG * kThreads, kPasses = SG * W;
+    const unsigned y = blockIdx.y, b = blockIdx.x, t = threadIdx.x, B = gridDim.x;
+    unsigned* bar = a.bar + 16 * y;
+    const auto item_barrier = [&](unsigned target) {
+        stores_sync();
+        if (t < GPU_WAVE) grid_arrive(bar), grid_wait(bar, target);
+        acquire_sync();
+    };
+    {
+        const NormIn in{it.d0, it.d1, a.down_w, 2, n, a.split, a.eps};
+        const unsigned long long o = (unsigned long long)b * (kThreads / kWave) + t / kWave;
+        normed_held<SG, 2>(it.down, it.low, kGateRank, in, o);
+    }
+    item_barrier(B);
+    {
+        constexpr int J = 4, LN = 16, PER = kThreads / LN;
+        const unsigned l = t % LN, gi = t / LN, cols = a.cols, c0 = b * cols, mine = c0 < n ? min(cols, n - c0) : 0u;
+        const float4 x = ((const float4*)it.low)[l];
+        float4 wv[kPasses];
+#pragma unroll
+        for (unsigned p = 0; p < kPasses; ++p) {
+            // An output past the block's two runs loads the last one again, which no store takes: a branch here would split the load batch (docs/DEVICE-TUNING.md).
+            const unsigned k = min(p * PER + gi, 2 * mine - 1), c = c0 + (k < mine ? k : k - mine);
+            wv[p] = ((const float4*)((k < mine ? it.forget : it.gain) + (unsigned long long)c * kGateRank * sizeof(float)))[l];
+        }
+#pragma unroll
+        for (unsigned p = 0; p < kPasses; ++p) {
+            float s[J];
+            s[0] = fmaf(wv[p].x, x.x, 0.0f) + 0.0f;
+            s[1] = fmaf(wv[p].y, x.y, 0.0f) + 0.0f;
+            s[2] = fmaf(wv[p].z, x.z, 0.0f) + 0.0f;
+            s[3] = fmaf(wv[p].w, x.w, 0.0f) + 0.0f;
+            // exact_narrow's 16-lane tree by row shifts, which wait on no LDS queue.
+#pragma unroll
+            for (int j = 0; j < J; ++j) s[j] += row_down<8>(s[j]);
+#pragma unroll
+            for (int j = 0; j < J; ++j) s[j] += row_down<4>(s[j]);
+#pragma unroll
+            for (int j = 0; j < J; ++j) s[j] += row_down<2>(s[j]);
+#pragma unroll
+            for (int j = 0; j < J; ++j) s[j] += row_down<1>(s[j]);
+#pragma unroll
+            for (int h = J / 2; h > 0; h >>= 1)
+#pragma unroll
+                for (int j = 0; j < h; ++j) s[j] += s[j + h];
+            const unsigned k = p * PER + gi;
+            if (l == 0 && k < 2 * mine) fg[k < mine ? k : 16 * kGatePasses + k - mine] = s[0];
+        }
+        __syncthreads();
+        for (unsigned i = t; i < mine; i += kThreads) it.mix[c0 + i] = tanh_gate(fg[i], fg[16 * kGatePasses + i], it.h[c0 + i], it.m[c0 + i]);
+    }
+    unsigned passes = 1;
+    if (a.normed) {
+        item_barrier(2 * B);
+        passes = 2;
+        float xr[SG];
+#pragma unroll
+        for (int k = 0; k < SG; ++k) xr[k] = it.mix[t + kThreads * k];
+        float s = 0.0f;
+#pragma unroll
+        for (int k = 0; k < SG; ++k) s = fmaf(xr[k], xr[k], s);
+        lds[t] = s;
+        __syncthreads();
+        block_tree<kThreads>(lds);
+        __syncthreads();
+        const float rp = 1.0f / sqrtf(lds[0] / (float)n + a.eps);
+        const unsigned cp = ((n + 31) / 32 + B - 1) / B * 32, lp = cp * b, hp = min(n, lp + cp);
+        for (unsigned i = lp + t; i < hp; i += kThreads) {
+            const float o = it.mix[i] * (rp * it.norm[i]);
+            it.out[i] = o;
+            if (L) {
+                const float amax = block_amax(o);
+                const unsigned long long tb = i / 32;
+                twin_sums<QT, 32>(twin_value<QT, L>(o, amax, (QT*)it.q + tb * 32 + i % 32, it.d + tb, i % 32), i % 32, it.s, tb);
+            }
+        }
+    }
+    if (t == 0 && atomicAdd(bar, 1u) == B * (passes + 1) - 1) atomicExch(bar, 0u);
+}
+// One switch at entry picks the body of the call's width and passes, and the bodies share one LDS.
+template <typename QT, int L>
+__device__ void normed_gate_mix_any(const GateSteps& a) {
+    __shared__ float fg[2 * 16 * kGatePasses], lds[kThreads];
+    // A block's 2 x cols up outputs take 16 groups a pass, so more than 8 x SG columns need the two-pass body (gate_steps launches B 16 or 32).
+    const bool wide = a.cols > 8 * (a.width / kThreads);
+    // The item by value: a reference into the call would keep a private copy of it for every body.
+    const GateStep it = blockIdx.y == 0 ? a.it[0] : blockIdx.y == 1 ? a.it[1] : a.it[2];
+    if constexpr (kWave == 64) switch (a.width / kThreads) {
+#define LLMX_GATE_SG(sg) \
+    case sg: wide ? normed_gate_mix<QT, L, sg, 2>(a, it, fg, lds) : normed_gate_mix<QT, L, sg, 1>(a, it, fg, lds); break;
+            LLMX_GATE_SG(1) LLMX_GATE_SG(2) LLMX_GATE_SG(3) LLMX_GATE_SG(4) LLMX_GATE_SG(5) LLMX_GATE_SG(6) LLMX_GATE_SG(7) LLMX_GATE_SG(8) LLMX_GATE_SG(9)
+#undef LLMX_GATE_SG
+            default: break;
+        }
+}
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_normed_gate_mix(GateSteps a) { normed_gate_mix_any<short, 0>(a); }
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_normed_gate_mix_twin16(GateSteps a) { normed_gate_mix_any<short, 32767>(a); }
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_normed_gate_mix_twin8(GateSteps a) { normed_gate_mix_any<signed char, 127>(a); }
 LLMX_EXACT(q8_0, ExactQ8)
+// Up to six F32 products of one row each in one launch, blockIdx.y the projection reading its own row x, each output the bits of llmx_matmul_f32's.
+struct ExactGroup {
+    const unsigned char* w[6];
+    float* y[6];
+    const float* x[6];
+    unsigned long long nout[6];
+};
+// The lanes an output of exact_narrow takes: 16 or 32 where a row's values fit their chains, else the wave (backend_core.hpp, exact_lanes, is the host's copy).
+__device__ inline unsigned exact_lanes(unsigned long long n) {
+    constexpr unsigned long long J = kThreads / kWave;
+    return n <= 16 * J ? 16u : n <= 32 * J && kWave > 32 ? 32u : (unsigned)kWave;
+}
+// exact_wave on `lanes` lanes an output: the lanes past them hold only +0 chains, so their tree levels become one +0 add (turning a -0 chain to +0 as they do) and each output keeps exact_wave's bits.
+template <class D>
+__device__ void exact_narrow(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, unsigned lanes) {
+    constexpr int J = kThreads / kWave;
+    // lanes is a power of two (exact_lanes), so a mask and a shift stand for % and /, which CUDA lowers through a float reciprocal.
+    const int t = threadIdx.x & (lanes - 1);
+    const unsigned long long o = ((unsigned long long)blockIdx.x * kThreads + threadIdx.x) >> (__ffs(lanes) - 1);
+    if (o >= nout) return;
+    const unsigned char* row = W + o * D::row_bytes(nin);
+    const D e = bound(D{}, row);
+    const unsigned long long n = D::units(nin), first = (unsigned long long)J * t;
+    float s[J];
+    // A lane's J values are adjacent, so an aligned row loads them four at once, with the same products.
+    bool done = false;
+    if constexpr (D::vector && J % 4 == 0)
+        if (first + J <= n && (unsigned long long)row % D::align == 0 && (unsigned long long)X % 16 == 0) {
+            done = true;
+#pragma unroll
+            for (int k = 0; k < J / 4; ++k) {
+                const float4 a = e.load4(row, first + 4 * k), b = ((const float4*)X)[(first + 4 * k) / 4];
+                s[4 * k] = fmaf(a.x, b.x, 0.0f) + 0.0f;
+                s[4 * k + 1] = fmaf(a.y, b.y, 0.0f) + 0.0f;
+                s[4 * k + 2] = fmaf(a.z, b.z, 0.0f) + 0.0f;
+                s[4 * k + 3] = fmaf(a.w, b.w, 0.0f) + 0.0f;
+            }
+        }
+    if (!done)
+#pragma unroll
+        for (int j = 0; j < J; ++j) s[j] = first + j < n ? e.step(row, X, first + j, 0.0f) + 0.0f : 0.0f;
+    for (int h = (int)lanes / 2; h > 0; h >>= 1)
+#pragma unroll
+        for (int j = 0; j < J; ++j) s[j] += shuffle_down(s[j], h, (int)lanes);
+#pragma unroll
+    for (int h = J / 2; h > 0; h >>= 1)
+#pragma unroll
+        for (int j = 0; j < h; ++j) s[j] += s[j + h];
+    if (t == 0) Y[o] = s[0];
+}
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_matmul_group_f32(ExactGroup g, unsigned long long nin) {
+    const unsigned lanes = exact_lanes(ExactF32::units(nin));
+    if (lanes < kWave) return exact_narrow<ExactF32>(g.w[blockIdx.y], g.x[blockIdx.y], g.y[blockIdx.y], nin, g.nout[blockIdx.y], lanes);
+    exact_wave<ExactF32>(g.w[blockIdx.y], g.x[blockIdx.y], g.y[blockIdx.y], nin, g.nout[blockIdx.y], 0);
+}
 // A column kernel's body for its block's matrix, which it passes as scalars so the many-row build keeps its registers (docs/DEVICE-TUNING.md).
 template <class D, int R, int G, int WB, bool FULL>
 __device__ __forceinline__ void cols_call(const ColsCall& c, const float* X, unsigned long long nin, unsigned long long nrows, unsigned split, int add) {
@@ -1876,33 +2668,82 @@ __device__ inline void load8(const void* base, unsigned long long i, bool half, 
     }
 }
 
-// Causal attention of a prompt's rows in the Vulkan tile's design: a block a tile of 32 query rows of one view and one head, heads DIM wide, 128 or 256.
-// A row's softmax runs online over the tiles from token 0 in order, so its result depends on its own history alone; 256-wide heads stage 8 tokens a tile and fold (m, l, acc) into a total every 256 tokens (docs/src/backends-gpu.md).
-template <int DIM>
+// attention_rel_sink's keys: tab holds seven words a view (first row, rows, length, ring src slot, dst slot, offset of its block ids in tab, its prompt's extent); a past key comes from the ring or the pooled [k|v] rows.
+struct RelKeys {
+    const float* kn;
+    const float* vn;
+    const unsigned* tab;
+    const float* st;
+    const float* aux;
+    unsigned long long slot, ring, block_floats;
+    unsigned R, rows_floats, width, kd;
+};
+__device__ inline const float* rel_key(const RelKeys& a, const unsigned* view, unsigned p, bool value) {
+    const unsigned row0 = view[0], len = view[2];
+    if (p >= len) return (value ? a.vn : a.kn) + (unsigned long long)(row0 + p - len) * a.kd;
+    const float* row = a.st ? a.st + view[3] * a.slot + a.ring + (unsigned long long)(p % a.R) * 2 * a.kd
+                            : a.aux + (unsigned long long)a.tab[view[5] + p / 64u] * a.block_floats + a.rows_floats + (unsigned long long)(p % 64u) * a.width;
+    return row + (value ? a.kd : 0u);
+}
+// The tile's relative form (llmx_attention_rel_tile): attention_rel_sink's keys, its per-row relative values and sink logits, the [R][extent] table, the window, and the views it takes, those whose prompt's extent reaches tile_rows.
+struct RelTile {
+    RelKeys a;
+    const float* rel;
+    const float* table;
+    const float* sink;
+    unsigned NR, extent, window, tile_rows;
+};
+constexpr int kRelTileValues = 16;   // the most relative values a row the tile stages
+
+// Causal attention of a prompt's rows in Vulkan's tile design: a block a tile of 32 query rows of one view and one head, heads DIM wide, 128 or 256; REL is attention_rel_sink's form (docs/src/backends-gpu.md).
+// A row's softmax runs online over the tiles from token 0 in order, so its result depends on its own history alone.
+template <int DIM, bool REL = false>
 __device__ inline void attention_tile(const float* Q, float* O, const void* kc, const void* vc, const int* table, const int* views, int nviews, int n_head,
-                                      int heads_kv, int bt, int k_half, int v_half, float scale) {
+                                      int heads_kv, int bt, int k_half, int v_half, float scale, const RelTile& rt = RelTile{}) {
     constexpr int TQ = 32, TK = DIM == 128 ? 16 : 8, OWN = TK / 8, RUNS = DIM / 32;
-    constexpr bool FOLDED = DIM == 256;
+    constexpr bool FOLDED = DIM == 256 && !REL;
     constexpr int FOLD = 256 / TK;
+    constexpr int RV = REL ? kRelTileValues : 1, SPAN = REL ? TQ + TK : 1;
     __shared__ float4 ks[TK * DIM / 4];
     __shared__ float4 vs[TK * DIM / 4];
     __shared__ float ps[TQ * TK];
+    __shared__ float rsl[TQ * RV];     // REL: the tile rows' relative values
+    __shared__ float tbl[RV * SPAN];   // REL: the table's columns of the distances a chunk meets, zero outside [0, extent)
     const int wg = blockIdx.x;
-    int v = 0;
-    for (int i = 1; i < nviews; ++i)
-        if (wg >= views[5 * i + 4] * n_head) v = i;
-    const int row0 = views[5 * v], nq = views[5 * v + 1], hist = views[5 * v + 2];
-    const int* blocks = table + views[5 * v + 3];
-    const int local = wg - views[5 * v + 4] * n_head, tile = local / n_head, h = local % n_head;
+    int row0, nq, hist, local;
+    const int* blocks = nullptr;
+    const unsigned* rv = nullptr;
+    if constexpr (REL) {
+        unsigned before = 0;
+        rv = rt.a.tab;
+        local = 0;
+        for (int i = 0; i < nviews; ++i) {
+            const unsigned n = rt.a.tab[7 * i + 1], tiles = rt.a.tab[7 * i + 6] >= rt.tile_rows ? (n + TQ - 1) / TQ : 0;
+            if ((unsigned)wg >= before * n_head && (unsigned)wg < (before + tiles) * n_head) rv = rt.a.tab + 7 * i, local = wg - (int)(before * n_head);
+            before += tiles;
+        }
+        row0 = (int)rv[0], nq = (int)rv[1], hist = (int)rv[2];
+    } else {
+        int v = 0;
+        for (int i = 1; i < nviews; ++i)
+            if (wg >= views[5 * i + 4] * n_head) v = i;
+        row0 = views[5 * v], nq = views[5 * v + 1], hist = views[5 * v + 2];
+        blocks = table + views[5 * v + 3];
+        local = wg - views[5 * v + 4] * n_head;
+    }
+    // A view's longest tiles first, so the causal tail does not wait on the last blocks dispatched.
+    const int tile = (nq + TQ - 1) / TQ - 1 - local / n_head, h = local % n_head;
     const int kvh = h / (n_head / heads_kv);
     const int lid = threadIdx.x, r = lid >> 3, lane = lid & 7;
     const int b = tile * TQ + r;
     const bool live = b < nq;
-    const unsigned long long qbase = (unsigned long long)(row0 + (b < nq ? b : nq - 1)) * n_head * DIM + (unsigned long long)h * DIM;
+    const unsigned long long qrow = (unsigned long long)(row0 + (b < nq ? b : nq - 1)) * n_head + h, qbase = qrow * DIM;
+    // REL scales the dot as attention_rel_sink does, (q.k) scale + bias; the plain tile scales q first.
+    const float qscale = REL ? 1.0f : scale;
     float4 qv[RUNS], acc[RUNS], tot[RUNS];
     for (int k = 0; k < RUNS; ++k) {
         const int d = 32 * k + 4 * lane;
-        qv[k] = make_float4(Q[qbase + d] * scale, Q[qbase + d + 1] * scale, Q[qbase + d + 2] * scale, Q[qbase + d + 3] * scale);
+        qv[k] = make_float4(Q[qbase + d] * qscale, Q[qbase + d + 1] * qscale, Q[qbase + d + 2] * qscale, Q[qbase + d + 3] * qscale);
         acc[k] = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
         tot[k] = acc[k];
     }
@@ -1910,23 +2751,63 @@ __device__ inline void attention_tile(const float* Q, float* O, const void* kc, 
     // At 256 the total's denominator carries its rounding in tll, a two-float sum, since its rounding over the folds is a scale error of the whole row (docs/src/backends-gpu.md).
     float tll = 0.0f;
     const int tile_end = min(hist + tile * TQ + TQ, hist + nq), my_end = hist + b + 1;
-    for (int t0 = 0; t0 < tile_end; t0 += TK) {
+    [[maybe_unused]] int my_lo = 0;
+    int t_first = 0;
+    if constexpr (REL) {
+        // The sink starts the row's sum at one with its logit as the maximum.
+        m = rt.sink[qrow];
+        l = 1.0f;
+        for (int i = lid; i < TQ * RV; i += kThreads) {
+            const int rb = tile * TQ + i / RV, k = i % RV;
+            rsl[i] = k < (int)rt.NR ? rt.rel[((unsigned long long)(row0 + (rb < nq ? rb : nq - 1)) * n_head + h) * rt.NR + k] : 0.0f;
+        }
+        const int first = hist + tile * TQ, w = (int)rt.window;
+        my_lo = w && my_end > w ? my_end - w : 0;
+        t_first = (w && first + 1 > w ? first + 1 - w : 0) / TK * TK;
+    }
+    // A thread stages one chunk of eight keys and eight values a tile (and REL TB table columns); REL loads them into registers a tile ahead, so the loads run under the previous tile's sums.
+    // The plain tiles load at the tile's start: the registers a tile ahead would cost them occupancy (docs/src/backends-gpu.md).
+    static_assert(TK * DIM / 8 == kThreads, "a thread stages one chunk of keys and values a tile");
+    constexpr int TB = REL ? (RV * SPAN + kThreads - 1) / kThreads : 1;
+    const int sj = lid / (DIM / 8), sd = (lid % (DIM / 8)) * 8;
+    float kv8[8], vv8[8], tb[TB];
+    const auto fetch = [&](int t0) {
+        if constexpr (REL) {
+            // Column c holds distance first - t0 - (TK - 1) + c, so tile row r's key t0 + j sits at column r + TK - 1 - j.
+            const int d0 = hist + tile * TQ - t0 - (TK - 1);
+            for (int u = 0; u < TB; ++u) {
+                const int i = lid + u * kThreads, k = i / SPAN, d = d0 + i % SPAN;
+                tb[u] = i < RV * SPAN && k < (int)rt.NR && d >= 0 && d < (int)rt.extent ? rt.table[(unsigned long long)k * rt.extent + d] : 0.0f;
+            }
+        }
         // Eight values a load, zero past the tile's last token so a masked score meets a finite value.
-        for (int i = lid; i < TK * DIM / 8; i += kThreads) {
-            const int j = i / (DIM / 8), d = (i % (DIM / 8)) * 8, t = t0 + j;
-            float kv8[8] = {0, 0, 0, 0, 0, 0, 0, 0}, vv8[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-            if (t < tile_end) {
-                const unsigned long long at = (((unsigned long long)blocks[t / bt] * heads_kv + kvh) * bt + t % bt) * DIM + d;
+        const int t = t0 + sj;
+        for (int e = 0; e < 8; ++e) kv8[e] = 0.0f, vv8[e] = 0.0f;
+        if (t < tile_end) {
+            if constexpr (REL) {
+                const float* kr = rel_key(rt.a, rv, (unsigned)t, false) + (unsigned long long)kvh * DIM + sd;
+                const float* vr = rel_key(rt.a, rv, (unsigned)t, true) + (unsigned long long)kvh * DIM + sd;
+                for (int e = 0; e < 8; ++e) kv8[e] = kr[e], vv8[e] = vr[e];
+            } else {
+                const unsigned long long at = (((unsigned long long)blocks[t / bt] * heads_kv + kvh) * bt + t % bt) * DIM + sd;
                 load8(kc, at, k_half, kv8);
                 load8(vc, at, v_half, vv8);
             }
-            const int s4 = (j * DIM + d) / 4;
-            ks[s4] = make_float4(kv8[0], kv8[1], kv8[2], kv8[3]);
-            ks[s4 + 1] = make_float4(kv8[4], kv8[5], kv8[6], kv8[7]);
-            vs[s4] = make_float4(vv8[0], vv8[1], vv8[2], vv8[3]);
-            vs[s4 + 1] = make_float4(vv8[4], vv8[5], vv8[6], vv8[7]);
         }
+    };
+    if (REL && t_first < tile_end) fetch(t_first);
+    for (int t0 = t_first; t0 < tile_end; t0 += TK) {
+        if constexpr (!REL) fetch(t0);
+        if constexpr (REL)
+            for (int u = 0; u < TB; ++u)
+                if (lid + u * kThreads < RV * SPAN) tbl[lid + u * kThreads] = tb[u];
+        const int s4 = (sj * DIM + sd) / 4;
+        ks[s4] = make_float4(kv8[0], kv8[1], kv8[2], kv8[3]);
+        ks[s4 + 1] = make_float4(kv8[4], kv8[5], kv8[6], kv8[7]);
+        vs[s4] = make_float4(vv8[0], vv8[1], vv8[2], vv8[3]);
+        vs[s4 + 1] = make_float4(vv8[4], vv8[5], vv8[6], vv8[7]);
         __syncthreads();
+        if (REL && t0 + TK < tile_end) fetch(t0 + TK);
         // Partial dots eight tokens at a time over the lane's dimensions, then the butterfly, which leaves token 8 g + lane's score in this lane.
         float sc[OWN];
         float mt = -INFINITY;
@@ -1950,7 +2831,14 @@ __device__ inline void attention_tile(const float* Q, float* O, const void* kc, 
                     part[j] = (upper ? hi : lo) + shuffle_xor(upper ? lo : hi, half, 8);
                 }
             }
-            sc[g] = t0 + 8 * g + lane < my_end ? part[0] : -INFINITY;
+            if constexpr (REL) {
+                const int t = t0 + 8 * g + lane, c = r + TK - 1 - (8 * g + lane);
+                float bias = 0.0f;
+                for (int k = 0; k < (int)rt.NR; ++k) bias = fmaf(rsl[r * RV + k], tbl[k * SPAN + c], bias);
+                sc[g] = t < my_end && t >= my_lo ? part[0] * scale + bias : -INFINITY;
+            } else {
+                sc[g] = t0 + 8 * g + lane < my_end ? part[0] : -INFINITY;
+            }
             mt = fmaxf(mt, sc[g]);
         }
         mt = fmaxf(mt, shuffle_xor(mt, 1, 8));
@@ -1971,7 +2859,8 @@ __device__ inline void attention_tile(const float* Q, float* O, const void* kc, 
         l = fmaf(l, corr, sum);
         m = mn;
         for (int k = 0; k < RUNS; ++k) acc[k] = make_float4(acc[k].x * corr, acc[k].y * corr, acc[k].z * corr, acc[k].w * corr);
-        __syncthreads();
+        // A row's weights are its own eight lanes', which share a wave.
+        lanes_sync();
         // The weighted sum of the tile's values.
         for (int j = 0; j < TK; ++j) {
             const float w = ps[r * TK + j];
@@ -2017,6 +2906,234 @@ __device__ inline void attention_tile(const float* Q, float* O, const void* kc, 
     }
 LLMX_ATTENTION_TILE(llmx_attention_tile, 128)
 LLMX_ATTENTION_TILE(llmx_attention_tile256, 256)
+// attention_rel_sink's prompt rows, 128-wide heads: the tile's REL form over the views whose prompt's extent reaches rt.tile_rows, a block a tile of a view and a head in view order.
+// Launched at kThreads, which lets a thread hold its rows and the tile ahead in registers: unbounded, the compiler assumed 1024 threads, capped it at 64 VGPRs and spilled.
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_attention_rel_tile(const float* Q, float* O, LLMX_GRID_CONST RelTile rt, int nviews, int n_head, int heads_kv, float scale) {
+    attention_tile<128, true>(Q, O, nullptr, nullptr, nullptr, nullptr, nviews, n_head, heads_kv, 0, 0, 0, scale, rt);
+}
+
+// v of lane (this lane xor M) within its row of 16 lanes, M = 1, 2, 7 or 8.
+template <int M> __device__ __forceinline__ float row_xor(float v) {
+    if constexpr (M == 1 || M == 2) return __int_as_float(lane_xor_quad<M>(__float_as_int(v)));
+    else return __int_as_float(lane_xor_row<M>(__float_as_int(v)));
+}
+// Half of v's N values summed with their partner lane's other half: the lower lane keeps the first half's sums, the upper the second's.
+template <int M, int N> __device__ __forceinline__ void row_scatter(float* v, bool upper) {
+#pragma unroll
+    for (int i = 0; i < N / 2; ++i) {
+        const float lo = v[i], hi = v[i + N / 2];
+        v[i] = (upper ? hi : lo) + row_xor<M>(upper ? lo : hi);
+    }
+}
+__device__ __forceinline__ float row_max16(float v) {
+    v = fmaxf(v, row_xor<8>(v));
+    v = fmaxf(v, row_xor<7>(v));
+    v = fmaxf(v, row_xor<2>(v));
+    return fmaxf(v, row_xor<1>(v));
+}
+__device__ __forceinline__ float row_sum16(float v) {
+    v = v + row_xor<8>(v);
+    v = v + row_xor<7>(v);
+    v = v + row_xor<2>(v);
+    return v + row_xor<1>(v);
+}
+// The rel tile's head-group build: a block TQ query rows of each of the GH query heads of one kv head, so a staged tile of 16 keys and values serves all GH heads.
+// A 16-lane row owns RQ row slots, slot s row s % TQ of head s / TQ, a lane dimensions 4L..4L+3 and 64+4L..64+4L+3; every lane exchange sits in block-uniform control flow (docs/src/backends-gpu.md).
+template <int GH, int RQ, int NT>
+__device__ inline void attention_rel_tile_group(const float* Q, float* O, const RelTile& rt, int nviews, int n_head, int heads_kv, float scale) {
+    constexpr int DIM = 128, TK = 16, TQ = NT / 16 * RQ / GH;
+    constexpr int RV = kRelTileValues, SPAN = TQ + TK, TB = (RV * SPAN + NT - 1) / NT;
+    static_assert(NT >= TK * DIM / 8, "the block's first TK * DIM / 8 threads stage a tile's keys and values");
+    __shared__ float4 ks[TK * DIM / 4];
+    __shared__ float4 vs[TK * DIM / 4];
+    __shared__ float ps[NT / 16 * TK * RQ];
+    __shared__ float tbl[RV * SPAN];
+    const int wg = blockIdx.x;
+    unsigned before = 0;
+    const unsigned* rv = rt.a.tab;
+    int local = 0;
+    for (int i = 0; i < nviews; ++i) {
+        const unsigned n = rt.a.tab[7 * i + 1], tiles = rt.a.tab[7 * i + 6] >= rt.tile_rows ? (n + TQ - 1) / TQ : 0;
+        if ((unsigned)wg >= before * heads_kv && (unsigned)wg < (before + tiles) * heads_kv) rv = rt.a.tab + 7 * i, local = wg - (int)(before * heads_kv);
+        before += tiles;
+    }
+    const int row0 = (int)rv[0], nq = (int)rv[1], hist = (int)rv[2];
+    // A view's longest tiles first, as the plain tile does.
+    const int tile = (nq + TQ - 1) / TQ - 1 - local / heads_kv, kvh = local % heads_kv;
+    const int lid = threadIdx.x, L = lid & 15, grp = lid >> 4;
+    // A slot past the GH * TQ rows repeats the last and stores nothing.
+    int pr[RQ], hr[RQ];
+    bool sok[RQ];
+#pragma unroll
+    for (int r = 0; r < RQ; ++r) {
+        const int sl = grp * RQ + r, sc = sl < GH * TQ ? sl : GH * TQ - 1;
+        sok[r] = sl < GH * TQ, hr[r] = kvh * GH + sc / TQ, pr[r] = sc % TQ;
+    }
+    const bool b3 = (L & 8) != 0, b2 = (L & 4) != 0, b1 = (L & 2) != 0, b0 = (L & 1) != 0;
+    // After the four exchanges lane L holds key mykey's scores of its rows.
+    const int mykey = 4 * (L & 3) + (L >> 2);
+    float q[RQ][8], acc[RQ][8], m[RQ], l[RQ], rs[RQ];
+    int my_end[RQ], my_lo[RQ];
+    unsigned long long qb[RQ];
+    const int w = (int)rt.window;
+#pragma unroll
+    for (int r = 0; r < RQ; ++r) {
+        const int b = tile * TQ + pr[r];
+        const unsigned long long qrow = (unsigned long long)(row0 + (b < nq ? b : nq - 1)) * n_head + hr[r];
+        qb[r] = qrow * DIM;
+#pragma unroll
+        for (int e = 0; e < 4; ++e) {
+            q[r][e] = Q[qb[r] + 4 * L + e];
+            q[r][4 + e] = Q[qb[r] + 64 + 4 * L + e];
+            acc[r][e] = acc[r][4 + e] = 0.0f;
+        }
+        // The sink starts the row's sum at one with its logit as the maximum.
+        m[r] = rt.sink[qrow];
+        l[r] = 1.0f;
+        rs[r] = L < (int)rt.NR ? rt.rel[qrow * rt.NR + L] : 0.0f;
+        my_end[r] = hist + b + 1;
+        my_lo[r] = w && my_end[r] > w ? my_end[r] - w : 0;
+    }
+    const int tile_end = min(hist + tile * TQ + TQ, hist + nq), first = hist + tile * TQ;
+    const int t_first = (w && first + 1 > w ? first + 1 - w : 0) / TK * TK;
+    const int sj = lid / (DIM / 8), sd = (lid % (DIM / 8)) * 8;
+    float kv8[8], vv8[8], tb[TB];
+    // A step whose every distance is at or past the table's extent adds no bias.
+    const auto biased = [&](int t0) { return first - (t0 + TK - 1) < (int)rt.extent; };
+    // The next step's keys, values and table columns go to registers under this step's sums.
+    const auto fetch = [&](int t0) {
+        if (biased(t0)) {
+            const int d0 = first - t0 - (TK - 1);
+#pragma unroll
+            for (int u = 0; u < TB; ++u) {
+                const int i = lid + u * NT, k = i / SPAN, d = d0 + i % SPAN;
+                tb[u] = i < RV * SPAN && k < (int)rt.NR && d >= 0 && d < (int)rt.extent ? rt.table[(unsigned long long)k * rt.extent + d] : 0.0f;
+            }
+        }
+        if (lid < TK * DIM / 8) {
+            const int t = t0 + sj;
+#pragma unroll
+            for (int e = 0; e < 8; ++e) kv8[e] = 0.0f, vv8[e] = 0.0f;
+            if (t < tile_end) {
+                const unsigned long long off = (unsigned long long)kvh * DIM + sd;
+                const float* kr = rel_key(rt.a, rv, (unsigned)t, false) + off;
+                const float* vr = rel_key(rt.a, rv, (unsigned)t, true) + off;
+#pragma unroll
+                for (int e = 0; e < 8; ++e) kv8[e] = kr[e], vv8[e] = vr[e];
+            }
+        }
+    };
+    if (t_first < tile_end) fetch(t_first);
+    for (int t0 = t_first; t0 < tile_end; t0 += TK) {
+        const bool bias = biased(t0);
+        if (bias)
+#pragma unroll
+            for (int u = 0; u < TB; ++u)
+                if (lid + u * NT < RV * SPAN) tbl[lid + u * NT] = tb[u];
+        if (lid < TK * DIM / 8) {
+            const int s4 = (sj * DIM + sd) / 4;
+            ks[s4] = make_float4(kv8[0], kv8[1], kv8[2], kv8[3]);
+            ks[s4 + 1] = make_float4(kv8[4], kv8[5], kv8[6], kv8[7]);
+            vs[s4] = make_float4(vv8[0], vv8[1], vv8[2], vv8[3]);
+            vs[s4 + 1] = make_float4(vv8[4], vv8[5], vv8[6], vv8[7]);
+        }
+        __syncthreads();
+        if (t0 + TK < tile_end) fetch(t0 + TK);
+        // Scores in four batches of four keys, each reduced over lane bits 3 and 2, then the batches over bits 1 and 0; lane L adds relative value L times its table column, so the sums carry the bias.
+        float bat[4][RQ];
+        const auto qk = [&](auto bc) {
+            constexpr bool BI = decltype(bc)::value;
+#pragma unroll
+            for (int bt = 0; bt < 4; ++bt) {
+                float p[4 * RQ];
+#pragma unroll
+                for (int k = 0; k < 4; ++k) {
+                    const int j = 4 * bt + k;
+                    const float4 k0 = ks[j * (DIM / 4) + L], k1 = ks[j * (DIM / 4) + 16 + L];
+#pragma unroll
+                    for (int r = 0; r < RQ; ++r) {
+                        float s = 0.0f;
+                        s = fmaf(q[r][0], k0.x, s);
+                        s = fmaf(q[r][1], k0.y, s);
+                        s = fmaf(q[r][2], k0.z, s);
+                        s = fmaf(q[r][3], k0.w, s);
+                        s = fmaf(q[r][4], k1.x, s);
+                        s = fmaf(q[r][5], k1.y, s);
+                        s = fmaf(q[r][6], k1.z, s);
+                        s = fmaf(q[r][7], k1.w, s);
+                        p[k * RQ + r] = BI ? fmaf(s, scale, rs[r] * tbl[L * SPAN + pr[r] + TK - 1 - j]) : s * scale;
+                    }
+                }
+                row_scatter<8, 4 * RQ>(p, b3);
+                row_scatter<7, 2 * RQ>(p, b2);
+#pragma unroll
+                for (int r = 0; r < RQ; ++r) bat[bt][r] = p[r];
+            }
+        };
+        if (bias) qk(std::true_type{});
+        else qk(std::false_type{});
+        float f[4 * RQ];
+#pragma unroll
+        for (int bt = 0; bt < 4; ++bt)
+#pragma unroll
+            for (int r = 0; r < RQ; ++r) f[bt * RQ + r] = bat[bt][r];
+        row_scatter<2, 4 * RQ>(f, b1);
+        row_scatter<1, 2 * RQ>(f, b0);
+        const int t = t0 + mykey;
+        float pv[RQ];
+#pragma unroll
+        for (int r = 0; r < RQ; ++r) {
+            const float sc = t < my_end[r] && t >= my_lo[r] ? f[r] : -INFINITY;
+            const float mn = fmaxf(m[r], row_max16(sc));
+            const float wt = sc == -INFINITY ? 0.0f : expf(sc - mn);
+            const float sum = row_sum16(wt);
+            // Where no maximum in the wave moved, corr is exactly 1 and the rescale is skipped with the same bits.
+            if (wave_all(mn == m[r])) {
+                l[r] = l[r] + sum;
+            } else {
+                const float corr = mn == -INFINITY ? 1.0f : expf(m[r] - mn);
+                l[r] = fmaf(l[r], corr, sum);
+#pragma unroll
+                for (int e = 0; e < 8; ++e) acc[r][e] *= corr;
+            }
+            m[r] = mn;
+            pv[r] = wt;
+        }
+#pragma unroll
+        for (int r = 0; r < RQ; ++r) ps[(grp * TK + mykey) * RQ + r] = pv[r];
+        // A row's weights are its own 16 lanes', which share a wave.
+        lanes_sync();
+#pragma unroll
+        for (int j = 0; j < TK; ++j) {
+            const float* pp = &ps[(grp * TK + j) * RQ];
+            const float4 v0 = vs[j * (DIM / 4) + L], v1 = vs[j * (DIM / 4) + 16 + L];
+#pragma unroll
+            for (int r = 0; r < RQ; ++r) {
+                acc[r][0] = fmaf(pp[r], v0.x, acc[r][0]);
+                acc[r][1] = fmaf(pp[r], v0.y, acc[r][1]);
+                acc[r][2] = fmaf(pp[r], v0.z, acc[r][2]);
+                acc[r][3] = fmaf(pp[r], v0.w, acc[r][3]);
+                acc[r][4] = fmaf(pp[r], v1.x, acc[r][4]);
+                acc[r][5] = fmaf(pp[r], v1.y, acc[r][5]);
+                acc[r][6] = fmaf(pp[r], v1.z, acc[r][6]);
+                acc[r][7] = fmaf(pp[r], v1.w, acc[r][7]);
+            }
+        }
+        __syncthreads();
+    }
+#pragma unroll
+    for (int r = 0; r < RQ; ++r)
+        if (sok[r] && tile * TQ + pr[r] < nq)
+#pragma unroll
+            for (int e = 0; e < 4; ++e) {
+                O[qb[r] + 4 * L + e] = acc[r][e] / l[r];
+                O[qb[r] + 64 + 4 * L + e] = acc[r][4 + e] / l[r];
+            }
+}
+// attention_rel_sink's prompt rows where a kv head serves kRelTileGroup query heads, 128-wide: the head-group build, a block a tile of a view and a kv head in view order.
+extern "C" __global__ void __launch_bounds__(gpu_shape::kRelGroupThreads) llmx_attention_rel_tile_g3(const float* Q, float* O, RelTile rt, int nviews, int n_head, int heads_kv, float scale) {
+    attention_rel_tile_group<gpu_shape::kRelTileGroup, 2, gpu_shape::kRelGroupThreads>(Q, O, rt, nviews, n_head, heads_kv, scale);
+}
 
 // Causal attention of rows that attend one at a time in the Vulkan per-row design, heads 128 or 256 wide: a block a (row, head, split), the row the call's rows[] entry (a sparse call's own index), its streams merged in stream order.
 // One split writes O and its twin and several write partials for llmx_attention_vec_merge; SPARSE splits its selected ids by the stride alone.
@@ -2273,6 +3390,207 @@ extern "C" __global__ void llmx_sparse_attention_vec_merge(const float* partials
 extern "C" __global__ void llmx_sparse_attention_vec_merge256(const float* partials, float* O, int n_head, int nsplit) {
     attention_vec_merge<256, true>(partials, O, nullptr, n_head, nsplit, nullptr, nullptr, nullptr, 0, nullptr);
 }
+
+// The parts of G heads merged by the last block of their group with attention_vec_merge's arithmetic (docs/src/backends-gpu.md, attention with terms).
+// Element e of the block's head u at i: with a gate (gq at the block's first head, heads ghs apart) times sigmoid_mul's factor, then stored with its twin (twin_at).
+__device__ __forceinline__ void terms_put(float* O, unsigned long long i, float x, const float* gq, unsigned long long ghs, unsigned u, unsigned e, void* tq, float* td, void* ts,
+                                          int tlevel, const TwinMap& tm, int major) {
+    if (gq) x = x * (1.0f / (1.0f + expf(-gq[u * ghs + e])));
+    O[i] = x;
+    twin_at(x, i, tq, td, ts, tlevel, tm, major);
+}
+
+template <int G, int T>
+__device__ __forceinline__ void terms_merge(const float* partials, float* O, unsigned long long rh0, unsigned ns, unsigned gy, unsigned t, float (*pw)[gpu_shape::kTermsParts],
+                                            float (*pl)[gpu_shape::kTermsParts], float (*pm)[gpu_shape::kTermsParts], const float* gq, unsigned long long ghs, void* tq, float* td,
+                                            void* ts, int tlevel, const TwinMap& tm, int major) {
+    constexpr unsigned D = 128;
+    static_assert(G * gpu_shape::kTermsParts <= T, "a thread a (head, part)");
+    if (t < G * ns) {
+        const float* p = partials + ((rh0 + t / ns) * gy + t % ns) * (D + 2);
+        pm[t / ns][t % ns] = p[0], pl[t / ns][t % ns] = p[1];
+    }
+    __syncthreads();
+    if (t < G * ns) {
+        const unsigned u = t / ns, k = t % ns;
+        float M = pm[u][0];
+        for (unsigned j = 1; j < ns; ++j) M = fmaxf(M, pm[u][j]);
+        pw[u][k] = expf(pm[u][k] - M);
+    }
+    __syncthreads();
+    for (unsigned o = t; o < G * D; o += T) {
+        const unsigned u = o / D, e = o % D;
+        const float* hb = partials + (rh0 + u) * gy * (D + 2) + 2 + e;
+        float Ls = 0.0f, A = 0.0f;
+        for (unsigned k0 = 0; k0 < ns; k0 += 8) {
+            float x[8];
+#pragma unroll
+            for (unsigned k = 0; k < 8; ++k) x[k] = hb[(k0 + k < ns ? k0 + k : ns - 1) * (D + 2)];
+#pragma unroll
+            for (unsigned k = 0; k < 8; ++k)
+                if (k0 + k < ns) Ls = fmaf(pl[u][k0 + k], pw[u][k0 + k], Ls), A = fmaf(x[k], pw[u][k0 + k], A);
+        }
+        terms_put(O, (rh0 + u) * D + e, A / Ls, gq, ghs, u, e, tq, td, ts, tlevel, tm, major);
+    }
+}
+
+// The shared arrays of attention_terms, declared once a kernel: a set in each of its four side-type bodies took four times the LDS, past 64 KiB on wave32 devices at 512 threads.
+template <int G, int T>
+struct TermsShared {
+    float sm[G][T / GPU_WAVE], sl[G][T / GPU_WAVE];
+    __align__(16) float sv[G][T / GPU_WAVE][128];
+    float pw[G][gpu_shape::kTermsParts], pl[G][gpu_shape::kTermsParts], pm[G][gpu_shape::kTermsParts];
+    bool last;
+};
+
+// Attention with AttentionTerms (backend.hpp) over the core KV blocks, heads 128 wide: a block a (row, G query heads of one KV head, key part) as its grid's x, y and z, 16 lanes a key, each key's K and V read once for the G heads.
+// Lane x < rank adds rel[x] * table[x][dist] to its share of the dot before the lanes sum; the sink starts part 0 as a key of value zero; the last block of a group merges its parts (terms_merge).
+template <int G, int T, bool KH, bool VH>
+__device__ inline void attention_terms(const float* Q, float* O, const void* kc, const void* vc, const int* table, const int* firsts, const int* ends, const int* starts,
+                                       unsigned n_head, unsigned heads_kv, unsigned bt, float scale, unsigned parts, float* partials, unsigned* counter,
+                                       const float* rel, const float* tt, unsigned rank, unsigned extent, const float* sink, const float* gate, unsigned long long gs,
+                                       unsigned long long ghs, void* tq, float* td, void* ts, int tlevel, const TwinMap& tm, int major,
+                                       TermsShared<G, T>& sh) {
+    constexpr unsigned D = 128, L = 16, E = 8, NS = T / L, NW = T / GPU_WAVE;
+    auto& sm = sh.sm;
+    auto& sl = sh.sl;
+    auto& sv = sh.sv;
+    auto& pw = sh.pw;
+    auto& pl = sh.pl;
+    auto& pm = sh.pm;
+    bool& last = sh.last;
+    const unsigned r = blockIdx.x, rg = r * gridDim.y + blockIdx.y, h0 = blockIdx.y * G, split = blockIdx.z, gy = gridDim.z, kvh = h0 / (n_head / heads_kv);
+    const unsigned n = (unsigned)ends[r];
+    if (n == 0) return;
+    // A row's parts past its own count (a shorter row of the call) return; the row's own ns parts count to its merge.
+    const unsigned keys = gpu_shape::terms_keys(n, parts, NS), ns = (n + keys - 1) / keys;
+    if (split >= ns) return;
+    const unsigned t = threadIdx.x, ln = t % L, grp = t / L, d0 = ln * E;
+    const int* blocks = table + firsts[r];
+    const unsigned s0 = starts ? (unsigned)starts[r] : 0u;
+    const unsigned b0 = split * keys, b1 = b0 + keys < n ? b0 + keys : n;
+    const unsigned long long rh0 = (unsigned long long)r * n_head + h0;
+    float qr[G][E], rr[G], m[G], l[G], acc[G][E];
+#pragma unroll
+    for (unsigned u = 0; u < G; ++u) {
+        const float4* qp = (const float4*)(Q + (rh0 + u) * D + d0);
+        const float4 x = qp[0], y = qp[1];
+        qr[u][0] = x.x, qr[u][1] = x.y, qr[u][2] = x.z, qr[u][3] = x.w, qr[u][4] = y.x, qr[u][5] = y.y, qr[u][6] = y.z, qr[u][7] = y.w;
+#pragma unroll
+        for (unsigned e = 0; e < E; ++e) acc[u][e] = 0.0f;
+        rr[u] = ln < rank ? rel[(rh0 + u) * rank + ln] : 0.0f;
+        const bool first = sink && split == 0 && grp == 0;
+        m[u] = first ? sink[rh0 + u] : -INFINITY;
+        l[u] = first ? 1.0f : 0.0f;
+    }
+    // The key's block id is loaded as soon as the step crosses into its block, a step before its keys are read.
+    unsigned bi = (s0 + b0 + grp) / bt, off = (s0 + b0 + grp) % bt;
+    int cur = b0 + grp < b1 ? blocks[bi] : 0;
+    const unsigned long long hs = (unsigned long long)bt * D, kvo = (unsigned long long)kvh * hs + d0;
+    for (unsigned i = b0 + grp; i < b1; i += NS) {
+        const unsigned long long at = (unsigned long long)cur * heads_kv * hs + kvo + (unsigned long long)off * D;
+        off += NS;
+        if (off >= bt) {
+            while (off >= bt) off -= bt, ++bi;
+            if (i + NS < b1) cur = blocks[bi];
+        }
+        float kk[E], vv[E];
+        load8(kc, at, KH, kk);
+        load8(vc, at, VH, vv);
+        const unsigned dist = n - 1 - i;
+        const float tv = ln < rank && dist < extent ? tt[(unsigned long long)ln * extent + dist] : 0.0f;
+#pragma unroll
+        for (unsigned u = 0; u < G; ++u) {
+            float d = 0.0f;
+#pragma unroll
+            for (unsigned e = 0; e < E; ++e) d = fmaf(qr[u][e], kk[e], d);
+            float s = fmaf(d, scale, rr[u] * tv);
+#pragma unroll
+            for (unsigned o = L / 2; o > 0; o >>= 1) s += shuffle_xor(s, o, L);
+            const float mx = fmaxf(m[u], s), f = expf(m[u] - mx), pv = expf(s - mx);
+            l[u] = fmaf(l[u], f, pv);
+#pragma unroll
+            for (unsigned e = 0; e < E; ++e) acc[u][e] = fmaf(pv, vv[e], acc[u][e] * f);
+            m[u] = mx;
+        }
+    }
+    // A wave's lane groups merge across lanes L, 2L, ... apart; a group without keys holds m = -inf and weighs zero, a wave without any keeps M = -inf with weight one.
+#pragma unroll
+    for (unsigned u = 0; u < G; ++u) {
+        float M = m[u];
+#pragma unroll
+        for (unsigned o = L; o < GPU_WAVE; o <<= 1) M = fmaxf(M, shuffle_xor(M, o));
+        const float w = m[u] == M ? 1.0f : expf(m[u] - M);
+        float x = l[u] * w;
+#pragma unroll
+        for (unsigned o = L; o < GPU_WAVE; o <<= 1) x += shuffle_xor(x, o);
+        l[u] = x, m[u] = M;
+#pragma unroll
+        for (unsigned e = 0; e < E; ++e) {
+            float y = acc[u][e] * w;
+#pragma unroll
+            for (unsigned o = L; o < GPU_WAVE; o <<= 1) y += shuffle_xor(y, o);
+            acc[u][e] = y;
+        }
+    }
+    const unsigned wv = t / GPU_WAVE;
+    if (t % GPU_WAVE < L)
+#pragma unroll
+        for (unsigned u = 0; u < G; ++u) {
+            if (ln == 0) sm[u][wv] = m[u], sl[u][wv] = l[u];
+#pragma unroll
+            for (unsigned e = 0; e < E; ++e) sv[u][wv][d0 + e] = acc[u][e];
+        }
+    __syncthreads();
+    for (unsigned o = t; o < G * D; o += T) {
+        const unsigned u = o / D, e = o % D;
+        float M = sm[u][0];
+#pragma unroll
+        for (unsigned k = 1; k < NW; ++k) M = fmaxf(M, sm[u][k]);
+        float Ls = 0.0f, V = 0.0f;
+#pragma unroll
+        for (unsigned k = 0; k < NW; ++k) {
+            const float w = sm[u][k] == M ? 1.0f : expf(sm[u][k] - M);
+            Ls = fmaf(sl[u][k], w, Ls);
+            V = fmaf(sv[u][k][e], w, V);
+        }
+        if (ns == 1) terms_put(O, (rh0 + u) * D + e, V / Ls, gate ? gate + r * gs + h0 * ghs : nullptr, ghs, u, e, tq, td, ts, tlevel, tm, major);
+        else {
+            float* out = partials + ((rh0 + u) * gy + split) * (D + 2);
+            out[2 + e] = V;
+            if (e == 0) out[0] = M, out[1] = Ls;
+        }
+    }
+    if (ns == 1) return;
+    __threadfence();
+    __syncthreads();
+    if (t == 0) last = atomicAdd(counter + rg, 1u) == ns - 1;
+    __syncthreads();
+    if (!last) return;
+    __threadfence();
+    if (t == 0) counter[rg] = 0;
+    terms_merge<G, T>(partials, O, rh0, ns, gy, t, pw, pl, pm, gate ? gate + r * gs + h0 * ghs : nullptr, ghs, tq, td, ts, tlevel, tm, major);
+}
+// One build per (query heads a KV head, threads): G 1 takes any ratio, G 3 Inkling's; each holds a body per KV side type, picked once, so the key loop tests no type.
+#define LLMX_ATTENTION_TERMS(name, G, T) \
+    extern "C" __global__ void __launch_bounds__(T) name(const float* Q, float* O, const void* kc, const void* vc, const int* table, const int* firsts, const int* ends, \
+                                                         const int* starts, unsigned n_head, unsigned heads_kv, unsigned bt, int k_half, int v_half, float scale, \
+                                                         unsigned parts, float* partials, unsigned* counter, const float* rel, const float* tt, unsigned rank, \
+                                                         unsigned extent, const float* sink, const float* gate, unsigned long long gs, unsigned long long ghs, \
+                                                         void* tq, float* td, void* ts, int tlevel, LLMX_GRID_CONST TwinMap tm, int major) { \
+        __shared__ TermsShared<G, T> sh; \
+        if (k_half && v_half) attention_terms<G, T, true, true>(Q, O, kc, vc, table, firsts, ends, starts, n_head, heads_kv, bt, scale, parts, partials, counter, rel, tt, rank, extent, sink, \
+                                                                gate, gs, ghs, tq, td, ts, tlevel, tm, major, sh); \
+        else if (k_half) attention_terms<G, T, true, false>(Q, O, kc, vc, table, firsts, ends, starts, n_head, heads_kv, bt, scale, parts, partials, counter, rel, tt, rank, extent, sink, \
+                                                            gate, gs, ghs, tq, td, ts, tlevel, tm, major, sh); \
+        else if (v_half) attention_terms<G, T, false, true>(Q, O, kc, vc, table, firsts, ends, starts, n_head, heads_kv, bt, scale, parts, partials, counter, rel, tt, rank, extent, sink, \
+                                                            gate, gs, ghs, tq, td, ts, tlevel, tm, major, sh); \
+        else attention_terms<G, T, false, false>(Q, O, kc, vc, table, firsts, ends, starts, n_head, heads_kv, bt, scale, parts, partials, counter, rel, tt, rank, extent, sink, \
+                                                 gate, gs, ghs, tq, td, ts, tlevel, tm, major, sh); \
+    }
+LLMX_ATTENTION_TERMS(llmx_attention_terms_g1, 1, 256)
+LLMX_ATTENTION_TERMS(llmx_attention_terms_g3, 3, 256)
+LLMX_ATTENTION_TERMS(llmx_attention_terms_g3_512, 3, 512)
 
 // A block a (row, head): the row's chunks merged in order, each scaled to the largest maximum.
 // SPARSE takes the chunks of the row's `stride` ids, skips a chunk that saw none and gives zeros for a row of none.
@@ -2640,22 +3958,24 @@ LLMX_DELTA_RULE(llmx_gated_delta_rule_short, 4)
 
 // The Flash-Next stream ops (backend.hpp), each at its Vulkan kernel's op boundary and in its order, every value a function of its own row.
 
-// A block a (row, group) and slice of rows: the group's RMS norm against its own weights, each thread's squares in order, then block_sum's tree.
-// Every slice repeats the whole reduction, so a group's bits do not depend on its slices; with `four` (dst, src and w on 16 bytes, dim a multiple of 4) a thread scales four values a chunk, one load and store each, their twin by twin_four.
-extern "C" __global__ void llmx_group_rms_norm(float* dst, const float* src, const float* w, unsigned groups, unsigned dim, float eps, void* tq, float* td, void* ts, int tlevel, LLMX_GRID_CONST TwinMap tm, int major,
-                                               int four) {
+// A block a (row, group) and slice of rows: the group's RMS norm against its own weights, each thread's squares in order, then block_sum's tree; every slice repeats the whole reduction, so a group's bits do not depend on its slices.
+// With `four` (16-byte dst, sources and w, dim a multiple of 4) a thread scales four values a chunk, their twin by twin_four; groups below split read rows stride apart from src0, the rest stride1 apart from src1.
+extern "C" __global__ void llmx_group_rms_norm(float* dst, const float* src0, const float* src1, unsigned long long stride0, unsigned long long stride1, unsigned split, const float* w, unsigned groups,
+                                               unsigned dim, float eps, void* tq, float* td, void* ts, int tlevel, LLMX_GRID_CONST TwinMap tm, int major, int four) {
     __shared__ float lds[kThreads];
-    const unsigned long long o = (unsigned long long)blockIdx.x * dim;
-    const float* wg = w + (unsigned long long)(blockIdx.x % groups) * dim;
+    const unsigned long long o = (unsigned long long)blockIdx.x * dim, row = blockIdx.x / groups;
+    const unsigned grp = blockIdx.x % groups;
+    const float* wg = w + (unsigned long long)grp * dim;
+    const float* src = (grp < split ? src0 + row * stride0 + (unsigned long long)grp * dim : src1 + row * stride1 + (unsigned long long)(grp - split) * dim);
     float s = 0.0f;
-    for (unsigned i = threadIdx.x; i < dim; i += kThreads) s = fmaf(src[o + i], src[o + i], s);
+    for (unsigned i = threadIdx.x; i < dim; i += kThreads) s = fmaf(src[i], src[i], s);
     const float r = 1.0f / sqrtf(block_sum<kThreads>(s, lds) / (float)dim + eps);
     if (four) {
         for (unsigned c = blockIdx.y; c * 1024u < dim; c += gridDim.y) {
             const unsigned i = c * 1024u + 4u * threadIdx.x;
             // A block's 8 lanes are all in or all out of the row, since dim is a multiple of 32 wherever a twin is asked for.
             if (i >= dim) continue;
-            const float4 x = *(const float4*)(src + o + i), g = *(const float4*)(wg + i);
+            const float4 x = *(const float4*)(src + i), g = *(const float4*)(wg + i);
             const float4 v = make_float4(x.x * (r * g.x), x.y * (r * g.y), x.z * (r * g.z), x.w * (r * g.w));
             *(float4*)(dst + o + i) = v;
             if (tlevel) {
@@ -2668,7 +3988,7 @@ extern "C" __global__ void llmx_group_rms_norm(float* dst, const float* src, con
     }
     for (unsigned c = blockIdx.y; c * 1024u < dim; c += gridDim.y)
         for (unsigned i = c * 1024u + threadIdx.x; i < dim && i < (c + 1u) * 1024u; i += kThreads) {
-            const float v = src[o + i] * (r * wg[i]);
+            const float v = src[i] * (r * wg[i]);
             dst[o + i] = v;
             twin_at(v, o + i, tq, td, ts, tlevel, tm, major);
         }
@@ -2720,7 +4040,7 @@ extern "C" __global__ void llmx_signed_sqrt_gate(float* dst, const float* key, c
     for (unsigned i = threadIdx.x; i < dim; i += kThreads) dst[o + i] = value[v0 + i] * factor;
 }
 
-// The dilated causal conv, its SiLU and the residual added (backend.hpp, dilated_conv_silu_add), a thread a channel, the taps in order, so a row is the same however its view is cut.
+// The dilated causal conv, its SiLU and the residual added (backend.hpp, depthwise_conv with a tail, SiLU and a given residual), a thread a channel, the taps in order, so a row is the same however its view is cut.
 // Only a view's first chunk reads its carried raw rows, before it leaves the view's last raw rows in slot dst.
 extern "C" __global__ void llmx_dilated_conv_silu_add(float* o, const float* x, const float* residual, const float* w, float* st, const unsigned* tab, unsigned C, unsigned taps,
                                                       unsigned dilation, unsigned history, unsigned long long slot, unsigned long long prefix, unsigned chunk) {
@@ -2757,6 +4077,925 @@ extern "C" __global__ void llmx_dilated_conv_silu_add(float* o, const float* x, 
             } else value = x[(unsigned long long)(row0 + i - missing) * C + c];
             d[(unsigned long long)i * C] = value;
         }
+    }
+}
+
+// depthwise_conv over a ring of past rows (backend.hpp, ConvHistory::ring), a thread a (view, channel) over the view's rows in order where a block holds kThreads channels (one-row calls), dilation 1 and up to four taps.
+// The history is read before any row is written so out may be x, several such convolutions share a launch, and a post step (1 l2_clip, 2 group_rms_norm) sums a head's squares by block_sum's tree (docs/src/backends-gpu.md).
+struct ConvArgs {
+    struct Item {
+        float* o;
+        const float* x;
+        const float* w;
+        const float* dyn;
+        const float* res;
+        unsigned long long ring, dyn_stride, out_stride;
+        unsigned C, T, R, group, blocks;
+        int silu, from, accumulate;
+        float divisor;
+        int kv_side;
+        const float* post_w;
+        unsigned post, post_dim;
+        float post_limit;
+        int kv_half;
+    } item[2];
+    float* st;
+    const unsigned* tab;
+    unsigned long long slot;
+    unsigned n, cw;
+    void* kc;
+    void* vc;
+    const int* kv_blocks;
+    unsigned bt, kv_views;
+    unsigned parts;
+};
+// A view's five table words: first row, rows, history length, source slot and destination slot.
+struct ConvView {
+    unsigned row0, nq, len, src, dst;
+};
+__device__ __forceinline__ ConvView conv_view(const ConvArgs& a, unsigned v) {
+    const unsigned* t = a.tab + 1 + 5 * v;
+    return {t[0], t[1], t[2], t[3], t[4]};
+}
+constexpr unsigned kConvRaw = (256 + 3) * 16;   // shared floats: 256 rows of 16 channels and the 3 lags ahead of them
+// A block of cw < kThreads channels (no post step): a thread a channel and a lane of kThreads / cw over the view's rows, a stretch of kConvRaw / cw - 3 rows staged raw in shared memory before any is written, with the thread path's sums.
+__device__ LLMX_FLAT void conv_ring_staged(const ConvArgs::Item& it, const ConvArgs& a, unsigned blk, unsigned cw) {
+    __shared__ float raw[kConvRaw];
+    float* const o = it.o;
+    const float *const x = it.x, *const w = it.w, *const dyn = it.dyn, *const res = it.res;
+    const unsigned C = it.C, T = it.T, R = it.R, group = it.group;
+    const unsigned long long ring = it.ring, dyn_stride = it.dyn_stride, out_stride = it.out_stride;
+    const int silu = it.silu, from = it.from, accumulate = it.accumulate;
+    const float divisor = it.divisor;
+    const unsigned lanes = kThreads / cw, stretch = kConvRaw / cw - 3, lc = threadIdx.x % cw, lane = threadIdx.x / cw, c = blk * cw + lc;
+    const bool on = c < C;
+    const ConvView cv = conv_view(a, blockIdx.y);
+    const unsigned row0 = cv.row0, nq = cv.nq, len = cv.len;
+    const float* src = a.st + cv.src * a.slot + ring + c;
+    float* dst = a.st + cv.dst * a.slot + ring + c;
+    if (on && src != dst)
+        for (unsigned r = lane; r < R; r += lanes) dst[(unsigned long long)r * C] = src[(unsigned long long)r * C];
+    __syncthreads();
+    // raw[2 - j] holds lag j + 1 before the stretch's first row.
+    for (unsigned j = lane; j < 3; j += lanes) raw[(2 - j) * cw + lc] = on && j + 1 < T && len > j ? dst[(unsigned long long)((len - 1 - j) % R) * C] : 0.0f;
+    float wk[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+#pragma unroll
+    for (unsigned k = 0; k < 4; ++k)
+        if (on && k < T) wk[k] = w[(unsigned long long)c * T + k];
+    __syncthreads();
+    for (unsigned s0 = 0; s0 < nq; s0 += stretch) {
+        const unsigned n = nq - s0 < stretch ? nq - s0 : stretch;
+        for (unsigned b = lane; b < n; b += lanes) raw[(3 + b) * cw + lc] = on ? x[(unsigned long long)(row0 + s0 + b) * C + c] : 0.0f;
+        __syncthreads();
+        for (unsigned b = lane; on && b < n; b += lanes) {
+            const unsigned long long g = row0 + s0 + b, i = g * C + c;
+            const float now = raw[(3 + b) * cw + lc];
+            const float* dr = dyn ? dyn + g * dyn_stride + (unsigned long long)(c / group) * T : nullptr;
+            float acc = 0.0f;
+#pragma unroll
+            for (unsigned k = 0; k < 4; ++k)
+                if (k < T) {
+                    const unsigned lag = T - 1 - k;
+                    const float sample = raw[(3 + b - lag) * cw + lc];
+                    const float wt = dr ? wk[k] + dr[lag] : wk[k];
+                    acc = k ? fmaf(wt, sample, acc) : wt * sample;
+                }
+            if (s0 + b + R >= nq) dst[(unsigned long long)((len + s0 + b) % R) * C] = now;
+            const float y = silu ? acc / (1.0f + expf(-acc)) : acc;
+            const float sum = from == 1 ? now + y : from == 2 ? res[i] + y : y;
+            const float value = divisor == 1.0f ? sum : sum / divisor;
+            float* d = o + g * out_stride + c;
+            *d = accumulate ? *d + value : value;
+        }
+        __syncthreads();
+        // The stretch's last three raw rows lead the next one.
+        for (unsigned j = lane; j < 3 && s0 + stretch < nq; j += lanes) raw[j * cw + lc] = raw[(stretch + j) * cw + lc];
+        __syncthreads();
+    }
+}
+// The head's squares as l2_clip and group_rms_norm sum them: one a thread, block_sum's tree over the head's lanes, the lanes past it holding +0 there.
+__device__ LLMX_FLAT void conv_ring_post(const ConvArgs& a, const ConvArgs::Item& it, unsigned v, unsigned long long row0, unsigned c, float last) {
+    __shared__ float lds[kThreads], heads[kThreads / GPU_WAVE];
+    const unsigned C = it.C, post = it.post;
+    lds[threadIdx.x] = c < C ? fmaf(last, last, 0.0f) : 0.0f;
+    __syncthreads();
+    const unsigned D = it.post_dim, base = threadIdx.x & ~(D - 1u), t = threadIdx.x - base;
+    if (t < GPU_WAVE) {
+        constexpr int M = kThreads / GPU_WAVE;
+        const int MD = (int)(D / GPU_WAVE);
+        float u[M];
+#pragma unroll
+        for (int k = 0; k < M; ++k) u[k] = k < MD ? lds[base + t + GPU_WAVE * k] : 0.0f;
+#pragma unroll
+        for (int h = M / 2; h > 0; h >>= 1)
+            if (h < MD)
+#pragma unroll
+                for (int k = 0; k < h; ++k) u[k] = u[k] + u[k + h];
+        float s = u[0];
+        for (int h = GPU_WAVE / 2; h > 0; h >>= 1) s += shuffle_down(s, h);
+        if (t == 0) heads[base / D] = s;
+    }
+    __syncthreads();
+    if (c >= C) return;
+    const float s = heads[threadIdx.x / D];
+    float value;
+    if (post == 1) {
+        value = last * fminf(1.0f, it.post_limit / (sqrtf(s) + 1e-6f));
+    } else {
+        const float r = 1.0f / sqrtf(s / (float)D + it.post_limit);
+        value = last * (r * it.post_w[c]);
+    }
+    it.o[row0 * it.out_stride + c] = value;
+    // A KV write's item stores its view's row into the view's KV block as kv_write does, heads of D (kv_store).
+    if (it.kv_side) {
+        const unsigned long long at = (((unsigned long long)a.kv_blocks[v] * (C / D) + c / D) * a.bt + (unsigned)a.kv_blocks[a.kv_views + v]) * D + (c & (D - 1u));
+        kv_store(it.kv_side == 1 ? a.kc : a.vc, at, value, it.kv_half);
+    }
+}
+struct ConvSum;
+template <class Head> __device__ LLMX_FLAT void conv_ring_take(const ConvArgs& a, const ConvSum& s, float4* row, Head head);
+// One row whose sum the call takes (decode): waves 2-3 copy the ring and sum the taps before the last while waves 0-1 push and take, and the summed row reaches the last tap, which is the last fma, from shared memory.
+__device__ LLMX_FLAT void conv_ring_row(const ConvArgs::Item& it, const ConvArgs& a, const ConvSum& s, unsigned blk, const ConvView& cv) {
+    __shared__ float4 row[GPU_WAVE];
+    __shared__ float part[kThreads], tap[kThreads];
+    const float* const w = it.w;
+    const float* const dyn = it.dyn;
+    float* const st = a.st;
+    const unsigned C = it.C, T = it.T, R = it.R, group = it.group, len = cv.len;
+    const unsigned long long ring = it.ring, g = cv.row0;
+    conv_ring_take(a, s, row, [&] {
+        if (threadIdx.x < 2 * GPU_WAVE) return;
+        for (unsigned lc = threadIdx.x - 2 * GPU_WAVE; lc < kThreads; lc += 2 * GPU_WAVE) {
+            const unsigned c = blk * kThreads + lc;
+            if (c >= C) break;
+            const float* src = st + cv.src * a.slot + ring + c;
+            float* dst = st + cv.dst * a.slot + ring + c;
+            if (src != dst)
+                for (unsigned r = 0; r < R; ++r) dst[(unsigned long long)r * C] = src[(unsigned long long)r * C];
+            const float* dr = dyn ? dyn + g * it.dyn_stride + (unsigned long long)(c / group) * T : nullptr;
+            float acc = 0.0f;
+#pragma unroll
+            for (unsigned k = 0; k < 3; ++k)
+                if (k + 1 < T) {
+                    const unsigned lag = T - 1 - k;
+                    const float sample = len >= lag ? dst[(unsigned long long)((len - lag) % R) * C] : 0.0f;
+                    const float wt = dr ? w[(unsigned long long)c * T + k] + dr[lag] : w[(unsigned long long)c * T + k];
+                    acc = k ? fmaf(wt, sample, acc) : wt * sample;
+                }
+            part[lc] = acc;
+            tap[lc] = dr ? w[(unsigned long long)c * T + T - 1] + dr[0] : w[(unsigned long long)c * T + T - 1];
+        }
+    });
+    const unsigned c = blk * kThreads + threadIdx.x;
+    float last = 0.0f;
+    if (c < C) {
+        const float now = ((const float*)row)[threadIdx.x];
+        const float acc = T == 1 ? tap[threadIdx.x] * now : fmaf(tap[threadIdx.x], now, part[threadIdx.x]);
+        st[cv.dst * a.slot + ring + (unsigned long long)(len % R) * C + c] = now;
+        const unsigned long long i = g * C + c;
+        const float y = it.silu ? acc / (1.0f + expf(-acc)) : acc;
+        const float sum = it.from == 1 ? now + y : it.from == 2 ? it.res[i] + y : y;
+        const float value = it.divisor == 1.0f ? sum : sum / it.divisor;
+        float* d = it.o + g * it.out_stride + c;
+        if (it.post) last = value;
+        else *d = it.accumulate ? *d + value : value;
+    }
+    if (it.post) conv_ring_post(a, it, blockIdx.y, g, c, last);
+}
+// s, when given, is the sum the call takes before it reads x: one row reads it from shared memory (conv_ring_row), more rows after the take has written it back to x.
+__device__ __forceinline__ void conv_ring_body(const ConvArgs& a, const ConvSum* s) {
+    // The item by constant indices, so the argument is read as scalars rather than copied to scratch.
+    unsigned blk = blockIdx.x;
+    ConvArgs::Item it = a.item[0];
+#pragma unroll
+    for (unsigned i = 1; i < 2; ++i)
+        if (i < a.n && blk >= it.blocks) blk -= it.blocks, it = a.item[i];
+    if (a.cw < kThreads) {
+        if (s) conv_ring_take(a, *s, nullptr, [] {});
+        conv_ring_staged(it, a, blk, a.cw);
+        return;
+    }
+    const ConvView cv = conv_view(a, blockIdx.y);
+    if (s && cv.nq == 1) {
+        conv_ring_row(it, a, *s, blk, cv);
+        return;
+    }
+    if (s) conv_ring_take(a, *s, nullptr, [] {});
+    float* const o = it.o;
+    const float *const x = it.x, *const w = it.w, *const dyn = it.dyn, *const res = it.res;
+    float* const st = a.st;
+    const unsigned C = it.C, T = it.T, R = it.R, group = it.group;
+    const unsigned long long slot = a.slot, ring = it.ring, dyn_stride = it.dyn_stride, out_stride = it.out_stride;
+    const int silu = it.silu, from = it.from, accumulate = it.accumulate;
+    const float divisor = it.divisor;
+    const unsigned c = blk * kThreads + threadIdx.x, post = it.post;
+    // A block's post step is the item's, so its threads past C wait at its barriers rather than leave.
+    if (c >= C && !post) return;
+    const unsigned row0 = cv.row0, nq = cv.nq, len = cv.len;
+    float last = 0.0f;
+    if (c < C) {
+        const float* src = st + cv.src * slot + ring + c;
+        float* dst = st + cv.dst * slot + ring + c;
+        if (src != dst)
+            for (unsigned r = 0; r < R; ++r) dst[(unsigned long long)r * C] = src[(unsigned long long)r * C];
+        float h[3] = {0.0f, 0.0f, 0.0f}, wk[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+#pragma unroll
+        for (unsigned j = 0; j < 3; ++j)
+            if (j + 1 < T && len > j) h[j] = dst[(unsigned long long)((len - 1 - j) % R) * C];
+#pragma unroll
+        for (unsigned k = 0; k < 4; ++k)
+            if (k < T) wk[k] = w[(unsigned long long)c * T + k];
+        for (unsigned b = 0; b < nq; ++b) {
+            const unsigned long long g = row0 + b, i = g * C + c;
+            const float now = x[i];
+            const float* dr = dyn ? dyn + g * dyn_stride + (unsigned long long)(c / group) * T : nullptr;
+            float acc = 0.0f;
+#pragma unroll
+            for (unsigned k = 0; k < 4; ++k)
+                if (k < T) {
+                    const unsigned lag = T - 1 - k;
+                    const float sample = lag == 0 ? now : lag == 1 ? h[0] : lag == 2 ? h[1] : h[2];
+                    const float wt = dr ? wk[k] + dr[lag] : wk[k];
+                    acc = k ? fmaf(wt, sample, acc) : wt * sample;
+                }
+            if (b + R >= nq) dst[(unsigned long long)((len + b) % R) * C] = now;
+            h[2] = h[1], h[1] = h[0], h[0] = now;
+            const float y = silu ? acc / (1.0f + expf(-acc)) : acc;
+            const float sum = from == 1 ? now + y : from == 2 ? res[i] + y : y;
+            const float value = divisor == 1.0f ? sum : sum / divisor;
+            float* d = o + g * out_stride + c;
+            if (post) last = value;
+            else *d = accumulate ? *d + value : value;
+        }
+    }
+    if (post) conv_ring_post(a, it, blockIdx.y, row0, c, last);
+}
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_conv_ring(ConvArgs a) { conv_ring_body(a, nullptr); }
+constexpr unsigned kConvPart = 8;
+// A thread a channel over one part of kConvPart rows of a view (grid.z), with conv_ring_body's sums: a later part's lags are the input rows before it, part 0's the ring history.
+// Part 0 also writes the ring's new rows from the input, as their slots may be the history's; a part's loads are all issued before its first store, which would otherwise order them.
+__device__ LLMX_FLAT void conv_ring_parts(const ConvArgs::Item& it, const ConvArgs& a, unsigned blk) {
+    const unsigned C = it.C, T = it.T, R = it.R, group = it.group, c = blk * kThreads + threadIdx.x;
+    const ConvView cv = conv_view(a, blockIdx.y);
+    const unsigned row0 = cv.row0, nq = cv.nq, len = cv.len, p0 = blockIdx.z * kConvPart;
+    if (c >= C || p0 >= nq) return;
+    float* const o = it.o;
+    const float *const x = it.x, *const w = it.w, *const dyn = it.dyn, *const res = it.res;
+    const unsigned long long ring = it.ring, dyn_stride = it.dyn_stride, out_stride = it.out_stride;
+    const int silu = it.silu, from = it.from, accumulate = it.accumulate;
+    const float divisor = it.divisor;
+    float* dst = a.st + cv.dst * a.slot + ring + c;
+    float h[3] = {0.0f, 0.0f, 0.0f}, wk[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    if (!p0) {
+        const float* src = a.st + cv.src * a.slot + ring + c;
+        if (src != dst)
+            for (unsigned r = 0; r < R; ++r) dst[(unsigned long long)r * C] = src[(unsigned long long)r * C];
+#pragma unroll
+        for (unsigned j = 0; j < 3; ++j)
+            if (j + 1 < T && len > j) h[j] = dst[(unsigned long long)((len - 1 - j) % R) * C];
+        const unsigned tail = nq < R ? nq : R;
+        for (unsigned r = 0; r < tail; ++r) dst[(unsigned long long)((len + nq - tail + r) % R) * C] = x[(unsigned long long)(row0 + nq - tail + r) * C + c];
+    } else {
+#pragma unroll
+        for (unsigned j = 0; j < 3; ++j) h[j] = x[(unsigned long long)(row0 + p0 - 1 - j) * C + c];
+    }
+#pragma unroll
+    for (unsigned k = 0; k < 4; ++k)
+        if (k < T) wk[k] = w[(unsigned long long)c * T + k];
+    const unsigned n = nq - p0 < kConvPart ? nq - p0 : kConvPart;
+    float now_[kConvPart], out_[kConvPart], res_[kConvPart];
+#pragma unroll
+    for (unsigned u = 0; u < kConvPart; ++u) {
+        const bool in = u < n;
+        const unsigned long long g = row0 + p0 + u, i = g * C + c;
+        now_[u] = in ? x[i] : 0.0f;
+        out_[u] = in && accumulate ? o[g * out_stride + c] : 0.0f;
+        res_[u] = in && from == 2 ? res[i] : 0.0f;
+    }
+#pragma unroll
+    for (unsigned u = 0; u < kConvPart; ++u) {
+        if (u >= n) break;
+        const unsigned long long g = row0 + p0 + u;
+        const float now = now_[u];
+        const float* dr = dyn ? dyn + g * dyn_stride + (unsigned long long)(c / group) * T : nullptr;
+        float acc = 0.0f;
+#pragma unroll
+        for (unsigned k = 0; k < 4; ++k)
+            if (k < T) {
+                const unsigned lag = T - 1 - k;
+                const float sample = lag == 0 ? now : lag == 1 ? h[0] : lag == 2 ? h[1] : h[2];
+                const float wt = dr ? wk[k] + dr[lag] : wk[k];
+                acc = k ? fmaf(wt, sample, acc) : wt * sample;
+            }
+        h[2] = h[1], h[1] = h[0], h[0] = now;
+        const float y = silu ? acc / (1.0f + expf(-acc)) : acc;
+        const float sum = from == 1 ? now + y : from == 2 ? res_[u] + y : y;
+        const float value = divisor == 1.0f ? sum : sum / divisor;
+        o[g * out_stride + c] = accumulate ? out_[u] + value : value;
+    }
+}
+// llmx_conv_ring over parts of a view's rows, for a call none of whose items writes its own input, as a part's lags are the rows before it.
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_conv_ring_parts(ConvArgs a) {
+    unsigned blk = blockIdx.x;
+    ConvArgs::Item it = a.item[0];
+#pragma unroll
+    for (unsigned i = 1; i < 2; ++i)
+        if (i < a.n && blk >= it.blocks) blk -= it.blocks, it = a.item[i];
+    conv_ring_parts(it, a, blk);
+}
+
+// A one-shot sum whose push and take a ring convolution runs before it reads its input (GpuCollective, TakeDesc): the group's peers, n floats summed, a slot's floats, the parity half and the wait.
+struct ConvSum {
+    const GroupPeers* p;
+    unsigned long long n, cap, half_at, timeout, tick;
+    int members, rank;
+};
+// Each block sums the float4 units of its own channels and view rows into the item's input, pushed to every peer before any lane waits and added in member order as llmx_group_sum adds them; a failed take leaves NaN.
+// With row given (one row, units <= GPU_WAVE) the sum is also left there, and head runs on the threads the push and take leave idle.
+template <class Head> __device__ LLMX_FLAT void conv_ring_take(const ConvArgs& a, const ConvSum& s, float4* row, Head head) {
+    __shared__ int failed;
+    float* const x = (float*)a.item[0].x;
+    const unsigned C = a.item[0].C, cw = a.cw, c0 = blockIdx.x * cw, cn = C - c0 < cw ? C - c0 : cw, per = cn / 4;
+    const ConvView cv = conv_view(a, blockIdx.y);
+    const unsigned row0 = cv.row0, units = cv.nq * per;
+    const GroupPeers* p = s.p;
+    const unsigned long long n = s.n, cap = s.cap;
+    const int members = s.members, rank = s.rank;
+    GroupSignal* self = (GroupSignal*)p->signal[rank];
+    const unsigned long long deadline = s.timeout ? (unsigned long long)wall_clock() + s.timeout : ~0ull;
+    if (!threadIdx.x) failed = 0;
+    float* mine = p->stage[rank] + s.half_at;
+    unsigned long long next;
+    bool met = true;
+    if (units <= GPU_WAVE) {
+        __shared__ float4 own_row[GPU_WAVE];
+        float4* const own = row ? row : own_row;
+        const unsigned t = threadIdx.x, q = t < GPU_WAVE ? t : t - GPU_WAVE;
+        const unsigned long long i = (unsigned long long)(row0 + q / per) * C + c0 + (q % per) * 4;
+        float4 f = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+        if (t < units) own[t] = f = *(const float4*)(x + i);
+        __syncthreads();
+        next = (unsigned long long)wall_clock() + s.tick;
+        if (t < units) {
+            const GroupWord4 w{group_sane(f.x), group_sane(f.y), group_sane(f.z), group_sane(f.w)};
+            for (int j = 0; j < members; ++j)
+                if (j != rank) store_vector((GroupWord4*)(p->stage[j] + s.half_at + rank * cap + i), w);
+        } else if (t >= GPU_WAVE && q < units) {
+            float4 sum = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+            for (int j = 0; j < members && met; ++j) {
+                float4 g;
+                if (j == rank) g = own[q];
+                else met = group_take(p, self, mine + j * cap, i, n, deadline, s.tick, &next, &failed, &g);
+                if (!j) {
+                    sum = g;
+                } else {
+                    sum.x += g.x;
+                    sum.y += g.y;
+                    sum.z += g.z;
+                    sum.w += g.w;
+                }
+            }
+            if (met) {
+                *(float4*)(x + i) = sum;
+                own[q] = sum;
+            }
+        } else {
+            head();
+        }
+    } else {
+        for (unsigned u = threadIdx.x; u < units; u += kThreads) {
+            const unsigned long long i = (unsigned long long)(row0 + u / per) * C + c0 + (u % per) * 4;
+            const float4 f = *(const float4*)(x + i);
+            const GroupWord4 w{group_sane(f.x), group_sane(f.y), group_sane(f.z), group_sane(f.w)};
+            for (int j = 0; j < members; ++j)
+                if (j != rank) store_vector((GroupWord4*)(p->stage[j] + s.half_at + rank * cap + i), w);
+        }
+        __syncthreads();
+        next = (unsigned long long)wall_clock() + s.tick;
+        for (unsigned u = threadIdx.x; u < units && met; u += kThreads) {
+            const unsigned long long i = (unsigned long long)(row0 + u / per) * C + c0 + (u % per) * 4;
+            float4 t = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+            for (int j = 0; j < members && met; ++j) {
+                float4 f;
+                if (j == rank) f = *(const float4*)(x + i);
+                else met = group_take(p, self, mine + j * cap, i, n, deadline, s.tick, &next, &failed, &f);
+                if (!j) {
+                    t = f;
+                } else {
+                    t.x += f.x;
+                    t.y += f.y;
+                    t.z += f.z;
+                    t.w += f.w;
+                }
+            }
+            if (met) *(float4*)(x + i) = t;
+        }
+    }
+    if (!met) atomic_store_relaxed_block(&failed, 1);
+    __syncthreads();
+    if (failed) {
+        for (unsigned u = threadIdx.x; u < units; u += kThreads) {
+            const unsigned long long i = (unsigned long long)(row0 + u / per) * C + c0 + (u % per) * 4;
+            *(float4*)(x + i) = make_float4(__builtin_nanf(""), __builtin_nanf(""), __builtin_nanf(""), __builtin_nanf(""));
+            if (row) row[u] = make_float4(__builtin_nanf(""), __builtin_nanf(""), __builtin_nanf(""), __builtin_nanf(""));
+        }
+        group_failed(p, members, rank);
+    }
+    __syncthreads();
+}
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_conv_ring_sum(ConvArgs a, LLMX_GRID_CONST ConvSum s) {
+    conv_ring_body(a, &s);
+}
+// A one-row ring convolution of blocks of kThreads channels, its sum taken first where s.p is set, then the query mix of the rows it wrote as llmx_query_mix4's blocks of row 0.
+// Every block arrives at `bar` once its stores are done, the mix's blocks wait for the whole resident grid, and the last to pass zeroes `bar` (docs/src/backends-gpu.md).
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_conv_ring_mix4(ConvArgs a, LLMX_GRID_CONST ConvSum s, QueryMixArgs m, unsigned* bar) {
+    conv_ring_body(a, s.p ? &s : nullptr);
+    const unsigned grid = gridDim.x * gridDim.y, b = blockIdx.x + gridDim.x * blockIdx.y, blocks = m.item[0].nq + (m.count > 1 ? m.item[1].nq : 0);
+    stores_sync();
+    const bool first = threadIdx.x < GPU_WAVE;
+    if (first) grid_arrive(bar);
+    if (b >= blocks) return;
+    if (first) grid_wait(bar, grid);
+    acquire_sync();
+    // A lone mix block zeroes the word as it passes, with no return to wait for; several count themselves out after their mix, off its start.
+    if (blocks == 1 && threadIdx.x == 0) atomicExch(bar, 0u);
+    query_mix_build<4, true>(m, 0, b);
+    if (blocks > 1 && threadIdx.x == 0 && atomicAdd(bar, 1u) == grid + blocks - 1) atomicExch(bar, 0u);
+}
+
+// A block a (row, query head, key part): softmax(scale q.k + bias, a zero-value sink logit) over the part's keys, bias[d] = sum_r rel[r] table[r][d] for d below extent.
+// A thread scores a key and kThreads / D threads a dimension take the chunk's values, an online maximum starting from the sink in part 0, and a row past gpu_shape::rel_part_keys(n) keys runs in parts the last block to finish merges.
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_attention_rel_sink(float* out, const float* q, const float* rel, const float* table, const float* sink, LLMX_GRID_CONST RelKeys a,
+                                                                               unsigned n_views, unsigned heads, unsigned kv_heads, unsigned D, unsigned NR, unsigned extent,
+                                                                               unsigned window, float scale, unsigned tile_rows, const float* gate, unsigned long long gs,
+                                                                               unsigned long long ghs, int store, void* tq, float* td, void* ts, int tlevel, LLMX_GRID_CONST TwinMap tm,
+                                                                               int major, float* part, unsigned* counter, unsigned g0, const float* cq, const float* cr, const float* cs, float qlim, float rlim) {
+    __shared__ __align__(16) float qs[kThreads];
+    __shared__ float ps[kThreads], lds[kThreads], rs[32], wm[kThreads / 32];
+    __shared__ bool last;
+    __shared__ float csum;
+    const unsigned g = g0 + blockIdx.x, h = blockIdx.y, t = threadIdx.x, kh = h / (heads / kv_heads), c = blockIdx.z;
+    // The head's q, rel and sink loads go first, beside the view's.
+    if (t < D) qs[t] = q[((unsigned long long)g * heads + h) * D + t];
+    if (t < NR) rs[t] = rel[((unsigned long long)g * heads + h) * NR + t];
+    const float sk = c ? 0.0f : sink[(unsigned long long)g * heads + h];
+    const unsigned* view = a.tab;
+    for (unsigned i = 0; i < n_views; ++i)
+        if (g >= a.tab[7 * i] && g < a.tab[7 * i] + a.tab[7 * i + 1]) view = a.tab + 7 * i;
+    // A view whose prompt's extent reaches tile_rows is llmx_attention_rel_tile's.
+    if (tile_rows && view[6] >= tile_rows) return;
+    const unsigned row0 = view[0], len = view[2];
+    const unsigned pos = len + g - row0, lo = window && pos + 1 > window ? pos + 1 - window : 0, n = pos + 1 - lo;
+    const unsigned keys = gpu_shape::rel_part_keys(n), ns = (n + keys - 1) / keys;
+    if (c >= ns) return;
+    const unsigned b0 = c * keys, b1 = b0 + keys < n ? b0 + keys : n;
+    __syncthreads();
+    // With a clip, q and rel as llmx_l2_clip clips them: one square a thread and the same block_sum, so the same bits.
+    if (qlim > 0.0f) {
+        const float rsc = cs ? cs[g] : 1.0f;
+        const float aq = t < D ? (cq ? qs[t] * cq[(unsigned long long)h * D + t] : qs[t]) : 0.0f;
+        const float fq = fminf(1.0f, qlim / (sqrtf(block_sum<kThreads>(fmaf(aq, aq, 0.0f), lds)) + 1e-6f));
+        const float ar = t < NR ? (cr ? rs[t] * cr[(unsigned long long)h * NR + t] : rs[t]) : 0.0f;
+        const float fr = fminf(1.0f, rlim / (sqrtf(block_sum<kThreads>(fmaf(ar, ar, 0.0f), lds)) + 1e-6f));
+        if (t < D) qs[t] = cs ? aq * fq * rsc : aq * fq;
+        if (t < NR) rs[t] = cs ? ar * fr * rsc : ar * fr;
+        __syncthreads();
+    }
+    const unsigned e = t % D, sub = t / D, parts = kThreads / D, kw = 2 * a.kd, off = kh * D;
+    const bool rung = a.st != nullptr;
+    const float* ring = rung ? a.st + view[3] * a.slot + a.ring : nullptr;
+    // A past key's [k|v] row by rel_key's rule, the ring's row given as idx = p mod R so a loop steps it without dividing; null for a new key.
+    const auto past = [&](unsigned p, unsigned idx) -> const float* {
+        if (p >= len) return nullptr;
+        return rung ? ring + (unsigned long long)idx * kw : a.aux + (unsigned long long)a.tab[view[5] + p / 64u] * a.block_floats + a.rows_floats + (unsigned long long)(p % 64u) * a.width;
+    };
+    const auto step = [&](unsigned& idx) {
+        idx += parts;
+        while (idx >= a.R) idx -= a.R;
+    };
+    float m = c ? -INFINITY : sk, l = c ? 0.0f : 1.0f, acc = 0.0f;
+    for (unsigned c0 = b0; c0 < b1; c0 += kThreads) {
+        const unsigned i = c0 + t;
+        float s = -INFINITY;
+        if (i < b1) {
+            const unsigned p = lo + i;
+            const float* r = past(p, rung ? p % a.R : 0u);
+            const float* k = (r ? r : a.kn + (unsigned long long)(row0 + p - len) * a.kd) + off;
+            // The dot in j order; aligned rows load KB float4 at a time before their fmas, fewer on CUDA, whose 128 registers the gfx9 batch spills.
+            constexpr unsigned KB = GPU_WAVE == 64 ? 8 : 2;
+            float dot = 0.0f;
+            if (D % 32 == 0 && ((unsigned long long)k & 15u) == 0) {
+                for (unsigned jb = 0; jb < D; jb += 4 * KB) {
+                    float4 kk[KB];
+#pragma unroll
+                    for (unsigned v = 0; v < KB; ++v) kk[v] = *(const float4*)(k + jb + 4 * v);
+#pragma unroll
+                    for (unsigned v = 0; v < KB; ++v) {
+                        const float4 qq = *(const float4*)(&qs[jb + 4 * v]);
+                        dot = fmaf(qq.x, kk[v].x, dot);
+                        dot = fmaf(qq.y, kk[v].y, dot);
+                        dot = fmaf(qq.z, kk[v].z, dot);
+                        dot = fmaf(qq.w, kk[v].w, dot);
+                    }
+                }
+            } else {
+                for (unsigned j = 0; j < D; ++j) dot = fmaf(qs[j], k[j], dot);
+            }
+            const unsigned d = pos - p;
+            float bias = 0.0f;
+            if (d < extent) {
+#if GPU_WAVE == 64
+                float tv[32];
+#pragma unroll
+                for (unsigned x = 0; x < 32; ++x)
+                    if (x < NR) tv[x] = table[(unsigned long long)x * extent + d];
+#pragma unroll
+                for (unsigned x = 0; x < 32; ++x)
+                    if (x < NR) bias = fmaf(rs[x], tv[x], bias);
+#else
+                // A wave of 32 loads the table eight values at a time in the same x order, since a batch of 32 spills CUDA's 128 registers; gfx9 keeps one batch of 32.
+                for (unsigned x0 = 0; x0 < 32; x0 += 8) {
+                    float tv[8];
+#pragma unroll
+                    for (unsigned x = 0; x < 8; ++x)
+                        if (x0 + x < NR) tv[x] = table[(unsigned long long)(x0 + x) * extent + d];
+#pragma unroll
+                    for (unsigned x = 0; x < 8; ++x)
+                        if (x0 + x < NR) bias = fmaf(rs[x0 + x], tv[x], bias);
+                }
+#endif
+            }
+            s = dot * scale + bias;
+        }
+        // The chunk's maximum by wave shuffles, then across waves: a maximum is the same float in any grouping.
+        {
+            float x = s;
+#pragma unroll
+            for (int o = GPU_WAVE / 2; o > 0; o >>= 1) x = fmaxf(x, shuffle_xor(x, o));
+            if (t % GPU_WAVE == 0) wm[t / GPU_WAVE] = x;
+        }
+        __syncthreads();
+        float cm = wm[0];
+#pragma unroll
+        for (unsigned w = 1; w < kThreads / GPU_WAVE; ++w) cm = fmaxf(cm, wm[w]);
+        const float top = fmaxf(m, cm), fs = expf(m - top);
+        ps[t] = i < b1 ? expf(s - top) : 0.0f;
+        m = top;
+        acc *= fs;
+        // The chunk's sum by block_sum's tree in wave 0.
+        __syncthreads();
+        if (t < GPU_WAVE) {
+            constexpr int M = kThreads / GPU_WAVE;
+            float x[M];
+#pragma unroll
+            for (int k = 0; k < M; ++k) x[k] = ps[t + GPU_WAVE * k];
+#pragma unroll
+            for (int hh = M / 2; hh > 0; hh >>= 1)
+#pragma unroll
+                for (int k = 0; k < hh; ++k) x[k] = x[k] + x[k + hh];
+            float sum = x[0];
+            for (int hh = GPU_WAVE / 2; hh > 0; hh >>= 1) sum += shuffle_down(sum, hh);
+            if (t == 0) csum = sum;
+        }
+        __syncthreads();
+        l = fmaf(l, fs, csum);
+        // Each (e, sub) chain in j order, the past keys then the new ones.
+        const unsigned end = b1 - c0 < kThreads ? b1 - c0 : kThreads, base = lo + c0, jl = len > base ? (len - base < end ? len - base : end) : 0u;
+        const auto walk = [&](unsigned j) {
+            unsigned idx = rung ? (base + j) % a.R : 0u, cb = ~0u;
+            const float* cr = nullptr;
+            // A past key's value; a pooled block's row base is read once while the walk stays in it.
+            const auto past_value = [&](unsigned p) {
+                if (rung) return ring[(unsigned long long)idx * kw + a.kd + off + e];
+                if (p / 64u != cb) cb = p / 64u, cr = a.aux + (unsigned long long)first_lane(a.tab[view[5] + cb]) * a.block_floats + a.rows_floats + a.kd + off;
+                return cr[(unsigned long long)(p % 64u) * a.width + e];
+            };
+            // Batches of eight values, the next batch's loads issued before this one's fmas.
+            const auto load8 = [&](float* d, unsigned jj) {
+#pragma unroll
+                for (unsigned v = 0; v < 8; ++v) {
+                    d[v] = past_value(base + jj + v * parts);
+                    if (rung) step(idx);
+                }
+            };
+            float cur[8];
+            bool have = j + 7 * parts < jl;
+            if (have) load8(cur, j);
+            while (have) {
+                const unsigned jn = j + 8 * parts;
+                const bool more = jn + 7 * parts < jl;
+                float nv[8];
+                if (more) load8(nv, jn);
+#pragma unroll
+                for (unsigned v = 0; v < 8; ++v) acc = fmaf(ps[j + v * parts], cur[v], acc);
+#pragma unroll
+                for (unsigned v = 0; v < 8; ++v) cur[v] = nv[v];
+                j = jn, have = more;
+            }
+            for (; j < end; j += parts) {
+                const float vv = j < jl ? past_value(base + j) : a.vn[(unsigned long long)(row0 + base + j - len) * a.kd + off + e];
+                acc = fmaf(ps[j], vv, acc);
+                if (rung) step(idx);
+            }
+        };
+        // Where D is a multiple of the wave, a wave holds one sub, so its walk's rows and pooled blocks are scalar.
+        if (D % GPU_WAVE == 0) walk(first_lane(sub));
+        else walk(sub);
+        __syncthreads();
+    }
+    // Part 0's blocks of heads below 2 kd / kThreads store the row's new [k|v] floats as llmx_rel_sink_store does, after every read of this block.
+    const unsigned jw = blockIdx.y * kThreads + t, row_w = 2 * a.kd;
+    if (store && c == 0 && jw < row_w) {
+        const float v = jw < a.kd ? a.kn[(unsigned long long)g * a.kd + jw] : a.vn[(unsigned long long)g * a.kd + jw - a.kd];
+        float* to = rung ? (float*)a.st + view[4] * a.slot + a.ring + (unsigned long long)(pos % a.R) * row_w
+                         : (float*)a.aux + (unsigned long long)a.tab[view[5] + pos / 64u] * a.block_floats + a.rows_floats + (unsigned long long)(pos % 64u) * a.width;
+        to[jw] = v;
+    }
+    lds[t] = acc;
+    __syncthreads();
+    float total = acc;
+    if (sub == 0)
+        for (unsigned j = 1; j < parts; ++j) total += lds[e + j * D];
+    // With a gate, the output is times sigmoid_mul's factor and its twin is written (twin_at).
+    const auto emit = [&](unsigned ee, float v) {
+        const unsigned long long i = ((unsigned long long)g * heads + h) * D + ee;
+        if (gate) v = v * (1.0f / (1.0f + expf(-gate[g * gs + h * ghs + ee])));
+        out[i] = v;
+        twin_at(v, i, tq, td, ts, tlevel, tm, major);
+    };
+    if (ns > 1) {
+        // The part's (max, sum, D values) to the scratch; the last block of the row's head to finish takes every part's.
+        const unsigned long long slot = (unsigned long long)blockIdx.x * heads + h;
+        float* mine = part + (slot * gridDim.z + c) * (D + 2);
+        if (sub == 0) mine[2 + e] = total;
+        if (t == 0) mine[0] = m, mine[1] = l;
+        __threadfence();
+        __syncthreads();
+        if (t == 0) last = atomicAdd(counter + slot, 1u) == ns - 1;
+        __syncthreads();
+        if (!last) return;
+        __threadfence();
+        if (t == 0) counter[slot] = 0;
+        // A wave a slice of D, the slices dealt round the block's waves; each lane takes M and every part's weight expf(m_k - M) itself and runs its sum and value chains in part order, the bits of a per-thread merge.
+        constexpr unsigned NW = kThreads / GPU_WAVE;
+        const unsigned w = t / GPU_WAVE, ln = t % GPU_WAVE, slices = (D + GPU_WAVE - 1) / GPU_WAVE;
+        const float* hb = part + slot * gridDim.z * (D + 2);
+        for (unsigned qq = w; qq < slices; qq += NW) {
+            const unsigned ee = qq * GPU_WAVE + ln, ex = ee < D ? ee : D - 1;
+            float L = 0.0f, v = 0.0f, M = hb[0];
+            // Up to eight parts in one round of loads; longer rows take their maximum first, then eight parts a round, a load past ns rereading the last part unsummed.
+            if (ns > 8)
+                for (unsigned k0 = 0; k0 < ns; k0 += 16) {
+                    float mm[16];
+#pragma unroll
+                    for (unsigned k = 0; k < 16; ++k) mm[k] = hb[(k0 + k < ns ? k0 + k : ns - 1) * (D + 2)];
+#pragma unroll
+                    for (unsigned k = 0; k < 16; ++k)
+                        if (k0 + k < ns) M = fmaxf(M, mm[k]);
+                }
+            for (unsigned k0 = 0; k0 < ns; k0 += 8) {
+                float mm[8], ll[8], xx[8];
+#pragma unroll
+                for (unsigned k = 0; k < 8; ++k) {
+                    const float* r = hb + (k0 + k < ns ? k0 + k : ns - 1) * (D + 2);
+                    mm[k] = r[0], ll[k] = r[1], xx[k] = r[2 + ex];
+                }
+                if (ns <= 8)
+#pragma unroll
+                    for (unsigned k = 1; k < 8; ++k)
+                        if (k < ns) M = fmaxf(M, mm[k]);
+#pragma unroll
+                for (unsigned k = 0; k < 8; ++k)
+                    if (k0 + k < ns) {
+                        const float wk = expf(mm[k] - M);
+                        L = fmaf(ll[k], wk, L);
+                        v = fmaf(xx[k], wk, v);
+                    }
+            }
+            if (ee < D) emit(ee, v / L);
+        }
+        return;
+    }
+    if (sub == 0) emit(e, total / l);
+}
+// attention_rel_sink's head-group build, 128-wide heads: a block a (row, group of G query heads of one kv head, key part), 16 lanes a key and 8 dimensions a lane, 16 keys a step.
+// Each 16-lane group keeps its own online softmax; the bias's relative value x is lane x's, summed with the dot in one 16-lane reduction; groups merge by shuffles, then waves in LDS, then parts as the row kernel's do.
+template <unsigned G, class Prefetch>
+__device__ __forceinline__ void rel_lanes(float* out, const float* q, const float* rel, const float* table, const float* sink, RelKeys a, unsigned n_views, unsigned heads,
+                                          unsigned kv_heads, unsigned NR, unsigned extent, unsigned window, float scale, unsigned tile_rows, const float* gate,
+                                          unsigned long long gs, unsigned long long ghs, int store, void* tq, float* td, void* ts, int tlevel, const TwinMap& tm, int major,
+                                          float* part, unsigned* counter, unsigned g0, Prefetch prefetch) {
+    constexpr unsigned D = 128, L = 16, E = D / L, NG = kThreads / L, NW = kThreads / GPU_WAVE;
+    __shared__ float sm[G][NW], sl[G][NW];
+    __shared__ __align__(16) float sv[G][NW][D];
+    __shared__ float pm[G][gpu_shape::kRelLaneParts], pl[G][gpu_shape::kRelLaneParts], pw[G][gpu_shape::kRelLaneParts];
+    __shared__ bool last;
+    const unsigned g = g0 + blockIdx.x, h0 = blockIdx.y * G, kh = h0 / (heads / kv_heads), t = threadIdx.x, ln = t % L, grp = t / L, c = blockIdx.z;
+    const unsigned* view = a.tab;
+    for (unsigned i = 0; i < n_views; ++i)
+        if (g >= a.tab[7 * i] && g < a.tab[7 * i] + a.tab[7 * i + 1]) view = a.tab + 7 * i;
+    if (tile_rows && view[6] >= tile_rows) return;
+    const unsigned row0 = view[0], len = view[2];
+    const unsigned pos = len + g - row0, lo = window && pos + 1 > window ? pos + 1 - window : 0, n = pos + 1 - lo;
+    const unsigned keys = gpu_shape::rel_lane_keys(n), ns = (n + keys - 1) / keys;
+    if (c >= ns) return;
+    const unsigned b0 = c * keys, b1 = b0 + keys < n ? b0 + keys : n;
+    float qr[G][E], rr[G], m[G], l[G], acc[G][E];
+#pragma unroll
+    for (unsigned u = 0; u < G; ++u) {
+        const float4* qp = (const float4*)(q + ((unsigned long long)g * heads + h0 + u) * D + ln * E);
+        const float4 x = qp[0], y = qp[1];
+        qr[u][0] = x.x, qr[u][1] = x.y, qr[u][2] = x.z, qr[u][3] = x.w, qr[u][4] = y.x, qr[u][5] = y.y, qr[u][6] = y.z, qr[u][7] = y.w;
+        rr[u] = ln < NR ? rel[((unsigned long long)g * heads + h0 + u) * NR + ln] : 0.0f;
+        const bool first = c == 0 && grp == 0;
+        m[u] = first ? sink[(unsigned long long)g * heads + h0 + u] : -INFINITY;
+        l[u] = first ? 1.0f : 0.0f;
+#pragma unroll
+        for (unsigned e = 0; e < E; ++e) acc[u][e] = 0.0f;
+    }
+    // The merge tail's code is cold by the next layer, so each thread loads one 64 B line of the kernel's code into L2 after the q loads, held until the tail (docs/src/backends-gpu.md, Kernel notes).
+    const unsigned pf = prefetch(t);
+    const unsigned off = kh * D + ln * E, kw = 2 * a.kd;
+    const bool rung = a.st != nullptr;
+    const float* ring = rung ? a.st + view[3] * a.slot + a.ring : nullptr;
+    unsigned idx = rung ? (lo + b0 + grp) % a.R : 0u;
+    const auto load8 = [](const float* s, float* d) {
+        if (((unsigned long long)s & 15u) == 0) {
+            const float4 x = ((const float4*)s)[0], y = ((const float4*)s)[1];
+            d[0] = x.x, d[1] = x.y, d[2] = x.z, d[3] = x.w, d[4] = y.x, d[5] = y.y, d[6] = y.z, d[7] = y.w;
+        } else {
+#pragma unroll
+            for (unsigned e = 0; e < E; ++e) d[e] = s[e];
+        }
+    };
+    for (unsigned i = b0 + grp; i < b1; i += NG) {
+        const unsigned p = lo + i, dist = pos - p;
+        // A past key's [k|v] row by rel_key's rule, the ring's row stepped as idx = p mod R; a new key's from the pass's own rows.
+        const float* k = p >= len ? a.kn + (unsigned long long)(row0 + p - len) * a.kd
+                         : rung   ? ring + (unsigned long long)idx * kw
+                                  : a.aux + (unsigned long long)a.tab[view[5] + p / 64u] * a.block_floats + a.rows_floats + (unsigned long long)(p % 64u) * a.width;
+        const float* v = p >= len ? a.vn + (unsigned long long)(row0 + p - len) * a.kd : k + a.kd;
+        float kk[E], vv[E];
+        load8(k + off, kk);
+        load8(v + off, vv);
+        if (rung) {
+            idx += NG;
+            while (idx >= a.R) idx -= a.R;
+        }
+        const float tv = ln < NR && dist < extent ? table[(unsigned long long)ln * extent + dist] : 0.0f;
+#pragma unroll
+        for (unsigned u = 0; u < G; ++u) {
+            float d = 0.0f;
+#pragma unroll
+            for (unsigned e = 0; e < E; ++e) d = fmaf(qr[u][e], kk[e], d);
+            float s = fmaf(d, scale, rr[u] * tv);
+#pragma unroll
+            for (int o = L / 2; o > 0; o >>= 1) s += shuffle_xor(s, o, L);
+            const float mx = fmaxf(m[u], s), f = expf(m[u] - mx), pv = expf(s - mx);
+            l[u] = fmaf(l[u], f, pv);
+#pragma unroll
+            for (unsigned e = 0; e < E; ++e) acc[u][e] = fmaf(pv, vv[e], acc[u][e] * f);
+            m[u] = mx;
+        }
+    }
+    // A wave's four groups merge across lanes 16 and 32 apart; a group without keys holds m = -inf and weighs zero, a wave without any keeps M = -inf with weight one.
+#pragma unroll
+    for (unsigned u = 0; u < G; ++u) {
+        float M = fmaxf(m[u], shuffle_xor(m[u], 16));
+        M = fmaxf(M, shuffle_xor(M, 32));
+        const float w = m[u] == M ? 1.0f : expf(m[u] - M);
+        float x = l[u] * w;
+        x += shuffle_xor(x, 16);
+        l[u] = x + shuffle_xor(x, 32), m[u] = M;
+#pragma unroll
+        for (unsigned e = 0; e < E; ++e) {
+            float y = acc[u][e] * w;
+            y += shuffle_xor(y, 16);
+            acc[u][e] = y + shuffle_xor(y, 32);
+        }
+    }
+    const unsigned wv = t / GPU_WAVE;
+    if (t % GPU_WAVE < L)
+#pragma unroll
+        for (unsigned u = 0; u < G; ++u) {
+            if (ln == 0) sm[u][wv] = m[u], sl[u][wv] = l[u];
+#pragma unroll
+            for (unsigned e = 0; e < E; ++e) sv[u][wv][ln * E + e] = acc[u][e];
+        }
+    __syncthreads();
+    // Part 0's blocks of groups below 2 kd / kThreads store the row's new [k|v] floats as llmx_rel_sink_store does, after every read of this block.
+    const unsigned jw = blockIdx.y * kThreads + t, row_w = 2 * a.kd;
+    if (store && c == 0 && jw < row_w) {
+        const float x = jw < a.kd ? a.kn[(unsigned long long)g * a.kd + jw] : a.vn[(unsigned long long)g * a.kd + jw - a.kd];
+        float* to = rung ? (float*)a.st + view[4] * a.slot + a.ring + (unsigned long long)(pos % a.R) * row_w
+                         : (float*)a.aux + (unsigned long long)a.tab[view[5] + pos / 64u] * a.block_floats + a.rows_floats + (unsigned long long)(pos % 64u) * a.width;
+        to[jw] = x;
+    }
+    // With a gate, the output is times sigmoid_mul's factor and its twin is written (twin_at).
+    const auto emit = [&](unsigned u, unsigned e, float x) {
+        const unsigned long long i = ((unsigned long long)g * heads + h0 + u) * D + e;
+        if (gate) x = x * (1.0f / (1.0f + expf(-gate[g * gs + (h0 + u) * ghs + e])));
+        out[i] = x;
+        twin_at(x, i, tq, td, ts, tlevel, tm, major);
+    };
+    const unsigned long long slot = (unsigned long long)blockIdx.x * heads + h0;
+    for (unsigned o = t; o < G * D; o += kThreads) {
+        const unsigned u = o / D, e = o % D;
+        float M = sm[u][0];
+#pragma unroll
+        for (unsigned k = 1; k < NW; ++k) M = fmaxf(M, sm[u][k]);
+        float Ls = 0.0f, V = 0.0f;
+#pragma unroll
+        for (unsigned k = 0; k < NW; ++k) {
+            const float w = sm[u][k] == M ? 1.0f : expf(sm[u][k] - M);
+            Ls = fmaf(sl[u][k], w, Ls);
+            V = fmaf(sv[u][k][e], w, V);
+        }
+        if (ns == 1) {
+            emit(u, e, V / Ls);
+        } else {
+            float* mine = part + ((slot + u) * gridDim.z + c) * (D + 2);
+            mine[2 + e] = V;
+            if (e == 0) mine[0] = M, mine[1] = Ls;
+        }
+    }
+    if (ns == 1) return;
+    __threadfence();
+    __syncthreads();
+    if (t == 0) last = atomicAdd(counter + slot, 1u) == ns - 1;
+    __syncthreads();
+    if (!last) return;
+    code_keep(pf);
+    __threadfence();
+    if (t == 0) counter[slot] = 0;
+    // Every part's (max, sum) in one round of loads, a thread a (head, part), and each part's weight expf(m_k - M) in LDS before the value chains run in part order.
+    static_assert(G * gpu_shape::kRelLaneParts <= kThreads, "a thread a (head, part)");
+    if (t < G * ns) {
+        const float* r = part + ((slot + t / ns) * gridDim.z + t % ns) * (D + 2);
+        pm[t / ns][t % ns] = r[0], pl[t / ns][t % ns] = r[1];
+    }
+    __syncthreads();
+    if (t < G * ns) {
+        const unsigned u = t / ns, k = t % ns;
+        float M = pm[u][0];
+        for (unsigned j = 1; j < ns; ++j) M = fmaxf(M, pm[u][j]);
+        pw[u][k] = expf(pm[u][k] - M);
+    }
+    __syncthreads();
+    for (unsigned o = t; o < G * D; o += kThreads) {
+        const unsigned u = o / D, e = o % D;
+        const float* hb = part + (slot + u) * gridDim.z * (D + 2) + 2 + e;
+        float Ls = 0.0f, V = 0.0f;
+        for (unsigned k0 = 0; k0 < ns; k0 += 8) {
+            float x[8];
+#pragma unroll
+            for (unsigned k = 0; k < 8; ++k) x[k] = hb[(k0 + k < ns ? k0 + k : ns - 1) * (D + 2)];
+#pragma unroll
+            for (unsigned k = 0; k < 8; ++k)
+                if (k0 + k < ns) Ls = fmaf(pl[u][k0 + k], pw[u][k0 + k], Ls), V = fmaf(x[k], pw[u][k0 + k], V);
+        }
+        emit(u, e, V / Ls);
+    }
+}
+// Builds for three and four heads a kv head, any past keys (ring or pooled), picked by the host where heads are 128 wide and a row has at most 16 relative values.
+#define LLMX_REL_LANES(name, G)                                                                                                                                                              \
+    extern "C" __global__ void __launch_bounds__(kThreads) name(float* out, const float* q, const float* rel, const float* table, const float* sink, LLMX_GRID_CONST RelKeys a, unsigned n_views, \
+                                                                unsigned heads, unsigned kv_heads, unsigned D, unsigned NR, unsigned extent, unsigned window, float scale,                   \
+                                                                unsigned tile_rows, const float* gate, unsigned long long gs, unsigned long long ghs, int store, void* tq, float* td,       \
+                                                                void* ts, int tlevel, LLMX_GRID_CONST TwinMap tm, int major, float* part, unsigned* counter, unsigned g0) {                \
+        rel_lanes<G>(out, q, rel, table, sink, a, n_views, heads, kv_heads, NR, extent, window, scale, tile_rows, gate, gs, ghs, store, tq, td, ts, tlevel, tm, major, part, counter, g0, \
+                     [](unsigned line) { return GPU_CODE_PREFETCH(name##_end, line, kThreads); });                                                                                \
+        GPU_CODE_END(name##_end);                                                                                                                                                    \
+    }
+LLMX_REL_LANES(llmx_attention_rel_lanes_g3, 3)
+LLMX_REL_LANES(llmx_attention_rel_lanes_g4, 4)
+
+// attention_rel_sink's stores, a thread a float of the [k|v] row, blockIdx.x a column block of `cols` and one of `chunks` row chunks, blockIdx.y a view, after every read.
+// A ring's slot d takes the pass's row at position mod R == d among its last R rows, else the src slot's row where the ring moves; a pooled view stores every row into its pooled row.
+extern "C" __global__ void llmx_rel_sink_store(RelKeys a, unsigned cols, unsigned chunks) {
+    const unsigned j = blockIdx.x % cols * kThreads + threadIdx.x, chunk = blockIdx.x / cols, row_w = 2 * a.kd;
+    if (j >= row_w) return;
+    const unsigned* view = a.tab + 7 * blockIdx.y;
+    const unsigned row0 = view[0], nq = view[1], len = view[2];
+    const auto value = [&](unsigned b) { return j < a.kd ? a.kn[(unsigned long long)(row0 + b) * a.kd + j] : a.vn[(unsigned long long)(row0 + b) * a.kd + j - a.kd]; };
+    if (a.st) {
+        float* ring = (float*)a.st + view[4] * a.slot + a.ring;
+        const unsigned b0 = nq > a.R ? nq - a.R : 0, p0 = (len + b0) % a.R;
+        if (view[3] == view[4]) {
+            for (unsigned b = b0 + chunk; b < nq; b += chunks) ring[(unsigned long long)((len + b) % a.R) * row_w + j] = value(b);
+            return;
+        }
+        const float* src = a.st + view[3] * a.slot + a.ring;
+        for (unsigned d = chunk; d < a.R; d += chunks) {
+            const unsigned b = b0 + (d + a.R - p0) % a.R;
+            if (b < nq) ring[(unsigned long long)d * row_w + j] = value(b);
+            else ring[(unsigned long long)d * row_w + j] = src[(unsigned long long)d * row_w + j];
+        }
+        return;
+    }
+    for (unsigned b = chunk; b < nq; b += chunks) {
+        const unsigned p = len + b;
+        ((float*)a.aux + (unsigned long long)a.tab[view[5] + p / 64u] * a.block_floats + a.rows_floats + (unsigned long long)(p % 64u) * a.width)[j] = value(b);
     }
 }
 
@@ -2835,9 +5074,10 @@ extern "C" __global__ void __launch_bounds__(kRouteThreads) llmx_moe_route(const
     }
 }
 
-// y += the routed down projection's slots weighted in order (backend.hpp, matmul_experts_add) in Vulkan's order: slot 0's product is the sum, and each later one is rounded, then added.
-// A slot without an expert adds nothing.
-extern "C" __global__ void llmx_moe_combine(float* y, const float* part, const float* weights, const unsigned* ids, unsigned long long rows, unsigned long long n, unsigned k) {
+// y = y0 + the routed down projection's slots weighted in order (backend.hpp, matmul_experts_add) in Vulkan's order: slot 0's product is the sum, and each later one is rounded, then added.
+// A slot without an expert adds nothing; y0 is y itself (stride n) or one base row (stride 0).
+extern "C" __global__ void llmx_moe_combine(float* y, const float* part, const float* weights, const unsigned* ids, unsigned long long rows, unsigned long long n, unsigned k,
+                                            const float* y0, unsigned long long y0_stride) {
     const unsigned long long i = (unsigned long long)blockIdx.x * kThreads + threadIdx.x;
     if (i >= rows * n) return;
     const unsigned long long r = i / n, o = i - r * n;
@@ -2847,7 +5087,7 @@ extern "C" __global__ void llmx_moe_combine(float* y, const float* part, const f
             const float product = weights[r * k + j] * part[(r * k + j) * n + o];
             s = j == 0 ? product : s + product;
         }
-    y[i] = y[i] + s;
+    y[i] = y0[r * y0_stride + o] + s;
 }
 
 // A grouped routed call's groups in the Vulkan grouping, a block an expert, the layout of `tab` in docs/src/backends-gpu.md, Kernel notes.
@@ -3184,7 +5424,7 @@ extern "C" __global__ void llmx_kv_index_select_wide(const float* scores, unsign
     emit_groups(sc, out, first, end, pre, left, all, compression, emitted, equals, sa, sa + kThreads);
 }
 
-// The id of each row's largest logit, ties to the lowest (Backend::argmax_rows), or `n` where a slice saw a NaN or an infinity or the largest is -inf.
+// The id of each row's largest logit, ties to the lowest (Backend::argmax_rows), or `n` where a slice saw a NaN or an infinity or the largest is -inf; the id `skip` is passed over, `n` for none.
 // Every step keeps the larger value and the lower id of equal values, so the id is the CPU's in any reduction order.
 __device__ inline void argmax_pick(float& v, unsigned& id, float ov, unsigned oid) {
     if (ov > v || (ov == v && oid < id)) {
@@ -3215,13 +5455,14 @@ __device__ inline void argmax_block(float& v, unsigned& id, bool& bad) {
 __device__ inline unsigned argmax_id(float v, unsigned id, bool bad, unsigned n, const unsigned* after, unsigned r) {
     return bad || !(v > -INFINITY) || (after && after[r] >= n) ? n : id;
 }
-extern "C" __global__ void llmx_argmax_slices(const float* logits, unsigned* ids, float* parts, unsigned n, unsigned slice, unsigned nslice, const unsigned* after) {
+extern "C" __global__ void llmx_argmax_slices(const float* logits, unsigned* ids, float* parts, unsigned n, unsigned slice, unsigned nslice, const unsigned* after, unsigned skip) {
     const unsigned r = blockIdx.x / nslice, sl = blockIdx.x % nslice, start = sl * slice, end = min(n, start + slice);
     const float* row = logits + (unsigned long long)r * n;
     float v = -INFINITY;
     unsigned id = UINT_MAX;
     bool bad = false;
     for (unsigned i = start + threadIdx.x; i < end; i += kThreads) {
+        if (i == skip) continue;
         const float x = row[i];
         bad = bad || isnan(x) || (isinf(x) && x > 0.0f);
         argmax_pick(v, id, x, i);
@@ -4925,7 +7166,7 @@ extern "C" __global__ void __launch_bounds__(256) llmx_sparse_values_few16x2_ter
 #undef LLMX_SPARSE_VALUES_ARGS
 #undef LLMX_SPARSE_VALUES_PASS
 
-// A wave a row: route_experts' biased rules in the CPU's order, s = sqrt(softplus(x)) or sigmoid(x), the k picks by s + bias, highest first, ties to the lower id, weighed as route_experts weighs them, times scale.
+// A wave a row: route_experts' biased rules in the CPU's order, s = sqrt(softplus(x)) or with `sig` sigmoid(x), the k picks by s + bias, highest first and ties to the lower id, weighed s / (sum + eps) when normalizing, then times scale.
 // Each pick is an exact argmax over (s + bias, id) by shuffles, the same in any order, and the sum runs in pick order on one lane; a row whose s + bias is not finite everywhere gives k picks of kNoExpert with weights 0.
 __device__ inline float softplus_root(float v) { return sqrtf(v > 20.0f ? v : log1pf(expf(v))); }
 constexpr unsigned kRouteLanes = 64u, kRouteHeld = 1024u / kRouteLanes;   // a lane holds experts lane, lane + 64, ..., of at most 1024; one wave on wave64 devices
@@ -4934,7 +7175,7 @@ __device__ inline void route_best(unsigned& be, float& bb, unsigned oe, float ob
 }
 extern "C" __global__ void __launch_bounds__(kRouteLanes) llmx_route_biased(const float* scores, const float* bias, unsigned* ids, float* weights, unsigned long long rows,
                                                                            unsigned n_expert, unsigned k, int normalize, float scale,
-                                                                           unsigned long long bias_stride, int sigmoid) {
+                                                                           unsigned long long bias_stride, int sig, float eps) {
     __shared__ float s_of[1024];
     __shared__ unsigned chosen[256], wave_e[kRouteLanes / kWave];
     __shared__ float wave_b[kRouteLanes / kWave], total_of;
@@ -4951,7 +7192,7 @@ extern "C" __global__ void __launch_bounds__(kRouteLanes) llmx_route_biased(cons
         const unsigned e = t + i * kRouteLanes;
         b_of[i] = -INFINITY;
         if (e < n_expert) {
-            const float s = sigmoid ? 1.0f / (1.0f + expf(-x[e])) : softplus_root(x[e]), b = bias ? s + bias[e] : s;
+            const float s = sig ? 1.0f / (1.0f + expf(-x[e])) : softplus_root(x[e]), b = bias ? s + bias[e] : s;
             s_of[e] = s;
             b_of[i] = b;
             finite = finite && isfinite(b);
@@ -4988,37 +7229,35 @@ extern "C" __global__ void __launch_bounds__(kRouteLanes) llmx_route_biased(cons
     }
     __syncthreads();
     const float total = total_of;
-    const bool divide = normalize && (sigmoid || k > 1u);
-    const float sum = sigmoid ? total : total + 1e-20f;
+    const bool divide = normalize && (sig || k > 1u);
     for (unsigned j = t; j < k; j += kRouteLanes) {
         const float s = s_of[chosen[j]];
-        wt[j] = (divide ? s / sum : s) * scale;
+        wt[j] = (divide ? s / (total + eps) : s) * scale;
     }
 }
 
 constexpr unsigned kRouteStepExperts = 512;   // the most experts route_step takes, J = 8 a lane of 64 or 16 a lane of 32 (backend_core.hpp moe_router)
-// route_sqrt_wave's scores, picks and their sum, one set a launch for every key count, so the block's shared memory does not grow with the builds.
+// route_wave's picks before the last kWave of them, parked until the sum is known, one set a launch for every key count, so the block's shared memory does not grow with the builds.
 struct RouteShared {
-    float s_of[kRouteStepExperts];
-    unsigned chosen[256];
-    float total;
+    float park[256];
 };
-// llmx_route_biased's sqrt_softplus picks and weights for one row on one wave of kWave lanes with the same bits, lane t holding experts t + kWave j as sorted keys of s + bias then the lower id.
-// A round takes the wave's largest key by cross-lane steps, the same pick the argmax makes, since equal floats have equal keys once both zeros read as +0.
+// llmx_route_biased's picks and weights for one row on one wave of kWave lanes with the same bits, lane t holding experts t + kWave j as sorted keys of s + bias then the lower id, each beside its s.
+// A round takes the largest top word, then on a tie the largest low word, branching only on that uniform tie: the winner shifts its keys by selects, its s joins the sum in pick order, and lane q mod kWave keeps pick q.
 template <unsigned J>
-__device__ inline void route_sqrt_wave(const float* x, const float* bias, unsigned* id, float* wt, unsigned n_expert, unsigned k, int normalize, float scale, RouteShared& sh) {
-    float* s_of = sh.s_of;
-    unsigned* chosen = sh.chosen;
+__device__ inline void route_wave(const float* x, const float* bias, unsigned* id, float* wt, unsigned n_expert, unsigned k, int normalize, float scale, int sig, float eps, RouteShared& sh) {
+    float* park = sh.park;
     const unsigned t = threadIdx.x % kWave;
     unsigned long long key[J];
+    float sv[J];
     bool finite = true;
 #pragma unroll
     for (unsigned j = 0; j < J; ++j) {
         const unsigned e = t + j * kWave;
         key[j] = 0;
+        sv[j] = 0.0f;
         if (e < n_expert) {
-            const float s = softplus_root(atomic_load_relaxed_device(x + e)), b = bias ? s + bias[e] : s;
-            s_of[e] = s;
+            const float v = atomic_load_relaxed_device(x + e), s = sig ? 1.0f / (1.0f + expf(-v)) : softplus_root(v), b = bias ? s + bias[e] : s;
+            sv[j] = s;
             finite = finite && isfinite(b);
             const unsigned u = b == 0.0f ? 0u : __float_as_uint(b);
             key[j] = ((unsigned long long)(u >> 31 ? ~u : u | 0x80000000u) << 32) | (0xffffffffu - e);
@@ -5031,45 +7270,101 @@ __device__ inline void route_sqrt_wave(const float* x, const float* bias, unsign
 #pragma unroll
     for (unsigned a = 0; a < J; ++a)
 #pragma unroll
-        for (unsigned b = 0; b + 1 < J - a; ++b)
-            if (key[b] < key[b + 1]) { const unsigned long long c = key[b]; key[b] = key[b + 1]; key[b + 1] = c; }
+        for (unsigned b = 0; b + 1 < J - a; ++b) {
+            const bool sw = key[b] < key[b + 1];
+            const unsigned long long c = key[b];
+            const float d = sv[b];
+            key[b] = sw ? key[b + 1] : c, key[b + 1] = sw ? c : key[b + 1];
+            sv[b] = sw ? sv[b + 1] : d, sv[b + 1] = sw ? d : sv[b + 1];
+        }
+    float total = 0.0f, ps = 0.0f;
+    unsigned pid = 0;
     for (unsigned q = 0; q < k; ++q) {
-        unsigned long long m = key[0];
-#pragma unroll
-        for (int d = kWave / 2; d > 0; d >>= 1) {
-            const unsigned lo = rm_xlane((unsigned)m, d), hi = rm_xlane((unsigned)(m >> 32), d);
-            const unsigned long long o = ((unsigned long long)hi << 32) | lo;
-            m = o > m ? o : m;
+        const unsigned hi = (unsigned)(key[0] >> 32), lo = (unsigned)key[0], mh = wave_umax(hi);
+        const unsigned long long tied = wave_ballot(hi == mh);
+        unsigned w = (unsigned)__ffsll((long long)tied) - 1u;
+        // A lane's own keys differ in their low words, so the largest low word among the tied lanes names one lane.
+        if (tied & (tied - 1)) {
+            const unsigned ml = wave_umax(hi == mh ? lo : 0u);
+            w = (unsigned)__ffsll((long long)wave_ballot(hi == mh && lo == ml)) - 1u;
         }
-        if (key[0] == m) {
+        const float s = __uint_as_float(lane_at(__float_as_uint(sv[0]), w));
+        const unsigned e = 0xffffffffu - lane_at(lo, w);
+        total += s;
+        const bool won = t == w;
 #pragma unroll
-            for (unsigned j = 0; j + 1 < J; ++j) key[j] = key[j + 1];
-            key[J - 1] = 0;
-        }
-        if (t == 0) chosen[q] = 0xffffffffu - (unsigned)m, id[q] = 0xffffffffu - (unsigned)m;
+        for (unsigned j = 0; j + 1 < J; ++j) key[j] = won ? key[j + 1] : key[j], sv[j] = won ? sv[j + 1] : sv[j];
+        key[J - 1] = won ? 0ull : key[J - 1];
+        const unsigned slot = q % kWave;
+        pid = t == slot ? e : pid;
+        ps = t == slot ? s : ps;
+        if (slot == kWave - 1 && q + 1 < k) id[q - slot + t] = pid, park[q - slot + t] = ps;
     }
-    wave_sync();
-    if (t == 0) {
-        float total = 0.0f;
-        for (unsigned j = 0; j < k; ++j) total += s_of[chosen[j]];
-        sh.total = total;
-    }
-    wave_sync();
-    const float total = sh.total;
-    const bool divide = normalize && k > 1u;
+    const unsigned base = k ? (k - 1) / kWave * kWave : 0;
+    if (base + t < k) id[base + t] = pid;
+    if (base) wave_sync();
+    const bool divide = normalize && (sig || k > 1u);
     for (unsigned j = t; j < k; j += kWave) {
-        const float s = s_of[chosen[j]];
-        wt[j] = (divide ? s / (total + 1e-20f) : s) * scale;
+        const float s = j >= base ? ps : park[j];
+        wt[j] = (divide ? s / (total + eps) : s) * scale;
     }
 }
-// One token row's router in one launch (backend_core.hpp moe_router): a wave a router row as exact_row gives it, kThreads / kWave rows a block, then the last block out picks on its first wave as route_sqrt_wave does.
-template <class D>
+// One token row's router in one launch (backend_core.hpp moe_router): a wave a router row as exact_row gives it, kThreads / kWave rows a block, then the last block out picks on its first wave as route_wave does.
+// Its input's norm, where nw is set, runs first in every block (route_norm), the rows read the block's normed row, and the block then stores its share of h (route_norm_out).
+constexpr unsigned kRouteNormIn = 16 * kThreads;   // the most values route_norm holds, rms_norm_held's 16-value build
+// route_step's router rows load 144 bytes a lane a batch, a 2304-wide F32 row on 64 lanes in one batch instead of three (docs/DEVICE-TUNING.md, Patterns that worked, to 2026-11-23).
+constexpr int kRouteBatchBytes = 144;
+// x RMS-normed against w into the block's xn by rms_norm_held's 256-thread chain and tree, w read with x so the launch waits on memory once before the tree.
+__device__ inline void route_norm(float* xn, const float* x, const float* w, unsigned n, float eps) {
+    constexpr int K = kRouteNormIn / kThreads;
+    __shared__ float lds[kThreads];
+    const int t = threadIdx.x;
+    float xr[K], wr[K];
+#pragma unroll
+    for (int k = 0; k < K; ++k) {
+        const bool in = t + kThreads * k < (int)n;
+        xr[k] = in ? x[t + kThreads * k] : 0.0f;
+        wr[k] = in ? w[t + kThreads * k] : 0.0f;
+    }
+    float s = 0.0f;
+#pragma unroll
+    for (int k = 0; k < K; ++k)
+        if (t + kThreads * k < (int)n) s = fmaf(xr[k], xr[k], s);
+    lds[t] = s;
+    __syncthreads();
+    block_tree<kThreads>(lds);
+    __syncthreads();
+    const float rp = 1.0f / sqrtf(lds[0] / (float)n + eps);
+#pragma unroll
+    for (int k = 0; k < K; ++k)
+        if (t + kThreads * k < (int)n) xn[t + kThreads * k] = xr[k] * (rp * wr[k]);
+    __syncthreads();
+}
+// This block's share of whole twin blocks of the normed row into h and its twin at `level` (twin_at), stored after the router rows so their weight reads do not wait behind these stores.
+__device__ inline void route_norm_out(const float* xn, unsigned n, float* h, void* q, float* d, int level) {
+    const unsigned cp = ((n + 31) / 32 + gridDim.x - 1) / gridDim.x * 32, lp = cp * blockIdx.x, hp = min(n, lp + cp);
+    for (unsigned i = lp + threadIdx.x; i < hp; i += kThreads) {
+        const float o = xn[i];
+        h[i] = o;
+        twin_at(o, i, q, d, nullptr, level, (const TwinMap*)nullptr);
+    }
+}
+template <class D, class Prefetch>
 __device__ inline void route_step(const unsigned char* W, const float* X, float* scores, unsigned long long nin, unsigned nout, const float* bias, unsigned* ids, float* weights,
-                                  unsigned k, int normalize, float scale, unsigned* counter) {
+                                  unsigned k, int normalize, float scale, int sig, float eps, unsigned* counter, const float* nw, float neps, float* h, void* q, float* d, int level,
+                                  Prefetch prefetch) {
+    // The products before a router call leave its code in neither cache, so each thread first loads one 64 B line of it into L2 (docs/src/backends-gpu.md, delta_step).
+    const unsigned pf = prefetch(blockIdx.x + gridDim.x * threadIdx.x);
     __shared__ unsigned last;
     __shared__ RouteShared sh;
+    __shared__ __align__(16) float xn[kRouteNormIn];
     const unsigned long long o = (unsigned long long)(kThreads / kWave) * blockIdx.x + threadIdx.x / kWave;
-    if (o < nout) exact_row<D>(W, X, scores, nin, o, 0);
+    if (nw) {
+        route_norm(xn, X, nw, (unsigned)nin, neps);
+        if (o < nout) exact_row<D, kRouteBatchBytes>(W, xn, scores, nin, o, 0);
+        route_norm_out(xn, (unsigned)nin, h, q, d, level);
+    } else if (o < nout) exact_row<D, kRouteBatchBytes>(W, X, scores, nin, o, 0);
+    code_keep(pf);
     __threadfence();
     __syncthreads();
     if (threadIdx.x == 0) last = atomicAdd(counter, 1u) == gridDim.x - 1;
@@ -5077,38 +7372,41 @@ __device__ inline void route_step(const unsigned char* W, const float* X, float*
     if (!last || threadIdx.x >= kWave) return;
     __threadfence();
     if (threadIdx.x == 0) *counter = 0;
-    static_assert(kRouteStepExperts == 8 * 64 && kRouteStepExperts == 16 * 32, "route_sqrt_wave's builds below take 1 to 8 keys a lane of 64 and 1 to 16 a lane of 32");
+    static_assert(kRouteStepExperts == 8 * 64 && kRouteStepExperts == 16 * 32, "route_wave's builds below take 1 to 8 keys a lane of 64 and 1 to 16 a lane of 32");
     const unsigned keys = (nout + kWave - 1) / kWave;
     // The builds past 8 keys exist only where a wave is 32 lanes; a 64-lane build compiles none of them.
     if constexpr (kWave == 32) {
         switch (keys) {
-        case 9: return route_sqrt_wave<9>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
-        case 10: return route_sqrt_wave<10>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
-        case 11: return route_sqrt_wave<11>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
-        case 12: return route_sqrt_wave<12>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
-        case 13: return route_sqrt_wave<13>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
-        case 14: return route_sqrt_wave<14>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
-        case 15: return route_sqrt_wave<15>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
-        case 16: return route_sqrt_wave<16>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
+        case 9: return route_wave<9>(scores, bias, ids, weights, nout, k, normalize, scale, sig, eps, sh);
+        case 10: return route_wave<10>(scores, bias, ids, weights, nout, k, normalize, scale, sig, eps, sh);
+        case 11: return route_wave<11>(scores, bias, ids, weights, nout, k, normalize, scale, sig, eps, sh);
+        case 12: return route_wave<12>(scores, bias, ids, weights, nout, k, normalize, scale, sig, eps, sh);
+        case 13: return route_wave<13>(scores, bias, ids, weights, nout, k, normalize, scale, sig, eps, sh);
+        case 14: return route_wave<14>(scores, bias, ids, weights, nout, k, normalize, scale, sig, eps, sh);
+        case 15: return route_wave<15>(scores, bias, ids, weights, nout, k, normalize, scale, sig, eps, sh);
+        case 16: return route_wave<16>(scores, bias, ids, weights, nout, k, normalize, scale, sig, eps, sh);
         default: break;
         }
     }
     switch (keys) {
-    case 1: return route_sqrt_wave<1>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
-    case 2: return route_sqrt_wave<2>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
-    case 3: return route_sqrt_wave<3>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
-    case 4: return route_sqrt_wave<4>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
-    case 5: return route_sqrt_wave<5>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
-    case 6: return route_sqrt_wave<6>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
-    case 7: return route_sqrt_wave<7>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
-    default: return route_sqrt_wave<8>(scores, bias, ids, weights, nout, k, normalize, scale, sh);
+    case 1: return route_wave<1>(scores, bias, ids, weights, nout, k, normalize, scale, sig, eps, sh);
+    case 2: return route_wave<2>(scores, bias, ids, weights, nout, k, normalize, scale, sig, eps, sh);
+    case 3: return route_wave<3>(scores, bias, ids, weights, nout, k, normalize, scale, sig, eps, sh);
+    case 4: return route_wave<4>(scores, bias, ids, weights, nout, k, normalize, scale, sig, eps, sh);
+    case 5: return route_wave<5>(scores, bias, ids, weights, nout, k, normalize, scale, sig, eps, sh);
+    case 6: return route_wave<6>(scores, bias, ids, weights, nout, k, normalize, scale, sig, eps, sh);
+    case 7: return route_wave<7>(scores, bias, ids, weights, nout, k, normalize, scale, sig, eps, sh);
+    default: return route_wave<8>(scores, bias, ids, weights, nout, k, normalize, scale, sig, eps, sh);
     }
 }
-#define LLMX_ROUTE_STEP(t, ...)                                                                                                                               \
-    extern "C" __global__ void __launch_bounds__(kThreads) llmx_route_step_##t(const unsigned char* W, const float* X, float* scores, unsigned long long nin, \
-                                                                               unsigned nout, const float* bias, unsigned* ids, float* weights, unsigned k,   \
-                                                                               int normalize, float scale, unsigned* counter) {                               \
-        route_step<__VA_ARGS__>(W, X, scores, nin, nout, bias, ids, weights, k, normalize, scale, counter);                                                   \
+#define LLMX_ROUTE_STEP(t, ...)                                                                                                                                   \
+    extern "C" __global__ void __launch_bounds__(kThreads) llmx_route_step_##t(const unsigned char* W, const float* X, float* scores, unsigned long long nin,     \
+                                                                               unsigned nout, const float* bias, unsigned* ids, float* weights, unsigned k,       \
+                                                                               int normalize, float scale, int sig, float eps, unsigned* counter, const float* nw, \
+                                                                               float neps, float* h, void* q, float* d, int level) {                              \
+        route_step<__VA_ARGS__>(W, X, scores, nin, nout, bias, ids, weights, k, normalize, scale, sig, eps, counter, nw, neps, h, q, d, level,                   \
+                                [](unsigned line) { return GPU_CODE_PREFETCH(llmx_route_step_##t##_end, line, 448u)      ; });                                     \
+        GPU_CODE_END(llmx_route_step_##t##_end);                                                                                                                 \
     }
 LLMX_ROUTE_STEP(f32, ExactF32)
 LLMX_ROUTE_STEP(bf16, ExactDecoded<rq::BF16>)

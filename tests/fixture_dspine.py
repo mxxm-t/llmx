@@ -121,7 +121,7 @@ def taps(probe, target, directory, prompt):
         f.write(" ".join(str(i) for i in prompt))
     prefix = os.path.join(directory, "taps")
     layers = SIDECAR["target_layers"]
-    p = subprocess.run([probe, target, ids, prefix, str(len(prompt)), str(len(prompt)), "cpu", ",".join(str(l) for l in layers)],
+    p = subprocess.run([probe, target, ids, prefix, str(len(prompt)), str(len(prompt)), "cpu", "1", ",".join(str(l) for l in layers)],
                        capture_output=True, encoding="utf-8", errors="replace", timeout=300)
     if p.returncode:
         raise SystemExit("llmx-route-probe gave exit %d: %s" % (p.returncode, p.stderr[-400:]))

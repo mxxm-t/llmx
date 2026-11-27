@@ -3626,7 +3626,8 @@ struct HeldAttention : backend::CpuBackend {
     std::condition_variable cv;
     bool armed = false, held = false, open = false;
     size_t skip = 0;
-    void attention(backend::CSlice q, size_t layer, const backend::KVView* views, size_t n_views, backend::Slice out, int n_head, int n_head_kv, int head_dim) override {
+    void attention(backend::CSlice q, size_t layer, const backend::KVView* views, size_t n_views, backend::Slice out, int n_head, int n_head_kv, int head_dim,
+                   const backend::AttentionTerms* terms = nullptr) override {
         {
             std::unique_lock<std::mutex> lk(m);
             if (armed && !open) {
@@ -3639,7 +3640,7 @@ struct HeldAttention : backend::CpuBackend {
                 }
             }
         }
-        CpuBackend::attention(q, layer, views, n_views, out, n_head, n_head_kv, head_dim);
+        CpuBackend::attention(q, layer, views, n_views, out, n_head, n_head_kv, head_dim, terms);
     }
     void arm(size_t past) {
         std::lock_guard<std::mutex> lk(m);

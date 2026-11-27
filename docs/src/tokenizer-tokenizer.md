@@ -1,4 +1,4 @@
-# `src/tokenizer/tokenizer.hpp` - byte-level BPE with Qwen2, Qwen3, Qwen3.5, joyai-llm and minimax-m2 pretokenization
+# `src/tokenizer/tokenizer.hpp` - byte-level BPE with Qwen2, Qwen3, Qwen3.5, joyai-llm, minimax-m2 and inkling2 pretokenization
 
 From-scratch byte-level BPE tokenizer in namespace `bpe`.
 The byte encoding and merge algorithm are GPT-2's; the pretokenizer is not.
@@ -7,6 +7,9 @@ The byte encoding and merge algorithm are GPT-2's; the pretokenizer is not.
   The lead byte's length is lenient, so `pretokenize`, `bpe` and `decode` move on over invalid input rather than refusing it.
 - `build_byte_encoder`: GPT-2 `bytes_to_unicode()` byte <-> printable char map.
 - `SpecialToken`: named control/user-defined token.
+- `Split`, `Pre`, `kPres`: the pretokenizer each `tokenizer.ggml.pre` name selects, a row per name: its split (`qwen2`, `joyai` or `o200k`, named by the pattern), whether HF's NFC normalizer runs first, and whether a whole piece the vocabulary holds is that token before BPE (`whole_pieces`, HF's `ignore_merges`).
+  The rows are `qwen2` and `qwen35` (split `qwen2`, NFC), `joyai-llm` (split `joyai`), `minimax-m2` (split `o200k`, NFC) and `inkling2` (split `o200k`, whole pieces); a file naming no pretokenizer is read as `qwen2`.
+  GGUF files carry no `ignore_merges` key, so the name decides it.
 - `pretokenize(text)`: splits text before BPE, implementing the Qwen2/Qwen3 `Split` regex from `tokenizer.json` rather than GPT-2's.
   Alternatives are ordered and the first match wins.
   Three differences from GPT-2 change the resulting ids: a leading punctuation character or underscore binds to the word that follows (`_snake`, `(x`), digits are emitted one at a time, and a whitespace run ending in newlines stays one piece.
@@ -15,19 +18,29 @@ The byte encoding and merge algorithm are GPT-2's; the pretokenizer is not.
 - `pretokenize_joyai(text)`: the `joyai-llm` pretokenizer (DeepSeek-V4.1's files), its `tokenizer.json`'s three `Isolated` splits in turn, each on the previous one's pieces: number runs of 1 to 3 (`\p{N}{1,3}`), runs of CJK ideographs U+4E00 to U+9FA5 and kana U+3040 to U+30FF, then a split whose alternatives are an ASCII punctuation character before ASCII letters, an optional character that is no newline, letter, punctuation or symbol before a run of letters and marks, an optional space before punctuation and symbols and their trailing newlines, and the three whitespace rules of the qwen2 regex.
   Each split's matches are pieces and so is each run of text between them, so a digit run of the first split stays whole through the third.
   The classes are Unicode 16.0's, read from `core/unicode_class.hpp` ([core-unicode_class.md](core-unicode_class.md)), and `\s` is White_Space; a byte that does not begin a valid UTF-8 sequence is read as one character of no class.
-  The file's `tokenizer.ggml.pre` chooses it (`Pre::joyai`), and `encode` runs it in place of `pretokenize`, whose qwen2 and qwen35 path it does not touch.
-- `pretokenize_minimax(text)`: the `minimax-m2` pretokenizer (MiniMax-M3.1's files), its `tokenizer.json`'s one `Split` with `Removed` behaviour and `invert`, so the regex's matches are the pieces; every character is matched by one of its alternatives, so nothing is removed.
-  The alternatives, first match wins: an optional character that is no CR, LF, letter or number, then a run of upper letters and a run of lower ones, the lower run required (`minimax_letters`); the same with the upper run required and the lower one optional; numbers in runs of 1 to 3; an optional space before characters that are no space, letter or number and their trailing CR, LF and slashes; and the three whitespace rules of the qwen2 regex (`space_run`, shared with joyai-llm).
-  Upper is Lu, Lt, Lm, Lo and marks, lower Ll, Lm, Lo and marks, read from the case bits of `core/unicode_class.hpp`; where the upper run leaves no lower character after it, the regex gives back up to the last lower character inside it, so `HTMLParser` is one piece and `\u0301A` two.
-  Both letter alternatives take the contractions `'s`, `'t`, `'re`, `'ve`, `'m`, `'ll` and `'d` in either ASCII case, and `'` with U+017F (long s), which the regex engine's Unicode case folding reads as s.
-  `encode` puts the text in NFC first, as for qwen2 and qwen35, and `code_points` gives both Unicode pretokenizers the text's characters with their classes.
+  The file's `tokenizer.ggml.pre` chooses it (`joyai`), and `encode` runs it in place of `pretokenize`, whose qwen2 and qwen35 path it does not touch.
+- `pretokenize_o200k(text)`: tiktoken's o200k_base pattern, one `Isolated` split, which Inkling-2's files name `inkling2` and MiniMax-M3.1's `minimax-m2`:
+
+  ```
+  [^\r\n\p{L}\p{N}]?[\p{Lu}\p{Lt}\p{Lm}\p{Lo}\p{M}]*[\p{Ll}\p{Lm}\p{Lo}\p{M}]+(?i:'s|'t|'re|'ve|'m|'ll|'d)?
+  |[^\r\n\p{L}\p{N}]?[\p{Lu}\p{Lt}\p{Lm}\p{Lo}\p{M}]+[\p{Ll}\p{Lm}\p{Lo}\p{M}]*(?i:'s|'t|'re|'ve|'m|'ll|'d)?
+  |\p{N}{1,3}| ?[^\s\p{L}\p{N}]+[\r\n/]*|\s*[\r\n]+|\s+(?!\S)|\s+
+  ```
+
+  Its alternatives, in order: an optional character that is no newline, letter or number before a run of upper letters (Lu, Lt, Lm, Lo, M) and then lower ones (Ll, Lm, Lo, M), or before upper letters alone, each with an optional contraction; numbers in runs of 1 to 3; an optional space before characters that are no space, letter or number, with the newlines and slashes after them; and the three whitespace rules.
+  The two letter classes overlap in Lm, Lo and M, so the first alternative gives back upper letters until a lower run can start, as the regex engine backtracks; the optional character is tried first and then left out, in each letter alternative in turn.
+  The contractions match without case, and the engine's case folding also takes U+017F (long s) for `s`; no other character folds into them.
+  MiniMax-M3.1's `tokenizer.json` writes the same regex as one `Split` with `Removed` behaviour and `invert`, whose matches are the pieces; every character matches an alternative, so it splits as the `Isolated` form does.
+  Upper and lower are read from the case bits `LU` and `LL` of `core/unicode_class.hpp`.
+  It shares `split`, the code-point reading and the `Isolated` loop, with `pretokenize_joyai`, and `numbers` and `spaces`, the number and whitespace rules both patterns have.
 - `Tokenizer`: reads tokenizer metadata from a GGUF model (`tokenizer.ggml.tokens/token_type/merges/bos/eos_token_id`).
-  - Refuses a file that names a `tokenizer.ggml.model` other than `gpt2` or a `tokenizer.ggml.pre` other than `qwen2`, `qwen35`, `joyai-llm` or `minimax-m2`, and the error names the key and the implemented values.
+  - Refuses a file that names a `tokenizer.ggml.model` other than `gpt2` or a `tokenizer.ggml.pre` other than `qwen2`, `qwen35`, `joyai-llm`, `minimax-m2` or `inkling2`, and the error names the key and the implemented values.
     Without the check, such a file would encode to valid-looking but wrong ids.
     A key the file omits is not checked, so the synthetic test models, which name neither, are read as this tokenizer.
   - Refuses a `tokenizer.ggml.tokens` array whose elements are not strings, and a `tokenizer.ggml.token_type` array with fewer entries than tokens; a file without `token_type` gives every token the normal type.
   - `encode(text) -> vector<uint32_t>`: the control and user-defined tokens' texts matched first, the longest at each place, each as its one id, and the text between them pretokenized, byte-encoded, BPE-merged by rank and mapped to ids; a symbol the vocabulary lacks throws.
     The specials are kept ordered by their first byte with `special_at` giving each byte's range, so a position compares only against the specials that begin with its byte, and a word merged once is not merged again within the call (a map local to it, so concurrent calls share nothing), since BPE gives a word the same ids wherever it stands.
+    With `whole_pieces`, a piece the vocabulary holds is its one id before any merge; a piece is never a special token's text, since the specials are matched first, so the lookup only finds ordinary tokens, as HF's finds its model vocabulary's.
     On a 159-message chat of 4.1 MB and 954025 ids the lead-byte filter and the memo took the encode from about 950 ms to about 100 ms on the Windows development machine, 40 percent of it having been the scan and 60 percent BPE run again on words already merged.
   - `decode(ids) -> string`: reverse; an id outside the vocabulary throws.
   - `bpe(word)`: the merge loop over a byte-mapped word, which merges the adjacent pair of lowest rank, the leftmost on a tie, until no pair has a rank.
@@ -42,7 +55,7 @@ The byte encoding and merge algorithm are GPT-2's; the pretokenizer is not.
 In `pretokenize`, character classes are approximated for UTF-8 without a Unicode table: any byte at or above 0x80 counts as a letter.
 This matches Qwen's classes on the scripts the fixtures cover; it is not a general `\p{L}` implementation.
 
-Before the split, `encode` puts the text between special tokens in NFC (`unicode_nfc::normalize`, [core-unicode_nfc.md](core-unicode_nfc.md)) for `qwen2`, `qwen35` and `minimax-m2`, whose `tokenizer.json` names the NFC normalizer, as HF does; `joyai-llm`, whose `tokenizer.json` names an empty normalizer sequence, keeps the text as it is.
+Before the split, `encode` puts the text between special tokens in NFC (`unicode_nfc::normalize`, [core-unicode_nfc.md](core-unicode_nfc.md)) for `qwen2`, `qwen35` and `minimax-m2`, whose `tokenizer.json` names the NFC normalizer, as HF does; `joyai-llm`, whose `tokenizer.json` names an empty normalizer sequence, and `inkling2`, which names none, keep the text as it is.
 Special tokens are matched before it, as HF matches its added tokens, which are not normalized.
 
 Known differences from HF's `tokenizer.json`, shared by Qwen3 and Qwen3.5 files unless noted:
@@ -62,5 +75,6 @@ Known differences from HF's `tokenizer.json`, shared by Qwen3 and Qwen3.5 files 
 `tests/tokenizer.py` does the same for the qwen35 pretokenizer on every build, from `tests/data/baseline_tokenizer_qwen35.json`: HF's ids for 42 texts (the 25 of the Qwen3 fixture, five of them texts NFC changes, Thai, Devanagari, CJK punctuation and every added token) and the part of the pinned HF vocabulary those texts reach.
 It also requires one id for each of the 7 control tokens above, which the golden keeps apart with the types the GGUF files give them.
 It holds the joyai-llm pretokenizer to HF's ids from `tests/data/baseline_tokenizer_deepseek41.json` the same way: 103 texts (scripts, digits of several kinds, punctuation and symbols, emoji, Unicode-version and whitespace probes, every added token in groups and a 6000-character excerpt with a multilingual tail), with the token types of DeepSeek-V4.1's GGUF file.
+It holds the o200k pretokenizer to HF's ids from `tests/data/baseline_tokenizer_inkling2.json` the same way: 138 texts, deepseek41's fixed ones, o200k probes of the case classes, contractions, numbers, slashes and whitespace, and 8 vocabulary entries the merges alone split, whose HF ids only the whole-piece lookup gives, with the token types of Inkling-2-Mini's GGUF file.
 It holds the minimax-m2 pretokenizer to HF's ids from `tests/data/baseline_tokenizer_minimax.json` the same way: the 87 fixed texts of the deepseek41 golden and of its own (letters cut by case, contractions in either case and with U+017F, titlecase and modifier letters, marks after punctuation and spaces, slashes and newlines after punctuation, composed and decomposed text NFC changes, spaces and marks around added tokens and Unicode 16.0 probes), every added token in groups and the long excerpt, with the token types of MiniMax-M3.1-Flash's GGUF file.
 These are the external gates for this file.

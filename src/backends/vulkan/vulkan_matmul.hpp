@@ -48,14 +48,19 @@ inline void VulkanBackend::matmul(WeightView weight, CSlice X, Slice Y, size_t n
 
 // The output head is matmul, as the interface's own default has it; a backend that times its dispatches names this call's apart (kernel_times), and no other backend keeps any state for it.
 inline void VulkanBackend::matmul_logits(WeightView weight, CSlice X, Slice Y, size_t nin, size_t nout, size_t nbatch, RowRuns runs,
-                                         Dtype dtype) {
-    if (!dev_->timestamps) return matmul(weight, X, Y, nin, nout, nbatch, runs, dtype);
+                                         Dtype dtype, float cap) {
+    if (!dev_->timestamps) {
+        matmul(weight, X, Y, nin, nout, nbatch, runs, dtype);
+        if (cap != 0.0f) softcap(Y, size_mul(nout, nbatch), cap);
+        return;
+    }
     struct Head {
         bool& on;
         ~Head() { on = false; }
     } head{head_};
     head_ = true;
     matmul(weight, X, Y, nin, nout, nbatch, runs, dtype);
+    if (cap != 0.0f) softcap(Y, size_mul(nout, nbatch), cap);
 }
 
 // The residual add folded into the kernels' store: Y += W X.
@@ -67,6 +72,7 @@ inline void VulkanBackend::matmul_add(WeightView weight, CSlice X, Slice Y, size
 
 inline void VulkanBackend::matmul_group(std::initializer_list<Projection> projections, CSlice X,
                                         size_t nin, size_t nbatch, RowRuns runs, Dtype dtype) {
+    if (own_inputs(projections)) return Backend::matmul_group(projections, X, nin, nbatch, runs, dtype);
     matmul_runs(projections, X, nin, nbatch, false, runs, dtype);
 }
 
@@ -124,16 +130,16 @@ inline void VulkanBackend::check_group(const Projection* projections, size_t cou
 }
 
 // Dispatch up to three validated projections: kernel_choice selects row (0), tile (1), or the batch crossover (negative).
-// A nonzero split_tiles fixes the split to that many column tiles; zero uses the call's width.
+// A nonzero split_tiles fixes the split to that many column tiles and zero uses the call's width; with `own` each integer-dot tile projection takes the split of its own call (a group past three).
 inline void VulkanBackend::matmul_group_impl(const Projection* projections, size_t count, CSlice X,
-                                             size_t nin, size_t nbatch, bool accumulate, Dtype dtype, int kernel_choice, size_t split_tiles) {
-    // The kernels take up to three projections a call, so a wider group, such as MiniMax's five attention inputs, runs as calls of three over the same X.
+                                             size_t nin, size_t nbatch, bool accumulate, Dtype dtype, int kernel_choice, size_t split_tiles, bool own) {
+    if (!nbatch) return;
+    // The kernels take at most three projections, so a longer call is dispatched in threes.
     if (count > 3) {
-        for (size_t i = 0; i < count; i += 3)
-            matmul_group_impl(projections + i, std::min<size_t>(3, count - i), X, nin, nbatch, accumulate, dtype, kernel_choice, split_tiles);
+        matmul_group_impl(projections, 3, X, nin, nbatch, accumulate, dtype, kernel_choice, split_tiles, true);
+        matmul_group_impl(projections + 3, count - 3, X, nin, nbatch, accumulate, dtype, kernel_choice, split_tiles, true);
         return;
     }
-    if (!nbatch) return;
     const OpSteps steps(*this);
     std::vector<const Projection*> live;
     for (size_t i = 0; i < count; ++i)
@@ -245,18 +251,29 @@ inline void VulkanBackend::matmul_group_impl(const Projection* projections, size
             std::vector<const Projection*> group, rest;
             for (const Projection* pr : pending)
                 (pr->weight.type == pending[0]->weight.type ? group : rest).push_back(pr);
-            pending.swap(rest);
             const bool i8 = dtype == Dtype::int8 && weight_kernels(group[0]->weight.type)->int8_tile != K_COUNT;
+            // The split is the one the rows' whole prompt would take (matmul_runs), over the summed tiles of the projections given.
+            const size_t st = split_tiles ? split_tiles : gy;
+            auto split_of = [&](const std::vector<const Projection*>& ps) {
+                size_t rows = 0, gxs = 0;
+                for (const Projection* pr : ps) rows += pr->rows;
+                const uint32_t hs = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, rows, st, nin,
+                                                  i8 ? dev_->profile.qtile_tall_from_8bit : dev_->profile.qtile_tall_from, i8);
+                for (const Projection* pr : ps) gxs += groups(pr->rows, hs);
+                return split_blocks(dev_->profile, dev_->caps, gxs * st, nblk);
+            };
+            // Past three each projection takes its own call's split, projections of one split sharing a dispatch, so a row keeps the bits of its own matmul.
+            if (own) {
+                const size_t mine = split_of({group[0]});
+                for (size_t i = 1; i < group.size();)
+                    if (split_of({group[i]}) != mine) rest.push_back(group[i]), group.erase(group.begin() + i);
+                    else ++i;
+            }
+            pending.swap(rest);
             uint32_t xpad = 0;
             const VkDescriptorBufferInfo xt = tile_twin(X, nbatch * nin, nin, i8, xpad);
             const QTile t = qtile(group, gy, nin, i8);
-            // The split is the one the rows' whole prompt would take (matmul_runs).
-            const size_t st = split_tiles ? split_tiles : gy;
-            const uint32_t hs = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, t.rows, st, nin,
-                                              i8 ? dev_->profile.qtile_tall_from_8bit : dev_->profile.qtile_tall_from, i8);
-            size_t gxs = 0;
-            for (const Projection* pr : group) gxs += groups(pr->rows, hs);
-            const size_t kper = split_blocks(dev_->profile, dev_->caps, gxs * st, nblk);
+            const size_t kper = own ? split_of({group[0]}) : split_of(group);
             const size_t parts = (nblk + kper - 1) / kper;
             const uint32_t pc[16] = {u32(nin), u32(nbatch), group[0]->weight.type, accumulate && parts == 1 ? 1u : 0u, u32(kper),
                                      u32(group.size()), t.nout[0], t.start[0], t.nout[1], t.start[1], t.nout[2], t.start[2], 0, 0, u32(nbatch), xpad};
@@ -558,12 +575,15 @@ inline void VulkanBackend::row_dispatch(const RowPlan& plan, const std::vector<c
 // route_experts' biased rules, sqrt_softplus and sigmoid, a workgroup of 64 lanes a row in the CPU's order (shaders/route_biased.comp).
 inline void VulkanBackend::route_biased(CSlice scores, size_t rows, size_t n_expert, size_t k, const RouteRule& rule, Slice ids, Slice weights) {
     if (!std::isfinite(rule.scale)) throw std::runtime_error("vulkan: a routing scale that is not finite");
+    const bool sigmoid = rule.score == RouteRule::Score::sigmoid;
+    if (!sigmoid) rule.factory_eps("vulkan");
+    else if (!(rule.eps >= 0.0f) || !std::isfinite(rule.eps)) throw std::runtime_error("vulkan: a routing eps that is negative or not finite");
     if (!rows) return;
     if (floats_from(scores) < size_mul(rows, n_expert) || floats_from(ids) < size_mul(rows, k) || floats_from(weights) < size_mul(rows, k) ||
         (rule.bias.buffer && floats_from(rule.bias) < size_mul(rows - 1, rule.bias_stride) + n_expert))
         throw std::runtime_error("vulkan: routing operand outside its allocation");
-    const struct { uint32_t rows, n_expert, k, has_bias, normalize; float scale; uint32_t bias_stride, sigmoid; }
-        pc{u32(rows), u32(n_expert), u32(k), rule.bias.buffer ? 1u : 0u, rule.normalize ? 1u : 0u, rule.scale, u32(rule.bias_stride), rule.score == RouteRule::Score::sigmoid ? 1u : 0u};
+    const struct { uint32_t rows, n_expert, k, has_bias, normalize; float scale; uint32_t bias_stride, sigmoid; float eps; }
+        pc{u32(rows), u32(n_expert), u32(k), rule.bias.buffer ? 1u : 0u, rule.normalize ? 1u : 0u, rule.scale, u32(rule.bias_stride), sigmoid ? 1u : 0u, rule.eps};
     dispatch(K_ROUTE_BIASED, {bind(scores), rule.bias.buffer ? bind(rule.bias) : bind(scores), bind(ids), bind(weights)}, &pc, sizeof(pc), u32(rows));
 }
 
@@ -600,6 +620,30 @@ inline void VulkanBackend::matmul_experts(std::initializer_list<Projection> proj
                                           const Routing& routing, RowRuns runs, Dtype dtype) {
     const size_t k = routing.k, entries = nrows * k;
     if (!entries || !projections.size()) return;
+    // Row windows of one stack (Op::expert_window): the whole expert matrix of `pitch` rows into moe_out_, priced at a routed slot's widest output row, then each window's rows copied out, so the routed kernels keep one expert stride.
+    const Projection* windowed = nullptr;
+    for (const Projection& p : projections)
+        if (p.first || p.pitch) {
+            if (!p.pitch || p.first + p.rows > p.pitch || (windowed && (p.pitch != windowed->pitch || p.weight.data.buffer != windowed->weight.data.buffer ||
+                                                                     p.weight.data.offset != windowed->weight.data.offset || p.weight.type != windowed->weight.type)))
+                throw std::runtime_error("backend: an expert row window outside its matrix, or over an F8_E4M3 grid");
+            windowed = &p;
+        }
+    if (windowed) {
+        const size_t pitch = windowed->pitch;
+        if (!moe_out_ || moe_out_->size() < size_mul(entries, pitch) * sizeof(float)) grow(moe_out_, size_mul(entries, pitch) * sizeof(float));
+        std::vector<Projection> plain;
+        for (const Projection& p : projections)
+            if (!p.first && !p.pitch) plain.push_back(p);
+        Projection whole{windowed->weight, Slice{moe_out_.get(), 0}, pitch};
+        plain.push_back(whole);
+        if (plain.size() == 1) matmul_experts({plain[0]}, X, nin, nrows, routing, runs, dtype);
+        else if (plain.size() == 2) matmul_experts({plain[0], plain[1]}, X, nin, nrows, routing, runs, dtype);
+        else matmul_experts({plain[0], plain[1], plain[2]}, X, nin, nrows, routing, runs, dtype);
+        for (const Projection& p : projections)
+            if (p.first || p.pitch) copy_rows(p.out, p.rows, CSlice{moe_out_.get(), p.first}, pitch, entries, p.rows, false);
+        return;
+    }
     const OpSteps steps(*this);
     if (projections.size() > 3) throw std::logic_error("vulkan: more than three routed projections");
     for (const Projection& pr : projections) {
@@ -620,7 +664,8 @@ inline void VulkanBackend::matmul_experts(std::initializer_list<Projection> proj
 }
 
 inline void VulkanBackend::matmul_experts_add(WeightView weight, CSlice X, Slice Y, size_t nin, size_t nout, size_t nrows,
-                                              const Routing& routing, RowRuns runs, Dtype dtype) {
+                                              const Routing& routing, RowRuns runs, Dtype dtype, const Buffer* from) {
+    if (from) repeat_row(Y, *from, nrows, nout);
     if (!(nrows * routing.k)) return;
     const OpSteps steps(*this);
     routed_parts(weight, X, nin, nout, nrows, routing, runs, dtype);

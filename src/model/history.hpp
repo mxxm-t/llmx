@@ -81,7 +81,8 @@ inline size_t Model::retract(Sequence& s, size_t length, const Defer& defer) {
     return rewind(s, length, defer ? &defer : nullptr);
 }
 
-// Whether a draft of the sequence may be asked for (draft): it holds a history and, on a model that keeps a state, a pass has fed it since its fork, since until then it reads its checkpoint in place and the drafter has no state to read.
+// Whether the scheduler may ask for a draft of the sequence: it holds a history and, on a model that keeps a state, a pass has fed it since its fork, since until then it reads its checkpoint in place.
+// draft itself also takes an unfed history under a paired drafter, which reads that checkpoint and writes no state.
 inline bool Model::can_draft(const Sequence& s) const { return s.length() && (!keeps_state() || s.state_.held()); }
 
 // Keep the sequence's state at its current length while one pass runs past it, so a retract into that pass reaches any of its rows exactly (docs/SPECULATIVE.md, section 1): a verify of drafts marks its history first.
@@ -171,7 +172,7 @@ inline size_t Model::host_bytes(size_t length, bool blocks, size_t first, bool s
             bytes += (backend::blocks_for(length, st->block_tokens()) - first / st->block_tokens()) * st->total_block_bytes();
         if (state && d->states)
             for (size_t l = 0; l < d->states->layers(); ++l) bytes = backend::size_add(bytes, d->states->slot_bytes(l));
-        if (state && d->carry && state_layers_) bytes += plan_.residual * sizeof(float);
+        if (state && d->carry && state_layers_) bytes += carry_bytes(plan_);
         if (state && token_width_ && d.get() == devices_[stages_[token_stage_].device].get()) bytes = backend::size_add(bytes, backend::size_mul(token_width_, sizeof(uint32_t)));
         n += backend::blocks_for(bytes, kHostSlab) * kHostSlab;
     }
@@ -307,7 +308,7 @@ inline std::vector<size_t> Model::host_copy_bytes(size_t length, bool blocks, si
             bytes[i] = (length - first) / st->block_tokens() * st->total_block_bytes();
         if (state && d.states)
             for (size_t l = 0; l < d.states->layers(); ++l) bytes[i] = backend::size_add(bytes[i], d.states->slot_bytes(l));
-        if (state && d.carry && state_layers_) bytes[i] += plan_.residual * sizeof(float);
+        if (state && d.carry && state_layers_) bytes[i] += carry_bytes(plan_);
         if (state && token_width_ && i == stages_[token_stage_].device) bytes[i] = backend::size_add(bytes[i], backend::size_mul(token_width_, sizeof(uint32_t)));
     }
     return bytes;
@@ -447,7 +448,7 @@ inline void Model::copy_out(HostHistory& h, const std::vector<size_t>& fresh, st
                 if (!tail.empty()) span.tokens(tail.data(), tail.size(), tail_at);
                 if (!ids.empty()) span.blocks(*dynamic_cast<backend::BlockKVStorage*>(d.storage.get()), ids.data(), ids.size());
                 if (state && d.states) span.slot(*d.states, slot);
-                if (state && d.carry && state_layers_) span.copy(*d.carry, slot * plan_.residual * sizeof(float), plan_.residual * sizeof(float));
+                if (state && d.carry && state_layers_) span.copy(*d.carry, slot * carry_bytes(plan_), carry_bytes(plan_));
                 if (!ids.empty() || !tail.empty() || state) t = d.b->submit();
             } catch (const std::exception& e) {
                 error = e.what();
@@ -547,7 +548,7 @@ inline void Model::save_host(Sequence& s, size_t length, HostHistory& out, size_
             if (st) span.blocks(*st, s.kv_[(size_t)d.storage_index].view(nullptr).blocks, length / st->block_tokens());
             if (d.states) span.slot(*d.states, s.kept_.slot());
             // An embedded drafter's carried row goes with the checkpoint it sits beside, so the history promoted back drafts as one never evicted.
-            if (d.carry && state_layers_) span.copy(*d.carry, s.kept_.slot() * plan_.residual * sizeof(float), plan_.residual * sizeof(float));
+            if (d.carry && state_layers_) span.copy(*d.carry, s.kept_.slot() * carry_bytes(plan_), carry_bytes(plan_));
             h.tickets[i] = d.b->submit();
         }
     } catch (...) {
@@ -713,7 +714,7 @@ inline void Model::copy_in(HostHistory& h, Sequence& s, std::vector<std::vector<
                 if (!ids.empty()) st->ensure((size_t)*std::max_element(ids.begin(), ids.end()));
                 if (!ids.empty()) span.blocks(*st, ids.data(), ids.size());
                 if (d.states) span.slot(*d.states, slot);
-                if (d.carry && state_layers_) span.copy(*d.carry, slot * plan_.residual * sizeof(float), plan_.residual * sizeof(float));
+                if (d.carry && state_layers_) span.copy(*d.carry, slot * carry_bytes(plan_), carry_bytes(plan_));
                 t = d.b->submit();
             } catch (const std::exception& e) {
                 error = e.what();
@@ -819,7 +820,7 @@ inline Sequence Model::restore_host(HostHistory& h, const Defer& defer) {
                 if (!d.member) kv.commit();
             }
             if (d.states) span.slot(*d.states, slot);
-            if (d.carry && state_layers_) span.copy(*d.carry, slot * plan_.residual * sizeof(float), plan_.residual * sizeof(float));
+            if (d.carry && state_layers_) span.copy(*d.carry, slot * carry_bytes(plan_), carry_bytes(plan_));
         }
         for (size_t i = 0; i < devices_.size(); ++i) {
             if (!h.slabs[i].empty()) h.tickets[i] = s.last_[i] = devices_[i]->b->submit();
@@ -878,7 +879,7 @@ inline RestoreInto Model::restore_into(size_t length, const Defer& defer) {
         if (d.states) detail::state_runs(*d.states, slot, [&](backend::Buffer& buffer, size_t off, size_t bytes) {
             runs.push_back({&buffer, nullptr, 0, 0, off, bytes});
         });
-        if (d.carry && state_layers_) runs.push_back({d.carry.get(), nullptr, 0, false, slot * plan_.residual * sizeof(float), plan_.residual * sizeof(float)});
+        if (d.carry && state_layers_) runs.push_back({d.carry.get(), nullptr, 0, false, slot * carry_bytes(plan_), carry_bytes(plan_)});
         if (token_width_ && i == stages_[token_stage_].device)
             runs.push_back({nullptr, nullptr, 0, 0, 0, token_width_ * sizeof(uint32_t), reinterpret_cast<uint8_t*>(token_tails_.data() + slot * token_width_)});
     }
@@ -942,7 +943,7 @@ inline Sequence Model::fork(const Sequence& src, size_t length, HostHistory& sta
                 span.tokens(token_tails_.data() + slot * token_width_, token_width_, state.device_bytes[i] - token_width_ * sizeof(uint32_t));
             if (d.states) span.slot(*d.states, slot);
             // An embedded drafter's carried row comes back with the state it was saved beside, so the fork drafts as the history it was taken from did.
-            if (d.carry) span.copy(*d.carry, slot * plan_.residual * sizeof(float), plan_.residual * sizeof(float));
+            if (d.carry) span.copy(*d.carry, slot * carry_bytes(plan_), carry_bytes(plan_));
             state.tickets[i] = f.last_[i] = d.b->submit();
             submitted = i + 1;
         }
@@ -1000,7 +1001,7 @@ inline std::string Model::host_identity() const {
                 for (size_t l = 0; l < d.states->layers(); ++l) s += " " + std::to_string(d.states->slot_bytes(l));
             }
         }
-        if (d.carry && state_layers_) s += "; carry " + std::to_string(plan_.residual * sizeof(float)) + " bytes";
+        if (d.carry && state_layers_) s += "; carry " + std::to_string(carry_bytes(plan_)) + " bytes";
         s += "\n";
     }
     s += "placement mixer " + join(place_.mixer_device) + " ffn " + join(place_.ffn_device) + " embed " + std::to_string(place_.embed_device) + " output " +
@@ -1194,15 +1195,17 @@ inline void Model::save(ExecContext& ctx, const Pass& p, size_t dev, int l) {
 
 // After an embedded drafter's context rows on the head's device, or each member of its group: each marked entry's normed rows, the row each kept row would carry, copied into its mark's room.
 inline void Model::save_h(ExecContext& ctx, const Pass& p) {
-    const size_t E = plan_.residual;
+    const size_t E = plan_.residual, K = plan_.draft_picks, picks0 = saved_picks();
     for (size_t o = (size_t)place_.output_device, end = o + width_; o < end; ++o) {
         const Device& d = *devices_[o];
-        const backend::Slice hn = slot(ctx, p, o, plan_.draft_h);
+        const backend::Slice hn = slot(ctx, p, o, plan_.draft_h), pk = K ? slot(ctx, p, o, plan_.draft_picks_slot) : backend::Slice{};
         for (size_t e = 0; e < p.entries.size(); ++e) {
             const Sequence::Mark& m = p.entries[e].seq->mark_;
             if (!m.held()) continue;
             const size_t r0 = e ? p.runs[e - 1].end : 0, n = p.entries[e].n;
             d.b->copy(*d.saved_h, m.hold.buffer() * options_.mark_rows * E * sizeof(float), *hn.buffer, (hn.offset + r0 * E) * sizeof(float), n * E * sizeof(float));
+            if (K)
+                d.b->copy(*d.saved_h, (picks0 + m.hold.buffer() * options_.mark_rows * K) * sizeof(float), *pk.buffer, (pk.offset + r0 * K) * sizeof(float), n * K * sizeof(float));
         }
     }
 }
@@ -1332,8 +1335,9 @@ inline void Model::rerun_on(size_t dev, const Rerun& a) {
         d.b->unordered(false);
     }
     if (carries_row(plan_) && dev - d.member == (size_t)place_.output_device) {
-        const size_t E = plan_.residual;
-        d.b->copy(*d.carry, a.live * E * sizeof(float), *d.saved_h, (a.buffer * options_.mark_rows + a.rows - 1) * E * sizeof(float), E * sizeof(float));
+        const size_t E = plan_.residual, K = plan_.draft_picks, row = a.buffer * options_.mark_rows + a.rows - 1;
+        d.b->copy(*d.carry, a.live * carry_bytes(plan_), *d.saved_h, row * E * sizeof(float), E * sizeof(float));
+        if (K) d.b->copy(*d.carry, a.live * carry_bytes(plan_) + E * sizeof(float), *d.saved_h, (saved_picks() + row * K) * sizeof(float), K * sizeof(float));
     }
 }
 
@@ -1413,7 +1417,9 @@ inline std::unique_ptr<Model::Chain> Model::draft_begin(const DraftAsk* asks, si
         if (!a.k) continue;
         if (a.seq->flights_) throw std::logic_error("inference: a draft of a sequence in flight");
         const size_t L = history(*a.seq);
-        if (!L || !a.seq->state_.held()) throw std::logic_error("inference: a draft of a history no pass has fed");
+        // A paired drafter writes no state, so it reads the slot the last stage left even where no pass has fed a restored history yet.
+        if (!L || (!a.seq->state_.held() && (plan_.draft_pairs.empty() || a.seq->from_[S - 1] == Sequence::kLive)))
+            throw std::logic_error("inference: a draft of a history no pass has fed");
         if (draft_span(a.k) > positions_ - std::min(positions_, L))
             throw std::runtime_error("inference: context length exceeded (" + std::to_string(positions_) + " tokens)");
         c->order.push_back(i);
@@ -1432,7 +1438,8 @@ inline std::unique_ptr<Model::Chain> Model::draft_begin(const DraftAsk* asks, si
     if (plan_.draft_anchor && c->steps > 1) throw std::logic_error("inference: a drafter with anchor rows drafts one call a chain");
     std::stable_sort(c->order.begin(), c->order.end(), [&](size_t a, size_t b) { return asks[a].k > asks[b].k; });
     const size_t R = c->order.size(), o = (size_t)place_.output_device, W = draft_members(), steps = c->steps, B = c->block, A = c->call_rows;
-    const bool kv = keeps_kv(*plan_.drafter);
+    const size_t pairs = plan_.draft_pairs.size();
+    const bool kv = keeps_kv(*plan_.drafter), paired = pairs > 0;
     Device& d = *devices_[o];
     {
         std::lock_guard<std::mutex> context(context_m_);
@@ -1448,15 +1455,24 @@ inline std::unique_ptr<Model::Chain> Model::draft_begin(const DraftAsk* asks, si
         c->last[p] = asks[c->order[p]].last;
         length[p] = history(s);
         c->carried[p] = (uint32_t)(s.from_[S - 1] == Sequence::kLive ? s.state_.slot() : s.from_[S - 1]);
-        if (kv) c->kv[p] = &s.kv_[(size_t)d.storage_index];
+        if (kv || paired) c->kv[p] = &s.kv_[(size_t)d.storage_index];
+    }
+    // A paired stage apart from the head reads its target layer's KV on its own device, which is prepared for the block as the head's is.
+    std::vector<size_t> seen{o};
+    for (size_t st = 0; st < pairs; ++st) {
+        const size_t at = draft_stage_device(st);
+        if (std::find(seen.begin(), seen.end(), at) != seen.end()) continue;
+        seen.push_back(at);
+        for (size_t p = 0; p < R; ++p) c->kv.push_back(&asks[c->order[p]].seq->kv_[(size_t)devices_[at]->storage_index]);
     }
     try {
-        for (; kv && c->prepared < R; ++c->prepared) c->kv[c->prepared]->prepare(draft_span(asks[c->order[c->prepared]].k));
+        // A paired drafter's block reads past the history's last block where its length is a whole number of blocks, so its history's KV on each stage's device is prepared for the block and handed back as a KV drafter's.
+        for (; (kv || paired) && c->prepared < c->kv.size(); ++c->prepared) c->kv[c->prepared]->prepare(draft_span(asks[c->order[c->prepared % R]].k));
         c->rows.resize(steps);
         c->pos.assign(backend::size_mul(backend::size_mul(steps, R), A), 0);
         const size_t K = draft_devices_.size();
-        if (kv) c->views.resize(backend::size_mul(backend::size_mul(steps, W), R));
-        else c->states.resize(backend::size_mul(backend::size_mul(backend::size_mul(K, steps), W), R));
+        if (kv || paired) c->views.resize(backend::size_mul(backend::size_mul(backend::size_mul(paired ? pairs : 1, steps), W), R));
+        if (!kv) c->states.resize(backend::size_mul(backend::size_mul(backend::size_mul(paired ? pairs : K, steps), W), R));
         // A pooled drafter's groups turn at their first rows' positions where a history holds an image, as a pass's do (Step::group_pos).
         const size_t pool = kv ? plan_.drafter->kv_pool : 0;
         if (pool && !plan_.image_streams.empty() && std::any_of(c->order.begin(), c->order.end(), [&](size_t i) { return !asks[i].seq->media_.empty(); }))
@@ -1476,8 +1492,23 @@ inline std::unique_ptr<Model::Chain> Model::draft_begin(const DraftAsk* asks, si
                     v.window = plan_.draft_window;
                     v.causal = plan_.draft_causal;
                 }
+                // A paired drafter's stage st reads the history's target layer as it stands on the stage's device: its KV at its length, prepared for the block, and the slot that layer's stage left.
+                for (size_t st = 0; st < pairs; ++st) {
+                    const size_t at = draft_stage_device(st), l = plan_.draft_pairs[st];
+                    size_t stage = 0;
+                    while (stage + 1 < S && (size_t)stages_[stage].end <= l) ++stage;
+                    const uint32_t from = (uint32_t)(s.from_[stage] == Sequence::kLive ? s.state_.slot() : s.from_[stage]);
+                    for (size_t g = 0; g < W; ++g) {
+                        backend::KVView& v = c->views[((st * steps + m) * W + g) * R + p];
+                        v = s.kv_[(size_t)devices_[at]->storage_index].view(devices_[at + g]->storage.get());
+                        v.length = length[p];
+                        v.nq = A;
+                        v.causal = plan_.draft_causal;
+                        c->states[((st * steps + m) * W + g) * R + p] = backend::StateView{devices_[at + g]->states.get(), from, s.state_.held() ? s.state_.slot() : from, length[p], A};
+                    }
+                }
                 // A state drafter's step reads the slot the history's last stage left and writes its rows past the history into the live slot, which a verify writes again.
-                for (size_t k = 0; k < K && !kv; ++k)
+                for (size_t k = 0; k < K && !kv && !paired; ++k)
                     for (size_t g = 0; g < W; ++g)
                         c->states[((k * steps + m) * W + g) * R + p] =
                             backend::StateView{devices_[draft_devices_[k] + g]->states.get(), c->carried[p], s.state_.slot(), length[p] + m * B, B};
@@ -1521,7 +1552,15 @@ inline void Model::draft_record(Chain& c) {
                            hn,
                            {draft_logits_[g].get(), m * B * R * draft_head_rows(g)}};
             step.n_views = rows;
-            if (c.views.empty()) {
+            if (!plan_.draft_pairs.empty()) {
+                // Part `phase` of a stage reads its target layer, a later part the last stage's (ModelPlan::draft_pairs).
+                const size_t per = plan_.draft_sums / plan_.draft_pairs.size(), st = std::min(size_t(std::max(phase, 0)) / per, plan_.draft_pairs.size() - 1), l = plan_.draft_pairs[st];
+                const Device& dev = *devices_[d + g];
+                step.views = &c.views[((st * steps + m) * W + g) * R];
+                step.states = &c.states[((st * steps + m) * W + g) * R];
+                if (dev.kv_local[l] >= 0) step.kv_layer = (size_t)dev.kv_local[l];
+                if (dev.state_local[l] >= 0) step.state_layer = (size_t)dev.state_local[l];
+            } else if (c.views.empty()) {
                 const size_t k = (size_t)(std::find(draft_devices_.begin(), draft_devices_.end(), d) - draft_devices_.begin());
                 if (k < draft_devices_.size()) step.states = &c.states[((k * steps + m) * W + g) * R];
                 step.state_layer = drafter_state_[d];
@@ -1558,12 +1597,13 @@ inline void Model::draft_record(Chain& c) {
         };
         const int P = int(plan_.draft_sums + B), L = int(plan_.layers.size());
         if (!draft_apart_) {
-            // One device runs a call whole; a group runs it in parts (DraftStep).
+            // One device runs a call whole; a group, or a paired drafter whose stages each read their own target layer, runs it in parts (DraftStep).
+            const bool parts = W > 1 || !plan_.draft_pairs.empty();
             // The head's devices are held for the whole chain, since a copy or another stage's pass may record there from another thread where a device runs several stages.
             const Recording held(*this, o, W);
             for (size_t g = 0; g < W; ++g) devices_[o + g]->b->write(*draft_ids_[g], 0, c.last.data(), R * sizeof(uint32_t));
             for (size_t m = 0; m < steps; ++m)
-                for (int phase = W > 1 ? 0 : -1; phase < (W > 1 ? P : 0); ++phase) {
+                for (int phase = parts ? 0 : -1; phase < (parts ? P : 0); ++phase) {
                     for (size_t g = 0; g < W; ++g) call(o, g, m, phase);
                     after(o, m, phase);
                 }
@@ -1594,9 +1634,11 @@ inline void Model::draft_record(Chain& c) {
                         for (size_t g = 0; from != SIZE_MAX && g < W; ++g) receive(ctx_, 0, from, 0, sent, table + g, 0, moved, L, crossing);
                         first_ids(table, m);
                         for (size_t g = 0; g < W; ++g) call(table, g, m, 0, DraftStep::Lookup::only);
-                        send(ctx_, 0, table, 0, 0, c.rows[m] + 1, L, &draft_rows_slots_);
-                        crossing = &draft_rows_slots_;
-                        moved = c.rows[m] + 1;
+                        // A paired drafter's fused rows cross as a stage's do (ModelPlan::draft_carried).
+                        const bool paired = !plan_.draft_pairs.empty();
+                        crossing = paired ? &draft_step_slots_ : &draft_rows_slots_;
+                        moved = paired ? c.rows[m] * c.call_rows : c.rows[m] + 1;
+                        send(ctx_, 0, table, 0, 0, moved, L, crossing);
                         for (size_t g = 0; g < W; ++g) c.sent[table + g] = devices_[table + g]->b->submit();
                         sent = c.sent[table];
                         from = table;
@@ -1616,9 +1658,9 @@ inline void Model::draft_record(Chain& c) {
                     phase = end;
                     if (next == d) continue;
                     if (end < P) {
-                        send(ctx_, 0, d, 0, 0, c.rows[m] * B, L, &draft_step_slots_);
+                        send(ctx_, 0, d, 0, 0, c.rows[m] * c.call_rows, L, &draft_step_slots_);
                         crossing = &draft_step_slots_;
-                        moved = c.rows[m] * B;
+                        moved = c.rows[m] * c.call_rows;
                     } else {
                         const backend::Slice ids = slot(ctx_, o, plan_.draft_ids);
                         devices_[o]->b->copy(*ids.buffer, ids.offset * sizeof(float), *draft_ids_[0], (m + 1) * B * R * sizeof(uint32_t), R * sizeof(uint32_t));

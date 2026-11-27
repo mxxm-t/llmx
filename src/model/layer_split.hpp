@@ -67,6 +67,7 @@ struct Footprint {
     size_t drafter_cache = 0;
     // Its stages (LayerPlan::stages) in order, which the split places on any device beside its layers, and the KV or state each device holding one keeps.
     std::vector<std::vector<Matrix>> drafter_stages;
+    std::vector<size_t> drafter_pairs;   // a paired drafter's target layer a stage (ModelPlan::draft_pairs), each stage on the device running its layer
     size_t drafter_stage_cache = 0;
     size_t host_state = 0;                     // model-owned host state, counted once rather than per device
     size_t context_rows = 0;                   // the model's own context beside a server's passes, which a mark's rerun and a drafter's chain take (Model::reserve_drafting)
@@ -319,6 +320,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     // The drafter's embedding copy goes with its first part on the head's device, which runs the chain beside the head; a stage 0 apart reads the first device's whole table, whose rows cross to it.
     // A group that splits the table holds no whole one, so its first part keeps a copy wherever it runs.
     const size_t S = fp.drafter_stages.size();
+    const bool paired = !fp.drafter_pairs.empty();   // its fusion reads the table on the head's device (Model::draft_table_device)
     auto drafted_embedding = [&](size_t d, bool first, bool last) {
         if (!fp.drafter_embedding_held) return last && fp.tied ? size_t(0) : resident(d, fp.drafter_embedding);
         return last && !first && !fp.tied ? resident(d, fp.drafter_embedding) : size_t(0);
@@ -331,7 +333,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
         if (last) {
             for (const Matrix& m : fp.head_aux) head_aux = backend::size_add(head_aux, resident(d, m));
             for (const Matrix& m : fp.drafter) drafter += resident(d, m);
-            if (!S) drafter += drafted_embedding(d, first, last);
+            if (!S || paired) drafter += drafted_embedding(d, first, last);
         }
         size_t encoder = 0;
         if (first)
@@ -404,7 +406,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
             staged[d][t + 1] = backend::size_add(staged[d][t], b);
         }
     auto stage_weights = [&](size_t d, size_t t, size_t n, bool first, bool last) {
-        return n ? backend::size_add(staged[d][t + n] - staged[d][t], t ? size_t(0) : drafted_embedding(d, first, last)) : size_t(0);
+        return n ? backend::size_add(staged[d][t + n] - staged[d][t], t || paired ? size_t(0) : drafted_embedding(d, first, last)) : size_t(0);
     };
     auto stage_bytes = [&](size_t d, size_t t, size_t n, bool first, bool last) { return n ? backend::size_add(stage_weights(d, t, n, first, last), fp.drafter_stage_cache) : size_t(0); };
 
@@ -532,8 +534,6 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     if (used.empty()) throw std::runtime_error("split: no device runs a layer");
     out.embed_device = (int)used.front();
     out.output_device = (int)used.back();
-    for (size_t d = 0, t = 0; d < N; ++d)
-        for (int n = 0; n < drafts[d]; ++n, ++t) out.draft_device.push_back((int)d);
     // Stage rounds (docs/MULTI-DEVICE.md, Placement and balance): R runs of layers a device, `rounds` where given and else the rule, at least a layer a run and fewer where a device or the host does not hold them.
     // The rule takes rounds only where every crossing between the used devices is served on the devices, since a host round trip a crossing is what decode cannot pay; with one device there is nothing to take turns with.
     int least = INT32_MAX;
@@ -559,8 +559,25 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
         }
         return st.weights + st.cache + st.other;
     };
+    // A paired drafter's stages run where their target layers do, in device order as draft_device lists them, and the head's device runs the last pair, which the correction reads.
+    const auto pair = [&](const std::vector<std::vector<std::pair<int, int>>>& runs) {
+        if (!paired) return true;
+        std::fill(drafts.begin(), drafts.end(), 0);
+        size_t prev = 0, at = N;
+        for (size_t l : fp.drafter_pairs) {
+            at = N;
+            for (size_t d = 0; d < N && at == N; ++d)
+                for (const auto& [f, n] : runs[d])
+                    if (l >= (size_t)f && l < (size_t)(f + n)) at = d;
+            if (at == N || at < prev) return false;
+            ++drafts[at];
+            prev = at;
+        }
+        return at == used.back();
+    };
     for (; R > 1; --R) {
         const auto runs = round_runs(count, R);
+        if (!pair(runs)) continue;
         const Host h = host_for(used, R);
         bool ok = host_fits(h);
         for (const auto& device_runs : runs)
@@ -571,6 +588,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     }
     out.rounds = R;
     const auto runs = round_runs(count, R);
+    if (!pair(runs)) throw std::runtime_error("split: a paired drafter's correction reads target layer " + std::to_string(fp.drafter_pairs.back()) + ", which the head's device does not run (--layer-shares can move it there)");
     const Host h = host_for(used, R);
     for (size_t d : used) {
         LayerSplit::Stage& st = out.stages[d];
@@ -583,6 +601,8 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
             throw std::runtime_error(msg);
         }
     }
+    for (size_t d = 0; d < N; ++d)
+        for (int n = 0; n < drafts[d]; ++n) out.draft_device.push_back((int)d);
     if (!host_fits(h)) {
         char msg[160];
         std::snprintf(msg, sizeof msg, "split: the host needs %.2f GiB for logits, tables and staging and has %.2f GiB free",

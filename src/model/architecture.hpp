@@ -197,6 +197,8 @@ struct ModelPlan {
     // `draft_h` is the arena slot its context rows leave the target's final-normed rows in, 0 where they read none (carries_row), and `draft_x` that of a draft step's residual rows, which a tensor group sums into.
     std::optional<LayerPlan> drafter;
     size_t draft_h = 0, draft_x = 0;
+    // Ids a sequence carries beside its row (carries_row), the target's picks at its last kept row, which its layers leave in arena slot `draft_picks_slot`, `draft_picks` 4-byte words a row.
+    size_t draft_picks = 0, draft_picks_slot = 0;
     // The most drafts one chain of the drafter gives, as the drafter defines it (spec::Proposer::block), 0 for none beyond the pass's mark rows.
     size_t draft_block = 0;
     // The rows a call runs before its block's, each sequence's, which draft nothing: 1 where the first row holds the last pick and the rest draft (a DFlash drafter's).
@@ -211,6 +213,8 @@ struct ModelPlan {
     size_t draft_window = 0;
     // Whether a draft call's rows attend causally; a non-causal drafter's rows each see the whole block (KVView::causal).
     bool draft_causal = true;
+    // A paired drafter's target layer for each stage, none where it keeps its own cache: a stage's parts read that layer's KV and state views of the history on the head's device, as they stand (DraftStep).
+    std::vector<size_t> draft_pairs;
     // The KV layers the drafter keeps on the head's device, consecutive, Step::kv_layer naming the first, where its cache is KV.
     size_t draft_kv_layers = 1;
     // Their K and V heads and width where they differ from the target's, else none (draft_kv_shape).
@@ -237,6 +241,9 @@ inline size_t draft_call_rows(const ModelPlan& plan) { return std::max<size_t>(p
 
 // Whether an embedded drafter carries the target's last normed row of each sequence from one pass to the next, which its next context row reads (ModelPlan::draft_h).
 inline bool carries_row(const ModelPlan& plan) { return plan.drafter && plan.draft_h; }
+
+// Bytes of a sequence's carried record: its row, then its carried picks (ModelPlan::draft_picks).
+inline size_t carry_bytes(const ModelPlan& plan) { return backend::size_mul(backend::size_add(plan.residual, plan.draft_picks), sizeof(float)); }
 
 // The calls of an embedded drafter that give k drafts, each giving up to ModelPlan::draft_block, or one where it is 0.
 inline size_t draft_calls(const ModelPlan& plan, size_t k) {

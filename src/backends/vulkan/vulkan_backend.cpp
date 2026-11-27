@@ -2218,7 +2218,7 @@ public:
 
     void sparse_attention_sink(Slice out, CSlice q, CSlice kv, CSlice ids, CSlice sink, size_t rows, size_t heads, size_t dim, size_t kv_rows, size_t k,
                                float scale, size_t layer, const KVView* views, size_t n_views, CSlice entry_ids, size_t entry_k, ModelFormat kv_format,
-                               ModelFormat entry_format) override;
+                               ModelFormat entry_format, const SinkTerms& terms = {}) override;
     void indexer_scores(Slice out, CSlice q, size_t layer, const KVView* views, size_t n_views, CSlice w, float w_scale, size_t heads, size_t dim,
                         ModelFormat key_format, size_t n, CSlice blocks, size_t block_k, size_t block_size, IndexForm form = IndexForm::weighted_relu) override;
     // indexer_scores' raw form over the token rows of the layer's auxiliary plane, 16 rows by 4 heads and one block a workgroup (shaders/raw_index_scores.comp).

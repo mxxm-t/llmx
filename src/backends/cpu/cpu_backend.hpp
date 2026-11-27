@@ -2066,27 +2066,37 @@ public:
 
     void sparse_attention_sink(Slice out_s, CSlice q_s, CSlice kv_s, CSlice ids_s, CSlice sink_s, size_t rows, size_t heads, size_t dim,
                                size_t kv_rows, size_t k, float scale, size_t layer, const KVView* views, size_t n_views, CSlice entry_ids_s,
-                               size_t entry_k, ModelFormat kv_format, ModelFormat entry_format) override {
+                               size_t entry_k, ModelFormat kv_format, ModelFormat entry_format, const SinkTerms& terms = {}) override {
         if (!heads || !dim || !std::isfinite(scale)) throw std::runtime_error("backend: invalid sparse attention dimensions or scale");
         if (!n_views && (entry_k || entry_ids_s.buffer)) throw std::runtime_error("backend: sparse attention entries without views");
         if (!rows) return;
         const size_t kv_words = format_words(kv_format, dim), entry_words = format_words(entry_format, dim);
         const size_t qn = size_mul(rows, size_mul(heads, dim)), kvn = size_mul(kv_rows, kv_words), idn = size_mul(rows, k);
-        const size_t en = entry_ids_s.buffer ? size_mul(rows, entry_k) : 0;
+        const size_t en = entry_ids_s.buffer ? size_mul(rows, entry_k) : 0, bn = terms.place_bias.buffer ? size_mul(heads, k) : 0;
+        const size_t gn = terms.gate.buffer ? size_mul(rows, heads) : 0, tail_rows = terms.tail.buffer ? terms.tail_rows : 0, tn = size_mul(tail_rows, dim);
+        if (terms.tail_rows && !terms.tail.buffer) throw std::runtime_error("backend: sparse attention tail rows without their buffer");
+        if (terms.gate_form != GateForm::identity && !terms.gate.buffer) throw std::runtime_error("backend: sparse attention gate form without its gate");
         validate_float_slice(out_s, qn);
         validate_float_slice(q_s, qn);
         validate_float_slice(kv_s, kvn);
         validate_float_slice(ids_s, idn);
         validate_float_slice(sink_s, heads);
         if (en) validate_float_slice(entry_ids_s, en);
+        if (bn) validate_float_slice(terms.place_bias, bn);
+        if (gn) validate_float_slice(terms.gate, gn);
+        if (tn) validate_float_slice(terms.tail, tn);
         const CSlice out_c = out_s;
         if (overlaps(out_c, qn, q_s, qn) || overlaps(out_c, qn, kv_s, kvn) || overlaps(out_c, qn, ids_s, idn) || overlaps(out_c, qn, sink_s, heads) ||
-            (en && overlaps(out_c, qn, entry_ids_s, en)))
+            (en && overlaps(out_c, qn, entry_ids_s, en)) || (bn && overlaps(out_c, qn, terms.place_bias, bn)) || (gn && overlaps(out_c, qn, terms.gate, gn)) ||
+            (tn && overlaps(out_c, qn, terms.tail, tn)))
             throw std::runtime_error("backend: sparse attention output must be disjoint from its inputs");
+        const float* place_bias = bn ? at(terms.place_bias) : nullptr;
+        const float* gate = gn ? at(terms.gate) : nullptr;
+        const float* tail = tn ? at(terms.tail) : nullptr;
         const float* ids = at(ids_s);
         for (size_t i = 0; i < idn; ++i) {
             const uint32_t id = u32_at(ids, i);
-            if (id != UINT32_MAX && id >= kv_rows) throw std::runtime_error("backend: sparse attention id past its kv rows");
+            if (id != UINT32_MAX && id >= kv_rows + tail_rows) throw std::runtime_error("backend: sparse attention id past its kv rows");
         }
         PooledRows pooled;
         const float* entries = en ? at(entry_ids_s) : nullptr;
@@ -2127,7 +2137,8 @@ public:
                 const uint32_t j = t < k ? u32_at(ids + r * k, t) : entries ? u32_at(entries, r * entry_k + t - k) : t - k < visible_of[r] ? uint32_t(t - k) : UINT32_MAX;
                 if (j == UINT32_MAX) return;
                 float* to = packed ? decoded.data() + i * dim : nullptr;
-                if (t < k) named_rows[i] = stored_row(kv + size_t(j) * kv_words, dim, kv_format, to);
+                if (t < k && j >= kv_rows) named_rows[i] = tail + size_t(j - kv_rows) * dim;
+                else if (t < k) named_rows[i] = stored_row(kv + size_t(j) * kv_words, dim, kv_format, to);
                 else named_rows[i] = stored_row(static_cast<const CpuKVStorage*>(pooled.view[r]->storage)->pooled_row(layer, *pooled.view[r], j), dim, entry_format, to);
             });
             spread(size_mul(n, heads), [&](size_t lh) {
@@ -2143,14 +2154,16 @@ public:
                     if (!kr) continue;
                     float dot = 0.0f;
                     for (size_t d = 0; d < dim; ++d) dot = std::fma(qr[d], kr[d], dot);
-                    p[t] = dot * scale;
+                    p[t] = dot * scale + (place_bias && t < k ? place_bias[h * k + t] : 0.0f);
                     peak = std::fmax(peak, p[t]);
                 }
                 float sum = 0.0f;
                 for (size_t t = 0; t < named; ++t)
                     if (row(t)) sum += p[t] = std::exp(p[t] - peak);
                 const float denominator = sum + std::exp(sink[h] - peak);
-                float* o = out + rh * dim;
+                thread_local std::vector<float> read_of;
+                read_of.resize(dim);
+                float* o = gate ? read_of.data() : out + rh * dim;
                 std::fill(o, o + dim, 0.0f);
                 for (size_t t = 0; t < named; ++t) {
                     const float* kr = row(t);
@@ -2158,6 +2171,10 @@ public:
                     for (size_t d = 0; d < dim; ++d) o[d] = std::fma(p[t], kr[d], o[d]);
                 }
                 for (size_t d = 0; d < dim; ++d) o[d] /= denominator;
+                if (gate) {
+                    const float g = terms.gate_form == GateForm::tanh ? std::tanh(gate[rh]) : gate[rh];
+                    for (size_t d = 0; d < dim; ++d) out[rh * dim + d] = std::fma(g, o[d], out[rh * dim + d]);
+                }
             });
         }
     }

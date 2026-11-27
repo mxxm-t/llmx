@@ -3,11 +3,11 @@
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_EXT_control_flow_attributes : require
 // Sparse attention with a sink, its first kernel: one workgroup a (row, head) of a chunk from first_row, the kv rows its ids name then the pooled rows its entry ids name, kept in order.
-// It writes p = exp(score - max) by kept row then head, the denominator with exp(sink - max), and for head 0 the kept rows' first words and their counts (docs/src/backends-vulkan.md).
+// It writes p = exp(score - max) by kept row then head, the denominator with exp(sink - max), and for head 0 the kept rows' first words and their counts; TAIL rows and biased are in docs/src/backends-vulkan.md.
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P {
     uint rows; uint heads; uint dim; uint k; uint entry_k; float scale; uint views; uint tokens; uint bt; uint block_floats; uint rows_floats; uint width;
-    uint kv_rows; uint kv_format; uint entry_format; uint kv_words_n; uint first_row; uint den_at; uint kept_at; uint counts_at;
+    uint kv_rows; uint kv_format; uint entry_format; uint kv_words_n; uint first_row; uint den_at; uint kept_at; uint counts_at; uint tail_rows; uint biased;
 } p;
 layout(set = 0, binding = 0) writeonly buffer O { float scf[]; };
 layout(set = 0, binding = 0) writeonly buffer OU { uint scu[]; };
@@ -18,13 +18,15 @@ layout(set = 0, binding = 4) readonly buffer S { float sink[]; };
 layout(set = 0, binding = 5) readonly buffer A { float aux[]; };
 layout(set = 0, binding = 6) readonly buffer T { uint tab[]; };
 layout(set = 0, binding = 7) readonly buffer E { uint entry_ids[]; };
+layout(set = 0, binding = 8) readonly buffer TL { float tail[]; };
+layout(set = 0, binding = 9) readonly buffer B { float bias[]; };
 layout(set = 0, binding = 2) readonly buffer KU { uint kv_words[]; };
 layout(set = 0, binding = 5) readonly buffer AU { uint aux_words[]; };
 #include "views.glsl"
 #include "sparse_rows.glsl"
 #define NAMED_MAX 1024u
 #define PER (NAMED_MAX / 256u)
-const uint NONE = 0xffffffffu;
+const uint NONE = 0xffffffffu, TAIL = 0x80000000u;
 shared float pr[NAMED_MAX];
 shared uint at[NAMED_MAX];
 shared uint cnt[256];
@@ -46,6 +48,12 @@ float row_dot(uint qb, uint w, bool pooled) {
     if (pooled) return f == 0u ? ax_dot0(qb, w) : f == 1u ? ax_dot1(qb, w) : f == 2u ? ax_dot2(qb, w) : ax_dot3(qb, w);
     return f == 0u ? kv_dot0(qb, w) : f == 1u ? kv_dot1(qb, w) : f == 2u ? kv_dot2(qb, w) : kv_dot3(qb, w);
 }
+// A tail row's dot in kv_dot3's order.
+float tail_dot(uint qb, uint w) {
+    precise float dot = 0.0;
+    for (uint d = 0u; d < p.dim; ++d) dot = fma(q[qb + d], tail[w + d], dot);
+    return dot;
+}
 void main() {
     uint rh = gl_WorkGroupID.x, sr = rh / p.heads, h = rh - sr * p.heads, r = p.first_row + sr, lid = gl_LocalInvocationID.x;
     uint named = p.k + p.entry_k;
@@ -65,10 +73,13 @@ void main() {
         uint where = NONE;
         bool pooled = false;
         if (t < p.k && j < p.kv_rows) where = j * p.kv_words_n;
+        else if (t < p.k && j != NONE && j - p.kv_rows < p.tail_rows) where = TAIL | (j - p.kv_rows) * p.dim;
         else if (t >= p.k && j != NONE && j < visible) { where = pooled_row(v, j, p.tokens, p.bt, p.block_floats, p.rows_floats, p.width); pooled = true; }
         at[t] = where;
         if (where == NONE) continue;
-        precise float s = row_dot((r * p.heads + h) * p.dim, where, pooled) * p.scale;
+        uint qb = (r * p.heads + h) * p.dim;
+        precise float s = (p.tail_rows != 0u && where >= TAIL && !pooled ? tail_dot(qb, where - TAIL) : row_dot(qb, where, pooled)) * p.scale;
+        if (p.biased != 0u && t < p.k) s += bias[h * p.k + t];
         pr[t] = s;
         peak = max(peak, s);
     }

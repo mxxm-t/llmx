@@ -362,13 +362,15 @@ public:
     }
 
     // The attention's coefficients from the streams, its input collapsed with the pre the block before left, and its output expanded back (model.py:982-986 at e5decd76).
-    // An Engram layer first adds its gated value to the streams (model.py:1265-1266), and a layer a planned DSpark drafter reads then writes its tap (dspark.hpp).
+    // An Engram layer first adds its gated value to the streams (model.py:1265-1266), a DSpark drafter's layer writes its tap and a DFly2 target layer leaves its picks instead (dspark.hpp, pair_picks).
     void mixer(const Step& s) const override {
+        const bool tap_layer = s.kind & writes_tap;
         if (s.kind & runs_engram) engram(s);
-        if (s.kind & writes_tap) tap(s);
+        if (tap_layer && !cfg_.dfly2) tap(s);
         // The first reader on a device after its source's device stores the carried pooled rows into its replica, as the source stored them (LayerPlan::entry_source).
         if (s.appends) s.b.pool_write(s.kv_layer, s.views, s.n_views, s.slot(pooled));
         attend(s, s.w, {});
+        if (tap_layer && cfg_.dfly2) pair_picks(s);
     }
 
     // The FFN of the layer's own expert count and clamps (ffn_body).
@@ -412,10 +414,17 @@ private:
     }
 
     // Where a window's rows sit in a slot and what each row reads: the ring's place among the slot's rings, and for a block of rows that each read every row of their entry (DSpark's draft) the block's rows, else 0 for a causal window.
-    // A drafter stage's window is its ring of the slot alone (`alone`), which it moves itself wherever it runs.
+    // A drafter stage reads its own ring (`alone`) or, paired, its target layer's `ring` with the block's F32 keys as the tail and `picks`; DFly2's correction reads the block apart (docs/src/model-arch-deepseek4.md).
+    struct BlockRead {
+        backend::CSlice sinks, place_bias, gate;
+        size_t places = 0;
+    };
     struct Window {
         size_t ring = 0, block = 0;
-        bool alone = false;
+        bool alone = false, paired = false;
+        backend::CSlice picks{};
+        size_t k = 0;
+        const BlockRead* apart = nullptr;
     };
 
     // The attention sublayer between its coefficients and its expansion back into the streams (model.py:982-986 at e5decd76).
@@ -427,6 +436,10 @@ private:
     }
 
     void tap(const Step& s) const;
+    void pair_picks(const Step& s) const;
+    void plan_dfly2(const TensorIndex& tensors, ModelPlan& p, LayerPlan& d) const;
+    void dfly2_rows(const DraftRowsStep& s) const;
+    void dfly2_draft(const DraftStep& s) const;
 
     // The FFN's coefficients, its input collapsed with the attention's pre, and its output expanded back around the MoE, its pre the next block's (model.py:794-899 and 988-993 at e5decd76).
     // The roles are read from `w`, so a drafter's stage runs the body with its own roles, `used` experts and clamps (docs/src/model-arch-deepseek4.md).
@@ -501,13 +514,14 @@ private:
     }
 
     // A window's kv rows from their projection of the collapsed rows (window_kv): normed and turned at each row's position, then rounded to the window's FP8 as F32, or under native left for store_rows to pack (Step::native).
-    void window_rows(const Step& s, const Weight* w) const {
+    // A paired stage's rows stay F32 (`round` false), as its block keys are read beside the ring and never stored.
+    void window_rows(const Step& s, const Weight* w, bool round = true) const {
         const Config& c = cfg_;
         const size_t D = size_t(c.head_dim), rd = size_t(c.rope_dim);
         const auto [cos, sin] = rope(s);
         s.b.norm_rope_partial(s.slot(window_kv), s.slot(window_kv), s.rows, D, D, 1, D, rd, w[attn_kv_a_norm].slice(), c.rms_eps, cos, sin, s.pos,
                               backend::RopeForm{true, D - rd, false});
-        if (!s.native) s.b.model_format_qdq(s.slot(window_kv), backend::size_mul(s.rows, D), backend::ModelFormat::fp8_power);
+        if (!s.native && round) s.b.model_format_qdq(s.slot(window_kv), backend::size_mul(s.rows, D), backend::ModelFormat::fp8_power);
     }
 
     // A layer's window rings: its state buffer, the floats of a slot and those before its rings, and a ring row's words; a slot's rings each start on a row.
@@ -573,9 +587,10 @@ private:
         s.b.rms_norm_rows(s.slot(q_lora), s.slot(q_lora), w[attn_q_a_norm].slice(), rows, Q, Q, c.rms_eps, s.runs);
         s.b.matmul(w[attn_q_b].operand(), s.slot(q_lora), s.slot(query), w[attn_q_b].nin, w[attn_q_b].nout, rows, s.runs, s.dtype);
         s.b.norm_rope_partial(s.slot(query), s.slot(query), rows, HD, D, H, D, rd, {}, c.rms_eps, cos, sin, s.pos, turn);
-        window_rows(s, w);
+        window_rows(s, w, !at.paired);
 
         // Each row reads its window's positions oldest first, none before 0, from the layer's whole state buffer.
+        // A paired block's rows read the W positions before its first row, where its target's slot stands (v.src), then every block row as a tail id from kv_rows on.
         const Rings r = rings(s);
         const size_t kv_rows = backend::size_mul(s.states[0].storage->slots(), r.slot_floats / r.row);
         if (!s.indices || s.indices_size < backend::size_mul(rows, reads)) throw std::runtime_error("inference: the DeepSeek-V4.1 window's index scratch is too small");
@@ -583,28 +598,38 @@ private:
         for (size_t e = 0, row = 0; e < s.n_views; row += s.states[e].nq, ++e) {
             const backend::StateView& v = s.states[e];
             most = std::max(most, v.nq);
-            const size_t base = (v.dst * r.slot_floats + r.prefix) / r.row + at.ring * ring;
+            if (at.paired && v.nq > std::min(W, at.block)) throw std::logic_error("inference: a DeepSeek-V4.1 paired block wider than its block or window");
+            const size_t base = ((at.paired ? v.src : v.dst) * r.slot_floats + r.prefix) / r.row + at.ring * ring;
             for (size_t i = 0; i < v.nq; ++i) {
-                const uint64_t q = s.pos[row + (at.block ? v.nq - 1 : i)];
+                const uint64_t q = s.pos[row + (at.paired ? 0 : at.block ? v.nq - 1 : i)];
                 for (size_t t = 0; t < reads; ++t) {
-                    const uint64_t behind = reads - 1 - t;
-                    s.indices[(row + i) * reads + t] = q < behind ? UINT32_MAX : uint32_t(base + (q - behind) % ring);
+                    uint32_t& id = s.indices[(row + i) * reads + t];
+                    if (at.paired && t >= W) {
+                        id = !at.apart && t - W < v.nq ? uint32_t(kv_rows + row + t - W) : UINT32_MAX;
+                        continue;
+                    }
+                    const uint64_t behind = at.paired ? W - t : reads - 1 - t;
+                    id = q < behind ? UINT32_MAX : uint32_t(base + (q - behind) % ring);
                 }
             }
         }
-        move_rings(s, r, at.ring, at.alone);
+        if (!at.paired) move_rings(s, r, at.ring, at.alone);
         s.b.write(*s.arena, s.offsets[window_ids], s.indices, backend::size_mul(rows, reads) * sizeof(uint32_t));
-        const Picked picked = squeezed ? compressed(s, cos, sin) : Picked{};
+        const Picked picked = at.paired ? Picked{at.k, at.k > 0} : squeezed ? compressed(s, cos, sin) : Picked{};
+        const bool entries = at.paired ? picked.listed : squeezed;
+        backend::Backend::SinkTerms terms{};
+        if (at.paired && !at.apart) terms.tail = s.slot(window_kv), terms.tail_rows = rows;
         const float scale = float(1.0 / std::sqrt(double(D)));
         std::vector<backend::KVView> run;
         const auto attend_rows = [&](size_t first, size_t end) {
             if (first == end) return;
-            const backend::Slice out = s.slot(attn), qs = s.slot(query), ids = s.slot(window_ids), entries = s.slot(index_picks);
+            const backend::Slice out = s.slot(attn), qs = s.slot(query), ids = s.slot(window_ids);
+            const backend::CSlice listed = at.paired ? at.picks : backend::CSlice(s.slot(index_picks));
             s.b.sparse_attention_sink({out.buffer, out.offset + first * HD}, {qs.buffer, qs.offset + first * HD}, {r.kv, 0}, {ids.buffer, ids.offset + first * reads},
-                                      w[attn_sinks].slice(), end - first, H, D, kv_rows, reads, scale, s.kv_layer, squeezed ? run.data() : nullptr,
-                                      squeezed ? run.size() : 0, picked.listed ? backend::CSlice{entries.buffer, entries.offset + first * picked.k} : backend::CSlice{}, picked.k,
+                                      w[attn_sinks].slice(), end - first, H, D, kv_rows, reads, scale, s.kv_layer, entries ? run.data() : nullptr,
+                                      entries ? run.size() : 0, picked.listed ? backend::CSlice{listed.buffer, listed.offset + first * picked.k} : backend::CSlice{}, picked.k,
                                       s.native ? backend::ModelFormat::fp8_power : backend::ModelFormat::f32,
-                                      s.native ? backend::ModelFormat::fp4_e4m3 : backend::ModelFormat::f32);
+                                      s.native ? backend::ModelFormat::fp4_e4m3 : backend::ModelFormat::f32, terms);
             run.clear();
         };
         // Rows of one chunk that sit side by side attend in one call, so a pass whose entries are each at most a window attends once.
@@ -614,13 +639,13 @@ private:
                 const backend::StateView& v = s.states[e];
                 if (chunk >= v.nq) continue;
                 const size_t n = std::min(W, v.nq - chunk), from = row + chunk;
-                store_rows(s, r, v, at.ring, from, n);
+                if (!at.paired) store_rows(s, r, v, at.ring, from, n);
                 if (from != end) {
                     attend_rows(first, end);
                     first = from;
                 }
                 end = from + n;
-                if (squeezed) {
+                if (entries) {
                     backend::KVView part = s.views[e];
                     part.length += chunk;
                     part.nq = n;
@@ -629,6 +654,7 @@ private:
             }
             attend_rows(first, end);
         }
+        if (at.apart) block_read(s, *at.apart, rows * reads, H, D, scale);
         s.b.norm_rope_partial(s.slot(attn), s.slot(attn), rows, HD, D, H, D, rd, {}, c.rms_eps, cos, sin, s.pos, back);
         std::fill(s.indices, s.indices + rows, 0u);
         s.b.gather_rows(s.slot(group_ids), {s.tables[groups].get(), 0}, G, s.indices, rows);
@@ -636,6 +662,28 @@ private:
                            s.runs, s.dtype, *s.scratch);
         s.b.matmul(w[attn_output_b].operand(), s.slot(grouped), s.width > 1 ? s.partial : s.slot(block_out), w[attn_output_b].nin, w[attn_output_b].nout, rows, s.runs,
                    s.dtype);
+    }
+
+    // A paired block's read apart (BlockRead), added into attn: row i of an entry reads its block rows i down to 0 at places 0 to i, ids past the window's at `skip` in window_ids.
+    // The ids name the F32 block keys as the tail from kv_rows 0, so no ring row is read.
+    void block_read(const Step& s, const BlockRead& at, size_t skip, size_t H, size_t D, float scale) const {
+        const size_t rows = s.rows, P = at.places;
+        if (!s.indices || s.indices_size < backend::size_mul(rows, P)) throw std::runtime_error("inference: the DeepSeek-V4.1 block read's index scratch is too small");
+        for (size_t e = 0, row = 0; e < s.n_views; row += s.states[e].nq, ++e) {
+            if (s.states[e].nq > P) throw std::logic_error("inference: a DeepSeek-V4.1 block wider than its place bias");
+            for (size_t i = 0; i < s.states[e].nq; ++i)
+                for (size_t t = 0; t < P; ++t) s.indices[(row + i) * P + t] = t <= i ? uint32_t(row + i - t) : UINT32_MAX;
+        }
+        const backend::Slice ids = s.slot(window_ids), keys = s.slot(window_kv);
+        s.b.write(*s.arena, s.offsets[window_ids] + skip * sizeof(uint32_t), s.indices, backend::size_mul(rows, P) * sizeof(uint32_t));
+        backend::Backend::SinkTerms terms{};
+        terms.place_bias = at.place_bias;
+        terms.gate = at.gate;
+        terms.gate_form = backend::Backend::GateForm::tanh;
+        terms.tail = keys;
+        terms.tail_rows = rows;
+        s.b.sparse_attention_sink(s.slot(attn), s.slot(query), keys, {ids.buffer, ids.offset + skip}, at.sinks, rows, H, D, 0, P, scale, s.kv_layer, nullptr, 0, {}, 0,
+                                  backend::ModelFormat::f32, backend::ModelFormat::f32, terms);
     }
 
     // The entries a compressed layer's rows read: k of them a row, listed in index_picks, or the first k in order when every visible entry is picked.

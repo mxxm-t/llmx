@@ -135,6 +135,7 @@ do not want while measuring.
   The runtime stores f16 by default, so the components that check exact f32 arithmetic against independent fixtures (`f32`, `safetensors`, `moe`, `qwen35`, `minimax`, `shards`, `server`) ask for f32 sides themselves and skip when `--cache-type` asks for another type (`common.f32_cache_skip`).
   `LLMX_LOAD_MODE`, set by `run_tests.py --load-mode`, appends `--load-mode` to every model command the same way, so the suite runs with the weights read in any mode.
   `LLMX_DTYPE`, set by `run_tests.py --dtype`, appends `--dtype` to model commands that do not name it themselves; it never reaches the synthetic benchmark or metadata-only commands. The split component passes it through its tool's optional dtype argument to both placements.
+  `LLMX_DFLY2_PAIR` names the real DeepSeek-V4.1-Flash first shard and its DFly2 sidecar as `TARGET,SIDECAR`, which the `deepseek4` component pairs from their headers alone, skipping when it is unset or a file is absent.
   That is test configuration, not runtime configuration, and it reaches the binary only as the flags.
 
 If you add a flag, add it to `docs/USAGE.md` and to `print_usage` in the same

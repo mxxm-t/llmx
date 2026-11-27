@@ -184,6 +184,7 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
         taken.erase(std::unique(taken.begin(), taken.end(), [](const auto& a, const auto& b) { return a.first == b.first; }), taken.end());
         const LayerPlan& dl = *plan.drafter;
         fp.drafter_stages.resize(dl.stages.size());
+        fp.drafter_pairs = plan.draft_pairs;
         for (const auto& t : taken) {
             const auto stage = std::find_if(dl.stages.begin(), dl.stages.end(), [&](const auto& r) { return t.second->id >= r.first && t.second->id < r.second; });
             (stage == dl.stages.end() ? fp.drafter : fp.drafter_stages[size_t(stage - dl.stages.begin())]).push_back(matrix(t.first.first, t.first.second, t.second));
@@ -197,7 +198,7 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
         if (keeps_slot(dl))
             held_cache = backend::size_add(held_cache, backend::size_mul(backend::size_mul(slots, backend::size_add(kept.state.slot_floats(), dl.state_tail)), sizeof(float)));
         if (carries_row(plan))
-            fp.drafter_cache = backend::size_add(fp.drafter_cache, backend::size_mul(backend::size_add(slots, backend::size_mul(options.mark_slots, options.mark_rows)), plan.residual * sizeof(float)));
+            fp.drafter_cache = backend::size_add(fp.drafter_cache, backend::size_mul(backend::size_add(slots, backend::size_mul(options.mark_slots, options.mark_rows)), carry_bytes(plan)));
         // A chain's ids and a member's logits of its vocabulary rows for a mark's sequences at the most drafts a mark holds (Model::reserve_drafting).
         if (options.mark_slots && options.mark_rows > 1) {
             const size_t drafts = backend::size_mul(draft_calls(plan, options.mark_rows - 1), std::max<size_t>(plan.draft_block, 1));
@@ -1210,6 +1211,7 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
         if (experts_host) {
             Placement& place = placed.placement;
             for (int& d : place.mixer_device) ++d;
+            for (int& d : place.draft_device) ++d;
             for (size_t l = 0; l < place.ffn_device.size(); ++l) place.ffn_device[l] = ffn_on_host(request, plan.layers, l) ? 0 : place.ffn_device[l] + 1;
             ++place.embed_device;
             ++place.output_device;

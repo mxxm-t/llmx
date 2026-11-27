@@ -124,6 +124,7 @@ curl http://127.0.0.1:8080/v1/chat/completions -H "Authorization: Bearer $KEY" \
   The [health dashboard](tools/health_dashboard/README.md) alone charts a server's `/v1/health` on `http://127.0.0.1:8182`: `python tools/health_dashboard/server.py --upstream http://127.0.0.1:8080/v1/health --api-key-file FILE`.
 - Faster answers: `--drafter` drafts tokens ahead, with the same text as without ([SPECULATIVE](docs/SPECULATIVE.md)).
   `lookup` drafts from the prompt and reply, `embedded` from the MTP block a Qwen 3.5 file carries, and a file path from a DeepSeek DSpark file or another drafter file.
+  DeepSeek-V4.1-Flash also drafts with its DFly2 drafter ([DeepSeek-V4.1-Flash-DFly2-GGUF](https://huggingface.co/mxxm-t/DeepSeek-V4.1-Flash-DFly2-GGUF)): its output matches plain decoding, and its speed work is still open, so it is not yet faster than decoding without it.
   Lookup combines with the others, `--drafter lookup,embedded` or `--drafter lookup,FILE`: it drafts where the text repeats and the model drafter covers the rest.
 - `llmx <command> --help` lists a command's options, and [USAGE](docs/USAGE.md) every command and flag.
 

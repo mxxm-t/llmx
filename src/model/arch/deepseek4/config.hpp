@@ -51,6 +51,8 @@ struct Config {
     int n_nextn = 0, draft_experts = 0, draft_used = 0, draft_block = 0;
     uint32_t noise_id = 0;
     std::vector<int> taps;
+    // A DFly2 drafter (nextn.kind dfly2, docs/SPECULATIVE.md, section 12) reads each tap's window and picked latents instead of its entering streams, one tap a stage.
+    bool dfly2 = false;
     // A file of the -vl release carries each MoE layer's exp_probs_b_vl and takes images at text positions, every row of an image's block holding `image_id` (docs/VISION.md, section 11).
     bool vision = false;
     uint32_t image_id = 0;
@@ -93,6 +95,10 @@ inline void check_config(const Config& c) {
         if (c.draft_block <= 0 || c.draft_block > c.window) throw std::runtime_error("inference: the DSpark block must hold 1 to window rows");
         if (c.draft_used <= 0 || c.draft_used > c.draft_experts) throw std::runtime_error("inference: invalid DSpark expert counts");
         if (c.noise_id >= c.vocab) throw std::runtime_error("inference: the DSpark noise token is outside the vocabulary");
+        if (c.dfly2 && c.taps.size() != size_t(c.n_nextn)) throw std::runtime_error("inference: a DFly2 drafter reads one target layer a stage");
+        for (int t : c.taps)
+            if (c.dfly2 && c.compress_ratios[size_t(t)] == 0)
+                throw std::runtime_error("inference: DFly2 target layer " + std::to_string(t) + " keeps no compressed latents for the drafter to read");
     }
 
     if (!layer_ids(c.kv_sources, c.n_layer)) throw std::runtime_error("inference: the KV source layers must be ascending distinct layers of the model");
@@ -302,6 +308,9 @@ inline Config read_config(const gguf::GGUFModel& m, const std::string& p, uint32
         c.noise_id = uint32_t(metadata::count(m, p + "nextn.noise_token_id", 0));
         required(m, p + "nextn.target_layers");
         c.taps = metadata::counts(m, p + "nextn.target_layers");
+        const auto* kind = m.find(p + "nextn.kind");
+        if (kind && (kind->vtype != gguf::V_STRING || kind->s != "dfly2")) throw std::runtime_error("inference: unsupported metadata " + p + "nextn.kind");
+        c.dfly2 = kind != nullptr;
     }
     // The image rows' id is the vocabulary's deepseek_image marker, which model.py's image_token_id names.
     for (const auto& t : m.tensors)

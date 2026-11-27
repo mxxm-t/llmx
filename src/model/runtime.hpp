@@ -753,15 +753,31 @@ public:
         if (plan_.drafter) {
             if ((size_t)place_.output_device != stages_.back().device)
                 throw std::runtime_error("inference: an embedded drafter runs on the last stage's device, where the head must be");
-            if (plan_.drafter->cache != Cache::kv && plan_.drafter->cache != Cache::entries)
-                throw std::logic_error("inference: an embedded drafter keeps KV or entries");
+            const bool paired = !plan_.draft_pairs.empty();
+            if (paired ? plan_.drafter->cache != Cache::none : plan_.drafter->cache != Cache::kv && plan_.drafter->cache != Cache::entries)
+                throw std::logic_error("inference: an embedded drafter keeps KV or entries, a paired one none");
+            // A paired drafter's stage reads its target layer's views on that layer's device, where the split put the stage, and the correction reads the last one's on the head's.
+            if (paired) {
+                const size_t pairs = plan_.draft_pairs.size();
+                if (plan_.draft_sums % pairs || (draft_apart_ && pairs != draft_route_size()))
+                    throw std::runtime_error("inference: a paired drafter runs a stage a target layer, as many parts a stage");
+                for (size_t st = 0; st <= pairs; ++st) {
+                    const size_t l = plan_.draft_pairs[std::min(st, pairs - 1)];
+                    const Device& at = *devices_[st < pairs ? draft_stage_device(st) : (size_t)place_.output_device];
+                    const bool kv = l < plan_.layers.size() && keeps_kv(plan_.layers[l]), state = l < plan_.layers.size() && keeps_slot(plan_.layers[l]);
+                    if ((!kv && !state) || (kv && at.kv_local[l] < 0) || (state && at.state_local[l] < 0))
+                        throw std::runtime_error("inference: a paired drafter's target layer " + std::to_string(l) + " is not on the device of the stage reading it");
+                }
+            }
             if (carries_row(plan_) && !state_layers_ && !keeps_slot(*plan_.drafter))
                 throw std::logic_error("inference: an embedded drafter carries its row in a state slot, which this model has none of");
+            if (plan_.draft_picks && (!carries_row(plan_) || !plan_.draft_picks_slot || plan_.slots.at(plan_.draft_picks_slot) != plan_.draft_picks))
+                throw std::logic_error("inference: an embedded drafter's carried picks ride its carried row, from a slot as wide as they are");
             if (draft_apart_) {
                 // Stages apart keep their state where they run, a layer of every device that holds one, and a draft's rows cross through the handoff buffers (docs/SPECULATIVE.md, section 9).
                 size_t carried = plan_.residual;
                 for (const ModelPlan::Carried& c : plan_.draft_carried) carried = backend::size_add(carried, plan_.slots.at(c.slot));
-                if (keeps_kv(*plan_.drafter) || carries_row(plan_) || plan_.draft_sums % draft_route_size() || !plan_.draft_ids || !plan_.draft_rows_x ||
+                if (keeps_kv(*plan_.drafter) || (carries_row(plan_) && !paired) || plan_.draft_sums % draft_route_size() || !plan_.draft_ids || !plan_.draft_rows_x ||
                     carried > handoff_width(plan_) || plan_.slots.at(plan_.draft_rows_x) > handoff_width(plan_) || plan_.slots.at(plan_.draft_ids) > handoff_width(plan_))
                     throw std::logic_error("inference: a drafter whose stages run apart keeps a state slot, as many parts a stage and rows a handoff holds");
                 for (size_t d : draft_devices_)
@@ -799,7 +815,12 @@ public:
                 pipelined_ = pipelined_ && place_.ffn_device[(size_t)l] == (int)stages_[s].device;
         }
         // A stage's thread then records on its own device alone, which the drafter's parts there wait for (Recording).
-        if (draft_apart_ && !pipelined_) throw std::runtime_error("inference: an embedded drafter's stages run apart from the head on a layer split whose stages each run on one device");
+        // A stage that is not pipelined may also record on a device that runs no mixer, head or drafter table, as on the CPU holding --cpu-moe's experts.
+        bool alone = draft_apart_ && stages_.size() > 1;
+        for (const Stage& st : stages_)
+            for (size_t d : st.touches)
+                alone = alone && (d == st.device || (!devices_[d]->mixer_layers && d != (size_t)place_.output_device && d != draft_table_device()));
+        if (draft_apart_ && !pipelined_ && !alone) throw std::runtime_error("inference: an embedded drafter's stages run apart from the head on a layer split whose stages each run on one device");
         if (draft_apart_) {
             draft_step_slots_ = {{0, 0}};
             draft_step_slots_.insert(draft_step_slots_.end(), plan_.draft_carried.begin(), plan_.draft_carried.end());
@@ -946,7 +967,7 @@ public:
             for (size_t m = 0; carries_row(plan_) && m < width_; ++m) {
                 Device& o = *devices_[(size_t)place_.output_device + m];
                 const size_t slots = backend::size_add(backend::size_add(options_.state_slots, options_.checkpoint_slots), options_.mark_slots);
-                const size_t row = backend::size_mul(plan_.residual, sizeof(float));
+                const size_t row = carry_bytes(plan_);
                 o.carry = o.b->alloc(backend::size_mul(slots, row));
                 o.zero = o.b->alloc(row);
                 if (options_.mark_slots) o.saved_h = o.b->alloc(backend::size_mul(backend::size_mul(options_.mark_slots, options_.mark_rows), row));
@@ -1604,7 +1625,7 @@ private:
         size_t saved_floats = 0;                 // a row's saved inputs in one state layer
         size_t rerun_base = 0;                   // where the rerun's rooms start in `saved`, in floats
         size_t rerun_floats = 0;                 // a row of one state layer's room (recur_floats)
-        backend::BufferPtr carry, zero, saved_h; // on the head's device with an embedded drafter: its carried row a state slot, a zero row, and per mark and row the normed rows of the pass after it
+        backend::BufferPtr carry, zero, saved_h; // on the head's device with an embedded drafter: its carried record (carry_bytes) a state slot, a zero record, and per mark and row the normed rows of the pass after it, then their picks
         std::mutex recording;                    // held while recording on it where a drafter's stages sit apart from the head or it runs several stages (Model::Recording)
         size_t rounds = 0;                       // the stages that record on it
         // Where it runs several stages, the pass whose stage holds each scratch set (Pass::scratch) from its first group to its last, under `recording`, and the wake of a stage waiting for its turn.
@@ -1744,6 +1765,7 @@ private:
     // The fit charges the same (split_layers), so a stage 0 between the embedding's device and the head's keeps no copy of the table.
     size_t draft_table_device() const {
         const size_t first = draft_stage_device(0);
+        if (!plan_.draft_pairs.empty()) return (size_t)place_.output_device;   // a paired drafter's fusion reads the carried rows, which the head keeps
         return first != (size_t)place_.output_device && (width_ == 1 || !embedding_split(plan_)) ? (size_t)place_.embed_device : first;
     }
     // The device a drafter role runs on: a stage's on its stage's, the gather of the pass's embedding table on draft_table_device, and every other with the head.
@@ -2016,6 +2038,8 @@ private:
     size_t saved_at(const Device& d, const LayerPlan& lp, size_t buffer, size_t layer, size_t item) const;
     void save(ExecContext& ctx, const Pass& p, size_t dev, int l);
     void save_h(ExecContext& ctx, const Pass& p);
+    // Where a mark's room holds its rows' picks (ModelPlan::draft_picks), in words past the start of `saved_h`: after every mark's normed rows.
+    size_t saved_picks() const { return options_.mark_slots * options_.mark_rows * plan_.residual; }
     void rerun(Sequence& s, size_t rows, const Defer& defer = {});
     // A rerun's inputs: the rows to run, the mark's position, the slot each stage reads at the mark, the live slot written and the mark's buffer of saved inputs.
     struct Rerun {

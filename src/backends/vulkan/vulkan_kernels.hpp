@@ -1613,8 +1613,8 @@ const uint32_t kSpvFlagRecv[] = {
     X(K_HC_COEFFS, "hc_coeffs", kSpvHcCoeffs, sizeof(kSpvHcCoeffs), 7, nullptr) \
     X(K_HC_COLLAPSE_NORM, "hc_collapse_norm", kSpvHcCollapseNorm, sizeof(kSpvHcCollapseNorm), 5, nullptr) \
     X(K_HC_EXPAND, "hc_expand", kSpvHcExpand, sizeof(kSpvHcExpand), 5, nullptr) \
-    X(K_SPARSE_SOFTMAX, "sparse_softmax", kSpvSparseSoftmax, sizeof(kSpvSparseSoftmax), 8, nullptr) \
-    X(K_SPARSE_COLUMNS, "sparse_columns", kSpvSparseColumns, sizeof(kSpvSparseColumns), 4, nullptr) \
+    X(K_SPARSE_SOFTMAX, "sparse_softmax", kSpvSparseSoftmax, sizeof(kSpvSparseSoftmax), 10, nullptr) \
+    X(K_SPARSE_COLUMNS, "sparse_columns", kSpvSparseColumns, sizeof(kSpvSparseColumns), 6, nullptr) \
     X(K_TOPK_ROWS, "topk_rows", kSpvTopkRows, sizeof(kSpvTopkRows), 3, nullptr) \
     X(K_COMPRESS_POOL, "compress_pool", kSpvCompressPool, sizeof(kSpvCompressPool), 4, nullptr) \
     X(K_INDEXER_SCORES, "indexer_scores", kSpvIndexerScores, sizeof(kSpvIndexerScores), 6, nullptr) \

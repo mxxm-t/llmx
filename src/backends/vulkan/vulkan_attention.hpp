@@ -489,17 +489,25 @@ inline VulkanBackend::PooledPlane VulkanBackend::pooled_plane(size_t layer, cons
 
 inline void VulkanBackend::sparse_attention_sink(Slice out, CSlice q, CSlice kv, CSlice ids, CSlice sink, size_t rows, size_t heads, size_t dim, size_t kv_rows,
                                                  size_t k, float scale, size_t layer, const KVView* views, size_t n_views, CSlice entry_ids, size_t entry_k,
-                                                 ModelFormat kv_format, ModelFormat entry_format) {
+                                                 ModelFormat kv_format, ModelFormat entry_format, const SinkTerms& terms) {
+    if (terms.gate_form != GateForm::identity && !terms.gate.buffer) throw std::runtime_error("vulkan: sparse attention gate form without its gate");
     if (!heads || !dim || !std::isfinite(scale)) throw std::runtime_error("vulkan: invalid sparse attention dimensions or scale");
     if (!n_views && (entry_k || entry_ids.buffer)) throw std::runtime_error("vulkan: sparse attention entries without views");
     if (size_add(k, entry_k) > 1024) throw std::runtime_error("vulkan: sparse attention names at most 1024 rows a row");
+    if (terms.tail_rows && !terms.tail.buffer) throw std::runtime_error("vulkan: sparse attention tail rows without their buffer");
     if (!rows) return;
     const size_t kw = format_words(kv_format, dim), ew = format_words(entry_format, dim);
     const size_t qn = size_mul(rows, size_mul(heads, dim)), kvn = size_mul(kv_rows, kw), idn = size_mul(rows, k), en = entry_ids.buffer ? size_mul(rows, entry_k) : 0;
-    if (floats_from(out) < qn || floats_from(q) < qn || floats_from(kv) < kvn || floats_from(ids) < idn || floats_from(sink) < heads || (en && floats_from(entry_ids) < en))
+    const size_t bn = terms.place_bias.buffer ? size_mul(heads, k) : 0, gn = terms.gate.buffer ? size_mul(rows, heads) : 0;
+    const size_t tail_rows = terms.tail.buffer ? terms.tail_rows : 0, tn = size_mul(tail_rows, dim);
+    // A kept tail row's first word carries the top bit (shaders/sparse_softmax.comp), so with a tail both sources stay below 2^31 words.
+    if (tn && (kvn >> 31 || tn >> 31 || kv_rows + tail_rows > UINT32_MAX)) throw std::runtime_error("vulkan: sparse attention tail past 31-bit word offsets");
+    if (floats_from(out) < qn || floats_from(q) < qn || floats_from(kv) < kvn || floats_from(ids) < idn || floats_from(sink) < heads || (en && floats_from(entry_ids) < en) ||
+        (bn && floats_from(terms.place_bias) < bn) || (gn && floats_from(terms.gate) < gn) || (tn && floats_from(terms.tail) < tn))
         throw std::runtime_error("vulkan: sparse attention operand outside its allocation");
     if (overlaps(CSlice(out), qn, q, qn) || overlaps(CSlice(out), qn, kv, kvn) || overlaps(CSlice(out), qn, ids, idn) || overlaps(CSlice(out), qn, sink, heads) ||
-        (en && overlaps(CSlice(out), qn, entry_ids, en)))
+        (en && overlaps(CSlice(out), qn, entry_ids, en)) || (bn && overlaps(CSlice(out), qn, terms.place_bias, bn)) || (gn && overlaps(CSlice(out), qn, terms.gate, gn)) ||
+        (tn && overlaps(CSlice(out), qn, terms.tail, tn)))
         throw std::runtime_error("vulkan: sparse attention output must be disjoint from its inputs");
     PooledPlane pooled;
     const uint32_t none = 0;
@@ -522,13 +530,14 @@ inline void VulkanBackend::sparse_attention_sink(Slice out, CSlice q, CSlice kv,
     for (size_t first = 0; first < rows; first += chunk) {
         const size_t n = std::min(chunk, rows - first);
         const struct { uint32_t rows, heads, dim, k, entry_k; float scale; uint32_t views, tokens, bt, block_floats, rows_floats, width, kv_rows, kv_format, entry_format, kv_words,
-                       first_row, den_at, kept_at, counts_at; }
+                       first_row, den_at, kept_at, counts_at, tail_rows, biased; }
             pc{u32(rows), u32(heads), u32(dim), u32(k), u32(entry_k), scale, n_views ? en ? 1u : 2u : 0u, pooled.tokens, pooled.plane.bt, pooled.plane.block_floats,
-               pooled.plane.rows_floats, pooled.width, u32(kv_rows), uint32_t(kv_format), uint32_t(entry_format), u32(kw), u32(first), u32(den_at), u32(kept_at), u32(counts_at)};
-        dispatch(K_SPARSE_SOFTMAX, {sc, bind(q), bind(kv), bind(ids), bind(sink), aux, tab, en ? bind(entry_ids) : bind(ids)}, &pc, sizeof(pc), u32(size_mul(n, heads)));
-        const struct { uint32_t heads, dim, named, kv_format, entry_format, first_row, den_at, kept_at, counts_at; }
-            cc{u32(heads), u32(dim), u32(named), uint32_t(kv_format), uint32_t(entry_format), u32(first), u32(den_at), u32(kept_at), u32(counts_at)};
-        dispatch(K_SPARSE_COLUMNS, {bind(out), sc, bind(kv), aux}, &cc, sizeof(cc), u32((dim + kSparseColumns - 1) / kSparseColumns), u32(n));
+               pooled.plane.rows_floats, pooled.width, u32(kv_rows), uint32_t(kv_format), uint32_t(entry_format), u32(kw), u32(first), u32(den_at), u32(kept_at), u32(counts_at), u32(tail_rows), bn ? 1u : 0u};
+        dispatch(K_SPARSE_SOFTMAX, {sc, bind(q), bind(kv), bind(ids), bind(sink), aux, tab, en ? bind(entry_ids) : bind(ids), tn ? bind(terms.tail) : bind(kv),
+                                    bn ? bind(terms.place_bias) : bind(sink)}, &pc, sizeof(pc), u32(size_mul(n, heads)));
+        const struct { uint32_t heads, dim, named, kv_format, entry_format, first_row, den_at, kept_at, counts_at, gated, tailed; }
+            cc{u32(heads), u32(dim), u32(named), uint32_t(kv_format), uint32_t(entry_format), u32(first), u32(den_at), u32(kept_at), u32(counts_at), gn ? terms.gate_form == GateForm::tanh ? 2u : 1u : 0u, tn ? 1u : 0u};
+        dispatch(K_SPARSE_COLUMNS, {bind(out), sc, bind(kv), aux, tn ? bind(terms.tail) : bind(kv), gn ? bind(terms.gate) : bind(sink)}, &cc, sizeof(cc), u32((dim + kSparseColumns - 1) / kSparseColumns), u32(n));
     }
 }
 

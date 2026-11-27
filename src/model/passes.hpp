@@ -1239,7 +1239,7 @@ inline void Model::stage_commit(Pass& p, size_t s) {
 // An embedded drafter's context rows of the pass after the last stage (Architecture::draft_rows), on a tensor group each member over its own heads, in parts on their devices where stages sit apart (docs/SPECULATIVE.md, section 9).
 // Where it carries a row (carries_row), each entry's first row reads its sequence's carried row or a zero row, its last normed row is carried into the slot its state is written to, and a marked entry's rows are saved (save_h).
 inline void Model::draft_context(ExecContext& ctx, Pass& p, size_t s) {
-    const size_t E = plan_.residual, n = p.entries.size(), o = (size_t)place_.output_device;
+    const size_t E = plan_.residual, K = plan_.draft_picks, n = p.entries.size(), o = (size_t)place_.output_device;
     const bool carries = carries_row(plan_);
     if (std::none_of(p.entries.begin(), p.entries.end(), [](const BatchEntry& e) { return e.context; })) {
         p.draft_tickets.clear();
@@ -1273,7 +1273,8 @@ inline void Model::draft_context(ExecContext& ctx, Pass& p, size_t s) {
             if (c == plan_.drafter->kv_pool) step.group_pos = backend::GroupPositions{gp.data(), {3, plan_.image_streams.data()}};
         arch_->draft_rows(step);
     };
-    if (draft_apart_) {
+    // A paired drafter's stages read the target layers themselves, so its context rows stay on the head (ModelPlan::draft_pairs).
+    if (draft_apart_ && plan_.draft_pairs.empty()) {
         const int all_layers = (int)plan_.layers.size();
         for (size_t m = 0; m < draft_members(); ++m) call(o, m, 0);
         send(ctx, p, o, handoff_buffer(p, stages_.size() - 1, o), 0, p.rows, all_layers, &draft_rows_slots_);
@@ -1301,15 +1302,16 @@ inline void Model::draft_context(ExecContext& ctx, Pass& p, size_t s) {
         for (size_t e = 0; carries && e < n; ++e) {
             const Sequence& q = *p.entries[e].seq;
             const size_t src = q.from_[s] == Sequence::kLive ? q.state_.slot() : q.from_[s];
-            ctx.carry[e] = q.stage_length(s) ? backend::CSlice{d.carry.get(), src * E} : backend::CSlice{d.zero.get(), 0};
+            ctx.carry[e] = q.stage_length(s) ? backend::CSlice{d.carry.get(), src * (E + K)} : backend::CSlice{d.zero.get(), 0};
         }
         call(o, m, -1);
         if (!carries) continue;
-        const backend::Slice hn = slot(ctx, p, o + m, plan_.draft_h);
+        const backend::Slice hn = slot(ctx, p, o + m, plan_.draft_h), pk = K ? slot(ctx, p, o + m, plan_.draft_picks_slot) : backend::Slice{};
         for (size_t e = 0; e < n; ++e) {
             const Sequence& q = *p.entries[e].seq;
-            const size_t dst = p.kept[e].held() ? p.kept[e].slot() : q.state_.slot();
-            d.b->copy(*d.carry, dst * E * sizeof(float), *hn.buffer, (hn.offset + (p.runs[e].end - 1) * E) * sizeof(float), E * sizeof(float));
+            const size_t dst = p.kept[e].held() ? p.kept[e].slot() : q.state_.slot(), last = p.runs[e].end - 1;
+            d.b->copy(*d.carry, dst * carry_bytes(plan_), *hn.buffer, (hn.offset + last * E) * sizeof(float), E * sizeof(float));
+            if (K) d.b->copy(*d.carry, dst * carry_bytes(plan_) + E * sizeof(float), *pk.buffer, (pk.offset + last * K) * sizeof(float), K * sizeof(float));
         }
     }
     if (carries) save_h(ctx, p);

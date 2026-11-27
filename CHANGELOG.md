@@ -11,6 +11,7 @@ Each entry is one short line that links the doc explaining it; reasons, flags an
 ### Added
 
 - A `rocm10` release image runs llmx on the ROCm 10.2 runtime ([ROCm](docs/ROCM.md)).
+- A DFly2 drafter (`--drafter FILE`) drafts beside DeepSeek-V4.1-Flash, not yet faster than plain decoding ([speculative decoding](docs/SPECULATIVE.md)).
 - A DSpine drafter (`--drafter FILE`) drafts a block of tokens beside a Qwen 3.5-family model ([speculative decoding](docs/SPECULATIVE.md)).
 - A DFlash2 drafter (`--drafter FILE`) drafts beside a Qwen 3.5-family model on the CPU, ROCm and Vulkan ([speculative decoding](docs/SPECULATIVE.md)).
 - The server reads tool calls in the Inkling-2-Mini chat format and streams reasoning apart from the answer ([tool calls](docs/SERVER.md#tool-calls)).

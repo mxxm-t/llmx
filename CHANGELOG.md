@@ -11,6 +11,7 @@ Each entry is one short line that links the doc explaining it; reasons, flags an
 ### Added
 
 - An experimental Windows ROCm zip runs llmx on the AMD driver's HIP runtime ([build](docs/BUILD.md#the-rocm-backend-on-windows)).
+- Inkling-2-Mini runs on the CPU; ROCm and Vulkan are in development ([Inkling-2](docs/INKLING2.md)).
 - Inkling-2-Mini reads images given with `--mmproj` and `--image` or as image parts on the chat routes ([vision](docs/VISION.md#12-inkling-2-inkling2v)).
 - A `rocm10` release image runs llmx on the ROCm 10.2 runtime ([ROCm](docs/ROCM.md)).
 - A DFly2 drafter (`--drafter FILE`) drafts beside DeepSeek-V4.1-Flash, not yet faster than plain decoding ([speculative decoding](docs/SPECULATIVE.md)).
@@ -25,8 +26,6 @@ Each entry is one short line that links the doc explaining it; reasons, flags an
 
 - ROCm tensor groups on MI50 sum prompt-sized parts up to a quarter faster by reading their peers' rows ([GPU backends](docs/src/backends-gpu.md)).
 - A tensor width that does not divide a model's vocabulary splits the head's rows unevenly instead of refusing ([TENSOR-SPLIT](docs/TENSOR-SPLIT.md)).
-- Inkling-2-Mini decodes faster on MI50s: the MoE router step loads its own code into L2 first ([delta_step](docs/src/backends-gpu.md)).
-- Inkling-2-Mini reads long prompts faster on MI50s: its ring convolutions run in parts of rows ([GPU backends](docs/src/backends-gpu.md)).
 - Greedy server requests, `ignore_eos` ones too, take their tokens from the device's argmax ([server](docs/SERVER.md#device-argmax)).
 - Greedy `generate` and a server on a tensor group queue the next decode step before reading the last one ([generate](docs/src/inference-generate.md)).
 - Greedy `ignore_eos` requests whose top token is the end token no longer read their logits back from the device ([server](docs/SERVER.md#device-argmax)).

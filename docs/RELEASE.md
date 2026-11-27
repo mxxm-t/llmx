@@ -10,7 +10,8 @@ This page says what each artifact holds, how the changelog is kept, how to cut a
 |---|---|---|
 | `llmx-X.Y.Z-linux-x86_64.tar.gz` | `llmx`, one binary with the CPU, Vulkan and ROCm backends, `README.md` and `tools/` | x86-64 Linux with AVX2, FMA and F16C and glibc 2.35 or later |
 | `llmx-X.Y.Z-windows-x64.zip` | `llmx.exe` with the CPU and Vulkan backends, `README.md` and `tools/` | x86-64 Windows with AVX2, FMA and F16C |
-| `SHA256SUMS` | the SHA-256 of both archives | |
+| `llmx-X.Y.Z-windows-x64-rocm.zip` | `llmx.exe` with the CPU, Vulkan and ROCm backends, `README.md` and `tools/`, and no AMD library | the same, with an AMD driver whose HIP runtime has the card; gfx906 is experimental |
+| `SHA256SUMS` | the SHA-256 of the three archives | |
 | `SHA256SUMS.minisig` | the minisign signature of `SHA256SUMS`, once the owner's key is set | |
 | `llmx.pub`, `cosign.pub` | the public minisign and cosign keys, once the owner has set them (Signing keys, below) | |
 | `ghcr.io/mxxm-t/llmx:X.Y.Z-vulkan` | the Linux binary over Debian trixie with the Vulkan loader and Mesa's drivers | a Linux host passing `/dev/dri` |
@@ -18,9 +19,9 @@ This page says what each artifact holds, how the changelog is kept, how to cut a
 | `ghcr.io/mxxm-t/llmx:X.Y.Z-rocm10` | the Linux binary over Ubuntu 24.04 with the ROCm 10.2.0 HIP runtime, `libamdhip64` and the libraries it loads alone | the same host as `rocm7` |
 | `ghcr.io/mxxm-t/llmx:chat-X.Y.Z` | the archives' `tools/` over Python 3.12: the chat companion, and the health dashboard as another command | any Linux host, beside a server it reaches |
 
-Both archives hold `LICENSE` and `THIRD_PARTY_NOTICES.md`.
+Every archive holds `LICENSE` and `THIRD_PARTY_NOTICES.md`.
 
-**`tools/` is the chat companion and the health dashboard,** `tools/chat_ui` and `tools/health_dashboard` as the commit holds them without their tests, which `docker/release/companion.sh` copies for both archives, so the image gets the same files from the tarball.
+**`tools/` is the chat companion and the health dashboard,** `tools/chat_ui` and `tools/health_dashboard` as the commit holds them without their tests, which `docker/release/companion.sh` copies for every archive, so the image gets the same files from the tarball.
 Both need only Python 3's standard library and run from the extracted directory as from a checkout, against a running `llmx serve`:
 
 ```sh
@@ -38,6 +39,8 @@ The script refuses a binary that names any other shared library, or that does no
 The ROCm kernels are embedded for the default list of AMD architectures, gfx906 (MI50) and later ([BUILD](BUILD.md), GPU architectures), and the Vulkan shaders for every device.
 
 **The Windows binary** is the CMake Vulkan build of [BUILD](BUILD.md) with the Vulkan SDK the workflow pins; it opens the `vulkan-1.dll` the GPU driver installs.
+The ROCm zip's is the same build with the ROCm backend, from TheRock's SDK wheels at the release CI pins ([BUILD](BUILD.md), The ROCm backend on Windows); it ships no AMD DLL and opens the HIP runtime the AMD driver installs, so `--device rocm:N` without one fails with a message and the CPU and Vulkan still run.
+gfx906 there runs on the display driver's HIP 5.7 runtime and is experimental ([ROCM](ROCM.md), Windows).
 
 ## The images
 
@@ -113,7 +116,7 @@ Each item runs on the draft's own files, checked against `SHA256SUMS` first.
 - **Any Linux machine, no GPU stack:** in a plain `ubuntu:24.04` container, the tarball's `llmx --version` prints `X.Y.Z+g` and the tagged commit, and `llmx generate` on Qwen3-0.6B Q8_0 with `--device cpu` writes text.
   The workflow runs the `--version` half of this.
 - **An MI50 on Linux:** the tarball's binary, and each image, run `generate` on Qwen3-0.6B Q8_0 with `--device vulkan:0` (the host's Vulkan loader and RADV for the tarball, the `vulkan` image's for itself) and with `--device rocm:0` (a ROCm 7 runtime on the host for the tarball, the `rocm7` and `rocm10` images' for themselves); each writes the same text as `--device cpu` for the first tokens.
-- **A Radeon VII on Windows:** the zip's `llmx.exe --version`, and `generate` on Qwen3-0.6B Q8_0 with `--device vulkan:0`.
+- **A Radeon VII on Windows:** each zip's `llmx.exe --version`, and `generate` on Qwen3-0.6B Q8_0 with `--device vulkan:0`, and the ROCm zip's with `--device rocm:0` too, each writing the same text as `--device cpu` for the first tokens.
 - **The companion:** on the MI50, against `llmx serve` with a key file, the tarball's `tools/chat_ui/server.py` and the `chat-X.Y.Z` image each stream a reply in the browser, and the tarball's `tools/health_dashboard/server.py` and the image's alternate command each chart the server's health.
 - **Signatures, when the keys are set:** `minisign -Vm SHA256SUMS -p llmx.pub` and `cosign verify --key cosign.pub ghcr.io/mxxm-t/llmx:X.Y.Z-vulkan` (and `X.Y.Z-rocm7`, `X.Y.Z-rocm10`, `chat-X.Y.Z`) succeed.
 
@@ -127,7 +130,7 @@ Every push to `main` on GitHub rebuilds one pre-release, `nightly`, in place: `.
 
 | Artifact | Contents |
 |---|---|
-| `llmx-nightly-linux-x86_64.tar.gz`, `llmx-nightly-windows-x64.zip` | the archives of a release, built from that commit |
+| `llmx-nightly-linux-x86_64.tar.gz`, `llmx-nightly-windows-x64.zip`, `llmx-nightly-windows-x64-rocm.zip` | the archives of a release, built from that commit |
 | `SHA256SUMS`, `SHA256SUMS.minisig`, `llmx.pub`, `cosign.pub` | as for a release, signed with the same keys |
 | `ghcr.io/mxxm-t/llmx:nightly-vulkan`, `nightly-rocm7`, `nightly-rocm10`, `nightly-chat` | the four images, also on Docker Hub as `mxxm/llmx:nightly-*`, signed |
 

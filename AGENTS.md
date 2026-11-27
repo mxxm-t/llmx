@@ -7,7 +7,7 @@ making changes.
 
 **llmx** - a ground-up, dependency-free LLM inference runtime. It reads/writes
 GGUF v3, runs quantized or F32 Qwen3, Qwen3-MoE, the Qwen 3.5 hybrid (qwen35, qwen35moe) and Qwen3.8-Flash-Next (qwen4exp) transformers on x86 CPU with AVX2/FMA/F16C,
-on a Vulkan device or, on Linux, on a ROCm device, and is structured so formats, quantizations, backends, and multi-device / cluster
+on a Vulkan device or on a ROCm device (Linux, and Windows as an experimental build), and is structured so formats, quantizations, backends, and multi-device / cluster
 serving can be added later without touching the core.
 
 ## Build

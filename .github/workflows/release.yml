@@ -86,7 +86,7 @@ jobs:
           {
             python3 tools/release_notes.py "$version"
             echo
-            echo "Downloads: the Linux x86_64 tarball (CPU, Vulkan and ROCm in one binary), the Windows x64 zip (CPU and Vulkan), both with the chat companion and the health dashboard, and SHA256SUMS."
+            echo "Downloads: the Linux x86_64 tarball (CPU, Vulkan and ROCm in one binary), the Windows x64 zip (CPU and Vulkan), the Windows x64 ROCm zip (CPU, Vulkan and ROCm on the HIP runtime of the AMD driver; gfx906 experimental), all with the chat companion and the health dashboard, and SHA256SUMS."
             echo
             echo "Images: \`$image:$version-vulkan\`, \`$image:$version-rocm7\`, \`$image:$version-rocm10\` and the chat companion's \`$image:chat-$version\`."
             echo

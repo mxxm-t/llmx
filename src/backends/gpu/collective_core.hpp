@@ -1077,10 +1077,21 @@ void timing_failed(GroupPath& path, const std::vector<int>& ids, const std::exce
     std::fprintf(stderr, "%stensor group of devices %s sums by peer pulls, since %s\n", Api::prefix.c_str(), device_list(ids).c_str(), path.why.c_str());
 }
 
+// The collective's stream word waits are unproven on the Windows HIP runtime (docs/ROCM.md, Windows), so a group is refused there rather than run.
+template <class Api>
+void refuse_windows_group(size_t members) {
+#if defined(_WIN32)
+    if (members > 1) throw std::runtime_error(Api::name + std::string(": tensor groups (--tensor-width above 1) are not supported on Windows"));
+#else
+    (void)members;
+#endif
+}
+
 // The permutation of the listing whose groups of `width` sum rows x summed floats fastest in all, by one swap descent from the listing over every pair of devices (docs/TENSOR-SPLIT.md, section 4.1).
 // A group's cost is its fastest form in listing order, a group this backend cannot sum fast is never formed, and of the swaps that beat what they replace by kOrderMargin the first within kOrderMargin of the best gain is taken.
 template <class Api>
 std::vector<size_t> GpuBackend<Api>::member_order(const std::vector<Backend*>& devices, size_t width, size_t rows, size_t summed) {
+    refuse_windows_group<Api>(width);
     if (devices.empty() || devices[0] != this) throw std::logic_error("backend: a member order is asked of the listing's first device");
     const size_t N = devices.size(), W = width, n = size_mul(rows, summed);
     std::vector<size_t> perm(N);
@@ -1211,6 +1222,7 @@ std::vector<size_t> GpuBackend<Api>::member_order(const std::vector<Backend*>& d
 // A collective over devices of this backend and one kind, each once, decided fast or conservative once per group by group_probe and reported on stderr.
 template <class Api>
 std::unique_ptr<Collective> GpuBackend<Api>::join(const std::vector<Backend*>& members, size_t rows, size_t width) {
+    refuse_windows_group<Api>(members.size());
     std::vector<int> ids;
     const std::vector<GpuBackend<Api>*> group = group_of(members, ids);
     const std::string names = device_list(ids);

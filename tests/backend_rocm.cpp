@@ -39,8 +39,6 @@
 #include <thread>
 #include <vector>
 
-#include <dlfcn.h>
-
 using namespace backend;
 
 namespace {
@@ -244,9 +242,8 @@ void host_views(Backend& g) {
     for (size_t i = 0; i < n; ++i) x[i] = float(i) * 0.5f;
     {
         // A view dropped after its copy ran, with no backend wait since, must unregister at once: a raw device synchronize does not run the backend's deferred cleanup.
-        void* lib = dlopen("libamdhip64.so", RTLD_NOW | RTLD_LOCAL);
         using SyncFn = hipError_t (*)();
-        const SyncFn device_sync = lib ? reinterpret_cast<SyncFn>(dlsym(lib, "hipDeviceSynchronize")) : nullptr;
+        const SyncFn device_sync = reinterpret_cast<SyncFn>(hip_symbol("hipDeviceSynchronize"));
         require(device_sync != nullptr, "hipDeviceSynchronize was not found");
         if (device_sync) {
             core::HostPages pages(bytes);
@@ -3588,7 +3585,8 @@ void collective() {
     {
         // A head group's logits rows: each member copies its slice into one host memory that every member wraps, the first registering it.
         const size_t n = 4096, bytes = 2 * n * sizeof(float);
-        void* pages = std::aligned_alloc(4096, bytes);
+        core::HostPages host(bytes);
+        void* pages = host.data();
         std::vector<BufferPtr> views;
         for (size_t m = 0; m < 2; ++m) views.push_back(d[m]->wrap_host(pages, bytes));
         require(views[0] && views[1] && views[0]->host_ptr() == pages && views[1]->host_ptr() == pages, "ROCm members did not wrap one host memory");
@@ -3604,7 +3602,6 @@ void collective() {
             require(std::memcmp((const float*)pages + m * n, want[m].data(), n * sizeof(float)) == 0, "a member's copy into wrapped host memory is not its rows");
         views.clear();
         for (size_t m = 0; m < 2; ++m) d[m]->sync();
-        std::free(pages);
         std::cout << "backend-rocm: two members copy into one wrapped host memory\n";
     }
     auto cpu = make_cpu_backend();
@@ -4145,13 +4142,22 @@ void vsnccl(bool reversed, size_t W, size_t model) {
     std::fflush(stdout);
 }
 
+// An environment variable for the HIP runtime, set before it opens.
+void set_env(const char* name, const char* value) {
+#if defined(_WIN32)
+    _putenv_s(name, value);
+#else
+    setenv(name, value, 1);
+#endif
+}
+
 int main(int argc, char** argv) {
     // `sixteen` runs groups of up to 16 ranks on one device, which with the backend's own stream need more hardware queues than HIP's default of 4; a real group runs one rank per device and needs none.
     const bool sixteen = argc > 1 && std::string(argv[1]) == "sixteen";
-    if (sixteen) setenv("GPU_MAX_HW_QUEUES", "32", 1);
+    if (sixteen) set_env("GPU_MAX_HW_QUEUES", "32");
     // `queues` takes eight hardware queues a device, two to each of the four pipes, as a user may set and the rig's runs do, so streams past four share a pipe.
     const bool queues_only = argc > 1 && std::string(argv[1]) == "queues";
-    if (queues_only) setenv("GPU_MAX_HW_QUEUES", "8", 1);
+    if (queues_only) set_env("GPU_MAX_HW_QUEUES", "8");
     BackendPtr g;
     try {
         g = make_rocm_backend(0);

@@ -42,8 +42,7 @@ Strix Halo/gfx1151 is an explicit future hardware target. The user confirmed on
 assumptions and compile wave32 variants of kernels already being implemented.
 Device-specific memory accounting, profile rows and other seams wait for
 hardware, as do numerical, performance and support qualification. Newer CDNA and RDNA devices use
-the same qualification procedure. Linux is the implemented platform; Windows ROCm
-support would be a separate scope change even if a vendor SDK supports a device.
+the same qualification procedure. Linux is the qualified platform; the Windows build is experimental (Windows, below).
 
 MI300X/gfx942 is a default build target since 2026-11-17, so ROCm builds and the
 release's ROCm binaries load on it. It is wave64 like gfx906, and the backend
@@ -294,6 +293,16 @@ until the first finishes. Prepare every member before any launch and use the
 existing recorder/collective ownership to avoid duplicate worker pools. Measure
 rank start skew and CPU cost with graphs on and off. Ordinary scheduling and
 resource limits still apply when other users occupy the GPUs or CPU cores.
+
+## Windows
+
+A Windows build opens the HIP runtime with `LoadLibraryExW` from the executable's directory and System32 only, so no DLL is taken from the working directory: `amdhip64_<major>.dll` of the headers it was built against, then `amdhip64_7.dll`, `amdhip64_6.dll` and the display driver's `amdhip64.dll` (docs/BUILD.md, The ROCm backend on Windows).
+AMD's Windows runtimes from HIP 6 on support RDNA2 to RDNA4 and no Instinct target, and have no gfx906 device; the display driver's own `amdhip64.dll` is a HIP 5.7 runtime that still enumerates a Radeon VII.
+That runtime lacks `hipGetDevicePropertiesR0600`, so the backend reads a device's properties through `hipGetDeviceProperties` into the HIP 5 layout (`hipDeviceProp_tR0000`) when the newer entry is missing.
+Launch test of 2026-11-27 on a Radeon VII under driver 31.0.21925.1001 (`amdhip64.dll` 10.0.3584, runtime 50731541): a gfx906 code object of version 5 or 6 fails `hipModuleLoadData` with 303 (shared object initialization failed), and the same kernel at code object version 4 loads, launches and writes all 4096 outputs correctly; a Windows build therefore compiles gfx906 at version 4.
+gfx906 on Windows is experimental: it runs on a runtime AMD no longer maintains, and a driver update may drop it.
+The Windows exit keeps HIP's own teardown: the CRT has no exit hook that sees the status, and whether the Windows runtime has the race of the Process exit section (below) is not known.
+Tensor groups are refused on Windows, in `member_order` and `join` of `collective_core.hpp`: their stream word waits (`hipStreamWaitValue64`, `hipStreamWriteValue64`) are reported broken on the Windows runtime and peer access under WDDM is generally unavailable.
 
 ## Process exit
 
@@ -635,8 +644,7 @@ text/CSV/JSON. Existing Vulkan timings are context, not a ROCm baseline.
 Full release also needs the applicable complete suites, docs/dead-code and
 architecture checks, hosted CI at the exact head, Linux HIP build coverage and
 CPU/Vulkan nonregression. Hosted no-GPU jobs cannot establish device gates.
-Shared changes retain the Windows Radeon VII checks; ROCm itself is not claimed
-to execute on that Windows machine. Builds for gfx942 and gfx1151 without
+Shared changes retain the Windows Radeon VII checks; ROCm on that machine is the experimental Windows build (Windows, below). Builds for gfx942 and gfx1151 without
 hardware are labeled compile-only.
 
 ## Open decisions and checkpoint reporting

@@ -3,7 +3,7 @@
 llmx builds from source with a C++17 compiler and CMake on Windows, Linux and macOS, or with `build.bat` alone on Windows.
 It links no third-party libraries.
 The CPU backend is always built; the optional Vulkan backend needs the Vulkan headers and the `glslc` shader compiler at build time, and the Vulkan loader and a driver at run time.
-The optional ROCm backend builds on Linux only and needs the ROCm SDK at build time and the HIP runtime at run time.
+The optional ROCm backend builds on Linux and Windows and needs the ROCm SDK at build time and the HIP runtime at run time.
 This page lists what each platform needs, the commands, where the binary lands and how to test it.
 The [README](../README.md#build) keeps a short quick start.
 
@@ -185,7 +185,7 @@ cmake --build build --config Release --parallel
 ./build/llmx bench --device rocm:0
 ```
 
-Without the headers or the compiler, configuring stops with `LLMX_HAS_BACKEND_ROCM needs hip/hip_runtime_api.h and the ROCm clang++: install the ROCm SDK, or set ROCM_PATH`, and on another system with `LLMX_HAS_BACKEND_ROCM is Linux only`.
+Without the headers or the compiler, configuring stops with `LLMX_HAS_BACKEND_ROCM needs hip/hip_runtime_api.h and the ROCm clang++: install the ROCm SDK, or set ROCM_PATH`, and on another system with `LLMX_HAS_BACKEND_ROCM is Linux and Windows only`.
 The HIP kernels are compiled at build time to a code object for each architecture in `LLMX_ROCM_ARCHS` and embedded in the binary, with a second build of the 16-bit integer products for gfx906 when the list has it; by default the list holds every AMD architecture from gfx906 (MI50) on, and only gfx906 (AMD MI50) has run them (GPU architectures, below).
 gfx942 (AMD MI300X) is in the default list so a ROCm build and the release's binaries load on it, but no llmx run on an MI300X is recorded and it is not checked against Hugging Face there ([ROCM](ROCM.md)).
 The ROCm 10 SDK seen in the cloud image keeps its clang++ under `lib/llvm/bin`, and the configure finds it there too.
@@ -196,6 +196,27 @@ The ROCm and Vulkan backends can be built into one binary, both options given.
 
 **Access to the card.**
 The HIP runtime opens `/dev/kfd` and the card's render node, which on Debian and Ubuntu belong to the `render` group (on some distributions `video`), so add your user to it as for Vulkan.
+
+### The ROCm backend on Windows
+
+The build needs the same HIP headers and ROCm `clang++`, found under `%HIP_PATH%` (its `include`, `lib\llvm\bin` and `bin`), which both AMD's HIP SDK installer and TheRock's `rocm-sdk` wheels provide; CI's Windows ROCm job takes TheRock's wheels at a pinned release from AMD's index:
+
+```
+python -m venv C:\TheRock
+C:\TheRock\Scripts\python -m pip install --index-url https://stable.repo.amd.com/rocm/whl-next/ "rocm[devel]==10.0.0"
+C:\TheRock\Scripts\rocm-sdk init
+for /f %r in ('C:\TheRock\Scripts\rocm-sdk path --root') do set HIP_PATH=%r
+cmake -S . -B build -DLLMX_HAS_BACKEND_ROCM=ON
+cmake --build build --config Release
+```
+
+MSVC compiles the host code as on any Windows build; the ROCm `clang++` compiles the kernels and assembles the object that embeds them, since MSVC has no inline assembly (`cmake/embed_modules.cmake`).
+The Windows default target list is gfx906, gfx1030 to gfx1032, gfx1100 to gfx1103, gfx1150 to gfx1153, gfx1200 and gfx1201: AMD ships no Windows HIP runtime for its Instinct targets, so those are left out.
+Nothing links against the HIP runtime: llmx opens `amdhip64_7.dll`, `amdhip64_6.dll` or the display driver's `amdhip64.dll`, from its own directory or System32 only, when a ROCm device is first asked for.
+gfx906 (Radeon VII, Radeon Pro VII, MI50) runs on the display driver's HIP 5.7 runtime, which loads code objects of version 4 only, so a Windows build compiles its gfx906 code as version 4 (`-Xarch_gfx906 -mcode-object-version=4`) and the rest at the compiler's default; it is experimental ([ROCM](ROCM.md), Windows).
+Tensor groups (`--tensor-width` above 1) are refused on Windows.
+The Windows ROCm `clang++` ignores `-parallel-jobs`, so the kernels compile one target after another: on a 4-core hosted runner the f32 module took 22 minutes over the 14 default targets and the int16 module more than 96, so CI's job builds gfx906 and gfx1201 alone and the release job allows four hours.
+The release's `windows-x64-rocm` zip is this build with the Vulkan backend too, and carries no AMD DLL ([RELEASE](RELEASE.md)).
 
 ### The CUDA backend on Linux
 
@@ -319,7 +340,7 @@ Other generators that hold several configurations, such as Ninja Multi-Config or
 | CMake option | Default | Effect |
 |---|---|---|
 | `LLMX_HAS_BACKEND_VULKAN` | `OFF` | Builds the Vulkan backend into `llmx`, with every shader compiled by `glslc` at build time and embedded in the binary, so there are no shader files to ship |
-| `LLMX_HAS_BACKEND_ROCM` | `OFF` | Builds the ROCm backend into `llmx`, Linux only, with every HIP kernel compiled by the ROCm `clang++` at build time and embedded in the binary |
+| `LLMX_HAS_BACKEND_ROCM` | `OFF` | Builds the ROCm backend into `llmx`, on Linux or Windows, with every HIP kernel compiled by the ROCm `clang++` at build time and embedded in the binary |
 | `LLMX_HAS_BACKEND_CUDA` | `OFF` | Builds the CUDA backend into `llmx`, Linux only, with every kernel compiled by `nvcc` at build time and embedded in the binary |
 | `LLMX_ROCM_ARCHS` | every AMD architecture from gfx906 on | The AMD GPU architectures the ROCm kernels are compiled for (GPU architectures, above) |
 | `LLMX_CUDA_ARCHS` | every NVIDIA architecture from sm_70 on (sm_75 from CUDA 13) | The NVIDIA compute capabilities the CUDA kernels are compiled for (GPU architectures, above) |

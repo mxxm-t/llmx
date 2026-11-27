@@ -1,7 +1,7 @@
 # llmx - Architecture
 
 **llmx** is a ground-up, dependency-free LLM inference runtime. It reads and
-writes GGUF v3 and runs Qwen transformers with F32, F16/BF16 and supported quantized weights on x86 CPU with AVX2/FMA/F16C, on a Vulkan device or, on Linux, on a ROCm device. MXFP4 inference requires the device's float preservation and double arithmetic. The CPU and Vulkan backends support read-only F16/BF16 weight matrices, and the ROCm backend BF16 and the subset of quantized types its descriptor table lists (`src/backends/gpu/backend_core.hpp`, `kTypes`); their published qualification and remaining workload limits are recorded in STATUS. It
+writes GGUF v3 and runs Qwen transformers with F32, F16/BF16 and supported quantized weights on x86 CPU with AVX2/FMA/F16C, on a Vulkan device or on a ROCm device (Linux, and Windows as an experimental build). MXFP4 inference requires the device's float preservation and double arithmetic. The CPU and Vulkan backends support read-only F16/BF16 weight matrices, and the ROCm backend BF16 and the subset of quantized types its descriptor table lists (`src/backends/gpu/backend_core.hpp`, `kTypes`); their published qualification and remaining workload limits are recorded in STATUS. It
 is structured so more formats, quantizations, backends, and even multi-device /
 multi-node serving can be added without touching the core.
 
@@ -162,7 +162,7 @@ belongs to `format/`, so locally supplied and downloaded shards load identically
 - **Backends** are the *only* compile-time concern: GPU backends pull in heavy
   SDKs, so they are opt-in via `LLMX_HAS_BACKEND_*` in `config.hpp`. CPU is
   always on (no external deps). `LLMX_HAS_BACKEND_VULKAN` builds the Vulkan
-  backend and `LLMX_HAS_BACKEND_ROCM` the ROCm backend, on Linux only; CUDA and
+  backend and `LLMX_HAS_BACKEND_ROCM` the ROCm backend, on Linux and Windows; CUDA and
   SYCL are planned and each gets its option with its implementation.
 - **Model architectures** are compiled in and selected from metadata by `model/arch/registry.hpp`; today qwen3, qwen3moe, qwen35, qwen35moe and qwen4exp.
 - **Split mode** is a runtime parameter: `--device` with several devices

@@ -420,7 +420,7 @@ struct Moe {
                     require(ran.find(tile) != std::string::npos, at + ": a " + std::to_string(from + 1) + "-row prompt takes " + tile + ", ran " + ran);
                     // The mixed call's 3 generated rows ahead of a padded tile region give an odd total at an odd block count, 195 + 260*65 = 17095 at Q4_0 2080, whose block-int16 sums plane is only 4-aligned.
                     const auto half = call(half_rows, half_rows, 0, ran), mixed = call(0, rows, 3, ran);
-                    bool same_bits = true, unwritten = true, decode_alone = true, near = true;
+                    bool same_bits = true, unwritten = true, decode_alone = true, within_bound = true;
                     auto one = g.alloc(256 * 4);
                     for (int p = 0; p < 2; ++p)
                         for (size_t e = 0; e < rows * k; ++e) {
@@ -442,14 +442,14 @@ struct Moe {
                                 const float* wr = wd[p].data() + (idv[e] * ff[p] + j) * nin;
                                 for (size_t i = 0; i < nin; ++i) mag += std::fabs(double(wr[i]) * x[e / k * nin + i]);
                                 const double bound = double(nblk + 8) * double(FLT_EPSILON) * mag;
-                                if (near && std::fabs(double(got[j]) - o[j]) > bound) std::fprintf(stderr, "  entry %zu output %zu: %.9g against %.9g, bound %.3g\n", e, j, got[j], o[j], bound);
-                                near = near && std::fabs(double(got[j]) - o[j]) <= bound;
+                                if (within_bound && std::fabs(double(got[j]) - o[j]) > bound) std::fprintf(stderr, "  entry %zu output %zu: %.9g against %.9g, bound %.3g\n", e, j, got[j], o[j], bound);
+                                within_bound = within_bound && std::fabs(double(got[j]) - o[j]) <= bound;
                             }
                         }
                     require(same_bits, at + ": each prompt entry has the same bits at extents " + std::to_string(rows) + ", " + std::to_string(half_rows) + " and " + std::to_string(from + 1) + " and beside generated rows");
                     require(decode_alone, at + ": generated rows beside a prompt give their one-column bits");
                     require(unwritten, at + ": an entry without an expert is not written");
-                    require(near, at + ": each sampled tile entry is within (blocks + 8) F32 epsilons of the sum of |w*x| of its one-column product");
+                    require(within_bound, at + ": each sampled tile entry is within (blocks + 8) F32 epsilons of the sum of |w*x| of its one-column product");
                 }
                 // The down, the gate's matrix over a row an entry.
                 {
@@ -482,7 +482,7 @@ struct Moe {
                     call(0, from, 0, ran);
                     require(ran.find(tile) != std::string::npos, at + ", down: a " + std::to_string(from) + "-row prompt takes " + tile + ", ran " + ran);
                     const auto half = call(half_rows, half_rows, 0, ran), mixed = call(0, rows, 3, ran), by_rows = call(0, rows, rows, ran);
-                    bool same_bits = true, decode_rows = true, near = true;
+                    bool same_bits = true, decode_rows = true, within_bound = true;
                     for (size_t r = 0; r < rows; ++r) {
                         const float* got = whole.data() + r * nout;
                         if (r >= half_rows) same_bits = same_bits && !std::memcmp(got, half.data() + (r - half_rows) * nout, nout * 4);
@@ -499,13 +499,13 @@ struct Moe {
                             }
                             const float o = by_rows[r * nout + j];
                             const double bound = double(nblk + 8 + k) * double(FLT_EPSILON) * mag;
-                            if (near && std::fabs(double(got[j]) - o) > bound) std::fprintf(stderr, "  down row %zu output %zu: %.9g against %.9g, bound %.3g\n", r, j, got[j], o, bound);
-                            near = near && std::fabs(double(got[j]) - o) <= bound;
+                            if (within_bound && std::fabs(double(got[j]) - o) > bound) std::fprintf(stderr, "  down row %zu output %zu: %.9g against %.9g, bound %.3g\n", r, j, got[j], o, bound);
+                            within_bound = within_bound && std::fabs(double(got[j]) - o) <= bound;
                         }
                     }
                     require(same_bits, at + ", down: each prompt row has the same bits at extents " + std::to_string(rows) + " and " + std::to_string(half_rows) + " and beside generated rows");
                     require(decode_rows, at + ", down: generated rows beside a prompt give the row builds' bits");
-                    require(near, at + ", down: each sampled tile row is within (blocks + 8 + k) F32 epsilons of the weighted sum of |w*x| of the row builds' row");
+                    require(within_bound, at + ", down: each sampled tile row is within (blocks + 8 + k) F32 epsilons of the weighted sum of |w*x| of the row builds' row");
                 }
             }
         }

@@ -2,13 +2,13 @@
 
 [![CI](https://github.com/mxxm-t/llmx/actions/workflows/ci.yml/badge.svg)](https://github.com/mxxm-t/llmx/actions/workflows/ci.yml)
 
-llmx runs large language models on your own machine: on the CPU, on AMD and NVIDIA GPUs through Vulkan, and on AMD GPUs through ROCm on Linux; NVIDIA GPUs through CUDA are in development.
+llmx runs large language models on your own machine: on the CPU, on AMD and NVIDIA GPUs through Vulkan, and on AMD GPUs through ROCm on Linux and, experimentally, Windows; NVIDIA GPUs through CUDA are in development.
 It reads GGUF files and dense Qwen3 and Qwen 3.5 safetensors directories, plain or quantized by AWQ, GPTQ, compressed-tensors or FP8, downloads them from Hugging Face, chats in the terminal and serves an OpenAI-compatible API, and it splits one model over several GPUs when it does not fit on one.
 It is one program: `llmx pull` needs curl 8.4 or later, and a GPU needs its driver.
 
 ## Quick start
 
-Download the archive for your system from the [releases page](https://github.com/mxxm-t/llmx/releases): `llmx-X.Y.Z-linux-x86_64.tar.gz` (CPU, Vulkan and ROCm) or `llmx-X.Y.Z-windows-x64.zip` (CPU and Vulkan).
+Download the archive for your system from the [releases page](https://github.com/mxxm-t/llmx/releases): `llmx-X.Y.Z-linux-x86_64.tar.gz` (CPU, Vulkan and ROCm) or `llmx-X.Y.Z-windows-x64.zip` (CPU and Vulkan), or `llmx-X.Y.Z-windows-x64-rocm.zip` (CPU, Vulkan and ROCm on the AMD driver's HIP runtime, experimental).
 The CPU must be x86-64 with AVX2, FMA and F16C: Intel Haswell (2013), AMD Excavator (2015) or later.
 
 On Linux:

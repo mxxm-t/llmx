@@ -2,11 +2,11 @@ cmake_minimum_required(VERSION 3.16)
 project(llmx VERSION 0.2.1 LANGUAGES CXX)
 
 # llmx: a dependency-free GGUF runtime, built on Windows, Linux and macOS.
-# The CPU backend is always built; the Vulkan backend is opt-in through LLMX_HAS_BACKEND_VULKAN and needs its SDK, the ROCm backend through LLMX_HAS_BACKEND_ROCM, on Linux, with the ROCm SDK, and the CUDA backend through LLMX_HAS_BACKEND_CUDA, on Linux, with the CUDA toolkit.
+# The CPU backend is always built; the Vulkan backend is opt-in through LLMX_HAS_BACKEND_VULKAN and needs its SDK, the ROCm backend through LLMX_HAS_BACKEND_ROCM, on Linux or Windows, with the ROCm SDK, and the CUDA backend through LLMX_HAS_BACKEND_CUDA, on Linux, with the CUDA toolkit.
 # Split mode and node count are runtime parameters, not build options.
 
 option(LLMX_HAS_BACKEND_VULKAN "Build the Vulkan backend" OFF)
-option(LLMX_HAS_BACKEND_ROCM "Build the ROCm backend (Linux)" OFF)
+option(LLMX_HAS_BACKEND_ROCM "Build the ROCm backend (Linux, Windows)" OFF)
 option(LLMX_HAS_BACKEND_CUDA "Build the CUDA backend (Linux)" OFF)
 option(LLMX_NIGHTLY "Mark the build identifier as a nightly build of its commit (docs/RELEASE.md)" OFF)
 
@@ -450,16 +450,36 @@ endfunction()
 
 # The ROCm backend (docs/ROCM.md): the SDK supplies the headers and the compiler at build time and the HIP runtime is opened at run time, so nothing links against libamdhip64.
 if(LLMX_HAS_BACKEND_ROCM)
-    if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
-        message(FATAL_ERROR "LLMX_HAS_BACKEND_ROCM is Linux only")
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT WIN32)
+        message(FATAL_ERROR "LLMX_HAS_BACKEND_ROCM is Linux and Windows only")
     endif()
-    find_path(LLMX_HIP_INCLUDE_DIR hip/hip_runtime_api.h HINTS $ENV{ROCM_PATH}/include /opt/rocm/include)
-    find_program(LLMX_HIP_CLANG clang++ HINTS $ENV{ROCM_PATH}/llvm/bin $ENV{ROCM_PATH}/lib/llvm/bin /opt/rocm/llvm/bin NO_DEFAULT_PATH)
+    # ROCM_PATH on Linux; on Windows HIP_PATH, which the HIP SDK installer and TheRock's rocm-sdk wheels both set (docs/BUILD.md).
+    set(LLMX_HIP_ROOTS $ENV{ROCM_PATH})
+    if(WIN32)
+        file(TO_CMAKE_PATH "$ENV{HIP_PATH}" LLMX_HIP_ROOTS)
+    endif()
+    list(TRANSFORM LLMX_HIP_ROOTS APPEND /include OUTPUT_VARIABLE LLMX_HIP_INCLUDE_HINTS)
+    set(LLMX_HIP_CLANG_HINTS)
+    foreach(root IN LISTS LLMX_HIP_ROOTS)
+        list(APPEND LLMX_HIP_CLANG_HINTS ${root}/llvm/bin ${root}/lib/llvm/bin)
+        # The HIP SDK installer keeps its clang++ in bin.
+        if(WIN32)
+            list(APPEND LLMX_HIP_CLANG_HINTS ${root}/bin)
+        endif()
+    endforeach()
+    find_path(LLMX_HIP_INCLUDE_DIR hip/hip_runtime_api.h HINTS ${LLMX_HIP_INCLUDE_HINTS} /opt/rocm/include)
+    find_program(LLMX_HIP_CLANG clang++ HINTS ${LLMX_HIP_CLANG_HINTS} /opt/rocm/llvm/bin NO_DEFAULT_PATH)
     if(NOT LLMX_HIP_INCLUDE_DIR OR NOT LLMX_HIP_CLANG)
-        message(FATAL_ERROR "LLMX_HAS_BACKEND_ROCM needs hip/hip_runtime_api.h and the ROCm clang++: install the ROCm SDK, or set ROCM_PATH")
+        message(FATAL_ERROR "LLMX_HAS_BACKEND_ROCM needs hip/hip_runtime_api.h and the ROCm clang++: install the ROCm SDK, or set ROCM_PATH (HIP_PATH on Windows)")
     endif()
     # Kernels are HIP in the tree, compiled to a code object for each listed target and linked in as bytes (llmx_embed_modules); only gfx906 is gated on hardware (docs/BUILD.md).
-    set(LLMX_ROCM_ARCHS "gfx906;gfx908;gfx90a;gfx942;gfx950;gfx1030;gfx1100;gfx1101;gfx1102;gfx1150;gfx1151;gfx1200;gfx1201" CACHE STRING "AMD GPU architectures the ROCm kernels are compiled for (docs/BUILD.md)")
+    # Windows lists the targets a Windows HIP runtime runs: no Instinct target has one, and gfx906 runs on the display driver's HIP 5 runtime (docs/ROCM.md, Windows).
+    if(WIN32)
+        set(LLMX_ROCM_DEFAULT_ARCHS "gfx906;gfx1030;gfx1031;gfx1032;gfx1100;gfx1101;gfx1102;gfx1103;gfx1150;gfx1151;gfx1152;gfx1153;gfx1200;gfx1201")
+    else()
+        set(LLMX_ROCM_DEFAULT_ARCHS "gfx906;gfx908;gfx90a;gfx942;gfx950;gfx1030;gfx1100;gfx1101;gfx1102;gfx1150;gfx1151;gfx1200;gfx1201")
+    endif()
+    set(LLMX_ROCM_ARCHS "${LLMX_ROCM_DEFAULT_ARCHS}" CACHE STRING "AMD GPU architectures the ROCm kernels are compiled for (docs/BUILD.md)")
     if(NOT LLMX_ROCM_ARCHS)
         message(FATAL_ERROR "LLMX_ROCM_ARCHS names no architecture")
     endif()
@@ -470,10 +490,22 @@ if(LLMX_HAS_BACKEND_ROCM)
     list(APPEND LLMX_ROCM_ARCH_FLAGS -parallel-jobs=${LLMX_ROCM_JOBS})
     # The compiler reads the SDK it was found with, never another HIP installed beside it.
     get_filename_component(LLMX_ROCM_ROOT ${LLMX_HIP_INCLUDE_DIR} DIRECTORY)
+    # The Windows driver's HIP 5 runtime refuses gfx906 code objects past version 4 (docs/ROCM.md, Windows).
+    set(LLMX_ROCM_WINDOWS_FLAGS)
+    if(WIN32 AND "gfx906" IN_LIST LLMX_ROCM_ARCHS)
+        set(LLMX_ROCM_WINDOWS_FLAGS -Xarch_gfx906 -mcode-object-version=4)
+    endif()
+    # TheRock keeps the device libraries under lib/llvm, where --rocm-path does not look.
+    if(WIN32)
+        find_path(LLMX_HIP_BITCODE_DIR ocml.bc HINTS ${LLMX_ROCM_ROOT}/amdgcn/bitcode ${LLMX_ROCM_ROOT}/lib/llvm/amdgcn/bitcode NO_DEFAULT_PATH)
+        if(LLMX_HIP_BITCODE_DIR)
+            list(APPEND LLMX_ROCM_WINDOWS_FLAGS --rocm-device-lib-path=${LLMX_HIP_BITCODE_DIR})
+        endif()
+    endif()
     set(LLMX_ROCM_KERNELS f32 int16)
     set(LLMX_ROCM_OBJECTS)
     # Every kernel compiles without contraction, so a build of a body cannot fuse a product another build of it keeps apart; a fused multiply-add is written as fmaf (docs/src/backends-gpu.md).
-    set(LLMX_HIP_FLAGS -x hip -std=c++17 -O3 -ffp-contract=off --rocm-path=${LLMX_ROCM_ROOT} --cuda-device-only)
+    set(LLMX_HIP_FLAGS -x hip -std=c++17 -O3 -ffp-contract=off --rocm-path=${LLMX_ROCM_ROOT} --cuda-device-only ${LLMX_ROCM_WINDOWS_FLAGS})
     foreach(kernel IN LISTS LLMX_ROCM_KERNELS)
         set(bundle ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm/${kernel}.hipfb)
         add_custom_command(OUTPUT ${bundle}
@@ -502,6 +534,7 @@ if(LLMX_HAS_BACKEND_ROCM)
     add_custom_target(llmx-rocm-kernels DEPENDS ${LLMX_ROCM_OBJECTS})
     add_library(llmx-rocm STATIC src/backends/rocm/rocm_backend.cpp)
     add_dependencies(llmx-rocm llmx-rocm-kernels)
+    set(LLMX_EMBED_ASSEMBLER ${LLMX_HIP_CLANG})
     llmx_embed_modules(llmx-rocm rocm ${LLMX_ROCM_MODULES})
     if("gfx906" IN_LIST LLMX_ROCM_ARCHS)
         target_compile_definitions(llmx-rocm PRIVATE LLMX_ROCM_DOT_MODULE)

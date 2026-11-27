@@ -19,16 +19,8 @@ struct RocmDevice {
     DeviceProfile profile;   // profile_for(caps), taken once the backend knows the integer dot
 };
 
-// The device HIP numbers `index`, refused as unavailable where the runtime has no such device.
-inline RocmDevice rocm_device(int index) {
-    const HipFn& f = hip();
-    int count = 0;
-    if (f.hipGetDeviceCount(&count) != hipSuccess || count <= 0) throw RocmUnavailable("rocm: the HIP runtime sees no device");
-    if (index < 0 || index >= count) throw RocmUnavailable("rocm: no device " + std::to_string(index) + " (" + std::to_string(count) + " seen)");
-    hipDeviceProp_t p{};
-    hip_check(f.hipGetDevicePropertiesR0600(&p, index), "hipGetDeviceProperties");
-    RocmDevice d;
-    d.index = index;
+// The fields both property layouts share, the HIP 6 one and the HIP 5 one a Windows display driver's runtime fills.
+template <class Props> void read_props(RocmDevice& d, const Props& p) {
     d.arch = p.gcnArchName;
     d.caps.subgroup_size = (uint32_t)p.warpSize;
     d.caps.compute_units = (uint32_t)p.multiProcessorCount;
@@ -37,6 +29,25 @@ inline RocmDevice rocm_device(int index) {
     d.total_memory = p.totalGlobalMem;
     d.lanes_resident = (size_t)p.maxThreadsPerMultiProcessor;
     d.hdp_flush = p.hdpMemFlushCntl;
+}
+
+// The device HIP numbers `index`, refused as unavailable where the runtime has no such device.
+inline RocmDevice rocm_device(int index) {
+    const HipFn& f = hip();
+    int count = 0;
+    if (f.hipGetDeviceCount(&count) != hipSuccess || count <= 0) throw RocmUnavailable("rocm: the HIP runtime sees no device");
+    if (index < 0 || index >= count) throw RocmUnavailable("rocm: no device " + std::to_string(index) + " (" + std::to_string(count) + " seen)");
+    RocmDevice d;
+    if (f.hipGetDevicePropertiesR0600) {
+        hipDeviceProp_t p{};
+        hip_check(f.hipGetDevicePropertiesR0600(&p, index), "hipGetDeviceProperties");
+        read_props(d, p);
+    } else {
+        hipDeviceProp_tR0000 p{};
+        hip_check(f.hipGetDevicePropertiesR0000(&p, index), "hipGetDeviceProperties");
+        read_props(d, p);
+    }
+    d.index = index;
     char bus[32] = {};
     hip_check(f.hipDeviceGetPCIBusId(bus, sizeof(bus), index), "hipDeviceGetPCIBusId");
     d.pci_bus = bus;

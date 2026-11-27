@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <limits>
 #include <set>
 #include <sstream>
@@ -12,8 +13,10 @@
 #include <string>
 #include <vector>
 #include "backends/devices.hpp"
+#include "core/list.hpp"
 #include "inference/load.hpp"
 #include "inference/logprobs.hpp"
+#include "inference/media.hpp"
 
 static size_t count(const char* value, const char* name) {
     const std::string s(value);
@@ -23,11 +26,34 @@ static size_t count(const char* value, const char* name) {
     return (size_t)n;
 }
 
-static int probe(int argc, const char* const* argv) {
-    if (argc < 6 || argc > 9) {
-        std::fprintf(stderr, "usage: llmx-route-probe MODEL IDS OUTPUT_PREFIX LAST UBATCH [DEVICES [TENSOR_WIDTH [STREAM_LAYERS]]]\n"
+static int probe(int all_argc, const char* const* all_argv) {
+    // The options follow the positional arguments; --mmproj and --image take what `llmx logits --chat` takes, the ids then marking each image with one pad id.
+    std::vector<const char*> positional;
+    std::string mmproj, image_list;
+    size_t kv_tokens = 0;
+    for (int i = 0; i < all_argc; ++i) {
+        const std::string a(all_argv[i]);
+        const bool option = a == "--mmproj" || a == "--image" || a == "--kv-tokens";
+        if (!option) {
+            positional.push_back(all_argv[i]);
+            continue;
+        }
+        if (i + 1 == all_argc) {
+            std::fprintf(stderr, "llmx-route-probe: %s needs a value\n", a.c_str());
+            return 2;
+        }
+        const char* value = all_argv[++i];
+        if (a == "--mmproj") mmproj = value;
+        else if (a == "--image") image_list = value;
+        else kv_tokens = count(value, "--kv-tokens");
+    }
+    const int argc = (int)positional.size();
+    const char* const* argv = positional.data();
+    if (argc < 6 || argc > 9 || mmproj.empty() != image_list.empty()) {
+        std::fprintf(stderr, "usage: llmx-route-probe MODEL IDS OUTPUT_PREFIX LAST UBATCH [DEVICES [TENSOR_WIDTH [STREAM_LAYERS]]] [--mmproj PATH --image FILES] [--kv-tokens N]\n"
                              "  writes OUTPUT_PREFIX.txt, the logits rows of the last LAST positions, and OUTPUT_PREFIX.routes, every routed step's picks and router scores\n"
-                             "  with STREAM_LAYERS, layers separated by commas, OUTPUT_PREFIX.streams, the residual entering each of those layers\n");
+                             "  with STREAM_LAYERS, layers separated by commas, OUTPUT_PREFIX.streams, the residual entering each of those layers\n"
+                             "  with --mmproj and --image, the comma-separated images encoded at f32 into the runs of pad ids IDS marks one id each\n");
         return 2;
     }
     try {
@@ -57,6 +83,7 @@ static int probe(int argc, const char* const* argv) {
         infer::ModelOptions options;
         options.kv_k = options.kv_v = backend::KVType::f32;
         options.kv_k_given = options.kv_v_given = true;
+        options.kv_tokens = kv_tokens;
         // Each record: the layer, rows and floats a row as int32 and uint32s, then rows of residual floats, little-endian; a layer's records come in position order.
         std::set<int> stream_layers;
         std::ofstream streams;
@@ -83,6 +110,18 @@ static int probe(int argc, const char* const* argv) {
         const size_t vocab = model.n_vocab();
         for (uint32_t id : ids)
             if (id >= vocab) throw std::runtime_error("token ID outside vocabulary");
+        infer::ImagePrompt turn;
+        if (!mmproj.empty()) {
+            std::vector<std::string> bytes;
+            for (const std::string& file : core::comma_list(image_list)) {
+                std::ifstream in(std::filesystem::u8path(file), std::ios::binary);
+                if (!in) throw std::runtime_error("cannot read " + file);
+                bytes.emplace_back(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+            }
+            const auto vision = infer::open_vision(mmproj, model, *loaded->tok, backend::Dtype::f32);
+            turn = infer::image_prompt(*vision, ids, bytes);
+            ids = turn.ids;
+        }
         std::FILE* text = std::fopen((prefix + ".txt").c_str(), "wb");
         if (!text) throw std::runtime_error("cannot write " + prefix + ".txt");
         std::fprintf(text, "tokens: %zu\n", ids.size());
@@ -93,7 +132,7 @@ static int probe(int argc, const char* const* argv) {
             std::fprintf(text, "%zu", pos);
             for (const auto& t : infer::top_logprobs(logits, vocab, 0.0, vocab)) std::fprintf(text, " %u %.6f", t.id, logits[t.id]);
             std::fprintf(text, "\n");
-        });
+        }, turn.runs);
         const bool written = std::fclose(text) == 0;
         routes.close();
         if (streams.is_open()) streams.close();

@@ -1694,7 +1694,7 @@ const uint32_t kSpvFlagRecv[] = {
     X(K_MATMUL_ROW_IQ4_XS_DOT, "matmul_row_iq4_xs_dot", kSpvMatmulRowIq4XsDot, sizeof(kSpvMatmulRowIq4XsDot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0, true) \
     X(K_MATMUL_TILE_IQ4_XS, "matmul_tile_iq4_xs", kSpvMatmulTileIq4Xs, sizeof(kSpvMatmulTileIq4Xs), 5, kMatmulTileQCounts, nullptr, 0, kPreserve32, 0) \
     X(K_MATMUL_TILE_IQ4_XS_TALL, "matmul_tile_iq4_xs_tall", kSpvMatmulTileIq4Xs, sizeof(kSpvMatmulTileIq4Xs), 5, kMatmulTileQCounts, nullptr, 0, kPreserve32, 0) \
-    X(K_ADD_BIAS, "add_bias", kSpvAddBias, sizeof(kSpvAddBias), 2, nullptr) \
+    X(K_ADD_BIAS, "add_bias", kSpvAddBias, sizeof(kSpvAddBias), 3, nullptr) \
     X(K_GELU, "gelu", kSpvGelu, sizeof(kSpvGelu), 2, nullptr) \
     X(K_LAYER_NORM_ROWS, "layer_norm_rows", kSpvLayerNormRows, sizeof(kSpvLayerNormRows), 4, nullptr) \
     X(K_MIX_ROWS, "mix_rows", kSpvMixRows, sizeof(kSpvMixRows), 4, nullptr) \

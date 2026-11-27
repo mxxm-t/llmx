@@ -35,7 +35,7 @@ struct Regroup {
 };
 
 // What an encoder declares of its weights: its roles, those regrouped, the ops some backends lack, the floats a patch takes in each arena slot and which hold its input and output rows.
-// It also gives its attention's heads, the width of an image token's row and the floats of each table it computes.
+// It also gives its attention's heads, the width of an image token's row, the floats of each table it computes and the rows it attends over beyond the patches, such as a class row after them.
 struct EncoderPlan {
     size_t role_ids = 0;
     std::vector<Role> roles;
@@ -46,6 +46,7 @@ struct EncoderPlan {
     size_t heads = 0, head_dim = 0;
     size_t out_width = 0;
     std::vector<size_t> tables;
+    size_t extra_rows = 0;
 };
 
 // What an image gives its encoder besides its patches, computed on the host from its grid: each patch's position streams and its learned position taps and weights.
@@ -101,6 +102,70 @@ public:
     virtual void encode(const EncodeStep& s, size_t piece) const = 0;
 };
 
+// The pieces the vision modules share: the bound of one attention piece, a fused projection's row blocks, the two-stream rope over a patch's position and the attention runs.
+
+// The multiply-adds of one piece's attention at most, about 60 ms on an MI50, so a server's replies wait at most that long for an image's encode (docs/VISION.md, section 10).
+inline constexpr size_t kPieceProducts = size_t(1) << 37;
+
+// A piece's attention rows over n rows `width` wide: as many as keep its dots and weighted sums over all n keys within kPieceProducts, at least one, at most n.
+inline size_t attention_rows(size_t n, size_t width) { return std::max<size_t>(1, std::min(n, kPieceProducts / std::max<size_t>(1, 2 * n * width))); }
+inline size_t attention_runs(size_t n, size_t width) { return (n + attention_rows(n, width) - 1) / attention_rows(n, width); }
+
+// A matrix weight from row `first` on, which starts on a float boundary in every type the encoders read.
+inline backend::CSlice row_block(const Weight& w, size_t first) {
+    const size_t bytes = quant::row_bytes(w.type, w.nin, first);
+    if (bytes % sizeof(float)) throw std::runtime_error("inference: a vision projection's rows do not start on a float boundary");
+    return {w.data.get(), bytes / sizeof(float)};
+}
+
+// The rope's cos and sin of a head `head_dim` wide: column j of row p turns by p times frequency j mod head_dim / 4, as two streams of head_dim / 4 frequencies each lay them out.
+inline void fill_stream_rope(std::vector<float>& cos, std::vector<float>& sin, size_t head_dim, double theta) {
+    const size_t half = head_dim / 2, quarter = head_dim / 4;
+    std::vector<float> inv(quarter);
+    for (size_t k = 0; k < quarter; ++k) inv[k] = float(1.0 / std::pow(theta, double(2 * k) / double(half)));
+    const size_t rows = cos.size() / half;
+    for (size_t p = 0; p < rows; ++p)
+        for (size_t j = 0; j < half; ++j) {
+            const float a = float(p) * inv[j % quarter];
+            cos[p * half + j] = std::cos(a);
+            sin[p * half + j] = std::sin(a);
+        }
+}
+
+// One axis's two bilinear taps into a learned grid `side` positions long for position `index` of `size`, clamped at its border, in F32 as HF's vision utilities compute them.
+// With aligned corners the axis's ends meet the grid's; otherwise its positions sit at half-cell centres, as F.interpolate's align_corners=False places them.
+inline void bilinear_taps(size_t index, size_t size, size_t side, bool align_corners, uint32_t taps[2], float w[2]) {
+    const float src = align_corners ? float(index) * float(side - 1) / float(size > 1 ? size - 1 : 1) : (float(index) + 0.5f) * float(side) / float(size) - 0.5f;
+    const float fl = std::floor(src);
+    for (int o = 0; o < 2; ++o) {
+        const int64_t raw = int64_t(fl) + o;
+        taps[o] = uint32_t(std::min<int64_t>(std::max<int64_t>(raw, 0), int64_t(side - 1)));
+        w[o] = std::max(1.0f - std::fabs(src - fl - float(o)), 0.0f);
+    }
+}
+
+// The biases of q, k and v added over n rows `width` wide, q and k turned by the rope of fill_stream_rope, the first head_dim / 4 frequencies by a row's first position and the rest by its second, and k and v written to the view.
+inline void bias_rope_kv(const EncodeStep& s, backend::Slice q, backend::Slice k, backend::Slice v, backend::CSlice qb, backend::CSlice kb, backend::CSlice vb, size_t n, size_t width,
+                         size_t heads, backend::CSlice cos, backend::CSlice sin, backend::RopeForm form) {
+    const size_t hd = width / heads;
+    if (hd / 2 > 128) throw std::logic_error("inference: a vision head wider than 256");
+    uint8_t of[128];
+    for (size_t j = 0; j < hd / 2; ++j) of[j] = j < hd / 4 ? 0 : 1;
+    s.b.add_bias(q, qb, n, width);
+    s.b.add_bias(k, kb, n, width);
+    s.b.add_bias(v, vb, n, width);
+    s.b.norm_rope_partial(q, q, n, width, hd, heads, hd, hd, {}, 0.0f, cos, sin, s.inputs->positions.data(), form, backend::RopeStreams{2, of});
+    s.b.norm_rope_partial(k, k, n, width, hd, heads, hd, hd, {}, 0.0f, cos, sin, s.inputs->positions.data(), form, backend::RopeStreams{2, of});
+    s.b.kv_write(0, s.view, 1, k, v);
+}
+
+// Run `run` of attention_runs(n, width): its query rows over every key, a non-causal view of all n keys whose rows are the run's, each row's output that of the whole call.
+inline void attention_run(const EncodeStep& s, backend::Slice q, backend::Slice out, size_t n, size_t run, size_t width, size_t heads) {
+    const size_t rows = attention_rows(n, width), first = run * rows, m = std::min(rows, n - first);
+    const backend::KVView view{s.view->storage, s.view->blocks, s.view->n_blocks, n - m, m, m, false};
+    s.b.attention({q.buffer, q.offset + first * width}, 0, &view, 1, {out.buffer, out.offset + first * width}, int(heads), int(heads), int(width / heads));
+}
+
 // The runner: an encoder's weights adopted on one backend, its tables, and the scratch of one encode, its arena and its one layer of F32 K and V, grown to the largest image it has encoded and never shrunk.
 class VisionEncoder {
 public:
@@ -145,6 +210,7 @@ public:
         const TensorIndex index(views);
         const EncoderPlan plan = arch.plan(index);
         const EncodeBound bound = arch.bound(p);
+        const size_t rows = backend::size_add(bound.patches, plan.extra_rows), arena = std::max(bound.arena_patches, rows);
         EncoderMemory m;
         backend::PassWidths products, attention;
         for (const Role& role : plan.roles) {
@@ -157,21 +223,24 @@ public:
             }
         }
         for (size_t floats : plan.tables) m.buffers.push_back(backend::size_mul(floats, sizeof(float)));
-        m.buffers.push_back(arena_bytes(plan, bound.arena_patches));
-        const size_t kv = backend::size_mul(backend::size_mul(backend::blocks_for(bound.arena_patches, block), block), backend::size_mul(plan.heads * plan.head_dim, sizeof(float)));
+        m.buffers.push_back(arena_bytes(plan, arena));
+        const size_t kv = backend::size_mul(backend::size_mul(backend::blocks_for(arena, block), block), backend::size_mul(plan.heads * plan.head_dim, sizeof(float)));
         m.buffers.insert(m.buffers.end(), {kv, kv});
         products.float_out = float_product_out(m.weights);
-        products.rows = bound.patches;
+        products.rows = rows;
         attention.rows = bound.attention_rows;
         attention.heads = plan.heads;
         attention.head_dim = plan.head_dim;
         attention.dense_attention = true;
-        attention.context = bound.patches;
+        attention.context = rows;
         m.widths = {products, attention};
         return m;
     }
     // Makes the arena and the K and V of the largest image under `p` at once, as the fit charged them, so no encode grows them beside the buffers they replace.
-    void hold(const image::Params& p) { reserve(arch_->bound(p).arena_patches); }
+    void hold(const image::Params& p) {
+        const EncodeBound bound = arch_->bound(p);
+        reserve(std::max(bound.arena_patches, backend::size_add(bound.patches, plan_.extra_rows)));
+    }
 
     // One image's rows, tokens(grid) rows of out_width floats: its pieces in order; one image at a time, so its rows are its own whatever else is encoded.
     std::vector<float> encode(const image::Prepared& image) {
@@ -187,11 +256,12 @@ public:
         if (!n || image.patches.size() != backend::size_mul(n, patch_floats)) throw std::runtime_error("inference: an image's patches do not fill its grid");
         pieces_ = next_ = 0;
         inputs_ = arch_->inputs(image.grid_h, image.grid_w);
-        reserve(std::max(n, inputs_.arena_patches));
+        const size_t rows = backend::size_add(n, plan_.extra_rows);
+        reserve(std::max(rows, inputs_.arena_patches));
         b_.write(*arena_, offsets_[plan_.input_slot], image.patches.data(), image.patches.size() * sizeof(float));
-        blocks_.resize(backend::blocks_for(n, b_.kv_layout().block_tokens));
+        blocks_.resize(backend::blocks_for(rows, b_.kv_layout().block_tokens));
         for (size_t i = 0; i < blocks_.size(); ++i) blocks_[i] = int32_t(i);
-        view_ = backend::KVView{kv_.get(), blocks_.data(), blocks_.size(), 0, n, n, false};
+        view_ = backend::KVView{kv_.get(), blocks_.data(), blocks_.size(), 0, rows, rows, false};
         patches_ = n;
         grid_h_ = image.grid_h;
         grid_w_ = image.grid_w;

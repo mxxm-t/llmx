@@ -11,6 +11,7 @@ Each entry is one short line that links the doc explaining it; reasons, flags an
 ### Added
 
 - An experimental Windows ROCm zip runs llmx on the AMD driver's HIP runtime ([build](docs/BUILD.md#the-rocm-backend-on-windows)).
+- Inkling-2-Mini reads images given with `--mmproj` and `--image` or as image parts on the chat routes ([vision](docs/VISION.md#12-inkling-2-inkling2v)).
 - A `rocm10` release image runs llmx on the ROCm 10.2 runtime ([ROCm](docs/ROCM.md)).
 - A DFly2 drafter (`--drafter FILE`) drafts beside DeepSeek-V4.1-Flash, not yet faster than plain decoding ([speculative decoding](docs/SPECULATIVE.md)).
 - A DSpine drafter (`--drafter FILE`) drafts a block of tokens beside a Qwen 3.5-family model ([speculative decoding](docs/SPECULATIVE.md)).

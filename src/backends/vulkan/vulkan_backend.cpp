@@ -1965,13 +1965,15 @@ public:
         dispatch(K_GELU, {bind(dst), bind(src)}, pc, sizeof(pc), striding_groups(n));
     }
 
-    void add_bias(Slice dst, CSlice bias, size_t rows, size_t width) override {
+    void add_bias(Slice dst, CSlice bias, size_t rows, size_t width, CSlice scale = {}) override {
         if (!width) throw std::runtime_error("vulkan: invalid bias width");
         const size_t n = size_mul(rows, width);
         if (!n) return;
-        if (floats_from(dst) < n || floats_from(bias) < width) throw std::runtime_error("vulkan: bias operand outside its allocation");
-        const uint32_t pc[2] = {u32(n), u32(width)};
-        dispatch(K_ADD_BIAS, {bind(dst), bind(bias)}, pc, sizeof(pc), striding_groups(n));
+        if (floats_from(dst) < n || floats_from(bias) < width || (scale.buffer && floats_from(scale) < width))
+            throw std::runtime_error("vulkan: bias operand outside its allocation");
+        // Without a scale the bias is bound in its place and never read.
+        const uint32_t pc[3] = {u32(n), u32(width), scale.buffer ? 1u : 0u};
+        dispatch(K_ADD_BIAS, {bind(dst), bind(bias), bind(scale.buffer ? scale : bias)}, pc, sizeof(pc), striding_groups(n));
     }
 
     void mix_rows(Slice dst, CSlice table, size_t width, size_t table_rows, const uint32_t* idx, const float* weight, size_t rows, size_t taps) override {

@@ -769,6 +769,12 @@ It was generated on 2026-10-25 in a `python:3.12.13-slim` container on the Linux
 It makes its own images: PNGs by a writer of the module over zlib, so every color type, bit depth, filter and interlace is reached, and JPEGs, GIF and WebP by Pillow.
 The reference for each is transformers' `load_image` (Pillow's decoding, `exif_transpose` and conversion to RGB), then `Qwen2VLImageProcessor`'s smart_resize and torchvision resize at the Qwen 3.5 and 3.8 processor's settings; the fixture keeps the digests of those bytes, and the bytes themselves for images of 4096 pixels or fewer, so the suite needs neither Pillow nor torchvision.
 
+`tools/inkling2_vision_reference.py --fit tests/data` writes `tests/data/inkling2_image_fit.json` and the `inkling-*.png` images under `tests/data/images`: transformers' `Inkling2ImageProcessor` (transformers 5.24.0, torch 2.15.0, torchvision 0.29.2, Pillow 13.0.0, each recorded in the fixture) on `ImageOps.exif_transpose(Image.open(path))` of 14 decode fixture PNGs and 25 made at the pad's edges and for each form of PNG transparency (and a gray tRNS of one byte, which Pillow refuses), its pixel_values reordered to llmx's patch layout and kept by SHA-256.
+It was generated on 2026-11-23 in a `python:3.12.13-slim` container on the Linux machine.
+
+`tools/inkling2_vision_reference.py --encode tests/data MMPROJ HF_CONFIG_DIR` writes `tests/data/vision/inkling2_file_exact_<sha12>.json` and its row files: transformers' `Inkling2VisionModel` from the checkpoint's `vision_config`, eager attention, holding Inkling-2-Mini's `mmproj-BF16.gguf` weights (sha256 2c165c78790e...), in float64 and float32, on five images of `tests/data/images`, with the bound frozen from the reference alone, twice HF float32's worst per-row error against float64.
+It was generated on 2026-11-23 in the same container and environment as the fit fixture.
+
 #### The vision encoder references
 
 `tools/gen_baseline.py vision-tiny` (`tools/vision_reference.py`) builds a random-weight `Qwen3_5VisionModel` with HF's own code in the qwen35 venv above, two blocks 32 wide of two heads, an MLP of 64, a 4 by 4 learned grid and 48-wide rows at seed 20261025, writes it as `tests/data/vision/tiny-mmproj.gguf` the way the converter names and lays out its tensors, and keeps HF float32's rows with eager attention for three fixture images in `tests/data/baseline_vision_tiny.json`; it takes only `--output-dir` and is not part of `all`.

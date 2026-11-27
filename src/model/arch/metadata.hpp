@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -174,6 +175,21 @@ inline Experts experts(const gguf::GGUFModel& m, const std::string& p) {
     choice(m, p + "expert_gating_func", 1, "inference: unsupported expert gating function");
     if (real(m, p + "expert_weights_scale", 1) != 1) throw std::runtime_error("inference: scaled expert weights are unsupported");
     return e;
+}
+
+// Three values of `reals`, such as a vision encoder's per-channel mean or std; an absent key or another count is refused ("invalid metadata").
+inline void three_floats(const gguf::GGUFModel& m, const std::string& k, float* dst) {
+    const std::vector<double> v = reals(m, k);
+    if (v.size() != 3) throw std::runtime_error("inference: invalid metadata " + k);
+    for (size_t i = 0; i < 3; ++i) dst[i] = float(v[i]);
+}
+
+// The id of the vocabulary entry whose text is `text`, such as a model's image marker; none where the vocabulary lacks it.
+inline std::optional<uint32_t> token_id(const gguf::GGUFModel& m, const std::string& text) {
+    const auto* tokens = m.find("tokenizer.ggml.tokens");
+    for (size_t i = 0; tokens && tokens->vtype == gguf::V_ARRAY && i < tokens->arr.size(); ++i)
+        if (tokens->arr[i].s == text) return uint32_t(i);
+    return std::nullopt;
 }
 
 } // namespace infer::metadata

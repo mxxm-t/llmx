@@ -1077,13 +1077,15 @@ public:
         const Args args(f32(dst), f32(src), nn, erf_form);
         launch(kGelu, (unsigned)((n + kThreads - 1) / kThreads), 1, args);
     }
-    void add_bias(Slice dst, CSlice bias, size_t rows, size_t width) override {
+    void add_bias(Slice dst, CSlice bias, size_t rows, size_t width, CSlice scale = {}) override {
         if (!width || width > UINT32_MAX || rows > UINT32_MAX) throw std::runtime_error(Api::prefix + "invalid bias dimensions");
         if (!rows) return;
         span(*dst.buffer, dst.offset * sizeof(float), size_mul(size_mul(rows, width), sizeof(float)));
         span(*bias.buffer, bias.offset * sizeof(float), size_mul(width, sizeof(float)));
+        if (scale.buffer) span(*scale.buffer, scale.offset * sizeof(float), size_mul(width, sizeof(float)));
         unsigned wd = (unsigned)width;
-        const Args args(f32(dst), f32(bias), wd);
+        const float* sc = scale.buffer ? f32(scale) : nullptr;
+        const Args args(f32(dst), f32(bias), sc, wd);
         launch(kAddBias, (unsigned)rows, 1, args);
     }
     // The elementwise row ops: a thread a float of a row, the grid's height stepping over rows (kernels/f32.gpu).

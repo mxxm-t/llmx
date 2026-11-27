@@ -1,0 +1,86 @@
+{
+ "generator": "tools/inkling2_vision_reference.py --encode",
+ "environment": {
+  "python": "3.12.13",
+  "torch": "2.15.0+cpu",
+  "torchvision": "0.29.2+cpu",
+  "transformers": "5.24.0",
+  "pillow": "13.0.0"
+ },
+ "mmproj_sha256": "2c165c78790e78a3f45a2d1e9e931083e52ee69d45ff2a0dc9c281fdf1a666e7",
+ "vision_config": {
+  "model_type": "inkling2_vision",
+  "text_hidden_size": 2304,
+  "temporal_patch_size": 2,
+  "native_patch_size": 20,
+  "adapter_merge_size": 2,
+  "projection_hidden_dim": 4096,
+  "projector_bias": false,
+  "hidden_size": 1024,
+  "num_hidden_layers": 23,
+  "num_attention_heads": 16,
+  "mlp_ratio": 4.0,
+  "posemb_grid_size": 32,
+  "layer_norm_eps": 1e-05
+ },
+ "dtype": "float64",
+ "attention": "eager",
+ "bound": 7.509165207530977e-06,
+ "cases": [
+  {
+   "file": "rgb-17x9.png",
+   "grid": [
+    2,
+    2
+   ],
+   "tokens": 1,
+   "width": 2304,
+   "rows": "2c165c78790e-rgb-17x9.f32",
+   "hf_float32_error": 7.307948877689553e-07
+  },
+  {
+   "file": "rgba-23x37.png",
+   "grid": [
+    2,
+    2
+   ],
+   "tokens": 1,
+   "width": 2304,
+   "rows": "2c165c78790e-rgba-23x37.f32",
+   "hf_float32_error": 7.128766382041215e-07
+  },
+  {
+   "file": "inkling-41x39.png",
+   "grid": [
+    2,
+    4
+   ],
+   "tokens": 2,
+   "width": 2304,
+   "rows": "2c165c78790e-inkling-41x39.f32",
+   "hf_float32_error": 5.537646327047341e-07
+  },
+  {
+   "file": "inkling-80x120.png",
+   "grid": [
+    6,
+    4
+   ],
+   "tokens": 6,
+   "width": 2304,
+   "rows": "2c165c78790e-inkling-80x120.f32",
+   "hf_float32_error": 1.8443992099626742e-06
+  },
+  {
+   "file": "photo-300x200.png",
+   "grid": [
+    10,
+    16
+   ],
+   "tokens": 40,
+   "width": 2304,
+   "rows": "2c165c78790e-photo-300x200.f32",
+   "hf_float32_error": 3.7545826037654884e-06
+  }
+ ]
+}

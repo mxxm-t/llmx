@@ -1701,14 +1701,19 @@ public:
         });
     }
 
-    void add_bias(Slice dst_s, CSlice bias_s, size_t rows, size_t width) override {
+    void add_bias(Slice dst_s, CSlice bias_s, size_t rows, size_t width, CSlice scale_s = {}) override {
         span(*dst_s.buffer, dst_s.offset * sizeof(float), size_mul(size_mul(rows, width), sizeof(float)));
         span(*bias_s.buffer, bias_s.offset * sizeof(float), size_mul(width, sizeof(float)));
+        if (scale_s.buffer) span(*scale_s.buffer, scale_s.offset * sizeof(float), size_mul(width, sizeof(float)));
         float* dst = at(dst_s);
         const float* bias = at(bias_s);
+        const float* scale = scale_s.buffer ? at(scale_s) : nullptr;
         spread(rows, [&](size_t r) {
             float* y = dst + r * width;
-            for (size_t i = 0; i < width; ++i) y[i] += bias[i];
+            if (scale)
+                for (size_t i = 0; i < width; ++i) y[i] = (y[i] + bias[i]) * scale[i];
+            else
+                for (size_t i = 0; i < width; ++i) y[i] += bias[i];
         });
     }
 

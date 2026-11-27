@@ -43,3 +43,5 @@ their defaults and its other refusals are its reader's
   type") and so is an element of another type.
 - `uint64s(file, key, expected = SIZE_MAX)`: an array of UINT64 values, which a count would narrow, as qwen4exp's PLE and deepseek41's Engram arrays are; an absent key ("missing metadata"), another array type ("invalid uint64 array type"), a length other than `expected` when one is given ("invalid uint64 array length") and an element of another type ("invalid uint64 array element") are refused.
 - `reals(file, key)`: an array of finite F32 or F64 values, as deepseek41's SwiGLU clamps are; an absent key gives none, a key that is not an array ("invalid array type"), an element of another type ("invalid floating-point type") and one that is not finite ("invalid float") are refused.
+- `token_id(file, text)`: the id of the `tokenizer.ggml.tokens` entry whose text is `text`, none where the vocabulary lacks it; deepseek4 reads its image marker and inkling2 its image token with it.
+- `three_floats(file, key, dst)`: three values of `reals`, as a vision encoder's per-channel mean and std are; an absent key or another count is refused ("invalid metadata").

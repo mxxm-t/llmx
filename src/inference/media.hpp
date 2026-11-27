@@ -95,13 +95,14 @@ inline PreparedImage prepare_image(const Vision& v, const std::string& bytes, co
     auto resized = std::make_shared<const image::Raster>(image::resize_for(raster, v.params));
     const Clock::time_point t2 = Clock::now();
     const image::Params& p = v.params;
-    out.grid_h = resized->height / p.patch;
-    out.grid_w = resized->width / p.patch;
+    std::tie(out.grid_h, out.grid_w) = image::grid(*resized, p);
     if (identity) {
         const uint64_t sizes[6] = {p.patch, p.merge, p.min_pixels, p.max_pixels, out.grid_h, out.grid_w};
-        // The padded fit's own bounds join the digest only under that fit, so a smart_resize image keeps the digest it had.
-        const uint64_t padded[3] = {p.max_rows, p.fill, uint64_t(p.fit)};
-        const size_t padded_bytes = p.fit == image::Fit::padded ? sizeof padded : 0;
+        // A padding fit's own bounds join the digest only under that fit, so a smart_resize image keeps the digest it had.
+        uint32_t pad_bits;
+        std::memcpy(&pad_bits, &p.pad_value, sizeof pad_bits);
+        const uint64_t padded[3] = {p.max_rows, p.fit == image::Fit::pad_end ? uint64_t(pad_bits) : uint64_t(p.fill), uint64_t(p.fit)};
+        const size_t padded_bytes = p.fit != image::Fit::smart_resize ? sizeof padded : 0;
         out.digest = sha256_bytes({{identity->data(), identity->size()}, {sizes, sizeof sizes}, {p.mean, sizeof p.mean}, {p.std, sizeof p.std},
                                    {padded, padded_bytes}, {resized->rgb.data(), resized->rgb.size()}});
     }

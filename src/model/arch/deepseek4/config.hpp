@@ -316,15 +316,10 @@ inline Config read_config(const gguf::GGUFModel& m, const std::string& p, uint32
     for (const auto& t : m.tensors)
         c.vision = c.vision || (t.name.size() > 20 && t.name.compare(t.name.size() - 20, 20, ".exp_probs_b_vl.bias") == 0);
     if (c.vision) {
-        const auto* tokens = m.find("tokenizer.ggml.tokens");
         const std::string marker = "<\xef\xbd\x9c" "deepseek_image\xef\xbd\x9c>";
-        bool found = false;
-        for (size_t i = 0; tokens && tokens->vtype == gguf::V_ARRAY && i < tokens->arr.size() && !found; ++i)
-            if (tokens->arr[i].s == marker) {
-                c.image_id = uint32_t(i);
-                found = true;
-            }
-        if (!found) throw std::runtime_error("inference: a file with exp_probs_b_vl has no " + marker + " in its vocabulary");
+        const std::optional<uint32_t> id = metadata::token_id(m, marker);
+        if (!id) throw std::runtime_error("inference: a file with exp_probs_b_vl has no " + marker + " in its vocabulary");
+        c.image_id = *id;
     }
     check_config(c);
     return c;

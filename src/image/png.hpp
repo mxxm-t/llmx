@@ -9,7 +9,7 @@
 #include "image/inflate.hpp"
 #include "image/raster.hpp"
 
-// PNG decoded to 8-bit RGB as Pillow opens it and converts it to RGB: gray replicated, palettes expanded, alpha and tRNS dropped, low bit depths scaled to 0..255 as Pillow's unpackers scale them.
+// PNG decoded to 8-bit RGB as Pillow opens it and converts it to RGB (gray replicated, palettes expanded, low bit depths scaled as its unpackers scale them), with the alpha convert("RGBA") gives wherever has_transparency_data holds.
 // Sixteen-bit samples are refused, since Pillow's conversion of them to RGB clips rather than scales; so are a palette index past the palette and every structural fault.
 
 namespace image {
@@ -88,8 +88,8 @@ inline Raster decode_png(const uint8_t* p, size_t n, PngExtras* extras = nullptr
     size_t at = 8;
     uint32_t w = 0, h = 0;
     int depth = 0, color = -1, interlace = 0;
-    std::vector<uint8_t> idat, palette;
-    bool header = false, ended = false;
+    std::vector<uint8_t> idat, palette, trns;
+    bool header = false, ended = false, has_trns = false;
     size_t text_left = kTextLimit;
     while (!ended) {
         if (at + 12 > n) throw std::runtime_error("png: the file ends inside a chunk");
@@ -119,6 +119,10 @@ inline Raster decode_png(const uint8_t* p, size_t n, PngExtras* extras = nullptr
         } else if (t == "PLTE") {
             if (len % 3 || len == 0 || len > 768) throw std::runtime_error("png: a malformed PLTE");
             palette.assign(data, data + len);
+        } else if (t == "tRNS" && (color == 0 || color == 2 || color == 3)) {
+            if (color != 3 && len < (color == 2 ? 6u : 2u)) throw std::runtime_error("png: a truncated tRNS");
+            trns.assign(data, data + len);
+            has_trns = true;
         } else if (t == "IDAT") {
             idat.insert(idat.end(), data, data + len);
         } else if (t == "IEND") {
@@ -152,6 +156,10 @@ inline Raster decode_png(const uint8_t* p, size_t n, PngExtras* extras = nullptr
     if (raw.size() != expected) throw std::runtime_error("png: the image data is shorter than the image");
 
     Raster img(w, h);
+    if (color == 4 || color == 6 || has_trns) img.alpha.assign(size_t(w) * h, 255);
+    // A key is compared as Pillow's convert_transparent compares it, its low byte with the scaled sample: a 1-bit gray key reads as 0 or 255, deeper ones raw, so a 2- or 4-bit key other than 0 seldom matches.
+    const unsigned gray_key = has_trns && color == 0 ? (depth == 1 ? ((trns[0] << 8 | trns[1]) ? 255u : 0u) : unsigned(trns[1])) : 256u;
+    const auto key = [&](int i) { return trns[size_t(i) * 2 + 1]; };
     size_t off = 0;
     std::vector<uint8_t> lines;
     for (int i = 0; i < npass; ++i) {
@@ -166,15 +174,18 @@ inline Raster decode_png(const uint8_t* p, size_t n, PngExtras* extras = nullptr
             const uint8_t* line = lines.data() + y * stride;
             for (size_t x = 0; x < pw; ++x) {
                 uint8_t* px = img.at(ps.x0 + x * ps.dx, ps.y0 + y * ps.dy);
+                uint8_t* alpha = img.alpha.empty() ? nullptr : &img.alpha[(ps.y0 + y * ps.dy) * size_t(w) + ps.x0 + x * ps.dx];
                 if (depth < 8) {
                     const size_t bit = x * size_t(depth);
                     const unsigned v = (line[bit / 8] >> (8 - depth - bit % 8)) & ((1u << depth) - 1u);
                     if (color == 3) {
                         if (size_t(v) * 3 >= palette.size()) throw std::runtime_error("png: a palette index past the palette");
                         std::memcpy(px, &palette[size_t(v) * 3], 3);
+                        if (alpha && v < trns.size()) *alpha = trns[v];
                     } else {
                         const uint8_t g = uint8_t(v * (255u / ((1u << depth) - 1u)));
                         px[0] = px[1] = px[2] = g;
+                        if (alpha && g == gray_key) *alpha = 0;
                     }
                     continue;
                 }
@@ -182,12 +193,17 @@ inline Raster decode_png(const uint8_t* p, size_t n, PngExtras* extras = nullptr
                 if (color == 3) {
                     if (size_t(s[0]) * 3 >= palette.size()) throw std::runtime_error("png: a palette index past the palette");
                     std::memcpy(px, &palette[size_t(s[0]) * 3], 3);
+                    if (alpha && s[0] < trns.size()) *alpha = trns[s[0]];
                 } else if (channels <= 2) {
                     px[0] = px[1] = px[2] = s[0];
+                    if (color == 4) *alpha = s[1];
+                    else if (alpha && s[0] == gray_key) *alpha = 0;
                 } else {
                     px[0] = s[0];
                     px[1] = s[1];
                     px[2] = s[2];
+                    if (color == 6) *alpha = s[3];
+                    else if (alpha && s[0] == key(0) && s[1] == key(1) && s[2] == key(2)) *alpha = 0;
                 }
             }
         }

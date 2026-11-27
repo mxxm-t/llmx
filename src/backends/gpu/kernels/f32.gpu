@@ -1025,10 +1025,13 @@ extern "C" __global__ void llmx_gelu(float* dst, const float* src, unsigned long
     dst[i] = erf_form ? 0.5f * x * erfcf(-x * 0.70710678f) : 0.5f * x * (1.0f + gpu_tanhf(0.79788456f * fmaf(0.044715f * x, x * x, x)));
 }
 
-// A block a row of `width` floats: dst[row * width + j] += bias[j].
-extern "C" __global__ void llmx_add_bias(float* dst, const float* bias, unsigned width) {
+// A block a row of `width` floats: dst[row * width + j] += bias[j], or with a scale (dst[row * width + j] + bias[j]) * scale[j].
+extern "C" __global__ void llmx_add_bias(float* dst, const float* bias, const float* scale, unsigned width) {
     float* y = dst + (unsigned long long)blockIdx.x * width;
-    for (unsigned j = threadIdx.x; j < width; j += kThreads) y[j] += bias[j];
+    if (scale)
+        for (unsigned j = threadIdx.x; j < width; j += kThreads) y[j] = (y[j] + bias[j]) * scale[j];
+    else
+        for (unsigned j = threadIdx.x; j < width; j += kThreads) y[j] += bias[j];
 }
 
 // A thread a float of `width` and blockIdx.y a row, stepping by the grid's height: dst row r = src row r, or dst row r + src row r with `add`.

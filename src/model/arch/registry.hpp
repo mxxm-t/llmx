@@ -15,6 +15,7 @@
 #include "model/arch/inkling2/model.hpp"
 #include "model/arch/minimax_m3.hpp"
 #include "model/arch/deepseek41_vision.hpp"
+#include "model/arch/inkling2_vision.hpp"
 #include "model/arch/qwen3vl_vision.hpp"
 #include "model/encoder.hpp"
 
@@ -100,12 +101,14 @@ struct VisionEntry {
 inline const VisionEntry kVisionEncoders[] = {
     {"clip", "qwen3vl_merger", qwen3vl_vision::open, backend::Dtype::bf16},
     {"clip", "deepseek41v", deepseek41_vision::open, backend::Dtype::bf16},
+    {"clip", "inkling2v", inkling2_vision::open, backend::Dtype::bf16},
 };
 
 // The entry an mmproj file names; another architecture or projector is refused by name.
 inline const VisionEntry& vision_of(const gguf::GGUFModel& m) {
     const auto* a = m.find("general.architecture");
-    const auto* p = m.find("clip.projector_type");
+    // Some converters write the projector under clip.vision.
+    const auto* p = m.find("clip.projector_type") ? m.find("clip.projector_type") : m.find("clip.vision.projector_type");
     const std::string arch = a && a->vtype == gguf::V_STRING ? a->s : std::string();
     const std::string projector = p && p->vtype == gguf::V_STRING ? p->s : std::string();
     for (const VisionEntry& e : kVisionEncoders)

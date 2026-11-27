@@ -49,13 +49,8 @@ inline Config read_config(const gguf::GGUFModel& m) {
     c.out = size_t(integer(m, "clip.vision.projection_dim"));
     c.min_pixels = uint64_t(integer(m, "clip.vision.image_min_pixels"));
     c.eps = float(real(m, "clip.vision.attention.layer_norm_epsilon", 1e-6f));
-    const auto three = [&](const char* key, float* dst) {
-        const auto* v = m.find(key);
-        if (!v || v->vtype != gguf::V_ARRAY || v->u != gguf::V_FLOAT32 || v->arr.size() != 3) throw std::runtime_error(std::string("inference: invalid metadata ") + key);
-        for (size_t i = 0; i < 3; ++i) std::memcpy(&dst[i], &v->arr[i].fb, sizeof(float));
-    };
-    three("clip.vision.image_mean", c.mean);
-    three("clip.vision.image_std", c.std);
+    three_floats(m, "clip.vision.image_mean", c.mean);
+    three_floats(m, "clip.vision.image_std", c.std);
     // The fused normalization equals the processor's two steps once rounded to BF16 only for a mean and std of one half.
     for (int i = 0; i < 3; ++i)
         if (c.mean[i] != 0.5f || c.std[i] != 0.5f) throw std::runtime_error("inference: unsupported metadata clip.vision.image_mean or image_std (0.5 is required)");
@@ -72,8 +67,6 @@ enum : uint16_t { patch_w, patch_b, kBlockBase };
 inline constexpr uint16_t kPerBlock = 9;
 enum : uint16_t { ln1_w, qkv_w, qkv_b, out_w, out_b, ln2_w, gate_w, up_w, down_w };
 enum : uint16_t { post_w, mm1_w, mm1_b, mm2_w, mm2_b, img_start, img_end, img_newline, kTail };
-// The multiply-adds of one piece's attention at most, as the Qwen module bounds them (docs/VISION.md, section 10).
-inline constexpr size_t kPieceProducts = size_t(1) << 37;
 
 // The arena's slots, the floats one patch takes in each; the aligner reuses s_mlp and s_qkv once the blocks are done, and a grid asks for the patch rows its aligner needs there (EncodeInputs::arena_patches).
 enum : size_t { s_pixels, s_x, s_h, s_qkv, s_attn, s_mlp, s_out, kSlots };
@@ -117,7 +110,7 @@ public:
         b.patches = K * T;
         b.arena_patches = std::max({b.patches, rows(K * T * c_.width, 2 * c_.mlp), rows((T + 3) * O, 2 * c_.mlp), rows(T * O, 3 * c_.width), rows(R * O, (O + 1) / 2)});
         const size_t crossing = size_t(std::sqrt(double(kPieceProducts) / double(2 * c_.width)));
-        b.attention_rows = std::max(attention_rows(std::min(b.patches, crossing)), attention_rows(std::min(b.patches, crossing + 1)));
+        b.attention_rows = std::max(attention_rows(std::min(b.patches, crossing), c_.width), attention_rows(std::min(b.patches, crossing + 1), c_.width));
         return b;
     }
     VisionPositions positions() const override { return VisionPositions::text; }
@@ -177,19 +170,8 @@ public:
         return p;
     }
 
-    // The rope's cos and sin as the Qwen module lays them out: column j of row p turns by p times frequency j mod head_dim / 4, the first quarter by the patch's row and the rest by its column.
-    void fill_tables(std::vector<std::vector<float>>& t) const override {
-        const size_t hd = c_.width / c_.heads, half = hd / 2, quarter = hd / 4;
-        std::vector<float> inv(quarter);
-        for (size_t k = 0; k < quarter; ++k) inv[k] = float(1.0 / std::pow(kRopeTheta, double(2 * k) / double(half)));
-        const size_t rows = t[t_cos].size() / half;
-        for (size_t p = 0; p < rows; ++p)
-            for (size_t j = 0; j < half; ++j) {
-                const float a = float(p) * inv[j % quarter];
-                t[t_cos][p * half + j] = std::cos(a);
-                t[t_sin][p * half + j] = std::sin(a);
-            }
-    }
+    // The rope's cos and sin as the Qwen module lays them out, the first quarter by the patch's row and the rest by its column.
+    void fill_tables(std::vector<std::vector<float>>& t) const override { fill_stream_rope(t[t_cos], t[t_sin], c_.width / c_.heads, kRopeTheta); }
 
     // Each patch's row and column in row order; the unfold's patch rows, token by token in rows of the zero-padded grid, its pad runs, the block's rows of the aligner's output and its three markers, and the arena the aligner needs.
     // A grid thinner than 3 patches is padded to whole tokens as the official aligner pads it.
@@ -229,15 +211,15 @@ public:
     }
 
     // The patch embedding, then each block as its projections, its attention in runs of query rows, and the rest, then the final norm and the aligner.
-    size_t pieces(size_t patches) const override { return 2 + c_.blocks * (2 + attention_runs(patches)); }
+    size_t pieces(size_t patches) const override { return 2 + c_.blocks * (2 + attention_runs(patches, c_.width)); }
 
     void encode(const EncodeStep& s, size_t piece) const override {
         backend::Backend& b = s.b;
-        const size_t D = c_.width, F = c_.mlp, n = s.patches, hd = D / c_.heads;
+        const size_t D = c_.width, F = c_.mlp, n = s.patches;
         const backend::RowRun run{n, n};
         const backend::RowRuns runs{&run, 1};
         const Weight* w = s.w;
-        const size_t per_block = 2 + attention_runs(n);
+        const size_t per_block = 2 + attention_runs(n, D);
         if (piece == 0) {
             b.matmul(w[patch_w].operand(), s.slot(s_pixels), s.slot(s_x), c_.patch * c_.patch * 3, D, n, runs, s.dtype);
             b.add_bias(s.slot(s_x), w[patch_b].slice(), n, D);
@@ -251,26 +233,17 @@ public:
         const Weight* lw = w + kBlockBase + l * kPerBlock;
         const backend::Slice qkv = s.slot(s_qkv), q = qkv, k = at(qkv, n * D), v = at(qkv, 2 * n * D);
         if (part == 0) {
-            uint8_t of[128];
-            for (size_t j = 0; j < hd / 2; ++j) of[j] = j < hd / 4 ? 0 : 1;
-            const backend::CSlice cos{s.tables[t_cos].get(), 0}, sin{s.tables[t_sin].get(), 0};
             b.rms_norm_rows(s.slot(s_h), s.slot(s_x), lw[ln1_w].slice(), n, D, D, c_.eps);
             b.matmul_group({{{lw[qkv_w].type, row_block(lw[qkv_w], 0)}, q, D}, {{lw[qkv_w].type, row_block(lw[qkv_w], D)}, k, D},
                             {{lw[qkv_w].type, row_block(lw[qkv_w], 2 * D)}, v, D}},
                            s.slot(s_h), D, n, runs, s.dtype);
             const backend::CSlice bias = lw[qkv_b].slice();
-            b.add_bias(q, bias, n, D);
-            b.add_bias(k, {bias.buffer, bias.offset + D}, n, D);
-            b.add_bias(v, {bias.buffer, bias.offset + 2 * D}, n, D);
-            b.norm_rope_partial(q, q, n, D, hd, c_.heads, hd, hd, {}, 0.0f, cos, sin, s.inputs->positions.data(), backend::RopeForm{}, backend::RopeStreams{2, of});
-            b.norm_rope_partial(k, k, n, D, hd, c_.heads, hd, hd, {}, 0.0f, cos, sin, s.inputs->positions.data(), backend::RopeForm{}, backend::RopeStreams{2, of});
-            b.kv_write(0, s.view, 1, k, v);
+            bias_rope_kv(s, q, k, v, bias, {bias.buffer, bias.offset + D}, {bias.buffer, bias.offset + 2 * D}, n, D, c_.heads, {s.tables[t_cos].get(), 0},
+                         {s.tables[t_sin].get(), 0}, backend::RopeForm{});
             return;
         }
         if (part + 1 < per_block) {
-            const size_t rows = attention_rows(n), first = (part - 1) * rows, m = std::min(rows, n - first);
-            const backend::KVView view{s.view->storage, s.view->blocks, s.view->n_blocks, n - m, m, m, false};
-            b.attention(at(q, first * D), 0, &view, 1, at(s.slot(s_attn), first * D), int(c_.heads), int(c_.heads), int(hd));
+            attention_run(s, q, s.slot(s_attn), n, part - 1, D, c_.heads);
             return;
         }
         b.matmul(lw[out_w].operand(), s.slot(s_attn), s.slot(s_h), D, D, n, runs, s.dtype);
@@ -312,16 +285,9 @@ private:
     }
 
     uint16_t tail() const { return uint16_t(kBlockBase + c_.blocks * kPerBlock); }
-    size_t attention_rows(size_t n) const { return std::max<size_t>(1, std::min(n, kPieceProducts / std::max<size_t>(1, 2 * n * c_.width))); }
-    size_t attention_runs(size_t n) const { return (n + attention_rows(n) - 1) / attention_rows(n); }
     // The longest grid side a block of kMaxRows rows allows: one row of kMaxRows - 3 tokens.
     size_t max_side() const { return size_t(kMaxRows - 3) * c_.merge; }
     static backend::Slice at(backend::Slice s, size_t floats) { return {s.buffer, s.offset + floats}; }
-    static backend::CSlice row_block(const Weight& w, size_t first) {
-        const size_t bytes = quant::row_bytes(w.type, w.nin, first);
-        if (bytes % sizeof(float)) throw std::runtime_error("inference: a vision projection's rows do not start on a float boundary");
-        return {w.data.get(), bytes / sizeof(float)};
-    }
 
     Config c_;
 };

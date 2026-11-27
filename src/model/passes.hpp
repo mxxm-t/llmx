@@ -1901,7 +1901,7 @@ inline void Model::write_media(ExecContext& ctx, const Pass& p, size_t dev) {
             // The rows held start at row `from` of the image, which add_media keeps at or below what the history has read.
             if (from < m.run.first + m.run.from) throw std::logic_error("inference: a pass reads rows of an image before those given");
             if (!m.on[dev]) {
-                // As residual rows: each encoder row copied into every residual stream, as the embedding fills them.
+                // As residual rows: each encoder row copied into every residual stream, as the embedding fills them, and zero past the embedding's width.
                 const size_t E = embedding_width(), C = plan_.embed_copies, held = m.run.rows - m.run.from;
                 std::vector<float> rows(backend::size_mul(held, W));
                 for (size_t r = 0; r < held; ++r)

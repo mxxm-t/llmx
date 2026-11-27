@@ -45,10 +45,10 @@ BOUNDS = {
 with io.open(FIXTURES, encoding="utf-8") as f:
     PINNED = json.load(f)
 # Each model is pinned once in a family with goldens, and every gate model needs bounds, and only those.
-assert len({spec["file"] for spec in PINNED}) == len(PINNED), "tests/data/fixtures.json pins a file twice"
+assert len({(spec["repo"], spec["file"]) for spec in PINNED}) == len(PINNED), "tests/data/fixtures.json pins a file twice"
 assert all(spec["family"] in ("qwen3", "qwen35", "vision") for spec in PINNED), "tests/data/fixtures.json names a family without goldens"
 # A vision encoder's gate file is checked by tests/vision.py against the file-exact goldens it names.
-assert all(spec["file"] in vision.FILE_EXACT for spec in PINNED if spec["gate"] and spec["family"] == "vision"), "tests/data/fixtures.json gates a vision encoder without goldens in tests/vision.py"
+assert all((spec["repo"], spec["file"]) in vision.FILE_EXACT for spec in PINNED if spec["gate"] and spec["family"] == "vision"), "tests/data/fixtures.json gates a vision encoder without goldens in tests/vision.py"
 GATE_FILES = sorted(spec["file"] for spec in PINNED if spec["gate"] and spec["family"] == "qwen3")
 assert GATE_FILES == sorted(BOUNDS), "tests/data/fixtures.json gates %s, but tests/baseline.py bounds %s" % (GATE_FILES, sorted(BOUNDS))
 assert all(baseline_qwen35.bounds_for(spec) for spec in PINNED if spec["gate"] and spec["family"] == "qwen35"), "tests/data/fixtures.json gates a qwen35 model without bounds in tests/baseline_qwen35.py"
@@ -271,9 +271,12 @@ def snapshot_path(repo, revision, file):
     return Path.home() / ".cache" / "huggingface" / "hub" / ("models--" + repo.replace("/", "--")) / "snapshots" / revision / file
 
 
-def pinned_fixture(file):
-    """The entry of tests/data/fixtures.json that pins `file`, or None."""
-    return next((spec for spec in PINNED if spec["file"] == file), None)
+def pinned_fixture(file, repo=None):
+    """The entry of tests/data/fixtures.json that pins `file` of `repo`, or None; a name two repos share needs the repo."""
+    found = [spec for spec in PINNED if spec["file"] == file and repo in (None, spec["repo"])]
+    if len(found) > 1:
+        raise ValueError("%s is pinned in %s; name the repo" % (file, ", ".join(spec["repo"] for spec in found)))
+    return found[0] if found else None
 
 
 def find_model(spec):

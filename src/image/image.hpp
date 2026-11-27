@@ -7,6 +7,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -89,6 +90,7 @@ inline Raster orient(Raster in, int orientation) {
     const size_t w = in.width, h = in.height;
     const bool swap = orientation >= 5;
     Raster out(uint32_t(swap ? h : w), uint32_t(swap ? w : h));
+    if (!in.alpha.empty()) out.alpha.resize(in.alpha.size());
     for (size_t y = 0; y < out.height; ++y)
         for (size_t x = 0; x < out.width; ++x) {
             size_t sx = x, sy = y;
@@ -102,6 +104,7 @@ inline Raster orient(Raster in, int orientation) {
                 case 8: sx = w - 1 - y; sy = x; break;           // rotate 90 counter-clockwise
             }
             std::memcpy(out.at(x, y), in.at(sx, sy), 3);
+            if (!in.alpha.empty()) out.alpha[y * out.width + x] = in.alpha[sy * w + sx];
         }
     return out;
 }
@@ -334,11 +337,15 @@ inline Raster pad_to(const Raster& in, uint32_t out_w, uint32_t out_h, uint8_t f
     return out;
 }
 
-// How an image is sized: HF's smart_resize under a pixel bound, resized by torchvision and cut in merge blocks, or DeepSeek-V4.1's padded plan under a bound on its block's rows, padded by Pillow and cut in rows of patches.
-enum class Fit : uint8_t { smart_resize, padded };
+// How an image is sized: HF's smart_resize under a pixel bound, resized by torchvision and cut in merge blocks, DeepSeek-V4.1's padded plan under a bound on its block's rows, padded by Pillow and cut in rows of patches,
+// or pad_end, Inkling's: never resized, its bottom and right edges padded with a float to whole merge blocks and cut in merge blocks.
+enum class Fit : uint8_t { smart_resize, padded, pad_end };
+
+// What becomes of an image's alpha: dropped, as Pillow's convert("RGB") drops it, or composited onto Inkling's grey checkerboard of 8 px cells as its processor does.
+enum class Matte : uint8_t { drop, checker };
 
 // How a vision encoder wants its images, which its module hands to prepare (docs/VISION.md, section 9): its patch and merge sizes, the normalization and the sizing.
-// smart_resize reads the pixel bounds; padded reads min_pixels, the block's rows at most and the fill.
+// smart_resize reads the pixel bounds; padded reads min_pixels, the block's rows at most and the fill; pad_end reads the merge blocks at most (max_rows) and the pad's value on the 0..255 scale before the normalization.
 struct Params {
     uint32_t patch = 16, merge = 2;
     float mean[3] = {0.5f, 0.5f, 0.5f}, std[3] = {0.5f, 0.5f, 0.5f};
@@ -346,12 +353,21 @@ struct Params {
     Fit fit = Fit::smart_resize;
     uint64_t max_rows = 0;
     uint8_t fill = 127;
+    float pad_value = -1.0f;
+    Matte matte = Matte::drop;
 };
 
 // The height and width an image of this size is resized or padded to.
 inline std::pair<uint32_t, uint32_t> fit_size(uint32_t height, uint32_t width, const Params& p) {
     if (!p.patch || !p.merge) throw std::runtime_error("image: an empty patch or merge");
     if (p.fit == Fit::padded) return padded_size(height, width, p.patch, p.merge, p.min_pixels, p.max_rows);
+    if (p.fit == Fit::pad_end) {
+        const uint64_t side = uint64_t(p.patch) * p.merge, h = (height + side - 1) / side, w = (width + side - 1) / side;
+        if (h * w > p.max_rows)
+            throw std::runtime_error("image: a " + std::to_string(width) + "x" + std::to_string(height) + " image takes " + std::to_string(h * w) + " tokens, past the bound of " +
+                                     std::to_string(p.max_rows) + " (--image-max-tokens)");
+        return {uint32_t(h * side), uint32_t(w * side)};
+    }
     return smart_resize(height, width, p.patch * p.merge, p.min_pixels, p.max_pixels);
 }
 
@@ -361,21 +377,40 @@ struct Prepared {
     std::vector<float> patches;
 };
 
-// The image sized and resized under its fit, the pixels a server's digest of the image reads (docs/VISION.md, section 5).
+// The image composited onto the checkerboard as Inkling2ImageProcessor's convert_to_rgb does, (rgb a + cell (255 - a) + 127) / 255 with cells of 204 and 153 from the oriented image's top left.
+inline Raster checkered(const Raster& in) {
+    Raster out(in.width, in.height);
+    for (size_t y = 0; y < in.height; ++y)
+        for (size_t x = 0; x < in.width; ++x) {
+            const unsigned a = in.alpha[y * in.width + x], cell = (y / 8 + x / 8) % 2 ? 153u : 204u;
+            for (int c = 0; c < 3; ++c) out.at(x, y)[c] = uint8_t((in.at(x, y)[c] * a + cell * (255 - a) + 127) / 255);
+        }
+    return out;
+}
+
+// The image sized and resized under its fit, the pixels a server's digest of the image reads (docs/VISION.md, section 5), its alpha composited first under the checker matte; pad_end leaves it as it is, its pad added as it is cut.
 inline Raster resize_for(const Raster& img, const Params& p) {
+    if (p.matte == Matte::checker && !img.alpha.empty()) return resize_for(checkered(img), p);
     const auto [h, w] = fit_size(img.height, img.width, p);
+    if (p.fit == Fit::pad_end) return img;
     return p.fit == Fit::padded ? pad_to(img, w, h, p.fill) : resize_bicubic(img, w, h);
+}
+
+// The patch grid of an image resize_for returned: its sides in patches, under pad_end ceiled to whole merge blocks.
+inline std::pair<uint32_t, uint32_t> grid(const Raster& r, const Params& p) {
+    if (p.fit != Fit::pad_end) return {r.height / p.patch, r.width / p.patch};
+    const uint32_t side = p.patch * p.merge;
+    return {(r.height + side - 1) / side * p.merge, (r.width + side - 1) / side * p.merge};
 }
 
 // A resized image normalized in F32 as the processor's fused rescale and normalize, (x - 255 mean) / (255 std), cut into patches block by block of merge by merge, or under the padded fit row by row and rounded to BF16.
 // The padded fit's processor rescales and normalizes in two steps, which differ from the fused form in F32 but not once rounded to BF16, for all 256 values.
 inline Prepared patches(const Raster& r, const Params& p) {
-    const bool rows = p.fit == Fit::padded;
+    const bool rows = p.fit == Fit::padded, pad = p.fit == Fit::pad_end;
     const uint32_t side = rows ? p.patch : p.patch * p.merge;
-    if (!p.patch || !p.merge || r.height % side || r.width % side) throw std::runtime_error(rows ? "image: a size of no whole patches" : "image: a size of no whole merged patches");
+    if (!p.patch || !p.merge || (!pad && (r.height % side || r.width % side))) throw std::runtime_error(rows ? "image: a size of no whole patches" : "image: a size of no whole merged patches");
     Prepared out;
-    out.grid_h = uint32_t(r.height / p.patch);
-    out.grid_w = uint32_t(r.width / p.patch);
+    std::tie(out.grid_h, out.grid_w) = grid(r, p);
     const size_t P = p.patch, M = p.merge, row = 3 * P * P;
     out.patches.resize(size_t(out.grid_h) * out.grid_w * row);
     // The processor fuses its 1/255 rescale into the mean and std in float, so 0.5 becomes 127.5.
@@ -389,7 +424,9 @@ inline Prepared patches(const Raster& r, const Params& p) {
         for (int c = 0; c < 3; ++c)
             for (size_t y = 0; y < P; ++y)
                 for (size_t x = 0; x < P; ++x) {
-                    const float v = (float(r.at(gx * P + x, gy * P + y)[c]) - m[c]) / s[c];
+                    const size_t px = gx * P + x, py = gy * P + y;
+                    const float in = px < r.width && py < r.height ? float(r.at(px, py)[c]) : p.pad_value;
+                    const float v = (in - m[c]) / s[c];
                     dst[(size_t(c) * P + y) * P + x] = rows ? bf16_to_f32(f32_to_bf16(v)) : v;
                 }
     };

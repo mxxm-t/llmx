@@ -1283,9 +1283,9 @@ public:
         (void)dst; (void)src; (void)n; (void)form;
         lacks(Op::gelu);
     }
-    // dst row r += bias, `rows` rows of `width` floats.
-    virtual void add_bias(Slice dst, CSlice bias, size_t rows, size_t width) {
-        (void)dst; (void)bias; (void)rows; (void)width;
+    // dst row r += bias, `rows` rows of `width` floats; given a `scale` of `width` floats, each row becomes (row + bias) * scale, a layer scale on a product's output.
+    virtual void add_bias(Slice dst, CSlice bias, size_t rows, size_t width, CSlice scale = {}) {
+        (void)dst; (void)bias; (void)rows; (void)width; (void)scale;
         lacks(Op::add_bias);
     }
     // dst row r += the sum over k of weight[r*taps + k] times table row idx[r*taps + k], the taps taken in order; a row past `table_rows` is refused.

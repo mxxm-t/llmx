@@ -35,16 +35,6 @@ inline constexpr double kRopeTheta = 10000.0;
 // smart_resize refuses an aspect ratio past this, which bounds the longest side of a grid a pixel bound allows.
 inline constexpr double kMaxAspect = 200.0;
 
-inline std::vector<float> three_floats(const gguf::GGUFModel& m, const std::string& k) {
-    const auto* v = m.find(k);
-    if (!v || v->vtype != gguf::V_ARRAY || v->u != gguf::V_FLOAT32 || v->arr.size() != 3) throw std::runtime_error("inference: invalid metadata " + k);
-    std::vector<float> out(3);
-    for (int i = 0; i < 3; ++i) std::memcpy(&out[size_t(i)], &v->arr[size_t(i)].fb, sizeof(float));
-    for (float f : out)
-        if (!std::isfinite(f)) throw std::runtime_error("inference: invalid metadata " + k);
-    return out;
-}
-
 // Every key the math reads, and the refusal of each value it does not implement.
 inline Config read_config(const gguf::GGUFModel& m) {
     using namespace metadata;
@@ -57,12 +47,10 @@ inline Config read_config(const gguf::GGUFModel& m) {
     c.merge = size_t(integer(m, "clip.vision.spatial_merge_size"));
     c.out = size_t(integer(m, "clip.vision.projection_dim"));
     c.eps = float(real(m, "clip.vision.attention.layer_norm_epsilon", 1e-6f));
-    const std::vector<float> mean = three_floats(m, "clip.vision.image_mean"), std = three_floats(m, "clip.vision.image_std");
-    for (int i = 0; i < 3; ++i) {
-        c.mean[i] = mean[size_t(i)];
-        c.std[i] = std[size_t(i)];
+    three_floats(m, "clip.vision.image_mean", c.mean);
+    three_floats(m, "clip.vision.image_std", c.std);
+    for (int i = 0; i < 3; ++i)
         if (!(c.std[i] > 0)) throw std::runtime_error("inference: invalid metadata clip.vision.image_std");
-    }
     if (!boolean(m, "clip.use_gelu", false)) throw std::runtime_error("inference: unsupported metadata clip.use_gelu (the merger's GELU is required)");
     if (const auto* d = m.find("clip.vision.is_deepstack_layers")) {
         if (d->vtype != gguf::V_ARRAY || d->u != gguf::V_BOOL) throw std::runtime_error("inference: invalid metadata clip.vision.is_deepstack_layers");
@@ -82,8 +70,6 @@ inline Config read_config(const gguf::GGUFModel& m) {
 // The roles, by id: the patch embedding, the learned positions, each block's twelve, the merger's six.
 enum : uint16_t { patch0, patch1, patch_bias, pos_table, kBlockBase };
 inline constexpr uint16_t kPerBlock = 12;
-// The multiply-adds of one piece's attention at most, about 60 ms on an MI50, so a server's replies wait at most that long for an image's encode (docs/VISION.md, section 10).
-inline constexpr size_t kPieceProducts = size_t(1) << 37;
 enum : uint16_t { ln1_w, ln1_b, qkv_w, qkv_b, out_w, out_b, ln2_w, ln2_b, up_w, up_b, down_w, down_b };
 enum : uint16_t { post_w, post_b, mm0_w, mm0_b, mm2_w, mm2_b, kMerger };
 
@@ -128,7 +114,7 @@ public:
         b.patches = size_t(std::ceil(std::max({hi, raised, floored}) / (double(p.patch) * p.patch)));
         b.arena_patches = b.patches;
         const size_t crossing = size_t(std::sqrt(double(kPieceProducts) / double(2 * c_.width)));
-        b.attention_rows = std::max(attention_rows(std::min(b.patches, crossing)), attention_rows(std::min(b.patches, crossing + 1)));
+        b.attention_rows = std::max(attention_rows(std::min(b.patches, crossing), c_.width), attention_rows(std::min(b.patches, crossing + 1), c_.width));
         return b;
     }
     VisionPositions positions() const override { return VisionPositions::grid; }
@@ -194,19 +180,8 @@ public:
         return p;
     }
 
-    // The rope's cos and sin: column j of row p turns by p times frequency j mod head_dim / 4, as HF's two streams of head_dim / 4 frequencies each lay them out.
-    void fill_tables(std::vector<std::vector<float>>& t) const override {
-        const size_t hd = c_.width / c_.heads, half = hd / 2, quarter = hd / 4;
-        std::vector<float> inv(quarter);
-        for (size_t k = 0; k < quarter; ++k) inv[k] = float(1.0 / std::pow(kRopeTheta, double(2 * k) / double(half)));
-        const size_t rows = t[0].size() / half;
-        for (size_t p = 0; p < rows; ++p)
-            for (size_t j = 0; j < half; ++j) {
-                const float a = float(p) * inv[j % quarter];
-                t[0][p * half + j] = std::cos(a);
-                t[1][p * half + j] = std::sin(a);
-            }
-    }
+    // The rope's cos and sin, as HF's two streams lay them out.
+    void fill_tables(std::vector<std::vector<float>>& t) const override { fill_stream_rope(t[0], t[1], c_.width / c_.heads, kRopeTheta); }
 
     // Each patch's row and column and its four bilinear taps of the learned grid with aligned corners, in merge-block order, as HF's vision utilities compute them in F32.
     EncodeInputs inputs(uint32_t gh, uint32_t gw) const override {
@@ -217,15 +192,6 @@ public:
         in.positions.resize(2 * n);
         in.taps.resize(4 * n);
         in.weights.resize(4 * n);
-        const auto axis = [&](size_t index, size_t size, uint32_t taps[2], float w[2]) {
-            const float src = float(index) * float(c_.side - 1) / float(size > 1 ? size - 1 : 1);
-            const float fl = std::floor(src);
-            for (int o = 0; o < 2; ++o) {
-                const int64_t raw = int64_t(fl) + o;
-                taps[o] = uint32_t(std::min<int64_t>(std::max<int64_t>(raw, 0), int64_t(c_.side - 1)));
-                w[o] = std::max(1.0f - std::fabs(src - fl - float(o)), 0.0f);
-            }
-        };
         size_t k = 0;
         for (size_t by = 0; by < gh / M; ++by)
             for (size_t bx = 0; bx < gw / M; ++bx)
@@ -236,8 +202,8 @@ public:
                         in.positions[2 * k + 1] = uint32_t(c);
                         uint32_t ht[2], wt[2];
                         float hw[2], ww[2];
-                        axis(r, gh, ht, hw);
-                        axis(c, gw, wt, ww);
+                        bilinear_taps(r, gh, c_.side, true, ht, hw);
+                        bilinear_taps(c, gw, c_.side, true, wt, ww);
                         for (int a = 0; a < 2; ++a)
                             for (int b = 0; b < 2; ++b) {
                                 in.taps[4 * k + size_t(2 * a + b)] = uint32_t(ht[a] * c_.side + wt[b]);
@@ -248,16 +214,16 @@ public:
     }
 
     // The patch embedding, then each block as its projections, its attention in runs of query rows of at most kPieceProducts multiply-adds, and the rest, then the merger.
-    size_t pieces(size_t patches) const override { return 2 + c_.blocks * (2 + attention_runs(patches)); }
+    size_t pieces(size_t patches) const override { return 2 + c_.blocks * (2 + attention_runs(patches, c_.width)); }
 
     void encode(const EncodeStep& s, size_t piece) const override {
         backend::Backend& b = s.b;
-        const size_t D = c_.width, F = c_.mlp, n = s.patches, hd = D / c_.heads, M2 = c_.merge * c_.merge, T = n / M2;
+        const size_t D = c_.width, F = c_.mlp, n = s.patches, M2 = c_.merge * c_.merge, T = n / M2;
         const size_t in = c_.patch * c_.patch * 3;
         const backend::RowRun run{n, n}, merged_run{T, T};
         const backend::RowRuns runs{&run, 1}, merged{&merged_run, 1};
         const Weight* w = s.w;
-        const size_t per_block = 2 + attention_runs(n);
+        const size_t per_block = 2 + attention_runs(n, D);
         if (piece == 0) {
             // The patch embedding: both temporal kernels on the one frame, the bias, then the learned positions' taps.
             b.matmul(w[patch0].operand(), s.slot(s_pixels), s.slot(s_x), in, D, n, runs, s.dtype);
@@ -282,27 +248,17 @@ public:
         const backend::Slice q = s.slot(s_q), k = s.slot(s_k), v = s.slot(s_v);
         if (part == 0) {
             // The first head_dim / 4 frequencies turn by the patch's row, the rest by its column.
-            uint8_t of[128];
-            for (size_t j = 0; j < hd / 2; ++j) of[j] = j < hd / 4 ? 0 : 1;
-            const backend::CSlice cos{s.tables[0].get(), 0}, sin{s.tables[1].get(), 0};
             b.layer_norm_rows(s.slot(s_h), s.slot(s_x), lw[ln1_w].slice(), lw[ln1_b].slice(), n, D, D, c_.eps);
             b.matmul_group({{{lw[qkv_w].type, row_block(lw[qkv_w], 0)}, q, D}, {{lw[qkv_w].type, row_block(lw[qkv_w], D)}, k, D},
                             {{lw[qkv_w].type, row_block(lw[qkv_w], 2 * D)}, v, D}},
                            s.slot(s_h), D, n, runs, s.dtype);
             const backend::CSlice bias = lw[qkv_b].slice();
-            b.add_bias(q, bias, n, D);
-            b.add_bias(k, {bias.buffer, bias.offset + D}, n, D);
-            b.add_bias(v, {bias.buffer, bias.offset + 2 * D}, n, D);
-            b.norm_rope_partial(q, q, n, D, hd, c_.heads, hd, hd, {}, 0.0f, cos, sin, s.inputs->positions.data(), backend::RopeForm{}, backend::RopeStreams{2, of});
-            b.norm_rope_partial(k, k, n, D, hd, c_.heads, hd, hd, {}, 0.0f, cos, sin, s.inputs->positions.data(), backend::RopeForm{}, backend::RopeStreams{2, of});
-            b.kv_write(0, s.view, 1, k, v);
+            bias_rope_kv(s, q, k, v, bias, {bias.buffer, bias.offset + D}, {bias.buffer, bias.offset + 2 * D}, n, D, c_.heads, {s.tables[0].get(), 0}, {s.tables[1].get(), 0},
+                         backend::RopeForm{});
             return;
         }
         if (part + 1 < per_block) {
-            // A run of query rows over every key: a non-causal view of all n keys whose rows are the run's, each row's output that of the whole call.
-            const size_t rows = attention_rows(n), first = (part - 1) * rows, m = std::min(rows, n - first);
-            const backend::KVView view{s.view->storage, s.view->blocks, s.view->n_blocks, n - m, m, m, false};
-            b.attention({q.buffer, q.offset + first * D}, 0, &view, 1, {s.slot(s_attn).buffer, s.slot(s_attn).offset + first * D}, int(c_.heads), int(c_.heads), int(hd));
+            attention_run(s, q, s.slot(s_attn), n, part - 1, D, c_.heads);
             return;
         }
         // The projection and its bias before the residual add, in HF's order.
@@ -320,17 +276,8 @@ public:
 
 private:
     uint16_t merger_base() const { return uint16_t(kBlockBase + c_.blocks * kPerBlock); }
-    // A piece's attention rows: as many as keep its dots and weighted sums over all n keys within kPieceProducts, at least one, at most n.
-    size_t attention_rows(size_t n) const { return std::max<size_t>(1, std::min(n, kPieceProducts / std::max<size_t>(1, 2 * n * c_.width))); }
-    size_t attention_runs(size_t n) const { return (n + attention_rows(n) - 1) / attention_rows(n); }
     // The longest grid side, in patches, the default pixel bound allows under smart_resize's aspect limit.
     size_t max_side() const { return size_t(std::sqrt(kMaxAspect * double(kMaxPixels))) / c_.patch + 1; }
-    // A matrix weight from row `first` on, which starts on a float boundary in every type the encoder reads.
-    static backend::CSlice row_block(const Weight& w, size_t first) {
-        const size_t bytes = quant::row_bytes(w.type, w.nin, first);
-        if (bytes % sizeof(float)) throw std::runtime_error("inference: a vision projection's rows do not start on a float boundary");
-        return {w.data.get(), bytes / sizeof(float)};
-    }
 
     Config c_;
 };

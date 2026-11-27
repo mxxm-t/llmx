@@ -156,12 +156,19 @@ void add_bias() {
     std::vector<float> want(x);
     for (size_t r = 0; r < rows; ++r)
         for (size_t i = 0; i < width; ++i) want[r * width + i] = x[r * width + i] + b[i];
+    const std::vector<float> s = uniform(g, width, -0.5f, 0.5f);
+    std::vector<float> scaled(x);
+    for (size_t r = 0; r < rows; ++r)
+        for (size_t i = 0; i < width; ++i) scaled[r * width + i] = (x[r * width + i] + b[i]) * s[i];
     for (int t : kThreads) {
         CpuBackend cpu;
         cpu.set_threads(t);
         BufferPtr xb = upload(cpu, x), bb = upload(cpu, b);
         cpu.add_bias(Slice{xb.get(), 0}, CSlice(bb.get(), 0), rows, width);
         require(same_bits(download(cpu, *xb, rows * width), want), "add_bias is not the float add at " + std::to_string(t) + " threads");
+        BufferPtr yb = upload(cpu, x), sb = upload(cpu, s);
+        cpu.add_bias(Slice{yb.get(), 0}, CSlice(bb.get(), 0), rows, width, CSlice(sb.get(), 0));
+        require(same_bits(download(cpu, *yb, rows * width), scaled), "add_bias with a scale is not (x + bias) * scale at " + std::to_string(t) + " threads");
     }
 }
 

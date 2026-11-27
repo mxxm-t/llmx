@@ -1,4 +1,4 @@
-// image::decode_image, smart_resize, resize_bicubic and the padded fit held to the bytes of the vision models' processors (tests/data/image_decode.json and deepseek41_image_fit.json).
+// image::decode_image, smart_resize, resize_bicubic and the padded and pad_end fits held to the bytes of the vision models' processors (tests/data/image_decode.json, deepseek41_image_fit.json and inkling2_image_fit.json).
 // Unread formats are refused with their texts, and prefixes and flipped bits of every image are refused or decoded, never read past their end.
 #include <algorithm>
 #include <chrono>
@@ -179,6 +179,65 @@ void padded_fits(const std::filesystem::path& dir, const jmini::Value& doc) {
         require(why.find(text(c, "error")) != std::string::npos, name + " at " + std::to_string(params.max_rows) + " rows: refused with \"" + why + "\"");
     }
     std::cout << "image-decode: " << doc.get("cases")->asArray().size() << " padded fits, Pillow's taps told from torchvision's on " << forms_differ << "\n";
+}
+
+// Inkling's pad_end fit held to transformers' Inkling2ImageProcessor (tests/data/inkling2_image_fit.json, from `tools/inkling2_vision_reference.py --fit`).
+// Each image keeps its size, its grid ceils to whole 40 px tokens, and the F32 patches, the pad read as -1 before the normalization, are pixel_values' bytes; one token under the count is refused.
+void pad_end_fits(const std::filesystem::path& dir, const jmini::Value& doc) {
+    const jmini::Value& proc = *doc.get("processor");
+    image::Params params;
+    params.patch = uint32_t(number(proc, "patch"));
+    params.merge = uint32_t(number(proc, "merge"));
+    params.fit = image::Fit::pad_end;
+    params.pad_value = float(proc.get("pad_value")->asNumber());
+    params.matte = image::Matte::checker;
+    size_t transparent = 0;
+    for (const auto& c : doc.get("cases")->asArray()) {
+        const std::string& name = text(c, "file");
+        const std::vector<uint8_t> bytes = load(dir / name);
+        require(sha256(bytes.data(), bytes.size()) == text(c, "sha256"), name + ": the file is not the fixture's");
+        const image::Raster img = image::decode_image(bytes.data(), bytes.size());
+        const auto& size = c.get("size")->asArray();
+        require(img.height == size_t(size[0].asNumber()) && img.width == size_t(size[1].asNumber()), name + ": decoded to another size than exif_transpose's");
+        const bool alpha = c.get("transparent")->b;
+        require(img.alpha.empty() != alpha, name + (alpha ? ": Pillow sees transparency the decoder dropped" : ": the decoder kept an alpha Pillow does not see"));
+        transparent += alpha;
+        params.max_rows = number(c, "max_rows");
+        const image::Raster kept = image::resize_for(img, params);
+        require(alpha || kept.rgb == img.rgb, name + ": pad_end changed the image");
+        const image::Prepared prep = image::patches(kept, params);
+        const auto& grid = c.get("grid")->asArray();
+        require(prep.grid_h == size_t(grid[0].asNumber()) && prep.grid_w == size_t(grid[1].asNumber()),
+                name + ": grid " + std::to_string(prep.grid_h) + "x" + std::to_string(prep.grid_w) + " is not the processor's");
+        require(image::grid(kept, params) == std::make_pair(prep.grid_h, prep.grid_w), name + ": image::grid is not the patches' grid");
+        require(sha256(reinterpret_cast<const uint8_t*>(prep.patches.data()), prep.patches.size() * sizeof(float)) == text(c, "patches_sha256"),
+                name + ": the patches are not pixel_values");
+    }
+    for (const auto& c : doc.get("refuse_decode")->asArray()) {
+        const std::string& name = text(c, "file");
+        const std::vector<uint8_t> bytes = load(dir / name);
+        std::string why;
+        try {
+            (void)image::decode_image(bytes.data(), bytes.size());
+        } catch (const std::runtime_error& e) {
+            why = e.what();
+        }
+        require(why.find(text(c, "error")) != std::string::npos, name + ": refused with \"" + why + "\"");
+    }
+    for (const auto& c : doc.get("refuse")->asArray()) {
+        const std::string& name = text(c, "file");
+        const std::vector<uint8_t> bytes = load(dir / name);
+        const image::Raster img = image::decode_image(bytes.data(), bytes.size());
+        params.max_rows = number(c, "max_rows");
+        std::string why;
+        try {
+            (void)image::fit_size(img.height, img.width, params);
+        } catch (const std::runtime_error& e) {
+            why = e.what();
+        }
+        require(why.find(text(c, "error")) != std::string::npos, name + " at " + std::to_string(params.max_rows) + " tokens: refused with \"" + why + "\"");
+    }
+    std::cout << "image-decode: " << doc.get("cases")->asArray().size() << " pad_end fits, " << transparent << " composited onto the checkerboard\n";
 }
 
 std::string refusal(const std::vector<uint8_t>& bytes, uint64_t max_pixels = image::kMaxDecodedPixels) {
@@ -381,6 +440,8 @@ int main(int argc, char** argv) {
         resizes(dir, doc);
         const std::vector<uint8_t> fit = load(json.parent_path() / "deepseek41_image_fit.json");
         padded_fits(dir, jmini::parse(std::string(fit.begin(), fit.end())));
+        const std::vector<uint8_t> ink = load(json.parent_path() / "inkling2_image_fit.json");
+        pad_end_fits(dir, jmini::parse(std::string(ink.begin(), ink.end())));
         refusals(dir, doc);
         damage(dir, doc);
         limits();

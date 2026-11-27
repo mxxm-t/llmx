@@ -203,6 +203,9 @@ public:
         p.pass_ops = {{Part::embed, backend::Op::copy_rows}, {Part::head, backend::Op::query_mix}, {Part::head, backend::Op::softcap}};
         p.context_length = size_t(c.context_length);
         p.residual = size_t(kBundleRows * E);
+        // An image's rows replace its pad rows after the embedding norm, in bundle row 0 with the other five zero, as HF scatters them into the normed embeddings.
+        p.embed_width = size_t(E);
+        p.text_position_images = c.image_id;
         size_t H = 0, KD = 0, KK = 0;
         for (int l = 0; l < c.n_layer; ++l) {
             const size_t D = size_t(c.sliding[size_t(l)] ? c.head_dim_swa : c.head_dim);

@@ -15,4 +15,7 @@ It then turns the image by its EXIF orientation as Pillow's `exif_transpose` doe
 
 `image::prepare` takes an encoder's `image::Params` (patch, merge, mean, std and smart_resize's pixel bounds): it sizes and resizes the image, normalizes it in F32 as the processor's fused rescale and normalize, `(x - 255 mean) / (255 std)`, and cuts it into patches in merge-block order, each patch's values in (channel, row, column) order, once however many temporal frames the encoder's kernels take; it is `resize_for`, the sized and resized pixels that a server's digest of an image hashes, then `patches`, the normalized patches of a resized image.
 
+Under `Fit::pad_end` (Inkling's processor) an image is never resized: `fit_size` ceils each side to whole merge blocks of `patch * merge` pixels and refuses an image of more such blocks than `max_rows` (its token bound), `resize_for` returns the image as it is, `grid` gives the ceiled patch grid, and `patches` reads every pixel past the image's bottom or right edge as `pad_value` (-1 on the 0..255 scale, as HF pads before its rescale and normalize), cut in merge-block order like smart_resize.
+Under `Matte::checker` `resize_for` first composites an image's alpha with `checkered`, onto Inkling's checkerboard; `Matte::drop`, every other encoder's, leaves the alpha unread.
+
 `image-decode` holds all four to the reference processor's bytes over its fixtures (tests/data/image_decode.json), `prepare` to its `pixel_values` with each patch's repeated frame taken once.

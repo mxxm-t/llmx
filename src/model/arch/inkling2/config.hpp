@@ -1,6 +1,8 @@
 #pragma once
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -20,6 +22,8 @@ struct Config {
     int loop_count = 0, loop_start = 0, loop_end = 0, gate_rank = 0;
     int block_size = 0, window = 0, rel_length = 0, rel_extent = 0, log_scale_floor = 0, conv_taps = 0;
     float rms_eps = 0, expert_scale = 0, gate_softcap = 0, up_softcap = 0, logit_softcap = 0, qk_clip = 0, rel_clip = 0, log_scale_alpha = 0;
+    // The id every row of an image holds, the processor's image_token, where the vocabulary has it (docs/VISION.md, section 12).
+    std::optional<uint32_t> image_id;
 };
 
 // The rules a configuration is held to, each refused by its text.
@@ -96,6 +100,7 @@ inline Config read_config(const gguf::GGUFModel& m) {
     c.rel_clip = real("attention.relative_clip");
     c.log_scale_alpha = real("attention.log_scale_alpha");
     check_config(c);
+    c.image_id = metadata::token_id(m, "<|unused_200054|>");
     return c;
 }
 

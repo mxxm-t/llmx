@@ -1424,7 +1424,7 @@ public:
     }
     std::vector<std::pair<size_t, size_t>> image_rows() const { return image_rows(seq_); }
     // The width of an embedding row, which an encoder's rows must have.
-    size_t embedding_width() const { return plan_.residual / plan_.embed_copies; }
+    size_t embedding_width() const { return plan_.embed_width ? plan_.embed_width : plan_.residual / plan_.embed_copies; }
     // The backend the embedding runs on, where an image is encoded.
     backend::Backend& embedding_backend() const { return *devices_[(size_t)place_.embed_device]->b; }
 

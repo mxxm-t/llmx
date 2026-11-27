@@ -94,6 +94,15 @@ size_t check_ops(Pair& p) {
         auto r = p.results(d);
         require(q35::same_bits(r.first, r.second), "add_bias differs from the CPU");
         values += r.first.size();
+        // A layer scale on the biased rows, (row + bias) * scale.
+        const auto ls = uniform(width, 404 + uint32_t(width), -0.5f, 0.5f);
+        Pair::In si = p.in(ls);
+        Pair::Out ds = seeded(p, x);
+        p.cpu.add_bias(ds.cs(), bi.cs(), rows, width, si.cs());
+        p.dev.add_bias(ds.vs(), bi.vs(), rows, width, si.vs());
+        r = p.results(ds);
+        require(q35::same_bits(r.first, r.second), "add_bias with a scale differs from the CPU");
+        values += r.first.size();
         // The learned positions' four taps of a 48 by 48 table, read in order.
         const size_t side = 48, taps = 4;
         const auto table = uniform(side * side * width, 402 + uint32_t(width)), w = uniform(rows * taps, 403, 0.0f, 1.0f);

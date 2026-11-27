@@ -1,9 +1,13 @@
 #version 450
-// dst row r += bias over rows of `width` floats: dst[i] += bias[i % width], the dispatch's invocations striding over the n elements.
+// dst row r += bias over rows of `width` floats, or with a scale (dst + bias) * scale: dst[i] += bias[i % width], the dispatch's invocations striding over the n elements.
 layout(local_size_x = 256) in;
-layout(push_constant) uniform P { uint n; uint width; } p;
+layout(push_constant) uniform P { uint n; uint width; uint scaled; } p;
 layout(set = 0, binding = 0) buffer D { float dst[]; };
 layout(set = 0, binding = 1) readonly buffer B { float bias[]; };
+layout(set = 0, binding = 2) readonly buffer S { float scale[]; };
 void main() {
-    for (uint i = gl_GlobalInvocationID.x; i < p.n; i += gl_NumWorkGroups.x * 256u) dst[i] += bias[i % p.width];
+    for (uint i = gl_GlobalInvocationID.x; i < p.n; i += gl_NumWorkGroups.x * 256u) {
+        const uint j = i % p.width;
+        dst[i] = p.scaled != 0u ? (dst[i] + bias[j]) * scale[j] : dst[i] + bias[j];
+    }
 }

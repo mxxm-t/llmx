@@ -205,6 +205,8 @@ struct ModelPlan {
     std::optional<std::string> parts_join;
     // How many copies of an embedding row a residual row holds, side by side, as a model of several residual streams embeds a token into each.
     size_t embed_copies = 1;
+    // The width of an embedding row where it fills only the start of a residual row, the rest zero, as a bundle of streams of which the token enters one; 0 for residual / embed_copies.
+    size_t embed_width = 0;
     // An embedded drafter, planned only when a caller asks for one (Architecture::plan_drafter): its roles, all Part::draft, its ops and its cache, KV or a state slot on the head's device (docs/src/model-architecture.md).
     // `draft_h` is the arena slot its context rows leave the target's final-normed rows in, 0 where they read none (carries_row), and `draft_x` that of a draft step's residual rows, which a tensor group sums into.
     std::optional<LayerPlan> drafter;

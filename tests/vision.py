@@ -14,8 +14,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, "data")
 TINY_BOUND = 1e-5
 THREADS = (1, 4, 16)
-# The released mmproj files whose file-exact goldens tests/data/vision holds, by the SHA-256 that names their goldens.
-FILE_EXACT = {"mmproj-BF16.gguf": "file_exact_d312c4d02fd4.json"}
+# The released mmproj files whose file-exact goldens tests/data/vision holds, by repo and file, since converters name every mmproj alike.
+FILE_EXACT = {("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-BF16.gguf"): "file_exact_d312c4d02fd4.json",
+              ("unsloth/Inkling-2-Mini-GGUF", "mmproj-BF16.gguf"): "inkling2_file_exact_2c165c78790e.json"}
 # The deepseek41v tower's golden (tools/deepseek4_reference.py --vision), its mmproj rebuilt from the golden's seed.
 DEEPSEEK = os.path.join(DATA, "deepseek41_vision_reference.json")
 
@@ -65,7 +66,7 @@ def check(tool, mmproj, cases, rows_of, bound, directory, label):
         image = os.path.join(DATA, "images", c["file"])
         first = None
         for threads in THREADS:
-            info, data = encode(tool, mmproj, image, os.path.join(directory, "rows.f32"), threads, c["max_pixels"])
+            info, data = encode(tool, mmproj, image, os.path.join(directory, "rows.f32"), threads, c.get("max_pixels"))
             assert info["grid"] == c["grid"] and info["tokens"] == c["tokens"] and info["width"] == c["width"], \
                 "vision %s: %s gave grid %s, %d tokens of %d, not HF's %s, %d of %d" % (label, c["file"], info["grid"], info["tokens"], info["width"],
                                                                                         c["grid"], c["tokens"], c["width"])
@@ -76,7 +77,7 @@ def check(tool, mmproj, cases, rows_of, bound, directory, label):
                 assert e <= bound, "vision %s: %s at grid %s is %.3g of its row scale from HF, past %.3g" % (label, c["file"], c["grid"], e, bound)
                 errors.append(e)
             assert data == first, "vision %s: %s differs at %d threads" % (label, c["file"], threads)
-        _, again = encode(tool, mmproj, image, os.path.join(directory, "rows.f32"), THREADS[-1], c["max_pixels"])
+        _, again = encode(tool, mmproj, image, os.path.join(directory, "rows.f32"), THREADS[-1], c.get("max_pixels"))
         assert again == first, "vision %s: %s encoded again differs" % (label, c["file"])
     return errors
 
@@ -147,11 +148,11 @@ def run(require=False):
             deepseek_tower(tool, directory)
         except Refused as refused:
             print("vision: deepseek41v SKIP - the device refuses the encoder: %s" % refused)
-        for name, goldens in FILE_EXACT.items():
-            spec = baseline.pinned_fixture(name)
+        for (repo, name), goldens in FILE_EXACT.items():
+            spec = baseline.pinned_fixture(name, repo)
             path = baseline.snapshot_path(spec["repo"], spec["revision"], spec["file"]) if spec else None
             if not path or not path.exists():
-                print("vision: file-exact %s SKIP - not on disk" % name)
+                print("vision: file-exact %s %s SKIP - not on disk" % (repo, name))
                 continue
             with open(os.path.join(DATA, "vision", goldens), encoding="utf-8") as f:
                 doc = json.load(f)
@@ -163,6 +164,6 @@ def run(require=False):
 
             errors = check(tool, str(path), doc["cases"], reference, doc["bound"], directory, "file-exact")
             for c, e in zip(doc["cases"], errors):
-                print("vision: file-exact %s %s grid %dx%d: llmx %.3g, HF float32 %.3g, bound %.3g" % (name, c["file"], c["grid"][0], c["grid"][1], e,
+                print("vision: file-exact %s %s grid %dx%d: llmx %.3g, HF float32 %.3g, bound %.3g" % (repo, c["file"], c["grid"][0], c["grid"][1], e,
                                                                                                      c["hf_float32_error"], doc["bound"]))
     return True

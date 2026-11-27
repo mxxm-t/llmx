@@ -148,5 +148,15 @@
     "size": 207346528,
     "gate": true,
     "hosted": true
+  },
+  {
+    "family": "vision",
+    "repo": "unsloth/Inkling-2-Mini-GGUF",
+    "file": "mmproj-BF16.gguf",
+    "revision": "8078d149286eec7193795413b9e0643da6d11fa1",
+    "sha256": "2c165c78790e78a3f45a2d1e9e931083e52ee69d45ff2a0dc9c281fdf1a666e7",
+    "size": 641805760,
+    "gate": false,
+    "hosted": false
   }
 ]

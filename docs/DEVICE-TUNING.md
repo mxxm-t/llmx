@@ -465,6 +465,7 @@ Each line is the arm, the reason as read at the time, and its numbers; "implemen
 | moe_step_down: amdgpu_waves_per_eu(4) on every down build | occupancy is confirmed as the bound, but forcing 64 VGPRs spills: Q5_K needs a smaller lane state, not a register cap | dummy LDS for 4/3/2 workgroups a CU: null / Q5_1 40 to 49, Q8_0 43 to 56, Q5_K 47 to 48 / Q5_1 66, Q5_K 66, Q8_0 78 ns a workgroup; Q5_1 padded to 68 and 83 VGPR both 49; the cap takes Q5_K from 79 to 64 VGPR with 40 bytes a lane of scratch, 47 to 58-59 ns a workgroup and 19.7 to 28 us at one row; bits identical | dspine30 m11 (2026-11-27) |
 | moe_step_down: late K45 header with packed scales (rd), and with the header before the next prefetch (m13) | rd takes Q5_K to 63 VGPR, no scratch, 4 workgroups a CU and the slope from 47 to 41 ns a workgroup, but the header read lands on each unit step and the scale packing in the unsplit load also slows the shared dense k_rows | down_q5_k at one row 19.7 to 20.5 us, up_q4_k_c2_w 27.5 to 31.4 us; Qwen3.6-35B-A3B UD-Q4_K_XL int8 on one MI50 plain 144.14 to 139.71 tok/s (-3.1%), MTP k7 228.49 to 221.71 (-3.0%); Qwen3.5-9B Q4_K_M plain f16 83.22 to 77.75 (-6.6%), int8 91.41 to 86.55 (-5.3%); m13 down_q5_k 21.3 us, slope 41, also null | dspine30 t35, t36, m13 (2026-11-27) |
 | Host ring of 16 slots in place of kRingSlots 4 (ROCm decode sums) | the period-3 decode burst is host issue under CPU load, not ring reuse | 27B Q8_0 int8 tg256, 16 vs 4 slots: tw4 71.75/71.16 vs 71.53/71.13, tw2 45.60 vs 45.59 tok/s | sums97, D:18041 |
+| C16 held push at decode | matmul slows 7 us, more than the lone last-rank push saves | W4 down 46.6 vs 44.8 us one-shot, o_proj 34.9 vs 31.7; model 72.96 vs 73.07 tok/s tw4 | sums92, SUMS72 |
 
 Recurring readings across the ledger:
 - Microbenchmark wins shrink or reverse in situ: tile push, held_t and the held-stride arm all did, from a wrong shape or build flag, a cold I-cache or a dirty L2.
@@ -608,6 +609,40 @@ Ranked by the largest stated payoff, with the evidence behind each; all but the 
 5. Non-matmul work in a prompt pass: gated_delta_rule 53 of 491 ms in a 3090 27B pp512 profile, matmul_rows_f32 at 595 against 60 us, and the per-pass dispatches fusions (I:611, D:4277).
 6. Packed f16 FMA (v_pk_fma_f16) has the same 26.5 TFLOPS roof as dot2, so it offers no roof gain over the shipped f16 class; no source names it, and whether the compiler emits it anywhere is unverified.
    The only 2x over dot2 is int8 dot4, which stays an opt-in under docs/PRECISION.md.
+
+## Tile push at decode: why the microbenchmark gain vanishes (2026-11-27)
+
+Pushing a decode sum from inside the product as its tiles finish hid about half of the sum in the sums74 matbench, yet gave no tok/s in the model (Qwen3.6-27B Q8_0 --dtype int8 tg128: held push 72.96 against forced one-shot 73.07 at tw4, 46.13 both at tw2, SUMS72).
+SUMS92 tested four causes on MI50 quads, each with its own arm; times are p50 microseconds over 3 rounds of 92 iterations, the critical path being the last-arriving rank's own clock from its product start to its take end.
+
+| Cause | Arm | Result | Verdict |
+|---|---|---|---|
+| Shape: the bench is prefill-like | read matbench cells | it already runs the decode shapes: one column, 5120 rows, Kloc 4352 (W4 down), 1536 (W4 o), 8704 (W2 down), 3072 (W2 o) | refuted |
+| Tiles finish in one burst | per-tile done stamps, C16 | W4 down tiles end evenly from 7.2 to 38.1 us (quartiles 14.6/22.6/31.2) against a 40.5 us product; W4 o 4.8 to 25.8 | refuted |
+| Peer skew | matbench without its start barrier, 0/5/10/25 us more on rank 3 | see the table below: the start barrier was the bench's error | confirmed |
+| Sum off the critical path | in-model spin after every take, 2 to 16 us, all cards or one | 27B Q8_0 int8 tg128 p512 with a busy-wait of D us after every group sum (128 per token assumed, 64 layers, two sums each), 2 rounds of 3 runs: tw4 14.56 ms a token without spin, 14.47/14.80/15.34/15.26 at D 2/4/8/16 (A), 15.28 with 8 us on one card (O8); tw2 22.13 ms, 22.42/22.66 at 4/8 us, 22.97 with 8 us on one card | critical path: slope 0.48 at 4 us, 0.76 at 8 us (tw4), 0.52-0.57 at tw2, one card as costly as four |
+
+matbench opens every iteration with a cross-card barrier, so all four ranks push at once, the worst case for the one-shot's link contention and the best for a push spread over the product.
+In the model the ranks arrive staggered by their launches, the early ranks' pushes land while the last rank still computes, and only the last rank's push is on the critical path.
+Without the barrier (sums92/mb.cpp, NOBAR=1) the critical path reads, in us:
+
+| Shape | product alone | + one-shot | C16 (main's held push) | P16g480t (in-order walk) | one-shot cost | hidden C16 / walk |
+|---|---|---|---|---|---|---|
+| W4 down, barrier | 33.3 | 51.8 | 46.9 | 41.6 | 18.5 | 0.27 / 0.55 |
+| W4 down, staggered | 33.3 | 44.8 | 46.6 | 41.4 | 11.5 | -0.15 / 0.29 |
+| W4 o, barrier | 20.0 | 38.7 | 34.9 | 28.2 | 18.7 | 0.21 / 0.56 |
+| W4 o, staggered | 20.0 | 31.7 | 34.9 | 27.8 | 11.7 | -0.27 / 0.33 |
+| W2 down, staggered | 58.9 | 65.8 | 68.2 | 66.6 | 6.9 | -0.35 / -0.12 |
+| W2 o, staggered | 26.6 | 33.8 | 37.3 | 33.0 | 7.2 | -0.49 / 0.11 |
+
+Extra skew of 5, 10 or 25 us on one rank leaves these within 1 us: once the ranks are staggered at all, the last rank pays a lone push, about 11.5 us at W4 instead of 18.5 contended.
+C16, the form main ships, slows the product by about 7 us at W4 (33.3 to 40.3) and saves less than that, so on the critical path it loses 1.8 us a down sum and 3.2 us an o_proj sum, which matches the model's null; at W2 every form loses.
+The walk still hides 0.29-0.35 of a staggered sum, about 7 us a layer or +3% at tw4 by this bench, but its model prototype lost (68.6 against 72.5 tok/s, SUMS77), so something the bench does not hold costs it more in situ: the in-model spin shows what a late sum costs there. Spin of 8 us after each sum costs 6.1 us a sum at tw4 (slope 0.76) and 4.1 us at tw2, 8 us on a single card costs the same (5.6 us tw4, 6.5 us tw2), so every card waits for the latest one and the sum sits on the critical path with little slack (the first 2 us are absorbed, 16 us does not cost more than 8). The walk lost 6 us a sum (68.6 against 72.5 tok/s, 14.58 against 13.79 ms a token), the cost of an 8 us spin, so in situ it adds about that much to the last rank, as C16 does with its 7 us on the product, more than the 0.3 of a sum the bench says it hides; the data does not separate the product slowing from the take holding the stream. Host load was 20-27 during m1, S0 reads 68.7 against 72.5 earlier, and one round varies by 1-3 tok/s, which is 0.3 ms a token, the size of the 4 us effect, so only the 8 and 16 us slopes are firm
+
+What would make overlap pay at decode: only the last rank's push matters, so the lever is a push that does not slow the product (C16's stores cost more than they hide) and a shorter lone push, not more overlap of the early ranks.
+Prefill never reaches the in-product push: held push is taken only for the one-shot form (GpuCollective::summed), and prompt sums of 15.6k floats and more pick shares at tw4 (SUMS75), so the microbenchmark's prompt-shape gains (sums75 p1: W4 tile push to owner 7797 against 10679 us at 2048 rows of down) are not claimed in the model.
+A microbenchmark of a sum across cards starts its ranks as the model does, staggered by their launches, never behind a common barrier.
+Sources: sums92 HANDOFF.md, out/k1.raw (barrier), out/k2.raw (staggered), out/m1.summary, an92.py; sums74, sums75, sums83.
 
 ## Measurement method (2026-11-23)
 

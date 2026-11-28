@@ -55,6 +55,9 @@ template <class F> bool throws(F f) {
     try { f(); } catch (const std::exception&) { return true; }
     return false;
 }
+// The HIP devices this build has kernels for, in HIP's order, which main fills: the test's device k is HIP's device used[k].
+std::vector<int> used;
+BackendPtr rocm_backend(size_t k, bool diagnostics = false) { return make_rocm_backend(used.at(k), diagnostics); }
 using twin_checks::flash_shapes;
 using twin_checks::q8_matrix;
 using twin_checks::read;
@@ -291,11 +294,9 @@ void host_views(Backend& g) {
     require(read(g, *d, n) == x, "a copy out of host pages mapped after others were freed is not their bytes");
     std::cout << "backend-rocm: wrapped host pages copy in place and drop their registration with their last view"
               << (pages.data() == first ? ", the second at the first's address\n" : "\n");
-    int count = 0;
-    hip_check(f.hipGetDeviceCount(&count), "hipGetDeviceCount");
-    if (count < 2) return;
+    if (used.size() < 2) return;
     // Two members of a head group: member 0's view dropped, member 1 still copies into the memory, and once its view drops nothing is registered.
-    BackendPtr h = make_rocm_backend(1);
+    BackendPtr h = rocm_backend(1);
     core::HostPages rows(bytes);
     std::vector<BufferPtr> views = {g.wrap_host(rows.data(), bytes), h->wrap_host(rows.data(), bytes)};
     require(views[0] && views[1], "two members did not wrap one host memory");
@@ -469,15 +470,15 @@ void types(Backend& g, Backend& c) {
 }
 
 // The shared twin checks (twin_checks.hpp) at this device's wave, over the types and classes ROCm runs.
-bool quarter_form(uint32_t type, size_t nin, bool int8) { return twin_checks::quarter_form(type, nin, rocm_device(0).caps.subgroup_size, int8); }
+bool quarter_form(uint32_t type, size_t nin, bool int8) { return twin_checks::quarter_form(type, nin, rocm_device(used[0]).caps.subgroup_size, int8); }
 // The type witnesses that read the device's caps and profile (twin_checks::Bits), with ROCm's launches.
 twin_checks::Bits& bits() {
-    static twin_checks::Bits b{rocm_device(0).caps, rocm_profile, rocm_take_launches, require};
+    static twin_checks::Bits b{rocm_device(used[0]).caps, rocm_profile, rocm_take_launches, require};
     return b;
 }
 // The routed experts' checks (moe_checks.hpp) at this device's wave, with ROCm's launches and routed-build filter.
 moe_checks::Moe& moe() {
-    static moe_checks::Moe m{rocm_device(0).caps.subgroup_size, rocm_take_launches, rocm_route_only, require};
+    static moe_checks::Moe m{rocm_device(used[0]).caps.subgroup_size, rocm_take_launches, rocm_route_only, require};
     return m;
 }
 // Two and three F32 projections of one row take one launch, each output the bits of its own matmul, at a wide row and at the narrow rows that take 16 or 32 lanes an output.
@@ -599,8 +600,8 @@ void conv_store_launches(Backend& g) {
 // A ring convolution of one row whose input is a MoE step's output (ConvProduct::step) runs in the store of the step's routed down and combine, one llmx_q8_0_routed16_walk3_add_conv launch.
 // Its output, the step's and the ring's bits are the step's and then llmx_conv_ring's, plain and added, as the ring fills and wraps.
 void step_conv_store(Backend& g) {
-    if (rocm_device(0).caps.subgroup_size != 64) {
-        std::cout << "backend-rocm: step conv store skipped, waves of " << rocm_device(0).caps.subgroup_size << " lanes\n";
+    if (rocm_device(used[0]).caps.subgroup_size != 64) {
+        std::cout << "backend-rocm: step conv store skipped, waves of " << rocm_device(used[0]).caps.subgroup_size << " lanes\n";
         return;
     }
     const auto count = [&](const std::map<std::string, size_t>& m, const std::string& name) { return m.count(name) ? m.at(name) : size_t(0); };
@@ -745,8 +746,8 @@ void query_mix_norm_planes(Backend& g) {
 // Message-gate items with their down steps at one row, as Inkling-2's loop controllers run them: one llmx_normed_gate_mix launch in place of the down, product and mix launches.
 // Each out, low row and product of a normed out have the bits of group_rms_norm, the gate products and tanh_gate_mix apart, for one item mixed in place and three normed items, in 16-bit and 8-bit products.
 void normed_gate_mix_steps(Backend& g) {
-    if (rocm_device(0).caps.subgroup_size != 64) {
-        std::cout << "backend-rocm: normed gate mix skipped, waves of " << rocm_device(0).caps.subgroup_size << " lanes\n";
+    if (rocm_device(used[0]).caps.subgroup_size != 64) {
+        std::cout << "backend-rocm: normed gate mix skipped, waves of " << rocm_device(used[0]).caps.subgroup_size << " lanes\n";
         return;
     }
     const auto count = [&](const std::map<std::string, size_t>& m, const std::string& name) { return m.count(name) ? m.at(name) : size_t(0); };
@@ -825,8 +826,8 @@ void normed_gate_mix_steps(Backend& g) {
 // moe_step's routed act on a 64-lane wave where gate and up take the walk build: one llmx_q8_0_routed16_walk5_glu or walk3_glu launch (llmx_q8_0_routed_half8_walk3_glu in the int8 class) in place of the products and silu_mul.
 // Its act, the act's twin through the down that reads it, and the step's output have the bits of the products and silu_mul, for each GLU form, at 8 of 16 Q8_0 experts.
 void step_walk_glu(Backend& g) {
-    if (rocm_device(0).caps.subgroup_size != 64) {
-        std::cout << "backend-rocm: step walk glu skipped, waves of " << rocm_device(0).caps.subgroup_size << " lanes\n";
+    if (rocm_device(used[0]).caps.subgroup_size != 64) {
+        std::cout << "backend-rocm: step walk glu skipped, waves of " << rocm_device(used[0]).caps.subgroup_size << " lanes\n";
         return;
     }
     const auto count = [&](const std::map<std::string, size_t>& m, const std::string& name) { return m.count(name) ? m.at(name) : size_t(0); };
@@ -869,7 +870,7 @@ void step_walk_glu(Backend& g) {
 // glu_products of one row on a 64-lane wave where gate and up take the walk at eight rows a wave: one routed walk GLU launch over expert 0 in place of the products and silu_mul.
 // At the widths where the walk takes four rows a wave the base runs; either way the act, its twin through the down that reads it, and the output keep the base's bits, for each GLU form.
 void dense_walk_glu(Backend& g) {
-    const auto& caps = rocm_device(0).caps;
+    const auto& caps = rocm_device(used[0]).caps;
     if (caps.subgroup_size != 64) {
         std::cout << "backend-rocm: dense walk glu skipped, waves of " << caps.subgroup_size << " lanes\n";
         return;
@@ -974,7 +975,7 @@ void conv_ring_paths(Backend& g) {
     std::cout << "backend-rocm: conv ring paths, " << cases << " cases\n";
 }
 void exact_rows(Backend& g) {
-    twin_checks::exact_rows(g, rocm_profile(g), rocm_device(0).caps.subgroup_size, {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0,
+    twin_checks::exact_rows(g, rocm_profile(g), rocm_device(used[0]).caps.subgroup_size, {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0,
                                quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_BF16, quant::GGML_TYPE_F16, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4, quant::GGML_TYPE_NVFP4,
                                quant::GGML_TYPE_Q2_K, quant::GGML_TYPE_Q3_K, quant::GGML_TYPE_IQ4_XS,
                               quant::GGML_TYPE_IQ2_XXS, quant::GGML_TYPE_IQ2_XS, quant::GGML_TYPE_IQ2_S, quant::GGML_TYPE_IQ3_XXS, quant::GGML_TYPE_IQ3_S,
@@ -990,7 +991,7 @@ void twin_types(Backend& g, Backend& c) {
                                    quant::GGML_TYPE_MXFP4, quant::GGML_TYPE_Q3_K, quant::GGML_TYPE_Q2_K, quant::GGML_TYPE_IQ4_XS, quant::GGML_TYPE_IQ2_XXS, quant::GGML_TYPE_IQ2_XS, quant::GGML_TYPE_IQ3_S,
                                    quant::GGML_TYPE_IQ2_S, quant::GGML_TYPE_IQ3_XXS, quant::GGML_TYPE_IQ1_S, quant::GGML_TYPE_IQ1_M,
                                    quant::GGML_TYPE_Q1_0, quant::GGML_TYPE_Q2_0},
-                            {Dtype::f16, Dtype::int8}, rocm_device(0).caps.subgroup_size, rocm_take_launches, [](uint32_t, Dtype, size_t, size_t, size_t) { return std::string(); }, require);
+                            {Dtype::f16, Dtype::int8}, rocm_device(used[0]).caps.subgroup_size, rocm_take_launches, [](uint32_t, Dtype, size_t, size_t, size_t) { return std::string(); }, require);
     profile.prompt_rows_below = keep;
 }
 
@@ -1452,7 +1453,7 @@ std::map<std::string, size_t> one_chain(const std::map<std::string, size_t>& lau
 void moe_step_bits(Backend& g) {
     const size_t few = 24;
     // The build compiles the dot module for gfx906 alone (CMakeLists.txt, int16dot).
-    const bool fused = rocm_device(0).arch.rfind("gfx906", 0) == 0 && rocm_device(0).caps.subgroup_size == 64;
+    const bool fused = rocm_device(used[0]).arch.rfind("gfx906", 0) == 0 && rocm_device(used[0]).caps.subgroup_size == 64;
     struct Shape {
         size_t nin, ne, k;
     };
@@ -1730,7 +1731,7 @@ void delta_rates(Backend& g) {
 void moe_rows_bits(Backend& g) {
     const size_t nin = 2560, few = 24;
     const double grouped_from = 1.25;
-    const bool fused = rocm_device(0).arch.rfind("gfx906", 0) == 0 && rocm_device(0).caps.subgroup_size == 64;
+    const bool fused = rocm_device(used[0]).arch.rfind("gfx906", 0) == 0 && rocm_device(used[0]).caps.subgroup_size == 64;
     size_t wide_runs = 0, lean_runs = 0;
     std::set<std::string> routes_run;
     constexpr uint32_t F32 = quant::GGML_TYPE_F32, F16 = quant::GGML_TYPE_F16, BF16 = quant::GGML_TYPE_BF16;
@@ -1877,7 +1878,7 @@ void moe_rows_bits(Backend& g) {
 // A one-column Q8_0 group of four to six projections in one pair launch (kernels/int16.gpu, LLMX_PAIR), each output the bits of its projection's own matmul: Inkling-2-Mini's attention groups at 2304 values and a small group at 512.
 // int8 takes the held pair build at 2304 values, and at 512, whose int8 build has no pair, a launch a three, with the same bits (`pair` and the full run).
 void pair_rows_bits(Backend& g) {
-    const size_t fill = size_t(rocm_profile(g).row_walk_waves_per_cu) * rocm_device(0).caps.compute_units;
+    const size_t fill = size_t(rocm_profile(g).row_walk_waves_per_cu) * rocm_device(used[0]).caps.compute_units;
     const auto count = [&](const std::map<std::string, size_t>& m, const std::string& name) { return m.count(name) ? m.at(name) : size_t(0); };
     const auto held_pairs = [&](const std::map<std::string, size_t>& m) {
         return count(m, "llmx_q8_0_half8_1h2_pair") + count(m, "llmx_q8_0_half8_1h3_pair") + count(m, "llmx_q8_0_half8_1h4_pair") + count(m, "llmx_q8_0_half8_1h5_pair");
@@ -1914,7 +1915,7 @@ void pair_rows_bits(Backend& g) {
                 // The summed rows choose the build, so 11592 rows walk on a 60-unit device and 6552 take the two-row build (block_rows).
                 size_t total = 0;
                 for (const size_t r : k.rows) total += r;
-                const bool walks = rocm_device(0).caps.subgroup_size == 64 && total / 4 >= fill;
+                const bool walks = rocm_device(used[0]).caps.subgroup_size == 64 && total / 4 >= fill;
                 if (nin == 2304) require(count(group, walks ? "llmx_q8_0_rows16_1_walk5_pair" : "llmx_q8_0_rows16_1_pair") == 1, "the 2304-wide group of " + at + " takes the build its summed rows give");
                 if (nin == 512) require(count(group, "llmx_q8_0_rows16_1_pair") == 1, "the 512-wide group of " + at + " takes the two-row build");
             } else {
@@ -2020,7 +2021,7 @@ void pair_rows_bits(Backend& g) {
 // The walk builds of one 16-bit Q8_0 column (kernels/int16.gpu, q8_0_walk) against the two-row build, bit for bit: dense calls and an 8-entry routed call large enough to walk four and eight rows a wave, against a call too small to walk.
 // Every width of build is reached, 768 for two passes, 1536 for three and 2304 for five, plain and adding into the output (backend-rocm, `moe`).
 void walk_rows_bits(Backend& g) {
-    const auto& caps = rocm_device(0).caps;
+    const auto& caps = rocm_device(used[0]).caps;
     if (caps.subgroup_size != 64) {
         std::cout << "backend-rocm: walk rows skipped, waves of " << caps.subgroup_size << " lanes\n";
         return;
@@ -2129,8 +2130,8 @@ void walk_rows_bits(Backend& g) {
 // The int8 routed down with its weighted sum in one launch (kernels/int16.gpu, q8_0_walk_combine's int8 build) against each entry's llmx_q8_0_routed_half8s1 product summed in llmx_moe_combine's order, bit for bit (backend-rocm, `moe`).
 // Rows of 18, 24 and 32 blocks walk; 17 blocks (odd) and 34 (past half a wave) keep the two launches; 2300 outputs leave a block's last rows past the matrix.
 void walk_half8_combine_bits(Backend& g) {
-    if (rocm_device(0).caps.subgroup_size != 64) {
-        std::cout << "backend-rocm: int8 walk combine skipped, waves of " << rocm_device(0).caps.subgroup_size << " lanes\n";
+    if (rocm_device(used[0]).caps.subgroup_size != 64) {
+        std::cout << "backend-rocm: int8 walk combine skipped, waves of " << rocm_device(used[0]).caps.subgroup_size << " lanes\n";
         return;
     }
     const auto count = [&](const std::map<std::string, size_t>& m, const std::string& name) { return m.count(name) ? m.at(name) : size_t(0); };
@@ -2826,7 +2827,7 @@ void pass_args(Backend& g) {
     const std::vector<float> keys = row_classes::values(steps * kvw, 91), vals = row_classes::values(steps * kvw, 92), q = row_classes::values(qw, 93, 4.0f);
     std::vector<std::vector<float>> out;
     for (int fresh = 0; fresh < 2; ++fresh) {
-        BackendPtr own = fresh ? make_rocm_backend(0) : nullptr;
+        BackendPtr own = fresh ? rocm_backend(0) : nullptr;
         Backend& b = fresh ? *own : g;
         auto kb = b.adopt(keys.data(), keys.size() * 4), vb = b.adopt(vals.data(), vals.size() * 4), qb = b.adopt(q.data(), q.size() * 4);
         auto ob = b.alloc(2 * qw * 4);
@@ -2873,7 +2874,7 @@ void records() {
     HipFn& f = hip();
     issued_real = f.hipModuleLaunchKernel;
     {
-        BackendPtr b = make_rocm_backend(0);
+        BackendPtr b = rocm_backend(0);
         auto x = b->alloc(4096);
         b->sync();
         rocm_profile(*b).dispatch_chunk = 8;
@@ -2927,7 +2928,7 @@ void records() {
     const std::vector<float> keys = row_classes::values(steps * kvw, 94), vals = row_classes::values(steps * kvw, 95), q = row_classes::values(steps * qw, 96, 4.0f);
     std::vector<std::vector<float>> out;
     for (const uint32_t chunk : {1u, 64u, 100000u}) {
-        BackendPtr b = make_rocm_backend(0);
+        BackendPtr b = rocm_backend(0);
         rocm_profile(*b).dispatch_chunk = chunk;
         auto kb = b->adopt(keys.data(), keys.size() * 4), vb = b->adopt(vals.data(), vals.size() * 4), qb = b->adopt(q.data(), q.size() * 4);
         auto ob = b->alloc(2 * qw * 4), all = b->alloc(steps * 2 * qw * 4);
@@ -2954,7 +2955,7 @@ void records() {
 
 // A failure the device reports at a ticket's event is kept as the first cause: raise(t) before results are read in place, a read and the next launch throw it.
 void failure() {
-    BackendPtr g = make_rocm_backend(0);
+    BackendPtr g = rocm_backend(0);
     HipFn& f = hip();
     const auto synchronize = f.hipEventSynchronize;
     auto buf = g->alloc(4096);
@@ -3005,13 +3006,7 @@ hipError_t counted_stream(hipStream_t* s, unsigned flags) {
 
 std::vector<BackendPtr> rocm_devices(size_t most) {
     std::vector<BackendPtr> d;
-    for (size_t i = 0; i < most; ++i) {
-        try {
-            d.push_back(make_rocm_backend((int)i));
-        } catch (const RocmUnavailable&) {
-            break;
-        }
-    }
+    for (size_t i = 0; i < most && i < used.size(); ++i) d.push_back(rocm_backend(i));
     return d;
 }
 std::vector<Backend*> raw(const std::vector<BackendPtr>& d, size_t W) {
@@ -3587,7 +3582,7 @@ void hc_entry_rows(Backend& g, bool with_inj) {
 // A launch that issues a held inject at the chunk keeps its own arguments: the inject's flush must not leave it reading the bytes the launches after it write.
 // Seven adds and the inject fill an idle device's first chunk of 8, so the inject goes from inside the next add's hold and that add is the first of the next chunk.
 void inject_at_chunk() {
-    BackendPtr b = make_rocm_backend(0);
+    BackendPtr b = rocm_backend(0);
     rocm_profile(*b).dispatch_chunk = 64;
     const size_t n = 1024, E = 1280;
     const std::vector<float> one(n, 1.0f), zero(E, 0.0f);
@@ -4310,7 +4305,7 @@ void queues() {
 
 decltype(HipFn::hipEventRecord) real_record = nullptr;
 decltype(HipFn::hipSetDevice) real_set = nullptr;
-hipEvent_t record_probe[2] = {};   // one a device, recorded on the device the caller last set
+hipEvent_t record_probe[2] = {};   // one a test device, recorded on the device the caller last set
 thread_local int record_device = 0;
 int records_stalled = 0;   // records that found their stream still running after kRecordWaitMs
 constexpr int kRecordWaitMs = 2000;
@@ -4328,7 +4323,7 @@ hipError_t record_behind(hipEvent_t e, hipStream_t s) {
     return real_record(e, s);
 }
 hipError_t set_noted(int device) {
-    record_device = device;
+    record_device = device == used[1] ? 1 : 0;
     return real_set(device);
 }
 
@@ -4347,7 +4342,7 @@ void records_behind_sums() {
     for (const GpuSumForm form : {GpuSumForm::one_shot, GpuSumForm::chain, GpuSumForm::shares}) cs.push_back(rocm_collective(group, rows, width, form));
     for (const auto& c : cs) require(c->copies_beside(half * width), "a lane sum of the records check does not cross beside");
     for (int k = 0; k < 2; ++k) {
-        (void)f.hipSetDevice(k);
+        (void)f.hipSetDevice(used[k]);
         require(f.hipEventCreateWithFlags(&record_probe[k], hipEventDisableTiming) == hipSuccess, "the records check made no event");
     }
     real_record = f.hipEventRecord;
@@ -4577,7 +4572,7 @@ void collective() {
         const std::vector<unsigned> seeded(16, 0xfffffffcu);
         for (size_t m = 0; m < 2; ++m) {
             e[m]->sync();
-            hip_check(f.hipSetDevice((int)m), "hipSetDevice");
+            hip_check(f.hipSetDevice(used[m]), "hipSetDevice");
             hip_check(f.hipMemcpyAsync(areas[m], seeded.data(), seeded.size() * sizeof(unsigned), hipMemcpyHostToDevice, nullptr), "hipMemcpyAsync");
             hip_check(f.hipStreamSynchronize(nullptr), "hipStreamSynchronize");
         }
@@ -4585,7 +4580,7 @@ void collective() {
         for (size_t m = 0; m < 2; ++m) {
             e[m]->sync();
             unsigned epoch = 0;
-            hip_check(f.hipSetDevice((int)m), "hipSetDevice");
+            hip_check(f.hipSetDevice(used[m]), "hipSetDevice");
             hip_check(f.hipMemcpyAsync(&epoch, areas[m], sizeof(epoch), hipMemcpyDeviceToHost, nullptr), "hipMemcpyAsync");
             hip_check(f.hipStreamSynchronize(nullptr), "hipStreamSynchronize");
             require(epoch == 9, "twelve group sums from epoch 0xfffffffc ended at epoch " + std::to_string(epoch) + ", not 9");
@@ -4786,7 +4781,7 @@ void deepseek4(Backend& g) {
     rocm_take_launches(g);
     const size_t values = ds4::check_ops(p, {"hc_collapse_norm", "hc_expand", "indexer_scores", "rope_forms", "mix_rows"});
     // The FP4 keys 128 wide reach the integer index tile wherever the 8-bit dot is built.
-    if (rocm_device(0).caps.integer_dot) require(rocm_take_launches(g).count("llmx_indexer_scores_int") == 1, "deepseek4's index checks take llmx_indexer_scores_int");
+    if (rocm_device(used[0]).caps.integer_dot) require(rocm_take_launches(g).count("llmx_indexer_scores_int") == 1, "deepseek4's index checks take llmx_indexer_scores_int");
     // topk_rows in chunks of 128 and a merge (kernels/f32.gpu, modes 2 and 3), at n 300 with k 1 and 101 and at n 5000 with k 1, the CPU's ids at every cut, tie and length.
     size_t& chunk = rocm_profile(g).topk_chunk;
     const size_t kept = chunk;
@@ -4880,7 +4875,7 @@ void sum_forms() {
     uint32_t seed = 1601;
     for (const size_t W : {2, 3, 4, 5, 8, 12}) {
         std::vector<BackendPtr> d;
-        for (size_t m = 0; m < W; ++m) d.push_back(make_rocm_backend(0));
+        for (size_t m = 0; m < W; ++m) d.push_back(rocm_backend(0));
         const std::vector<Backend*> group = raw(d, W);
         const size_t cap = W > 5 ? 3 * chunk + 5 : 17 * chunk + 5;
         std::vector<size_t> sizes = {1, 4 * W - 1, 4 * W + 1, 20 * W + 3, chunk - 1, chunk + 1, cap};
@@ -4899,7 +4894,7 @@ void sum_forms() {
                       << (W <= 4 ? ", two sequences in flight," : ",") << " each the oracle's bits\n";
         }
     }
-    std::vector<BackendPtr> e = {make_rocm_backend(0), make_rocm_backend(0)};
+    std::vector<BackendPtr> e = {rocm_backend(0), rocm_backend(0)};
     for (size_t k = 0; k < std::size(forms); ++k) {
         std::unique_ptr<Collective> c = rocm_collective(raw(e, 2), 64, 97, forms[k]);
         const std::vector<float> rows(97, 1.0f);
@@ -4937,7 +4932,7 @@ static_assert(sizeof(SixteenPeers) == 288 && offsetof(SixteenPeers, status) == 2
 void sixteen_ranks() {
     HipFn& f = hip();
     const size_t W = kMaxTensorWidth, n = 3 * 4 * 4096 + 5, cap = (n + 3) / 4 * 4, signal = 8192, units = (n + 3) / 4;
-    hip_check(f.hipSetDevice(0), "hipSetDevice");
+    hip_check(f.hipSetDevice(used[0]), "hipSetDevice");
     hipModule_t module = nullptr;
     hipFunction_t sums[3] = {}, arm = nullptr;
     hip_check(f.hipModuleLoadData(&module, kF32Module), "hipModuleLoadData");
@@ -4945,7 +4940,7 @@ void sixteen_ranks() {
     for (int k = 0; k < 3; ++k) hip_check(f.hipModuleGetFunction(&sums[k], module, kernels[k]), "hipModuleGetFunction");
     hip_check(f.hipModuleGetFunction(&arm, module, "llmx_group_arm"), "hipModuleGetFunction");
     int khz = 0;
-    hip_check(f.hipDeviceGetAttribute(&khz, hipDeviceAttributeWallClockRate, 0), "hipDeviceGetAttribute");
+    hip_check(f.hipDeviceGetAttribute(&khz, hipDeviceAttributeWallClockRate, used[0]), "hipDeviceGetAttribute");
     unsigned long long timeout = (unsigned long long)khz * 1000, tick = (unsigned long long)khz;
     std::vector<void*> area(W), own(W), out(W);
     std::vector<hipStream_t> streams(W);
@@ -5035,14 +5030,14 @@ void sixteen_ranks() {
 void late_totals() {
     HipFn& f = hip();
     const size_t W = 2, n = 2048, cap = n, signal = 8192;
-    hip_check(f.hipSetDevice(0), "hipSetDevice");
+    hip_check(f.hipSetDevice(used[0]), "hipSetDevice");
     hipModule_t module = nullptr;
     hipFunction_t sum = nullptr, arm = nullptr;
     hip_check(f.hipModuleLoadData(&module, kF32Module), "hipModuleLoadData");
     hip_check(f.hipModuleGetFunction(&sum, module, "llmx_group_chain"), "hipModuleGetFunction");
     hip_check(f.hipModuleGetFunction(&arm, module, "llmx_group_arm"), "hipModuleGetFunction");
     int khz = 0;
-    hip_check(f.hipDeviceGetAttribute(&khz, hipDeviceAttributeWallClockRate, 0), "hipDeviceGetAttribute");
+    hip_check(f.hipDeviceGetAttribute(&khz, hipDeviceAttributeWallClockRate, used[0]), "hipDeviceGetAttribute");
     unsigned long long timeout = (unsigned long long)khz * 2000, tick = (unsigned long long)khz;
     std::vector<void*> area(W);
     void *own = nullptr, *out = nullptr, *table = nullptr;
@@ -5184,13 +5179,26 @@ int main(int argc, char** argv) {
     // `queues` takes eight hardware queues a device, two to each of the four pipes, as a user may set and the rig's runs do, so streams past four share a pipe.
     const bool queues_only = argc > 1 && std::string(argv[1]) == "queues";
     if (queues_only) set_env("GPU_MAX_HW_QUEUES", "8");
-    BackendPtr g;
-    try {
-        g = make_rocm_backend(0);
-    } catch (const RocmUnavailable& e) {
-        std::cout << "backend-rocm: skipped, " << e.what() << "\n";
-        return 77;
+    // Every HIP device the backend opens, in HIP's order; one this build has no kernels for, which the backend refuses by name (GpuBackend), is skipped and named.
+    for (int i = 0;; ++i) {
+        try {
+            make_rocm_backend(i);
+            used.push_back(i);
+        } catch (const RocmUnavailable& e) {
+            if (i > 0) break;
+            std::cout << "backend-rocm: skipped, " << e.what() << "\n";
+            return 77;
+        } catch (const std::runtime_error& e) {
+            if (std::string(e.what()).find("has no kernels for") == std::string::npos) throw;
+            std::cout << "backend-rocm: HIP device " << i << " skipped, " << e.what() << "\n";
+        }
     }
+    if (used.empty()) {
+        std::cout << "backend-rocm: FAIL, this build has kernels for none of the HIP devices\n";
+        return 1;
+    }
+    std::cout << "backend-rocm: on HIP device " << used[0] << " (" << rocm_device(used[0]).caps.device << ") and " << used.size() - 1 << " more\n";
+    BackendPtr g = rocm_backend(0);
     BackendPtr c = make_cpu_backend();
     c->set_threads(4);
     try {
@@ -5247,9 +5255,9 @@ int main(int argc, char** argv) {
         }
         // `timing` runs only the checks of a backend timing its ops.
         if (argc > 1 && std::string(argv[1]) == "timing") {
-            twin_checks::kernel_times(*make_rocm_backend(0, true), *g, rocm_take_launches, require);
-            twin_checks::host_stall(*make_rocm_backend(0, true), rocm_profile, rocm_delay_launches, require);
-            twin_checks::gated_drop(*make_rocm_backend(0, true), *g, rocm_delay_launches, require);
+            twin_checks::kernel_times(*rocm_backend(0, true), *g, rocm_take_launches, require);
+            twin_checks::host_stall(*rocm_backend(0, true), rocm_profile, rocm_delay_launches, require);
+            twin_checks::gated_drop(*rocm_backend(0, true), *g, rocm_delay_launches, require);
             std::cout << (failures ? "backend-rocm timing: FAIL\n" : "backend-rocm timing: PASS\n");
             return failures ? 1 : 0;
         }
@@ -5336,7 +5344,7 @@ int main(int argc, char** argv) {
         }
         // `scratch [FILE [DEVICE]]` runs only the check that a fitted model's passes grow no device memory past what its fit priced, on FILE too when given.
         if (argc > 1 && std::string(argv[1]) == "scratch") {
-            scratch_reserved(argc > 2 ? argv[2] : "", argc > 3 ? std::atoi(argv[3]) : 0);
+            scratch_reserved(argc > 2 ? argv[2] : "", argc > 3 ? std::atoi(argv[3]) : used[0]);
             std::cout << (failures ? "backend-rocm scratch: FAIL\n" : "backend-rocm scratch: PASS\n");
             return failures ? 1 : 0;
         }
@@ -5373,7 +5381,7 @@ int main(int argc, char** argv) {
                 twin_checks::stream_twins(*g, dt, rocm_take_launches, require);
             }
             hyper_mix_bits(*g);
-            if (rocm_devices(2).size() == 2) hyper_mix_bits(*make_rocm_backend(1), g.get());
+            if (rocm_devices(2).size() == 2) hyper_mix_bits(*rocm_backend(1), g.get());
             moe_step_bits(*g);
             moe_rows_bits(*g);
             std::cout << (failures ? "backend-rocm twins: FAIL\n" : "backend-rocm twins: PASS\n");
@@ -5381,7 +5389,7 @@ int main(int argc, char** argv) {
         }
         // `delta` runs only the fused linear-attention step against the base's calls.
         if (argc > 1 && std::string(argv[1]) == "delta") {
-            twin_checks::delta_step_bits(*g, rocm_device(0).caps, rocm_take_launches, require);
+            twin_checks::delta_step_bits(*g, rocm_device(used[0]).caps, rocm_take_launches, require);
             std::cout << (failures ? "backend-rocm delta: FAIL\n" : "backend-rocm delta: PASS\n");
             return failures ? 1 : 0;
         }
@@ -5430,16 +5438,16 @@ int main(int argc, char** argv) {
         twin_checks::fp8_grids(*g, *c, rocm_take_launches, require);
         attention(*g, *c);
         classes(*g);
-        twin_checks::twin_products(*g, rocm_device(0).caps, Dtype::f16, rocm_take_launches, require);
+        twin_checks::twin_products(*g, rocm_device(used[0]).caps, Dtype::f16, rocm_take_launches, require);
         twin_checks::producer_twins(*g, Dtype::f16, require);
         twin_checks::stream_twins(*g, Dtype::f16, rocm_take_launches, require);
-        twin_checks::twin_products(*g, rocm_device(0).caps, Dtype::int8, rocm_take_launches, require);
+        twin_checks::twin_products(*g, rocm_device(used[0]).caps, Dtype::int8, rocm_take_launches, require);
         twin_checks::producer_twins(*g, Dtype::int8, require);
         twin_checks::stream_twins(*g, Dtype::int8, rocm_take_launches, require);
         hyper_mix_bits(*g);
-        if (rocm_devices(2).size() == 2) hyper_mix_bits(*make_rocm_backend(1), g.get());
+        if (rocm_devices(2).size() == 2) hyper_mix_bits(*rocm_backend(1), g.get());
         moe_step_bits(*g);
-        twin_checks::delta_step_bits(*g, rocm_device(0).caps, rocm_take_launches, require);
+        twin_checks::delta_step_bits(*g, rocm_device(used[0]).caps, rocm_take_launches, require);
         moe_rows_bits(*g);
         walk_rows_bits(*g);
         walk_half8_combine_bits(*g);
@@ -5461,9 +5469,9 @@ int main(int argc, char** argv) {
         vec_bits(*g);
         ds4::sparse_grouped(*g, rocm_caps, rocm_take_launches, require);
         pass_args(*g);
-        twin_checks::kernel_times(*make_rocm_backend(0, true), *g, rocm_take_launches, require);
-        twin_checks::host_stall(*make_rocm_backend(0, true), rocm_profile, rocm_delay_launches, require);
-        twin_checks::gated_drop(*make_rocm_backend(0, true), *g, rocm_delay_launches, require);
+        twin_checks::kernel_times(*rocm_backend(0, true), *g, rocm_take_launches, require);
+        twin_checks::host_stall(*rocm_backend(0, true), rocm_profile, rocm_delay_launches, require);
+        twin_checks::gated_drop(*rocm_backend(0, true), *g, rocm_delay_launches, require);
         records();
         failure();
         records_behind_sums();

@@ -24,6 +24,7 @@ Each entry is one short line that links the doc explaining it; reasons, flags an
 
 ### Changed
 
+- Decode sums at tensor width 2 on ROCm take beside their push, about 0.7% faster on two MI50s ([DEVICE-TUNING](docs/DEVICE-TUNING.md)).
 - Faster int8 decode at four MI50s: the held Q8_0 build takes the tensor group's sum itself ([DEVICE-TUNING](docs/DEVICE-TUNING.md)).
 - ROCm tensor groups on MI50 sum prompt-sized parts up to a quarter faster by reading their peers' rows ([GPU backends](docs/src/backends-gpu.md)).
 - A tensor width that does not divide a model's vocabulary splits the head's rows unevenly instead of refusing ([TENSOR-SPLIT](docs/TENSOR-SPLIT.md)).

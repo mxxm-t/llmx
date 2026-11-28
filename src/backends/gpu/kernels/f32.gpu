@@ -351,10 +351,11 @@ __device__ bool group_chain(const GroupPeers* p, GroupSignal* self, const float*
     return true;
 }
 
-// The fast one-shot's push: member rank's rows, quiet NaNs escaped, into every peer's slot of the parity half at half_at.
-__device__ inline void group_push_rows(const GroupPeers* p, const float* own, unsigned long long n, unsigned long long cap, unsigned long long half_at, int members, int rank) {
-    const unsigned long long units = (n + 3) / 4, step = (unsigned long long)gridDim.x * kThreads;
-    const unsigned long long first = (unsigned long long)blockIdx.x * kThreads + threadIdx.x;
+// The fast one-shot's push: member rank's rows, quiet NaNs escaped, into every peer's slot of the parity half at half_at, as block `block` of `blocks`.
+__device__ inline void group_push_rows(const GroupPeers* p, const float* own, unsigned long long n, unsigned long long cap, unsigned long long half_at, int members, int rank, unsigned block,
+                                       unsigned blocks) {
+    const unsigned long long units = (n + 3) / 4, step = (unsigned long long)blocks * kThreads;
+    const unsigned long long first = (unsigned long long)block * kThreads + threadIdx.x;
     for (unsigned long long u = first; u < units; u += step) {
         const unsigned long long i = u * 4;
         if (i + 4 <= n) {
@@ -374,9 +375,9 @@ __device__ inline void group_push_rows(const GroupPeers* p, const float* own, un
 // The fast one-shot's take: the members' rows added in member order into out, each peer's unit armed again once read; a take that gave up leaves NaN and marks the group failed.
 // self is the member's signal, which the one-shot loads before its push, as that keeps its registers at llmx_group_sum's five waves a SIMD.
 __device__ inline void group_take_rows(const GroupPeers* p, const float* own, float* out, unsigned long long n, unsigned long long cap, unsigned long long half_at, int members, int rank,
-                                       bool replace, unsigned long long deadline, unsigned long long tick, int* failed, GroupSignal* self) {
-    const unsigned long long units = (n + 3) / 4, step = (unsigned long long)gridDim.x * kThreads;
-    const unsigned long long first = (unsigned long long)blockIdx.x * kThreads + threadIdx.x;
+                                       bool replace, unsigned long long deadline, unsigned long long tick, int* failed, GroupSignal* self, unsigned block, unsigned blocks) {
+    const unsigned long long units = (n + 3) / 4, step = (unsigned long long)blocks * kThreads;
+    const unsigned long long first = (unsigned long long)block * kThreads + threadIdx.x;
     const bool aligned = ((unsigned long long)out & 15) == 0;
     float* mine = p->stage[rank] + half_at;
     unsigned long long next = (unsigned long long)wall_clock() + tick;
@@ -420,16 +421,19 @@ extern "C" __global__ void LLMX_WAVES_BOUNDS(kThreads, 5) llmx_group_sum(const G
     }
     GroupSignal* self = (GroupSignal*)p->signal[rank];
     const unsigned long long deadline = timeout ? (unsigned long long)wall_clock() + timeout : ~0ull;
+    // Split (flag 32, out not aliasing own), the first half of the blocks push and the second half take, so the take waits beside the push rather than after it.
+    const bool split = flags & 32;
+    const unsigned blocks = split ? gridDim.x / 2 : gridDim.x, block = split && blockIdx.x >= blocks ? blockIdx.x - blocks : blockIdx.x;
     if (!threadIdx.x) failed = 0;
-    group_push_rows(p, own, n, cap, half_at, members, rank);
+    if (!split || blockIdx.x < blocks) group_push_rows(p, own, n, cap, half_at, members, rank, block, blocks);
     __syncthreads();
-    group_take_rows(p, own, out, n, cap, half_at, members, rank, replace, deadline, tick, &failed, self);
+    if (!split || blockIdx.x >= blocks) group_take_rows(p, own, out, n, cap, half_at, members, rank, replace, deadline, tick, &failed, self, block, blocks);
 }
 
 // The one-shot's halves as kernels of their own, with llmx_group_sum's arguments: a member's push, and its take, which the collective records with the member's backend (collective_core.hpp, pushed).
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_group_push(const GroupPeers* p, const float* own, float* /*out*/, unsigned long long n, unsigned long long cap,
                                                                        int members, int rank, int flags, unsigned long long /*timeout*/, unsigned long long /*tick*/) {
-    group_push_rows(p, own, n, cap, (unsigned long long)(flags >> 2 & 1) * members * cap, members, rank);
+    group_push_rows(p, own, n, cap, (unsigned long long)(flags >> 2 & 1) * members * cap, members, rank, blockIdx.x, gridDim.x);
 }
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_group_take(const GroupPeers* p, const float* own, float* out, unsigned long long n, unsigned long long cap,
                                                                        int members, int rank, int flags, unsigned long long timeout, unsigned long long tick) {
@@ -437,7 +441,7 @@ extern "C" __global__ void __launch_bounds__(kThreads) llmx_group_take(const Gro
     const unsigned long long deadline = timeout ? (unsigned long long)wall_clock() + timeout : ~0ull;
     if (!threadIdx.x) failed = 0;
     __syncthreads();
-    group_take_rows(p, own, out, n, cap, (unsigned long long)(flags >> 2 & 1) * members * cap, members, rank, flags & 1, deadline, tick, &failed, (GroupSignal*)p->signal[rank]);
+    group_take_rows(p, own, out, n, cap, (unsigned long long)(flags >> 2 & 1) * members * cap, members, rank, flags & 1, deadline, tick, &failed, (GroupSignal*)p->signal[rank], blockIdx.x, gridDim.x);
 }
 
 // The chain, a kernel of its own so the one-shot keeps its registers; the arguments are llmx_group_sum's, flags 1 and 4 the same, and it ends at a meeting.

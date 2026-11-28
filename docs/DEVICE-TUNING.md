@@ -771,3 +771,27 @@ Interleaved on main 6adeee63, renderD132-135, tg128 mean tok/s, gfx906 builds on
 | walk, inline take (landed) | 45.832 (-0.19%) | 73.07-74.27 (about +2.0%) |
 
 The control moves tw2 by +0.27% with no executed change, so the band is at least that wide and the -0.19% dip of the landed form is layout; ids are the same as main's for both walk arms at tw2 and tw4 (n=128).
+
+## Split one-shot roles (2026-11-28, SUMS99 to SUMS104, branch products/sum-split-roles on c17a410d7)
+
+A plain one-shot block pushes its rows and then takes its peers', so its take starts only after its own push; the split launches twice the blocks, the first half only pushing and the second only taking (docs/src/backends-gpu.md).
+It reaches the 128 layer sums a token of a 27B qwen35 model at tw2, where `held_push_members` (3) keeps the pushing build off and no take is held; at tw4 those sums go through the walking held build instead.
+Matbench on llmx's own sum kernels after a product (sums99 mb3/mb4, last rank's end over the product, us, 5120 floats):
+
+| shape | one-shot | split | change |
+|---|---|---|---|
+| W2 o | 8.24 | 6.40-6.48 | -1.8 |
+| W2 down | 8.24-8.32 | 6.40-6.48 | -1.8 |
+| W4 o | 12.48 | 9.28 | -3.2 |
+| W4 down | 12.40 | 9.12-9.20 | -3.2 |
+
+Qwen3.6-27B Q8_0 `--dtype int8` tg128 tok/s, 6 interleaved rounds a take, gfx906 builds on pve1 from detached worktrees:
+
+| take | base c17a410d7 | layout control C | split off S0 | split S |
+|---|---|---|---|---|
+| tw2, renderD132-133, m2 | 45.84-45.89 | 46.06-46.09 | 45.85-45.88 | 46.19-46.22 |
+| tw2, m1 | 45.81-45.84 | 46.08-46.14 | | 46.19-46.21 |
+| tw4, renderD132-135, m1 | 73.49-74.21 | 73.87-74.83 | | 73.20-74.17 |
+
+C adds one unused kernel to the f32 module and moved tw2 by +0.5% alone; S0 is S with the split forced off, the same GPU code object, and measures the base, so the split's own gain at tw2 is +0.33 tok/s (+0.7%), about 1.2 us a sum against the matbench's 1.8.
+Taking the sum inside the next one-block norm loses: with the push and take on that one block, 0.8 to 4.4 us behind split plus norm; with wide push blocks and block 0 taking before the unchanged norm, 0.7 to 1.4 us ahead of split plus norm in matbench (one launch fewer), not integrated (sums104/mb, mb5.cpp).

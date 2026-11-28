@@ -709,8 +709,11 @@ private:
         if (!fast) pick = {pick.transport, GpuSumForm::one_shot};
         const GpuSumForm form = pick.form;
         const bool chained = form == GpuSumForm::chain || form == GpuSumForm::wrap;
-        const size_t own_blocks = launched_blocks(pick, n), blocks = (beside ? std::min(own_blocks, chained ? kBesideBlocks / 2 : kBesideBlocks) : own_blocks) * (chained ? 2 : 1);
-        int members = (int)W, rank = (int)m, flags = (replace ? 1 : 0) | (fast ? 2 : 0) | (int)half << 2 | (form == GpuSumForm::wrap ? 8 : 0) | (form == GpuSumForm::draws ? 16 : 0);
+        // A one-shot on the member's stream whose out leaves its rows alone splits its blocks into pushers and takers, twice the blocks, where both halves fit a block a multiprocessor (kernels/f32.gpu, llmx_group_sum).
+        const size_t own_blocks = launched_blocks(pick, n);
+        const bool split = fast && form == GpuSumForm::one_shot && !sent && !takes && !beside && 2 * own_blocks <= one_shot_blocks_ && (o + n <= own || own + n <= o);
+        const size_t blocks = (beside ? std::min(own_blocks, chained ? kBesideBlocks / 2 : kBesideBlocks) : own_blocks) * (chained || split ? 2 : 1);
+        int members = (int)W, rank = (int)m, flags = (replace ? 1 : 0) | (fast ? 2 : 0) | (int)half << 2 | (form == GpuSumForm::wrap ? 8 : 0) | (form == GpuSumForm::draws ? 16 : 0) | (split ? 32 : 0);
         const Args args(fast || !s.host() ? s.table[m] : s.pull_table[m], own, o, nn, cap, members, rank, flags, timeout, tick);
         if (takes && form == GpuSumForm::one_shot) {
             if (!whole) b.group_push((unsigned)blocks, args);

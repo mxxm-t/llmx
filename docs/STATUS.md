@@ -9,6 +9,13 @@
 - **R9700 timing (WINROCM5):** `bench --p 512 --n 128 --r 3`, 3 interleaved rounds, the ROCm artifact on `rocm:1` against a local MSVC Vulkan build of the same source (`0.2.1+g204be4acb61f`) on `vulkan:0`, shared box, no activity monitor: Qwen3-0.6B Q8_0 ROCm pp512 10477-10702, tg128 464-487 tok/s, Vulkan 12104-12348 and 555-574; Qwen3-8B Q8_0 ROCm 856-864 and 67.8-68.0, Vulkan 1042-1046 and 71.7-71.8. `rocm:0` refuses as the gfx1036 with no kernels.
 - **Gotchas:** code objects of version 5 or 6 fail `hipModuleLoadData` with 303 on the HIP 5.7 runtime; TheRock keeps the device libraries under `lib/llvm/amdgcn/bitcode`, which `--rocm-path` does not search; MSVC has no inline assembly, so the embed object is assembled by clang.
 
+## Split one-shot roles (2026-11-28, SUMS99 to SUMS104, branch products/sum-split-roles on sums83-take c17a410d7, PR 669)
+- **Goal:** a decode sum's take no longer waits behind its own push on the same blocks, so a one-shot at tensor width 2 ends sooner after its product.
+- **Done:** a one-shot on the member's own stream whose out leaves its partial rows alone, with no pushed rows and no held take, launches twice its blocks where both halves fit a block a multiprocessor (flag 32 of `llmx_group_sum`): the first half pushes, the second takes (docs/src/backends-gpu.md); the bits are the one-shot's.
+- **Measured:** Qwen3.6-27B Q8_0 `--dtype int8` tg128, ROCm, 6 interleaved rounds on renderD132-133 (tw2) and renderD132-135 (tw4): tw2 45.84-45.89 (base c17a410d7) and 45.85-45.88 (S0, the change with the split forced off) to 46.19-46.22 tok/s (+0.7%); tw4 not slower (73.49-74.21 to 73.20-74.17); ids SAME at tw2 and tw4, int8 and f16 (n=128); table in docs/DEVICE-TUNING.md.
+- **Left:** landing gates at the head that lands, after PR 669 (sums83-take), on which it depends.
+- **Gotchas:** a layout control that adds an unused kernel to the f32 module moved tw2 +0.5% by itself, which S0 does not reproduce; compare against the same code object with the split off.
+
 ## Walking held build with dedicated takers (2026-11-27, SUMS77 to SUMS100, branch sums83-take on main b3e1b74c1)
 
 - **Goal:** a decode sum in place at four MI50s launches nothing after its held Q8_0 product, and no member waits on a late peer behind a separate take launch.

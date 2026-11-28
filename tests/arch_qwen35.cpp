@@ -1210,9 +1210,9 @@ void per_layer_tail_history(bool split) {
 // With `device` it says it is not the CPU, as a card does.
 struct Room : backend::CpuBackend {
     size_t room = 0, early = 1;
-    mutable int rise_after = 0;
+    mutable int rise_after = 0, reads = 0;
     bool device = false;
-    std::optional<size_t> memory_available() const override { return rise_after-- > 0 ? early : room; }
+    std::optional<size_t> memory_available() const override { return ++reads, rise_after-- > 0 ? early : room; }
     bool reads_in_place() const override { return false; }
     bool is_cpu() const override { return !device; }
     bool memory_is_host() const override { return !device; }
@@ -1407,11 +1407,41 @@ void checkpoint_fit() {
         };
         infer::PlacementRequest fitted = request;
         fitted.shares.clear();
-        const infer::PlacedModel idle = infer::place_model(w, cards(0), fitted, options);
+        const std::vector<backend::BackendPtr> idle_cards = cards(0);
+        const infer::PlacedModel idle = infer::place_model(w, idle_cards, fitted, options);
         const infer::PlacedModel late = infer::place_model(w, cards(8), fitted, options);
         require(late.plan == idle.plan && late.model->checkpoint_slots() == idle.model->checkpoint_slots() &&
                     late.model->kv_tokens_total() == idle.model->kv_tokens_total(),
                 "a split whose first card's memory came back late was placed as\n" + late.plan + "where idle cards give\n" + idle.plan);
+        // Idle cards that hold the whole request are read a few times, not until their memory has stayed level: their plan is the one unbounded memory gives.
+        const int idle_reads = static_cast<const Room&>(*idle_cards[0]).reads;
+        require(idle_reads < infer::kSettleQuiet, "idle cards were read " + std::to_string(idle_reads) + " times, as if their memory had to settle");
+        // A first card whose early reading holds the request only by giving layers to the second still waits for its memory, then takes the idle cards' plan.
+        infer::ModelOptions placed = options;
+        placed.kv_tokens = idle.model->kv_tokens_total();
+        placed.checkpoint_slots = idle.model->checkpoint_slots();
+        const auto first_count = [&](size_t first) {
+            const std::vector<backend::BackendPtr> two = cards(0);
+            static_cast<Room&>(*two[0]).room = first;
+            try {
+                return infer::split_layers(infer::footprint(w, plan, placed), infer::budgets_for(two, fitted.names), infer::kDefaultUbatch, {}, core::host_memory_available())
+                    .stages[0]
+                    .count;
+            } catch (const std::runtime_error&) {
+                return -1;
+            }
+        };
+        const int balanced = first_count(size_t(1) << 30);
+        size_t early = size_t(1) << 30;
+        while (early > 1 && first_count(early) == balanced) early /= 2;
+        require(first_count(early) >= 0, "no reading of the first card holds fewer layers than idle cards give it while the second holds the rest");
+        const std::vector<backend::BackendPtr> short_first = cards(2);
+        static_cast<Room&>(*short_first[0]).early = early;
+        const infer::PlacedModel waited = infer::place_model(w, short_first, fitted, options);
+        const int waited_reads = static_cast<const Room&>(*short_first[0]).reads;
+        require(waited.plan == idle.plan && waited_reads > infer::kSettleQuiet,
+                "a first card reading " + std::to_string(early) + " bytes at first was read " + std::to_string(waited_reads) + " times and placed as\n" + waited.plan +
+                    "where idle cards give\n" + idle.plan);
     }
     infer::ModelOptions wrapped;
     wrapped.state_slots = std::numeric_limits<size_t>::max();

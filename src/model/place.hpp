@@ -764,7 +764,8 @@ inline size_t kv_search_bound(size_t context, std::optional<size_t> free, size_t
 inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan, const std::vector<backend::BackendPtr>& backends,
                               const PlacementRequest& request, ModelOptions options, size_t* given_up = nullptr,
                               std::vector<DeviceBudget>* read = nullptr, std::string* kept_context = nullptr,
-                              size_t host_bytes = 0, const ModelWeights* resident = nullptr, std::optional<size_t> host_room = core::host_memory_available(), int* chunk = nullptr) {
+                              size_t host_bytes = 0, const ModelWeights* resident = nullptr, std::optional<size_t> host_room = core::host_memory_available(), int* chunk = nullptr,
+                              bool* deferred = nullptr) {
     size_t block = 1;
     for (const auto& b : backends) {
         if (!b) throw std::runtime_error("inference: missing backend");
@@ -861,7 +862,10 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
         return ok;
     };
     const auto whole = [&] { return whole_at(chunk_rows) || (default_rows < chunk_rows && whole_at(default_rows)); };
-    settle(budgets, backends, names, whole, level_first(backends, request));
+    // With `deferred` the caller checks its split against unbounded memory (place_model), so a reading that holds the whole request at the preferred chunk is taken without the level wait: more memory leaves that budget as it is.
+    const bool level = level_first(backends, request), defer = deferred && level && !fills && whole_at(chunk_rows);
+    if (deferred) *deferred = defer;
+    if (!defer) settle(budgets, backends, names, whole, level);
     if (default_rows < chunk_rows && !whole_at(chunk_rows)) {
         rows = default_rows;
         *chunk = 0;
@@ -1130,8 +1134,11 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
     // The fitted budget's reading of the devices is the one the split places its layers by, so both see the same settled memory.
     std::vector<DeviceBudget> budgets;
     const size_t asked = kv_tokens(plan, options);
+    // A plain split defers the fit's wait for level memory to its own check below; lookup choices and experts on the host keep the wait.
+    bool deferred = candidates.empty() && !adds_host_for_experts(backends, request);
     options = fitted_kv(bounded ? *bounded : weights, plan, backends, request, options, &placed.checkpoint_kv_tokens, &budgets,
-                        &placed.kv_kept_context, host_experts, resident ? &*resident : nullptr, host_room, preferred ? &preferred : nullptr);
+                        &placed.kv_kept_context, host_experts, resident ? &*resident : nullptr, host_room, preferred ? &preferred : nullptr,
+                        deferred ? &deferred : nullptr);
     if (prefers) request.ubatch = preferred;
     placed.ubatch = request.ubatch;
     placed.kv_cut = kv_tokens(plan, options) < asked;
@@ -1231,18 +1238,37 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
         const std::optional<size_t> room = host_room ? std::optional<size_t>(*host_room > rings ? *host_room - rings : 0) : std::nullopt;
         std::optional<LayerSplit> split;
         std::exception_ptr refused;
+        // The split at a reading, or with `unbounded` at devices that each hold whatever is asked of them.
+        const auto split_at = [&](bool unbounded) {
+            std::vector<DeviceBudget> at = group_budgets(budgets, request.width, sum_width(plan));
+            if (unbounded)
+                for (DeviceBudget& b : at) b.bytes.reset();
+            return split_layers(fp, at, rows, request.shares, room, request.slots, request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt,
+                                reply_rows(request), request.rounds);
+        };
         auto fit = [&] {
             try {
-                split = split_layers(fp, group_budgets(budgets, request.width, sum_width(plan)), rows, request.shares, room, request.slots,
-                                     request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt, reply_rows(request), request.rounds);
-                return true;
+                split = split_at(false);
             } catch (const std::runtime_error&) {
+                split.reset();
                 refused = std::current_exception();
-                return false;
             }
         };
         if (selected) split = selected;
         else fit();
+        // A reading taken without the level wait stands where its plan is the one unbounded memory gives: the split keeps the first best plan that fits, and memory coming back only adds plans that fit, so no later reading changes it.
+        // Otherwise the split waits for the devices' memory to stay level, as the fit would have, and fits again; the KV budget it was given already holds the whole request.
+        if (deferred) {
+            std::optional<LayerSplit> open;
+            try {
+                open = split_at(true);
+            } catch (const std::runtime_error&) {
+            }
+            if (!split || !open || !(*split == *open)) {
+                settle(budgets, backends, names, [] { return true; }, true);
+                fit();
+            }
+        }
         if (!split) std::rethrow_exception(refused);
         placed.placement = placement_for(*split, request.width);
         placed.plan = split->describe(group_budgets(budgets, request.width, sum_width(plan)), request.width);

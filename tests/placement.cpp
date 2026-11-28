@@ -1474,13 +1474,14 @@ void histories_fit_the_pool() {
 // A device reporting `room` bytes free, which is not the CPU; with `copying` it keeps copies of the weights it adopts, so the fit counts them.
 // With `rise_after`, it reports one byte free for that many reads before `room`, as a device does while it reclaims the memory of a process that has just ended.
 struct SizedDevice : HostMemoryDevice {
-    size_t room = 0;
+    size_t room = 0, early = 1;
     bool copying = false, unknown = false;
-    mutable int rise_after = 0;
+    mutable int rise_after = 0, reads = 0;
     bool memory_is_host() const override { return false; }
     std::optional<size_t> memory_available() const override {
         if (unknown) return std::nullopt;
-        return rise_after-- > 0 ? 1 : room;
+        ++reads;
+        return rise_after-- > 0 ? early : room;
     }
     bool reads_in_place() const override { return !copying; }
 };
@@ -1909,7 +1910,37 @@ void preferred_chunk_fitted() {
     require(tight.ubatch == 0 && infer::kv_tokens(tight.architecture, tight.options) == cut, "a preferred chunk was kept at the cost of KV tokens");
     const infer::PlannedModel over = place({chunked(8 << 20)}, size_t(1) << 20, 0);
     require(over.ubatch == 0 && infer::kv_tokens(over.architecture, over.options) == cut, "a budget the devices cut took the preferred chunk, or another budget");
-    checked += 7;
+    // A split fitted to free memory keeps the preferred chunk whether its first reading stands (idle cards) or is waited past, as one that holds the budget only at the default chunk is, so the start without the level wait never fixes the default.
+    // The first reading is a room per device whose budget at the default chunk the preferred chunk would cut; shares keep the search free of the level wait.
+    size_t early = 0, cut2 = 0;
+    for (size_t r = 2 << 20; r <= (32 << 20) && !early; r += 64 << 10) {
+        const size_t tokens = infer::kv_tokens(place({chunked(r), chunked(r)}, size_t(1) << 20, 512).architecture, place({chunked(r), chunked(r)}, size_t(1) << 20, 512).options);
+        const infer::PlannedModel wide = place({chunked(r), chunked(r)}, tokens, 2048);
+        if (tokens && infer::kv_tokens(wide.architecture, wide.options) < tokens) early = r, cut2 = tokens;
+    }
+    require(early != 0, "no room of two devices holds a budget at the default chunk that the preferred chunk cuts, so the case below proves nothing");
+    const auto fitted_chunk = [&](size_t first, int& reads) {
+        std::vector<backend::BackendPtr> two;
+        for (int i = 0; i < 2; ++i) {
+            auto device = chunked(roomy);
+            device->early = first;
+            device->rise_after = first ? 2 : 0;
+            two.push_back(device);
+        }
+        infer::PlacementRequest request;
+        request.names = {"device 0", "device 1"};
+        infer::ModelOptions options;
+        options.kv_tokens = cut2;
+        auto model = infer::place_model(infer::gguf_weights(weights), two, request, options).model;
+        reads = static_cast<const ChunkDevice&>(*two[0]).reads;
+        require(model->kv_tokens_total() == cut2, "a split fitted to free memory did not keep the budget it was asked for");
+        return model->prefill_batch();
+    };
+    int idle_reads = 0, late_reads = 0;
+    require(fitted_chunk(0, idle_reads) == 2048 && idle_reads < infer::kSettleQuiet, "idle devices fitted to their free memory gave up their preferred chunk or waited for it to settle");
+    require(fitted_chunk(early, late_reads) == 2048 && late_reads > infer::kSettleQuiet,
+            "a split whose first reading held the budget only at the default chunk kept the default, or did not wait for its memory");
+    checked += 12;
 }
 
 // A load that cannot hold the model, or one KV block beside it, is refused as such, and experts on the CPU leave their bytes off the device.

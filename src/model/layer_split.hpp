@@ -177,12 +177,17 @@ struct LayerSplit {
         int count = 0;   // its share of the layers as fitted, in device order
         std::vector<std::pair<int, int>> runs;   // the layers it runs, a (first, count) a round (round_runs)
         size_t weights = 0, cache = 0, other = 0;
+        bool operator==(const Stage& o) const { return count == o.count && runs == o.runs && weights == o.weights && cache == o.cache && other == o.other; }
     };
     size_t rounds = 1;   // the runs of layers each device takes in turn (stage rounds, docs/MULTI-DEVICE.md)
     std::vector<Stage> stages;
     int embed_device = 0, output_device = 0;
     std::vector<int> draft_device;   // each drafter stage's device
     size_t host = 0;   // what the host holds besides mapped weights: logits rows, position tables, the handoff between devices and the used backends' own host memory
+
+    bool operator==(const LayerSplit& o) const {
+        return rounds == o.rounds && stages == o.stages && embed_device == o.embed_device && output_device == o.output_device && draft_device == o.draft_device && host == o.host;
+    }
 
     // A line a device, or a tensor group of `width` devices whose figures are then a member's; the weights figure is the fit's estimate of their device memory, each tensor as the device allocates it.
     std::string describe(const std::vector<DeviceBudget>& devices, size_t width = 1) const {

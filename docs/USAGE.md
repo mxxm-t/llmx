@@ -844,7 +844,7 @@ A request holds at most the smallest of `--ctx-size`, the model's context and
 the pool, which `/v1/health` gives as `server.request_tokens`.
 `--ctx-size` reads differently for `perplexity`, where it is the scoring window,
 and `generate`, `chat`, `logits` and `bench` take none.
-Over several devices the server first prints what each device was given, as `bench --model` does, and the fit reads the devices' free memory only once it has risen no further for five seconds, or after thirty, so a server restarted on cards its predecessor held places its layers as on idle cards; every command placing a split by free memory, without `--layer-shares`, waits the same.
+Over several devices the server first prints what each device was given, as `bench --model` does, and the fit reads the devices' free memory only once it has risen no further for five seconds, or after thirty, so a server restarted on cards its predecessor held places its layers as on idle cards; a command placing a split by free memory, without `--layer-shares`, waits the same only where its first reading does not hold the whole request or gives another split than idle cards would, so on idle cards it starts at once (`docs/src/model-place.md`).
 The line the server prints as it starts gives the budget it took and what a
 request may hold: with 16 sequences over a 40k-token budget that is 2.5k
 tokens each on average, and a request whose prompt plus `max_tokens` exceeds

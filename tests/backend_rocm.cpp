@@ -1223,6 +1223,46 @@ void diag2(Backend& g, int reps) {
     std::cout << "DIAG2 arm " << backend::diag_arm << " reps " << reps << ": ok " << cls[0] << ", re-read fixes " << cls[1] << ", weights wrong " << cls[2] << ", rerun fixes " << cls[3] << ", rerun same " << cls[4] << ", rerun other " << cls[5] << "\n";
 }
 
+// DIAG dev only: Fable's widened pattern; each rep drops 64 small buffers, then adopts a fresh large weight whose contents alternate, and checks one product bit-exact.
+void diag3(Backend& g, int reps) {
+    for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q4_0}) {
+        const quant::StorageType& st = *quant::storage_type(type);
+        const size_t nin = 4096, nout = 1024, rows = type == quant::GGML_TYPE_F32 ? 8 : 64;
+        std::vector<uint8_t> w[2];
+        for (int k = 0; k < 2; ++k) {
+            if (type == quant::GGML_TYPE_F32) {
+                const std::vector<float> v = row_classes::values(nin * nout, uint32_t(41 + k));
+                w[k].resize(v.size() * 4);
+                std::memcpy(w[k].data(), v.data(), w[k].size());
+            } else {
+                w[k] = typed_matrix(type, nin, nout, uint32_t(type * 13 + 5 + k));
+            }
+        }
+        const std::vector<float> x = row_classes::values(nin * rows, 17);
+        const RowRun rr{rows, rows};
+        const Dtype dt = type == quant::GGML_TYPE_F32 ? Dtype::f32 : Dtype::int8;
+        std::vector<float> want[2];
+        size_t bad = 0, outs = 0;
+        for (int it = 0; it < reps; ++it) {
+            {
+                std::vector<BufferPtr> drop;
+                for (int d = 0; d < 64; ++d) drop.push_back(g.alloc(4096));
+            }
+            const int k = it % 2;
+            auto wb = g.adopt(w[k].data(), w[k].size()), xb = g.adopt(x.data(), x.size() * 4);
+            auto yb = g.alloc(nout * rows * 4);
+            if (type == quant::GGML_TYPE_F32) g.matmul({type, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, rows, {}, dt);
+            else g.matmul({type, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, rows, {&rr, 1}, dt);
+            const std::vector<float> got = read(g, *yb, nout * rows);
+            if (it < 2) { want[k] = got; continue; }
+            size_t nd = 0;
+            for (size_t i = 0; i < got.size(); ++i) nd += std::memcmp(&got[i], &want[k][i], 4) != 0;
+            if (nd) { ++bad; outs += nd; if (bad <= 3) std::cout << "DIAG3 " << st.name << " it " << it << " differ " << nd << "\n"; }
+        }
+        std::cout << "DIAG3 arm " << backend::diag_arm << " " << st.name << " reps " << reps << ": bad " << bad << " outputs " << outs << "\n";
+    }
+}
+
 // Printed, never asserted: the exact products at Qwen3.8-Flash-Next's F32 and BF16 shapes and Qwen3's F16 ones over 1 to 293 rows, and the F16 half tile over 293 and 512, in wall time a call.
 void exact_rates(Backend& g) {
     struct Shape { const char* name; uint32_t type; size_t nin, nout; };
@@ -5362,7 +5402,7 @@ void set_env(const char* name, const char* value) {
 
 int main(int argc, char** argv) {
     // DIAG dev only: `diag2 ARM REPS` and `types ARM` pick a backend arm before any backend opens.
-    if (argc > 2 && (std::string(argv[1]) == "diag2" || std::string(argv[1]) == "types")) backend::diag_arm = std::atoi(argv[2]);
+    if (argc > 2 && (std::string(argv[1]) == "diag2" || std::string(argv[1]) == "diag3" || std::string(argv[1]) == "types")) backend::diag_arm = std::atoi(argv[2]);
     // `sixteen` runs groups of up to 16 ranks on one device, which with the backend's own stream need more hardware queues than HIP's default of 4; a real group runs one rank per device and needs none.
     const bool sixteen = argc > 1 && std::string(argv[1]) == "sixteen";
     if (sixteen) set_env("GPU_MAX_HW_QUEUES", "32");
@@ -5585,6 +5625,10 @@ int main(int argc, char** argv) {
         }
         if (argc > 1 && std::string(argv[1]) == "diag2") {
             diag2(*g, argc > 3 ? std::atoi(argv[3]) : 500);
+            return 0;
+        }
+        if (argc > 1 && std::string(argv[1]) == "diag3") {
+            diag3(*g, argc > 3 ? std::atoi(argv[3]) : 500);
             return 0;
         }
         if (argc > 1 && std::string(argv[1]) == "diag") {

@@ -33,7 +33,7 @@
 #endif
 
 namespace backend {
-inline int diag_arm = 0;   // DIAG dev only: 1 leak graves, 2 settle in record, 3 stream sync in read, 4 coherent stage, 5 sync after write
+inline int diag_arm = 0;   // DIAG dev only: 1 leak graves, 2 settle in record, 3 stream sync in read, 4 coherent stage, 5 sync after write, 6 malloc excludes free, 7 issue excludes free
 namespace {
 
 constexpr unsigned kThreads = 256;         // the kernels' block size (kernels/f32.gpu)
@@ -196,6 +196,7 @@ struct Graves {
     std::condition_variable wake;
     std::vector<std::pair<Ticket, std::pair<void*, bool>>> held;   // the ticket that covers the drop, and the memory
     size_t freeing = 0;                                             // graves the thread has taken and not yet freed
+    std::mutex issue;                                               // DIAG arms 6 and 7
     const TicketLedger* tickets = nullptr;                          // null once the backend has drained its stream, when a drop frees at once
     typename Api::Stream stream = nullptr;                                   // the backend's stream, null once it is drained
     std::function<void()> flush;                                    // issues the backend's held stream operations, before a drop waits for its stream
@@ -224,7 +225,11 @@ struct Graves {
             const typename Api::Stream s = stream;
             lock.unlock();
             if (s) sync_stream<Api>(s);
-            if (diag_arm != 1) for (const auto& r : ready) free_memory<Api>(r.first, r.second);
+            if (diag_arm != 1) {
+                std::unique_lock<std::mutex> il(issue, std::defer_lock);
+                if (diag_arm == 6 || diag_arm == 7) il.lock();
+                for (const auto& r : ready) free_memory<Api>(r.first, r.second);
+            }
             lock.lock();
             freeing = 0;
             wake.notify_all();
@@ -278,7 +283,10 @@ public:
         if (!bytes) return;
         // Whole words: the prompt tile reads a Q8_0 quarter as aligned words, the last of which may run past a buffer's final block.
         const size_t words = (bytes + 3) & ~size_t(3);
+        std::unique_lock<std::mutex> il(graves_->issue, std::defer_lock);
+        if (diag_arm == 6) il.lock();
         taken(host ? Api::host_malloc(&p_, words, coherent) : Api::malloc(&p_, words), host ? "host_malloc" : "malloc");
+        if (il.owns_lock()) il.unlock();
         device_ = p_;
         if (host) Api::check(Api::host_device_pointer(&device_, p_), "host_device_pointer");
     }
@@ -573,7 +581,11 @@ public:
             while (syncing_[i].load(std::memory_order_seq_cst)) std::this_thread::yield();
         }
         if (!started_) start();
-        Api::check(Api::event_record(events_[i], stream_), "event_record");
+        {
+            std::unique_lock<std::mutex> il(graves_->issue, std::defer_lock);
+            if (diag_arm == 7) il.lock();
+            Api::check(Api::event_record(events_[i], stream_), "event_record");
+        }
         slot_ticket_[i].store(t, std::memory_order_release);
         tickets_.take();
         graves_->recorded();
@@ -5946,6 +5958,8 @@ kHalf8x1, kHalf8x1p, kHalf8x1r2, kHalf8x1s1, kHalf8x1r2s1, kHalf8x1r2s4, kHalf8x
         materialize();
         push_.reset();
         if (ops_.empty()) return;
+        std::unique_lock<std::mutex> il(graves_->issue, std::defer_lock);
+        if (diag_arm == 7) il.lock();
         std::vector<Held> ops;
         std::vector<uint8_t> bytes;
         ops.swap(ops_);

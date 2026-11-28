@@ -100,6 +100,11 @@ inline void join(const Step& s, const Weight& w, backend::CSlice in) {
     else s.b.matmul_add(w.operand(), in, s.x, w.nin, w.nout, s.rows, s.runs, s.dtype);
 }
 
+// A part's entry norm of the residual into `h`, unless the group's sum before the part wrote it (Step::normed, LayerPlan::Entry).
+inline void enter(const Step& s, const Weight& norm, backend::Slice h, size_t width, float eps) {
+    if (!s.normed) s.b.rms_norm_rows(h, s.x, norm.slice(), s.rows, width, width, eps, s.runs);
+}
+
 // The rows of `table` the ids name, into `x`, those of the step's fed runs from their ids on the device.
 inline void embed(const Step& s, const Weight& table, const uint32_t* ids, backend::Slice x) {
     // Fed runs never overlap, so rows they cover in full leave no host id to embed.

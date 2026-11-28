@@ -235,8 +235,12 @@ public:
             blocks::shard(layer.roles, attn_k, Axis::rows, {kv_heads});
             blocks::shard(layer.roles, attn_v, Axis::rows, {kv_heads});
             blocks::shard(layer.roles, attn_output, Axis::columns, {heads});
+            layer.entry[0] = {attn_norm, {attn_q, attn_k, attn_v}};
+            if (!layer.routed) layer.entry[1] = {ffn_norm, {ffn_gate, ffn_up}};
             any_dense = any_dense || !layer.routed;
         }
+        p.entry_slot = 1;
+        p.entry_eps = cfg.rms_eps;
         p.context_length = (size_t)cfg.context_length;
         p.slots = slot_widths(cfg, any_dense);
         p.residual = (size_t)cfg.n_embd;
@@ -276,9 +280,9 @@ public:
         const size_t E = (size_t)cfg_.n_embd, half = (size_t)cfg_.head_dim / 2;
         const int n_head = cfg_.n_head / (int)s.width, n_head_kv = (int)kv_share((size_t)cfg_.n_head_kv, s.width);
         const size_t Q = (size_t)n_head * cfg_.head_dim, KV = (size_t)n_head_kv * cfg_.head_dim;
-        const backend::Slice x = s.x, h = s.slot(1), q = s.slot(2), k = s.slot(3), v = s.slot(4), attn = s.slot(5);
+        const backend::Slice h = s.slot(1), q = s.slot(2), k = s.slot(3), v = s.slot(4), attn = s.slot(5);
 
-        b.rms_norm_rows(h, x, w[attn_norm].slice(), s.rows, E, E, cfg_.rms_eps, s.runs);
+        blocks::enter(s, w[attn_norm], h, E, cfg_.rms_eps);
 
         b.matmul_group({blocks::projection(w[attn_q], q),
                         blocks::projection(w[attn_k], k),
@@ -297,12 +301,11 @@ public:
 
     // The rows of the residual from s.x, through the scratch slots from their start, reading whichever row of weights the runtime hands it: the layer's own, or on its mixer device a streamed layer's copies and windows.
     void ffn(const Step& s) const override {
-        backend::Backend& b = s.b;
         const Weight* w = s.w;
         const size_t E = (size_t)cfg_.n_embd;
-        const backend::Slice x = s.x, h = s.slot(1), gate = s.slot(6), up = s.slot(7), ffn = s.slot(8);
+        const backend::Slice h = s.slot(1), gate = s.slot(6), up = s.slot(7), ffn = s.slot(8);
 
-        b.rms_norm_rows(h, x, w[ffn_norm].slice(), s.rows, E, E, cfg_.rms_eps, s.runs);
+        blocks::enter(s, w[ffn_norm], h, E, cfg_.rms_eps);
 
         if (s.kind == routed) {
             blocks::moe_step(s, w[ffn_gate_inp], w[ffn_gate_exps], w[ffn_up_exps], w[ffn_down_exps], (size_t)cfg_.n_expert_used, backend::RouteRule::softmax(cfg_.expert_norm),

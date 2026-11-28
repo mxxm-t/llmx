@@ -61,6 +61,7 @@ names it.
     dense, and the two RoPE tables hold the covered positions at half a
     head each.
     Each role declares its split over a tensor group ([shard](model-shard.md)): the head by its vocabulary rows, q by heads and k and v by KV heads, replicated where the width is a multiple of them, `attn_output` by the heads' columns, the dense block by `blocks::shard_swiglu` and a routed layer's expert stacks by `blocks::shard_experts`, each expert's hidden rows; norms, the embedding and the router stay whole.
+    Each layer names its entry norms and their readers (`LayerPlan::Entry`): `attn_norm` with q, k and v, and on a dense layer `ffn_norm` with gate and up, which a tensor group may fuse with the sum before them.
   - `fill_tables`: the RoPE cos and sin tables, `[pos*(head_dim/2) + i]`, through `rope::fill` from the policy (`Config::rope_policy`), at base frequency `rope_theta^(-2i/head_dim)`.
   - `embed`, `mixer`, `ffn` and `head`: the embedding gather; the attention
     (norm, grouped q, k and v projections, `norm_rope_kv`, `attention` and

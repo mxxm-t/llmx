@@ -3160,6 +3160,11 @@ void tensor_groups(size_t W, uint64_t heads, uint64_t kv_heads, uint64_t ff, uin
                 check_cut_passes(cutting, beside[0]->below);
                 require((*beside[0]->sends > 0) == (below > 128 * 8), below > 128 * 8 ? "a pass whose larger part's sum copies beside was not cut" : "a pass whose larger part's sum does not copy beside was cut");
             }
+            // The sums fused with the next entry norm, of the 3 layers' 6 sums all but the last, which gathers; then a cut pass checked with them taken where the pass is whole.
+            for (const size_t rows : {size_t(64), size_t(256)}) check_striped_passes(cutting, *beside[0], rows, 5);
+            beside[0]->striping->from = 1;
+            check_cut_passes(cutting, beside[0]->below);
+            *beside[0]->striping = Striping{};
             checked += 9;
         }
 

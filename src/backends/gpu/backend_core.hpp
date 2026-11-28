@@ -48,7 +48,7 @@ constexpr size_t kSparseFewTwoPerUnit = 3;   // one-column blocks a compute unit
 constexpr size_t kEvents = 1024;           // tickets in flight before a submission waits for the oldest
 constexpr size_t kRingSlots = 4;           // a host ring's slots, each reused once the submission that last read it retires
 constexpr size_t kArgBytes = size_t(1) << 20, kStageBytes = size_t(16) << 20;
-constexpr size_t kGroupSignalBytes = 8192;  // a group member's signal block before its staging (kernels/f32.gpu, GroupSignal)
+constexpr size_t kGroupSignalBytes = 12288;  // a group member's signal block before its staging (kernels/f32.gpu, GroupSignal)
 
 // The host's side of a word of registered host memory a kernel sets: an acquire load, an acquire-release exchange and a release store; MSVC's interlocked calls are full barriers, at least as strong.
 #if defined(_MSC_VER)
@@ -697,6 +697,7 @@ public:
         const GpuBuffer<Api>& dst = as_gpu<Api>(dst_b);
         span(dst, off, bytes);
         forget_twins();
+        forget_sole((const float*)((const uint8_t*)dst.data() + off), (bytes + sizeof(float) - 1) / sizeof(float));
         for (size_t done = 0; done < bytes;) {
             const size_t n = std::min(bytes - done, kStageBytes);
             void* st = stage_.take(*this, n);
@@ -3993,6 +3994,12 @@ public:
     void route_only(std::string build) { route_only_ = std::move(build); }
     // A timing backend sleeps this long between a timed op's start event and its launch: the tests' host that falls behind its device.
     void delay_launches(std::chrono::microseconds delay) { delay_ = delay; }
+    // Marks the kept twin of the `values` floats at x as their only whole copy, which a striped norm leaves (forget_twins).
+    void sole_twin(CSlice X, size_t values) {
+        const float* x = f32(X);
+        if (!(kept_[0].x == x && kept_[0].values == values) && !(kept_[1].x == x && kept_[1].values == values)) throw std::runtime_error(Api::prefix + "a sole twin must be kept");
+        sole_ = {x, values};
+    }
 
 private:
     // The F32 module's kernels, then from kRows16x1 the int16 module's, which only read twins.
@@ -4000,7 +4007,7 @@ private:
                   kRmsNorm32Twin8, kNormRope, kNormRopeKv, kGather, kGatherQ8, kMatmul, kMatmulQ8, kMatmulQ4K, kGatherQ4K, kMatmulQ5K, kGatherQ5K, kMatmulQ6K,
                   kGatherQ6K, kMatmulQ50, kGatherQ50, kMatmulQ40, kGatherQ40, kMatmulQ41, kGatherQ41, kMatmulQ51, kGatherQ51, kMatmulBF16, kGatherBF16, kMatmulF16, kGatherF16, kMatmulIQ4NL, kGatherIQ4NL, kMatmulMXFP4, kGatherMXFP4, kMatmulNVFP4, kGatherNVFP4, kMatmulQ2K, kGatherQ2K, kMatmulQ3K, kGatherQ3K, kMatmulIQ4XS, kGatherIQ4XS, kMatmulIQ2XXS, kGatherIQ2XXS, kMatmulIQ2XS, kGatherIQ2XS, kMatmulIQ2S, kGatherIQ2S, kMatmulIQ3XXS, kGatherIQ3XXS, kMatmulIQ3S, kGatherIQ3S, kMatmulIQ1S, kGatherIQ1S, kMatmulIQ1M, kGatherIQ1M, kMatmulTQ10, kGatherTQ10, kMatmulTQ20, kGatherTQ20, kMatmulQ10, kGatherQ10, kMatmulQ20, kGatherQ20, kMatmulF8, kGatherF8, kKvWrite, kAttentionChunk, kAttentionTile, kAttentionTile256, kAttentionMerge, kAttentionVec,
                   kAttentionVecMerge, kTwin16, kTwin8, kSiluMulTwin16Major, kSiluMulTwin8Major, kRmsNorm16Twin16Major, kRmsNorm16Twin8Major,
-                  kRmsNorm32Twin16Major, kRmsNorm32Twin8Major, kAttentionVecMajor, kAttentionVecMergeMajor, kTwin16Major, kTwin8Major, kGroupSum, kGroupChain, kGroupShares, kGroupCopies, kGroupArm, kGroupAddCheck, kGroupPush, kGroupTake, kSigmoidMul, kGatedRmsNorm, kNormRopeStreams, kCausalConvSilu, kGatedDeltaRule, kGatedDeltaRuleShort, kGroupRmsNorm, kSiluScaled, kMixStreams, kInjectStreams, kSignedSqrtGate, kDilatedConvSiluAdd, kKvIndexPool, kKvIndexScores, kKvIndexSelect, kKvIndexSelectWide, kKvIndexAll, kSparseChunk, kSparseMerge, kSparseVec, kSparseVec256, kSparseVecMerge, kSparseVecMerge256,
+                  kRmsNorm32Twin16Major, kRmsNorm32Twin8Major, kAttentionVecMajor, kAttentionVecMergeMajor, kTwin16Major, kTwin8Major, kGroupSum, kGroupChain, kGroupShares, kGroupCopies, kGroupArm, kGroupAddCheck, kGroupPush, kGroupTake, kGroupSumNorm8, kGroupSumNorm16, kSigmoidMul, kGatedRmsNorm, kNormRopeStreams, kCausalConvSilu, kGatedDeltaRule, kGatedDeltaRuleShort, kGroupRmsNorm, kSiluScaled, kMixStreams, kInjectStreams, kSignedSqrtGate, kDilatedConvSiluAdd, kKvIndexPool, kKvIndexScores, kKvIndexSelect, kKvIndexSelectWide, kKvIndexAll, kSparseChunk, kSparseMerge, kSparseVec, kSparseVec256, kSparseVecMerge, kSparseVecMerge256,
                   kAttentionVec256, kAttentionVec256Major, kAttentionVecMerge256, kAttentionVecMerge256Major, kAttentionGated256, kAttentionGatedMerge256, kArgmaxSlices, kArgmaxMerge, kArgmaxPart, kArgmaxPick,
                   kMoeRoute, kMoeCombine, kMoeGroup, kRoutedExactF32, kRoutedExactQ8, kRoutedExactQ4K, kRoutedExactQ5K, kRoutedExactQ6K, kRoutedExactQ50, kRoutedExactQ40, kRoutedExactQ41, kRoutedExactQ51, kRoutedExactBF16, kRoutedExactF16, kRoutedExactIQ4NL, kRoutedExactMXFP4, kRoutedExactNVFP4, kRoutedExactQ2K, kRoutedExactQ3K, kRoutedExactIQ4XS, kRoutedExactIQ2XXS, kRoutedExactIQ2XS, kRoutedExactIQ2S, kRoutedExactIQ3XXS, kRoutedExactIQ3S, kRoutedExactIQ1S, kRoutedExactIQ1M, kRoutedExactTQ10, kRoutedExactTQ20, kRoutedExactQ10, kRoutedExactQ20, kRoutedExactF8,
                   kRowsExactF32, kRowsExactQ8, kRowsExactQ4K, kRowsExactQ5K, kRowsExactQ6K, kRowsExactQ50, kRowsExactQ40, kRowsExactQ41, kRowsExactQ51, kRowsExactBF16, kRowsExactF16, kRowsExactIQ4NL, kRowsExactMXFP4, kRowsExactNVFP4, kRowsExactQ2K, kRowsExactQ3K, kRowsExactIQ4XS, kRowsExactIQ2XXS, kRowsExactIQ2XS, kRowsExactIQ2S, kRowsExactIQ3XXS, kRowsExactIQ3S, kRowsExactIQ1S, kRowsExactIQ1M, kRowsExactTQ10, kRowsExactTQ20, kRowsExactQ10, kRowsExactQ20, kRowsExactF8, kSparseVecG4, kSparseVec256G4, kColsF32, kColsF32Many, kColsBF16, kColsBF16Many, kColsF16, kColsF16Many, kMoeStepRoute, kMoeStepRouteF32F16, kMoeStepRouteF32BF16, kMoeStepRouteF16F32, kMoeStepRouteF16F16, kMoeStepRouteF16BF16, kMoeStepRouteBF16F32, kMoeStepRouteBF16F16, kMoeStepRouteBF16BF16,
@@ -4043,7 +4050,7 @@ kHalf8x1, kHalf8x1p, kHalf8x1r2, kHalf8x1s1, kHalf8x1r2s1, kHalf8x1r2s4, kHalf8x
                                                            "llmx_twin16", "llmx_twin8", "llmx_silu_mul_twin16_major", "llmx_silu_mul_twin8_major",
                                                            "llmx_rms_norm_16_twin16_major", "llmx_rms_norm_16_twin8_major", "llmx_rms_norm_32_twin16_major",
                                                            "llmx_rms_norm_32_twin8_major", "llmx_attention_vec_major", "llmx_attention_vec_merge_major",
-                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_group_chain", "llmx_group_shares", "llmx_group_copies", "llmx_group_arm", "llmx_group_add_check", "llmx_group_push", "llmx_group_take", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_kv_index_all", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_attention_gated256", "llmx_attention_gated_merge256", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_argmax_part", "llmx_argmax_pick", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q4_0", "llmx_routed_q4_1", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_f16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_routed_nvfp4", "llmx_routed_q2_k", "llmx_routed_q3_k", "llmx_routed_iq4_xs", "llmx_routed_iq2_xxs", "llmx_routed_iq2_xs", "llmx_routed_iq2_s", "llmx_routed_iq3_xxs", "llmx_routed_iq3_s", "llmx_routed_iq1_s", "llmx_routed_iq1_m", "llmx_routed_tq1_0", "llmx_routed_tq2_0", "llmx_routed_q1_0", "llmx_routed_q2_0", "llmx_routed_f8_e4m3", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q4_0", "llmx_matmul_rows_q4_1", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_f16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_matmul_rows_nvfp4", "llmx_matmul_rows_q2_k", "llmx_matmul_rows_q3_k", "llmx_matmul_rows_iq4_xs", "llmx_matmul_rows_iq2_xxs", "llmx_matmul_rows_iq2_xs", "llmx_matmul_rows_iq2_s", "llmx_matmul_rows_iq3_xxs", "llmx_matmul_rows_iq3_s", "llmx_matmul_rows_iq1_s", "llmx_matmul_rows_iq1_m", "llmx_matmul_rows_tq1_0", "llmx_matmul_rows_tq2_0", "llmx_matmul_rows_q1_0", "llmx_matmul_rows_q2_0", "llmx_matmul_rows_f8_e4m3", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols_few_f32", "llmx_matmul_cols_many_f32", "llmx_matmul_cols_few_bf16", "llmx_matmul_cols_many_bf16", "llmx_matmul_cols_few_f16", "llmx_matmul_cols_many_f16", "llmx_moe_step_route", "llmx_moe_step_route_f32_f16", "llmx_moe_step_route_f32_bf16", "llmx_moe_step_route_f16_f32", "llmx_moe_step_route_f16_f16", "llmx_moe_step_route_f16_bf16", "llmx_moe_step_route_bf16_f32", "llmx_moe_step_route_bf16_f16", "llmx_moe_step_route_bf16_bf16", "llmx_hc_coeffs_collapse", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_indexer_scores_tile", "llmx_indexer_scores_int", "llmx_raw_index_scores", "llmx_pool_write", "llmx_sparse_scores_few16", "llmx_sparse_values_few16", "llmx_sparse_scores_few8", "llmx_sparse_values_few8", "llmx_sparse_scores_few4", "llmx_sparse_values_few4", "llmx_sparse_scores_few2", "llmx_sparse_values_few2", "llmx_sparse_scores_few32", "llmx_sparse_values_few16x2", "llmx_sparse_scores_tile", "llmx_sparse_values_tile", "llmx_sparse_scores_tile32", "llmx_sparse_values_tile32", "llmx_sparse_scores_few16_terms", "llmx_sparse_values_few16_terms", "llmx_sparse_scores_few8_terms", "llmx_sparse_values_few8_terms", "llmx_sparse_scores_few4_terms", "llmx_sparse_values_few4_terms", "llmx_sparse_scores_few2_terms", "llmx_sparse_values_few2_terms", "llmx_sparse_scores_few32_terms", "llmx_sparse_values_few16x2_terms", "llmx_sparse_scores_tile_terms", "llmx_sparse_values_tile_terms", "llmx_sparse_scores_tile32_terms", "llmx_sparse_values_tile32_terms", "llmx_route_biased", "llmx_route_step_f32", "llmx_route_step_bf16", "llmx_norm_rope_form", "llmx_delta_step", "llmx_mix_rows", "llmx_layer_norm_rows", "llmx_gelu", "llmx_add_bias", "llmx_copy_rows", "llmx_softcap", "llmx_l2_clip", "llmx_l2_clip_lanes", "llmx_query_mix", "llmx_query_mix4", "llmx_query_mix_rows1", "llmx_query_mix_rows2", "llmx_query_mix_rows3", "llmx_query_mix_rows4", "llmx_query_mix_rows5", "llmx_query_mix_norm", "llmx_tanh_gate_mix", "llmx_tanh_norm_16", "llmx_tanh_norm_16_twin16", "llmx_tanh_norm_16_twin8", "llmx_normed_gate_mix", "llmx_normed_gate_mix_twin16", "llmx_normed_gate_mix_twin8", "llmx_matmul_group_f32", "llmx_matmul_normed_f32", "llmx_conv_ring", "llmx_conv_ring_parts", "llmx_conv_ring_sum", "llmx_conv_ring_mix4", "llmx_attention_rel_sink", "llmx_attention_rel_lanes_g3", "llmx_attention_rel_lanes_g4", "llmx_rel_sink_store", "llmx_attention_rel_tile", "llmx_attention_rel_tile_g3", "llmx_attention_terms_g1", "llmx_attention_terms_g3", "llmx_attention_terms_g3_512", "llmx_attention_chunk_window", "llmx_attention_vec_window", "llmx_attention_vec256_window", "llmx_unit_rows", "llmx_sigmoid_gate_rows", "llmx_matmul_at_ids", "llmx_chain_pick", "llmx_tap_weighted_rows", "llmx_expert_mark", "llmx_expert_wave", "llmx_expert_pull", "llmx_expert_round", "llmx_q8_0_rows16_1",
+                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_group_chain", "llmx_group_shares", "llmx_group_copies", "llmx_group_arm", "llmx_group_add_check", "llmx_group_push", "llmx_group_take", "llmx_group_sum_norm8", "llmx_group_sum_norm16", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_kv_index_all", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_attention_gated256", "llmx_attention_gated_merge256", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_argmax_part", "llmx_argmax_pick", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q4_0", "llmx_routed_q4_1", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_f16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_routed_nvfp4", "llmx_routed_q2_k", "llmx_routed_q3_k", "llmx_routed_iq4_xs", "llmx_routed_iq2_xxs", "llmx_routed_iq2_xs", "llmx_routed_iq2_s", "llmx_routed_iq3_xxs", "llmx_routed_iq3_s", "llmx_routed_iq1_s", "llmx_routed_iq1_m", "llmx_routed_tq1_0", "llmx_routed_tq2_0", "llmx_routed_q1_0", "llmx_routed_q2_0", "llmx_routed_f8_e4m3", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q4_0", "llmx_matmul_rows_q4_1", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_f16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_matmul_rows_nvfp4", "llmx_matmul_rows_q2_k", "llmx_matmul_rows_q3_k", "llmx_matmul_rows_iq4_xs", "llmx_matmul_rows_iq2_xxs", "llmx_matmul_rows_iq2_xs", "llmx_matmul_rows_iq2_s", "llmx_matmul_rows_iq3_xxs", "llmx_matmul_rows_iq3_s", "llmx_matmul_rows_iq1_s", "llmx_matmul_rows_iq1_m", "llmx_matmul_rows_tq1_0", "llmx_matmul_rows_tq2_0", "llmx_matmul_rows_q1_0", "llmx_matmul_rows_q2_0", "llmx_matmul_rows_f8_e4m3", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols_few_f32", "llmx_matmul_cols_many_f32", "llmx_matmul_cols_few_bf16", "llmx_matmul_cols_many_bf16", "llmx_matmul_cols_few_f16", "llmx_matmul_cols_many_f16", "llmx_moe_step_route", "llmx_moe_step_route_f32_f16", "llmx_moe_step_route_f32_bf16", "llmx_moe_step_route_f16_f32", "llmx_moe_step_route_f16_f16", "llmx_moe_step_route_f16_bf16", "llmx_moe_step_route_bf16_f32", "llmx_moe_step_route_bf16_f16", "llmx_moe_step_route_bf16_bf16", "llmx_hc_coeffs_collapse", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_indexer_scores_tile", "llmx_indexer_scores_int", "llmx_raw_index_scores", "llmx_pool_write", "llmx_sparse_scores_few16", "llmx_sparse_values_few16", "llmx_sparse_scores_few8", "llmx_sparse_values_few8", "llmx_sparse_scores_few4", "llmx_sparse_values_few4", "llmx_sparse_scores_few2", "llmx_sparse_values_few2", "llmx_sparse_scores_few32", "llmx_sparse_values_few16x2", "llmx_sparse_scores_tile", "llmx_sparse_values_tile", "llmx_sparse_scores_tile32", "llmx_sparse_values_tile32", "llmx_sparse_scores_few16_terms", "llmx_sparse_values_few16_terms", "llmx_sparse_scores_few8_terms", "llmx_sparse_values_few8_terms", "llmx_sparse_scores_few4_terms", "llmx_sparse_values_few4_terms", "llmx_sparse_scores_few2_terms", "llmx_sparse_values_few2_terms", "llmx_sparse_scores_few32_terms", "llmx_sparse_values_few16x2_terms", "llmx_sparse_scores_tile_terms", "llmx_sparse_values_tile_terms", "llmx_sparse_scores_tile32_terms", "llmx_sparse_values_tile32_terms", "llmx_route_biased", "llmx_route_step_f32", "llmx_route_step_bf16", "llmx_norm_rope_form", "llmx_delta_step", "llmx_mix_rows", "llmx_layer_norm_rows", "llmx_gelu", "llmx_add_bias", "llmx_copy_rows", "llmx_softcap", "llmx_l2_clip", "llmx_l2_clip_lanes", "llmx_query_mix", "llmx_query_mix4", "llmx_query_mix_rows1", "llmx_query_mix_rows2", "llmx_query_mix_rows3", "llmx_query_mix_rows4", "llmx_query_mix_rows5", "llmx_query_mix_norm", "llmx_tanh_gate_mix", "llmx_tanh_norm_16", "llmx_tanh_norm_16_twin16", "llmx_tanh_norm_16_twin8", "llmx_normed_gate_mix", "llmx_normed_gate_mix_twin16", "llmx_normed_gate_mix_twin8", "llmx_matmul_group_f32", "llmx_matmul_normed_f32", "llmx_conv_ring", "llmx_conv_ring_parts", "llmx_conv_ring_sum", "llmx_conv_ring_mix4", "llmx_attention_rel_sink", "llmx_attention_rel_lanes_g3", "llmx_attention_rel_lanes_g4", "llmx_rel_sink_store", "llmx_attention_rel_tile", "llmx_attention_rel_tile_g3", "llmx_attention_terms_g1", "llmx_attention_terms_g3", "llmx_attention_terms_g3_512", "llmx_attention_chunk_window", "llmx_attention_vec_window", "llmx_attention_vec256_window", "llmx_unit_rows", "llmx_sigmoid_gate_rows", "llmx_matmul_at_ids", "llmx_chain_pick", "llmx_tap_weighted_rows", "llmx_expert_mark", "llmx_expert_wave", "llmx_expert_pull", "llmx_expert_round", "llmx_q8_0_rows16_1",
 
                                                            "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_2_r4", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_4_r4",
                                                            "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_8_r4", "llmx_q8_0_rows16_16", "llmx_q8_0_tile16", "llmx_q8_0_rows8_1",
@@ -5376,6 +5383,8 @@ kHalf8x1, kHalf8x1p, kHalf8x1r2, kHalf8x1s1, kHalf8x1r2s1, kHalf8x1r2s4, kHalf8x
                 twin_slot_ = kept_[0].slot;
                 return true;
             }
+        if (sole_.x && x < sole_.x + sole_.values && sole_.x < x + blocks * 32)
+            throw std::runtime_error(Api::prefix + "a product of a striped norm's output missed its sole twin, the only whole copy of those values");
         twin_slot_ = take_twin_slot(need);
         return false;
     }
@@ -5663,12 +5672,15 @@ kHalf8x1, kHalf8x1p, kHalf8x1r2, kHalf8x1s1, kHalf8x1r2s1, kHalf8x1r2s4, kHalf8x
         size_t slot = 0;
     };
     // Its rows lie as `map` lays them out (TwinMap), the layout the product's own runs give; the twin takes the half sums too, flat or mapped, where the last tiled product read them.
-    TwinOut twin_out(Slice dst, size_t values, const TwinMap& map) {
-        if (!want_twin_ || values % 32 || as_gpu<Api>(*dst.buffer).host_ptr()) return {};
-        const bool int8 = want_twin_ == 2;
+    TwinOut twin_out(Slice dst, size_t values, const TwinMap& map) { return twin_out(dst, values, map, want_twin_ | (want_sums_ ? 4 : 0)); }
+    // The same at an explicit level, the class (1 block-int16, 2 block-int8) plus 4 for the half sums, 0 for none.
+    TwinOut twin_out(Slice dst, size_t values, const TwinMap& map, int level) {
+        forget_sole(f32(dst), values);
+        if (!(level & 3) || values % 32 || as_gpu<Api>(*dst.buffer).host_ptr()) return {};
+        const bool int8 = (level & 3) == 2;
         const size_t slot = take_twin_slot(twin_bytes(map.total, int8));
         const TwinPlanes t = twin_planes((uint8_t*)as_gpu<Api>(*twin_[slot]).data(), map.total, int8);
-        return {t.q, t.d, !want_sums_ ? nullptr : t.s, int8, map, slot};
+        return {t.q, t.d, !(level & 4) ? nullptr : t.s, int8, map, slot};
     }
     // A twin producer's build for `m`: the map-free one where every row lies row after row or no twin is written, the one reading the map otherwise (kernels/f32.gpu, _major).
     // The callers pass the map as the last argument only to the build that declares it.
@@ -5768,14 +5780,32 @@ kHalf8x1, kHalf8x1p, kHalf8x1r2, kHalf8x1s1, kHalf8x1r2s1, kHalf8x1r2s4, kHalf8x
     }
     // The one owner of forgetting kept twins: forget_written drops each whose input the `n` floats written at y meet, keeping the newer first, and forget_twins drops both.
     void forget_written(const float* y, size_t n) {
+        forget_sole(y, n);
         for (Kept& k : kept_)
             if (k.x && y < k.x + k.values && k.x < y + n) k = {};
         if (!kept_[0].x) std::swap(kept_[0], kept_[1]);
     }
-    void forget_twins() { kept_ = {}; }
-    // The slot a new twin goes into, the one not holding the newer kept twin, grown to `need` bytes; a twin kept there is dropped, and the choice follows the op sequence alone.
+    void forget_twins() {
+        const Kept h = is_sole(kept_[0]) ? kept_[0] : is_sole(kept_[1]) ? kept_[1] : Kept{};
+        kept_ = {h, Kept{}};
+    }
+    // A sole twin is the only whole copy of its values, which a striped norm leaves as stripes (docs/TENSOR-SPLIT.md, section 4.3): only a write into them drops it, and a product missing it throws (find_twin).
+    // sole_twin marks one; forget_sole releases it where the `n` floats at y meet its values.
+    bool is_sole(const Kept& k) const { return k.x && k.x == sole_.x && k.values == sole_.values; }
+    void forget_sole(const float* y, size_t n) {
+        if (!sole_.x || !(y < sole_.x + sole_.values && sole_.x < y + n)) return;
+        for (Kept& k : kept_)
+            if (is_sole(k)) k = {};
+        if (!kept_[0].x) std::swap(kept_[0], kept_[1]);
+        sole_ = {};
+    }
+    // The slot a new twin goes into, the one not holding the newer kept twin unless the older is sole, grown to `need` bytes; a twin kept there is dropped, and the choice follows the op sequence alone.
     size_t take_twin_slot(size_t need) {
-        const size_t slot = kept_[0].x ? 1 - kept_[0].slot : 0;
+        size_t slot = kept_[0].x ? 1 - kept_[0].slot : 0;
+        if (is_sole(kept_[1]) && kept_[1].slot == slot) {
+            slot = kept_[0].slot;
+            kept_ = {kept_[1], Kept{}};
+        }
         if (kept_[1].x && kept_[1].slot == slot) kept_[1] = {};
         if (!twin_[slot] || twin_[slot]->size() < need) {
             // A fresh twin buffer is no kept twin's input, so the twin kept in the other slot stays.
@@ -5786,7 +5816,8 @@ kHalf8x1, kHalf8x1p, kHalf8x1r2, kHalf8x1s1, kHalf8x1r2s1, kHalf8x1r2s4, kHalf8x
         return slot;
     }
     void keep_twin(const Kept& k) {
-        kept_[1] = kept_[0];
+        forget_sole(k.x, k.values);
+        if (!is_sole(kept_[1])) kept_[1] = kept_[0];
         kept_[0] = k;
     }
     // A launch that writes only `writes`, an exact product's or a router's outputs: it keeps the twin a later product may read unless one of them meets its input.
@@ -5848,6 +5879,41 @@ kHalf8x1, kHalf8x1p, kHalf8x1r2, kHalf8x1s1, kHalf8x1r2s1, kHalf8x1r2s4, kHalf8x
     void group_push(unsigned blocks, const Args& args) {
         issue(kernels_[kGroupPush], blocks, 1, 1, kThreads, args, kKernelNames[kGroupPush]);
         ++launched_[kGroupPush];
+    }
+    // The twin a striped norm into dst writes for the products that read it: the class their dtype gives, plus 4 where a prompt layout's tiled reader takes the half sums (twin_out).
+    // 0 where it writes none: a reader takes the activations as they are and would read the stripes, a tiled reader needs half sums a flat map does not hold, or no runs give product_twin's map (collective_core.hpp, sum_norm).
+    int sum_norm_twin(Slice dst, size_t rows, size_t width, RowRuns runs, const std::vector<WeightView>& readers, Dtype dtype) const {
+        if (width % 32 || as_gpu<Api>(*dst.buffer).host_ptr() || readers.empty() || !runs.n) return 0;
+        bool sums = false, tiles = false;
+        for (const WeightView& r : readers) {
+            if (!integer(r, dtype)) return 0;
+            sums = sums || type_kernels(r.type)->twin->tile_sums;
+        }
+        for (size_t r = 0; r < runs.n; ++r) tiles = tiles || !on_rows(runs.runs[r].extent);
+        const bool flat = twin_map(runs, rows, width).flat();
+        if (sums && tiles && flat) return 0;
+        return (dtype == Dtype::int8 ? 2 : 1) | (sums && !flat ? 4 : 0);
+    }
+    // A striped sum's kernel (kernels/f32.gpu, group_sum_norm), its twin at `level` (sum_norm_twin) appended to `args` and kept as the sole whole copy of dst's rows; a gather writes neither.
+    void group_sum_norm(unsigned blocks, Args args, Slice dst, size_t rows, size_t width, RowRuns runs, int level) {
+        forget_twins();
+        const size_t n = size_mul(rows, width);
+        TwinOut t;
+        if (dst.buffer) {
+            forget_written(f32(dst), n);
+            t = twin_out(dst, n, twin_map(runs, rows, width), level);
+            if (!t.q) throw std::logic_error(Api::prefix + "a striped norm without a twin");
+        }
+        args.put(t.q);
+        args.put(t.d);
+        args.put(t.s);
+        args.put(t.map);
+        const Kernel k = t.int8 ? kGroupSumNorm8 : kGroupSumNorm16;
+        ++launched_[k];
+        issue(kernels_[k], blocks, 1, 1, kThreads, args, kKernelNames[k]);
+        if (!dst.buffer) return;
+        keep(t, f32(dst), n);
+        sole_twin(CSlice(dst), n);
     }
     // The tail a pushing held build takes after the held build's arguments (kernels/int16.gpu, GroupTail).
     struct GroupTail {
@@ -6052,6 +6118,10 @@ kHalf8x1, kHalf8x1p, kHalf8x1r2, kHalf8x1s1, kHalf8x1r2s1, kHalf8x1r2s4, kHalf8x
     // Two twin slots, each the twin of a product's activations or of a producer's output, grown as calls need, so the routed act's twin leaves the mixed streams' for the shared expert (Vulkan's twins, at the count that pattern needs).
     std::array<BufferPtr, 2> twin_{};
     std::array<Kept, 2> kept_{};   // the newer first
+    struct {
+        const float* x = nullptr;
+        size_t values = 0;
+    } sole_;   // the values whose kept twin is their only whole copy (sole_twin)
     size_t twin_slot_ = 0;   // the slot of the twin the last product read
     BufferPtr moe_out_;   // a routed down projection's slots before they join the residual
     BufferPtr expert_ids_;  // a cached step's round: each entry's slot, or none

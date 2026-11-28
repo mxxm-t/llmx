@@ -828,6 +828,20 @@ Reports: rig `/opt/claude-work/conffix1/arms7a/r-{vd1,vtw2,rd1}/report.json`.
 
 **Gotchas.** Where a group is wider than the KV heads, each member keeps a replicated head, so the allocated bytes exceed one device's; CONFFIX2's first test expected one device's and failed on both arms. A bare `infer::Model` on one CPU backs half the KV bytes of one placed through `place_model` for the same history (6144 against 12288 at the fixture's shape), so the reference is placed (CONFFIX4).
 
+## Striped sum with the next entry norm (2026-11-28, SUMS85 to SUMS103, branch products/sum-norm-gather)
+
+- **Goal:** a tensor group sum that writes each member only its stripe of the residual and of the next entry norm, with the norm output twin whole, and a gather at the stage end making every residual whole again (docs/TENSOR-SPLIT.md, section 4.3).
+- **Done:** `Collective::sum_norm` and the `group_sum_norm` kernels on ROCm at two and four members, the twin in prompt layout, held bit for bit by `striped_sums`; the twin class and half sums come from the norm output readers that `EntryNorm` names (`striped_readers`), refusing F32-class readers, flat maps a tiled reader needs half sums on, and calls without runs.
+  The model caller: `LayerPlan::Entry` names each entry norm with its readers, and qwen3 and qwen35 dense prompt passes of a tensor group fuse each layer sum with the next entry norm (`Step::normed`, `blocks::enter`), gathering the residuals whole at the pass end.
+  `check_striped_passes` (tests/cut_passes.hpp, run by placement) holds logits, KV and decode bit for bit on the CPU with the residual stripes NaN-filled between sums, at 64 rows after a 192-row history and at 256 rows, where a cut pass fuses none (sums101 tcpu2).
+- **Cut or stripe (sums95 e1):** passes of 128 rows or more stay cut (`Model::cut_row`), since the cut wins there, so striping serves passes of 32 to 127 rows and the parts `cut_row` records whole.
+  27B Q8_0 `--dtype int8` pp512 tok/s, cut vs no cut: tw4 u128 760 vs 681, u256 1024 vs 787, u512 1209 vs 823; tw2 u128 552 vs 549, u256 639 vs 612, u512 715 vs 644.
+- **Measured (sums101 i1, ROCm quad renderD132-135, Qwen3.6-27B-Q8_0.gguf, `--dtype int8`, branch at 2218ccf3 vs main b3e1b74c):** greedy ids SAME at tw4 and tw2, int8 and f16 (64 tokens, ubatch 64, long prompt); `--profile` shows `llmx_group_sum_norm8` and `16` at both widths; backend-rocm collective PASS.
+  pp512 and tg32 tok/s, two rounds each, branch vs main: tw4 u64 pp 605.09/604.96 vs 592.06/591.82 (+2.2%), u512 1208.32/1208.08 vs 1209.04/1207.29, tg32 73.7-75.2 vs 72.9-74.0; tw2 u64 pp 459.05/459.05 vs 450.30/450.37 (+1.9%), u512 713.81/714.05 vs 714.25/713.86, tg32 46.11-46.19 vs 46.06-46.10.
+  The timed binary predates the branch head by comment changes and an unnamed struct only, with no change to generated code.
+- **Left:** the landing gates.
+- **Gotchas:** `collective` mode of llmx-backend-rocm-test rarely gives up in `sentinel_sums` after 30 s (`kSumTimeoutMs`) on a pair under concurrent quad jobs, on this branch and on its control without the striped kernels alike (interleaved pairs 1 of 76 each, sums94 j3 and j4), with kfd evicted_ms 0 and the host thread in nanosleep or futex waits, so it is not this branch; routed, expert, offset and partial readers miss the sole twin, so a caller lists readers only when every one is a whole plain product.
+
 ## A GPU group sum stops waiting for a card that is gone (2026-11-19, SUMSAFE1, revived 2026-11-23 by REVIVE1 and REVIVE2 as fix/group-sum-deadline on main bfb7f517; lands by fast-forward as two commits, the failing test and then the fix)
 
 - **Goal:** one card's hardware fault never takes the host: at 01:05 on 2026-11-19 an uncorrectable ATHUB error on one MI50 left its tensor group's live members spinning in their sums for ever, since a serving sum carried no deadline (`timeout_` 0 outside the probe), and the whole host was lost.

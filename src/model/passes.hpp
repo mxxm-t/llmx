@@ -1097,28 +1097,68 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s, size_t laye
         cut_record(ctx, p, s, p.cut, end);
         p.layer = end;
     }
+    // A sum after a part, fused with the entry norm of part `part` of layer nl where that part runs in this call, each member's residual then keeping its stripe; a sum without one gathers striped residuals whole again (Collective::sum_norm).
+    // Stripes never outlive the call: another pass on these devices would replace the sole twin.
+    const auto dtype_of = [&](size_t dev) { return options_.device_dtypes.empty() ? options_.dtype : options_.device_dtypes[dev]; };
+    bool striped = false, normed = false;
+    const auto layer_sum = [&](int l, int nl, int part, Part joins) {
+        bool fused = false;
+        summed([&] {
+            // Before a mixer only a split one is followed by a sum, so an unsplit mixer's entry stays whole.
+            const bool next_sums = part || (nl < end && part_split(plan_.layers[(size_t)nl], Part::mixer));
+            const LayerPlan::Entry* e = next_sums && nl < end && !plan_.partial && !options_.streams ? &plan_.layers[(size_t)nl].entry[part] : nullptr;
+            if (e && e->norm >= 0) {
+                backend::EntryNorm en;
+                en.eps = plan_.entry_eps;
+                en.runs = all;
+                en.dtype = dtype_of(g);
+                bool one = true;
+                for (size_t m = 0; m < W; ++m) {
+                    en.w.push_back(home_row(m, (size_t)nl)[e->norm].slice());
+                    en.dst.push_back(slot(ctx, p, g + m, plan_.entry_slot));
+                    one = one && dtype_of(g + m) == en.dtype;
+                }
+                for (uint16_t r : e->readers) en.readers.push_back(home_row(0, (size_t)nl)[r].operand());
+                if (one && sum.sum_norm(x, p.rows, plan_.residual, en)) {
+                    striped = fused = true;
+                    return;
+                }
+            }
+            if (striped) {
+                backend::EntryNorm gather;
+                gather.runs = all;
+                gather.gather = true;
+                if (!sum.sum_norm(x, p.rows, plan_.residual, gather)) throw std::logic_error("inference: a tensor group refused the gather of its striped residuals");
+                striped = false;
+                return;
+            }
+            group_sum(ctx, p, g, x, p.rows, all, plan_.layers[(size_t)l].kind, [&](size_t m) { return home_row(m, (size_t)l); }, l, joins);
+        });
+        return fused;
+    };
     for (int l = p.layer; l < end; l++) {
         finish_lookup(ctx, p, g, W, l);
         for (size_t m = 0; m < W; ++m) {
             Step step = mixer_part(ctx, p, g + m, l);
             step.width = W;
             step.partial = sum.partial(m);
+            step.normed = normed;
             if (m == 0) stream_rows(step);
             arch_->mixer(step);
             if (plan_.layers[(size_t)l].cache == Cache::state) save(ctx, p, g + m, l);
         }
-        const auto layer_row = [&](size_t m) { return home_row(m, (size_t)l); };
         // A mixer that splits no role ran whole on every member, so there is nothing to sum.
-        if (part_split(plan_.layers[(size_t)l], Part::mixer)) summed([&] { group_sum(ctx, p, g, x, p.rows, all, plan_.layers[(size_t)l].kind, layer_row, l, Part::mixer); });
+        normed = part_split(plan_.layers[(size_t)l], Part::mixer) && layer_sum(l, l, 1, Part::mixer);
         for (size_t m = 0; m < W; ++m) {
             Step step = part(ctx, p, g + m, home_row(m, (size_t)l), plan_.layers[(size_t)l].kind, 0, p.rows, all, l);
             step.width = W;
             step.partial = sum.partial(m);
             step.zero = ctx.zeros[g + m].get();
+            step.normed = normed;
             if (plan_.layers[(size_t)l].ffn_reads_state) state_views(step, p, g + m, l);
             arch_->ffn(step);
         }
-        summed([&] { group_sum(ctx, p, g, x, p.rows, all, plan_.layers[(size_t)l].kind, layer_row, l); });
+        normed = layer_sum(l, l + 1, 0, Part::ffn);
     }
     p.layer = end;
     if (end < st.end) return stage_submit(ctx, p, s, g);

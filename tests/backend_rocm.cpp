@@ -4931,7 +4931,7 @@ static_assert(sizeof(SixteenPeers) == 288 && offsetof(SixteenPeers, status) == 2
 
 void sixteen_ranks() {
     HipFn& f = hip();
-    const size_t W = kMaxTensorWidth, n = 3 * 4 * 4096 + 5, cap = (n + 3) / 4 * 4, signal = 8192, units = (n + 3) / 4;
+    const size_t W = kMaxTensorWidth, n = 3 * 4 * 4096 + 5, cap = (n + 3) / 4 * 4, signal = kGroupSignalBytes, units = (n + 3) / 4;
     hip_check(f.hipSetDevice(used[0]), "hipSetDevice");
     hipModule_t module = nullptr;
     hipFunction_t sums[3] = {}, arm = nullptr;
@@ -5029,7 +5029,7 @@ void sixteen_ranks() {
 // A read must wait for its data, so rank 0 sums the late totals and not what the first sum's take left in the slot, which a write passing another on the way to a peer would give (docs/TESTS.md).
 void late_totals() {
     HipFn& f = hip();
-    const size_t W = 2, n = 2048, cap = n, signal = 8192;
+    const size_t W = 2, n = 2048, cap = n, signal = kGroupSignalBytes;
     hip_check(f.hipSetDevice(used[0]), "hipSetDevice");
     hipModule_t module = nullptr;
     hipFunction_t sum = nullptr, arm = nullptr;
@@ -5172,6 +5172,317 @@ void set_env(const char* name, const char* value) {
 #endif
 }
 
+// A sole twin, the only whole copy a striped norm leaves of its output: products read it through other twins and launches, a product of another layout throws rather than build one from the values, and a write releases it.
+void held_twins(Backend& g, Dtype dt) {
+    const std::string form = dt == Dtype::int8 ? "8-bit" : "16-bit";
+    const size_t n = 4096, rows = 3, nout = 40;
+    const std::vector<float> x = row_classes::values(rows * n, 71), w = row_classes::values(n, 72), up = row_classes::values(rows * n, 73);
+    const std::vector<uint8_t> m = q8_matrix(n, nout, 74);
+    auto xb = g.adopt(x.data(), x.size() * 4), wb = g.adopt(w.data(), w.size() * 4), ub = g.adopt(up.data(), up.size() * 4), mb = g.adopt(m.data(), m.size());
+    auto ob = g.alloc(rows * n * 4), sb = g.alloc(rows * n * 4), y = g.alloc(nout * rows * 4), yh = g.alloc(nout * rows * 4);
+    const WeightView wv{quant::GGML_TYPE_Q8_0, {mb.get(), 0}};
+    // A product of the first two rows needs another twin.
+    const RowRun run[1] = {{rows, rows}}, two[1] = {{2, 2}};
+    // A product first, so the norm writes its twin in the class.
+    g.matmul(wv, {xb.get(), 0}, {y.get(), 0}, n, nout, rows, {run, 1}, dt);
+    g.rms_norm_rows({ob.get(), 0}, {xb.get(), 0}, {wb.get(), 0}, rows, n, n, 1e-6f, {run, 1});
+    g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, n, nout, rows, {run, 1}, dt);
+    const std::vector<float> want = read(g, *y, nout * rows);
+    rocm_sole_twin(g, {ob.get(), 0}, rows * n);
+    // Two other twins take both slots and a producer launches between: the sole one stays.
+    g.matmul(wv, {xb.get(), 0}, {yh.get(), 0}, n, nout, rows, {run, 1}, dt);
+    g.matmul(wv, {ub.get(), 0}, {yh.get(), 0}, n, nout, rows, {run, 1}, dt);
+    g.silu_mul({sb.get(), 0}, {xb.get(), 0}, {ub.get(), 0}, rows * n, {}, {run, 1});
+    bool kept = !throws([&] { g.matmul(wv, {ob.get(), 0}, {yh.get(), 0}, n, nout, rows, {run, 1}, dt); });
+    kept = kept && same(read(g, *yh, nout * rows), want);
+    require(kept, form + ": a sole twin outlives other twins and launches, and a product reads its bits");
+    require(throws([&] { g.matmul(wv, {ob.get(), 0}, {yh.get(), 0}, n, nout, 2, {two, 1}, dt); }), form + ": a product missing a sole twin throws");
+    g.write(*ob, 0, up.data(), rows * n * 4);
+    bool released = !throws([&] { g.matmul(wv, {ob.get(), 0}, {yh.get(), 0}, n, nout, 2, {two, 1}, dt); });
+    g.matmul(wv, {ub.get(), 0}, {y.get(), 0}, n, nout, 2, {two, 1}, dt);
+    released = released && same(read(g, *yh, nout * 2), read(g, *y, nout * 2));
+    require(released, form + ": a write into a sole twin's values releases it");
+    require(throws([&] { rocm_sole_twin(g, {sb.get(), 0}, n); }), form + ": only a kept twin is made sole");
+}
+
+// The striped sum with the next entry norm (Collective::sum_norm) against sum_into, rms_norm_rows and a product apart, bit for bit, at two and four members and rows 1 to 512.
+// Each member's residual and norm hold the reference's bits on its stripe and their poison off it, a following Q8_0 product on every member reads the whole twin, and a gather leaves every residual whole.
+void striped_sums() {
+    const float eps = 1e-6f, nan = std::nanf("");
+    const size_t nout = 40, most = 512;
+    size_t checks = 0;
+    for (size_t W : {size_t(2), size_t(4)}) {
+        std::vector<BackendPtr> d = rocm_devices(W);
+        if (d.size() < W) continue;
+        const std::vector<Backend*> group = raw(d, W);
+        DeviceProfile& profile = rocm_profile(*group[0]);
+        const DeviceProfile saved = profile;
+        for (size_t width : {size_t(4096), size_t(5120)}) {
+            std::unique_ptr<Collective> c = group[0]->join(group, most, width);
+            const std::vector<uint8_t> m = q8_matrix(width, nout, 81);
+            const std::vector<float> nw = row_classes::values(width, 82);
+            const size_t S = 256 / W;
+            for (Dtype dt : {Dtype::f16, Dtype::int8})
+                for (size_t rows : {size_t(1), size_t(8), size_t(64), size_t(512)}) {
+                    const std::string what = "W " + std::to_string(W) + " width " + std::to_string(width) + " rows " + std::to_string(rows) + (dt == Dtype::int8 ? " 8-bit" : " 16-bit") + ": ";
+                    const size_t n = rows * width;
+                    const group_sums::Case k = group_sums::make(W, n, (uint32_t)(W * 1000 + rows + width));
+                    const RowRun run[1] = {{rows, rows}};
+                    const RowRuns runs{run, 1};
+                    std::vector<BufferPtr> held;
+                    const auto buf = [&](Backend& g, const void* v, size_t bytes) {
+                        held.push_back(g.alloc(bytes));
+                        g.write(*held.back(), 0, v, bytes);
+                        return held.back().get();
+                    };
+                    const std::vector<float> poison(n, nan);
+                    std::vector<Buffer*> xr, yr, x, y, mw;
+                    std::vector<Slice> xrs, xs, ys;
+                    std::vector<CSlice> ws;
+                    for (size_t i = 0; i < W; ++i) {
+                        Backend& g = *group[i];
+                        mw.push_back(buf(g, m.data(), m.size()));
+                        ws.push_back({buf(g, nw.data(), width * 4), 0});
+                        xr.push_back(buf(g, k.start.data(), n * 4));
+                        yr.push_back(buf(g, poison.data(), n * 4));
+                        x.push_back(buf(g, k.start.data(), n * 4));
+                        y.push_back(buf(g, poison.data(), n * 4));
+                        xrs.push_back({xr.back(), 0});
+                        xs.push_back({x.back(), 0});
+                        ys.push_back({y.back(), 0});
+                    }
+                    const std::vector<WeightView> q8 = {{quant::GGML_TYPE_Q8_0, {mw[0], 0}}};
+                    const auto partials = [&] {
+                        for (size_t i = 0; i < W; ++i) {
+                            const Slice p = c->partial(i);
+                            group[i]->write(*p.buffer, p.offset * sizeof(float), k.partial[i].data(), n * sizeof(float));
+                        }
+                    };
+                    const auto product = [&](size_t i, Buffer* in, Buffer* out) {
+                        group[i]->matmul({quant::GGML_TYPE_Q8_0, {mw[i], 0}}, {in, 0}, {out, 0}, width, nout, rows, runs, dt);
+                        return read(*group[i], *out, nout * rows);
+                    };
+                    // The reference: the sum, the held norm and the product apart, a product first so the norm writes its twin in the class.
+                    partials();
+                    c->sum_into(xrs, rows, width);
+                    std::vector<std::vector<float>> want(W);
+                    for (size_t i = 0; i < W; ++i) {
+                        Buffer* o = buf(*group[i], poison.data(), nout * rows * 4);
+                        product(i, xr[i], o);
+                        group[i]->rms_norm_rows({yr[i], 0}, {xr[i], 0}, ws[i], rows, width, width, eps, runs);
+                        want[i] = product(i, yr[i], o);
+                    }
+                    std::fill(std::begin(profile.striped_norm_from), std::end(profile.striped_norm_from), (uint32_t)rows + 1);
+                    partials();
+                    require(!c->sum_norm(xs, rows, width, EntryNorm{ws, ys, eps, runs, false, q8, dt}), what + "a striped sum below its crossover was taken");
+                    std::fill(std::begin(profile.striped_norm_from), std::end(profile.striped_norm_from), 1u);
+                    const bool taken = c->sum_norm(xs, rows, width, EntryNorm{ws, ys, eps, runs, false, q8, dt});
+                    require(taken, what + "a striped sum was refused");
+                    if (!taken) continue;
+                    for (size_t i = 0; i < W; ++i) {
+                        Buffer* o = buf(*group[i], poison.data(), nout * rows * 4);
+                        const std::vector<float> got = product(i, y[i], o), gx = read(*group[i], *x[i], n), gy = read(*group[i], *y[i], n);
+                        const std::vector<float> rx = read(*group[i], *xr[i], n), ry = read(*group[i], *yr[i], n);
+                        bool stripe = true, off = true;
+                        for (size_t e = 0; e < n; ++e) {
+                            if (e % width % 256 / S == i) stripe = stripe && std::memcmp(&gx[e], &rx[e], 4) == 0 && std::memcmp(&gy[e], &ry[e], 4) == 0;
+                            else off = off && std::memcmp(&gx[e], &k.start[e], 4) == 0 && std::isnan(gy[e]);
+                        }
+                        require(stripe, what + "a member's residual and norm stripe are not the reference's bits");
+                        require(off, what + "a striped sum wrote a member's residual or norm off its stripe");
+                        require(same(got, want[i]), what + "a product of a member's striped norm does not give the reference's bits from the whole twin");
+                    }
+                    // The gather: every member's residual whole, the oracle's sum in member order.
+                    for (size_t i = 0; i < W; ++i) group[i]->write(*x[i], 0, k.start.data(), n * sizeof(float));
+                    partials();
+                    require(c->sum_norm(xs, rows, width, EntryNorm{{}, {}, 0.0f, {}, true}), what + "a gather was refused");
+                    const std::vector<float> whole = group_sums::oracle(k, false);
+                    for (size_t i = 0; i < W; ++i)
+                        require(std::memcmp(read(*group[i], *x[i], n).data(), whole.data(), n * sizeof(float)) == 0, what + "a gather left a member's residual not the oracle's");
+                    checks += 2;
+                }
+        }
+        profile = saved;
+    }
+    std::cout << "backend-rocm: " << checks << " striped sums with their norm, twin and gather bit for bit\n";
+}
+
+// The striped norm's twin follows the products that read its output, not the product before it: an F32-class reader, a tiled reader that needs the half sums and a reader of the other class each get the bits of the sum, norm and product apart.
+void striped_readers() {
+    const float eps = 1e-6f, nan = std::nanf("");
+    const size_t width = 4096, nout = 40, most = 512;
+    size_t checks = 0;
+    struct Case {
+        const char* name;
+        Dtype writer_dt;
+        uint32_t reader;
+        Dtype reader_dt;
+        bool mixed;   // 512 rows as eight generated rows each before 63 of a prompt, more regions than a twin map holds, so its twin is flat
+    };
+    const Case cases[] = {{"an F32 reader", Dtype::f16, quant::GGML_TYPE_F32, Dtype::f16, false},
+                          {"a Q4_K reader", Dtype::f16, quant::GGML_TYPE_Q4_K, Dtype::f16, false},
+                          {"a 16-bit reader after an 8-bit product", Dtype::int8, quant::GGML_TYPE_Q8_0, Dtype::f16, false},
+                          {"a Q4_K reader of mixed runs", Dtype::f16, quant::GGML_TYPE_Q4_K, Dtype::f16, true}};
+    for (size_t W : {size_t(2), size_t(4)}) {
+        std::vector<BackendPtr> d = rocm_devices(W);
+        if (d.size() < W) continue;
+        const std::vector<Backend*> group = raw(d, W);
+        DeviceProfile& profile = rocm_profile(*group[0]);
+        const DeviceProfile saved = profile;
+        std::unique_ptr<Collective> c = group[0]->join(group, most, width);
+        const std::vector<uint8_t> m = q8_matrix(width, nout, 83);
+        const std::vector<float> nw = row_classes::values(width, 84), fw = row_classes::values(width * nout, 85);
+        for (const Case& cs : cases)
+            for (size_t rows : {size_t(1), size_t(512)}) {
+                if (cs.mixed && rows != 512) continue;
+                const std::string what = "W " + std::to_string(W) + " rows " + std::to_string(rows) + ", " + cs.name + ": ";
+                const size_t n = rows * width;
+                const group_sums::Case k = group_sums::make(W, n, (uint32_t)(W * 2000 + rows));
+                RowRun run[16] = {{rows, rows}};
+                for (size_t e = 0; cs.mixed && e < 16; ++e) run[e] = e % 2 ? RowRun{e / 2 * 64 + 64, 512} : RowRun{e / 2 * 64 + 1, 1};
+                const RowRuns runs{run, cs.mixed ? size_t(16) : size_t(1)};
+                const std::vector<uint8_t> r = cs.reader == quant::GGML_TYPE_F32 ? std::vector<uint8_t>((const uint8_t*)fw.data(), (const uint8_t*)(fw.data() + fw.size()))
+                                                                                  : typed_matrix(cs.reader, width, nout, 86);
+                std::vector<BufferPtr> held;
+                const auto buf = [&](Backend& g, const void* v, size_t bytes) {
+                    held.push_back(g.alloc(bytes));
+                    g.write(*held.back(), 0, v, bytes);
+                    return held.back().get();
+                };
+                const std::vector<float> poison(n, nan);
+                std::vector<Buffer*> xr, yr, x, y, mw, rw;
+                std::vector<Slice> xrs, xs, ys;
+                std::vector<CSlice> ws;
+                for (size_t i = 0; i < W; ++i) {
+                    Backend& g = *group[i];
+                    mw.push_back(buf(g, m.data(), m.size()));
+                    rw.push_back(buf(g, r.data(), r.size()));
+                    ws.push_back({buf(g, nw.data(), width * 4), 0});
+                    xr.push_back(buf(g, k.start.data(), n * 4));
+                    yr.push_back(buf(g, poison.data(), n * 4));
+                    x.push_back(buf(g, k.start.data(), n * 4));
+                    y.push_back(buf(g, poison.data(), n * 4));
+                    xrs.push_back({xr.back(), 0});
+                    xs.push_back({x.back(), 0});
+                    ys.push_back({y.back(), 0});
+                }
+                const auto partials = [&] {
+                    for (size_t i = 0; i < W; ++i) {
+                        const Slice p = c->partial(i);
+                        group[i]->write(*p.buffer, p.offset * sizeof(float), k.partial[i].data(), n * sizeof(float));
+                    }
+                };
+                const auto writer = [&](size_t i, Buffer* in) {
+                    Buffer* o = buf(*group[i], poison.data(), nout * rows * 4);
+                    group[i]->matmul({quant::GGML_TYPE_Q8_0, {mw[i], 0}}, {in, 0}, {o, 0}, width, nout, rows, runs, cs.writer_dt);
+                };
+                const auto reader = [&](size_t i, Buffer* in) {
+                    Buffer* o = buf(*group[i], poison.data(), nout * rows * 4);
+                    group[i]->matmul({cs.reader, {rw[i], 0}}, {in, 0}, {o, 0}, width, nout, rows, runs, cs.reader_dt);
+                    return read(*group[i], *o, nout * rows);
+                };
+                partials();
+                for (size_t i = 0; i < W; ++i) writer(i, xr[i]);
+                c->sum_into(xrs, rows, width);
+                std::vector<std::vector<float>> want(W);
+                for (size_t i = 0; i < W; ++i) {
+                    group[i]->rms_norm_rows({yr[i], 0}, {xr[i], 0}, ws[i], rows, width, width, eps, runs);
+                    want[i] = reader(i, yr[i]);
+                }
+                std::fill(std::begin(profile.striped_norm_from), std::end(profile.striped_norm_from), 1u);
+                partials();
+                for (size_t i = 0; i < W; ++i) writer(i, x[i]);
+                const bool taken = c->sum_norm(xs, rows, width, EntryNorm{ws, ys, eps, runs, false, {{cs.reader, {rw[0], 0}}}, cs.reader_dt});
+                require(taken == (cs.reader != quant::GGML_TYPE_F32 && !cs.mixed), what + (taken ? "a striped norm read as it is was taken" : "a striped norm its readers take whole was refused"));
+                if (!taken) {
+                    c->sum_into(xs, rows, width);
+                    for (size_t i = 0; i < W; ++i) group[i]->rms_norm_rows(ys[i], xs[i], ws[i], rows, width, width, eps, runs);
+                }
+                for (size_t i = 0; i < W; ++i) {
+                    bool same_bits = false;
+                    try {
+                        same_bits = same(reader(i, y[i]), want[i]);
+                    } catch (const std::exception& e) {
+                        require(false, what + "the reader threw: " + e.what());
+                        continue;
+                    }
+                    require(same_bits, what + "a reader of the norm's output does not give the bits of the sum, norm and product apart");
+                }
+                profile = saved;
+                ++checks;
+            }
+    }
+    std::cout << "backend-rocm: " << checks << " striped norms read by products of another class\n";
+}
+
+// The striped sum with its norm against sum_into then rms_norm_rows, with 16-bit and 8-bit twins, at W members and one width, arms interleaved; it checks nothing and sets striped_norm_from (device_profile.hpp).
+void striped_rates(size_t W, size_t width) {
+    std::vector<BackendPtr> d = rocm_devices(W);
+    if (d.size() < W) return;
+    const std::vector<Backend*> group = raw(d, W);
+    DeviceProfile& profile = rocm_profile(*group[0]);
+    const DeviceProfile saved = profile;
+    std::fill(std::begin(profile.striped_norm_from), std::end(profile.striped_norm_from), 1u);
+    const size_t most = 512, nout = 40;
+    std::unique_ptr<Collective> c = group[0]->join(group, most, width);
+    const std::vector<uint8_t> m = q8_matrix(width, nout, 91);
+    const std::vector<float> nw = row_classes::values(width, 92), start = row_classes::values(most * width, 93);
+    std::vector<BufferPtr> held;
+    std::vector<Slice> xs, ys;
+    std::vector<CSlice> ws;
+    std::vector<Buffer*> mw, outs;
+    for (Backend* g : group) {
+        for (size_t k = 0; k < 4; ++k) held.push_back(g->alloc(k == 1 ? width * 4 : k == 3 ? nout * most * 4 : most * width * 4));
+        g->write(*held[held.size() - 4], 0, start.data(), most * width * 4);
+        g->write(*held[held.size() - 3], 0, nw.data(), width * 4);
+        held.push_back(g->alloc(m.size()));
+        g->write(*held.back(), 0, m.data(), m.size());
+        xs.push_back({held[held.size() - 5].get(), 0});
+        ws.push_back({held[held.size() - 4].get(), 0});
+        ys.push_back({held[held.size() - 3].get(), 0});
+        outs.push_back(held[held.size() - 2].get());
+        mw.push_back(held.back().get());
+    }
+    for (const Dtype dt : {Dtype::f16, Dtype::int8})
+    for (size_t rows : {size_t(1), size_t(8), size_t(32), size_t(64), size_t(128), size_t(256), size_t(512)}) {
+        const RowRun run[1] = {{rows, rows}};
+        const RowRuns runs{run, 1};
+        const int N = rows >= 256 ? 8 : 32;
+        // A product first, so the norms write their twins in the 16-bit class and, on a prompt's layout, the half sums.
+        for (size_t i = 0; i < W; ++i) group[i]->matmul({quant::GGML_TYPE_Q8_0, {mw[i], 0}}, xs[i], {outs[i], 0}, width, nout, rows, runs, dt);
+        const auto apart = [&] {
+            c->sum_into(xs, rows, width);
+            for (size_t i = 0; i < W; ++i) group[i]->rms_norm_rows(ys[i], xs[i], ws[i], rows, width, width, 1e-6f, runs);
+        };
+        const auto striped = [&] { return c->sum_norm(xs, rows, width, EntryNorm{ws, ys, 1e-6f, runs, false, {{quant::GGML_TYPE_Q8_0, {mw[0], 0}}}, dt}); };
+        bool taken = striped();
+        apart();
+        for (Backend* g : group) g->submit();
+        for (Backend* g : group) g->sync();
+        std::vector<double> ms[2];
+        for (int rep = 0; rep < 15 && taken; ++rep)
+            for (int arm = 0; arm < 2 && taken; ++arm) {
+                const auto t0 = std::chrono::steady_clock::now();
+                for (int i = 0; i < N && taken; ++i) {
+                    if (arm) taken = striped();
+                    else apart();
+                }
+                for (Backend* g : group) g->submit();
+                for (Backend* g : group) g->sync();
+                ms[arm].push_back(std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count() / N);
+            }
+        if (!taken) {
+            std::printf("STRIPED W %zu width %zu %s rows %zu refused\n", W, width, dt == Dtype::int8 ? "int8" : "f16", rows);
+            continue;
+        }
+        for (std::vector<double>& v : ms) std::sort(v.begin(), v.end());
+        std::printf("STRIPED W %zu width %zu %s rows %zu apart_us %.2f striped_us %.2f ratio %.3f apart_min %.2f striped_min %.2f\n", W, width, dt == Dtype::int8 ? "int8" : "f16", rows, ms[0][7], ms[1][7], ms[1][7] / ms[0][7],
+                    ms[0][0], ms[1][0]);
+    }
+    std::fflush(stdout);
+    profile = saved;
+}
+
 int main(int argc, char** argv) {
     // `sixteen` runs groups of up to 16 ranks on one device, which with the backend's own stream need more hardware queues than HIP's default of 4; a real group runs one rank per device and needs none.
     const bool sixteen = argc > 1 && std::string(argv[1]) == "sixteen";
@@ -5213,6 +5524,11 @@ int main(int argc, char** argv) {
         // `rates attention`, `argmax`, `routed`, `tile`, `exact` or `decode` prints one part; `rates delta` (the fused linear-attention step), `rates forms` (form_rates) and `rates beside` (beside_rates) run only when named.
         if (argc > 1 && std::string(argv[1]) == "vsnccl") {
             vsnccl(argc > 2 && std::string(argv[2]) == "10", argc > 3 ? (size_t)std::atoi(argv[3]) : 2, argc > 4 ? (size_t)std::atoi(argv[4]) : 5120);
+            return 0;
+        }
+        // `striped W WIDTH` times the striped sum with its norm against the sum and the norm apart (striped_rates).
+        if (argc > 1 && std::string(argv[1]) == "striped") {
+            striped_rates(argc > 2 ? (size_t)std::atoi(argv[2]) : 2, argc > 3 ? (size_t)std::atoi(argv[3]) : 5120);
             return 0;
         }
         if (argc > 1 && std::string(argv[1]) == "rates") {
@@ -5275,6 +5591,8 @@ int main(int argc, char** argv) {
                 std::vector<BackendPtr> d = rocm_devices(kMaxTensorWidth);
                 for (size_t W = 2; W <= d.size(); ++W) conv_sums(d, W);
             }
+            striped_sums();
+            striped_readers();
             std::cout << (failures ? "backend-rocm collective: FAIL\n" : "backend-rocm collective: PASS\n");
             return failures ? 1 : 0;
         }
@@ -5440,6 +5758,8 @@ int main(int argc, char** argv) {
         classes(*g);
         twin_checks::twin_products(*g, rocm_device(used[0]).caps, Dtype::f16, rocm_take_launches, require);
         twin_checks::producer_twins(*g, Dtype::f16, require);
+        held_twins(*g, Dtype::f16);
+        held_twins(*g, Dtype::int8);
         twin_checks::stream_twins(*g, Dtype::f16, rocm_take_launches, require);
         twin_checks::twin_products(*g, rocm_device(used[0]).caps, Dtype::int8, rocm_take_launches, require);
         twin_checks::producer_twins(*g, Dtype::int8, require);

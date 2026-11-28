@@ -24,6 +24,8 @@ std::map<std::string, size_t> rocm_take_launches(Backend& backend);
 void rocm_route_only(Backend& backend, std::string build);
 // A diagnostics ROCm backend sleeps `delay` between each timed op's start event and its launch: the tests' witness that a host falling behind its device shows as idle, not as op time.
 void rocm_delay_launches(Backend& backend, std::chrono::microseconds delay);
+// Marks the kept twin of the `values` floats at x as their only whole copy, as a striped norm leaves them: the tests' witness that a product missing it throws and that no other twin evicts it.
+void rocm_sole_twin(Backend& backend, CSlice x, size_t values);
 
 // A collective over `members` whose fast sums all take `form` over `transport`, the members possibly backends of one device, never probed: the tests' witness of each form and transport.
 std::unique_ptr<Collective> rocm_collective(const std::vector<Backend*>& members, size_t rows, size_t width, GpuSumForm form, GroupTransport transport = GroupTransport::peer_writes);

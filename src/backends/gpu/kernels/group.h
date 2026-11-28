@@ -20,8 +20,10 @@ struct GroupSignal {
     unsigned done[3][kGroupBlocks][kGroupMembers];   // [meeting][block][sender]: the epoch a sender's block reached, at a chain's meeting or a draws sum's first or second
     unsigned ahead[kChainBlocks], back[kChainBlocks];     // the chunks a chain's predecessor and successor passed this member so far, per chain block
     unsigned passed[2][kChainBlocks];                     // this member's own count of the same, ahead then back, which every member keeps equal
+    unsigned striped[kGroupBlocks];                       // rows a striped sum's block finished so far (group_sum_norm), which every member keeps equal
+    unsigned records[kGroupBlocks][kGroupMembers];        // [block][sender]: the stripe records a sender's block passed this member so far
 };
-static_assert(sizeof(GroupSignal) <= 8192, "the host's kGroupSignalBytes");
+static_assert(sizeof(GroupSignal) <= 12288, "the host's kGroupSignalBytes");
 struct GroupPeers {
     float* stage[kGroupMembers];      // each member's staging slots, cap floats a member, two parity halves of them and under peer writes its two draw slots
     unsigned* signal[kGroupMembers];  // each member's GroupSignal

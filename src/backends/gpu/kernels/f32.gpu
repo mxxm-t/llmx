@@ -112,6 +112,34 @@ __device__ __forceinline__ float held_value(const float* x, const M& mx, unsigne
     }
 }
 
+// The steps the held norm and the striped one (group_sum_norm) share, so both give the same bits.
+// A column's chain: the squares of its values v(i) for the i below K that has(i) admits, a prefix in the caller's own terms, added in order with fmaf as rms_norm_row adds a thread's values.
+template <int K, class V, class H>
+__device__ __forceinline__ float norm_chain(V v, H has) {
+    float s = 0.0f;
+#pragma unroll
+    for (int i = 0; i < K; ++i)
+        if (has(i)) s = fmaf(v(i), v(i), s);
+    return s;
+}
+// The row's scale from its kThreads chains in lds, block_sum's tree; every thread of the block reads it.
+__device__ __forceinline__ float norm_scale(float* lds, int n, float eps) {
+    __syncthreads();
+    block_tree<kThreads>(lds);
+    __syncthreads();
+    return 1.0f / sqrtf(lds[0] / (float)n + eps);
+}
+// Value o at column i of row r into the row y and, at L levels, its twin block, whose 32 lanes call it together.
+template <typename QT, int L>
+__device__ __forceinline__ void norm_out(float* y, float o, unsigned long long r, int i, int n, QT* q, float* d, void* ts, const TwinMap* m) {
+    y[i] = o;
+    if (L) {
+        const float amax = block_amax(o);
+        const unsigned long long b = !m ? (r * (unsigned long long)n + i) / 32 : twin_block(*m, (unsigned)r, (unsigned)i / 32);
+        twin_sums<QT, 32>(twin_value<QT, L>(o, amax, q + b * 32 + i % 32, d + b, i % 32), i % 32, ts, b);
+    }
+}
+
 // A block a row of n <= K * kThreads values: dst = RMSNorm(src) against w, with its twin at L levels beside it when L is not 0.
 // The sum takes rms_norm_row's chains and block_sum's tree, so both give the same bits, and only the map-free builds (P) compile the 256-thread parts branch, whose registers spill the 1024-thread path of the map's builds.
 template <int K, typename QT, int L, bool P, bool MIX = false>
@@ -128,26 +156,11 @@ __device__ __forceinline__ void rms_norm_held(float* __restrict__ dst, const flo
         float xr[K];
 #pragma unroll
         for (int k = 0; k < K; ++k) xr[k] = t + kThreads * k < n ? held_value<MIX>(x, mx, r, n, t + kThreads * k) : 0.0f;
-        float s = 0.0f;
-#pragma unroll
-        for (int k = 0; k < K; ++k)
-            if (t + kThreads * k < n) s = fmaf(xr[k], xr[k], s);
-        lds[t] = s;
-        __syncthreads();
-        block_tree<kThreads>(lds);
-        __syncthreads();
-        const float rp = 1.0f / sqrtf(lds[0] / (float)n + eps);
+        lds[t] = norm_chain<K>([&](int k) { return xr[k]; }, [&](int k) { return t + kThreads * k < n; });
+        const float rp = norm_scale(lds, n, eps);
         float* yp = dst + r * stride;
         const int cp = (int)(((unsigned)(n + 31) / 32 + parts - 1) / parts) * 32, lp = cp * (MIX ? 0 : (int)blockIdx.y), hp = min(n, lp + cp);
-        for (int i = lp + t; i < hp; i += kThreads) {
-            const float o = held_value<MIX>(x, mx, r, n, i) * (rp * w[i]);
-            yp[i] = o;
-            if (L) {
-                const float amax = block_amax(o);
-                const unsigned long long b = !m ? (r * (unsigned long long)n + i) / 32 : twin_block(*m, (unsigned)r, (unsigned)i / 32);
-                twin_sums<QT, 32>(twin_value<QT, L>(o, amax, q + b * 32 + i % 32, d + b, i % 32), i % 32, ts, b);
-            }
-        }
+        for (int i = lp + t; i < hp; i += kThreads) norm_out<QT, L>(yp, held_value<MIX>(x, mx, r, n, i) * (rp * w[i]), r, i, n, q, d, ts, m);
         return;
     }
     float v[J], wv[J];
@@ -164,16 +177,10 @@ __device__ __forceinline__ void rms_norm_held(float* __restrict__ dst, const flo
         float xv[K];
 #pragma unroll
         for (int k = 0; k < K; ++k) xv[k] = xs[t + kThreads * k];
-        float s = 0.0f;
-#pragma unroll
-        for (int k = 0; k < K; ++k)
-            if (t + kThreads * k < n) s = fmaf(xv[k], xv[k], s);
-        lds[t] = s;
+        const int c = t < n ? (n - t + kThreads - 1) / kThreads : 0;
+        lds[t] = norm_chain<K>([&](int k) { return xv[k]; }, [&](int k) { return k < c; });
     }
-    __syncthreads();
-    block_tree<kThreads>(lds);
-    __syncthreads();
-    const float rr = 1.0f / sqrtf(lds[0] / (float)n + eps);
+    const float rr = norm_scale(lds, n, eps);
     float* y = dst + r * stride;
     // blockIdx.y's share of the row (part 0 in a mix build, whose blockIdx.y is its item), read here rather than held from the start, in whole twin blocks: every part sums the whole row the same way and writes only its share.
     // The part count is an argument rather than gridDim.y, which would read a hidden kernel argument and measured 1.4 to 2.9 us a call on an MI50 (docs/STATUS.md, Held norm rows in parts).
@@ -183,13 +190,7 @@ __device__ __forceinline__ void rms_norm_held(float* __restrict__ dst, const flo
         const int i = t + kNormThreads * j;
         if (i >= hi) break;
         if (i < lo) continue;
-        const float o = v[j] * (rr * wv[j]);
-        y[i] = o;
-        if (L) {
-            const float amax = block_amax(o);
-            const unsigned long long b = !m ? (r * (unsigned long long)n + i) / 32 : twin_block(*m, (unsigned)r, (unsigned)i / 32);
-            twin_sums<QT, 32>(twin_value<QT, L>(o, amax, q + b * 32 + i % 32, d + b, i % 32), i % 32, ts, b);
-        }
+        norm_out<QT, L>(y, v[j] * (rr * wv[j]), r, i, n, q, d, ts, m);
     }
 }
 
@@ -618,6 +619,172 @@ extern "C" __global__ void __launch_bounds__(kThreads) llmx_group_shares(const G
     }
     group_failed(p, members, rank);
 }
+
+// A striped sum (docs/src/backends-gpu.md, the collective): member `rank` adds the members' partials of its stripe, the kThreads / members columns from rank's of every kThreads block, into x, and norms it into y with its twin.
+// It sends its twin stripe as map m lays it out, half sums in ts where not null, or with `gather` (flag 2) its x stripe, to every peer as one record in the parity half at flag 4, read once the sender's count says it landed.
+template <typename QT, int L>
+__device__ void group_sum_norm(const GroupPeers* p, const float* own, float* x, float* y, const float* w, unsigned long long n, unsigned long long rows, unsigned long long cap,
+                               int members, int rank, int flags, unsigned long long timeout, unsigned long long tick, float eps, QT* q, float* d, void* ts, const TwinMap& m) {
+    __shared__ int failed;
+    __shared__ float xs[16 * kThreads];   // a row's stripe, n / members values
+    __shared__ float lds[kThreads];
+    constexpr int C = 32 * sizeof(QT) / 16, SW = sizeof(QT) == 1 ? 1 : 2;   // a twin block's codes in 16-byte units and its half sums in words
+    const bool gather = flags & 2;
+    const int t = threadIdx.x, b = blockIdx.x, S = kThreads / members, su = S / 4, K = (int)(n / kThreads), bc = S / 32, cu = bc * C, du = (bc + 3) / 4;
+    const int pu = cu + du + (ts ? (bc * SW + 3) / 4 : 0);
+    const unsigned long long nw = n / members, units = nw / 4, half_at = (unsigned long long)(flags >> 2 & 1) * members * cap;
+    // A record row in 16-byte units: the stripe's floats, or for each kThreads block its twin blocks' codes, their scales four to a unit, then their half sums four words to a unit.
+    const unsigned long long rec = gather ? units : (unsigned long long)K * pu, rec_at = gather ? rows * nw : 0, chains_at = rows * nw;
+    const auto col = [&](int k, unsigned long long u) { return u / su * kThreads + (unsigned long long)k * S + u % su * 4; };
+    // Twin block c of member j's stripe in record unit e's kThreads block of row r.
+    const auto tb = [&](unsigned long long r, unsigned long long e, int j, int c) { return twin_block(m, (unsigned)r, (unsigned)(e / pu * (kThreads / 32) + j * bc + c)); };
+    // Record unit e of member j's stripe in row r: a pointer to its codes, or the word at f of its scales and half sums.
+    const auto word = [&](unsigned long long r, unsigned long long e, int j, int f) -> unsigned* {
+        if (f < du * 4) return f < bc ? (unsigned*)(d + tb(r, e, j, f)) : nullptr;
+        f -= du * 4;
+        return f < bc * SW ? (unsigned*)ts + tb(r, e, j, f / SW) * SW + f % SW : nullptr;
+    };
+    GroupSignal* self = (GroupSignal*)p->signal[rank];
+    const unsigned base = self->striped[b];
+    const unsigned long long deadline = timeout ? (unsigned long long)wall_clock() + timeout : ~0ull;
+    unsigned long long next = (unsigned long long)wall_clock() + tick;
+    float* mine = p->stage[rank] + half_at;
+    // A sum queued behind one that gave up fails at once, since this member's counts no longer meet its peers'.
+    if (!t) failed = atomic_load_relaxed_system(&self->abort) ? 1 : 0;
+    __syncthreads();
+    for (unsigned long long r = b; r < rows && !failed; r += gridDim.x)
+        for (int s = 1; s < members; ++s) {
+            const int k = (rank + s) % members;
+            for (unsigned long long u = t; u < units; u += kThreads) group_send(p->stage[k] + half_at + rank * cap + r * nw, u * 4, LLMX_UNIT_END(u * 4, nw), *(const float4*)(own + r * n + col(k, u)));
+        }
+    bool met = true;
+    unsigned done = 0;
+    for (unsigned long long r = b; r < rows && !failed; r += gridDim.x, ++done) {
+        for (unsigned long long u = t; u < units && met; u += kThreads) {
+            float4 tt = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+            for (int j = 0; j < members && met; ++j) {
+                float4 v;
+                if (j == rank) v = *(const float4*)(own + r * n + col(rank, u));
+                else met = group_take(p, self, mine + j * cap + r * nw, u * 4, LLMX_UNIT_END(u * 4, nw), deadline, tick, &next, &failed, &v);
+                if (!j) {
+                    tt = v;
+                } else {
+                    tt.x += v.x;
+                    tt.y += v.y;
+                    tt.z += v.z;
+                    tt.w += v.w;
+                }
+            }
+            if (!met) break;
+            float4* xp = (float4*)(x + r * n + col(rank, u));
+            float4 xv = *xp;
+            xv.x += tt.x;
+            xv.y += tt.y;
+            xv.z += tt.z;
+            xv.w += tt.w;
+            *xp = xv;
+            *(float4*)(xs + u * 4) = xv;
+        }
+        if (!met) atomic_store_relaxed_block(&failed, 1);
+        // The slots this block took are armed again in memory before a peer holding its chains may write a record over them.
+        __threadfence_system();
+        __syncthreads();
+        if (failed) break;
+        if (!gather) {
+            if (t < S) lds[rank * S + t] = norm_chain<32>([&](int k) { return xs[k * S + t]; }, [&](int k) { return k < K; });
+            __syncthreads();
+            if (t < su)
+                for (int s = 1; s < members; ++s)
+                    group_send(p->stage[(rank + s) % members] + half_at + rank * cap + chains_at + r * S, t * 4, LLMX_UNIT_END(t * 4, S), *(const float4*)(lds + rank * S + t * 4));
+            for (int e = t; e < (members - 1) * su && met; e += kThreads) {
+                const int j = (rank + 1 + e / su) % members, i = e % su * 4;
+                float4 v;
+                met = group_take(p, self, mine + j * cap + chains_at + r * S, i, LLMX_UNIT_END(i, S), deadline, tick, &next, &failed, &v);
+                if (met) *(float4*)(lds + j * S + i) = v;
+            }
+            if (!met) atomic_store_relaxed_block(&failed, 1);
+            const float rr = norm_scale(lds, (int)n, eps);
+            if (failed) break;
+            for (int e = t; e < K * S; e += kThreads) {
+                const int i = e / S * kThreads + rank * S + e % S;
+                norm_out<QT, L>(y + r * n, xs[e] * (rr * w[i]), r, i, (int)n, q, d, ts, &m);
+            }
+            __syncthreads();
+        }
+        for (unsigned long long e = t; e < rec; e += kThreads) {
+            GroupWord4 v;
+            if (gather) {
+                v = *(const GroupWord4*)(xs + e * 4);
+            } else {
+                const int f = (int)(e % pu);
+                if (f < cu) {
+                    v = ((const GroupWord4*)(q + tb(r, e, rank, f / C) * 32))[f % C];
+                } else {
+                    unsigned wd[4];
+#pragma unroll
+                    for (int k = 0; k < 4; ++k) {
+                        const unsigned* a = word(r, e, rank, (f - cu) * 4 + k);
+                        wd[k] = a ? *a : 0u;
+                    }
+                    v = GroupWord4{wd[0], wd[1], wd[2], wd[3]};
+                }
+            }
+            for (int s = 1; s < members; ++s) store_vector((GroupWord4*)(p->stage[(rank + s) % members] + half_at + rank * cap + rec_at + r * nw) + e, v);
+        }
+        __threadfence_system();
+        __syncthreads();
+        if (t < members && t != rank) atomic_store_release_system(&((GroupSignal*)p->signal[t])->records[b][rank], base + done + 1);
+    }
+    // Each peer's records into this member's own rows, each slot armed again, once its count says the record landed.
+    done = 0;
+    for (unsigned long long r = b; r < rows && !failed; r += gridDim.x, ++done)
+        for (int s = 1; s < members; ++s) {
+            const int j = (rank + s) % members;
+            if (!group_wait(p, self, &self->records[b][j], base + done + 1, deadline, tick, &failed)) break;
+            GroupWord4* from = (GroupWord4*)(mine + j * cap + rec_at + r * nw);
+            for (unsigned long long e = t; e < rec; e += kThreads) {
+                const GroupWord4 v = load_volatile(from + e);
+                store_vector(from + e, GroupWord4{kGroupArmed, kGroupArmed, kGroupArmed, kGroupArmed});
+                if (gather) {
+                    *(GroupWord4*)(x + r * n + col(j, e)) = v;
+                    continue;
+                }
+                const int f = (int)(e % pu);
+                if (f < cu) {
+                    ((GroupWord4*)(q + tb(r, e, j, f / C) * 32))[f % C] = v;
+                    continue;
+                }
+                const unsigned wd[4] = {v.x, v.y, v.z, v.w};
+#pragma unroll
+                for (int k = 0; k < 4; ++k)
+                    if (unsigned* a = word(r, e, j, (f - cu) * 4 + k)) *a = wd[k];
+            }
+        }
+    // The slots armed again reach memory before a later sum's peer may write them.
+    __threadfence_system();
+    __syncthreads();
+    if (!failed) {
+        if (!t) self->striped[b] = base + done;
+        return;
+    }
+    // A failed block poisons every row it owns: x whole, and y with its twin's scales where it norms.
+    for (unsigned long long r = b; r < rows; r += gridDim.x)
+        for (unsigned long long i = t; i < n; i += kThreads) {
+            x[r * n + i] = __builtin_nanf("");
+            if (gather) continue;
+            y[r * n + i] = __builtin_nanf("");
+            if (i % 32 == 0) d[twin_block(m, (unsigned)r, (unsigned)(i / 32))] = __builtin_nanf("");
+        }
+    group_failed(p, members, rank);
+}
+#define LLMX_GROUP_SUM_NORM(name, QT, L)                                                                                                                                     \
+    extern "C" __global__ void __launch_bounds__(kThreads) name(const GroupPeers* p, const float* own, float* x, float* y, const float* w, unsigned long long n,              \
+                                                                unsigned long long rows, unsigned long long cap, int members, int rank, int flags, unsigned long long timeout, \
+                                                                unsigned long long tick, float eps, QT* q, float* d, void* ts, LLMX_GRID_CONST TwinMap m) {                  \
+        group_sum_norm<QT, L>(p, own, x, y, w, n, rows, cap, members, rank, flags, timeout, tick, eps, q, d, ts, m);                                                         \
+    }
+LLMX_GROUP_SUM_NORM(llmx_group_sum_norm8, signed char, 127)
+LLMX_GROUP_SUM_NORM(llmx_group_sum_norm16, short, 32767)
 
 // Copies (docs/src/backends-gpu.md, the collective): copy engines send the rows and totals through host memory, and each member's words in coherent host memory count the chunks that landed.
 // A member's words: [0] its rows' chunks sent to every owner, [1] its total's chunks sent, [2] abort; the counts only grow, so nothing is armed again.

@@ -70,6 +70,8 @@ struct DeviceProfile {
     uint32_t q8_decode_one_row_below_16bit = 1024;
     // Fewest members of a tensor group whose held Q8_0 row launches push their rows to the peers as they finish, leaving the sum its take, or 0 for never; on an MI50 the push lost at two members (docs/STATUS.md, Tile push).
     uint32_t held_push_members = 0;
+    // Fewest rows from which a tensor group of two, four and eight members sums a residual with the next entry norm striped (Collective::sum_norm), or 0 for never (docs/STATUS.md, sums-lossless).
+    uint32_t striped_norm_from[3] = {0, 0, 0};
     // Waves per compute unit a decode row call must launch at four rows a cluster before it takes four (rows_a_cluster).
     // ROCm's two- to sixteen-column builds take it as is, Vulkan's one-column builds times their kernel's class (docs/VULKAN.md, Kernels).
     uint32_t row_four_waves_per_cu = 8;
@@ -163,6 +165,8 @@ inline const TunedDevice* tuned_devices(size_t& count) {
              p.qtile_tall_from_8bit = 4096;
              p.held_push_members = 3;
              p.topk_chunk = 4096;
+             p.striped_norm_from[0] = 32;
+             p.striped_norm_from[1] = 32;
          }},
         {"MI60 / MI50", "radv", [](DeviceProfile& p) {
              p.tile_from_8bit = 16;

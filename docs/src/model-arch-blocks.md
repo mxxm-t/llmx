@@ -17,6 +17,7 @@ run them.
   `shard_swiglu(roles, gate, up, down, ff)`: the SwiGLU block's split, the gate and up projections by their `ff` rows and the down projection by as many columns.
   `shard_experts(roles, tensors, gate, up, down, ff, experts)`: a routed layer's split, the gate and up stacks by the `ff` rows of each expert and the down stack by as many columns, the router whole; each section carries the down stack's block size as its alignment, read from the tensor, so a member holds the blocks that cover its share ([shard](model-shard.md)); a shared expert is split by the same call as one expert.
 - `join(step, weight, in)`: a part's last projection, whose output joins the residual: `matmul_add` into the residual on one device, and on a tensor group the member's partial rows into `Step::partial`, which the runtime sums into every member's residual; `swiglu`'s down projection and the modules' attention and `ssm_out` projections go through it.
+- `enter(step, norm, h, width, eps)`: a part's entry norm of the residual into `h`, which the part skips where the group's sum before it wrote it (`Step::normed`).
 - `projection(weight, out)`: a weight's product into `out` for
   `matmul_group` and `matmul_experts`, a stack's run of rows as the
   projection's `first` and `pitch` window, the buffer passed by raw pointer so

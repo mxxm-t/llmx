@@ -393,10 +393,14 @@ public:
                 layer.recur_phases = 2;
             }
             ffn_roles(layer, tensors, pre, Part::ffn);
+            layer.entry[0] = c.full[(size_t)l] ? LayerPlan::Entry{attn_norm, {attn_q, attn_k, attn_v}} : LayerPlan::Entry{attn_norm, {attn_qkv, attn_gate, ssm_alpha, ssm_beta}};
+            if (!c.n_expert) layer.entry[1] = {post_attention_norm, {ffn_gate, ffn_up}};
         }
         p.context_length = (size_t)c.context_length;
         p.slots = slot_widths(c);
         p.residual = (size_t)c.n_embd;
+        p.entry_slot = 1;
+        p.entry_eps = c.rms_eps;
         p.kv_heads = (size_t)c.n_head_kv;
         p.head_dim = (size_t)c.head_dim;
         p.state = backend::StateShape{(size_t)c.k_heads, (size_t)c.v_heads, (size_t)c.k_dim, (size_t)c.v_dim};
@@ -434,12 +438,11 @@ public:
 
     // The slots are those of slot_widths.
     void mixer(const Step& s) const override {
-        backend::Backend& b = s.b;
         const Weight* w = s.w;
         const size_t E = (size_t)cfg_.n_embd;
-        const backend::Slice x = s.x, h = s.slot(1);
+        const backend::Slice h = s.slot(1);
         if (s.kind & writes_tap) tap(s);
-        b.rms_norm_rows(h, x, w[attn_norm].slice(), s.rows, E, E, cfg_.rms_eps, s.runs);
+        blocks::enter(s, w[attn_norm], h, E, cfg_.rms_eps);
         if ((s.kind & ~writes_tap) == full) {
             full_attention(s, h);
         } else {
@@ -449,11 +452,10 @@ public:
 
     // The MoE FFN (docs/QWEN35.md): the routed sum joins the residual, then the shared expert's down projection reads its SwiGLU scaled by sigmoid(gate . h), one value a row, and joins it too.
     void ffn(const Step& s) const override {
-        backend::Backend& b = s.b;
         const Weight* w = s.w;
         const size_t E = (size_t)cfg_.n_embd;
         const backend::Slice h = s.slot(1), g = s.slot(7), u = s.slot(8), act = s.slot(9);
-        b.rms_norm_rows(h, s.x, w[post_attention_norm].slice(), s.rows, E, E, cfg_.rms_eps, s.runs);
+        blocks::enter(s, w[post_attention_norm], h, E, cfg_.rms_eps);
         if (!cfg_.n_expert) {
             blocks::swiglu(s, w[ffn_gate], w[ffn_up], w[ffn_down], h, g, u, act);
             return;
@@ -650,7 +652,11 @@ private:
             p.widths.topk_items = std::max(p.widths.topk_items, size_t(p.vocab));
         }
         // A tap layer's mixer writes its plane, which crosses with the residual from the first tap on (ModelPlan::Carried).
-        for (int t : d.taps) p.layers[size_t(t)].kind |= writes_tap;
+        // Its tap reads the whole residual, so the sum before its mixer is not striped.
+        for (int t : d.taps) {
+            p.layers[size_t(t)].kind |= writes_tap;
+            p.layers[size_t(t)].entry[0] = {};
+        }
         p.carried.push_back({tap_slot(), d.taps.front() + 1});
         // Then the block's: its codes, gates, messages, row norms and last raw rows, and the tail's refined rows, scores and candidates, R * K tail rows in R * block_size rows' room.
         const size_t f = (size_t(d.top_k) + size_t(d.block) - 1) / size_t(d.block), two = std::max<size_t>(2, f), K = size_t(d.top_k);

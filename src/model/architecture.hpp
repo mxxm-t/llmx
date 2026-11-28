@@ -121,6 +121,13 @@ struct Lookup {
 struct LayerPlan {
     uint8_t kind = 0;
     bool routed = false;
+    // Each part's entry norm (Part::mixer, Part::ffn) and the products that read its output, all plain products of the part's rows, so a tensor group may fuse the norm with the sum before the part (Collective::sum_norm, Step::normed).
+    // A norm of -1 is never fused: anything else reads the norm's output or the residual there.
+    struct Entry {
+        int norm = -1;
+        std::vector<uint16_t> readers;
+    };
+    Entry entry[2];
     Cache cache = Cache::kv;
     std::vector<Role> roles;
     std::vector<OpUse> ops;
@@ -178,6 +185,8 @@ struct ModelPlan {
     std::vector<LayerPlan> layers;
     size_t context_length = 0;          // the most positions a sequence may reach and the cache budget's default; the tables cover at most these (covered_positions)
     size_t residual = 0;                // floats in a residual row: slot 0, a handoff row, a crossing
+    size_t entry_slot = 0;              // the slot an entry norm writes (LayerPlan::Entry)
+    float entry_eps = 0.0f;
     // Floats in a row of a tensor group member's partial rows (Step::partial), which the group sums: 0 for the residual's, which the sum adds to; narrower where each member joins the summed rows into its residual itself (Architecture::join).
     size_t partial = 0;
     std::vector<size_t> slots;          // floats one row takes in each arena slot; slot 0 is the residual
@@ -368,6 +377,7 @@ struct Step {
     const backend::StateView* states = nullptr;
     size_t state_layer = 0;
     backend::Dtype dtype = backend::Dtype::f16;
+    bool normed = false;                // the group's sum before the part wrote its entry norm (blocks::enter)
     const backend::ExpertSlots* experts = nullptr;  // a cached layer's device expert slots (Placement::expert_slots), its row's stacks then holding slots
     // Which of the layer's update phases a call of recur runs (LayerPlan::recur_phases), every one when -1, as the mixer runs it.
     int phase = -1;

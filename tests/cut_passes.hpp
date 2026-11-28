@@ -25,15 +25,56 @@ inline std::vector<uint8_t> history_bytes(infer::Model& model, infer::Sequence& 
     return out;
 }
 
+// How a BesideCpu group takes the sum with the next entry norm (Collective::sum_norm): from `from` rows, every second fused request refused where `refuse_odd` is set.
+// A fused sum fills each member's residual with NaN until the next sum_norm puts it back, so a read of the residual before the gather shows in the logits.
+struct Striping {
+    size_t from = std::numeric_limits<size_t>::max();
+    bool refuse_odd = false;
+    size_t asked = 0, norms = 0, gathers = 0, refused = 0;
+    std::vector<std::vector<float>> held;
+    std::vector<backend::Slice> where;
+};
+
 // A CPU backend whose collectives say a lane sum of fewer than `below` floats copies beside the work, so a group of them cuts its prompt passes as a device group does, counting the lane sums the cut parts send.
 struct BesideCpu final : backend::CpuBackend {
     std::shared_ptr<size_t> sends = std::make_shared<size_t>(0);
     std::shared_ptr<size_t> below = std::make_shared<size_t>(std::numeric_limits<size_t>::max());
+    std::shared_ptr<Striping> striping = std::make_shared<Striping>();
 
     std::unique_ptr<backend::Collective> join(const std::vector<backend::Backend*>& members, size_t rows, size_t width) override {
         struct Beside final : backend::Collective {
             std::unique_ptr<backend::Collective> inner;
             std::shared_ptr<size_t> sends, below;
+            std::shared_ptr<Striping> striping;
+            std::vector<backend::Backend*> members;
+            // The whole rows on the CPU, the residual then poisoned as a device member's holds only its stripe.
+            bool sum_norm(const std::vector<backend::Slice>& residual, size_t rows, size_t width, const backend::EntryNorm& e) override {
+                Striping& s = *striping;
+                if (rows < s.from) return false;
+                if (!e.gather && s.refuse_odd && ++s.asked % 2 == 0) {
+                    ++s.refused;
+                    return false;
+                }
+                for (size_t m = 0; m < s.held.size(); ++m) members[m]->write(*s.where[m].buffer, s.where[m].offset * sizeof(float), s.held[m].data(), s.held[m].size() * sizeof(float));
+                s.held.clear();
+                s.where.clear();
+                inner->sum_into(residual, rows, width);
+                if (e.gather) {
+                    ++s.gathers;
+                    return true;
+                }
+                ++s.norms;
+                const size_t n = rows * width;
+                const std::vector<float> nan(n, std::numeric_limits<float>::quiet_NaN());
+                for (size_t m = 0; m < members.size(); ++m) {
+                    members[m]->rms_norm_rows(e.dst[m], residual[m], e.w[m], rows, width, width, e.eps, e.runs);
+                    s.held.emplace_back(n);
+                    s.where.push_back(residual[m]);
+                    members[m]->read(*residual[m].buffer, residual[m].offset * sizeof(float), s.held.back().data(), n * sizeof(float));
+                    members[m]->write(*residual[m].buffer, residual[m].offset * sizeof(float), nan.data(), n * sizeof(float));
+                }
+                return true;
+            }
             backend::Slice partial(size_t member) override { return inner->partial(member); }
             void sum_into(const std::vector<backend::Slice>& residual, size_t rows, size_t width) override { inner->sum_into(residual, rows, width); }
             void sum_in_place(size_t rows, size_t width) override { inner->sum_in_place(rows, width); }
@@ -50,6 +91,8 @@ struct BesideCpu final : backend::CpuBackend {
         result->inner = CpuBackend::join(members, rows, width);
         result->sends = sends;
         result->below = below;
+        result->striping = striping;
+        result->members = members;
         return result;
     }
 };
@@ -174,4 +217,63 @@ inline void check_cut_fork(infer::Model& model, const std::shared_ptr<size_t>& b
         model.reset(b);
         model.reset(a);
     }
+}
+
+// Sums fused with the next entry norm (Striping): a whole pass of `rows` rows gives the bits without them, fusing `fused` sums and gathering once, also with every second request refused, and a cut 256-row pass fuses none.
+// The pass follows 256 - `rows` tokens recorded the same way, so the history ends on whole KV blocks; every arm checks the pass's logits, KV and state bytes and the decode after.
+inline void check_striped_passes(infer::Model& model, BesideCpu& first, size_t rows, size_t fused) {
+    Striping& st = *first.striping;
+    const size_t V = model.n_vocab(), bound = *first.below, history = 256 - rows;
+    std::vector<uint32_t> ids(257);
+    for (size_t i = 0; i < ids.size(); ++i) ids[i] = uint32_t((i * 2654435761u >> 9) % V);
+    std::vector<float> logits(rows * V), decode(V);
+    std::vector<uint8_t> bytes;
+    for (int arm : {0, 1, 2}) {
+        const std::string what = arm == 0 ? "" : arm == 1 ? " with the sums fused with the entry norms" : " with every second fused sum refused";
+        *first.below = 0;
+        st = Striping{};
+        st.from = arm ? 1 : std::numeric_limits<size_t>::max();
+        st.refuse_odd = arm == 2;
+        infer::Sequence a = model.make_sequence();
+        infer::ExecContext x;
+        if (history) {
+            const infer::BatchEntry h{&a, ids.data(), history, false};
+            model.forward(x, &h, 1);
+            st.norms = st.gathers = st.refused = st.asked = 0;
+        }
+        infer::BatchEntry e{&a, ids.data() + history, rows, true};
+        e.every_logits = true;
+        e.keep = model.keeps_state();
+        model.forward(x, &e, 1);
+        if (arm == 1 && (st.norms != fused || st.gathers != 1))
+            throw std::runtime_error("a pass of " + std::to_string(rows) + " rows fused " + std::to_string(st.norms) + " sums and gathered " + std::to_string(st.gathers) + " times, not " + std::to_string(fused) + " and once");
+        if (arm == 2 && (!st.refused || !st.norms || st.gathers < 2)) throw std::runtime_error("a pass with refused fused sums did not fuse, refuse and gather again");
+        if (!st.held.empty()) throw std::runtime_error("a pass left its residuals striped" + what);
+        for (size_t r = 0; r < rows; ++r) {
+            if (!arm) std::memcpy(logits.data() + r * V, x.logits(r), V * sizeof(float));
+            else if (std::memcmp(logits.data() + r * V, x.logits(r), V * sizeof(float))) throw std::runtime_error("logits row " + std::to_string(r) + " differs" + what);
+        }
+        if (!arm) bytes = history_bytes(model, a);
+        else if (bytes != history_bytes(model, a)) throw std::runtime_error("other KV or state bytes" + what);
+        const infer::BatchEntry d{&a, &ids[256], 1, true};
+        model.forward(x, &d, 1);
+        if (!arm) std::memcpy(decode.data(), x.logits(0), V * sizeof(float));
+        else if (std::memcmp(decode.data(), x.logits(0), V * sizeof(float))) throw std::runtime_error("the decode after a pass differs" + what);
+        model.reset(a);
+    }
+    // A cut pass sends its parts' sums and fuses none.
+    *first.below = std::numeric_limits<size_t>::max();
+    *first.sends = 0;
+    st = Striping{};
+    st.from = 1;
+    {
+        infer::Sequence a = model.make_sequence();
+        infer::ExecContext x;
+        infer::BatchEntry e{&a, ids.data(), 256, true};
+        model.forward(x, &e, 1);
+        if (!*first.sends || st.norms || st.gathers) throw std::runtime_error("a pass of 256 rows was not cut, or a cut pass fused its sums with the entry norms");
+        model.reset(a);
+    }
+    st = Striping{};
+    *first.below = bound;
 }

@@ -243,6 +243,59 @@ public:
         for (size_t m = 0; m < members_.size(); ++m) members_[m]->summed_out_ = GpuBackend<Api>::f32(own[m]);
     }
 
+    // The striped sum (kernels/f32.gpu, group_sum_norm) over peer writes into device staging, from the device's crossover rows at two or four members, on rows of whole kThreads blocks a held norm takes.
+    // Every member's twin must be of one class and all or none write half sums, so all launch or none and their records agree; the half flips as the shares' does.
+    bool sum_norm(const std::vector<Slice>& residual, size_t rows, size_t width, const EntryNorm& e) override {
+        const size_t W = members_.size();
+        if (residual.size() != W || rows > rows_ || width != width_ || (!e.gather && (e.w.size() != W || e.dst.size() != W)))
+            throw std::logic_error("backend: a striped sum of other members, rows or width than its collective was made for");
+        one_call();
+        settle();
+        const uint32_t* from = members_[0]->dev_.profile.striped_norm_from;
+        const uint32_t least = W == 2 ? from[0] : W == 4 ? from[1] : W == 8 ? from[2] : 0;
+        const size_t n = size_mul(rows, width);
+        if (!fast_ || force_ || !least || rows < least || width % kThreads || width > 32 * kThreads || width / W > 16 * kThreads) return false;
+        // A striped norm is taken only where its gather fits as well, so the stage's last sum can always make the residuals whole.
+        if (size_mul(rows, 2 * width) / W > cap_) return false;
+        if (sets_.empty() || sets_[0].transport != GroupTransport::peer_writes) return false;
+        int level = 0;
+        for (size_t m = 0; m < W && !e.gather; ++m) {
+            const int l = members_[m]->sum_norm_twin(e.dst[m], rows, width, e.runs, e.readers, e.dtype);
+            if (!l || (m && l != level)) return false;
+            level = l;
+        }
+        for (size_t m = 0; m < W; ++m) {
+            span(*residual[m].buffer, residual[m].offset * sizeof(float), size_mul(n, sizeof(float)));
+            if (!e.gather) {
+                span(*e.dst[m].buffer, e.dst[m].offset * sizeof(float), size_mul(n, sizeof(float)));
+                span(*e.w[m].buffer, e.w[m].offset * sizeof(float), size_mul(width, sizeof(float)));
+            }
+        }
+        for (GpuBackend<Api>* b : members_) b->raise_failed();
+        for (GpuBackend<Api>* b : members_) b->flush();
+        Areas& s = sets_[0];
+        const unsigned blocks = (unsigned)std::min({rows, kGroupBlocks, one_shot_blocks_});
+        try {
+            for (size_t m = 0; m < W; ++m) {
+                float* y = e.gather ? nullptr : GpuBackend<Api>::f32(e.dst[m]);
+                const float* w = e.gather ? nullptr : GpuBackend<Api>::f32(e.w[m]);
+                const Args args(s.table[m], GpuBackend<Api>::f32(CSlice(partial(m))), GpuBackend<Api>::f32(residual[m]), y, w, (unsigned long long)width, (unsigned long long)rows,
+                                (unsigned long long)cap_, (int)W, (int)m, (e.gather ? 2 : 0) | (int)s.half << 2, timeout_[m], tick_[m], e.eps);
+                members_[m]->group_sum_norm(blocks, args, e.gather ? Slice{} : e.dst[m], rows, width, e.runs, level);
+            }
+            for (GpuBackend<Api>* b : members_) b->flush();
+        } catch (...) {
+            cancel();
+            before_ = last_;
+            for (size_t m = 0; m < W; ++m) last_[m] = members_[m]->tickets_.last() + 1;
+            throw;
+        }
+        s.half ^= 1u;
+        before_ = last_;
+        for (size_t m = 0; m < W; ++m) last_[m] = members_[m]->tickets_.last() + 1;
+        return true;
+    }
+
     // A lane's sum crosses on a second stream of each member, behind an event of the member's work before it, in a kernel form with at most kBesideBlocks blocks; its finish holds each member's stream for it.
     // A part is worth cutting from kBesideRows rows at two or three members and half that from four, below which the parts lose to the whole pass (docs/TENSOR-SPLIT.md, section 4.3).
     bool copies_beside(size_t floats) const override {

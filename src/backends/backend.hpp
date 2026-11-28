@@ -689,6 +689,18 @@ constexpr size_t kMaxTensorWidth = 16;
 // The ids argmax_part and argmax_pick carry as float values, every one exact below 2^24.
 constexpr size_t kExactIds = size_t(1) << 24;
 
+// The entry norm a group's sum takes along (Collective::sum_norm): each member's norm weight and output, the rows' runs, or `gather` alone with neither.
+// `readers` are the weights of every product reading the output, each a plain product of all its rows at `runs` and `dtype`, whose twin is the only whole copy; with any other reader a caller passes none.
+struct EntryNorm {
+    std::vector<CSlice> w;
+    std::vector<Slice> dst;
+    float eps = 0.0f;
+    RowRuns runs;
+    bool gather = false;
+    std::vector<WeightView> readers;
+    Dtype dtype = Dtype::f16;
+};
+
 // A tensor group's sum over backends of one kind, made once at load (docs/TENSOR-SPLIT.md, section 4.3): sum_into adds the members' partial rows (partial() says where) into every member's residual in member order.
 class Collective {
 public:
@@ -699,6 +711,15 @@ public:
     virtual void sum_into(const std::vector<Slice>& residual, size_t rows, size_t width) = 0;
     // Each member's partial rows, `rows` rows of `width` floats, replaced by ((p0 + p1) + ...) + p(W-1), the sum sum_into adds, for any width the reserved rows hold.
     virtual void sum_in_place(size_t rows, size_t width) = 0;
+    // sum_into's sum fused with the next sublayer's entry norm into dst[m] against w[m] with its twin, or with `gather` the stage's last sum making every residual whole again (docs/TENSOR-SPLIT.md, section 4.3).
+    // A member's residual and dst hold only its stripe after it, its twin the whole rows; false, with nothing enqueued, where the collective does not take these rows, and the caller sums and norms apart.
+    virtual bool sum_norm(const std::vector<Slice>& residual, size_t rows, size_t width, const EntryNorm& e) {
+        (void)residual;
+        (void)rows;
+        (void)width;
+        (void)e;
+        return false;
+    }
     // The same sum from row `base` in two calls, so a cut pass records one part's work between the other's send and finish: in place, or added to residual[m] where `residual` is given.
     // `lane` (0 or 1) is the part's, its sums alternate send and finish and the lanes' rows do not overlap; a collective that never copies beside its work (copies_beside) is never cut and may refuse both.
     virtual void send(size_t, size_t, size_t, size_t) { throw std::logic_error("backend: a sum in two calls on a collective whose passes are not cut"); }

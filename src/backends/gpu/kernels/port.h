@@ -37,6 +37,8 @@
 #define LLMX_GRID_CONST
 // A device helper CUDA must inline so its caller keeps no call frame; HIP inlines as it chooses, so gfx9 keeps its code.
 #define LLMX_FLAT
+// The end of the whole unit at i of n floats, passed to the group helpers by a caller whose units are all whole: n on HIP, so gfx9 keeps its code.
+#define LLMX_UNIT_END(i, n) (n)
 
 // The value of lane (this lane xor m), or of lane (this lane + d), within groups of width lanes, the whole wave where no width is given.
 template <typename T> __device__ __forceinline__ auto shuffle_xor(T v, int m) { return __shfl_xor(v, m); }
@@ -354,6 +356,8 @@ __device__ __forceinline__ void mma_bf16(float (&d)[4], const unsigned (&a)[4], 
 #define LLMX_GRID_CONST const __grid_constant__
 // A device helper inlined into its caller, whose call frame and argument copies otherwise spill a register-bound kernel.
 #define LLMX_FLAT __attribute__((always_inline))
+// i + 4 on CUDA, where the helpers' partial-unit tails would keep an indexed array in local memory.
+#define LLMX_UNIT_END(i, n) ((unsigned long long)(i) + 4)
 // d += the 16 by 8 product of a (16 rows by 32 signed bytes) and b (32 signed bytes by 8 columns), exact in wrapping int32 (mma m16n8k32 s8).
 // Lane l holds a's rows l / 4 and l / 4 + 8 at words l % 4 and l % 4 + 4, b's column l / 4 at the same words, and d's rows l / 4 and l / 4 + 8 at columns 2 * (l % 4) and the next.
 __device__ __forceinline__ void mma_s8(int (&d)[4], const int (&a)[4], const int (&b)[2]) {

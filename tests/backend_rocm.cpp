@@ -2198,6 +2198,8 @@ void hyper_mix_bits(Backend& g, Backend* other = nullptr) {
     };
     // Widths of a multiple of 1280 mix under the entry rule (hc_entry_rows), so the widest shapes here sit just beside it.
     const Shape shapes[] = {{4, 2304, 320, true}, {4, 2304, 320, false}, {2, 512, 64, true}, {2, 256, 64, true}};
+    // The fused mix runs on a 64-lane wave alone (hyper_mix's fit); other waves run the chain, which every call here must then launch.
+    const bool fuses = rocm_device(used[other ? 1 : 0]).caps.subgroup_size == 64;
     for (const Shape& sh : shapes)
         for (size_t rows : {1, 2, 3, 4, 5, 8, 9, 13, 16}) {
             const size_t width = sh.streams * sh.dim, nout = 64;
@@ -2243,9 +2245,10 @@ void hyper_mix_bits(Backend& g, Backend* other = nullptr) {
                                    std::to_string(rows) + " rows";
             require(chain_fused == 0, "the hyper mix's chain launches no llmx_hc_mix, " + at);
             const size_t wide = fused.count("llmx_hc_mix8") ? fused.at("llmx_hc_mix8") : 0;
-            require(launches == wanted && wide == rows / 8 + (rows % 8 > 1) && (rows > 1 || fused.count("llmx_hc_mix")), "the hyper mix is llmx_hc_mix8 launches of 8 columns at most and llmx_hc_mix for one, " + at);
-            for (const auto& [k, v] : fused) require(k.rfind("llmx_hc_mix", 0) == 0, "the fused hyper mix launches " + k + ", " + at);
-            require(alone.size() == 1 && alone.count("llmx_hc_mix") && alone.at("llmx_hc_mix") == rows, "a column alone is one llmx_hc_mix launch, " + at);
+            if (!fuses) require(launches == 0 && !alone.count("llmx_hc_mix") && !alone.count("llmx_hc_mix8"), "the hyper mix off a 64-lane wave launches no llmx_hc_mix, " + at);
+            if (fuses) require(launches == wanted && wide == rows / 8 + (rows % 8 > 1) && (rows > 1 || fused.count("llmx_hc_mix")), "the hyper mix is llmx_hc_mix8 launches of 8 columns at most and llmx_hc_mix for one, " + at);
+            for (const auto& [k, v] : fused) require(!fuses || k.rfind("llmx_hc_mix", 0) == 0, "the fused hyper mix launches " + k + ", " + at);
+            require(!fuses || (alone.size() == 1 && alone.count("llmx_hc_mix") && alone.at("llmx_hc_mix") == rows), "a column alone is one llmx_hc_mix launch, " + at);
             require(twins == 0, "a product of the fused mix's output reads its kept twin, " + at);
             for (int k = 1; k < 3; ++k) {
                 const std::string of = (k == 1 ? "the fused mix's " : "a column alone's ") + std::string("%s are the chain's, ") + at;
@@ -3558,7 +3561,9 @@ void hc_entry_rows(Backend& g, bool with_inj) {
     const auto part = [](const std::vector<float>& v, size_t at, size_t n) { return std::vector<float>(v.begin() + at * n, v.begin() + (at + 1) * n); };
     std::vector<Run> alone;
     for (size_t r = 0; r < kMax; ++r) alone.push_back(run(r, 1));
-    for (size_t r = 0; r < kMax; ++r)
+    // The entry runs on a 64-lane wave alone (hyper_mix's fit); other waves run the chain, whose rows must keep the same bytes.
+    const bool fuses = rocm_device(used[0]).caps.subgroup_size == 64;
+    for (size_t r = 0; r < kMax && fuses; ++r)
         require(alone[r].ran.count("llmx_hc_entry") && alone[r].ran.at("llmx_hc_entry") == 1, "a decode row's inject and mix are one llmx_hc_entry launch, row " + std::to_string(r));
     for (size_t n : {size_t(1), size_t(2), size_t(3), size_t(4), size_t(8), size_t(9)}) {
         const Run b = run(0, n);
@@ -3569,14 +3574,14 @@ void hc_entry_rows(Backend& g, bool with_inj) {
         const std::string at = std::to_string(n) + " generated rows" + (with_inj ? " with inject gates" : "");
         require(exact, at + " in one call give each row its decode bytes");
         const char* k = n == 1 ? "llmx_hc_entry" : "llmx_hc_entry8";
-        require(b.ran.count(k) && b.ran.at(k) == (n + 7) / 8 && !b.ran.count("llmx_hc_mix") && !b.ran.count("llmx_hc_mix8"), at + " mix as one llmx_hc_entry for a row, else llmx_hc_entry8 launches of 8 rows at most");
+        require(!fuses || (b.ran.count(k) && b.ran.at(k) == (n + 7) / 8 && !b.ran.count("llmx_hc_mix") && !b.ran.count("llmx_hc_mix8")), at + " mix as one llmx_hc_entry for a row, else llmx_hc_entry8 launches of 8 rows at most");
     }
     // Generated rows beside another request's prompt run of 3 rows, as a server pass batches them, keep their bytes.
     const Run mixed = run(0, 5, {{1, 1}, {4, 3}, {5, 1}});
     require(same(part(mixed.out, 0, E), alone[0].out) && same(part(mixed.low, 0, L), alone[0].low) && same(part(mixed.out, 4, E), alone[4].out) &&
                 same(part(mixed.low, 4, L), alone[4].low) && same(part(mixed.injg, 4, H), alone[4].injg),
             std::string("generated rows beside a prompt run keep their decode bytes") + (with_inj ? " with inject gates" : ""));
-    std::cout << "backend-rocm: 1, 2, 3, 4, 8 and 9 generated rows in one call" << (with_inj ? " with inject gates" : "") << " give each row the bytes llmx_hc_entry gives it alone, and beside a prompt run too\n";
+    std::cout << "backend-rocm: 1, 2, 3, 4, 8 and 9 generated rows in one call" << (with_inj ? " with inject gates" : "") << " give each row the bytes " << (fuses ? "llmx_hc_entry" : "the chain") << " gives it alone, and beside a prompt run too\n";
 }
 
 // A launch that issues a held inject at the chunk keeps its own arguments: the inject's flush must not leave it reading the bytes the launches after it write.
@@ -3620,6 +3625,12 @@ void hc_entry() {
     inject_at_chunk();
     real_launch = hip().hipModuleLaunchKernel;
     std::vector<BackendPtr> d = rocm_devices(2);
+    if (rocm_device(used[0]).caps.subgroup_size != 64) {
+        std::cout << "backend-rocm: llmx_hc_entry skipped, waves of " << rocm_device(used[0]).caps.subgroup_size << " lanes run the chain\n";
+        hc_entry_rows(*d[0], true);
+        hc_entry_rows(*d[0], false);
+        return;
+    }
     const size_t H = 4, E = 2560, L = 320, R = H * E;
     const float eps = 1e-6f;
     const std::vector<uint8_t> down = q8_matrix(R, L, 161), up = q8_matrix(L, R, 162);

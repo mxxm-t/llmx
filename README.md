@@ -8,7 +8,8 @@ It is one program: `llmx pull` needs curl 8.4 or later, and a GPU needs its driv
 
 ## Quick start
 
-Download the archive for your system from the [releases page](https://github.com/mxxm-t/llmx/releases): `llmx-X.Y.Z-linux-x86_64.tar.gz` (CPU, Vulkan and ROCm) or `llmx-X.Y.Z-windows-x64.zip` (CPU and Vulkan), or `llmx-X.Y.Z-windows-x64-rocm.zip` (CPU, Vulkan and ROCm on the AMD driver's HIP runtime, experimental).
+Download the archive for your system from the [releases page](https://github.com/mxxm-t/llmx/releases): `llmx-X.Y.Z-linux-x86_64.tar.gz` (CPU, Vulkan and ROCm) or `llmx-X.Y.Z-windows-x64.zip` (CPU and Vulkan).
+`llmx-X.Y.Z-windows-x64-rocm.zip` (CPU, Vulkan and ROCm on the AMD driver's HIP runtime, experimental) comes with the next release; the [nightly pre-release](https://github.com/mxxm-t/llmx/releases/tag/nightly) has it now.
 The CPU must be x86-64 with AVX2, FMA and F16C: Intel Haswell (2013), AMD Excavator (2015) or later.
 
 On Linux:
@@ -48,16 +49,18 @@ Without curl 8.4, download a GGUF file yourself and pass its path.
 | `qwen4exp` ([details](docs/QWEN38-FLASH.md)) | Qwen3.8-Flash-Next | In development | Supported | Supported | Supported |
 | `deepseek41` ([details](docs/DEEPSEEK4.md)) | DeepSeek-V4.1-Flash-1017 | In development | Supported | Supported | Supported |
 | `inkling2_loop` ([details](docs/INKLING2.md)) | Inkling-2-Mini | Supported | Supported | Supported | Untested |
+| `minimax-m3` ([details](docs/MINIMAX.md)) | MiniMax-M3.1-Flash | Supported | In development | In development | Untested |
 | Hy4, GLM-5.3 | | Planned | Planned | Planned | Planned |
 
 - `llmx serve` reuses the shared beginning of follow-up turns on every architecture.
 - `llmx serve` loads Inkling-2-Mini and reads its chat format and tool calls, but no run of the model under the server has been checked yet.
 - Image input (`--mmproj`) works with `qwen35`, `qwen35moe` and `qwen4exp` on the CPU, Vulkan and ROCm, with Inkling-2-Mini on the CPU, Vulkan and ROCm, and with DeepSeek-V4.1-Flash's `-vl` files on Vulkan and ROCm ([VISION](docs/VISION.md)).
+- MiniMax-M3.1-Flash's published file is held to HF on the CPU over three 512-token windows; on Vulkan and ROCm the model runs whole or with `--cpu-moe` and is held to HF on small test models, and the published file has run on nine MI50s but is not yet checked against HF there. It has no tensor split (`--tensor-width` above 1 is refused) and no image input.
 - On ROCm a model runs when every weight format it holds is in the ROCm column below.
 
 ## How fast is it
 
-The speed figures are being measured again on the released code and will be published here.
+No speed figures are published here yet; each change's measurements, with the model, devices and both arms, are recorded with it in [STATUS](docs/STATUS.md), and the backend pages hold the per-device results ([ROCM](docs/ROCM.md), [VULKAN](docs/VULKAN.md), [CUDA](docs/CUDA.md)).
 `llmx bench --model FILE` measures your own machine.
 
 ## Running models bigger than your GPU
@@ -68,10 +71,10 @@ The speed figures are being measured again on the released code and will be publ
 
 ## Install
 
-- **Download** the Linux or Windows archive from the [releases page](https://github.com/mxxm-t/llmx/releases) and check it against `SHA256SUMS`.
+- **Download** the Linux or Windows archive from the [releases page](https://github.com/mxxm-t/llmx/releases) and check it against `SHA256SUMS`; the Windows ROCm zip comes with the next release.
   The [nightly pre-release](https://github.com/mxxm-t/llmx/releases/tag/nightly) holds the same files built from the newest `main`, unchecked by a release's smoke runs ([RELEASE](docs/RELEASE.md#the-nightly-channel)).
   The Linux binary needs glibc 2.35 or later; GPUs need the Vulkan driver or the ROCm 7 or 10 runtime the system already has.
-- **Docker:** the `ghcr.io/mxxm-t/llmx:X.Y.Z-vulkan`, `ghcr.io/mxxm-t/llmx:X.Y.Z-rocm7` and `ghcr.io/mxxm-t/llmx:X.Y.Z-rocm10` images run `llmx`, and `ghcr.io/mxxm-t/llmx:chat-X.Y.Z` the chat companion ([RELEASE](docs/RELEASE.md#the-images)). These examples make the API available locally at `http://127.0.0.1:8080/v1`. For clients on other machines, see the [key-file example](docs/RELEASE.md#what-a-release-holds).
+- **Docker:** the `ghcr.io/mxxm-t/llmx:X.Y.Z-vulkan` and `ghcr.io/mxxm-t/llmx:X.Y.Z-rocm7` images run `llmx`, and `ghcr.io/mxxm-t/llmx:chat-X.Y.Z` the chat companion ([RELEASE](docs/RELEASE.md#the-images)); `X.Y.Z-rocm10`, on the ROCm 10.2 runtime, comes with the next release, and `nightly-rocm10` has it now. These examples make the API available locally at `http://127.0.0.1:8080/v1`. For clients on other machines, see the [key-file example](docs/RELEASE.md#what-a-release-holds).
 
   ```sh
   docker run --rm --device /dev/dri --group-add "$(getent group render | cut -d: -f3)" -v /path/to/models:/models -p 127.0.0.1:8080:8080 \
@@ -125,7 +128,7 @@ curl http://127.0.0.1:8080/v1/chat/completions -H "Authorization: Bearer $KEY" \
   It needs only Python 3 and comes in the release archives, so the command runs from the extracted directory as from a checkout; add `--api-key-file FILE` with one of the server's keys.
   The [health dashboard](tools/health_dashboard/README.md) alone charts a server's `/v1/health` on `http://127.0.0.1:8182`: `python tools/health_dashboard/server.py --upstream http://127.0.0.1:8080/v1/health --api-key-file FILE`.
 - Faster answers: `--drafter` drafts tokens ahead, with the same text as without ([SPECULATIVE](docs/SPECULATIVE.md)).
-  `lookup` drafts from the prompt and reply, `embedded` from the MTP block a Qwen 3.5 file carries, and a file path from a DeepSeek DSpark file or another drafter file.
+  `lookup` drafts from the prompt and reply, `embedded` from the MTP block a Qwen 3.5 file carries, and a file path from a drafter file: a DSpark file beside DeepSeek-V4.1-Flash, or a DSpine, DFlash2 or DFlash file, which drafts a block of tokens beside a Qwen 3.5-family model ([SPECULATIVE](docs/SPECULATIVE.md#11-dflash-drafters-beside-a-qwen35-model-dspine)).
   DeepSeek-V4.1-Flash also drafts with its DFly2 drafter ([DeepSeek-V4.1-Flash-DFly2-GGUF](https://huggingface.co/mxxm-t/DeepSeek-V4.1-Flash-DFly2-GGUF)): its output matches plain decoding, and its speed work is still open, so it is not yet faster than decoding without it.
   Lookup combines with the others, `--drafter lookup,embedded` or `--drafter lookup,FILE`: it drafts where the text repeats and the model drafter covers the rest.
 - `llmx <command> --help` lists a command's options, and [USAGE](docs/USAGE.md) every command and flag.
@@ -189,7 +192,7 @@ ROCm runs the `TQ` types at exact F32 for every `--dtype`.
 |---|---|---|---|---|
 | `auto` (default) | `f16` | `f16` | `f16` | `f16` |
 | `f32`, `f16` | Supported | Supported | Supported | Supported |
-| `bf16` | Supported | Supported on most devices | Runs `f32` | Runs `f32` |
+| `bf16` | Supported | Supported on most devices | Runs `f32` | Emulated: BF16 files' prompts on BF16 tensor cores from sm_80, the rest `f32` |
 | `int8` | Runs `f16` | Supported on devices that prefer the integer dot product, such as the MI50 | Supported | Supported |
 
 Weights are never changed; `--dtype` sets the inputs of the matrix products, and every sum is F32.
@@ -202,7 +205,7 @@ A device without the asked form runs the next wider one and says so ([PRECISION]
 | CPU | x86-64 with AVX2, FMA and F16C | Windows, Linux, Intel macOS | Supported |
 | Vulkan | AMD and NVIDIA GPUs with Vulkan 1.2 | Windows, Linux | Supported ([VULKAN](docs/VULKAN.md)) |
 | ROCm | AMD GPUs from MI50 (gfx906) on; checked on gfx906 (MI50) on Linux, and the Windows build has run on a Radeon VII and an R9700 (gfx1201) | Linux; Windows, experimental | Supported on Linux ([ROCM](docs/ROCM.md)) |
-| CUDA | NVIDIA GPUs | Linux | In development: `qwen3`, `qwen3moe`, `qwen35`, `qwen35moe` and `deepseek41` with `f32`, `f16` and `int8` on one device, layer splits and tensor groups tried once on a GPU pair ([CUDA](docs/CUDA.md)) |
+| CUDA | NVIDIA GPUs | Linux | In development: `qwen3`, `qwen3moe`, `qwen35`, `qwen35moe` and `deepseek41` with `f32`, `f16` and `int8` on one device, layer splits and tensor groups tried once on a GPU pair; `qwen4exp`, `minimax-m3` and `inkling2_loop` build but have not run on a card ([CUDA](docs/CUDA.md)) |
 | SYCL | Intel GPUs | | Planned |
 
 ### Several devices
@@ -232,7 +235,7 @@ For users:
 - [ASSETS](docs/ASSETS.md): the models llmx is checked with.
 - [ROADMAP](docs/ROADMAP.md): what is planned.
 
-For contributors: [AGENTS](AGENTS.md), [ARCHITECTURE](docs/ARCHITECTURE.md), [ADDING-AN-ARCHITECTURE](docs/ADDING-AN-ARCHITECTURE.md), [EXECUTION](docs/EXECUTION.md), [DEVICE-EXECUTION](docs/DEVICE-EXECUTION.md), [DEVICE-TUNING](docs/DEVICE-TUNING.md), [KV-CACHE](docs/KV-CACHE.md), [CACHE-PLAN](docs/CACHE-PLAN.md), [TESTS](docs/TESTS.md), [CI](docs/CI.md) and [STATUS](docs/STATUS.md); the design plans [DEEPSEEK4](docs/DEEPSEEK4.md), [INKLING2](docs/INKLING2.md), [CUDA](docs/CUDA.md) and [DISK-TIER](docs/DISK-TIER.md).
+For contributors: [AGENTS](AGENTS.md), [ARCHITECTURE](docs/ARCHITECTURE.md), [ADDING-AN-ARCHITECTURE](docs/ADDING-AN-ARCHITECTURE.md), [EXECUTION](docs/EXECUTION.md), [DEVICE-EXECUTION](docs/DEVICE-EXECUTION.md), [DEVICE-TUNING](docs/DEVICE-TUNING.md), [KV-CACHE](docs/KV-CACHE.md), [CACHE-PLAN](docs/CACHE-PLAN.md), [TESTS](docs/TESTS.md), [CI](docs/CI.md) and [STATUS](docs/STATUS.md); the design plans [DEEPSEEK4](docs/DEEPSEEK4.md), [INKLING2](docs/INKLING2.md), [MINIMAX](docs/MINIMAX.md), [CUDA](docs/CUDA.md) and [DISK-TIER](docs/DISK-TIER.md).
 
 ## License
 

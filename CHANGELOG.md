@@ -19,7 +19,7 @@ Each entry is one short line that links the doc explaining it; reasons, flags an
 - A DFlash2 drafter (`--drafter FILE`) drafts beside a Qwen 3.5-family model on the CPU, ROCm and Vulkan ([speculative decoding](docs/SPECULATIVE.md)).
 - A DFlash drafter (`--drafter FILE`), such as z-lab's for Qwen3.6-35B-A3B, drafts beside a Qwen 3.5-family model ([speculative decoding](docs/SPECULATIVE.md)).
 - The server reads tool calls in the Inkling-2-Mini chat format and streams reasoning apart from the answer ([tool calls](docs/SERVER.md#tool-calls)).
-- MiniMax-M3.1 runs whole on ROCm and Vulkan devices, its sigmoid router included ([MiniMax](docs/MINIMAX.md)).
+- MiniMax-M3.1 runs on the CPU, and whole on ROCm and Vulkan devices, its sigmoid router included ([MiniMax](docs/MINIMAX.md)).
 - `--expert-cache SIZE` keeps hot CPU-held MoE experts on the device ([usage](docs/USAGE.md#expert-offload---n-cpu-moe-n---cpu-moe)).
 
 ### Changed

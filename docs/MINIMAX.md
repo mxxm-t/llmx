@@ -2,8 +2,9 @@
 
 Design for MiniMax-M3.1-Flash, written before the code (`docs/ADDING-AN-ARCHITECTURE.md`, The order of the work, step 1).
 The steps, their gates and the decisions are in [STATUS](STATUS.md), in the block "MiniMax-M3.1".
-The model runs on the CPU, ROCm and Vulkan, held to HF on tiny fixtures (Classes and checks, below), where `generate`, `logits` and `serve` run those fixtures.
-A real file is refused at load until step 2, since a pretokenizer other than `qwen2`, `qwen35` and `joyai-llm` is refused and the file's is `minimax-m2` ([USAGE](USAGE.md)); the fixtures name none.
+The model runs on the CPU, ROCm and Vulkan, held to HF on tiny fixtures (Classes and checks, below), where `generate` and `logits` run those fixtures; no test runs it under `serve`.
+The published file loads as it is, its pretokenizer `minimax-m2` read by the tokenizer ([USAGE](USAGE.md)).
+On the CPU it is held to the file-exact HF reference over three 512-token windows at `--dtype f32` (docs/STATUS.md, MiniMax-M3.1, step 6); on devices it has run on nine MI50s with the same greedy ids as an earlier build, and its check against HF there is open (docs/STATUS.md, MiniMax-M3.1 on devices).
 Vulkan, ROCm and CUDA run every op the plan names, `sigmoid_routing` as the sigmoid score of the biased router beside sqrt_softplus; they lack `mixed_experts`, so a file whose expert gate and up stacks differ in storage type is refused at load by the routed layers' feed-forward part, which a part placed on the CPU (the experts' offload flags) does not meet.
 Whole on the device and with `--cpu-moe`, the experts on the CPU, the model is held to HF on the same fixtures (`tests/minimax.py`); Vulkan takes its five attention input products as calls of three.
 A tensor width above 1 is refused, as the module declares no role that splits.

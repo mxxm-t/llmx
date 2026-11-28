@@ -849,10 +849,10 @@ def readme_findings(tree):
                 add("anchor " + where[1], 1, "%s no longer holds `%s`; update the readme check's anchor (TYPE_TABLES, GPU_CORE or the registry's)" % where)
         return anchors[where] or ""
 
-    registered = set(re.findall(r'\{\s*"(\w+)"', anchored(("src/model/arch/registry.hpp", "ArchEntry kArchitectures[] ="))))
+    registered = set(re.findall(r'\{\s*"([\w-]+)"', anchored(("src/model/arch/registry.hpp", "ArchEntry kArchitectures[] ="))))
     rows = {}
     for n, cells, _ in tables.get("architecture", ()):
-        m = re.match(r"`(\w+)`", cells[0])
+        m = re.match(r"`([\w-]+)`", cells[0])
         if m:
             rows[m.group(1)] = n
             if m.group(1) not in registered:
@@ -1193,12 +1193,12 @@ def self_test(tree, found, listed):
         (test_name_findings, removed, [
             ("a removed CTest docs/TESTS.md opens a line with", ("test-name", TESTS_DOC, "sampler")),
             ("a removed CTest docs/TESTS.md names after CTest", ("test-name", TESTS_DOC, "kv-cache"))]),
-        (readme_findings, planted(tree, [(README, "| Hy4, GLM-5.3", "| `planted` | | Planned | Planned | Planned | Planned |\n"),
+        (readme_findings, planted(tree, [(README, "| Hy4, GLM-5.3", "| `planted-m1` | | Planned | Planned | Planned | Planned |\n"),
                                          (README, "| `TQ1_0`, `TQ2_0`", "| `Q8_0` | Supported | Supported | Planned | No |\n| `Q8_1` | Planned | Planned | Supported | No |\n"),
                                          (README, "| `bf16` |", "| `f16` | | | | Native: 16-bit integer blocks for `Q8_0`, F32 products elsewhere |\n"),
                                          (README, "\n## Documentation", "\nRun it with `--planted-flag`.\n"),
                                          ("docs/PLANTED.md", None, "# Planted\n")]), [
-            ("a models table row for an architecture the registry lacks", ("readme", README, "architecture planted")),
+            ("a models table row for an architecture the registry lacks", ("readme", README, "architecture planted-m1")),
             ("a type a backend reads marked Planned", ("readme", README, "rocm Q8_0")),
             ("a type a backend does not read marked Supported", ("readme", README, "rocm Q8_1")),
             ("a 16-bit integer list that is not the GPU core's", ("readme", README, "f16 cuda integer blocks")),

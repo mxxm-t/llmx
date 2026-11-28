@@ -464,6 +464,7 @@ Each line is the arm, the reason as read at the time, and its numbers; "implemen
 | moe_step_down: staging per 16 or 32 rows | the fixed cost is the dispatch | exit before staging 4.9 us a call at any grid, staging and barrier 2 ns a workgroup of 47-64; at most 2-3 ns to gain | dspine30 m10 (2026-11-27) |
 | moe_step_down: amdgpu_waves_per_eu(4) on every down build | occupancy is confirmed as the bound, but forcing 64 VGPRs spills: Q5_K needs a smaller lane state, not a register cap | dummy LDS for 4/3/2 workgroups a CU: null / Q5_1 40 to 49, Q8_0 43 to 56, Q5_K 47 to 48 / Q5_1 66, Q5_K 66, Q8_0 78 ns a workgroup; Q5_1 padded to 68 and 83 VGPR both 49; the cap takes Q5_K from 79 to 64 VGPR with 40 bytes a lane of scratch, 47 to 58-59 ns a workgroup and 19.7 to 28 us at one row; bits identical | dspine30 m11 (2026-11-27) |
 | moe_step_down: late K45 header with packed scales (rd), and with the header before the next prefetch (m13) | rd takes Q5_K to 63 VGPR, no scratch, 4 workgroups a CU and the slope from 47 to 41 ns a workgroup, but the header read lands on each unit step and the scale packing in the unsplit load also slows the shared dense k_rows | down_q5_k at one row 19.7 to 20.5 us, up_q4_k_c2_w 27.5 to 31.4 us; Qwen3.6-35B-A3B UD-Q4_K_XL int8 on one MI50 plain 144.14 to 139.71 tok/s (-3.1%), MTP k7 228.49 to 221.71 (-3.0%); Qwen3.5-9B Q4_K_M plain f16 83.22 to 77.75 (-6.6%), int8 91.41 to 86.55 (-5.3%); m13 down_q5_k 21.3 us, slope 41, also null | dspine30 t35, t36, m13 (2026-11-27) |
+| Host ring of 16 slots in place of kRingSlots 4 (ROCm decode sums) | the period-3 decode burst is host issue under CPU load, not ring reuse | 27B Q8_0 int8 tg256, 16 vs 4 slots: tw4 71.75/71.16 vs 71.53/71.13, tw2 45.60 vs 45.59 tok/s | sums97, D:18041 |
 
 Recurring readings across the ledger:
 - Microbenchmark wins shrink or reverse in situ: tile push, held_t and the held-stride arm all did, from a wrong shape or build flag, a cold I-cache or a dirty L2.
@@ -623,6 +624,7 @@ On the rig, run ABCCBA with a same-file layout control and treat a 1-4% move as 
 tools/ab_runner.py flags a pair when either arm's whole-run CPU exceeds the session median by 25%, never drops it, and advances on mean and median paired ratio at least 0.97 with baseline wins under the binomial 5% threshold.
 On the rig, host load of 20-70 swamped 0.15-0.3 ms effects (37.5 vs 51.6 tok/s from a 1 s stall, D:665); wrap timed blocks in arc-cap.sh and log load, clocks and card activity in every arm.
 Timing runs at default clocks; a 2 ms idle drops the next call 22%, so warm up and run sustained blocks.
+The rig timing cores 12-15 are SMT siblings of cores 4-7, so load on cores 0-11 reaches a timed run: 27B Q8_0 int8 tg256 at tw4 fell from 71.58-71.79 tok/s quiet to 68.22 under eight nice-19 compiles, as host issue per token rose from 9.3 to 14.1 ms (sums97, D:18041).
 
 ### Microbenchmark harnesses
 

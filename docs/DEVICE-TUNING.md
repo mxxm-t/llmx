@@ -108,6 +108,147 @@ Percent of HBM always names its denominator: the MI50's nominal 1024 GB/s, or a 
 About 50 GB/s; DOT_ROWS is the fused kernel's width, not a tunable; no software prefetch on sequential weight streams ([backends-cpu](src/backends-cpu.md)).
 On the rig host, `CpuBackend::moe_step` read about 27 GB/s at host load 20 (A:19587).
 
+## Radeon AI PRO R9700 (gfx1201), measured 2026-11-28
+
+The hardware sheet for kernel work on the R9700 (Navi 48, RDNA4), written before further tuning there.
+Every number says where it comes from: **DS** is an AMD datasheet or AMD document, **2nd** a secondary site quoting one, **ISA** the LLVM AMDGPU sources or AMD's matrix instruction calculator, **F** a formula from those, and **M** a measurement by the r97spec1 probes.
+The probes are HIP kernels built with TheRock 10.1 `hipcc` for gfx1201 and run through the driver's `amdhip64_7.dll` (HIP runtime 7.2), and Vulkan shaders run on the AMD proprietary driver 26.6.4 (LLPC, driverVersion 2.0.331), on the R9700 sandbox box (rocm:1, vulkan:0), at default clocks.
+Sources, logs and the box commands are in r97spec1 (`hip/`, `vk/`, `out/run2.log`, `out/vk4.log`); peak rates are the best of five timed launches (six in Vulkan) of a kernel of 3 to 24 ms, memory and clock runs the best of two or three; logs `out/run2.log`, `out/vk4.log` and, with random operands and buffers, `out/run3.log`.
+HIP lists one R9700 (rocm:1); Vulkan lists it twice with one device UUID, a duplicate driver entry of the same card (per COORD), and the probes take the first.
+
+### Specs
+
+| Item | Value | Source |
+|---|---|---|
+| Compute units | 64 CUs, 32 WGPs; two SIMD32 a CU (4096 stream processors) | DS: ROCm GPU hardware specifications table (rocm.docs.amd.com/en/docs-7.2.4/reference/gpu-arch-specs.html); WGPs and SIMDs derived |
+| Matrix units | 128 AI accelerators, two a CU | 2nd: kad8.com R9700 launch article |
+| Wave size | wave32 native and the HIP default; wave64 supported | DS: ROCm table; ISA: GCNFeatures.td FeatureISAVersion12 |
+| Boost clock | 2920 MHz; base and game clock not found | 2nd: servethehome.com R9700 article |
+| Clock under load | 3.23-3.26 GHz on FMAs (one workgroup or every CU), 3.08-3.09 GHz on f16 WMMA over every CU, held for a 1.47 s kernel | M: shader cycle counter against the realtime counter, taken as 100 MHz (the Vulkan timestamp period is 10 ns; the counter measured 98.8-99.1 MHz against event time, which includes launch); inferred, not a clock register |
+| Memory | 32 GiB GDDR6, 20 Gbps, 256-bit, 640 GB/s | DS: ROCm table (size); 2nd: servethehome, wccftech (speed, width, bandwidth) |
+| L2 | 8 MiB (6 MiB on Navi 31), four 2 MiB slices | DS: ROCm table; 2nd: chipsandcheese.com RDNA4 architecture article (slices) |
+| Infinity Cache (MALL) | 64 MiB; bandwidth not published | DS: ROCm table |
+| Graphics L1 | none: on RDNA4 it is a read/write coalescing buffer, not a cache | DS: ROCm table (N/A); 2nd: chipsandcheese |
+| L0 vector / scalar / instruction | 32 / 16 / 32 KiB | DS: ROCm table |
+| LDS | 128 KiB physical, a WGP (inferred from the ROCm table, which gives no scope); 64 KiB addressable by one workgroup, 1 KiB granules, 32 banks | DS: ROCm table; ISA: GCNFeatures.td |
+| VGPRs | 1536 a SIMD lane, 192 KiB a SIMD (768 KiB a WGP in the ROCm table); at most 256 a wave, so 256 VGPRs leave 6 waves a SIMD and 96 or fewer the full 16 (16 assumed from gfx11, inferred); dynamic VGPR allocation exists for wave32 compute but is off by default | ISA: Feature1536VGPRs, dynamic-vgpr; DS: ROCm table |
+| Cache lines | 128 bytes for data and instructions | ISA: GCNFeatures.td |
+| Board | 300 W TBP, PCIe 5.0 (x16 not confirmed) | 2nd: servethehome, kad8 |
+
+### Peak per dtype
+
+Formula: peak = ops a clock a CU x 64 CUs x 2.92 GHz, the clock AMD's figures use.
+A wave32 16x16x16 WMMA does 8192 operations; f16 and bf16 take 16 cycles on a SIMD and the 8-bit forms 8 (ISA: AMD matrix instruction calculator, `-a rdna4`), so with two SIMDs a CU the f16 rate is 2 x 8192 / 16 = 1024 a clock a CU, and the 8-bit rate 2048.
+The probes ran faster than 2.92 GHz, so a measurement can exceed a datasheet figure; the last column divides matrix rates by the measured 3.08 GHz and VALU rates by 3.23 GHz.
+Matrix rates depend on the data: with random operands the Vulkan f16 rate fell from 185-209 to 169-184 T/s and the int8 rate from 396-409 to 350-357 (zero and splat operands ran faster), so the random-data figures are the ones to plan with; the HIP operands are small arithmetic sequences, not random.
+
+| Dtype and path | DS dense / sparse (TFLOPS or TOPS) | F: ops/clk/CU x 64 x 2.92 GHz | M: HIP (T/s) | M: Vulkan (T/s) | M: ops/clk/CU at the measured clock |
+|---|---|---|---|---|---|
+| FP32 vector | 47.8 | 256 (128 FMA lanes x 2, dual issue counted) = 47.8 | v_fma_f32 23.2-23.4; v_dual_fmac_f32 41-42; wave64 v_fma_f32 43-45 | fma 24.2-24.7 (subgroup 32), 39.7-40.8 (subgroup 64) | 112-113 / 198-204 / 210-216 |
+| FP16 vector, packed | 95.7 | 512 = 95.7 | v_pk_fma_f16 50-52 (wave32 and wave64 alike); v_dot2_f32_f16 45-47, wave64 79, VOPD v_dual_dot2acc_f32_f16 75 (inline asm) | f16vec2 fma 53 | 242-252 (pk_fma), 363-382 (dot2 dual issue or wave64) |
+| FP16 matrix | 191.4 / 382.7 | 1024 = 191.4 | WMMA f32 accumulate 183-193, f16 accumulate 192-200, wave64 195-198; SWMMAC 16x16x32 336-389 | random operands: coopmat f32 accumulate 169 (32) / 180 (64), f16 accumulate 173 / 184 | 857-1015 |
+| BF16 matrix | 191.4 / 382.7 | 1024 = 191.4 | WMMA 192-202; SWMMAC 349-364 | not usable (below) | 974-1025 |
+| FP8 / BF8 matrix | 382.7 / 765.5 | 2048 = 382.7 | WMMA 325-333 (all four A/B pairs); SWMMAC 608-622 | not usable (below) | 1649-1689 |
+| INT8 matrix | 382.7 / 765.5 | 2048 = 382.7 | WMMA iu8 351-352, wave64 353-360; SWMMAC 658-672 | random operands: coopmat s8 353, u8 357 (32); 350 (64) | 1776-1826 |
+| INT4 matrix | 765.5 / 1531 | 4096 = 765.5 | WMMA 16x16x32 iu4 663-682 (16x16x16 iu4 runs at the int8 rate, 348-357); SWMMAC 16x16x64 1242-1286, while SWMMAC 16x16x32 iu4 (659-683) gains nothing over dense 16x16x32 | not exposed | 3363-3460 |
+| INT8 dot, VALU | none | v_dot4: 8 ops x 64 lanes = 512 | v_dot4_i32_iu8 99-101, wave64 167; v_dot4_u32_u8 99-101 | dotPacked4x8AccSat 104-105 (32), 169-174 (64) | 479-489 / 808-842 |
+| INT4 dot, VALU | none | v_dot8: 16 x 64 = 1024 | v_dot8_i32_iu4 198-202 | not exposed | 958-977 |
+| FP8 dot, VALU | none | 512 | v_dot4_f32_fp8_fp8 100-101 | not exposed | 484-489 |
+| Dependent WMMA, one wave | | 16 issue cycles (f16) | v_wmma_f32_16x16x16_f16: 27.9 cycles a dependent step, so a wave needs two independent accumulators, or a SIMD two waves, to issue at the full rate | | |
+
+DS figures: AMD's R9700 spec table as quoted by servethehome, neowin.net and flopper.io (2nd; AMD's own page did not load, so its footnote was not read).
+Sparse rows use the 4:2 structured-sparsity SWMMAC instructions and count dense-equivalent operations, as AMD's sparse figures do.
+Discarded: a Vulkan `dotPacked4x8 + add` loop and the f16-accumulate and iu8 latency loops were folded by the compiler (impossible rates), and are not in the table.
+
+**The FP16 matrix figure is 191 TFLOPS dense, not 95.** 95.7 is AMD's FP16 *vector* (packed VALU) figure; FP16/BF16 matrix is 191.4 dense and 382.7 with sparsity, and WMMA through HIP measured 183-202 T/s dense and cooperative matrix through Vulkan 169-184 with random operands: 87-99% of 1024 operations a clock a CU at the measured 3.08 GHz.
+v_pk_fma_f16 has no dual-issue form and measured 50-53 T/s on both wave sizes; the 16-bit VALU paths that come nearest the 95.7 figure are v_dot2_f32_f16 in wave64 (79) and its VOPD pair v_dual_dot2acc_f32_f16 in wave32 (75), which the compiler did not emit on its own.
+In wave64, FP32 FMA and the dot instructions run 1.7-1.9x their wave32 VOP3 rate, about what VOPD pairs give in wave32; v_pk_fma_f16 gains nothing.
+int8 WMMA reaches 87-89% of twice the f16 rate on both APIs once the Vulkan operands are random.
+
+### Memory and caches, measured
+
+A read, write or copy kernel of 1024 workgroups of 256 threads sweeps a buffer of the given size as float4 at grid stride, passes times, and the rate counts the bytes requested (M: r97spec1 `out/run3.log`, HIP, with buffers of random data; Vulkan read in `out/vk4.log` and `out/run3.log`).
+The read kernel issues one load a thread an iteration, so the cache rows are lower bounds of what the caches give; a variant with four loads in flight and a smaller grid read less below 40 MiB, so occupancy, not load depth, limits these rows.
+Up to 4 MiB a thread rereads its own addresses each pass, so L0 hits may inflate those rows.
+
+| Buffer | Read GB/s (HIP / Vulkan) | Write GB/s | Copy GB/s (read + write bytes) | Reading |
+|---|---|---|---|---|
+| 1-8 MiB | 6100-9200 / 5500-13000 | 3800-5000 | 6400-7800 | caches; no separate 8 MiB L2 edge shows |
+| 10-32 MiB | 4600-7400 / 3300-6300 | 4100-4500 | 1600-6500 | copy touches twice the buffer, so its fall past 12 MiB is the same 32-40 MiB edge as reads |
+| 40-128 MiB | 1500-2200 / 1000-1900 | 1800-2500 | 1200-1500 | the drop comes at 32-40 MiB, below the 64 MiB MALL size; inferred to be MALL hits |
+| 256 MiB | 1100-1300 / 1290-1300 | 1580-1850 | 550 | unexplained: twice DRAM at four times the MALL size, with random data, so not compression |
+| 512 MiB-2 GiB | 613-624 / 618-619 | 600-614 | 542-548 | GDDR6: 97% of 640 GB/s read |
+
+A latency chase would place the cache edges exactly and is not done (gap).
+LDS: ds_load_b128 at conflict-free addresses read 12.0-13.9 TB/s across the card in the default WGP mode and 17.0-17.2 TB/s compiled with `-mcumode`, and ds_load_b64 14.4 and 17.9 at 512 workgroups; at 3.2 GHz that is 64-70 bytes a clock a CU in WGP mode and 83-87 in CU mode.
+The hardware LDS peak is not published; 128 bytes a clock a CU (32 banks x 4 bytes) is an assumption, so these figures are not called a fraction of it.
+
+### Instruction support
+
+ISA columns from LLVM's GCNFeatures.td (FeatureISAVersion9_0_6, 11 and 12) and BuiltinsAMDGPU.td; HIP and Vulkan columns are what the probes ran on this box.
+
+| Operation | gfx906 (MI50) | gfx11 (RDNA3) | gfx12 (R9700) | HIP on gfx1201 | Vulkan, AMD driver 26.6.4 |
+|---|---|---|---|---|---|
+| WMMA f16, bf16 -> f32 / f16 / bf16, 16x16x16 | none | yes, A/B duplicated across lane halves, 32 cycles a wave32 f16 op | yes, no duplication, 16 cycles | all four (`__builtin_amdgcn_wmma_*_w32_gfx12`, `_w64_gfx12`) | f16 -> f32 and f16 -> f16; bf16 listed, no extension |
+| WMMA fp8 / bf8 -> f32 (four A/B pairs) | none | none | new, OCP E4M3FN / E5M2, 8 cycles | yes | two float-accumulating types listed as 1000567000 and 1000567001, inferred to be E4M3 and E5M2 under a pre-release enum (the SDK header has 1000491002/3), VK_EXT_shader_float8 absent |
+| WMMA iu8 -> i32 (signedness per operand, clamp) | none | yes | yes, 8 cycles | yes | s8, u8 and the mixed pairs, with and without saturation |
+| WMMA iu4 -> i32, 16x16x16 and 16x16x32 | none | 16x16x16 | both | both | not exposed; two vendor types 1000142000/1000142001 with s32 results are listed and unidentified |
+| SWMMAC (4:2 sparse A, index operand) f16, bf16, fp8/bf8, iu8, iu4 | none | none | new | yes, 2x the dense rate | not exposed |
+| v_dot2_f32_f16 | yes | yes | yes | yes | through the compiler |
+| v_dot2_f32_bf16, v_dot2_f16_f16, v_dot2_bf16_bf16 | none | yes | yes | yes | bf16 not exposed |
+| v_dot4_i32_i8 (signed only), v_dot8_i32_i4, v_dot2_i32_i16 | yes | none | none | | |
+| v_dot4_i32_iu8, v_dot8_i32_iu4 (mixed sign) | none | yes | yes | yes | 4x8 packed signed, unsigned and mixed reported accelerated; 16-bit dot not |
+| v_dot4_u32_u8, v_dot8_u32_u4 | yes | yes | yes | yes | |
+| v_dot4_f32_fp8/bf8 (four pairs) | none | none | new | yes | not exposed |
+| v_pk_fma_f16, v_pk_mul_f16, v_pk_add_f16, v_fma_mix | yes | yes | yes | yes, no dual issue | yes |
+| Packed f32 (v_pk_fma_f32) | none | none | none | | |
+| VOPD dual issue (wave32) | none | yes | yes, includes dot2acc f16 and bf16 | v_dual_fmac_f32 emitted | |
+| fp8 conversions (v_cvt_f32_fp8, v_cvt_pk_fp8_f32, stochastic) | none | none | new, OCP | builtins present | |
+| v_cvt_pk_bf16_f32 | none | none | none (gfx950 and gfx1250 only) | | |
+| Transpose loads global_load_tr_b64 / b128 | none | none | new (no LDS transpose load) | builtins present | |
+| s_prefetch_inst / s_prefetch_data | none | none | new | builtins present | |
+| Split wait counters (s_wait_loadcnt, dscnt, kmcnt...) | | | new | | |
+
+WMMA operand layout on gfx12, wave32, 16x16x16 f16 (ISA: AMD matrix instruction calculator): A is 4 VGPRs a lane, lane `16*((k/4)%2) + i` holds row i, so lanes 0-15 carry k 0-3 and 8-11 and lanes 16-31 carry k 4-7 and 12-15, two halves a VGPR; B is the same with column j for row i.
+The f32 result is 8 VGPRs, lane `16*(i/8) + j`, VGPR `i%8`; an f16 result packs two rows a VGPR in 4.
+The 8-bit forms take 2 VGPRs for A and B, lane `16*(k/8) + i`, byte `k%4`; in wave64 every operand halves.
+gfx11 code needs 8 VGPRs for A and B, duplicated in lanes i and i+16, and interleaves result rows by parity, so a gfx11 WMMA kernel does not run on gfx12 unchanged.
+A WMMA whose A or B reads the previous WMMA's result needs one independent instruction in between; a C operand that does is stalled by the hardware (ISA: GCNHazardRecognizer.cpp, fixWMMAHazards).
+
+The Vulkan driver reports subgroup size 64 by default with 32 to 64 selectable, `maxComputeSharedMemorySize` 32768 bytes (HIP gives a workgroup 64 KiB), cooperative matrix only at 16x16x16 subgroup scope, and neither `shaderBFloat16CooperativeMatrix` nor `shaderFloat8CooperativeMatrix`; creating a bf16 or fp8 cooperative-matrix pipeline anyway killed the process.
+llama.cpp marks proprietary drivers below driverVersion 2.0.416 (Adrenalin 26.10.1) as having a large cooperative-matrix tile slowdown (ggml-org/llama.cpp PR 31587); this box reports 2.0.331.
+RADV on gfx12 exposes the same 16x16x16 shapes with f16, bf16, int8 and float8 types (Mesa `radv_physical_device.c`); it was not measured here.
+
+### What the reference engines use on RDNA4
+
+Read as a reference only.
+llama.cpp's Vulkan backend picks KHR cooperative matrix f16 tiles, an int8 cooperative-matrix MMQ on RDNA3 and RDNA4 (PR 27952, up to 1.12x on Q8_0 and 1.22x on Q3_K on an R9700, with Q4_1, Q5_1, Q4_K and Q5_K left on f16 because int8 was slower there), a 128x128 tile on fixed drivers (PR 31587, pp512 +22-32% on a 9070 XT), and cooperative-matrix flash attention (PR 31323).
+Its HIP backend runs quantized products as int8 WMMA MMQ on RDNA4 (PR 17156) with the 16x16x16 f16, bf16 and iu8 builtins, and flash attention on the f16 WMMA tile; it uses no fp8, iu4 or sparse instruction.
+
+### Implications for llmx
+
+1. **Prompt tile: f16 WMMA first, int8 as the opt-in.**
+   The default f16 class has a 191 T/s matrix peak, four times the packed VALU rate, and Vulkan exposes it now; R97TUNE1's cooperative-matrix Q8_0 tile measured 47.7 TFLOPS on 1024 x 4096 x 512 (`r97tune/cm1.log`), 25% of it.
+   int8 cooperative matrix is fully exposed in Vulkan at twice that peak (350-357 T/s measured with random operands) and stays an opt-in under docs/PRECISION.md.
+   A dependent WMMA takes about 28 cycles against 16 to issue, so a tile keeps at least two independent accumulators a wave.
+2. **Ridge: the matrix cores need wide tiles or cache-resident weights.**
+   At 195 T/s over the 620 GB/s DRAM read the ridge is about 315 operations a byte, so a weight read from DRAM is compute-bound only above about 89 prompt rows for Q4_K and 167 for Q8_0 in f16, and about 160 and 300 in int8 at 352 T/s (Where prefill crosses to compute-bound, below, gives the method).
+   From the caches, at 4.6 TB/s or more up to 32 MiB (a lower bound), the ridge falls to about 42 operations a byte or less, so a tile order that rereads weight panels from them matters more here than on the MI50.
+3. **Shared memory is 32 KiB in Vulkan on the AMD driver.**
+   A Vulkan tile there has half the shared memory a HIP kernel gets (RADV's limit is not measured), so staging both operands in LDS limits the tile; loading B straight from global memory into the matrix operand, as R97TUNE4's xh candidate does, is the direction.
+4. **Choose the subgroup size per type.**
+   With random operands f16 cooperative matrix ran 6% faster at subgroup 64 and int8 1-2% faster at 32; FP32 FMA and the dot instructions run 1.7-1.9x faster in wave64 than as single VOP3 in wave32, about the rate VOPD pairs give in wave32, and v_pk_fma_f16 gains nothing from either.
+   LDS reads ran 25-30% faster in CU mode than in the default WGP mode.
+5. **K-quant dequantization is VALU work, far below the matrix rate.**
+   The f16 arithmetic of an unpack runs on v_pk_fma_f16 without dual issue at about 50 T/s, a quarter of the matrix rate; the rates of the bit-field, permute and conversion instructions it also needs are not measured (inferred, gap); integer unpacking into an int8 WMMA with the block scales applied in f32 afterwards, as llama.cpp's HIP MMQ does, keeps the unpack off the f16 path.
+6. **fp8, bf16, int4 and sparse are HIP-only on this driver.**
+   They measured at their datasheet ratios through HIP; the Vulkan driver lists bf16 and fp8 types without their extensions, so a Vulkan kernel cannot use them until a driver exposes VK_KHR_shader_bfloat16 and VK_EXT_shader_float8.
+   gfx12 has no f32-to-bf16 conversion instruction.
+7. **Decode reads at 97% of nominal.**
+   613-622 GB/s read from DRAM against 640; decode figures on this card take 620 GB/s as the ceiling.
+
+Gaps: no cache latency chase, no sustained clock beyond 1.5 s or power reading, no bit-field or conversion rates, no RADV measurement, no sparse path in Vulkan (none exists), and the datasheet footnotes were not read on amd.com.
+
 ## From specs to shapes (2026-11-23)
 
 A memory-bound kernel's shape follows from a few device numbers, and most DeviceProfile knobs are a measured knee of one of the rules below.

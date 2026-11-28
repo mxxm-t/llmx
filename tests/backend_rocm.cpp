@@ -1046,6 +1046,66 @@ void biased_edges(Backend& g) {
     }
 }
 
+// Buffers made fresh for every product, as a model's load and growth make them: the int8 tile over small Q4_0, IQ2_XXS, IQ3_S and Q1_0 weights, alternately with an inf scale, and the exact F32 product of two rows added.
+// On gfx1201 under Windows a free on the graves thread beside the recording thread's issue gave about 2.5 wrong products in 1000 (docs/src/backends-gpu.md).
+void fresh_buffers(Backend& g, int reps = 600) {
+    size_t bad = 0, checks = 0;
+    std::string first;
+    const auto miss = [&](const std::string& what, int it) {
+        if (first.empty()) first = what + " at rep " + std::to_string(it);
+        ++bad;
+    };
+    for (uint32_t type : {quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_IQ2_XXS, quant::GGML_TYPE_IQ3_S, quant::GGML_TYPE_Q1_0}) {
+        const quant::StorageType& st = *quant::storage_type(type);
+        const size_t nin = 512, nout = 64, rows = 64, blocks = nin / st.block_size;
+        std::vector<uint8_t> w = typed_matrix(type, nin, nout, uint32_t(type * 13 + 5)), wi = w;
+        const size_t at = (5 * blocks + 1) * st.type_size;
+        wi[at] = 0x00, wi[at + 1] = 0x7c;
+        const std::vector<float> x = row_classes::values(nin * rows, 17);
+        const RowRun rr{rows, rows};
+        std::vector<float> want;
+        for (int it = 0; it < reps; ++it) {
+            const std::vector<uint8_t>& wu = it % 2 ? wi : w;
+            auto xb = g.adopt(x.data(), x.size() * 4), yb = g.alloc(nout * rows * 4);
+            auto wb = g.adopt(wu.data(), wu.size());
+            g.matmul({type, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, rows, {&rr, 1}, Dtype::int8);
+            const std::vector<float> got = read(g, *yb, nout * rows);
+            if (it == 0) want = got;
+            bool ok = true;
+            for (size_t r = 0; r < rows; ++r)
+                for (size_t o = 0; o < nout; ++o) {
+                    const size_t i = r * nout + o;
+                    ok = ok && (o == 5 && it % 2 ? std::isnan(got[i]) : std::memcmp(&got[i], &want[i], 4) == 0);
+                }
+            ++checks;
+            if (!ok) miss(st.name, it);
+        }
+    }
+    {
+        const size_t nin = 10240, nout = 13, n = 2;
+        DeviceProfile& profile = rocm_profile(g);
+        const size_t keep = profile.exact_cols_upto;
+        profile.exact_cols_upto = 4;
+        const std::vector<float> v = row_classes::values(nin * nout, uint32_t(nout + 3));
+        const std::vector<float> x = row_classes::values(nin * 33, uint32_t(nout + 11)), y0 = row_classes::values(nout * 33, uint32_t(nout + 17));
+        std::vector<float> want;
+        for (int it = 0; it < reps; ++it) {
+            auto wb = g.adopt(v.data(), v.size() * 4), xb = g.adopt(x.data(), x.size() * 4), yb = g.alloc(nout * 33 * 4);
+            g.write(*yb, 0, y0.data(), y0.size() * 4);
+            g.matmul({quant::GGML_TYPE_F32, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, n, {}, Dtype::f32);
+            (void)read(g, *yb, nout * 33);
+            g.write(*yb, 0, y0.data(), y0.size() * 4);
+            g.matmul_add({quant::GGML_TYPE_F32, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, n, {}, Dtype::f32);
+            const std::vector<float> got = read(g, *yb, nout * 33);
+            if (it == 0) want = got;
+            ++checks;
+            if (std::memcmp(got.data(), want.data(), got.size() * 4)) miss("F32 added", it);
+        }
+        profile.exact_cols_upto = keep;
+    }
+    require(!bad, "fresh buffers: " + std::to_string(bad) + " of " + std::to_string(checks) + " products differ, first " + first);
+}
+
 // Printed, never asserted: the exact products at Qwen3.8-Flash-Next's F32 and BF16 shapes and Qwen3's F16 ones over 1 to 293 rows, and the F16 half tile over 293 and 512, in wall time a call.
 void exact_rates(Backend& g) {
     struct Shape { const char* name; uint32_t type; size_t nin, nout; };
@@ -5393,6 +5453,12 @@ int main(int argc, char** argv) {
             std::cout << (failures ? "backend-rocm delta: FAIL\n" : "backend-rocm delta: PASS\n");
             return failures ? 1 : 0;
         }
+        // `fresh` runs only the products over buffers made fresh for each.
+        if (argc > 1 && std::string(argv[1]) == "fresh") {
+            fresh_buffers(*g);
+            std::cout << (failures ? "backend-rocm fresh: FAIL\n" : "backend-rocm fresh: PASS\n");
+            return failures ? 1 : 0;
+        }
         // `types` runs only the weight types' check, the focused test of their kernels.
         if (argc > 1 && std::string(argv[1]) == "types") {
             types(*g, *c);
@@ -5412,6 +5478,7 @@ int main(int argc, char** argv) {
             return failures ? 1 : 0;
         }
         buffers(*g);
+        fresh_buffers(*g);
         host_views(*g);
         refusals(*g);
         ops(*g, *c);

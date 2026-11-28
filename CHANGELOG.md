@@ -28,6 +28,7 @@ Each entry is one short line that links the doc explaining it; reasons, flags an
 - Faster int8 decode at four MI50s: the held Q8_0 build takes the tensor group's sum itself ([DEVICE-TUNING](docs/DEVICE-TUNING.md)).
 - ROCm tensor groups on MI50 run prompt passes of 32 to 127 rows faster by fusing each sum with the next norm ([tensor split](docs/TENSOR-SPLIT.md)).
 - A command split over several idle devices starts at once, not after a five-second wait for their free memory ([placement](docs/src/model-place.md)).
+- Qwen 3.5-family prompts run faster on ROCm through a quicker linear-attention delta rule ([GPU backends](docs/src/backends-gpu.md#kernel-notes)).
 - ROCm tensor groups on MI50 sum prompt-sized parts up to a quarter faster by reading their peers' rows ([GPU backends](docs/src/backends-gpu.md)).
 - A tensor width that does not divide a model's vocabulary splits the head's rows unevenly instead of refusing ([TENSOR-SPLIT](docs/TENSOR-SPLIT.md)).
 - Greedy server requests, `ignore_eos` ones too, take their tokens from the device's argmax ([server](docs/SERVER.md#device-argmax)).

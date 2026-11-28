@@ -60,24 +60,32 @@ template <int M, typename T> __device__ __forceinline__ auto lane_xor_quad(T v) 
 }
 // The value of lane (this lane xor 1) where only that pair of lanes is known to run the exchange.
 template <typename T> __device__ __forceinline__ auto pair_lane(T v) { return lane_xor_quad<1>(v); }
-// The value of lane (this lane xor m), m below W, where only this lane's group of W lanes is known to run the exchange; the partner is in the group, so the wave's exchange gives it.
-template <int W, typename T> __device__ __forceinline__ auto group_xor(T v, int m) { return __shfl_xor(v, m); }
 // The value of lane (this lane xor M) for M = 4, 8 or 16 by ds_swizzle's bit mode within groups of 32 lanes: offset 0x1F | (M << 10) is and-mask 0x1F, or-mask 0, xor-mask M.
 template <int M, typename T> __device__ __forceinline__ auto lane_xor_swizzle(T v) {
     static_assert(M == 4 || M == 8 || M == 16, "swizzle exchanges cover xor 4, 8 and 16");
     static_assert(__is_same(T, int) || __is_same(T, unsigned), "lane exchanges move a 32-bit integer's bits; a float goes through lane_xor");
     return __builtin_amdgcn_ds_swizzle(v, 0x1F | (M << 10));
 }
-// The value of lane (this lane xor M) for M = 7 or 8 by DPP within each row of 16 lanes: 0x141 is the half-row mirror (xor 7), 0x128 the row rotate by 8 (xor 8).
+// The value of lane (this lane xor M) for M = 4, 7 or 8 by DPP within each row of 16 lanes: 0x141 is the half-row mirror (xor 7), 0x128 the row rotate by 8 (xor 8).
+// Xor 4 takes two moves: the lower 4 lanes of each 8 take row_shl:4, the upper row_shr:4, chosen by bank masks.
 template <int M, typename T> __device__ __forceinline__ auto lane_xor_row(T v) {
-    static_assert(M == 7 || M == 8, "row exchanges cover xor 7 and 8");
+    static_assert(M == 4 || M == 7 || M == 8, "row exchanges cover xor 4, 7 and 8");
     static_assert(__is_same(T, int) || __is_same(T, unsigned), "lane exchanges move a 32-bit integer's bits; a float goes through lane_xor");
-    return __builtin_amdgcn_mov_dpp(v, M == 7 ? 0x141 : 0x128, 0xF, 0xF, false);
+    if constexpr (M == 4) return __builtin_amdgcn_update_dpp(__builtin_amdgcn_update_dpp(v, v, 0x104, 0xF, 0x5, false), v, 0x114, 0xF, 0xA, false);
+    else return __builtin_amdgcn_mov_dpp(v, M == 7 ? 0x141 : 0x128, 0xF, 0xF, false);
 }
 // shuffle_down(v, H, 16) for lanes whose partner lies in their row of 16, by DPP row_shl:H with no LDS queue; a lane past its row keeps its own value, as the shuffle gives it.
 template <int H> __device__ __forceinline__ float row_down(float v) {
     static_assert(H >= 1 && H <= 15, "row shifts cover 1 to 15 lanes");
     return __int_as_float(__builtin_amdgcn_update_dpp(__float_as_int(v), __float_as_int(v), 0x100 | H, 0xF, 0xF, false));
+}
+// The value of lane (this lane xor m), m below W, where only this lane's group of W lanes is known to run the exchange.
+// The partner is in the group, so DPP moves give it with no LDS round trip, whose wait would drain the LDS reads in flight.
+template <int W, typename T> __device__ __forceinline__ T group_xor(T v, int m) {
+    static_assert(sizeof(T) == 4, "a group exchange moves 32 bits");
+    const int b = __builtin_bit_cast(int, v);
+    const int r = m == 1 ? lane_xor_quad<1>(b) : m == 2 ? lane_xor_quad<2>(b) : m == 4 ? lane_xor_row<4>(b) : m == 8 ? lane_xor_row<8>(b) : m == 16 ? lane_xor_swizzle<16>(b) : __shfl_xor(b, m);
+    return __builtin_bit_cast(T, r);
 }
 
 // v of the first active lane, the same in every lane, so the compiler may keep it in a scalar register.

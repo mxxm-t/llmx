@@ -3929,7 +3929,7 @@ template <unsigned kTb>
 __device__ void gated_delta_rule(float* o, const float* u, const float* alpha, const float* bb, const float* a, const float* dt_bias, float* st,
                                  const unsigned* tab, unsigned C, unsigned k_heads, unsigned v_heads, unsigned k_dim, unsigned v_dim,
                                  unsigned long long slot, unsigned blocks, float scale, float eps) {
-    constexpr unsigned kRows = 16;
+    constexpr unsigned kRows = 16, kVs = (kTb * 32u + 255u) / 256u;
     static_assert(kTb >= 1 && kTb <= 16, "a block of 256 threads stages at most 16 tokens' q and k rows");
     __shared__ float kn[kTb][128], qn[kTb][128], vs[kTb][32], betas[kTb], decays[kTb];
     const unsigned wg = blockIdx.x, per_view = v_heads * blocks;
@@ -3948,15 +3948,30 @@ __device__ void gated_delta_rule(float* o, const float* u, const float* alpha, c
     bool have_m = false;
     for (unsigned t0 = 0; t0 < nq; t0 += kTb) {
         const unsigned n = nq - t0 < kTb ? nq - t0 : kTb;
+        // Every global read of the stage is issued before any is used, so the stage waits on memory once.
+        float x[kRows], vx[kVs], gb = 0.0f, ga = 0.0f;
         if (tok < n) {
             const unsigned long long in0 = (unsigned long long)(row0 + t0 + tok) * C + (is_k ? qk : 0u) + kh * k_dim;
-            float x[kRows], ss = 0.0f;
 #pragma unroll
             for (unsigned ii = 0; ii < kRows; ++ii) {
                 const unsigned i = part + 8u * ii;
                 x[ii] = i < k_dim ? u[in0 + i] : 0.0f;
-                ss = fmaf(x[ii], x[ii], ss);
             }
+        }
+        if (lid < n) {
+            const unsigned long long r = row0 + t0 + lid;
+            gb = bb[r * v_heads + j];
+            ga = alpha[r * v_heads + j];
+        }
+#pragma unroll
+        for (unsigned q = 0; q < kVs; ++q) {
+            const unsigned idx = lid + 256u * q, t = idx >> 5u, cc = blk * 32u + (idx & 31u);
+            vx[q] = t < n && cc < v_dim ? u[(unsigned long long)(row0 + t0 + t) * C + 2u * qk + j * v_dim + cc] : 0.0f;
+        }
+        if (tok < n) {
+            float ss = 0.0f;
+#pragma unroll
+            for (unsigned ii = 0; ii < kRows; ++ii) ss = fmaf(x[ii], x[ii], ss);
             const float inv = 1.0f / sqrtf(lanes8(ss) + eps);
 #pragma unroll
             for (unsigned ii = 0; ii < kRows; ++ii) {
@@ -3966,18 +3981,16 @@ __device__ void gated_delta_rule(float* o, const float* u, const float* alpha, c
             }
         }
         if (lid < n) {
-            const unsigned long long r = row0 + t0 + lid;
-            const float beta = 1.0f / (1.0f + expf(-bb[r * v_heads + j]));
-            const float xg = alpha[r * v_heads + j] + dt_bias[j];
+            const float beta = 1.0f / (1.0f + expf(-gb));
+            const float xg = ga + dt_bias[j];
             const float sp = xg > 20.0f ? xg : log1p_of(expf(xg));
             const float decay = expf(a[j] * sp);
             betas[lid] = beta;
             decays[lid] = decay < 1.17549435e-38f ? 0.0f : decay;
         }
-        for (unsigned idx = lid; idx < n * 32u; idx += 256u) {
-            const unsigned t = idx >> 5u, cc = blk * 32u + (idx & 31u);
-            vs[t][idx & 31u] = cc < v_dim ? u[(unsigned long long)(row0 + t0 + t) * C + 2u * qk + j * v_dim + cc] : 0.0f;
-        }
+#pragma unroll
+        for (unsigned q = 0; q < kVs; ++q)
+            if (((lid + 256u * q) >> 5u) < n) vs[(lid + 256u * q) >> 5u][lid & 31u] = vx[q];
         __syncthreads();
         if (t0 == 0) {
 #pragma unroll
@@ -3987,13 +4000,16 @@ __device__ void gated_delta_rule(float* o, const float* u, const float* alpha, c
             }
         }
         if (col) {
+            // A token's k row stays in registers from the sum of m before it to its update, read from LDS once (docs/src/backends-gpu.md).
+            float kc[kRows];
             if (!have_m) {
                 float mp = 0.0f;
                 const float decay = decays[0];
 #pragma unroll
                 for (unsigned ii = 0; ii < kRows; ++ii) {
+                    kc[ii] = kn[0][part + 8u * ii];
                     s[ii] = s[ii] * decay;
-                    mp = fmaf(s[ii], kn[0][part + 8u * ii], mp);
+                    mp = fmaf(s[ii], kc[ii], mp);
                 }
                 m = lanes8(mp);
                 have_m = true;
@@ -4004,7 +4020,7 @@ __device__ void gated_delta_rule(float* o, const float* u, const float* alpha, c
                 float op = 0.0f;
 #pragma unroll
                 for (unsigned ii = 0; ii < kRows; ++ii) {
-                    s[ii] = fmaf(kn[t][part + 8u * ii], d, s[ii]);
+                    s[ii] = fmaf(kc[ii], d, s[ii]);
                     op = fmaf(s[ii], qn[t][part + 8u * ii], op);
                 }
                 float np = 0.0f;
@@ -4013,8 +4029,9 @@ __device__ void gated_delta_rule(float* o, const float* u, const float* alpha, c
                     const float decay = decays[t + 1u];
 #pragma unroll
                     for (unsigned ii = 0; ii < kRows; ++ii) {
+                        kc[ii] = kn[t + 1u][part + 8u * ii];
                         s[ii] = s[ii] * decay;
-                        np = fmaf(s[ii], kn[t + 1u][part + 8u * ii], np);
+                        np = fmaf(s[ii], kc[ii], np);
                     }
                 }
                 const float res = lanes8(op);

@@ -722,16 +722,19 @@ private:
         for (size_t m = 0; lane < 0 && m < members_.size(); ++m)
             launch(m, residual[m], n, replace, true, pick, s, draws ? s.draw_half : s.half, pick.form == GpuSumForm::one_shot ? takes : nullptr, sent[m], from, nullptr, whole);
         for (size_t m = 0; lane >= 0 && m < members_.size(); ++m) {
+            const auto issuing = members_[m]->issuing();
             GpuBackend<Api>& b = *members_[m];
             Api::check(Api::set_device(b.dev_.index), "set_device");
             Api::check(Api::event_record(computed_[m], b.stream_), "event_record");
             Api::check(Api::stream_wait_event(beside_[m], computed_[m]), "stream_wait_event");
         }
         for (size_t m = 0; lane >= 0 && m < members_.size(); ++m) {
+            const auto issuing = members_[m]->issuing();
             Api::check(Api::set_device(members_[m]->dev_.index), "set_device");
             launch(m, residual[m], n, replace, true, pick, s, draws ? s.draw_half : s.half, nullptr, false, from, beside_[m]);
         }
         for (size_t m = 0; lane >= 0 && m < members_.size(); ++m) {
+            const auto issuing = members_[m]->issuing();
             Api::check(Api::set_device(members_[m]->dev_.index), "set_device");
             Api::check(Api::event_record(summed_[(size_t)lane][m], beside_[m]), "event_record");
         }
@@ -763,6 +766,7 @@ private:
         // Every member's rows are issued before any kernel, every total before any second kernel, and each copy before the kernel after it on its member's stream.
         // So neither a copy stream that shares its kernel's hardware queue nor a runtime that holds the host on a copy into host memory until its stream reaches it can hang the sum.
         for (size_t m = 0; m < W; ++m) {
+            const auto issuing = members_[m]->issuing();
             const typename Api::Stream c = copy_stream_[m];
             Api::check(Api::set_device(members_[m]->dev_.index), "set_device");
             Api::check(Api::event_record(ready_[m], members_[m]->stream_), "event_record");
@@ -777,6 +781,7 @@ private:
             }
         }
         for (size_t m = 0; m < W; ++m) {
+            const auto issuing = members_[m]->issuing();
             const typename Api::Stream c = copy_stream_[m];
             launch_copies(m, false);
             Api::check(Api::set_device(members_[m]->dev_.index), "set_device");
@@ -792,6 +797,7 @@ private:
         }
         // The member's next work, which may write its rows or total again, follows the copies that read them.
         for (size_t m = 0; m < W; ++m) {
+            const auto issuing = members_[m]->issuing();
             launch_copies(m, true);
             Api::check(Api::set_device(members_[m]->dev_.index), "set_device");
             Api::check(Api::stream_wait_event(members_[m]->stream_, sent_[m]), "stream_wait_event");
@@ -805,12 +811,14 @@ private:
         const unsigned h = s.pull_half;
         s.pull_half ^= 1u;
         for (size_t m = 0; m < W; ++m) {
+            const auto issuing = members_[m]->issuing();
             GpuBackend<Api>& b = *members_[m];
             for (size_t k = 0; k < W; ++k)
                 if (k != m) b.launch_check(Api::copy_async(pull_stage(s, k) + (h * W + m) * cap_, GpuBackend<Api>::f32(CSlice(partial(m))) + from, bytes, Api::kAnyCopy, b.stream_), "copy_async");
             Api::check(Api::event_record(ready_[m], b.stream_), "event_record");
         }
         for (size_t m = 0; m < W; ++m) {
+            const auto issuing = members_[m]->issuing();
             for (size_t k = 0; k < W; ++k)
                 if (k != m) Api::check(Api::stream_wait_event(members_[m]->stream_, ready_[k]), "stream_wait_event");
             launch(m, residual[m], n, replace, false, GpuSumPick{s.transport, GpuSumForm::one_shot}, s, h, nullptr, false, from);
@@ -851,9 +859,9 @@ private:
     void free_areas(Areas& s) noexcept {
         for (size_t m = 0; m < s.area.size(); ++m) {
             (void)Api::set_device(members_[m]->dev_.index);
-            if (s.area[m]) free_host_or_device(s.area[m], s.host(), s.placed.empty() ? 0 : s.placed[m]);
+            if (s.area[m]) free_host_or_device(s.area[m], s.host(), s.placed.empty() ? 0 : s.placed[m], members_[m]->turn());
             s.area[m] = nullptr;
-            if (m < s.copy.size() && s.copy[m]) free_host_or_device(s.copy[m], true, s.copy_placed[m]);
+            if (m < s.copy.size() && s.copy[m]) free_host_or_device(s.copy[m], true, s.copy_placed[m], members_[m]->turn());
         }
         s.peers.clear();
         s.pull.clear();
@@ -864,14 +872,14 @@ private:
         s.copy_table.clear();
     }
 
-    static void free_host_or_device(void* p, bool host, size_t placed) noexcept {
+    static void free_host_or_device(void* p, bool host, size_t placed, std::recursive_mutex& turn) noexcept {
         if (placed) {
             unregister_host<Api>(p);
 #if defined(__linux__)
             munmap(p, placed);
 #endif
         } else {
-            free_memory<Api>(p, host);
+            free_memory<Api>(p, host, turn);
         }
     }
 
@@ -901,9 +909,9 @@ private:
             if (ready_[m]) (void)Api::event_destroy(ready_[m]);
             ready_[m] = nullptr;
         }
-        if (status_) free_memory<Api>(status_, true);
+        if (status_) free_memory<Api>(status_, true, members_[0]->turn());
         status_ = nullptr;
-        if (words_) free_memory<Api>(words_, true);
+        if (words_) free_memory<Api>(words_, true, members_[0]->turn());
         words_ = nullptr;
     }
 
@@ -1324,7 +1332,7 @@ private:
         for (GpuBackend<Api>* b : readers_)
             if (b) b->sync();
         sender_.sync();
-        if (words_) free_memory<Api>(words_, true);
+        if (words_) free_memory<Api>(words_, true, sender_.turn());
     }
     GpuBackend<Api>& sender_;
     std::vector<GpuBackend<Api>*> readers_;   // per reader, null for one this handoff does not serve

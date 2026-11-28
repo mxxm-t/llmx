@@ -137,9 +137,21 @@ struct Fenced {
     Fenced& operator=(const Fenced&) = delete;
 };
 
-// A free that fails has nothing left to act on.
+// A device's turn to issue, process wide since hipFree waits for every stream of the device: on gfx1201 under Windows a free beside an issue to the device lost an upload's or a launch's order (docs/src/backends-gpu.md).
+// It is recursive, as an issue inside a collective's turn may flush its member, and it holds no deadlock while nothing allocates under it and no stream of the device waits on work another backend has not issued.
+inline std::recursive_mutex& device_turn(int device) {
+    // Never destroyed, so a backend that outlives static destruction still finds its turn.
+    static std::mutex* m = new std::mutex;
+    static auto* turns = new std::map<int, std::unique_ptr<std::recursive_mutex>>;
+    std::lock_guard<std::mutex> lock(*m);
+    auto& t = (*turns)[device];
+    if (!t) t = std::make_unique<std::recursive_mutex>();
+    return *t;
+}
+// A free that fails has nothing left to act on; it waits out the device's issues.
 template <class Api>
-void free_memory(void* p, bool host) {
+void free_memory(void* p, bool host, std::recursive_mutex& turn) {
+    const std::lock_guard<std::recursive_mutex> issuing(turn);
     const Fenced fenced;
     (void)(host ? Api::host_free(p) : Api::free(p));
 }
@@ -195,6 +207,7 @@ struct Graves {
     std::condition_variable wake;
     std::vector<std::pair<Ticket, std::pair<void*, bool>>> held;   // the ticket that covers the drop, and the memory
     size_t freeing = 0;                                             // graves the thread has taken and not yet freed
+    std::recursive_mutex* turn = nullptr;                           // the device's turn to issue (device_turn), which each free takes
     const TicketLedger* tickets = nullptr;                          // null once the backend has drained its stream, when a drop frees at once
     typename Api::Stream stream = nullptr;                                   // the backend's stream, null once it is drained
     std::function<void()> flush;                                    // issues the backend's held stream operations, before a drop waits for its stream
@@ -223,7 +236,7 @@ struct Graves {
             const typename Api::Stream s = stream;
             lock.unlock();
             if (s) sync_stream<Api>(s);
-            for (const auto& r : ready) free_memory<Api>(r.first, r.second);
+            for (const auto& r : ready) free_memory<Api>(r.first, r.second, *turn);
             lock.lock();
             freeing = 0;
             wake.notify_all();
@@ -304,7 +317,7 @@ public:
                 return;
             }
         }
-        free_memory<Api>(p_, host_);
+        free_memory<Api>(p_, host_, *graves_->turn);
     }
     GpuBuffer(const GpuBuffer<Api>&) = delete;
     GpuBuffer<Api>& operator=(const GpuBuffer<Api>&) = delete;
@@ -344,6 +357,7 @@ public:
     // With `timing` (make_backend's diagnostics), flush times each kernel, copy and fill for kernel_times.
     GpuBackend(int index, bool timing) : dev_(Api::device(index)), timing_(timing) {
         graves_->tickets = &tickets_;
+        graves_->turn = &device_turn(index);
         Api::check(Api::set_device(index), "set_device");
         Api::check(Api::stream_create(&stream_), "stream_create");
         graves_->stream = stream_;
@@ -435,7 +449,7 @@ public:
         for (auto e : starts_) if (e) (void)Api::event_destroy(e);
         for (auto e : timed_events_) (void)Api::event_destroy(e);
         if (stream_) (void)Api::stream_destroy(stream_);
-        if (fault_) free_memory<Api>(fault_, true);
+        if (fault_) free_memory<Api>(fault_, true, *graves_->turn);
     }
 
     // The device and its driver, not the index or PCI address: cards of one device and driver give the same bits, so a history continues on whichever of them holds its member.
@@ -571,8 +585,11 @@ public:
             slot_ticket_[i].store(0, std::memory_order_seq_cst);
             while (syncing_[i].load(std::memory_order_seq_cst)) std::this_thread::yield();
         }
-        if (!started_) start();
-        Api::check(Api::event_record(events_[i], stream_), "event_record");
+        {
+            const auto turn = issuing();
+            if (!started_) start();
+            Api::check(Api::event_record(events_[i], stream_), "event_record");
+        }
         slot_ticket_[i].store(t, std::memory_order_release);
         tickets_.take();
         graves_->recorded();
@@ -4601,7 +4618,7 @@ kHalf8x1, kHalf8x1p, kHalf8x1r2, kHalf8x1s1, kHalf8x1r2s1, kHalf8x1r2s4, kHalf8x
             if (Api::mem_info(&before, &total) != Api::kSuccess) return 0;
             while (made < n && Api::malloc(&p[made], bytes) == Api::kSuccess) ++made;
             const bool read = Api::mem_info(&after, &total) == Api::kSuccess;
-            for (size_t i = 0; i < made; ++i) free_memory<Api>(p[i], false);
+            for (size_t i = 0; i < made; ++i) free_memory<Api>(p[i], false, *graves_->turn);
             return read && made == n && before > after ? (before - after) / n : 0;
         };
         small_unit_ = allocation_unit(4, taken(4, 64));
@@ -5937,11 +5954,15 @@ kHalf8x1, kHalf8x1p, kHalf8x1r2, kHalf8x1s1, kHalf8x1r2s1, kHalf8x1r2s4, kHalf8x
     void hold_write(uint64_t* word, uint64_t value) { hold({Held::write_word, nullptr, 0, 0, 0, 0, "write_word", 0, 0, word, nullptr, value, Api::kAnyCopy}); }
     // The stream waits for the work before the event's last record when this is flushed, on another stream of this device.
     void hold_wait_event(typename Api::Event event) { hold({Held::wait_event, nullptr, 0, 0, 0, 0, "stream_wait_event", 0, 0, (void*)event, nullptr, 0, Api::kAnyCopy}); }
+    // The device's turn to issue, which frees of its memory wait out (device_turn).
+    std::recursive_mutex& turn() { return *graves_->turn; }
+    std::unique_lock<std::recursive_mutex> issuing() { return std::unique_lock<std::recursive_mutex>(turn()); }
     // Issues the held operations in order; one HIP refuses throws naming it, and those after it are dropped with it.
     void flush() {
         materialize();
         push_.reset();
         if (ops_.empty()) return;
+        const auto turn = issuing();
         std::vector<Held> ops;
         std::vector<uint8_t> bytes;
         ops.swap(ops_);

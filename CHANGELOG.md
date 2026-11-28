@@ -53,6 +53,7 @@ Each entry is one short line that links the doc explaining it; reasons, flags an
 
 ### Fixed
 
+- ROCm on an R9700 under Windows no longer gives rare wrong products from buffers made fresh beside a free ([GPU backends](docs/src/backends-gpu.md)).
 - `bench --profile` on ROCm and CUDA no longer books the host's launch time into decode kernels, and says how many ops it timed ([usage](docs/USAGE.md)).
 - Small split Vulkan float-weight products no longer give infinity for a finite sum ([Vulkan](docs/VULKAN.md#kernel-notes)).
 - Small split Vulkan products that add to their output sum their parts before adding it, as unsplit ones do ([Vulkan](docs/VULKAN.md#kernel-notes)).

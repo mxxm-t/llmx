@@ -22,7 +22,7 @@
 - **Goal:** `llmx_gated_delta_rule` (27B Q8_0 tw4 pp512: 32.4 ms of a 420 ms pass, not scaling with width) runs faster with the same bits at every width.
 - **Done:** the call is one block's serial token chain, so it does not fill CUs: 1, 24 and 48 blocks take the same time, and removal arms put 27% in global load waits and 20% in exchanges (DEVICE-TUNING.md, Patterns that worked). The k row is read from LDS once a token and carried in registers, a stage issues all its global reads before using any, and HIP `group_xor` (only `lanes8` uses it) exchanges by DPP: quad moves for xor 1 and 2, two masked row moves for xor 4 and, on the Inkling base, the existing one-move row rotate of `lane_xor_row` for xor 8 (the same lanes, so the same bits). Microbench at the 27B shapes, one MI50, warm, interleaved, bits identical to main: tw4 256 rows 315 to 208 us, 512 617 to 396, 2048 2428 to 1530; tw2 256 360 to 278, 512 703 to 533, 2048 2771 to 2080; tw1 512 1389 to 1023.
 - **In model:** Qwen3.6-27B Q8_0, `--dtype int8`, four MI50s, ROCm, `--ubatch 512`, main b3e1b74c1 against the branch: greedy ids (64 tokens) the same at tw1, tw2 and tw4. The call's time a pass (rocm:0, `bench --profile`) went from 32.4 to 22.7 ms at tw4 pp512, 68.7 to 48.1 at tw4 pp2048, 35.3 to 27.2 at tw2 pp512 and 71.1 to 53.2 at tw1 pp512. Prompt tok/s: tw4 pp512 1207.0 to 1210.8 (+0.3%), pp2048 1119.0 to 1122.3 (+0.3%); tw2 pp512 715.0 to 722.5 (+1.0%), pp2048 668.8 to 674.1 (+0.8%); tw1 pp512 407.1 to 412.7 (+1.4%), pp2048 377.1 to 380.7 (+1.0%). At tw1 and tw2 the saving reaches the wall; at tw4 the matmuls, norms and reduces that run beside the other part's sum grow by about 6 ms a pass, so most of it is lost to that overlap's contention. With `--ubatch 96`, below the cut, so no part runs beside a sum, tw4 pp512 goes from 595.1 to 600.5 (+0.9%) with the call 26.7 to 18.9 ms and the matmuls unchanged.
-- **Left:** the landing gates at the head that lands; the same carry in `llmx_delta_step` and the Vulkan shader; the tw4 overlap contention (ideas.md, GDR2).
+- **Left:** the same carry in `llmx_delta_step` and the Vulkan shader; the tw4 overlap contention (ideas.md, GDR2).
 - **Gotchas:** a `ds_swizzle` exchange waits on lgkmcnt, which also drains the carried LDS reads, so xor 4 by swizzle kept most of the loss; a one-wave-a-SIMD build (`__launch_bounds__(256, 1)`) is about 10% faster again at tw4 but slower at tw1 and tw2, where blocks share SIMDs.
 
 ## ROCm on Windows (2026-11-27, WINROCM1 to WINROCM3, branch win/rocm on main 6adeee63d)
@@ -44,7 +44,7 @@
 - **Goal:** a decode sum's take no longer waits behind its own push on the same blocks, so a one-shot at tensor width 2 ends sooner after its product.
 - **Done:** a one-shot on the member's own stream whose out leaves its partial rows alone, with no pushed rows and no held take, launches twice its blocks where both halves fit a block a multiprocessor (flag 32 of `llmx_group_sum`): the first half pushes, the second takes (docs/src/backends-gpu.md); the bits are the one-shot's.
 - **Measured:** Qwen3.6-27B Q8_0 `--dtype int8` tg128, ROCm, 6 interleaved rounds on renderD132-133 (tw2) and renderD132-135 (tw4): tw2 45.84-45.89 (base c17a410d7) and 45.85-45.88 (S0, the change with the split forced off) to 46.19-46.22 tok/s (+0.7%); tw4 not slower (73.49-74.21 to 73.20-74.17); ids SAME at tw2 and tw4, int8 and f16 (n=128); table in docs/DEVICE-TUNING.md.
-- **Left:** landing gates at the head that lands, after PR 669 (sums83-take), on which it depends.
+- **Left:** nothing for this change; it lands with sums stack 1, whose record gives the gates (Landing stack sums stack 1, below).
 - **Gotchas:** a layout control that adds an unused kernel to the f32 module moved tw2 +0.5% by itself, which S0 does not reproduce; compare against the same code object with the split off.
 
 ## Walking held build with dedicated takers (2026-11-27, SUMS77 to SUMS100, branch sums83-take on main b3e1b74c1)
@@ -52,7 +52,7 @@
 - **Goal:** a decode sum in place at four MI50s launches nothing after its held Q8_0 product, and no member waits on a late peer behind a separate take launch.
 - **Done:** the pushing held build takes the sum too (`llmx_q8_0_half8_1h2w` to `h5w`), its first two blocks only taking (`kWalkTakers`, docs/DEVICE-TUNING.md); `group_take_unit` is forced inline and keeps main's take-loop shape, so the f32 module's sum kernels that tw2 runs compile to main's instructions; `backend-rocm held_push` expects the walking build alone.
 - **Measured:** Qwen3.6-27B Q8_0 `--dtype int8` tg128 on four MI50s (renderD132-135), interleaved, against main 6adeee63: tw2 (12 rounds) 45.917 to 45.832 tok/s (-0.19%) inside the +0.27% layout band of a main-plus-unused-kernels control; tw4 (6 rounds) 72.05-72.68 to 73.07-74.27 (about +2.0%); ids SAME at tw2 and tw4 (n=128); table in docs/DEVICE-TUNING.md.
-- **Left:** landing gates at the head that lands.
+- **Left:** nothing for this change; it lands with sums stack 1, whose record gives the gates (Landing stack sums stack 1, below).
 - **Gotchas:** tw2 runs main's host path (`held_push_members` is 3), so its delta is not the walk; without the inline take-loop shape the f32 sum kernels gain a call with an early return (SGPR 88 to 90) and tw2 read -0.25%.
 
 ## DFly2 drafter (2026-11-27, DFLY2A to DFLY2AB and LANDDF1, branch feat/dfly2 on main 2b77837fe)
@@ -72,6 +72,55 @@
   Timing, Qwen3.6-35B-A3B Q4_K_M on one MI50 with ROCm, main against the branch, 18 interleaved blocks: tg128 -0.17%, pp512 +0.11%, paired median -0.19%, control -0.04%, inside the rule.
   Radeon VII, Qwen3.5-0.8B Q4_K_M f16 and int8 on Vulkan: logits rows 939-954 differ from main by up to about 1e-3 with the same top tokens, each arm stable over two runs; the same command on an MI50, the CPU on Windows and Vulkan f32 on Windows are identical, 0.6B is identical, and every generated Vulkan shader is byte identical for qwen35.
   A control, main plus one unused inline function in `src/model/runtime.hpp`, built on Windows, equals the head and differs from main, so the difference is the Windows build's code layout and not a DFly2 path; the head's HF error was not re-measured since no executed path of qwen35 changed.
+
+## Landing stack sums stack 1 (2026-11-28, LANDSUM1 to LANDSUM3, on main ad781e61b, lands by fast-forward)
+
+**What lands.** Ten commits on main ad781e61b, by fast-forward, in order: docs/sums-skew-host (PR 673, the host ring null result), docs/sums92-overlap-null (the in-product push null result), sums83-take (PR 669), products/sum-split-roles (PR 675), products/sum-norm-gather (PR 674), rocstart1/split-settle (PR 676, its failing test and then the fix), twsuite1/tw2-suite, products/delta-rule-carry (PR 677), and this record.
+The branch blocks give each change and its measurements; this record gives the gates of the head and the fixes folded into it.
+The branches were written on main b3e1b74c1; 669, 674 and 676 conflicted with the Inkling stack and were ported onto 5cfe8cb1c, 674's held-twins test taking Inkling's `silu_mul` signature and 676 gaining a placement check that two devices fitted to free memory keep a prefill batch of 2048 when idle.
+PR 678 does not land here: 669's per-sum epoch in the held launch arguments defeats its run keys at tensor width 4, so it joins a later stack.
+Main then moved to fc276d997 (PR 679, `llmx-backend-rocm-test` on the HIP devices the backend opens); the rebase conflicted in two of 674's lines of tests/backend_rocm.cpp, which take 679's `used[0]` and 674's `kGroupSignalBytes`, so the ROCm build and its CTest on four MI50s were rerun on this head; 679 changes no other input of the gates, which carry from dc1bfcfbd.
+Main then moved to ad781e61b, two docs/DEVICE-TUNING.md commits and a README and CHANGELOG.md update; the rebase kept both sides of one DEVICE-TUNING.md table conflict, and this head's src, tests, cmake, tools and CMakeLists.txt trees are those of the head the ROCm CTest above ran on (d883805ff), so only the docs checks were rerun.
+
+**cuda-sass.** The card-free CUDA CTest failed `cuda-sass` at dc1bfcfbd: `llmx_group_sum_norm8` and `16`, 674's kernels and the first group kernels that take a twin map, kept a 16-byte local object on sm_70, sm_75, sm_100 and sm_120.
+The object is the indexed array of the partial-unit tails of `group_send` and `group_take`, which a striped sum never runs since its units are all whole; `llmx_group_sum` and `llmx_group_take` carry the same 16-byte frame, unchecked as they take no map.
+The fix, folded into 674's commit, passes `LLMX_UNIT_END(i, n)` (port.h) as the length at the striped sum's two sends and two takes: n on HIP, so the gfx906 code of f32.gpu and int16.gpu is dc1bfcfbd's, and i + 4 on CUDA, where the tails fold away.
+ptxas then spills 144 to 156 bytes in the two kernels on sm_70 to sm_90 (24 to 60 on sm_100 and sm_120), inside the listed `llmx_group_` spill family; no CUDA device profile enables the striped sum (`striped_norm_from` is set for the MI50 alone), so no CUDA run reaches them.
+
+**Builds.** The gates ran at dc1bfcfbd on 5cfe8cb1c; this head differs from it in the CUDA fix and the rebase above and this record.
+ROCm gfx906 `llmx 0.2.1+gdc1bfcfbdcd6` numerics 343f73e95b7d4243 (sha256 aa26a3b244ec; on this head numerics 6b4855a8e0e92d71, which hashes the kernel source text) and Vulkan the same version (sha256 87db883a507d), built on pve1; main's arm is 5cfe8cb1c built the same way, `llmx 0.2.1+g5cfe8cb1c6fb` numerics 9f1351a146139b7f (sha256 1678fb88533f).
+
+| Check | Result |
+|---|---|
+| docs, dead-code | pass at dc1bfcfbd and on this head |
+| CTest, CPU build (pve1) | 93/93 |
+| Suite, CPU build (pve1) | all components pass |
+| Identity against main on the CPU (pve1): Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M (auto, f32), Qwen3.6-27B Q8_0 (auto) | 18 same, 0 different |
+| CTest, ROCm build, four MI50s, its `backend-rocm` over all four | 99/99 at dc1bfcfbd; 99/99 on this head (`llmx 0.2.1+g0f1c6fa389d3`, renderD128-131), `backend-rocm` 324 s |
+| Suite on one MI50, `--device rocm:0` | all components pass (46 pass, 7 skip) |
+| Suite on two MI50s, `--device rocm:0,rocm:1 --tensor-width 2` | 31 pass, 20 skip; `deepseek4` and `chat` fail, and fail the same way on main 5cfe8cb1c in one hold on the same pair: the DFly2 generate check meets "the DFly2 drafter does not run on a tensor group yet" (tests/deepseek4.py skips only above width 2), and chat.py's stderr pattern does not admit the "rocm: tensor groups 0+1 take devices" line (ideas.md) |
+| Identity against main on one MI50, ROCm: Qwen3-0.6B (f16, int8, f32), Qwen3.5-0.8B (auto, int8, f32), Qwen3.6-27B int8 | 50 same, 0 different |
+| Identity against main, four MI50s: Qwen3.6-27B Q8_0 at `--tensor-width` 2 and 4 (int8, f16) and Qwen3-0.6B at 2 and 4 (f16, int8) | 24 same, 0 different |
+| Fused sum with the next entry norm (674), ids against main on a 350-token prompt, `--dtype int8`, `--ubatch` 64 and 512 | Qwen3-0.6B tw2 and tw4, Qwen3.5-0.8B tw2: 12 same; Qwen3.6-27B tw4 at `--ubatch 64`, int8 logits and generate and f16 logits: 3 same; Qwen3.5-0.8B Q4_K_M at tw4 is refused by both arms (its Q6_K `ffn_down` blocks do not split four ways) |
+| `bench --profile` launches of `llmx_group_sum_norm*` | 0.6B and 0.8B: rows at tw2 and tw4 at `--ubatch 64`, none at 512 (passes of 128 rows or more stay cut); 27B tw4 at 64, int8 and f16: present; Inkling-2-Mini tw2: none |
+| Inkling-2-Mini Q8_0 int8 at tw2 against main, logits at `--ubatch` 64 and 512 and generate | 3 same |
+| Start over two MI50s (676), Qwen3-0.6B logits of a 3k-character prompt, layer split, tw2 and one MI50 | 3 same; pp2048 at the default batch: layer split 10574.6 against 10599.8 tok/s, tw2 12537.6 against 12486.6, the same slices in both arms |
+| CTest, Vulkan build, one MI50 | 114/114 |
+| CTest, CUDA build, card-free (`cuda-sass`, `gpu-core`, `gpu-port`, `cuda-driver`), pve1 | 3/4 at dc1bfcfbd (`cuda-sass`, above); 4/4 on b8fc6d99, with the fix |
+| gfx906 code of the CUDA fix, against dc1bfcfbd | the preprocessed f32.gpu differs only in four lengths in parentheses, int16.gpu not at all; the `.text` of both gfx906 code objects and their disassembly are byte-identical (sha256 057f3d119afed671 and 2e28b539bc28b1da), so the ROCm gates carry |
+| MSVC build with Vulkan, Windows | builds `llmx 0.2.1+gdc1bfcfbdcd6` with no error (the fix changes no MSVC source) |
+| Hosted | the workflow run of this head, identified by its commit hash |
+
+**Timing.** Qwen3.6-27B Q8_0 `--dtype int8` on four MI50s (renderD132-135), ROCm, main 5cfe8cb1c against dc1bfcfbd, interleaved under the timing lock at the default clocks; no layout control was built for this stack.
+
+| Cell | main | stack | change |
+|---|---|---|---|
+| tg128, tw2 (6 rounds an arm) | 45.723 tok/s | 46.608 tok/s | +1.9% |
+| tg128, tw4 (6 rounds an arm) | 73.575 tok/s | 74.747 tok/s | +1.6% |
+| pp512 `--ubatch 64`, tw4 (3 rounds) | 573.19 / 588.69 / 588.72 | 605.79 / 605.54 / 605.47 | +2.9% on the later rounds |
+| pp512 `--ubatch 64`, tw2 (3 rounds) | 448.48 / 448.55 / 448.55 | 459.21 / 459.21 / 459.22 | +2.4% |
+
+The host load average read 14 to 23 during the tg128 rounds, the same in both arms (out2/g-tm/t2.summary and t4.summary in the gate directory).
 
 ## Landing stack land-20261127-inkling (2026-11-28, LANDINK1 to LANDINK25, on main b3e1b74c1, lands by fast-forward)
 
@@ -870,7 +919,7 @@ Reports: rig `/opt/claude-work/conffix1/arms7a/r-{vd1,vtw2,rd1}/report.json`.
 - **Measured (sums101 i1, ROCm quad renderD132-135, Qwen3.6-27B-Q8_0.gguf, `--dtype int8`, branch at 2218ccf3 vs main b3e1b74c):** greedy ids SAME at tw4 and tw2, int8 and f16 (64 tokens, ubatch 64, long prompt); `--profile` shows `llmx_group_sum_norm8` and `16` at both widths; backend-rocm collective PASS.
   pp512 and tg32 tok/s, two rounds each, branch vs main: tw4 u64 pp 605.09/604.96 vs 592.06/591.82 (+2.2%), u512 1208.32/1208.08 vs 1209.04/1207.29, tg32 73.7-75.2 vs 72.9-74.0; tw2 u64 pp 459.05/459.05 vs 450.30/450.37 (+1.9%), u512 713.81/714.05 vs 714.25/713.86, tg32 46.11-46.19 vs 46.06-46.10.
   The timed binary predates the branch head by comment changes and an unnamed struct only, with no change to generated code.
-- **Left:** the landing gates.
+- **Left:** nothing for this change; it lands with sums stack 1, whose record gives the gates and the CUDA fix folded into it (Landing stack sums stack 1, above).
 - **Gotchas:** `collective` mode of llmx-backend-rocm-test rarely gives up in `sentinel_sums` after 30 s (`kSumTimeoutMs`) on a pair under concurrent quad jobs, on this branch and on its control without the striped kernels alike (interleaved pairs 1 of 76 each, sums94 j3 and j4), with kfd evicted_ms 0 and the host thread in nanosleep or futex waits, so it is not this branch; routed, expert, offset and partial readers miss the sole twin, so a caller lists readers only when every one is a whole plain product.
 
 ## A GPU group sum stops waiting for a card that is gone (2026-11-19, SUMSAFE1, revived 2026-11-23 by REVIVE1 and REVIVE2 as fix/group-sum-deadline on main bfb7f517; lands by fast-forward as two commits, the failing test and then the fix)

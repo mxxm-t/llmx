@@ -15,20 +15,19 @@ Each entry is one short line that links the doc explaining it; reasons, flags an
 - Inkling-2-Mini reads images with `--mmproj` on the CPU, Vulkan and ROCm ([vision](docs/VISION.md#12-inkling-2-inkling2v)).
 - A `rocm10` release image runs llmx on the ROCm 10.2 runtime ([ROCm](docs/ROCM.md)).
 - A DFly2 drafter (`--drafter FILE`) drafts beside DeepSeek-V4.1-Flash, not yet faster than plain decoding ([speculative decoding](docs/SPECULATIVE.md)).
-- A DSpine drafter (`--drafter FILE`) drafts a block of tokens beside a Qwen 3.5-family model ([speculative decoding](docs/SPECULATIVE.md)).
+- A DSpine drafter (`--drafter FILE`) drafts a block beside a Qwen 3.5-family model, on a tensor group too ([speculative decoding](docs/SPECULATIVE.md)).
 - A DFlash2 drafter (`--drafter FILE`) drafts beside a Qwen 3.5-family model on the CPU, ROCm and Vulkan ([speculative decoding](docs/SPECULATIVE.md)).
 - A DFlash drafter (`--drafter FILE`), such as z-lab's for Qwen3.6-35B-A3B, drafts beside a Qwen 3.5-family model ([speculative decoding](docs/SPECULATIVE.md)).
 - The server reads tool calls in the Inkling-2-Mini chat format and streams reasoning apart from the answer ([tool calls](docs/SERVER.md#tool-calls)).
-- MiniMax-M3.1 runs on the CPU, and whole on ROCm and Vulkan devices, its sigmoid router included ([MiniMax](docs/MINIMAX.md)).
+- MiniMax-M3.1-Flash runs on the CPU, with Vulkan and ROCm in development ([MiniMax](docs/MINIMAX.md)).
 - `--expert-cache SIZE` keeps hot CPU-held MoE experts on the device ([usage](docs/USAGE.md#expert-offload---n-cpu-moe-n---cpu-moe)).
 
 ### Changed
 
-- ROCm tensor groups on MI50 sum prompt-sized parts up to a quarter faster by reading their peers' rows ([GPU backends](docs/src/backends-gpu.md)).
+- ROCm tensor groups on MI50 sum prompt-sized parts faster ([GPU backends](docs/src/backends-gpu.md)).
 - A tensor width that does not divide a model's vocabulary splits the head's rows unevenly instead of refusing ([TENSOR-SPLIT](docs/TENSOR-SPLIT.md)).
 - Greedy server requests, `ignore_eos` ones too, take their tokens from the device's argmax ([server](docs/SERVER.md#device-argmax)).
 - Greedy `generate` and a server on a tensor group queue the next decode step before reading the last one ([generate](docs/src/inference-generate.md)).
-- Greedy `ignore_eos` requests whose top token is the end token no longer read their logits back from the device ([server](docs/SERVER.md#device-argmax)).
 - Experts on the CPU decode in the three-dispatch MoE step whatever their weight types ([CPU backend](docs/src/backends-cpu.md)).
 - A server round mixing a prompt with decoding spends no attention launches on the prompt's rows on CUDA and ROCm ([GPU backends](docs/src/backends-gpu.md)).
 - A server on one device queues the next greedy decode step on the device before the host reads the last one ([server](docs/SERVER.md#fed-decode)).
@@ -47,34 +46,31 @@ Each entry is one short line that links the doc explaining it; reasons, flags an
 - Q8_0 int8 decode of 9 or 10 sequences at once is faster on ROCm ([ROCm](docs/ROCM.md)).
 - Qwen3.6-35B-A3B and other MoE files with K-quant downs decode faster on an MI50 with ROCm ([kernel notes](docs/src/backends-gpu.md)).
 - `--verbose` placement lines call their weights figure an estimate of device memory, given per member for a tensor group ([usage](docs/USAGE.md)).
-- A DSpine drafter also drafts beside a model split as a tensor group (`--tensor-width`) ([speculative decoding](docs/SPECULATIVE.md)).
-- A DSpine drafter asked for fewer drafts runs a shorter block, so a small `--draft-max` decodes faster ([speculative decoding](docs/SPECULATIVE.md)).
-- A DSpine drafter's candidate picks over the vocabulary run several times faster on an MI50 ([ROCm tuning](docs/DEVICE-TUNING.md)).
+- `logits --verbose` and the `experts:` placement line show `--per-token`, `--cpu-moe` and `--moe-stream-from` at work ([usage](docs/USAGE.md#llmx-logits)).
+- `serve` reports its cache types, threads and load mode at start and in `/v1/health` ([usage](docs/USAGE.md#llmx-serve)).
 
 ### Fixed
 
 - `bench --profile` on ROCm and CUDA no longer books the host's launch time into decode kernels, and says how many ops it timed ([usage](docs/USAGE.md)).
-- Small split Vulkan float-weight products no longer give infinity for a finite sum ([Vulkan](docs/VULKAN.md#kernel-notes)).
-- Small split Vulkan products that add to their output sum their parts before adding it, as unsplit ones do ([Vulkan](docs/VULKAN.md#kernel-notes)).
+- Small split Vulkan float-weight products no longer overflow to infinity, and add to their output as unsplit ones do ([Vulkan](docs/VULKAN.md#kernel-notes)).
 - GPU tensor groups no longer stall for 30 s and give up a sum when device memory is freed during lane sums ([GPU backends](docs/src/backends-gpu.md)).
 - A GPU tensor group keeps each device at four hardware queues however many sum collectives are open ([GPU backends](docs/src/backends-gpu.md)).
 - `serve` with an automatic KV budget no longer runs a nearly empty GPU out of memory after loading ([placement](docs/src/model-place.md)).
 - `--yarn` now reaches a DFlash or DSpine drafter's rope, as it reaches the target ([usage](docs/USAGE.md)).
 - `--lookup-storage` without lookup tables and `--cpu-moe` or `--n-cpu-moe` with the CPU alone are refused, not ignored ([usage](docs/USAGE.md)).
-- `logits --verbose` and the `experts:` placement line show `--per-token`, `--cpu-moe` and `--moe-stream-from` at work ([usage](docs/USAGE.md#llmx-logits)).
 - `serve` refuses disk cache flags without `--disk-cache-bytes` and `--state-checkpoints` without recurrent layers ([usage](docs/USAGE.md#llmx-serve)).
-- `serve` reports its cache types, threads and load mode at start and in `/v1/health` ([usage](docs/USAGE.md#llmx-serve)).
 - MiniMax-M3.1 GGUF files load as published: llmx reads their `minimax-m2` tokenizer ([tokenizer](docs/src/tokenizer-tokenizer.md)).
 - The automatic KV budget on Vulkan no longer asks for one buffer past the driver's largest allocation ([usage](docs/USAGE.md)).
 - DeepSeek-V4.1 on a tensor group of two or more devices gives the right logits on prompts of 128 tokens or more ([tensor split](docs/TENSOR-SPLIT.md)).
+- GELU on Vulkan, ROCm and CUDA keeps its precision for negative inputs, as image encoders need ([GPU backends](docs/src/backends-gpu.md)).
 - `--mmproj` no longer runs a card out of memory: the fit leaves room for the vision encoder before the KV ([vision](docs/VISION.md)).
 - Qwen3.8-Flash-Next's MTP drafts after an image use the image's positions, as the model's layers do ([vision](docs/VISION.md)).
 - A tensor group no longer hangs when one of its cards fails; its sums give up after 30 seconds ([tensor split](docs/TENSOR-SPLIT.md)).
 - A load that keeps `--moe-stream-from` or `--expert-cache` layers on the host says why in one line ([usage](docs/USAGE.md)).
 - Vulkan prompt products over float weights sum in 256-input blocks, so long F32 rows stay near float32 rounding ([Vulkan](docs/VULKAN.md#kernel-notes)).
-- Vulkan prompts over F16 weights run up to 16 times faster and no longer lose the device on long calls ([Vulkan](docs/VULKAN.md#kernel-notes)).
+- Vulkan prompts over F16 weights run faster and no longer lose the device on long calls ([Vulkan](docs/VULKAN.md#kernel-notes)).
 - MiniMax-M3 files whose indexer block size is not a power of two are refused at load, not mid-pass ([MiniMax](docs/MINIMAX.md)).
-- Image encoders on the CPU and Vulkan sum attention by blocks, so a 1080p image meets its HF bound ([precision](docs/PRECISION.md#attention-value-sums)).
+- Attention on the CPU and Vulkan sums its values by blocks, so a 1080p image meets its HF bound ([precision](docs/PRECISION.md#attention-value-sums)).
 - `--verbose`'s kv line counts every card of a tensor group and names recurrent state bytes ([usage](docs/USAGE.md)).
 - `--draft-max` without `--drafter` is refused instead of ignored ([speculative decoding](docs/SPECULATIVE.md)).
 - `--threads` and `--threads-batch` on a placement with nothing on the CPU now say they change nothing ([usage](docs/USAGE.md)).

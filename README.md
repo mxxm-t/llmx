@@ -47,11 +47,12 @@ Without curl 8.4, download a GGUF file yourself and pass its path.
 | `qwen35moe` | Qwen3.6-35B-A3B | Supported | Supported | Supported | Supported |
 | `qwen4exp` ([details](docs/QWEN38-FLASH.md)) | Qwen3.8-Flash-Next | In development | Supported | Supported | Supported |
 | `deepseek41` ([details](docs/DEEPSEEK4.md)) | DeepSeek-V4.1-Flash-1017 | In development | Supported | Supported | Supported |
-| `inkling2_loop` ([details](docs/INKLING2.md)) | Inkling-2-Mini | Supported | In development | In development | In development |
+| `inkling2_loop` ([details](docs/INKLING2.md)) | Inkling-2-Mini | Supported | Supported | Supported | Untested |
 | Hy4, GLM-5.3 | | Planned | Planned | Planned | Planned |
 
 - `llmx serve` reuses the shared beginning of follow-up turns on every architecture.
-- Image input (`--mmproj`) works with `qwen35`, `qwen35moe` and `qwen4exp` on the CPU, Vulkan and ROCm, with Inkling-2-Mini on the CPU, and with DeepSeek-V4.1-Flash's `-vl` files on Vulkan and ROCm ([VISION](docs/VISION.md)).
+- `llmx serve` loads Inkling-2-Mini and reads its chat format and tool calls, but no run of the model under the server has been checked yet.
+- Image input (`--mmproj`) works with `qwen35`, `qwen35moe` and `qwen4exp` on the CPU, Vulkan and ROCm, with Inkling-2-Mini on the CPU, Vulkan and ROCm, and with DeepSeek-V4.1-Flash's `-vl` files on Vulkan and ROCm ([VISION](docs/VISION.md)).
 - On ROCm a model runs when every weight format it holds is in the ROCm column below.
 
 ## How fast is it
@@ -200,7 +201,7 @@ A device without the asked form runs the next wider one and says so ([PRECISION]
 |---|---|---|---|
 | CPU | x86-64 with AVX2, FMA and F16C | Windows, Linux, Intel macOS | Supported |
 | Vulkan | AMD and NVIDIA GPUs with Vulkan 1.2 | Windows, Linux | Supported ([VULKAN](docs/VULKAN.md)) |
-| ROCm | AMD GPUs from MI50 (gfx906) on; only gfx906 (MI50, Radeon VII) has run the kernels | Linux | Supported ([ROCM](docs/ROCM.md)) |
+| ROCm | AMD GPUs from MI50 (gfx906) on; checked on gfx906 (MI50) on Linux, and the Windows build has run on a Radeon VII and an R9700 (gfx1201) | Linux; Windows, experimental | Supported on Linux ([ROCM](docs/ROCM.md)) |
 | CUDA | NVIDIA GPUs | Linux | In development: `qwen3`, `qwen3moe`, `qwen35`, `qwen35moe` and `deepseek41` with `f32`, `f16` and `int8` on one device, layer splits and tensor groups tried once on a GPU pair ([CUDA](docs/CUDA.md)) |
 | SYCL | Intel GPUs | | Planned |
 

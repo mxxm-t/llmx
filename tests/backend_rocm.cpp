@@ -1046,6 +1046,103 @@ void biased_edges(Backend& g) {
     }
 }
 
+// DIAG (dev only, not for landing): repeat the two gfx1201 faults and print what differs.
+void diag_faults(Backend& g, int reps) {
+    {
+        DeviceProfile& profile = rocm_profile(g);
+        const size_t keep = profile.exact_cols_upto, nin = 10240, nout = 13;
+        profile.exact_cols_upto = 4;
+        const std::vector<float> v = row_classes::values(nin * nout, uint32_t(nout + 3));
+        const std::vector<float> x = row_classes::values(nin * 33, uint32_t(nout + 11)), y0 = row_classes::values(nout * 33, uint32_t(nout + 17));
+        auto wb = g.adopt(v.data(), v.size() * 4), xb = g.adopt(x.data(), x.size() * 4), yb = g.alloc(nout * 33 * 4), y1 = g.alloc(nout * 4);
+        for (int synced = 0; synced < 2; ++synced)
+            for (int add = 0; add < 2; ++add)
+                for (size_t n : {size_t(2), size_t(3)}) {
+                    std::vector<float> ref[33];
+                    for (size_t r = 0; r < n; ++r) {
+                        g.write(*y1, 0, y0.data() + r * nout, nout * 4);
+                        if (synced) g.sync();
+                        if (add) g.matmul_add({quant::GGML_TYPE_F32, {wb.get(), 0}}, {xb.get(), r * nin}, {y1.get(), 0}, nin, nout, 1, {}, Dtype::f32);
+                        else g.matmul({quant::GGML_TYPE_F32, {wb.get(), 0}}, {xb.get(), r * nin}, {y1.get(), 0}, nin, nout, 1, {}, Dtype::f32);
+                        ref[r] = read(g, *y1, nout);
+                    }
+                    size_t bad_many = 0, bad_alone = 0, past = 0;
+                    std::string first;
+                    for (int it = 0; it < reps; ++it) {
+                        g.write(*yb, 0, y0.data(), y0.size() * 4);
+                        if (synced) g.sync();
+                        if (add) g.matmul_add({quant::GGML_TYPE_F32, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, n, {}, Dtype::f32);
+                        else g.matmul({quant::GGML_TYPE_F32, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, n, {}, Dtype::f32);
+                        const std::vector<float> all = read(g, *yb, nout * 33);
+                        if (std::memcmp(all.data() + n * nout, y0.data() + n * nout, (33 - n) * nout * 4)) ++past;
+                        bool bm = false;
+                        for (size_t r = 0; r < n; ++r)
+                            for (size_t o = 0; o < nout; ++o)
+                                if (std::memcmp(&all[r * nout + o], &ref[r][o], 4)) {
+                                    if (first.empty()) first = "it " + std::to_string(it) + " r " + std::to_string(r) + " o " + std::to_string(o) + " got " + std::to_string(all[r * nout + o]) + " ref " + std::to_string(ref[r][o]) + " y0 " + std::to_string(y0[r * nout + o]);
+                                    bm = true;
+                                }
+                        bad_many += bm;
+                        const size_t r = size_t(it) % n;
+                        g.write(*y1, 0, y0.data() + r * nout, nout * 4);
+                        if (synced) g.sync();
+                        if (add) g.matmul_add({quant::GGML_TYPE_F32, {wb.get(), 0}}, {xb.get(), r * nin}, {y1.get(), 0}, nin, nout, 1, {}, Dtype::f32);
+                        else g.matmul({quant::GGML_TYPE_F32, {wb.get(), 0}}, {xb.get(), r * nin}, {y1.get(), 0}, nin, nout, 1, {}, Dtype::f32);
+                        if (std::memcmp(read(g, *y1, nout).data(), ref[r].data(), nout * 4)) ++bad_alone;
+                    }
+                    std::cout << "DIAG f32 10240->13 n " << n << (add ? " added" : " plain") << (synced ? " synced" : "") << ": " << reps << " reps, many differ " << bad_many << ", alone differ " << bad_alone
+                              << ", past written " << past << (first.empty() ? "" : ", first " + first) << "\n";
+                }
+        profile.exact_cols_upto = keep;
+    }
+    for (uint32_t type : {quant::GGML_TYPE_IQ2_XXS, quant::GGML_TYPE_IQ3_S, quant::GGML_TYPE_IQ3_XXS}) {
+        const quant::StorageType& st = *quant::storage_type(type);
+        const size_t nin = 512, nout = 64, rows = 64, blocks = nin / st.block_size;
+        std::vector<uint8_t> w = typed_matrix(type, nin, nout, uint32_t(type * 13 + 5));
+        const std::vector<float> x = row_classes::values(nin * rows, 17);
+        auto xb = g.adopt(x.data(), x.size() * 4), yb = g.alloc(nout * rows * 4);
+        const RowRun rr{rows, rows};
+        const auto run = [&]() {
+            auto wb = g.adopt(w.data(), w.size());
+            g.matmul({type, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, rows, {&rr, 1}, Dtype::int8);
+            return read(g, *yb, nout * rows);
+        };
+        const std::vector<float> base = run(), base2 = run();
+        size_t nd = 0;
+        for (size_t i = 0; i < base.size(); ++i) nd += std::memcmp(&base[i], &base2[i], 4) != 0;
+        const size_t at = (5 * blocks + 1) * st.type_size;
+        w[at] = 0x00, w[at + 1] = 0x7c;
+        const std::vector<float> got = run(), got2 = run();
+        size_t ng = 0;
+        for (size_t i = 0; i < got.size(); ++i) ng += std::memcmp(&got[i], &got2[i], 4) != 0;
+        std::cout << "DIAG " << st.name << ": base runs differ at " << nd << ", inf runs differ at " << ng << "\n";
+        std::map<size_t, size_t> per_o, per_r4;
+        size_t nan5 = 0, shown = 0;
+        for (size_t r = 0; r < rows; ++r)
+            for (size_t o = 0; o < nout; ++o) {
+                const size_t i = r * nout + o;
+                if (o == 5) {
+                    nan5 += std::isnan(got[i]);
+                    if (shown < 6 && !std::isnan(got[i])) {
+                        std::cout << "DIAG   o5 r " << r << " got " << got[i] << " base " << base[i] << "\n";
+                        ++shown;
+                    }
+                } else if (std::memcmp(&got[i], &base[i], 4)) {
+                    ++per_o[o], ++per_r4[r % 4];
+                    if (shown < 14) {
+                        std::cout << "DIAG   r " << r << " o " << o << " got " << got[i] << " base " << base[i] << "\n";
+                        ++shown;
+                    }
+                }
+            }
+        std::cout << "DIAG " << st.name << ": NaN at output 5 in " << nan5 << " of " << rows << " rows; outputs changed:";
+        for (const auto& [o, k] : per_o) std::cout << " " << o << ":" << k;
+        std::cout << "; by row mod 4:";
+        for (const auto& [r, k] : per_r4) std::cout << " " << r << ":" << k;
+        std::cout << "\n";
+    }
+}
+
 // Printed, never asserted: the exact products at Qwen3.8-Flash-Next's F32 and BF16 shapes and Qwen3's F16 ones over 1 to 293 rows, and the F16 half tile over 293 and 512, in wall time a call.
 void exact_rates(Backend& g) {
     struct Shape { const char* name; uint32_t type; size_t nin, nout; };
@@ -5403,6 +5500,10 @@ int main(int argc, char** argv) {
             twin_checks::delta_step_bits(*g, rocm_device(used[0]).caps, rocm_take_launches, require);
             std::cout << (failures ? "backend-rocm delta: FAIL\n" : "backend-rocm delta: PASS\n");
             return failures ? 1 : 0;
+        }
+        if (argc > 1 && std::string(argv[1]) == "diag") {
+            diag_faults(*g, argc > 2 ? std::atoi(argv[2]) : 2000);
+            return 0;
         }
         // `types` runs only the weight types' check, the focused test of their kernels.
         if (argc > 1 && std::string(argv[1]) == "types") {

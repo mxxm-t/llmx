@@ -1143,6 +1143,86 @@ void diag_faults(Backend& g, int reps) {
     }
 }
 
+// DIAG dev only: the test's pattern (fresh adopts each rep) many times, and on a mismatch which stage was wrong.
+void diag2(Backend& g, int reps) {
+    size_t cls[6] = {};   // 0 ok, 1 re-read fixes, 2 weights read back wrong, 3 rerun fixes, 4 rerun same wrong, 5 rerun other wrong
+    const auto classify = [&](const std::vector<float>& want, const Buffer& wbuf, const std::vector<uint8_t>& w, const std::function<std::vector<float>()>& rerun, const Buffer& y, size_t ny, const char* what, int it) {
+        g.sync();
+        const std::vector<float> again = read(g, y, ny);
+        size_t nd = 0, first = ny;
+        for (size_t i = 0; i < ny; ++i)
+            if (std::memcmp(&again[i], &want[i], 4)) { ++nd; if (first == ny) first = i; }
+        int c;
+        std::vector<uint8_t> wd(w.size());
+        g.read(wbuf, 0, wd.data(), wd.size());
+        if (!nd) c = 1;
+        else if (std::memcmp(wd.data(), w.data(), w.size())) c = 2;
+        else {
+            const std::vector<float> r = rerun();
+            c = std::memcmp(r.data(), want.data(), ny * 4) == 0 ? 3 : std::memcmp(r.data(), again.data(), ny * 4) == 0 ? 4 : 5;
+        }
+        ++cls[c];
+        if (cls[c] <= 3) std::cout << "DIAG2 " << what << " it " << it << " class " << c << " differ " << nd << " first " << first << "\n";
+    };
+    for (uint32_t type : {quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_IQ2_XXS, quant::GGML_TYPE_IQ3_S, quant::GGML_TYPE_Q1_0}) {
+        const quant::StorageType& st = *quant::storage_type(type);
+        const size_t nin = 512, nout = 64, rows = 64, blocks = nin / st.block_size;
+        std::vector<uint8_t> w = typed_matrix(type, nin, nout, uint32_t(type * 13 + 5)), wi = w;
+        const size_t at = (5 * blocks + 1) * st.type_size;
+        wi[at] = 0x00, wi[at + 1] = 0x7c;
+        const std::vector<float> x = row_classes::values(nin * rows, 17);
+        const RowRun rr{rows, rows};
+        std::vector<float> want;
+        for (int it = 0; it < reps; ++it) {
+            const std::vector<uint8_t>& wu = it % 2 ? wi : w;
+            auto xb = g.adopt(x.data(), x.size() * 4), yb = g.alloc(nout * rows * 4);
+            auto wb = g.adopt(wu.data(), wu.size());
+            const auto run = [&]() {
+                g.matmul({type, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, rows, {&rr, 1}, Dtype::int8);
+                return read(g, *yb, nout * rows);
+            };
+            const std::vector<float> got = run();
+            if (it == 0) want = got;
+            bool ok = true;
+            for (size_t r = 0; r < rows; ++r)
+                for (size_t o = 0; o < nout; ++o) {
+                    const size_t i = r * nout + o;
+                    ok = ok && (o == 5 && it % 2 ? std::isnan(got[i]) : std::memcmp(&got[i], &want[i], 4) == 0);
+                }
+            if (ok) { ++cls[0]; continue; }
+            std::vector<float> expect = want;
+            if (it % 2) for (size_t r = 0; r < rows; ++r) expect[r * nout + 5] = got[r * nout + 5];
+            classify(expect, *wb, wu, run, *yb, nout * rows, st.name, it);
+        }
+    }
+    {
+        const size_t nin = 10240, nout = 13, n = 2;
+        DeviceProfile& profile = rocm_profile(g);
+        profile.exact_cols_upto = 4;
+        const std::vector<float> v = row_classes::values(nin * nout, uint32_t(nout + 3));
+        std::vector<uint8_t> w(v.size() * 4);
+        std::memcpy(w.data(), v.data(), w.size());
+        const std::vector<float> x = row_classes::values(nin * 33, uint32_t(nout + 11)), y0 = row_classes::values(nout * 33, uint32_t(nout + 17));
+        std::vector<float> want;
+        for (int it = 0; it < reps; ++it) {
+            auto wb = g.adopt(w.data(), w.size()), xb = g.adopt(x.data(), x.size() * 4), yb = g.alloc(nout * 33 * 4);
+            g.write(*yb, 0, y0.data(), y0.size() * 4);
+            g.matmul({quant::GGML_TYPE_F32, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, n, {}, Dtype::f32);
+            (void)read(g, *yb, nout * 33);
+            const auto run = [&]() {
+                g.write(*yb, 0, y0.data(), y0.size() * 4);
+                g.matmul_add({quant::GGML_TYPE_F32, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, n, {}, Dtype::f32);
+                return read(g, *yb, nout * 33);
+            };
+            const std::vector<float> got = run();
+            if (it == 0) want = got;
+            if (std::memcmp(got.data(), want.data(), got.size() * 4) == 0) { ++cls[0]; continue; }
+            classify(want, *wb, w, run, *yb, nout * 33, "f32 added", it);
+        }
+    }
+    std::cout << "DIAG2 arm " << backend::diag_arm << " reps " << reps << ": ok " << cls[0] << ", re-read fixes " << cls[1] << ", weights wrong " << cls[2] << ", rerun fixes " << cls[3] << ", rerun same " << cls[4] << ", rerun other " << cls[5] << "\n";
+}
+
 // Printed, never asserted: the exact products at Qwen3.8-Flash-Next's F32 and BF16 shapes and Qwen3's F16 ones over 1 to 293 rows, and the F16 half tile over 293 and 512, in wall time a call.
 void exact_rates(Backend& g) {
     struct Shape { const char* name; uint32_t type; size_t nin, nout; };
@@ -5281,6 +5361,8 @@ void set_env(const char* name, const char* value) {
 }
 
 int main(int argc, char** argv) {
+    // DIAG dev only: `diag2 ARM REPS` and `types ARM` pick a backend arm before any backend opens.
+    if (argc > 2 && (std::string(argv[1]) == "diag2" || std::string(argv[1]) == "types")) backend::diag_arm = std::atoi(argv[2]);
     // `sixteen` runs groups of up to 16 ranks on one device, which with the backend's own stream need more hardware queues than HIP's default of 4; a real group runs one rank per device and needs none.
     const bool sixteen = argc > 1 && std::string(argv[1]) == "sixteen";
     if (sixteen) set_env("GPU_MAX_HW_QUEUES", "32");
@@ -5500,6 +5582,10 @@ int main(int argc, char** argv) {
             twin_checks::delta_step_bits(*g, rocm_device(used[0]).caps, rocm_take_launches, require);
             std::cout << (failures ? "backend-rocm delta: FAIL\n" : "backend-rocm delta: PASS\n");
             return failures ? 1 : 0;
+        }
+        if (argc > 1 && std::string(argv[1]) == "diag2") {
+            diag2(*g, argc > 3 ? std::atoi(argv[3]) : 500);
+            return 0;
         }
         if (argc > 1 && std::string(argv[1]) == "diag") {
             diag_faults(*g, argc > 2 ? std::atoi(argv[2]) : 2000);

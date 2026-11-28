@@ -33,6 +33,7 @@
 #endif
 
 namespace backend {
+inline int diag_arm = 0;   // DIAG dev only: 1 leak graves, 2 settle in record, 3 stream sync in read, 4 coherent stage, 5 sync after write
 namespace {
 
 constexpr unsigned kThreads = 256;         // the kernels' block size (kernels/f32.gpu)
@@ -223,7 +224,7 @@ struct Graves {
             const typename Api::Stream s = stream;
             lock.unlock();
             if (s) sync_stream<Api>(s);
-            for (const auto& r : ready) free_memory<Api>(r.first, r.second);
+            if (diag_arm != 1) for (const auto& r : ready) free_memory<Api>(r.first, r.second);
             lock.lock();
             freeing = 0;
             wake.notify_all();
@@ -384,7 +385,7 @@ public:
         }
         for (size_t s = 0; s < kRingSlots; ++s) {
             args_.slots[s] = std::make_shared<GpuBuffer<Api>>(kArgBytes, true, graves_);
-            stage_.slots[s] = std::make_shared<GpuBuffer<Api>>(kStageBytes, true, graves_);
+            stage_.slots[s] = std::make_shared<GpuBuffer<Api>>(kStageBytes, true, graves_, diag_arm == 4);
             pass_.slots[s] = std::make_shared<GpuBuffer<Api>>(kArgBytes, false, graves_);
         }
         if (timing_) {
@@ -576,6 +577,7 @@ public:
         slot_ticket_[i].store(t, std::memory_order_release);
         tickets_.take();
         graves_->recorded();
+        if (diag_arm == 2) graves_->settle();
         opened_ = started_ = asked_ = waited_ = false;
         for (Ring* r : {&args_, &stage_, &pass_}) r->tag(t);
         return t;
@@ -687,6 +689,7 @@ public:
             void* st = stage_.take(*this, n);
             hold_copy(st, (const uint8_t*)src.data() + off + done, n, Api::kToHost, "readback");
             wait(submit());
+            if (diag_arm == 3) sync_stream<Api>(stream_);
             raise_failed();
             ExpertRing::raise(ring_, *this, Api::prefix);
             std::memcpy((uint8_t*)dst + done, st, n);
@@ -710,6 +713,7 @@ public:
             }
             done += n;
         }
+        if (diag_arm == 5) sync();
     }
     void copy(Buffer& dst_b, size_t dst_off, const Buffer& src_b, size_t src_off, size_t bytes) override {
         const GpuBuffer<Api>& dst = as_gpu<Api>(dst_b);

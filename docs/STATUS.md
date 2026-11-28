@@ -28,6 +28,12 @@
 - **R9700 timing (WINROCM5):** `bench --p 512 --n 128 --r 3`, 3 interleaved rounds, the ROCm artifact on `rocm:1` against a local MSVC Vulkan build of the same source (`0.2.1+g204be4acb61f`) on `vulkan:0`, shared box, no activity monitor: Qwen3-0.6B Q8_0 ROCm pp512 10477-10702, tg128 464-487 tok/s, Vulkan 12104-12348 and 555-574; Qwen3-8B Q8_0 ROCm 856-864 and 67.8-68.0, Vulkan 1042-1046 and 71.7-71.8. `rocm:0` refuses as the gfx1036 with no kernels.
 - **Gotchas:** code objects of version 5 or 6 fail `hipModuleLoadData` with 303 on the HIP 5.7 runtime; TheRock keeps the device libraries under `lib/llvm/amdgcn/bitcode`, which `--rocm-path` does not search; MSVC has no inline assembly, so the embed object is assembled by clang.
 
+## The cli component under a tensor width (2026-11-28, TWSUITE1, branch twsuite1/tw2-suite on main b3e1b74c1)
+- **Goal:** the suite's `cli` component passes under `--tensor-width 2` on a device list.
+- **Done:** `check_threads_note` runs its `generate` with `--tensor-width 1` when the configured width is above 1, since the note does not depend on how a device list is split and the tiny F32 model's 257 vocabulary rows divide into no tensor group (docs/TESTS.md, Suite components); on rocm:0,rocm:1 at width 2 the component failed before and passes after.
+- **Left:** nothing for this change; it lands with sums stack 1, whose record gives the gates.
+- **Gotchas:** the raw-block components that timed out at width 2 were slow, not hung: each fixture is 54 launches, and each launch waited the five-second placement settle, which rocstart1/split-settle removes.
+
 ## Split one-shot roles (2026-11-28, SUMS99 to SUMS104, branch products/sum-split-roles on sums83-take c17a410d7, PR 669)
 - **Goal:** a decode sum's take no longer waits behind its own push on the same blocks, so a one-shot at tensor width 2 ends sooner after its product.
 - **Done:** a one-shot on the member's own stream whose out leaves its partial rows alone, with no pushed rows and no held take, launches twice its blocks where both halves fit a block a multiprocessor (flag 32 of `llmx_group_sum`): the first half pushes, the second takes (docs/src/backends-gpu.md); the bits are the one-shot's.

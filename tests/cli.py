@@ -63,7 +63,9 @@ def check_threads_note(directory, model):
         for command in (["generate", model, "a", "-n", "1"], ["bench", "--size", "32", "--iters", "1", "--p", "1", "--n", "1"]):
             if command[0] == "bench" and flags[:1] == ["-tb"]:
                 continue
-            p = common.run_process(command + flags, text=True, timeout=120)
+            # The note does not depend on how a device list is split, and this model's 257 vocabulary rows do not divide into a tensor group.
+            layer_split = ["--tensor-width", "1"] if command[0] == "generate" and common.tensor_width() > 1 else []
+            p = common.run_process(command + flags + layer_split, text=True, timeout=120)
             assert p.returncode == 0 and (THREADS_NOTE in p.stderr) == noted, (command, flags, configured, p.returncode, p.stderr)
             assert p.stderr.count(THREADS_NOTE) <= 1, (command, flags, p.stderr)
     p = common.run_process(["generate", model, "a", "-n", "1", "--device", "cpu", "--threads", "2"], text=True, timeout=120)

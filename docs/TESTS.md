@@ -1402,6 +1402,7 @@ Readers of an earlier layer's pooled rows (`LayerPlan::entry_source`) over one, 
   A Vulkan or ROCm device is refused with an error and nothing on stdout, never run on the CPU instead, through a model command and through the synthetic bench.
   A build without that backend refuses it, and so does a build with it that cannot open it; where device 0 opens, an index no machine has stands in for the missing device.
   A positive `--threads` or `-tb` where the configured device is not the CPU is noted once on stderr by `generate` and the synthetic bench, and the CPU, a MoE model's experts kept on the CPU beside that device (`--cpu-moe`) and counts left automatic run without the note.
+  Under a tensor width above 1 its `generate` runs split by layer (`--tensor-width 1`), since the note does not depend on how a device list is split and the tiny F32 model's 257 vocabulary rows divide into no tensor group.
   `info` on the synthetic MoE model names its architecture and layer count, and lists every tensor written with its type, shape and size.
   A model that declares no cache format refuses `native` on either side by that side's flag as it loads.
   `generate --verbose` on the synthetic model with a context of 1024 backs one CPU block of KV for a one-token prompt and `-n 1` and two for `-n 200`, its prompt and reply in whole blocks rather than the context.
